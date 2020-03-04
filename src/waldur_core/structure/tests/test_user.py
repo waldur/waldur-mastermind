@@ -1,36 +1,41 @@
-from unittest import mock
 import unittest
+from unittest import mock
 
 from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
-from rest_framework import status
-from rest_framework import test
+from rest_framework import status, test
 
-from waldur_core.core.models import User
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.serializers import PasswordSerializer
 from waldur_core.structure.tests import factories
 
-from . import fixtures
 from .. import tasks
+from . import fixtures
 
 
 class UserPermissionApiTest(test.APITransactionTestCase):
     def setUp(self):
         self.users = {
-            'staff': factories.UserFactory(is_staff=True, agreement_date=timezone.now()),
+            'staff': factories.UserFactory(
+                is_staff=True, agreement_date=timezone.now()
+            ),
             'owner': factories.UserFactory(agreement_date=timezone.now()),
             'not_owner': factories.UserFactory(agreement_date=timezone.now()),
             'other': factories.UserFactory(agreement_date=timezone.now()),
         }
-        self.customer_permission = factories.CustomerPermissionFactory(user=self.users['owner'])
+        self.customer_permission = factories.CustomerPermissionFactory(
+            user=self.users['owner']
+        )
         self.customer = self.customer_permission.customer
-        factories.CustomerPermissionFactory(customer=self.customer,
-                                            user=self.users['not_owner'],
-                                            role=CustomerRole.SUPPORT)
+        factories.CustomerPermissionFactory(
+            customer=self.customer,
+            user=self.users['not_owner'],
+            role=CustomerRole.SUPPORT,
+        )
 
     # List filtration tests
     def test_anonymous_user_cannot_list_accounts(self):
@@ -85,7 +90,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
     def test_owner_cannot_see_token_and_its_lifetime_of_the_not_owner(self):
         self.client.force_authenticate(self.users['owner'])
 
-        response = self.client.get(factories.UserFactory.get_url(self.users['not_owner']))
+        response = self.client.get(
+            factories.UserFactory.get_url(self.users['not_owner'])
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn('token', response.data)
         self.assertNotIn('token_lifetime', response.data)
@@ -99,7 +106,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
     def test_user_can_see_his_token_via_current_filter(self):
         self.client.force_authenticate(self.users['owner'])
 
-        response = self.client.get(factories.UserFactory.get_list_url(), {'current': True})
+        response = self.client.get(
+            factories.UserFactory.get_list_url(), {'current': True}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(1, len(response.data))
         self.assertIsNotNone('token', response.data[0])
@@ -141,7 +150,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         created_user = User.objects.get(username=data['username'])
-        self.assertIsNone(created_user.civil_number, "User's civil_number should be unset")
+        self.assertIsNone(
+            created_user.civil_number, "User's civil_number should be unset"
+        )
 
     # Manipulation tests
     def test_user_can_change_his_account_email(self):
@@ -193,8 +204,11 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         self.client.put(factories.UserFactory.get_url(user), data)
 
         reread_user = User.objects.get(username=data['username'])
-        self.assertEqual(reread_user.civil_number, user.civil_number,
-                         "User's civil_number should be left intact")
+        self.assertEqual(
+            reread_user.civil_number,
+            user.civil_number,
+            "User's civil_number should be left intact",
+        )
 
     def test_user_can_change_his_token_lifetime(self):
         data = {
@@ -210,13 +224,17 @@ class UserPermissionApiTest(test.APITransactionTestCase):
             'token_lifetime': 100,
         }
 
-        self._ensure_user_cannot_change_field(self.users['owner'], 'token_lifetime', data)
+        self._ensure_user_cannot_change_field(
+            self.users['owner'], 'token_lifetime', data
+        )
 
     def test_staff_user_can_change_any_accounts_fields(self):
         self.client.force_authenticate(user=self.users['staff'])
         data = self._get_valid_payload()
 
-        response = self.client.put(factories.UserFactory.get_url(self.users['staff']), data)
+        response = self.client.put(
+            factories.UserFactory.get_url(self.users['staff']), data
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     # Password changing tests
@@ -225,9 +243,13 @@ class UserPermissionApiTest(test.APITransactionTestCase):
 
         data = {'password': 'nQvqHzeP123'}
 
-        response = self.client.post(factories.UserFactory.get_password_url(self.users['owner']), data)
+        response = self.client.post(
+            factories.UserFactory.get_password_url(self.users['owner']), data
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual('Password has been successfully updated.', response.data['detail'])
+        self.assertEqual(
+            'Password has been successfully updated.', response.data['detail']
+        )
 
         user = User.objects.get(uuid=self.users['owner'].uuid)
         self.assertTrue(user.check_password(data['password']))
@@ -237,7 +259,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
 
         data = {'password': 'nQvqHzeP123'}
 
-        response = self.client.post(factories.UserFactory.get_password_url(self.users['owner']), data)
+        response = self.client.post(
+            factories.UserFactory.get_password_url(self.users['owner']), data
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         user = User.objects.get(uuid=self.users['owner'].uuid)
@@ -249,7 +273,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         data = {'password': 'nQvqHzeP123'}
 
         for user in self.users:
-            response = self.client.post(factories.UserFactory.get_password_url(self.users[user]), data)
+            response = self.client.post(
+                factories.UserFactory.get_password_url(self.users[user]), data
+            )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             user = User.objects.get(uuid=self.users[user].uuid)
@@ -257,16 +283,22 @@ class UserPermissionApiTest(test.APITransactionTestCase):
 
     # Deletion tests
     def user_cannot_delete_his_account(self):
-        self._ensure_user_cannot_delete_account(self.users['owner'], self.users['owner'])
+        self._ensure_user_cannot_delete_account(
+            self.users['owner'], self.users['owner']
+        )
 
     def user_cannot_delete_other_account(self):
-        self._ensure_user_cannot_delete_account(self.users['not_owner'], self.users['owner'])
+        self._ensure_user_cannot_delete_account(
+            self.users['not_owner'], self.users['owner']
+        )
 
     def test_staff_user_can_delete_any_account(self):
         self.client.force_authenticate(user=self.users['staff'])
 
         for user in self.users:
-            response = self.client.delete(factories.UserFactory.get_url(self.users[user]))
+            response = self.client.delete(
+                factories.UserFactory.get_url(self.users[user])
+            )
             self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     # Helper methods
@@ -308,10 +340,14 @@ class UserPermissionApiTest(test.APITransactionTestCase):
     def _ensure_user_cannot_change_field(self, user, field_name, data):
         self.client.force_authenticate(user)
 
-        response = self.client.put(factories.UserFactory.get_url(self.users['not_owner']), data)
+        response = self.client.put(
+            factories.UserFactory.get_url(self.users['not_owner']), data
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-        new_value = getattr(User.objects.get(uuid=self.users['not_owner'].uuid), field_name)
+        new_value = getattr(
+            User.objects.get(uuid=self.users['not_owner'].uuid), field_name
+        )
         self.assertNotEqual(new_value, data[field_name])
 
     def _ensure_user_cannot_delete_account(self, user, account):
@@ -324,7 +360,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
 class UserPermissionApiListTest(test.APITransactionTestCase):
     def setUp(self):
         self.users = {
-            'staff': factories.UserFactory(is_staff=True, agreement_date=timezone.now()),
+            'staff': factories.UserFactory(
+                is_staff=True, agreement_date=timezone.now()
+            ),
             'owner': factories.UserFactory(agreement_date=timezone.now()),
             'other': factories.UserFactory(agreement_date=timezone.now()),
         }
@@ -336,18 +374,22 @@ class UserPermissionApiListTest(test.APITransactionTestCase):
 
     def test_owner_can_view_other_users_in_organization(self):
         self.client.force_authenticate(self.users['owner'])
-        customer_permission = factories.CustomerPermissionFactory(user=self.users['owner'])
+        customer_permission = factories.CustomerPermissionFactory(
+            user=self.users['owner']
+        )
         customer = customer_permission.customer
-        factories.CustomerPermissionFactory(customer=customer,
-                                            user=self.users['other'],
-                                            role=CustomerRole.SUPPORT)
+        factories.CustomerPermissionFactory(
+            customer=customer, user=self.users['other'], role=CustomerRole.SUPPORT
+        )
         response = self.client.get(factories.UserFactory.get_list_url())
         self.assertEqual(len(response.data), 2)
 
     def test_owner_can_view_other_users_in_project(self):
         self.client.force_authenticate(self.users['other'])
 
-        project_permission = factories.ProjectPermissionFactory(user=self.users['owner'])
+        project_permission = factories.ProjectPermissionFactory(
+            user=self.users['owner']
+        )
         project = project_permission.project
         factories.ProjectPermissionFactory(project=project, user=self.users['other'])
 
@@ -368,7 +410,9 @@ class PasswordSerializerTest(unittest.TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertDictContainsSubset(
-            {'password': ['Ensure this field has at least 7 characters.']}, serializer.errors)
+            {'password': ['Ensure this field has at least 7 characters.']},
+            serializer.errors,
+        )
 
     def test_password_must_contain_digits(self):
         data = {'password': 'abcdefg'}
@@ -377,7 +421,9 @@ class PasswordSerializerTest(unittest.TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertDictContainsSubset(
-            {'password': ['Ensure this field has at least one digit.']}, serializer.errors)
+            {'password': ['Ensure this field has at least one digit.']},
+            serializer.errors,
+        )
 
     def test_password_must_contain_letters(self):
         data = {'password': '1234567'}
@@ -387,7 +433,8 @@ class PasswordSerializerTest(unittest.TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertDictContainsSubset(
             {'password': ['Ensure this field has at least one latin letter.']},
-            serializer.errors)
+            serializer.errors,
+        )
 
     def test_password_must_not_be_blank(self):
         data = {'password': ''}
@@ -396,11 +443,11 @@ class PasswordSerializerTest(unittest.TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertDictContainsSubset(
-            {'password': ['This field may not be blank.']}, serializer.errors)
+            {'password': ['This field may not be blank.']}, serializer.errors
+        )
 
 
 class UserFilterTest(test.APITransactionTestCase):
-
     def test_user_list_can_be_filtered(self):
         supported_filters = [
             'full_name',
@@ -429,7 +476,9 @@ class UserFilterTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.UserFactory.get_list_url()
         user_url = factories.UserFactory.get_url(user)
-        user_that_should_not_be_found_url = factories.UserFactory.get_url(user_that_should_be_found)
+        user_that_should_not_be_found_url = factories.UserFactory.get_url(
+            user_that_should_be_found
+        )
 
         for field in supported_filters:
             response = self.client.get(url, data={field: getattr(user, field)})
@@ -454,7 +503,6 @@ class UserFilterTest(test.APITransactionTestCase):
 
 
 class CustomUsersFilterTest(test.APITransactionTestCase):
-
     def setUp(self):
         fixture = fixtures.ProjectFixture()
         self.customer1 = fixture.customer
@@ -497,15 +545,15 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
         self.url = factories.UserFactory.get_url(self.user)
 
-        self.invalid_payload = {
-            'phone_number': '123456789'
-        }
+        self.invalid_payload = {'phone_number': '123456789'}
         self.valid_payload = dict(agree_with_policy=True, **self.invalid_payload)
 
     def test_if_user_did_not_accept_policy_he_can_not_update_his_profile(self):
         response = self.client.put(self.url, self.invalid_payload)
         self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEquals(response.data['agree_with_policy'], ['User must agree with the policy.'])
+        self.assertEquals(
+            response.data['agree_with_policy'], ['User must agree with the policy.']
+        )
 
     def test_if_user_already_accepted_policy_he_can_update_his_profile(self):
         self.user.agreement_date = timezone.now()
@@ -535,7 +583,9 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('token_lifetime', response.data)
 
-    @override_waldur_core_settings(PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=['PROTECTED'])
+    @override_waldur_core_settings(
+        PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=['PROTECTED']
+    )
     def test_user_can_not_update_profile_if_registration_method_is_protected(self):
         # Arrange
         self.user.registration_method = 'PROTECTED'
@@ -588,49 +638,69 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
     def test_when_change_email_request_is_confirmed_user_email_is_updated(self):
         self.client.post(self.url, self.valid_payload)
         url = factories.UserFactory.get_list_url('confirm_email')
-        response = self.client.post(url, {'code': self.user.changeemailrequest.uuid.hex})
+        response = self.client.post(
+            url, {'code': self.user.changeemailrequest.uuid.hex}
+        )
         self.assertEquals(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
         self.assertEquals(self.user.email, 'updatedmail@example.com')
 
-    def test_when_two_users_created_requests_with_equal_emails_then_first_confirmed_request_will_be_executed_second_will_be_deleted(self):
+    def test_when_two_users_created_requests_with_equal_emails_then_first_confirmed_request_will_be_executed_second_will_be_deleted(
+        self,
+    ):
         self.client.post(self.url, self.valid_payload)
-        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+        self.assertEqual(
+            self.valid_payload['email'], self.user.changeemailrequest.email
+        )
 
         other_user = factories.UserFactory()
         self.client.force_authenticate(other_user)
         other_url = factories.UserFactory.get_url(other_user, 'change_email')
         self.client.post(other_url, self.valid_payload)
-        self.assertEqual(self.valid_payload['email'], other_user.changeemailrequest.email)
+        self.assertEqual(
+            self.valid_payload['email'], other_user.changeemailrequest.email
+        )
 
         self.client.force_authenticate(self.user)
         confirm_url = factories.UserFactory.get_list_url('confirm_email')
-        response = self.client.post(confirm_url, {'code': self.user.changeemailrequest.uuid.hex})
+        response = self.client.post(
+            confirm_url, {'code': self.user.changeemailrequest.uuid.hex}
+        )
         self.assertEquals(response.status_code, status.HTTP_200_OK)
 
         self.client.force_authenticate(other_user)
         other_confirm_url = factories.UserFactory.get_url(other_user, 'confirm_email')
-        response = self.client.post(other_confirm_url, {'code': other_user.changeemailrequest.uuid.hex})
+        response = self.client.post(
+            other_confirm_url, {'code': other_user.changeemailrequest.uuid.hex}
+        )
         self.assertEquals(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @freeze_time('2017-01-19')
     def test_validate_email_change_max_age(self):
         self.client.post(self.url, self.valid_payload)
-        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+        self.assertEqual(
+            self.valid_payload['email'], self.user.changeemailrequest.email
+        )
         url = factories.UserFactory.get_list_url('confirm_email')
 
         with freeze_time('2017-01-21'):
-            response = self.client.post(url, {'code': self.user.changeemailrequest.uuid.hex})
+            response = self.client.post(
+                url, {'code': self.user.changeemailrequest.uuid.hex}
+            )
             self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
             self.assertEquals(response.data[0], 'Request has expired.')
 
     def test_anonymous_user_can_confirm_email(self):
         self.client.post(self.url, self.valid_payload)
-        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+        self.assertEqual(
+            self.valid_payload['email'], self.user.changeemailrequest.email
+        )
         self.client.force_authenticate(None)
         url = factories.UserFactory.get_list_url('confirm_email')
-        response = self.client.post(url, {'code': self.user.changeemailrequest.uuid.hex})
+        response = self.client.post(
+            url, {'code': self.user.changeemailrequest.uuid.hex}
+        )
         self.assertEquals(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_email_should_be_unique_and_error_should_be_specific_for_field(self):
@@ -640,15 +710,19 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self.valid_payload)
 
         self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEquals(response.data['email'], ['User with email "%s" already exists.' % email])
+        self.assertEquals(
+            response.data['email'], ['User with email "%s" already exists.' % email]
+        )
 
     @mock.patch('waldur_core.structure.handlers.tasks')
     def test_send_mail_notification(self, mock_tasks):
         response = self.client.post(self.url, self.valid_payload)
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.assertEqual(mock_tasks.send_change_email_notification.delay.call_count, 1)
-        self.assertEqual(mock_tasks.send_change_email_notification.delay.call_args[0][0],
-                         core_utils.serialize_instance(self.user.changeemailrequest))
+        self.assertEqual(
+            mock_tasks.send_change_email_notification.delay.call_args[0][0],
+            core_utils.serialize_instance(self.user.changeemailrequest),
+        )
 
     @mock.patch('waldur_core.structure.handlers.tasks.core_utils.broadcast_mail')
     def test_send_change_email_notification_task(self, mock_mail):
@@ -657,14 +731,15 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         request_serialized = core_utils.serialize_instance(self.user.changeemailrequest)
         tasks.send_change_email_notification(request_serialized)
 
-        link = settings.WALDUR_CORE['EMAIL_CHANGE_URL']\
-            .format(code=self.user.changeemailrequest.uuid.hex)
+        link = settings.WALDUR_CORE['EMAIL_CHANGE_URL'].format(
+            code=self.user.changeemailrequest.uuid.hex
+        )
         context = {'request': self.user.changeemailrequest, 'link': link}
         mock_mail.assert_called_once_with(
             'structure',
             'change_email_request',
             context,
-            [self.user.changeemailrequest.email]
+            [self.user.changeemailrequest.email],
         )
 
     def test_cancel_change_email(self):
@@ -694,21 +769,24 @@ class NotificationsProfileChangesTest(test.APITransactionTestCase):
     def test_notification_message(self, mock_event_logger):
         customer = factories.CustomerFactory(name='Customer', abbreviation='ABC')
         factories.CustomerPermissionFactory(
-            user=self.user,
-            role=CustomerRole.OWNER,
-            customer=customer
+            user=self.user, role=CustomerRole.OWNER, customer=customer
         )
         old_email = self.user.email
         new_email = 'new_email_' + old_email
         self.user.email = new_email
         self.user.save()
         msg = mock_event_logger.user.info.call_args[0][0]
-        test_msg = u'Owner of Customer (ABC) John (id={id}) ' \
-                   u'has changed email from john@example.org to new_email_john@example.org.'\
-            .format(id=self.user.id)
+        test_msg = (
+            'Owner of Customer (ABC) John (id={id}) '
+            'has changed email from john@example.org to new_email_john@example.org.'.format(
+                id=self.user.id
+            )
+        )
         self.assertEqual(test_msg, msg)
 
-    def test_dont_sent_notification_if_change_owner_other_field(self, mock_event_logger):
+    def test_dont_sent_notification_if_change_owner_other_field(
+        self, mock_event_logger
+    ):
         factories.CustomerPermissionFactory(user=self.user, role=CustomerRole.OWNER)
         token_lifetime = 100 + self.user.token_lifetime
         self.user.token_lifetime = token_lifetime

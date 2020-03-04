@@ -15,32 +15,49 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='job',
-            name='project',
-        ),
+        migrations.RemoveField(model_name='job', name='project',),
         migrations.AddField(
             model_name='job',
             name='service_project_link',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='openstack_tenant.OpenStackTenantServiceProjectLink'),
+            field=models.ForeignKey(
+                default=None,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name='+',
+                to='openstack_tenant.OpenStackTenantServiceProjectLink',
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
             model_name='job',
             name='ssh_public_key',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='core.SshPublicKey'),
+            field=models.ForeignKey(
+                default=None,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name='+',
+                to='core.SshPublicKey',
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
             model_name='job',
             name='subnet',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='openstack_tenant.SubNet'),
+            field=models.ForeignKey(
+                default=None,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name='+',
+                to='openstack_tenant.SubNet',
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
             model_name='job',
             name='user',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='+', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(
+                default=None,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name='+',
+                to=settings.AUTH_USER_MODEL,
+            ),
             preserve_default=False,
         ),
     ]

@@ -1,5 +1,6 @@
-from django.test import TestCase
 from unittest.mock import MagicMock
+
+from django.test import TestCase
 
 from waldur_core.core import models as core_models
 from waldur_mastermind.packages.tests.fixtures import PackageFixture
@@ -8,7 +9,6 @@ from ... import tasks
 
 
 class OpenStackPackageErrorTaskTest(TestCase):
-
     def setUp(self):
         fixture = PackageFixture()
         self.openstack_package = fixture.openstack_package
@@ -29,7 +29,9 @@ class OpenStackPackageErrorTaskTest(TestCase):
         self.tenant.refresh_from_db()
         self.assertEqual(self.tenant.state, core_models.StateMixin.States.ERRED)
         self.service_settings.refresh_from_db()
-        self.assertEqual(self.service_settings.state, core_models.StateMixin.States.ERRED)
+        self.assertEqual(
+            self.service_settings.state, core_models.StateMixin.States.ERRED
+        )
 
     def test_task_does_not_mark_tenant_as_erred_if_it_was_created(self):
         self.tenant.state = core_models.StateMixin.States.OK
@@ -42,4 +44,6 @@ class OpenStackPackageErrorTaskTest(TestCase):
         self.tenant.refresh_from_db()
         self.assertEqual(self.tenant.state, core_models.StateMixin.States.OK)
         self.service_settings.refresh_from_db()
-        self.assertEqual(self.service_settings.state, core_models.StateMixin.States.ERRED)
+        self.assertEqual(
+            self.service_settings.state, core_models.StateMixin.States.ERRED
+        )

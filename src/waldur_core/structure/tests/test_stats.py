@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework import test, status
+from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models
@@ -10,16 +10,21 @@ from waldur_core.structure.tests import factories
 
 
 class CreationTimeStatsTest(test.APITransactionTestCase):
-
     def setUp(self):
         # customers
-        self.old_customer = factories.CustomerFactory(created=timezone.now() - timedelta(days=10))
-        self.new_customer = factories.CustomerFactory(created=timezone.now() - timedelta(days=1))
+        self.old_customer = factories.CustomerFactory(
+            created=timezone.now() - timedelta(days=10)
+        )
+        self.new_customer = factories.CustomerFactory(
+            created=timezone.now() - timedelta(days=1)
+        )
         # projects
         self.old_projects = factories.ProjectFactory.create_batch(
-            3, created=timezone.now() - timedelta(days=10), customer=self.old_customer)
+            3, created=timezone.now() - timedelta(days=10), customer=self.old_customer
+        )
         self.new_projects = factories.ProjectFactory.create_batch(
-            3, created=timezone.now() - timedelta(days=1), customer=self.new_customer)
+            3, created=timezone.now() - timedelta(days=1), customer=self.new_customer
+        )
         # users
         self.staff = factories.UserFactory(is_staff=True)
         self.old_customer_owner = factories.UserFactory()
@@ -30,7 +35,9 @@ class CreationTimeStatsTest(test.APITransactionTestCase):
 
         self.url = reverse('stats_creation_time')
         self.default_data = {
-            'from': core_utils.datetime_to_timestamp(timezone.now() - timedelta(days=12)),
+            'from': core_utils.datetime_to_timestamp(
+                timezone.now() - timedelta(days=12)
+            ),
             'datapoints': 2,
         }
 
@@ -46,27 +53,55 @@ class CreationTimeStatsTest(test.APITransactionTestCase):
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2, 'Response has to contain 2 datapoints')
-        self.assertEqual(response.data[0]['value'], 1, 'First datapoint has to contain 1 customer (old)')
-        self.assertEqual(response.data[1]['value'], 1, 'Second datapoint has to contain 1 customer (new)')
+        self.assertEqual(
+            response.data[0]['value'],
+            1,
+            'First datapoint has to contain 1 customer (old)',
+        )
+        self.assertEqual(
+            response.data[1]['value'],
+            1,
+            'Second datapoint has to contain 1 customer (new)',
+        )
 
     def test_customer_owner_receive_stats_only_about_his_cusotmers(self):
         # when
-        response = self.execute_request_with_data(self.old_customer_owner, {'type': 'customer'})
+        response = self.execute_request_with_data(
+            self.old_customer_owner, {'type': 'customer'}
+        )
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2, 'Response has to contain 2 datapoints')
-        self.assertEqual(response.data[0]['value'], 1, 'First datapoint has to contain 1 customer (old)')
-        self.assertEqual(response.data[1]['value'], 0, 'Second datapoint has to contain 0 customers')
+        self.assertEqual(
+            response.data[0]['value'],
+            1,
+            'First datapoint has to contain 1 customer (old)',
+        )
+        self.assertEqual(
+            response.data[1]['value'], 0, 'Second datapoint has to contain 0 customers'
+        )
 
     def test_admin_receive_info_about_his_projects(self):
         # when
-        response = self.execute_request_with_data(self.all_projects_admin, {'type': 'project', 'datapoints': 3})
+        response = self.execute_request_with_data(
+            self.all_projects_admin, {'type': 'project', 'datapoints': 3}
+        )
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 3, 'Response has to contain 3 datapoints')
-        self.assertEqual(response.data[0]['value'], 3, 'First datapoint has to contain 3 projects (old)')
-        self.assertEqual(response.data[1]['value'], 0, 'Second datapoint has to contain 0 projects')
-        self.assertEqual(response.data[2]['value'], 3, 'Third datapoint has to contain 3 projects (new)')
+        self.assertEqual(
+            response.data[0]['value'],
+            3,
+            'First datapoint has to contain 3 projects (old)',
+        )
+        self.assertEqual(
+            response.data[1]['value'], 0, 'Second datapoint has to contain 0 projects'
+        )
+        self.assertEqual(
+            response.data[2]['value'],
+            3,
+            'Third datapoint has to contain 3 projects (new)',
+        )
 
 
 class BaseQuotaAggregationTest(test.APITransactionTestCase):
@@ -113,18 +148,24 @@ class StatsQuotaTimelineTest(BaseQuotaAggregationTest):
         self.assertEqual(12, response.data[0]['vcpu_usage'])
 
     def get_response(self):
-        response = self.client.get(reverse('stats_quota_timeline'), data={
-            'aggregate': 'project',
-            'uuid': self.project.uuid.hex,
-            'item': 'vcpu',
-            'from': core_utils.datetime_to_timestamp(timezone.now() - timedelta(minutes=1)),
-            'to': core_utils.datetime_to_timestamp(timezone.now() + timedelta(minutes=1))
-        })
+        response = self.client.get(
+            reverse('stats_quota_timeline'),
+            data={
+                'aggregate': 'project',
+                'uuid': self.project.uuid.hex,
+                'item': 'vcpu',
+                'from': core_utils.datetime_to_timestamp(
+                    timezone.now() - timedelta(minutes=1)
+                ),
+                'to': core_utils.datetime_to_timestamp(
+                    timezone.now() + timedelta(minutes=1)
+                ),
+            },
+        )
         return response
 
 
 class StatsQuotaTest(BaseQuotaAggregationTest):
-
     def test_negative_limit(self):
         """
         If any quota limit is -1, total limit is -1
@@ -148,8 +189,8 @@ class StatsQuotaTest(BaseQuotaAggregationTest):
         self.assertEqual(12, response.data['vcpu_usage'])
 
     def get_response(self):
-        response = self.client.get(reverse('stats_quota'), data={
-            'aggregate': 'project',
-            'uuid': self.project.uuid.hex
-        })
+        response = self.client.get(
+            reverse('stats_quota'),
+            data={'aggregate': 'project', 'uuid': self.project.uuid.hex},
+        )
         return response

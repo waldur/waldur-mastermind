@@ -10,7 +10,6 @@ from .utils import get_period
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
-
     def get_related_models(self):
         return structure_models.ResourceMixin.get_all_models()
 
@@ -53,7 +52,9 @@ class SlaFilter(BaseFilterBackend):
             return queryset.filter(sla_items__value=value, sla_items__period=period)
 
         elif get_ordering(request) == 'actual_sla':
-            return queryset.filter(sla_items__period=period).order_by('sla_items__value')
+            return queryset.filter(sla_items__period=period).order_by(
+                'sla_items__value'
+            )
 
         else:
             return queryset
@@ -94,14 +95,16 @@ class MonitoringItemFilter(BaseFilterBackend):
             item_name = self._get_item_name(key)
             if item_name:
                 value = request.query_params.get(key)
-                queryset = queryset.filter(monitoring_items__name=item_name,
-                                           monitoring_items__value=value)
+                queryset = queryset.filter(
+                    monitoring_items__name=item_name, monitoring_items__value=value
+                )
 
         order_by = get_ordering(request)
         item_name = self._get_item_name(order_by)
         if item_name:
-            queryset = queryset.filter(monitoring_items__name=item_name)\
-                               .order_by('monitoring_items__value')
+            queryset = queryset.filter(monitoring_items__name=item_name).order_by(
+                'monitoring_items__value'
+            )
 
         return queryset
 

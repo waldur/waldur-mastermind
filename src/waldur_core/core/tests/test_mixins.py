@@ -1,9 +1,10 @@
-from django.contrib import auth
-from rest_framework import serializers, test
 from unittest import mock
 
-from . import helpers
+from django.contrib import auth
+from rest_framework import serializers, test
+
 from .. import exceptions, mixins
+from . import helpers
 
 User = auth.get_user_model()
 
@@ -19,10 +20,9 @@ class ExecutorMixinTest(test.APITransactionTestCase):
         self.executor = mixins.CreateExecutorMixin()
         self.executor.create_executor = mock.Mock()
 
-        self.serializer = TestUserSerializer(data={
-            'username': 'alice2017',
-            'full_name': 'Alice Lebowski',
-        })
+        self.serializer = TestUserSerializer(
+            data={'username': 'alice2017', 'full_name': 'Alice Lebowski',}
+        )
         self.serializer.is_valid()
 
     def test_if_executor_succeeds_database_object_is_saved(self):
@@ -30,12 +30,28 @@ class ExecutorMixinTest(test.APITransactionTestCase):
         self.assertTrue(User.objects.filter(username='alice2017').exists())
 
     @helpers.override_waldur_core_settings(USE_ATOMIC_TRANSACTION=False)
-    def test_if_executor_fails_and_atomic_transaction_is_not_used_database_object_is_saved(self):
-        self.executor.create_executor.execute.side_effect = exceptions.IncorrectStateException()
-        self.assertRaises(exceptions.IncorrectStateException, self.executor.perform_create, self.serializer)
+    def test_if_executor_fails_and_atomic_transaction_is_not_used_database_object_is_saved(
+        self,
+    ):
+        self.executor.create_executor.execute.side_effect = (
+            exceptions.IncorrectStateException()
+        )
+        self.assertRaises(
+            exceptions.IncorrectStateException,
+            self.executor.perform_create,
+            self.serializer,
+        )
         self.assertTrue(User.objects.filter(username='alice2017').exists())
 
-    def test_if_executor_fails_and_atomic_transaction_is_used_database_object_is_not_saved(self):
-        self.executor.create_executor.execute.side_effect = exceptions.IncorrectStateException()
-        self.assertRaises(exceptions.IncorrectStateException, self.executor.perform_create, self.serializer)
+    def test_if_executor_fails_and_atomic_transaction_is_used_database_object_is_not_saved(
+        self,
+    ):
+        self.executor.create_executor.execute.side_effect = (
+            exceptions.IncorrectStateException()
+        )
+        self.assertRaises(
+            exceptions.IncorrectStateException,
+            self.executor.perform_create,
+            self.serializer,
+        )
         self.assertFalse(User.objects.filter(username='alice2017').exists())

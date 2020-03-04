@@ -18,37 +18,98 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ResourceItem',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name],
-                                          verbose_name='name')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'name',
+                    models.CharField(
+                        max_length=150,
+                        validators=[waldur_core.core.validators.validate_name],
+                        verbose_name='name',
+                    ),
+                ),
                 ('object_id', models.PositiveIntegerField()),
                 ('value', models.FloatField()),
-                ('content_type',
-                 models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
+                (
+                    'content_type',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to='contenttypes.ContentType',
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
             name='ResourceSla',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
                 ('object_id', models.PositiveIntegerField()),
                 ('period', models.CharField(max_length=10)),
-                ('value', models.DecimalField(blank=True, decimal_places=4, max_digits=11, null=True)),
-                ('agreed_value', models.DecimalField(blank=True, decimal_places=4, max_digits=11, null=True)),
-                ('content_type',
-                 models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
+                (
+                    'value',
+                    models.DecimalField(
+                        blank=True, decimal_places=4, max_digits=11, null=True
+                    ),
+                ),
+                (
+                    'agreed_value',
+                    models.DecimalField(
+                        blank=True, decimal_places=4, max_digits=11, null=True
+                    ),
+                ),
+                (
+                    'content_type',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to='contenttypes.ContentType',
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
             name='ResourceSlaStateTransition',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
                 ('object_id', models.PositiveIntegerField()),
                 ('period', models.CharField(max_length=10)),
                 ('timestamp', models.IntegerField()),
-                ('state', models.BooleanField(default=False, help_text='If state is True resource became available')),
-                ('content_type',
-                 models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
+                (
+                    'state',
+                    models.BooleanField(
+                        default=False,
+                        help_text='If state is True resource became available',
+                    ),
+                ),
+                (
+                    'content_type',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to='contenttypes.ContentType',
+                    ),
+                ),
             ],
         ),
         migrations.AlterUniqueTogether(

@@ -1,22 +1,23 @@
 from ddt import data, ddt
-from rest_framework import test, status
-
-from waldur_core.structure.tests import fixtures, factories as structure_factories
-from django.core import mail
 from django.conf import settings
+from django.core import mail
+from rest_framework import status, test
 
-from waldur_mastermind.marketplace import models, utils, tasks
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures
+from waldur_mastermind.marketplace import models, tasks, utils
 
-from . import factories
 from .. import base
+from . import factories
 
 
 @ddt
 class ServiceProviderGetTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.service_provider = factories.ServiceProviderFactory(customer=self.fixture.customer)
+        self.service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_service_provider_should_be_visible_to_all_authenticated_users(self, user):
@@ -36,7 +37,9 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
     def test_service_provider_api_secret_code_is_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.ServiceProviderFactory.get_url(self.service_provider, 'api_secret_code')
+        url = factories.ServiceProviderFactory.get_url(
+            self.service_provider, 'api_secret_code'
+        )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue('api_secret_code' in response.data.keys())
@@ -45,14 +48,15 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
     def test_service_provider_api_secret_code_is_invisible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.ServiceProviderFactory.get_url(self.service_provider, 'api_secret_code')
+        url = factories.ServiceProviderFactory.get_url(
+            self.service_provider, 'api_secret_code'
+        )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
 class ServiceProviderRegisterTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -61,7 +65,9 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
     def test_staff_can_register_a_service_provider(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+        self.assertTrue(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_register_an_service_provider(self, user):
@@ -76,7 +82,9 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
 
     @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
     @data('user', 'customer_support', 'admin', 'manager')
-    def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(self, user):
+    def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(
+        self, user
+    ):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -86,7 +94,9 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data('user', 'customer_support', 'admin', 'manager')
-    def test_unauthorized_user_can_not_register_service_provider_with_settings_disabled(self, user):
+    def test_unauthorized_user_can_not_register_service_provider_with_settings_disabled(
+        self, user
+    ):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -104,7 +114,6 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
 
 @ddt
 class ServiceProviderUpdateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -114,7 +123,9 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertFalse(service_provider.enable_notifications)
-        self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+        self.assertTrue(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_update_service_provider(self, user):
@@ -123,9 +134,7 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
 
     def update_service_provider(self, user, payload=None):
         if not payload:
-            payload = {
-                'enable_notifications': False
-            }
+            payload = {'enable_notifications': False}
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         user = getattr(self.fixture, user)
@@ -143,7 +152,9 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
-        url = factories.ServiceProviderFactory.get_url(service_provider, 'api_secret_code')
+        url = factories.ServiceProviderFactory.get_url(
+            service_provider, 'api_secret_code'
+        )
         old_secret_code = service_provider.api_secret_code
         response = self.client.post(url)
         service_provider.refresh_from_db()
@@ -156,14 +167,15 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
-        url = factories.ServiceProviderFactory.get_url(service_provider, 'api_secret_code')
+        url = factories.ServiceProviderFactory.get_url(
+            service_provider, 'api_secret_code'
+        )
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
 class ServiceProviderDeleteTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -172,26 +184,42 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
     @data('staff', 'owner')
     def test_authorized_user_can_delete_service_provider(self, user):
         response = self.delete_service_provider(user)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
-        self.assertFalse(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
 
     def test_service_provider_could_not_be_deleted_if_it_has_active_offerings(self):
-        factories.OfferingFactory(customer=self.customer, state=models.Offering.States.ACTIVE)
+        factories.OfferingFactory(
+            customer=self.customer, state=models.Offering.States.ACTIVE
+        )
         response = self.delete_service_provider('staff')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+        self.assertTrue(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
 
     def test_service_provider_is_deleted_if_it_has_archived_offering(self):
-        factories.OfferingFactory(customer=self.customer, state=models.Offering.States.ARCHIVED)
+        factories.OfferingFactory(
+            customer=self.customer, state=models.Offering.States.ARCHIVED
+        )
         response = self.delete_service_provider('staff')
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
-        self.assertFalse(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_delete_service_provider(self, user):
         response = self.delete_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+        self.assertTrue(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
 
     def delete_service_provider(self, user):
         user = getattr(self.fixture, user)
@@ -220,32 +248,44 @@ class CustomerSerializerTest(test.APITransactionTestCase):
 
 
 class ServiceProviderNotificationTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.fixture.owner
-        self.service_provider = factories.ServiceProviderFactory(customer=self.fixture.customer)
+        self.service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
         offering = factories.OfferingFactory(customer=self.fixture.customer)
-        self.component = factories.OfferingComponentFactory(billing_type=models.OfferingComponent.BillingTypes.USAGE,
-                                                            offering=offering)
+        self.component = factories.OfferingComponentFactory(
+            billing_type=models.OfferingComponent.BillingTypes.USAGE, offering=offering
+        )
 
-        self.resource = factories.ResourceFactory(offering=offering, state=models.Resource.States.OK,
-                                                  name='My resource')
+        self.resource = factories.ResourceFactory(
+            offering=offering, state=models.Resource.States.OK, name='My resource'
+        )
 
     def test_get_customer_if_usages_are_not_exist(self):
         self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 1)
-        self.assertEqual(utils.get_info_about_missing_usage_reports()[0]['customer'], self.fixture.customer)
+        self.assertEqual(
+            utils.get_info_about_missing_usage_reports()[0]['customer'],
+            self.fixture.customer,
+        )
 
     def test_do_not_get_customer_if_usages_are_exist(self):
-        factories.ComponentUsageFactory(resource=self.resource, component=self.component)
+        factories.ComponentUsageFactory(
+            resource=self.resource, component=self.component
+        )
         self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 0)
 
     def test_usages_notification_message(self):
         tasks.send_notifications_about_usages()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.fixture.owner.email])
-        self.assertEqual(mail.outbox[0].subject, u'Reminder about missing usage reports.')
+        self.assertEqual(
+            mail.outbox[0].subject, 'Reminder about missing usage reports.'
+        )
         self.assertTrue('My resource' in mail.outbox[0].body)
         link_template = settings.WALDUR_MARKETPLACE['PUBLIC_RESOURCES_LINK_TEMPLATE']
-        public_resources_url = link_template.format(organization_uuid=self.fixture.customer.uuid)
+        public_resources_url = link_template.format(
+            organization_uuid=self.fixture.customer.uuid
+        )
         self.assertTrue(public_resources_url in mail.outbox[0].body)

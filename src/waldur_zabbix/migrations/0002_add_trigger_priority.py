@@ -11,8 +11,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='trigger',
-            name='priority',
-            field=models.IntegerField(default=0),
+            model_name='trigger', name='priority', field=models.IntegerField(default=0),
         ),
     ]

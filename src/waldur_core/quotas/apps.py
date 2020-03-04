@@ -7,6 +7,7 @@ class QuotasConfig(AppConfig):
     Quotas - objects resource limits and their usage.
     Quotas limits can be editable by users.
     """
+
     name = 'waldur_core.quotas'
     verbose_name = 'Quotas'
 
@@ -19,13 +20,15 @@ class QuotasConfig(AppConfig):
             signals.post_save.connect(
                 handlers.increase_global_quota,
                 sender=model,
-                dispatch_uid='waldur_core.quotas.handlers.increase_global_quota_%s_%s' % (model.__name__, index)
+                dispatch_uid='waldur_core.quotas.handlers.increase_global_quota_%s_%s'
+                % (model.__name__, index),
             )
 
             signals.post_delete.connect(
                 handlers.decrease_global_quota,
                 sender=model,
-                dispatch_uid='waldur_core.quotas.handlers.decrease_global_quota_%s_%s' % (model.__name__, index)
+                dispatch_uid='waldur_core.quotas.handlers.decrease_global_quota_%s_%s'
+                % (model.__name__, index),
             )
 
         signals.post_migrate.connect(
@@ -41,14 +44,17 @@ class QuotasConfig(AppConfig):
             signals.post_save.connect(
                 handlers.init_quotas,
                 sender=model,
-                dispatch_uid='waldur_core.quotas.init_quotas_%s_%s' % (model.__name__, model_index)
+                dispatch_uid='waldur_core.quotas.init_quotas_%s_%s'
+                % (model.__name__, model_index),
             )
 
             # Counter quota signals
             # How it works:
             # Each counter quota field has list of target models. Change of target model should increase or decrease
             # counter quota. So we connect generated handler to each of target models.
-            for counter_field in model.get_quotas_fields(field_class=fields.CounterQuotaField):
+            for counter_field in model.get_quotas_fields(
+                field_class=fields.CounterQuotaField
+            ):
                 self.register_counter_field_signals(model, counter_field)
 
         # Aggregator quotas signals
@@ -73,14 +79,26 @@ class QuotasConfig(AppConfig):
                 handlers.count_quota_handler_factory(counter_field),
                 sender=target_model,
                 weak=False,  # saves handler from garbage collector
-                dispatch_uid='waldur_core.quotas.increase_counter_quota_%s_%s_%s_%s_%s' % (
-                    model.__name__, model._meta.app_label, counter_field.name, target_model.__name__, target_model_index)
+                dispatch_uid='waldur_core.quotas.increase_counter_quota_%s_%s_%s_%s_%s'
+                % (
+                    model.__name__,
+                    model._meta.app_label,
+                    counter_field.name,
+                    target_model.__name__,
+                    target_model_index,
+                ),
             )
 
             signals.post_delete.connect(
                 handlers.count_quota_handler_factory(counter_field),
                 sender=target_model,
                 weak=False,  # saves handler from garbage collector
-                dispatch_uid='waldur_core.quotas.decrease_counter_quota_%s_%s_%s_%s_%s' % (
-                    model.__name__, model._meta.app_label, counter_field.name, target_model.__name__, target_model_index)
+                dispatch_uid='waldur_core.quotas.decrease_counter_quota_%s_%s_%s_%s_%s'
+                % (
+                    model.__name__,
+                    model._meta.app_label,
+                    counter_field.name,
+                    target_model.__name__,
+                    target_model_index,
+                ),
             )

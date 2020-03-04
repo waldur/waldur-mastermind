@@ -1,4 +1,5 @@
 from django.utils.functional import cached_property
+
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_fixtures
 
 from . import factories

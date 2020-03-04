@@ -8,16 +8,16 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.reverse import reverse
 
-from waldur_core.core import tasks as core_tasks, utils as core_utils
+from waldur_core.core import tasks as core_tasks
+from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
-
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, utils
+from . import exceptions, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,9 @@ logger = logging.getLogger(__name__)
 class CreateNodeTask(core_tasks.Task):
     def execute(self, instance, user_id):
         node = instance
-        content_type = ContentType.objects.get_for_model(openstack_tenant_models.Instance)
+        content_type = ContentType.objects.get_for_model(
+            openstack_tenant_models.Instance
+        )
         flavor = node.initial_data['flavor']
         system_volume_size = node.initial_data['system_volume_size']
         system_volume_type = node.initial_data.get('system_volume_type')
@@ -40,17 +42,34 @@ class CreateNodeTask(core_tasks.Task):
             'name': node.name,
             'flavor': reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor}),
             'image': reverse('openstacktenant-image-detail', kwargs={'uuid': image}),
-            'service_project_link': reverse('openstacktenant-spl-detail', kwargs={'pk': tenant_spl}),
+            'service_project_link': reverse(
+                'openstacktenant-spl-detail', kwargs={'pk': tenant_spl}
+            ),
             'system_volume_size': system_volume_size,
-            'system_volume_type': system_volume_type and reverse('openstacktenant-volume-type-detail', kwargs={'uuid': system_volume_type}),
-            'data_volumes': [{
-                'size': volume['size'],
-                'volume_type': volume.get('volume_type') and reverse('openstacktenant-volume-type-detail', kwargs={'uuid': volume.get('volume_type')}),
-            } for volume in data_volumes],
-            'security_groups': [{'url': reverse('openstacktenant-sgp-detail', kwargs={'uuid': group})}],
+            'system_volume_type': system_volume_type
+            and reverse(
+                'openstacktenant-volume-type-detail',
+                kwargs={'uuid': system_volume_type},
+            ),
+            'data_volumes': [
+                {
+                    'size': volume['size'],
+                    'volume_type': volume.get('volume_type')
+                    and reverse(
+                        'openstacktenant-volume-type-detail',
+                        kwargs={'uuid': volume.get('volume_type')},
+                    ),
+                }
+                for volume in data_volumes
+            ],
+            'security_groups': [
+                {'url': reverse('openstacktenant-sgp-detail', kwargs={'uuid': group})}
+            ],
             'internal_ips_set': [
                 {
-                    'subnet': reverse('openstacktenant-subnet-detail', kwargs={'uuid': subnet})
+                    'subnet': reverse(
+                        'openstacktenant-subnet-detail', kwargs={'uuid': subnet}
+                    )
                 }
             ],
             'user_data': utils.format_node_cloud_config(node),
@@ -69,8 +88,7 @@ class CreateNodeTask(core_tasks.Task):
         node.save()
 
         resource_imported.send(
-            sender=instance.__class__,
-            instance=instance,
+            sender=instance.__class__, instance=instance,
         )
 
     @classmethod
@@ -85,8 +103,12 @@ class DeleteNodeTask(core_tasks.Task):
 
         if node.instance:
             view = InstanceViewSet.as_view({'delete': 'force_destroy'})
-            response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex,
-                                                   query_params={'delete_volumes': True})
+            response = common_utils.delete_request(
+                view,
+                user,
+                uuid=node.instance.uuid.hex,
+                query_params={'delete_volumes': True},
+            )
 
             if response.status_code != status.HTTP_202_ACCEPTED:
                 raise exceptions.RancherException(response.data)
@@ -139,13 +161,20 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
             # then it is necessary to update node state and to call signal for usages updating.
             utils.update_cluster_nodes_states(node.cluster.id)
             return
-        elif node.runtime_state in [models.Node.RuntimeStates.REGISTERING,
-                                    models.Node.RuntimeStates.UNAVAILABLE] or not node.runtime_state:
+        elif (
+            node.runtime_state
+            in [
+                models.Node.RuntimeStates.REGISTERING,
+                models.Node.RuntimeStates.UNAVAILABLE,
+            ]
+            or not node.runtime_state
+        ):
             self.retry()
         elif node.runtime_state:
             raise RuntimeStateException(
-                '%s (PK: %s) runtime state become erred: %s' % (
-                    node.__class__.__name__, node.pk, node.runtime_state))
+                '%s (PK: %s) runtime state become erred: %s'
+                % (node.__class__.__name__, node.pk, node.runtime_state)
+            )
 
         return node
 

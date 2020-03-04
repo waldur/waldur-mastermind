@@ -1,4 +1,5 @@
 import datetime
+
 from django.conf import settings
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -20,9 +21,23 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.InvoiceItem
-        fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit', 'factor',
-                  'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid',
-                  'scope_type', 'scope_uuid',)
+        fields = (
+            'name',
+            'price',
+            'tax',
+            'total',
+            'unit_price',
+            'unit',
+            'factor',
+            'start',
+            'end',
+            'product_code',
+            'article_code',
+            'project_name',
+            'project_uuid',
+            'scope_type',
+            'scope_uuid',
+        )
 
     def get_scope_type(self, item):
         # It should be implemented by inherited class
@@ -38,7 +53,11 @@ class GenericItemSerializer(InvoiceItemSerializer):
 
     class Meta(InvoiceItemSerializer.Meta):
         model = models.InvoiceItem
-        fields = InvoiceItemSerializer.Meta.fields + ('quantity', 'details', 'usage_days',)
+        fields = InvoiceItemSerializer.Meta.fields + (
+            'quantity',
+            'details',
+            'usage_days',
+        )
 
     def get_scope_type(self, item):
         try:
@@ -52,8 +71,9 @@ class GenericItemSerializer(InvoiceItemSerializer):
         return item.details.get('scope_uuid')
 
 
-class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
-                        serializers.HyperlinkedModelSerializer):
+class InvoiceSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
@@ -66,9 +86,23 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     class Meta:
         model = models.Invoice
         fields = (
-            'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
-            'state', 'year', 'month', 'issuer_details', 'invoice_date', 'due_date',
-            'customer', 'customer_details', 'items', 'file',
+            'url',
+            'uuid',
+            'number',
+            'customer',
+            'price',
+            'tax',
+            'total',
+            'state',
+            'year',
+            'month',
+            'issuer_details',
+            'invoice_date',
+            'due_date',
+            'customer',
+            'customer_details',
+            'items',
+            'file',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -95,9 +129,11 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         if not obj.has_file():
             return None
 
-        return reverse('invoice-pdf',
-                       kwargs={'uuid': obj.uuid.hex},
-                       request=self.context['request'])
+        return reverse(
+            'invoice-pdf',
+            kwargs={'uuid': obj.uuid.hex},
+            request=self.context['request'],
+        )
 
     def get_items(self, invoice):
         items = utils.filter_invoice_items(invoice.items.all())
@@ -118,50 +154,63 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.InvoiceItem
         fields = (
-            'customer_uuid', 'customer_name',
-            'project_uuid', 'project_name',
-            'invoice_uuid', 'invoice_number',
-            'invoice_year', 'invoice_month',
-            'invoice_date', 'due_date',
-            'invoice_price', 'invoice_tax', 'invoice_total',
-            'name', 'article_code', 'product_code',
-            'price', 'tax', 'total', 'unit_price', 'unit',
-            'start', 'end',
+            'customer_uuid',
+            'customer_name',
+            'project_uuid',
+            'project_name',
+            'invoice_uuid',
+            'invoice_number',
+            'invoice_year',
+            'invoice_month',
+            'invoice_date',
+            'due_date',
+            'invoice_price',
+            'invoice_tax',
+            'invoice_total',
+            'name',
+            'article_code',
+            'product_code',
+            'price',
+            'tax',
+            'total',
+            'unit_price',
+            'unit',
+            'start',
+            'end',
         )
         decimal_fields = (
-            'price', 'tax', 'total', 'unit_price',
-            'invoice_price', 'invoice_tax', 'invoice_total'
+            'price',
+            'tax',
+            'total',
+            'unit_price',
+            'invoice_price',
+            'invoice_tax',
+            'invoice_total',
         )
         decimal_fields_extra_kwargs = {
-            'invoice_price': {
-                'source': 'invoice.price',
-            },
-            'invoice_tax': {
-                'source': 'invoice.tax',
-            },
-            'invoice_total': {
-                'source': 'invoice.total',
-            },
+            'invoice_price': {'source': 'invoice.price',},
+            'invoice_tax': {'source': 'invoice.tax',},
+            'invoice_total': {'source': 'invoice.total',},
         }
 
     def build_field(self, field_name, info, model_class, nested_depth):
         if field_name in self.Meta.decimal_fields:
             field_class = serializers.DecimalField
-            field_kwargs = dict(
-                max_digits=20,
-                decimal_places=2,
-                coerce_to_string=True,
-            )
+            field_kwargs = dict(max_digits=20, decimal_places=2, coerce_to_string=True,)
             default_kwargs = self.Meta.decimal_fields_extra_kwargs.get(field_name)
             if default_kwargs:
                 field_kwargs.update(default_kwargs)
             return field_class, field_kwargs
 
-        return super(InvoiceItemReportSerializer, self).build_field(field_name, info, model_class, nested_depth)
+        return super(InvoiceItemReportSerializer, self).build_field(
+            field_name, info, model_class, nested_depth
+        )
 
     def get_extra_kwargs(self):
         extra_kwargs = super(InvoiceItemReportSerializer, self).get_extra_kwargs()
-        extra_kwargs.update(settings.WALDUR_INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS'])
+        extra_kwargs.update(
+            settings.WALDUR_INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS']
+        )
         return extra_kwargs
 
 
@@ -185,9 +234,24 @@ class SAFReportSerializer(serializers.Serializer):
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
     class Meta:
-        fields = ('DOKNR', 'KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
-                  'ARTIKKEL', 'KOGUS', 'SUMMA', 'RMAKSUSUM', 'RMAKSULIPP',
-                  'ARTPROJEKT', 'ARTNIMI', 'VALI', 'U_KONEDEARV', 'H_PERIOOD')
+        fields = (
+            'DOKNR',
+            'KUUPAEV',
+            'VORMKUUP',
+            'MAKSEAEG',
+            'YKSUS',
+            'PARTNER',
+            'ARTIKKEL',
+            'KOGUS',
+            'SUMMA',
+            'RMAKSUSUM',
+            'RMAKSULIPP',
+            'ARTPROJEKT',
+            'ARTNIMI',
+            'VALI',
+            'U_KONEDEARV',
+            'H_PERIOOD',
+        )
 
     def format_date(self, date):
         if date:

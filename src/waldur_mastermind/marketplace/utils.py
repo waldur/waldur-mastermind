@@ -1,19 +1,20 @@
 import base64
-from io import BytesIO
 import os
+from io import BytesIO
 
-from django.core.exceptions import ObjectDoesNotExist
 import pdfkit
-from PIL import Image
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from PIL import Image
 from rest_framework import serializers
 
-from waldur_core.core import utils as core_utils, models as core_models
+from waldur_core.core import models as core_models
+from waldur_core.core import utils as core_utils
 
 from . import models, plugins
 
@@ -37,7 +38,9 @@ def get_order_item_processor(order_item):
 def process_order_item(order_item, user):
     processor = get_order_item_processor(order_item)
     if not processor:
-        order_item.error_message = 'Skipping order item processing because processor is not found.'
+        order_item.error_message = (
+            'Skipping order item processing because processor is not found.'
+        )
         order_item.set_state_erred()
         order_item.save(update_fields=['state', 'error_message'])
         return
@@ -138,7 +141,9 @@ def get_service_provider_info(source):
 
         return {
             'service_provider_name': customer.name,
-            'service_provider_uuid': '' if not service_provider else service_provider.uuid.hex,
+            'service_provider_uuid': ''
+            if not service_provider
+            else service_provider.uuid.hex,
         }
     except models.Resource.DoesNotExist:
         return {}
@@ -153,8 +158,9 @@ def format_list(resources):
 
 def get_order_item_url(order_item):
     link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-    return link_template.format(order_item_uuid=order_item.uuid.hex,
-                                project_uuid=order_item.order.project.uuid)
+    return link_template.format(
+        order_item_uuid=order_item.uuid.hex, project_uuid=order_item.order.project.uuid
+    )
 
 
 def fill_activated_field(apps, schema_editor):
@@ -174,23 +180,27 @@ def get_info_about_missing_usage_reports():
     now = timezone.now()
     billing_period = core_utils.month_start(now)
 
-    offering_ids = models.OfferingComponent.objects.filter(billing_type=models.OfferingComponent.BillingTypes.USAGE).\
-        values_list('offering_id', flat=True)
-    resource_with_usages = models.ComponentUsage.objects.filter(billing_period=billing_period).\
-        values_list('resource', flat=True)
-    resources_without_usages = models.Resource.objects.\
-        filter(state=models.Resource.States.OK, offering_id__in=offering_ids).exclude(id__in=resource_with_usages)
+    offering_ids = models.OfferingComponent.objects.filter(
+        billing_type=models.OfferingComponent.BillingTypes.USAGE
+    ).values_list('offering_id', flat=True)
+    resource_with_usages = models.ComponentUsage.objects.filter(
+        billing_period=billing_period
+    ).values_list('resource', flat=True)
+    resources_without_usages = models.Resource.objects.filter(
+        state=models.Resource.States.OK, offering_id__in=offering_ids
+    ).exclude(id__in=resource_with_usages)
     result = []
 
     for resource in resources_without_usages:
-        rows = list(filter(lambda x: x['customer'] == resource.offering.customer, result))
+        rows = list(
+            filter(lambda x: x['customer'] == resource.offering.customer, result)
+        )
         if rows:
             rows[0]['resources'].append(resource)
         else:
-            result.append({
-                'customer': resource.offering.customer,
-                'resources': [resource],
-            })
+            result.append(
+                {'customer': resource.offering.customer, 'resources': [resource],}
+            )
 
     return result
 
@@ -201,15 +211,20 @@ def get_public_resources_url(customer):
 
 
 def validate_limits(limits, offering):
-    usage_components = offering.components \
-        .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE) \
-        .exclude(disable_quotas=True) \
+    usage_components = (
+        offering.components.filter(
+            billing_type=models.OfferingComponent.BillingTypes.USAGE
+        )
+        .exclude(disable_quotas=True)
         .values_list('type', flat=True)
+    )
     valid_component_types = set(usage_components)
     valid_component_types.update(plugins.manager.get_available_limits(offering.type))
     invalid_types = set(limits.keys()) - valid_component_types
     if invalid_types:
-        raise serializers.ValidationError({'limits': _('Invalid types: %s') % ', '.join(invalid_types)})
+        raise serializers.ValidationError(
+            {'limits': _('Invalid types: %s') % ', '.join(invalid_types)}
+        )
 
     # Validate max and min limit value.
     components_map = {
@@ -223,20 +238,24 @@ def validate_limits(limits, offering):
             continue
 
         if component.max_value and value > component.max_value:
-            raise serializers.ValidationError(_('The limit %s value cannot be more than %s.') % (
-                value, component.max_value
-            ))
+            raise serializers.ValidationError(
+                _('The limit %s value cannot be more than %s.')
+                % (value, component.max_value)
+            )
         if component.min_value and value < component.min_value:
-            raise serializers.ValidationError(_('The limit %s value cannot be less than %s.') % (
-                value, component.min_value
-            ))
+            raise serializers.ValidationError(
+                _('The limit %s value cannot be less than %s.')
+                % (value, component.min_value)
+            )
 
 
 def create_offering_components(offering, custom_components=None):
     fixed_components = plugins.manager.get_components(offering.type)
     category_components = {
         component.type: component
-        for component in models.CategoryComponent.objects.filter(category=offering.category)
+        for component in models.CategoryComponent.objects.filter(
+            category=offering.category
+        )
     }
 
     for component_data in fixed_components:

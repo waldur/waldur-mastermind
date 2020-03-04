@@ -39,12 +39,18 @@ class UserFactory(factory.DjangoModelFactory):
     def get_url(cls, user=None, action=None):
         if user is None:
             user = UserFactory()
-        url = 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'user-detail', kwargs={'uuid': user.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_password_url(self, user):
-        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex}) + 'password/'
+        return (
+            'http://testserver'
+            + reverse('user-detail', kwargs={'uuid': user.uuid.hex})
+            + 'password/'
+        )
 
     @classmethod
     def get_list_url(cls, action=None):
@@ -58,19 +64,21 @@ class SshPublicKeyFactory(factory.DjangoModelFactory):
 
     user = factory.SubFactory(UserFactory)
     name = factory.Sequence(lambda n: 'ssh_public_key%s' % n)
-    public_key = factory.Sequence(lambda n:
-                                  "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDURXDP5YhOQUYoDuTxJ84DuzqMJYJqJ8+SZT28"
-                                  "TtLm5yBDRLKAERqtlbH2gkrQ3US58gd2r8H9jAmQOydfvgwauxuJUE4eDpaMWupqquMYsYLB5f+vVGhdZbbzfc6DTQ2rY"
-                                  "dknWoMoArlG7MvRMA/xQ0ye1muTv+mYMipnd7Z+WH0uVArYI9QBpqC/gpZRRIouQ4VIQIVWGoT6M4Kat5ZBXEa9yP+9du"
-                                  "D2C05GX3gumoSAVyAcDHn/xgej9pYRXGha4l+LKkFdGwAoXdV1z79EG1+9ns7wXuqMJFHM2KDpxAizV0GkZcojISvDwuh"
-                                  "vEAFdOJcqjyyH4%010d test" % n
-                                  )
+    public_key = factory.Sequence(
+        lambda n: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDURXDP5YhOQUYoDuTxJ84DuzqMJYJqJ8+SZT28"
+        "TtLm5yBDRLKAERqtlbH2gkrQ3US58gd2r8H9jAmQOydfvgwauxuJUE4eDpaMWupqquMYsYLB5f+vVGhdZbbzfc6DTQ2rY"
+        "dknWoMoArlG7MvRMA/xQ0ye1muTv+mYMipnd7Z+WH0uVArYI9QBpqC/gpZRRIouQ4VIQIVWGoT6M4Kat5ZBXEa9yP+9du"
+        "D2C05GX3gumoSAVyAcDHn/xgej9pYRXGha4l+LKkFdGwAoXdV1z79EG1+9ns7wXuqMJFHM2KDpxAizV0GkZcojISvDwuh"
+        "vEAFdOJcqjyyH4%010d test" % n
+    )
 
     @classmethod
     def get_url(cls, key=None):
         if key is None:
             key = SshPublicKeyFactory()
-        return 'http://testserver' + reverse('sshpublickey-detail', kwargs={'uuid': str(key.uuid)})
+        return 'http://testserver' + reverse(
+            'sshpublickey-detail', kwargs={'uuid': str(key.uuid)}
+        )
 
     @classmethod
     def get_list_url(cls):
@@ -89,7 +97,9 @@ class CustomerFactory(factory.DjangoModelFactory):
     def get_url(cls, customer=None, action=None):
         if customer is None:
             customer = CustomerFactory()
-        url = 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'customer-detail', kwargs={'uuid': customer.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -108,7 +118,9 @@ class ProjectFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectFactory()
-        url = 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'project-detail', kwargs={'uuid': project.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -128,7 +140,9 @@ class ProjectPermissionFactory(factory.DjangoModelFactory):
     def get_url(cls, permission=None, action=None):
         if permission is None:
             permission = ProjectPermissionFactory()
-        url = 'http://testserver' + reverse('project_permission-detail', kwargs={'pk': permission.pk})
+        url = 'http://testserver' + reverse(
+            'project_permission-detail', kwargs={'pk': permission.pk}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -148,7 +162,9 @@ class CustomerPermissionFactory(factory.DjangoModelFactory):
     def get_url(cls, permission=None, action=None):
         if permission is None:
             permission = CustomerPermissionFactory()
-        url = 'http://testserver' + reverse('customer_permission-detail', kwargs={'pk': permission.pk})
+        url = 'http://testserver' + reverse(
+            'customer_permission-detail', kwargs={'pk': permission.pk}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -169,7 +185,9 @@ class ServiceSettingsFactory(factory.DjangoModelFactory):
     def get_url(cls, settings=None, action=None):
         if settings is None:
             settings = ServiceSettingsFactory()
-        url = 'http://testserver' + reverse('servicesettings-detail', kwargs={'uuid': settings.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'servicesettings-detail', kwargs={'uuid': settings.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -188,7 +206,9 @@ class TestServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = TestServiceFactory()
-        url = 'http://testserver' + reverse('test-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'test-detail', kwargs={'uuid': service.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -201,7 +221,9 @@ class TestServiceProjectLinkFactory(factory.DjangoModelFactory):
         model = test_models.TestServiceProjectLink
 
     service = factory.SubFactory(TestServiceFactory)
-    project = factory.LazyAttribute(lambda spl: ProjectFactory(customer=spl.service.customer))
+    project = factory.LazyAttribute(
+        lambda spl: ProjectFactory(customer=spl.service.customer)
+    )
 
     @classmethod
     def get_url(cls, spl=None, action=None):
@@ -226,7 +248,9 @@ class TestNewInstanceFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = TestNewInstanceFactory()
-        url = 'http://testserver' + reverse('test-new-instances-detail', kwargs={'uuid': instance.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'test-new-instances-detail', kwargs={'uuid': instance.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -246,7 +270,9 @@ class ServiceCertificationFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = ServiceCertificationFactory()
-        url = 'http://testserver' + reverse('service-certification-detail', kwargs={'uuid': instance.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'service-certification-detail', kwargs={'uuid': instance.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -302,7 +328,9 @@ class DivisionFactory(factory.DjangoModelFactory):
     def get_url(cls, division=None, action=None):
         if division is None:
             division = DivisionFactory()
-        url = 'http://testserver' + reverse('division-detail', kwargs={'uuid': division.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'division-detail', kwargs={'uuid': division.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod

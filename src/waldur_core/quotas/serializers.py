@@ -5,7 +5,9 @@ from waldur_core.quotas import models, utils
 
 
 class QuotaSerializer(serializers.HyperlinkedModelSerializer):
-    scope = GenericRelatedField(related_models=utils.get_models_with_quotas(), read_only=True)
+    scope = GenericRelatedField(
+        related_models=utils.get_models_with_quotas(), read_only=True
+    )
 
     class Meta:
         model = models.Quota
@@ -20,6 +22,7 @@ class BasicQuotaSerializer(serializers.HyperlinkedModelSerializer):
     """
     It does not expose scope in order to reduce number of queries
     """
+
     class Meta:
         model = models.Quota
         fields = ('url', 'uuid', 'name', 'limit', 'usage')

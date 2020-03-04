@@ -8,8 +8,9 @@ from waldur_core.structure.serializers import PermissionFieldFilteringMixin
 from waldur_openstack.openstack_tenant import models as openstack_models
 
 
-class JobEstimateSerializer(PermissionFieldFilteringMixin,
-                            serializers.HyperlinkedModelSerializer):
+class JobEstimateSerializer(
+    PermissionFieldFilteringMixin, serializers.HyperlinkedModelSerializer
+):
     ssh_public_key = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
         view_name='sshpublickey-detail',
@@ -33,15 +34,19 @@ class JobEstimateSerializer(PermissionFieldFilteringMixin,
         fields = ('ssh_public_key', 'service_project_link', 'playbook', 'arguments')
 
     def get_filtered_field_names(self):
-        return 'service_project_link',
+        return ('service_project_link',)
 
     def check_subnet(self, attrs):
         if not self.instance:
             settings = attrs['service_project_link'].service.settings
             if not openstack_models.SubNet.objects.filter(settings=settings).exists():
-                raise serializers.ValidationError(_('Selected OpenStack provider does not have any subnet yet.'))
+                raise serializers.ValidationError(
+                    _('Selected OpenStack provider does not have any subnet yet.')
+                )
             else:
-                attrs['subnet'] = openstack_models.SubNet.objects.filter(settings=settings).first()
+                attrs['subnet'] = openstack_models.SubNet.objects.filter(
+                    settings=settings
+                ).first()
 
     def validate(self, attrs):
         if not self.instance:

@@ -6,5 +6,7 @@ CONTAINER_SSH_PORT_ON_HOST = '2222'
 
 class Ubuntu1604Container(DockerContainer):
     def __init__(self):
-        super(Ubuntu1604Container, self).__init__("integration-test-ubuntu1604-container", Ubuntu1604Image.IMAGE_NAME)
+        super(Ubuntu1604Container, self).__init__(
+            "integration-test-ubuntu1604-container", Ubuntu1604Image.IMAGE_NAME
+        )
         self.bind_port('22/tcp', CONTAINER_SSH_PORT_ON_HOST)

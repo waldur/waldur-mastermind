@@ -7,10 +7,13 @@ from . import models as test_models
 
 
 class TestQuotaField(TransactionTestCase):
-
     def test_quota_is_automatically_created_with_scope(self):
         scope = test_models.GrandparentModel.objects.create()
-        self.assertTrue(scope.quotas.filter(name=test_models.GrandparentModel.Quotas.regular_quota).exists())
+        self.assertTrue(
+            scope.quotas.filter(
+                name=test_models.GrandparentModel.Quotas.regular_quota
+            ).exists()
+        )
 
     def test_quota_limit_field_create(self):
         child = test_models.GrandparentModel.objects.create(regular_quota=7)
@@ -30,17 +33,20 @@ class TestQuotaField(TransactionTestCase):
         quota.usage = 13.0
         quota.save()
         # make sure that new version was created after quota usage change.
-        latest_version = Version.objects.get_for_object(quota).latest('revision__date_created')
+        latest_version = Version.objects.get_for_object(quota).latest(
+            'revision__date_created'
+        )
         self.assertEqual(latest_version._object_version.object.usage, quota.usage)
         # make sure that new version was not created if object was saved without data change.
         quota.usage = 13
         quota.save()
-        new_latest_version = Version.objects.get_for_object(quota).latest('revision__date_created')
+        new_latest_version = Version.objects.get_for_object(quota).latest(
+            'revision__date_created'
+        )
         self.assertEqual(new_latest_version, latest_version)
 
 
 class TestCounterQuotaField(TransactionTestCase):
-
     def setUp(self):
         self.grandparent = test_models.GrandparentModel.objects.create()
         self.parent = test_models.ParentModel.objects.create(parent=self.grandparent)
@@ -69,7 +75,9 @@ class TestCounterQuotaField(TransactionTestCase):
     def test_counter_quota_usage_is_working_with_two_models_as_targets(self):
         self.parent.second_children.create()
 
-        quota = self.parent.quotas.get(name=test_models.ParentModel.Quotas.two_targets_counter_quota)
+        quota = self.parent.quotas.get(
+            name=test_models.ParentModel.Quotas.two_targets_counter_quota
+        )
         self.assertEqual(quota.usage, 2)
 
     def test_delta_quota_usage_is_increased_on_child_creation(self):
@@ -83,11 +91,12 @@ class TestCounterQuotaField(TransactionTestCase):
 
 
 class TestTotalQuotaField(TransactionTestCase):
-
     def setUp(self):
         self.grandparent = test_models.GrandparentModel.objects.create()
         self.parent = test_models.ParentModel.objects.create(parent=self.grandparent)
-        self.child = test_models.SecondChildModel.objects.create(parent=self.parent, size=100)
+        self.child = test_models.SecondChildModel.objects.create(
+            parent=self.parent, size=100
+        )
         self.quota_field = test_models.ParentModel.Quotas.total_quota
 
     def test_counter_quota_usage_is_increased_on_child_creation(self):
@@ -111,17 +120,25 @@ class TestTotalQuotaField(TransactionTestCase):
 
 
 class TestUsageAggregatorField(TransactionTestCase):
-
     def setUp(self):
         self.grandparent = test_models.GrandparentModel.objects.create()
-        self.parents = [test_models.ParentModel.objects.create(parent=self.grandparent) for _ in range(2)]
+        self.parents = [
+            test_models.ParentModel.objects.create(parent=self.grandparent)
+            for _ in range(2)
+        ]
         non_quota_parent = test_models.NonQuotaParentModel.objects.create()
-        self.children = [test_models.ChildModel.objects.create(parent=parent, non_quota_parent=non_quota_parent)
-                         for parent in self.parents]
+        self.children = [
+            test_models.ChildModel.objects.create(
+                parent=parent, non_quota_parent=non_quota_parent
+            )
+            for parent in self.parents
+        ]
 
         self.child_quota_field = test_models.ChildModel.Quotas.usage_aggregator_quota
         self.parent_quota_field = test_models.ParentModel.Quotas.usage_aggregator_quota
-        self.grandparent_quota_field = test_models.GrandparentModel.Quotas.usage_aggregator_quota
+        self.grandparent_quota_field = (
+            test_models.GrandparentModel.Quotas.usage_aggregator_quota
+        )
 
     def test_aggregator_usage_increases_on_child_quota_usage_increase(self):
         usage_value = 10
@@ -193,22 +210,32 @@ class TestUsageAggregatorField(TransactionTestCase):
 
         # second_usage_aggregator_quota quota should increases too
         for parent in self.parents:
-            quota = parent.quotas.get(name=test_models.ParentModel.Quotas.second_usage_aggregator_quota)
+            quota = parent.quotas.get(
+                name=test_models.ParentModel.Quotas.second_usage_aggregator_quota
+            )
             self.assertEqual(quota.usage, usage_value)
 
 
 class TestLimitAggregatorField(TransactionTestCase):
-
     def setUp(self):
         self.grandparent = test_models.GrandparentModel.objects.create()
-        self.parents = [test_models.ParentModel.objects.create(parent=self.grandparent) for _ in range(2)]
+        self.parents = [
+            test_models.ParentModel.objects.create(parent=self.grandparent)
+            for _ in range(2)
+        ]
         non_quota_parent = test_models.NonQuotaParentModel.objects.create()
-        self.children = [test_models.ChildModel.objects.create(parent=parent, non_quota_parent=non_quota_parent)
-                         for parent in self.parents]
+        self.children = [
+            test_models.ChildModel.objects.create(
+                parent=parent, non_quota_parent=non_quota_parent
+            )
+            for parent in self.parents
+        ]
 
         self.child_quota_field = test_models.ChildModel.Quotas.limit_aggregator_quota
         self.parent_quota_field = test_models.ParentModel.Quotas.limit_aggregator_quota
-        self.grandparent_quota_field = test_models.GrandparentModel.Quotas.limit_aggregator_quota
+        self.grandparent_quota_field = (
+            test_models.GrandparentModel.Quotas.limit_aggregator_quota
+        )
 
     def test_aggregator_usage_increases_on_child_quota_limit_increase(self):
         limit_value = 10

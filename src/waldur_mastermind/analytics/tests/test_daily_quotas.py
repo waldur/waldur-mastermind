@@ -20,42 +20,42 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
             scope=self.project,
             name='nc_volume_count',
             date=parse_date('2018-10-01'),
-            usage=10
+            usage=10,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
             name='nc_volume_count',
             date=parse_date('2018-10-02'),
-            usage=11
+            usage=11,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
             name='nc_volume_count',
             date=parse_date('2018-10-03'),
-            usage=12
+            usage=12,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
             name='nc_snapshot_count',
             date=parse_date('2018-10-01'),
-            usage=5
+            usage=5,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
             name='nc_snapshot_count',
             date=parse_date('2018-10-02'),
-            usage=6
+            usage=6,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
             name='nc_snapshot_count',
             date=parse_date('2018-10-03'),
-            usage=7
+            usage=7,
         )
 
     def test_daily_quotas_are_serialized(self):
@@ -94,35 +94,20 @@ class TestDailyQuotasImport(test.APITransactionTestCase):
         with freeze_time('2018-10-06'):
             utils.import_daily_usage()
 
-        actual = list(models.DailyQuotaHistory.objects.filter(
-            scope=self.project,
-            name='nc_volume_count',
-        ).order_by('date').values('date', 'usage'))
+        actual = list(
+            models.DailyQuotaHistory.objects.filter(
+                scope=self.project, name='nc_volume_count',
+            )
+            .order_by('date')
+            .values('date', 'usage')
+        )
         expected = [
-            {
-                'date': parse_date('2018-10-01'),
-                'usage': 0,
-            },
-            {
-                'date': parse_date('2018-10-02'),
-                'usage': 0,
-            },
-            {
-                'date': parse_date('2018-10-03'),
-                'usage': 10,
-            },
-            {
-                'date': parse_date('2018-10-04'),
-                'usage': 10,
-            },
-            {
-                'date': parse_date('2018-10-05'),
-                'usage': 30,
-            },
-            {
-                'date': parse_date('2018-10-06'),
-                'usage': 30,
-            },
+            {'date': parse_date('2018-10-01'), 'usage': 0,},
+            {'date': parse_date('2018-10-02'), 'usage': 0,},
+            {'date': parse_date('2018-10-03'), 'usage': 10,},
+            {'date': parse_date('2018-10-04'), 'usage': 10,},
+            {'date': parse_date('2018-10-05'), 'usage': 30,},
+            {'date': parse_date('2018-10-06'), 'usage': 30,},
         ]
         self.assertEqual(expected, actual)
 
@@ -137,9 +122,7 @@ class TestDailyQuotasTask(test.APITransactionTestCase):
         models.DailyQuotaHistory.objects.all().delete()
         tasks.sync_daily_quotas()
         actual = models.DailyQuotaHistory.objects.get(
-            scope=self.project,
-            name='nc_volume_count',
-            date=timezone.now().date()
+            scope=self.project, name='nc_volume_count', date=timezone.now().date()
         ).usage
         self.assertEqual(30, actual)
 
@@ -152,8 +135,6 @@ class TestDailyQuotasSignalHandler(testcases.TestCase):
     def test_quotas_are_synced(self):
         self.project.set_quota_usage('nc_volume_count', 30)
         actual = models.DailyQuotaHistory.objects.get(
-            scope=self.project,
-            name='nc_volume_count',
-            date=timezone.now().date()
+            scope=self.project, name='nc_volume_count', date=timezone.now().date()
         ).usage
         self.assertEqual(30, actual)

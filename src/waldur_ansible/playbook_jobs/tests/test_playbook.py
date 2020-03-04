@@ -4,6 +4,7 @@ from zipfile import ZipFile
 from ddt import data, ddt
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
+
 from waldur_core.structure.tests.fixtures import ProjectFixture
 
 from . import factories
@@ -19,9 +20,16 @@ class PlaybookPermissionsTest(APITransactionTestCase):
         response = self.client.get(factories.PlaybookFactory.get_url(self.playbook))
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('user', 'staff', 'global_support',
-          'owner', 'customer_support',
-          'admin', 'manager', 'project_support')
+    @data(
+        'user',
+        'staff',
+        'global_support',
+        'owner',
+        'customer_support',
+        'admin',
+        'manager',
+        'project_support',
+    )
     def test_user_can_retrieve_playbook(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(factories.PlaybookFactory.get_url(self.playbook))
@@ -30,34 +38,54 @@ class PlaybookPermissionsTest(APITransactionTestCase):
     def test_staff_user_can_create_playbook(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = self._get_valid_payload()
-        response = self.client.post(factories.PlaybookFactory.get_list_url(), data=payload, format='multipart')
+        response = self.client.post(
+            factories.PlaybookFactory.get_list_url(), data=payload, format='multipart'
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-    @data('user', 'global_support',
-          'owner', 'customer_support',
-          'admin', 'manager', 'project_support')
+    @data(
+        'user',
+        'global_support',
+        'owner',
+        'customer_support',
+        'admin',
+        'manager',
+        'project_support',
+    )
     def test_user_cannot_create_playbook(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload()
-        response = self.client.post(factories.PlaybookFactory.get_list_url(), data=payload, format='multipart')
+        response = self.client.post(
+            factories.PlaybookFactory.get_list_url(), data=payload, format='multipart'
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_user_can_update_playbook(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = {'name': 'test playbook 2'}
-        response = self.client.put(factories.PlaybookFactory.get_url(self.playbook), data=payload)
+        response = self.client.put(
+            factories.PlaybookFactory.get_url(self.playbook), data=payload
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.playbook.refresh_from_db()
         self.assertEqual(self.playbook.name, payload['name'])
 
-    @data('user', 'global_support',
-          'owner', 'customer_support',
-          'admin', 'manager', 'project_support')
+    @data(
+        'user',
+        'global_support',
+        'owner',
+        'customer_support',
+        'admin',
+        'manager',
+        'project_support',
+    )
     def test_user_cannot_update_playbook(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {'name': 'test playbook 2'}
-        response = self.client.put(factories.PlaybookFactory.get_url(self.playbook), data=payload)
+        response = self.client.put(
+            factories.PlaybookFactory.get_url(self.playbook), data=payload
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_user_can_delete_playbook(self):
@@ -65,9 +93,15 @@ class PlaybookPermissionsTest(APITransactionTestCase):
         response = self.client.delete(factories.PlaybookFactory.get_url(self.playbook))
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('user', 'global_support',
-          'owner', 'customer_support',
-          'admin', 'manager', 'project_support')
+    @data(
+        'user',
+        'global_support',
+        'owner',
+        'customer_support',
+        'admin',
+        'manager',
+        'project_support',
+    )
     def test_user_cannot_delete_playbook(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(factories.PlaybookFactory.get_url(self.playbook))
@@ -84,12 +118,5 @@ class PlaybookPermissionsTest(APITransactionTestCase):
             'name': 'test playbook',
             'archive': temp_file,
             'entrypoint': 'main.yml',
-            'parameters': [
-                {
-                    'name': 'parameter1',
-                },
-                {
-                    'name': 'parameter2',
-                },
-            ]
+            'parameters': [{'name': 'parameter1',}, {'name': 'parameter2',},],
         }

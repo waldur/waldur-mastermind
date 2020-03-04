@@ -11,8 +11,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterModelOptions(
-            name='playbookparameter',
-            options={'ordering': ['order']},
+            name='playbookparameter', options={'ordering': ['order']},
         ),
         migrations.AddField(
             model_name='playbookparameter',

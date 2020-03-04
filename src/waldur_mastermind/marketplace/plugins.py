@@ -84,13 +84,18 @@ class PluginManager:
         """
         Returns true if order item can be terminated.
         """
-        return self.backends.get(offering_type, {}).get('can_terminate_order_item') or False
+        return (
+            self.backends.get(offering_type, {}).get('can_terminate_order_item')
+            or False
+        )
 
     def get_secret_attributes(self, offering_type):
         """
         Returns list of secret attributes for given offering type.
         """
-        secret_attributes = self.backends.get(offering_type, {}).get('secret_attributes')
+        secret_attributes = self.backends.get(offering_type, {}).get(
+            'secret_attributes'
+        )
         if callable(secret_attributes):
             secret_attributes = secret_attributes()
         return secret_attributes or []
@@ -113,7 +118,9 @@ class PluginManager:
 
     def get_spl_model(self, offering_type):
         resource_model = self.get_resource_model(offering_type)
-        return SupportedServices.get_related_models(resource_model)['service_project_link']
+        return SupportedServices.get_related_models(resource_model)[
+            'service_project_link'
+        ]
 
     def get_service_model(self, offering_type):
         resource_model = self.get_resource_model(offering_type)

@@ -1,6 +1,5 @@
 from ddt import data, ddt
-from rest_framework import status
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_openstack.openstack_tenant import models
 
@@ -8,14 +7,12 @@ from . import factories, fixtures
 
 
 class BaseBackupScheduleTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
 
 
 @ddt
 class BackupScheduleRetrieveTest(BaseBackupScheduleTest):
-
     def setUp(self):
         super(BackupScheduleRetrieveTest, self).setUp()
         self.backup_schedule = self.fixture.backup_schedule
@@ -31,7 +28,9 @@ class BackupScheduleRetrieveTest(BaseBackupScheduleTest):
         self.assertEqual(response.data[0]['uuid'], self.backup_schedule.uuid.hex)
 
     @data('user')
-    def test_user_can_not_see_backup_schedules_if_he_has_no_project_level_permissions(self, user):
+    def test_user_can_not_see_backup_schedules_if_he_has_no_project_level_permissions(
+        self, user
+    ):
         self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.get(self.url)
@@ -41,7 +40,6 @@ class BackupScheduleRetrieveTest(BaseBackupScheduleTest):
 
 @ddt
 class BackupScheduleDeleteTest(BaseBackupScheduleTest):
-
     def setUp(self):
         super(BackupScheduleDeleteTest, self).setUp()
         self.schedule = factories.BackupScheduleFactory(instance=self.fixture.instance)
@@ -54,7 +52,9 @@ class BackupScheduleDeleteTest(BaseBackupScheduleTest):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(models.BackupSchedule.objects.filter(pk=self.schedule.pk).exists())
+        self.assertFalse(
+            models.BackupSchedule.objects.filter(pk=self.schedule.pk).exists()
+        )
 
     @data('user')
     def test_user_can_not_delete_backup_schedule(self, user):
@@ -67,7 +67,6 @@ class BackupScheduleDeleteTest(BaseBackupScheduleTest):
 
 @ddt
 class BackupScheduleActivateTest(BaseBackupScheduleTest):
-
     def setUp(self):
         super(BackupScheduleActivateTest, self).setUp()
         self.client.force_authenticate(self.fixture.owner)
@@ -103,7 +102,6 @@ class BackupScheduleActivateTest(BaseBackupScheduleTest):
 
 @ddt
 class BackupScheduleDeactivateTest(BaseBackupScheduleTest):
-
     def setUp(self):
         super(BackupScheduleDeactivateTest, self).setUp()
         self.schedule = self.fixture.backup_schedule
@@ -112,7 +110,9 @@ class BackupScheduleDeactivateTest(BaseBackupScheduleTest):
         self.client.force_authenticate(self.fixture.owner)
         self.schedule.is_active = False
         self.schedule.save()
-        url = factories.BackupScheduleFactory.get_url(self.schedule, action='deactivate')
+        url = factories.BackupScheduleFactory.get_url(
+            self.schedule, action='deactivate'
+        )
 
         response = self.client.post(url)
 
@@ -120,7 +120,9 @@ class BackupScheduleDeactivateTest(BaseBackupScheduleTest):
 
     def test_backup_schedule_can_be_deactivated(self):
         self.client.force_authenticate(self.fixture.owner)
-        url = factories.BackupScheduleFactory.get_url(self.schedule, action='deactivate')
+        url = factories.BackupScheduleFactory.get_url(
+            self.schedule, action='deactivate'
+        )
 
         response = self.client.post(url)
 
@@ -133,21 +135,31 @@ class BackupScheduleDeactivateTest(BaseBackupScheduleTest):
         self.schedule.is_active = False
         self.schedule.save()
 
-        activate_url = factories.BackupScheduleFactory.get_url(self.schedule, action='activate')
-        deactivate_url = factories.BackupScheduleFactory.get_url(self.schedule, action='deactivate')
+        activate_url = factories.BackupScheduleFactory.get_url(
+            self.schedule, action='activate'
+        )
+        deactivate_url = factories.BackupScheduleFactory.get_url(
+            self.schedule, action='deactivate'
+        )
 
         response = self.client.post(activate_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(models.BackupSchedule.objects.get(pk=self.schedule.pk).is_active)
+        self.assertTrue(
+            models.BackupSchedule.objects.get(pk=self.schedule.pk).is_active
+        )
 
         response = self.client.post(deactivate_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(models.BackupSchedule.objects.get(pk=self.schedule.pk).is_active)
+        self.assertFalse(
+            models.BackupSchedule.objects.get(pk=self.schedule.pk).is_active
+        )
 
     @data('global_support')
     def test_user_cannot_deactivate_backup_schedule_if_he_is_not_owner(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        url = factories.BackupScheduleFactory.get_url(self.schedule, action='deactivate')
+        url = factories.BackupScheduleFactory.get_url(
+            self.schedule, action='deactivate'
+        )
 
         response = self.client.post(url)
 

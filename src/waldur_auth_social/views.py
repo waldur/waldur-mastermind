@@ -1,23 +1,23 @@
 import base64
 import json
-import jwt
 import logging
-import requests
 import uuid
 
+import jwt
+import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction, IntegrityError
-from rest_framework import views, status, response, generics
+from django.db import IntegrityError, transaction
+from rest_framework import generics, response, status, views
 from rest_framework.authtoken.models import Token
-from rest_framework.exceptions import ValidationError, APIException
+from rest_framework.exceptions import APIException, ValidationError
 
 from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
 
 from . import tasks
 from .log import event_logger, provider_event_type_mapping
 from .models import AuthProfile
-from .serializers import RegistrationSerializer, ActivationSerializer, AuthSerializer
+from .serializers import ActivationSerializer, AuthSerializer, RegistrationSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,9 @@ class FacebookException(AuthException):
         self.message_text = facebook_error.get('message', 'Undefined')
         self.message_type = facebook_error.get('type', 'Undefined')
         self.message_code = facebook_error.get('code', 'Undefined')
-        self.message = 'Facebook error {} (code:{}): {}'.format(self.message_type, self.message_code, self.message_text)
+        self.message = 'Facebook error {} (code:{}): {}'.format(
+            self.message_type, self.message_code, self.message_text
+        )
         super(FacebookException, self).__init__(detail=self.message)
 
     def __str__(self):
@@ -58,7 +60,9 @@ class GoogleException(AuthException):
         else:
             self.message_text = google_error.get('message', 'Undefined')
             self.message_code = google_error.get('code', 'Undefined')
-            self.message = 'Google error (code:{}): {}'.format(self.message_code, self.message_text)
+            self.message = 'Google error (code:{}): {}'.format(
+                self.message_code, self.message_text
+            )
 
         super(GoogleException, self).__init__(detail=self.message)
 
@@ -102,11 +106,13 @@ class BaseAuthView(RefreshTokenMixin, views.APIView):
         if not self.request.user.is_anonymous:
             raise ValidationError('This view is for anonymous users only.')
 
-        serializer = AuthSerializer(data={
-            'client_id': request.data.get('clientId'),
-            'redirect_uri': request.data.get('redirectUri'),
-            'code': request.data.get('code')
-        })
+        serializer = AuthSerializer(
+            data={
+                'client_id': request.data.get('clientId'),
+                'redirect_uri': request.data.get('redirectUri'),
+                'code': request.data.get('code'),
+            }
+        )
         serializer.is_valid(raise_exception=True)
 
         backend_user = self.get_backend_user(serializer.validated_data)
@@ -117,13 +123,12 @@ class BaseAuthView(RefreshTokenMixin, views.APIView):
         event_logger.auth_social.info(
             'User {user_username} with full name {user_full_name} authenticated successfully with {provider}.',
             event_type=provider_event_type_mapping[self.provider],
-            event_context={
-                'provider': self.provider,
-                'user': user,
-            }
+            event_context={'provider': self.provider, 'user': user,},
         )
-        return response.Response({'token': token.key},
-                                 status=created and status.HTTP_201_CREATED or status.HTTP_200_OK)
+        return response.Response(
+            {'token': token.key},
+            status=created and status.HTTP_201_CREATED or status.HTTP_200_OK,
+        )
 
     def get_backend_user(self, validated_data):
         """
@@ -138,7 +143,7 @@ class BaseAuthView(RefreshTokenMixin, views.APIView):
                 user = User.objects.create_user(
                     username=generate_username(),
                     full_name=user_name,
-                    registration_method=self.provider
+                    registration_method=self.provider,
                 )
                 user.set_unusable_password()
                 user.save()
@@ -161,11 +166,13 @@ class GoogleView(BaseAuthView):
         access_token_url = 'https://www.googleapis.com/oauth2/v3/token'
         people_api_url = 'https://www.googleapis.com/plus/v1/people/me/openIdConnect'
 
-        payload = dict(client_id=validated_data['client_id'],
-                       redirect_uri=validated_data['redirect_uri'],
-                       client_secret=GOOGLE_SECRET,
-                       code=validated_data['code'],
-                       grant_type='authorization_code')
+        payload = dict(
+            client_id=validated_data['client_id'],
+            redirect_uri=validated_data['redirect_uri'],
+            client_secret=GOOGLE_SECRET,
+            code=validated_data['code'],
+            grant_type='authorization_code',
+        )
 
         # Step 1. Exchange authorization code for access token.
         r = requests.post(access_token_url, data=payload)
@@ -181,10 +188,7 @@ class GoogleView(BaseAuthView):
         # Step 3. Check is response valid.
         self._assert_response_valid(response_data)
 
-        return {
-            'id': response_data['sub'],
-            'name': response_data['name']
-        }
+        return {'id': response_data['sub'], 'name': response_data['name']}
 
     def _assert_response_valid(self, response_data):
         if 'error' in response_data:
@@ -203,25 +207,20 @@ class FacebookView(BaseAuthView):
             'client_id': validated_data['client_id'],
             'redirect_uri': validated_data['redirect_uri'],
             'client_secret': FACEBOOK_SECRET,
-            'code': validated_data['code']
+            'code': validated_data['code'],
         }
 
         # Step 1. Exchange authorization code for access token.
         r = requests.get(access_token_url, params=params)
         self.check_response(r)
-        params = {
-            'access_token': r.json()['access_token']
-        }
+        params = {'access_token': r.json()['access_token']}
 
         # Step 2. Retrieve information about the current user.
         r = requests.get(graph_api_url, params=params)
         self.check_response(r)
         response_data = r.json()
 
-        return {
-            'id': response_data['id'],
-            'name': response_data['name']
-        }
+        return {'id': response_data['id'], 'name': response_data['name']}
 
     def check_response(self, r, valid_response=requests.codes.ok):
         if r.status_code != valid_response:
@@ -273,7 +272,9 @@ class SmartIDeeView(BaseAuthView):
 
     def create_or_update_user(self, backend_user):
         """ Authenticate user by civil number """
-        full_name = ('%s %s' % (backend_user['firstname'], backend_user['lastname']))[:100]
+        full_name = ('%s %s' % (backend_user['firstname'], backend_user['lastname']))[
+            :100
+        ]
         try:
             user = User.objects.get(civil_number=backend_user['idcode'])
         except User.DoesNotExist:
@@ -301,6 +302,7 @@ class TARAView(BaseAuthView):
     See also reference documentation for TARA authentication in Estonian language:
     https://e-gov.github.io/TARA-Doku/TehnilineKirjeldus#431-identsust%C3%B5end
     """
+
     provider = 'tara'
 
     def get_backend_user(self, validated_data):
@@ -320,9 +322,7 @@ class TARAView(BaseAuthView):
         raw_token = '%s:%s' % (TARA_CLIENT_ID, TARA_SECRET)
         auth_token = base64.b64encode(raw_token.encode('utf-8'))
 
-        headers = {
-            'Authorization': b'Basic %s' % auth_token
-        }
+        headers = {'Authorization': b'Basic %s' % auth_token}
 
         try:
             token_response = requests.post(user_data_url, data=data, headers=headers)
@@ -358,12 +358,17 @@ class TARAView(BaseAuthView):
     def create_or_update_user(self, backend_user):
         try:
             profile_attributes = backend_user['profile_attributes']
-            full_name = ('%s %s' % (profile_attributes['given_name'], profile_attributes['family_name']))[:100]
+            full_name = (
+                '%s %s'
+                % (profile_attributes['given_name'], profile_attributes['family_name'])
+            )[:100]
             civil_number = backend_user['sub']
             # AMR stands for Authentication Method Reference
             details = {
                 'amr': backend_user.get('amr'),
-                'profile_attributes_translit': backend_user.get('profile_attributes_translit'),
+                'profile_attributes_translit': backend_user.get(
+                    'profile_attributes_translit'
+                ),
             }
         except KeyError as e:
             logger.warning('Unable to parse identity certificate. Error is: %s', e)

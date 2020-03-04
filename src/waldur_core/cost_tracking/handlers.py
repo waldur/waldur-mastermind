@@ -5,7 +5,11 @@ from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.cost_tracking import models, CostTrackingRegister, ResourceNotRegisteredError
+from waldur_core.cost_tracking import (
+    CostTrackingRegister,
+    ResourceNotRegisteredError,
+    models,
+)
 from waldur_core.structure import models as structure_models
 
 logger = logging.getLogger(__name__)
@@ -52,7 +56,9 @@ def _resource_deletion(resource):
     if resource.__class__ not in CostTrackingRegister.registered_resources:
         return
     new_configuration = {}
-    price_estimate = models.PriceEstimate.update_resource_estimate(resource, new_configuration)
+    price_estimate = models.PriceEstimate.update_resource_estimate(
+        resource, new_configuration
+    )
     price_estimate.init_details()
 
 
@@ -71,7 +77,8 @@ def resource_update(sender, instance, created=False, **kwargs):
     except ResourceNotRegisteredError:
         return
     models.PriceEstimate.update_resource_estimate(
-        resource, new_configuration, raise_exception=not _is_in_celery_task())
+        resource, new_configuration, raise_exception=not _is_in_celery_task()
+    )
     # Try to create historical price estimates
     if created:
         _create_historical_estimates(resource, new_configuration)
@@ -86,7 +93,8 @@ def resource_quota_update(sender, instance, **kwargs):
     except ResourceNotRegisteredError:
         return
     models.PriceEstimate.update_resource_estimate(
-        resource, new_configuration, raise_exception=not _is_in_celery_task())
+        resource, new_configuration, raise_exception=not _is_in_celery_task()
+    )
 
 
 def _create_historical_estimates(resource, configuration):
@@ -98,4 +106,6 @@ def _create_historical_estimates(resource, configuration):
     month_start = core_utils.month_start(today)
     while month_start > resource.created:
         month_start -= relativedelta(months=1)
-        models.PriceEstimate.create_historical(resource, configuration, max(month_start, resource.created))
+        models.PriceEstimate.create_historical(
+            resource, configuration, max(month_start, resource.created)
+        )

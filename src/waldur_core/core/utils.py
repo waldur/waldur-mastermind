@@ -1,17 +1,19 @@
 import calendar
-from collections import OrderedDict
 import datetime
 import functools
 import importlib
-from itertools import chain
-from operator import itemgetter
 import os
 import re
 import time
 import unicodedata
 import uuid
 import warnings
+from collections import OrderedDict
+from itertools import chain
+from operator import itemgetter
 
+import jwt
+import requests
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -28,8 +30,6 @@ from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.encoding import force_text
-import jwt
-import requests
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
@@ -49,8 +49,9 @@ def sort_dict(unsorted_dict):
     return sorted_dict
 
 
-def format_time_and_value_to_segment_list(time_and_value_list, segments_count, start_timestamp,
-                                          end_timestamp, average=False):
+def format_time_and_value_to_segment_list(
+    time_and_value_list, segments_count, start_timestamp, end_timestamp, average=False
+):
     """
     Format time_and_value_list to time segments
 
@@ -73,17 +74,21 @@ def format_time_and_value_to_segment_list(time_and_value_list, segments_count, s
         segment_start_timestamp = start_timestamp + time_step * i
         segment_end_timestamp = segment_start_timestamp + time_step
         value_list = [
-            value for time, value in time_and_value_list
-            if time >= segment_start_timestamp and time < segment_end_timestamp]
+            value
+            for time, value in time_and_value_list
+            if time >= segment_start_timestamp and time < segment_end_timestamp
+        ]
         segment_value = sum(value_list)
         if average and len(value_list) != 0:
             segment_value /= len(value_list)
 
-        segment_list.append({
-            'from': segment_start_timestamp,
-            'to': segment_end_timestamp,
-            'value': segment_value,
-        })
+        segment_list.append(
+            {
+                'from': segment_start_timestamp,
+                'to': segment_end_timestamp,
+                'value': segment_value,
+            }
+        )
     return segment_list
 
 
@@ -114,13 +119,19 @@ def hours_in_month(month=None, year=None):
 
 
 def month_start(date):
-    return timezone.make_aware(datetime.datetime(day=1, month=date.month, year=date.year))
+    return timezone.make_aware(
+        datetime.datetime(day=1, month=date.month, year=date.year)
+    )
 
 
 def month_end(date):
     days_in_month = calendar.monthrange(date.year, date.month)[1]
-    last_day_of_month = datetime.date(month=date.month, year=date.year, day=days_in_month)
-    last_second_of_month = datetime.datetime.combine(last_day_of_month, datetime.time.max)
+    last_day_of_month = datetime.date(
+        month=date.month, year=date.year, day=days_in_month
+    )
+    last_second_of_month = datetime.datetime.combine(
+        last_day_of_month, datetime.time.max
+    )
     return timezone.make_aware(last_second_of_month, timezone.get_current_timezone())
 
 
@@ -129,9 +140,9 @@ def pwgen(pw_len=16):
         Allowed chars does not have "I" or "O" or letters and
         digits that look similar -- just to avoid confusion.
     """
-    return get_random_string(pw_len, 'abcdefghjkmnpqrstuvwxyz'
-                                     'ABCDEFGHJKLMNPQRSTUVWXYZ'
-                                     '23456789')
+    return get_random_string(
+        pw_len, 'abcdefghjkmnpqrstuvwxyz' 'ABCDEFGHJKLMNPQRSTUVWXYZ' '23456789'
+    )
 
 
 def serialize_instance(instance):
@@ -211,7 +222,9 @@ def get_list_view_name(model):
 
 def get_fake_context():
     user = get_user_model()()
-    request = type('R', (object,), {'method': 'GET', 'user': user, 'query_params': QueryDict()})
+    request = type(
+        'R', (object,), {'method': 'GET', 'user': user, 'query_params': QueryDict()}
+    )
     return {'request': request, 'user': user}
 
 
@@ -229,14 +242,19 @@ def format_text(template_name, context):
     return template.render(Context(context, autoescape=False)).strip()
 
 
-def send_mail_with_attachment(subject, body, to, from_email=None, html_message=None,
-                              filename=None, attachment=None, content_type='text/plain'):
+def send_mail_with_attachment(
+    subject,
+    body,
+    to,
+    from_email=None,
+    html_message=None,
+    filename=None,
+    attachment=None,
+    content_type='text/plain',
+):
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
     email = EmailMultiAlternatives(
-        subject=subject,
-        body=body,
-        to=to,
-        from_email=from_email
+        subject=subject, body=body, to=to, from_email=from_email
     )
 
     if html_message:
@@ -247,8 +265,15 @@ def send_mail_with_attachment(subject, body, to, from_email=None, html_message=N
     return email.send()
 
 
-def broadcast_mail(app, event_type, context, recipient_list,
-                   filename=None, attachment=None, content_type='text/plain'):
+def broadcast_mail(
+    app,
+    event_type,
+    context,
+    recipient_list,
+    filename=None,
+    attachment=None,
+    content_type='text/plain',
+):
     """
     Shorthand to format email message from template file and sent it to all recipients.
 
@@ -282,8 +307,15 @@ def broadcast_mail(app, event_type, context, recipient_list,
     html_message = render_to_string(html_template_name, context)
 
     for recipient in recipient_list:
-        send_mail_with_attachment(subject, text_message, to=[recipient], html_message=html_message,
-                                  filename=filename, attachment=attachment, content_type=content_type)
+        send_mail_with_attachment(
+            subject,
+            text_message,
+            to=[recipient],
+            html_message=html_message,
+            filename=filename,
+            attachment=attachment,
+            content_type=content_type,
+        )
 
 
 def get_ordering(request):
@@ -330,7 +362,7 @@ def chunks(xs, n):
     :param n: chunk size
     :return: list of lists
     """
-    return [xs[i:i + n] for i in range(0, len(xs), n)]
+    return [xs[i : i + n] for i in range(0, len(xs), n)]
 
 
 def create_batch_fetcher(fetcher):
@@ -344,6 +376,7 @@ def create_batch_fetcher(fetcher):
     for example, list of UUIDs and returns list of projects with given UUIDs
     :return: function with the same signature as fetcher
     """
+
     @functools.wraps(fetcher)
     def wrapped(items):
         """
@@ -354,13 +387,17 @@ def create_batch_fetcher(fetcher):
         for chunk in chunks(items, settings.WALDUR_CORE['HTTP_CHUNK_SIZE']):
             result.extend(fetcher(chunk))
         return result
+
     return wrapped
 
 
 class DryRunCommand(BaseCommand):
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true',
-                            help='Don\'t make any changes, instead show what objects would be created.')
+        parser.add_argument(
+            '--dry-run',
+            action='store_true',
+            help='Don\'t make any changes, instead show what objects would be created.',
+        )
 
 
 def encode_jwt_token(data, api_secret_code=None):
@@ -372,7 +409,9 @@ def encode_jwt_token(data, api_secret_code=None):
     """
     if api_secret_code is None:
         api_secret_code = settings.SECRET_KEY
-    return jwt.encode(data, api_secret_code, algorithm='HS256', json_encoder=DjangoJSONEncoder)
+    return jwt.encode(
+        data, api_secret_code, algorithm='HS256', json_encoder=DjangoJSONEncoder
+    )
 
 
 def decode_jwt_token(encoded_data, api_secret_code=None):
@@ -391,13 +430,13 @@ def normalize_unicode(data):
     return unicodedata.normalize(u'NFKD', data).encode('ascii', 'ignore').decode('utf8')
 
 
-UNIT_PATTERN = re.compile('(\d+)([KMGTP]?)')
+UNIT_PATTERN = re.compile(r'(\d+)([KMGTP]?)')
 
 UNITS = {
-    'K': 2**10,
-    'M': 2**20,
-    'G': 2**30,
-    'T': 2**40,
+    'K': 2 ** 10,
+    'M': 2 ** 20,
+    'G': 2 ** 30,
+    'T': 2 ** 40,
 }
 
 
@@ -421,10 +460,13 @@ class QuietSession(requests.Session):
     """Session class that suppresses warning about unsafe TLS sessions and clogging the logs.
     Inspired by: https://github.com/kennethreitz/requests/issues/2214#issuecomment-110366218
     """
+
     def request(self, *args, **kwargs):
         if not kwargs.get('verify', self.verify):
             with warnings.catch_warnings():
-                if hasattr(exceptions, 'InsecurePlatformWarning'):  # urllib3 1.10 and lower does not have this warning
+                if hasattr(
+                    exceptions, 'InsecurePlatformWarning'
+                ):  # urllib3 1.10 and lower does not have this warning
                     warnings.simplefilter('ignore', exceptions.InsecurePlatformWarning)
                 warnings.simplefilter('ignore', exceptions.InsecureRequestWarning)
                 return super(QuietSession, self).request(*args, **kwargs)

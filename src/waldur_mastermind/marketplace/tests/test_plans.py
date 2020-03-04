@@ -11,7 +11,6 @@ from . import factories
 
 @ddt
 class PlanGetTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -35,7 +34,6 @@ class PlanGetTest(test.APITransactionTestCase):
 
 @ddt
 class PlanCreateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -67,7 +65,6 @@ class PlanCreateTest(test.APITransactionTestCase):
 
 @ddt
 class PlanUpdateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -94,14 +91,11 @@ class PlanUpdateTest(test.APITransactionTestCase):
 
     def update_plan(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        return self.client.patch(self.url, {
-            'name': 'New plan'
-        })
+        return self.client.patch(self.url, {'name': 'New plan'})
 
 
 @ddt
 class PlanArchiveTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

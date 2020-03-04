@@ -20,11 +20,11 @@ Usage:
 
 """
 
-from ctypes import c_char_p, c_int, c_size_t, c_void_p
 import ctypes.util
 import glob
 import sys
 import threading
+from ctypes import c_char_p, c_int, c_size_t, c_void_p
 
 
 class MagicException(Exception):
@@ -39,8 +39,14 @@ class Magic:
 
     """
 
-    def __init__(self, mime=False, magic_file=None, mime_encoding=False,
-                 keep_going=False, uncompress=False):
+    def __init__(
+        self,
+        mime=False,
+        magic_file=None,
+        mime_encoding=False,
+        keep_going=False,
+        uncompress=False,
+    ):
         """
         Create a new libmagic wrapper.
 
@@ -154,9 +160,11 @@ def from_buffer(buffer, mime=False):
 
 libmagic = None
 # Let's try to find magic or magic1
-dll = ctypes.util.find_library('magic') \
-    or ctypes.util.find_library('magic1') \
+dll = (
+    ctypes.util.find_library('magic')
+    or ctypes.util.find_library('magic1')
     or ctypes.util.find_library('cygmagic-1')
+)
 
 # necessary because find_library returns None if it doesn't find the library
 if dll:
@@ -164,15 +172,15 @@ if dll:
 
 if not libmagic or not libmagic._name:
     windows_dlls = ['magic1.dll', 'cygmagic-1.dll']
-    platform_to_lib = {'darwin': ['/opt/local/lib/libmagic.dylib',
-                                  '/usr/local/lib/libmagic.dylib'] +
-                       # Assumes there will only be one version installed
-                       glob.glob('/usr/local/Cellar/libmagic/*/lib/libmagic.dylib'),  # flake8:noqa
-                       'win32': windows_dlls,
-                       'cygwin': windows_dlls,
-                       'linux': ['libmagic.so.1'],
-                       # fallback for some Linuxes (e.g. Alpine) where library search does not work # flake8:noqa
-                       }
+    platform_to_lib = {
+        'darwin': ['/opt/local/lib/libmagic.dylib', '/usr/local/lib/libmagic.dylib']
+        # Assumes there will only be one version installed
+        + glob.glob('/usr/local/Cellar/libmagic/*/lib/libmagic.dylib'),  # flake8:noqa
+        'win32': windows_dlls,
+        'cygwin': windows_dlls,
+        'linux': ['libmagic.so.1'],
+        # fallback for some Linuxes (e.g. Alpine) where library search does not work # flake8:noqa
+    }
     platform = 'linux' if sys.platform.startswith('linux') else sys.platform
     for dll in platform_to_lib.get(platform, []):
         try:
@@ -212,10 +220,9 @@ def coerce_filename(filename):
     # .encode('ascii').  If you use the filesystem encoding
     # then you'll get inconsistent behavior (crashes) depending on the user's
     # LANG environment variable
-    is_unicode = (sys.version_info[0] <= 2 and
-                  isinstance(filename, str)) or \
-                 (sys.version_info[0] >= 3 and
-                  isinstance(filename, str))
+    is_unicode = (sys.version_info[0] <= 2 and isinstance(filename, str)) or (
+        sys.version_info[0] >= 3 and isinstance(filename, str)
+    )
     if is_unicode:
         return filename.encode('utf-8', 'surrogateescape')
     else:

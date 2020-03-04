@@ -1,5 +1,6 @@
 from unittest.mock import patch
-from rest_framework import test, status
+
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -10,26 +11,36 @@ from . import factories, fixtures
 def _instance_data(user, instance=None):
     if instance is None:
         instance = factories.InstanceFactory()
-    factories.FloatingIPFactory(settings=instance.service_project_link.service.settings, runtime_state='DOWN')
-    image = factories.ImageFactory(settings=instance.service_project_link.service.settings)
-    flavor = factories.FlavorFactory(settings=instance.service_project_link.service.settings)
+    factories.FloatingIPFactory(
+        settings=instance.service_project_link.service.settings, runtime_state='DOWN'
+    )
+    image = factories.ImageFactory(
+        settings=instance.service_project_link.service.settings
+    )
+    flavor = factories.FlavorFactory(
+        settings=instance.service_project_link.service.settings
+    )
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
-    subnet = factories.SubNetFactory(settings=instance.service_project_link.service.settings)
+    subnet = factories.SubNetFactory(
+        settings=instance.service_project_link.service.settings
+    )
     return {
         'name': 'test-host',
         'description': 'test description',
         'flavor': factories.FlavorFactory.get_url(flavor),
         'image': factories.ImageFactory.get_url(image),
         'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-            instance.service_project_link),
-        'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(ssh_public_key),
+            instance.service_project_link
+        ),
+        'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(
+            ssh_public_key
+        ),
         'system_volume_size': max(image.min_disk, 1024),
         'internal_ips_set': [{'subnet': factories.SubNetFactory.get_url(subnet)}],
     }
 
 
 class InstanceSecurityGroupsTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.instance = self.fixture.instance
@@ -37,7 +48,9 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         self.admin = self.fixture.admin
         self.client.force_authenticate(self.admin)
 
-        self.security_groups = factories.SecurityGroupFactory.create_batch(2, settings=self.settings)
+        self.security_groups = factories.SecurityGroupFactory.create_batch(
+            2, settings=self.settings
+        )
         self.instance.security_groups.add(*self.security_groups)
 
     def test_groups_list_in_instance_response(self):
@@ -52,8 +65,9 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
     def test_add_instance_with_security_groups(self):
         data = _instance_data(self.admin, self.instance)
-        data['security_groups'] = [self._get_valid_security_group_payload(sg)
-                                   for sg in self.security_groups]
+        data['security_groups'] = [
+            self._get_valid_security_group_payload(sg) for sg in self.security_groups
+        ]
 
         response = self.client.post(factories.InstanceFactory.get_list_url(), data=data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -62,11 +76,12 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         reread_security_groups = list(reread_instance.security_groups.all())
         self.assertEquals(reread_security_groups, self.security_groups)
 
-    @patch('waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute')
+    @patch(
+        'waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute'
+    )
     def test_change_instance_security_groups_single_field(self, mocked_execute_method):
         new_security_group = factories.SecurityGroupFactory(
-            name='test-group',
-            settings=self.settings,
+            name='test-group', settings=self.settings,
         )
 
         data = {
@@ -75,27 +90,42 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
             ]
         }
 
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='update_security_groups'),
-                                    data=data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(
+                self.instance, action='update_security_groups'
+            ),
+            data=data,
+        )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
         reread_security_groups = list(reread_instance.security_groups.all())
 
-        self.assertEquals(reread_security_groups, [new_security_group],
-                          'Security groups should have changed')
+        self.assertEquals(
+            reread_security_groups,
+            [new_security_group],
+            'Security groups should have changed',
+        )
         mocked_execute_method.assert_called_once()
 
-    @patch('waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute')
+    @patch(
+        'waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute'
+    )
     def test_change_instance_security_groups(self, mocked_execute_method):
         response = self.client.get(factories.InstanceFactory.get_url(self.instance))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         security_group = factories.SecurityGroupFactory(settings=self.settings)
-        data = {'security_groups': [self._get_valid_security_group_payload(security_group)]}
+        data = {
+            'security_groups': [self._get_valid_security_group_payload(security_group)]
+        }
 
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='update_security_groups'),
-                                    data=data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(
+                self.instance, action='update_security_groups'
+            ),
+            data=data,
+        )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)

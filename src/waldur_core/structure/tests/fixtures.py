@@ -1,11 +1,10 @@
 from django.utils.functional import cached_property
 
-from . import factories
 from .. import models
+from . import factories
 
 
 class UserFixture:
-
     @cached_property
     def staff(self):
         return factories.UserFactory(is_staff=True)
@@ -20,7 +19,6 @@ class UserFixture:
 
 
 class CustomerFixture(UserFixture):
-
     @cached_property
     def customer(self):
         return factories.CustomerFactory()
@@ -39,7 +37,6 @@ class CustomerFixture(UserFixture):
 
 
 class ProjectFixture(CustomerFixture):
-
     @cached_property
     def project(self):
         return factories.ProjectFactory(customer=self.customer)
@@ -64,27 +61,36 @@ class ProjectFixture(CustomerFixture):
 
 
 class ServiceFixture(ProjectFixture):
-
     @cached_property
     def service_settings(self):
         return factories.ServiceSettingsFactory(customer=self.customer)
 
     @cached_property
     def service(self):
-        return factories.TestServiceFactory(settings=self.service_settings, customer=self.customer)
+        return factories.TestServiceFactory(
+            settings=self.service_settings, customer=self.customer
+        )
 
     @cached_property
     def service_project_link(self):
-        return factories.TestServiceProjectLinkFactory(service=self.service, project=self.project)
+        return factories.TestServiceProjectLinkFactory(
+            service=self.service, project=self.project
+        )
 
     @cached_property
     def resource(self):
-        return factories.TestNewInstanceFactory(service_project_link=self.service_project_link)
+        return factories.TestNewInstanceFactory(
+            service_project_link=self.service_project_link
+        )
 
     @cached_property
     def volume(self):
-        return factories.TestVolumeFactory(service_project_link=self.service_project_link)
+        return factories.TestVolumeFactory(
+            service_project_link=self.service_project_link
+        )
 
     @cached_property
     def snapshot(self):
-        return factories.TestSnapshotFactory(service_project_link=self.service_project_link)
+        return factories.TestSnapshotFactory(
+            service_project_link=self.service_project_link
+        )

@@ -24,9 +24,11 @@ class IssueEventLogger(EventLogger):
     issue = models.Issue
 
     class Meta:
-        event_types = ('issue_deletion_succeeded',
-                       'issue_update_succeeded',
-                       'issue_creation_succeeded')
+        event_types = (
+            'issue_deletion_succeeded',
+            'issue_update_succeeded',
+            'issue_creation_succeeded',
+        )
         event_groups = {
             'support': event_types,
         }
@@ -72,7 +74,9 @@ class OfferingEventLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         offering = event_context['offering']
-        project = Project.all_objects.get(id=offering.project_id)  # handle case when project is already deleted
+        project = Project.all_objects.get(
+            id=offering.project_id
+        )  # handle case when project is already deleted
         return {offering, project, project.customer}
 
 

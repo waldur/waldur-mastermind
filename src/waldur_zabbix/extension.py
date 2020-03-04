@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class ZabbixExtension(WaldurExtension):
-
     class Settings:
         WALDUR_ZABBIX = {
             'SMS_SETTINGS': {
@@ -22,7 +21,7 @@ class ZabbixExtension(WaldurExtension):
                 ('comments', 'comments', 'ReadOnlyField'),
                 ('error', 'error', 'ReadOnlyField'),
                 ('value', 'value', 'IntegerField'),
-            )
+            ),
         }
 
     @staticmethod
@@ -32,11 +31,13 @@ class ZabbixExtension(WaldurExtension):
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
     def celery_tasks():
         from datetime import timedelta
+
         return {
             'update-monthly-slas': {
                 'task': 'waldur_core.zabbix.update_sla',

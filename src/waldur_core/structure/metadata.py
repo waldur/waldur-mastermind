@@ -2,8 +2,7 @@ from collections import OrderedDict
 
 from django.utils.encoding import force_text
 from django.utils.http import urlencode
-from rest_framework import exceptions
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 from rest_framework.metadata import SimpleMetadata
 from rest_framework.request import clone_request
 from rest_framework.reverse import reverse
@@ -29,7 +28,7 @@ class ActionSerializer:
             'destructive': self.is_destructive(),
             'url': self.get_url(),
             'reason': reason,
-            'enabled': not reason
+            'enabled': not reason,
         }
 
     def is_destructive(self):
@@ -81,9 +80,9 @@ class ActionsMetadata(SimpleMetadata):
     """
 
     label_lookup = ClassLookupDict(
-        mapping=merge_dictionaries({
-            serializers.JSONField: 'text'
-        }, SimpleMetadata.label_lookup.mapping)
+        mapping=merge_dictionaries(
+            {serializers.JSONField: 'text'}, SimpleMetadata.label_lookup.mapping
+        )
     )
 
     def determine_metadata(self, request, view):
@@ -198,8 +197,18 @@ class ActionsMetadata(SimpleMetadata):
         field_info['required'] = getattr(field, 'required', False)
 
         attrs = [
-            'label', 'help_text', 'default_value', 'placeholder', 'required',
-            'min_length', 'max_length', 'min_value', 'max_value', 'many', 'factor', 'units'
+            'label',
+            'help_text',
+            'default_value',
+            'placeholder',
+            'required',
+            'min_length',
+            'max_length',
+            'min_value',
+            'max_value',
+            'many',
+            'factor',
+            'units',
         ]
 
         if getattr(field, 'read_only', False):
@@ -221,13 +230,15 @@ class ActionsMetadata(SimpleMetadata):
             if hasattr(field, 'query_params'):
                 field_info['url'] += '?%s' % urlencode(field.query_params)
             field_info['value_field'] = getattr(field, 'value_field', 'url')
-            field_info['display_name_field'] = getattr(field, 'display_name_field', 'display_name')
+            field_info['display_name_field'] = getattr(
+                field, 'display_name_field', 'display_name'
+            )
 
         if hasattr(field, 'choices') and not hasattr(field, 'queryset'):
             field_info['choices'] = [
                 {
                     'value': choice_value,
-                    'display_name': force_text(choice_name, strings_only=True)
+                    'display_name': force_text(choice_name, strings_only=True),
                 }
                 for choice_value, choice_name in field.choices.items()
             ]

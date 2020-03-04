@@ -1,5 +1,6 @@
-import factory
 import random
+
+import factory
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import models as openstack_models
@@ -27,7 +28,9 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
                 component.save()
         else:
             for component_type in self.get_required_component_types():
-                self.components.get_or_create(type=component_type, price=random.randint(1, 2), amount=1)
+                self.components.get_or_create(
+                    type=component_type, price=random.randint(1, 2), amount=1
+                )
 
 
 # XXX: this factory is useless. On template creation its components are already

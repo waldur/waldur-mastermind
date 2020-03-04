@@ -9,4 +9,6 @@ class Command(DryRunCommand):
 
     def handle(self, dry_run, *args, **options):
         resources_counter = utils.import_openstack_instances_and_volumes(dry_run)
-        self.stdout.write(self.style.SUCCESS('%s resources have been created.' % resources_counter))
+        self.stdout.write(
+            self.style.SUCCESS('%s resources have been created.' % resources_counter)
+        )

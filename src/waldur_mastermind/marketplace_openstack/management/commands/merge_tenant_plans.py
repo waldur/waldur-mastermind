@@ -11,10 +11,18 @@ class Command(BaseCommand):
     help = """Merge marketplace plans related to OpenStack tenant offering."""
 
     def add_arguments(self, parser):
-        parser.add_argument('--offering', dest='offering_uuid', required=True,
-                            help='UUID of marketplace offering for OpenStack tenant provisioning.')
-        parser.add_argument('--plan', dest='plan_uuid', required=True,
-                            help='UUID of example marketplace plan related to the same offering.')
+        parser.add_argument(
+            '--offering',
+            dest='offering_uuid',
+            required=True,
+            help='UUID of marketplace offering for OpenStack tenant provisioning.',
+        )
+        parser.add_argument(
+            '--plan',
+            dest='plan_uuid',
+            required=True,
+            help='UUID of example marketplace plan related to the same offering.',
+        )
 
     def handle(self, *args, **options):
         offering_uuid = options['offering_uuid']

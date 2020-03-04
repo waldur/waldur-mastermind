@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 
 from waldur_core.logging.loggers import EventLogger, event_logger
 
-
 User = get_user_model()
 
 provider_event_type_mapping = {

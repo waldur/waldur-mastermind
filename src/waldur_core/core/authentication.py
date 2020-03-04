@@ -1,8 +1,8 @@
+import rest_framework.authentication
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
-import rest_framework.authentication
 
 import waldur_core.logging.middleware
 
@@ -78,7 +78,9 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
         try:
             token = auth[1].decode()
         except UnicodeError:
-            msg = _('Invalid token header. Token string should not contain invalid characters.')
+            msg = _(
+                'Invalid token header. Token string should not contain invalid characters.'
+            )
             raise exceptions.AuthenticationFailed(msg)
 
         return self.authenticate_credentials(token)
@@ -100,8 +102,9 @@ def user_capturing_auth(auth):
     return CapturingAuthentication
 
 
-class CsrfExemptSessionAuthentication(rest_framework.authentication.SessionAuthentication):
-
+class CsrfExemptSessionAuthentication(
+    rest_framework.authentication.SessionAuthentication
+):
     def enforce_csrf(self, request):
         return  # Skip CSRF check
 

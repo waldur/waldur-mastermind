@@ -14,7 +14,6 @@ class OutputMixin(models.Model):
 
 
 class UuidStrMixin(core_models.UuidMixin):
-
     class Meta:
         abstract = True
 

@@ -21,10 +21,7 @@ def service_settings_description():
             continue
         name = SupportedServices.get_name_for_model(cls.Meta.model)
         fields, extra_fields = get_fields(cls)
-        services.append((name, {
-            'fields': fields,
-            'extra_fields': extra_fields
-        }))
+        services.append((name, {'fields': fields, 'extra_fields': extra_fields}))
     return {'services': sorted(services)}
 
 
@@ -45,7 +42,7 @@ def get_fields(serializer_class):
         data = {
             'label': field.label,
             'help_text': field.help_text,
-            'required': field.required
+            'required': field.required,
         }
         if name in field_names:
             fields[name] = data

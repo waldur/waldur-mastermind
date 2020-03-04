@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from waldur_core.core.serializers import Base64Field
+
 from . import models, utils
 
 
@@ -11,7 +12,9 @@ class Saml2LoginSerializer(serializers.Serializer):
         if utils.is_valid_idp(value):
             return value
         else:
-            raise serializers.ValidationError('Identity provider %s is not available.' % value)
+            raise serializers.ValidationError(
+                'Identity provider %s is not available.' % value
+            )
 
 
 class Saml2LoginCompleteSerializer(serializers.Serializer):
@@ -24,7 +27,9 @@ class Saml2LogoutCompleteSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if not attrs.get('SAMLResponse') and not attrs.get('SAMLRequest'):
-            raise serializers.ValidationError('Either SAMLResponse or SAMLRequest must be provided.')
+            raise serializers.ValidationError(
+                'Either SAMLResponse or SAMLRequest must be provided.'
+            )
 
         return attrs
 

@@ -1,8 +1,8 @@
-from random import randint
 import uuid
+from random import randint
 
-from django.urls import reverse
 import factory
+from django.urls import reverse
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
@@ -25,7 +25,9 @@ class OpenStackServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = OpenStackServiceFactory()
-        url = 'http://testserver' + reverse('openstack-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'openstack-detail', kwargs={'uuid': service.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -44,7 +46,9 @@ class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = OpenStackServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
+        url = 'http://testserver' + reverse(
+            'openstack-spl-detail', kwargs={'pk': spl.pk}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -69,7 +73,9 @@ class FlavorFactory(factory.DjangoModelFactory):
     def get_url(cls, flavor=None):
         if flavor is None:
             flavor = FlavorFactory()
-        return 'http://testserver' + reverse('openstack-flavor-detail', kwargs={'uuid': flavor.uuid.hex})
+        return 'http://testserver' + reverse(
+            'openstack-flavor-detail', kwargs={'uuid': flavor.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):
@@ -89,7 +95,9 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, image=None):
         if image is None:
             image = ImageFactory()
-        return 'http://testserver' + reverse('openstack-image-detail', kwargs={'uuid': image.uuid.hex})
+        return 'http://testserver' + reverse(
+            'openstack-image-detail', kwargs={'uuid': image.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):
@@ -108,7 +116,8 @@ class TenantMixin:
         if 'tenant' not in kwargs:
             tenant, _ = models.Tenant.objects.get_or_create(
                 service_project_link=kwargs['service_project_link'],
-                backend_id='VALID_ID')
+                backend_id='VALID_ID',
+            )
             kwargs['tenant'] = tenant
 
         return manager.create(*args, **kwargs)
@@ -127,7 +136,9 @@ class SecurityGroupFactory(TenantMixin, factory.DjangoModelFactory):
     def get_url(cls, sgp=None, action=None):
         if sgp is None:
             sgp = SecurityGroupFactory()
-        url = 'http://testserver' + reverse('openstack-sgp-detail', kwargs={'uuid': sgp.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'openstack-sgp-detail', kwargs={'uuid': sgp.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -143,7 +154,9 @@ class SecurityGroupRuleFactory(factory.DjangoModelFactory):
     protocol = models.SecurityGroupRule.TCP
     from_port = factory.fuzzy.FuzzyInteger(1, 30000)
     to_port = factory.fuzzy.FuzzyInteger(30000, 65535)
-    cidr = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(1, 255) for i in range(4)) + '/24')
+    cidr = factory.LazyAttribute(
+        lambda o: '.'.join('%s' % randint(1, 255) for i in range(4)) + '/24'
+    )
 
 
 class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
@@ -152,14 +165,18 @@ class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
 
     service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
     runtime_state = factory.Iterator(['ACTIVE', 'SHUTOFF', 'DOWN'])
-    address = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4)))
+    address = factory.LazyAttribute(
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+    )
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
 
     @classmethod
     def get_url(cls, instance=None):
         if instance is None:
             instance = FloatingIPFactory()
-        return 'http://testserver' + reverse('openstack-fip-detail', kwargs={'uuid': instance.uuid.hex})
+        return 'http://testserver' + reverse(
+            'openstack-fip-detail', kwargs={'uuid': instance.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):
@@ -183,7 +200,9 @@ class TenantFactory(factory.DjangoModelFactory):
     def get_url(cls, tenant=None, action=None):
         if tenant is None:
             tenant = TenantFactory()
-        url = 'http://testserver' + reverse('openstack-tenant-detail', kwargs={'uuid': tenant.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'openstack-tenant-detail', kwargs={'uuid': tenant.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -207,7 +226,9 @@ class NetworkFactory(factory.DjangoModelFactory):
         if network is None:
             network = NetworkFactory()
 
-        url = 'http://testserver' + reverse('openstack-network-detail', kwargs={'uuid': network.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'openstack-network-detail', kwargs={'uuid': network.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -228,7 +249,9 @@ class SubNetFactory(factory.DjangoModelFactory):
         if subnet is None:
             subnet = SubNetFactory()
 
-        url = 'http://testserver' + reverse('openstack-subnet-detail', kwargs={'uuid': subnet.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'openstack-subnet-detail', kwargs={'uuid': subnet.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -261,7 +284,9 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
     def get_url(cls, volume_type=None):
         if volume_type is None:
             volume_type = VolumeTypeFactory()
-        return 'http://testserver' + reverse('openstack-volume-type-detail', kwargs={'uuid': volume_type.uuid.hex})
+        return 'http://testserver' + reverse(
+            'openstack-volume-type-detail', kwargs={'uuid': volume_type.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):

@@ -13,8 +13,7 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
 
     def list(self, request):
         serializer = serializers.DailyHistoryQuotaSerializer(
-            data=request.query_params,
-            context={'request': request},
+            data=request.query_params, context={'request': request},
         )
         serializer.is_valid(raise_exception=True)
         result = self.get_result(serializer.validated_data)
@@ -27,15 +26,8 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
         end = query['end']
 
         quotas = models.DailyQuotaHistory.objects.filter(
-            scope=scope,
-            name__in=quota_names,
-            date__gte=start,
-            date__lte=end,
-        ).only(
-            'name',
-            'date',
-            'usage',
-        )
+            scope=scope, name__in=quota_names, date__gte=start, date__lte=end,
+        ).only('name', 'date', 'usage',)
         charts = collections.defaultdict(dict)
         for quota in quotas:
             charts[quota.name][quota.date] = quota.usage

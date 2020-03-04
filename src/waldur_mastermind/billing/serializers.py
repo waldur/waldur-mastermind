@@ -6,22 +6,30 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
-from . import models
+
 from ..invoices import utils
+from . import models
 
 
 class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     scope = core_serializers.GenericRelatedField(
-        related_models=models.PriceEstimate.get_estimated_models(),
-        required=False
+        related_models=models.PriceEstimate.get_estimated_models(), required=False
     )
     scope_name = serializers.ReadOnlyField(source='scope.name')
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
 
     class Meta:
         model = models.PriceEstimate
-        fields = ('url', 'uuid', 'scope', 'scope_name', 'scope_uuid',
-                  'limit', 'total', 'threshold')
+        fields = (
+            'url',
+            'uuid',
+            'scope',
+            'scope_name',
+            'scope_uuid',
+            'limit',
+            'total',
+            'threshold',
+        )
         read_only_fields = ('total', 'scope')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -44,11 +52,15 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         if customer_limit == -1:
             return
 
-        total_limit = self._get_total_limit(customer.projects.exclude(uuid=project.uuid)) + limit
+        total_limit = (
+            self._get_total_limit(customer.projects.exclude(uuid=project.uuid)) + limit
+        )
 
         if total_limit > customer_limit:
-            message = _('Total price limits of projects exceeds organization price limit. '
-                        'Total limit: %(total_limit)s, organization limit: %(customer_limit)s')
+            message = _(
+                'Total price limits of projects exceeds organization price limit. '
+                'Total limit: %(total_limit)s, organization limit: %(customer_limit)s'
+            )
             context = dict(total_limit=total_limit, customer_limit=customer_limit)
             raise serializers.ValidationError({'limit': message % context})
 
@@ -59,7 +71,9 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         total_limit = self._get_total_limit(customer.projects.all())
 
         if limit < total_limit:
-            message = _('Organization limit cannot be less than a sum of its projects limits: %d')
+            message = _(
+                'Organization limit cannot be less than a sum of its projects limits: %d'
+            )
             raise serializers.ValidationError({'limit': message % total_limit})
 
     def _get_customer_limit(self, customer):
@@ -72,7 +86,9 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     def _get_total_limit(self, projects):
         if not projects.exists():
             return 0
-        estimates = models.PriceEstimate.objects.filter(scope__in=projects).exclude(limit=-1)
+        estimates = models.PriceEstimate.objects.filter(scope__in=projects).exclude(
+            limit=-1
+        )
         return estimates.aggregate(Sum('limit'))['limit__sum'] or 0
 
 
@@ -129,7 +145,10 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         model = models.PriceEstimate
         fields = ('url', 'threshold', 'total', 'current', 'limit', 'tax', 'tax_current')
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'billing-price-estimate-detail'},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'billing-price-estimate-detail',
+            },
         }
 
 
@@ -146,7 +165,9 @@ def get_price_estimate(serializer, scope):
             'tax_current': 0.0,
         }
     else:
-        serializer = NestedPriceEstimateSerializer(instance=estimate, context=serializer.context)
+        serializer = NestedPriceEstimateSerializer(
+            instance=estimate, context=serializer.context
+        )
         return serializer.data
 
 
@@ -156,10 +177,8 @@ def add_price_estimate(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=structure_serializers.ProjectSerializer,
-    receiver=add_price_estimate,
+    sender=structure_serializers.ProjectSerializer, receiver=add_price_estimate,
 )
 core_signals.pre_serializer_fields.connect(
-    sender=structure_serializers.CustomerSerializer,
-    receiver=add_price_estimate,
+    sender=structure_serializers.CustomerSerializer, receiver=add_price_estimate,
 )

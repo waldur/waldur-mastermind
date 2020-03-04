@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class AuthValimoExtension(WaldurExtension):
-
     class Settings:
         WALDUR_AUTH_VALIMO = {
             'URL': None,
@@ -29,11 +28,13 @@ class AuthValimoExtension(WaldurExtension):
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
     def celery_tasks():
         from datetime import timedelta
+
         return {
             'valimo-auth-cleanup-auth-results': {
                 'task': 'waldur_auth_valimo.cleanup_auth_results',

@@ -3,8 +3,8 @@ from rest_framework import test
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.media.utils import encode_attachment_token, decode_attachment_token
-from waldur_core.structure.tests.factories import UserFactory, CustomerFactory
+from waldur_core.media.utils import decode_attachment_token, encode_attachment_token
+from waldur_core.structure.tests.factories import CustomerFactory, UserFactory
 
 
 @override_waldur_core_settings(TIME_ZONE='Asia/Muscat')

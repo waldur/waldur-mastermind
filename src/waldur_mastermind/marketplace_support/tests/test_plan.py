@@ -1,9 +1,8 @@
 from rest_framework import test
 
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.support import models as support_models
-
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.support import models as support_models
 
 
 class OfferingPlanTest(test.APITransactionTestCase):

@@ -20,16 +20,14 @@ class SupportConfig(AppConfig):
         structure_models.Project.add_quota_field(
             name='nc_offering_count',
             quota_field=quota_fields.CounterQuotaField(
-                target_models=[Offering],
-                path_to_scope='project',
-            )
+                target_models=[Offering], path_to_scope='project',
+            ),
         )
         structure_models.Customer.add_quota_field(
             name='nc_offering_count',
             quota_field=quota_fields.CounterQuotaField(
-                target_models=[Offering],
-                path_to_scope='project.customer',
-            )
+                target_models=[Offering], path_to_scope='project.customer',
+            ),
         )
 
         signals.post_save.connect(
@@ -77,11 +75,11 @@ class SupportConfig(AppConfig):
         signals.post_save.connect(
             handlers.send_comment_added_notification,
             sender=Comment,
-            dispatch_uid='waldur_mastermind.support.handlers.send_comment_added_notification'
+            dispatch_uid='waldur_mastermind.support.handlers.send_comment_added_notification',
         )
 
         signals.post_save.connect(
             handlers.send_issue_updated_notification,
             sender=Issue,
-            dispatch_uid='waldur_mastermind.support.handlers.send_issue_updated_notification'
+            dispatch_uid='waldur_mastermind.support.handlers.send_issue_updated_notification',
         )

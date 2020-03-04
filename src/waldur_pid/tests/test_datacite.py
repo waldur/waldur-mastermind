@@ -1,11 +1,9 @@
 import mock
 import requests
-
 from rest_framework import test
 
-from . import factories
-
 from .. import backend
+from . import factories
 
 
 class DataciteTest(test.APITransactionTestCase):

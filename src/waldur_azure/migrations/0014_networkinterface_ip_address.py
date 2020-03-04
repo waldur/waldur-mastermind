@@ -13,6 +13,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='networkinterface',
             name='ip_address',
-            field=models.GenericIPAddressField(blank=True, default=None, null=True, protocol='IPv4'),
+            field=models.GenericIPAddressField(
+                blank=True, default=None, null=True, protocol='IPv4'
+            ),
         ),
     ]

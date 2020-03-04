@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from waldur_core.quotas import models, fields, exceptions, signals
+from waldur_core.quotas import exceptions, fields, models, signals
 from waldur_core.quotas.utils import get_models_with_quotas
 
 
@@ -16,7 +16,9 @@ class Command(BaseCommand):
         self.recalculate_global_quotas()
         self.recalculate_counter_quotas()
         self.recalculate_aggregator_quotas()
-        self.stdout.write('XXX: Second time to make sure that aggregators of aggregators where calculated properly.')
+        self.stdout.write(
+            'XXX: Second time to make sure that aggregators of aggregators where calculated properly.'
+        )
         self.recalculate_aggregator_quotas()
         self.recalculate_custom_quotas()
 
@@ -44,7 +46,9 @@ class Command(BaseCommand):
         for model in get_models_with_quotas():
             if hasattr(model, 'GLOBAL_COUNT_QUOTA_NAME'):
                 with transaction.atomic():
-                    quota, _ = models.Quota.objects.get_or_create(name=model.GLOBAL_COUNT_QUOTA_NAME)
+                    quota, _ = models.Quota.objects.get_or_create(
+                        name=model.GLOBAL_COUNT_QUOTA_NAME
+                    )
                     quota.usage = model.objects.count()
                     quota.save()
         self.stdout.write('...done')
@@ -52,7 +56,9 @@ class Command(BaseCommand):
     def recalculate_counter_quotas(self):
         self.stdout.write('Recalculating counter quotas')
         for model in get_models_with_quotas():
-            for counter_field in model.get_quotas_fields(field_class=fields.CounterQuotaField):
+            for counter_field in model.get_quotas_fields(
+                field_class=fields.CounterQuotaField
+            ):
                 for instance in model.objects.all():
                     counter_field.recalculate(scope=instance)
         self.stdout.write('...done')
@@ -61,7 +67,9 @@ class Command(BaseCommand):
         # TODO: recalculate child quotas first
         self.stdout.write('Recalculating aggregator quotas')
         for model in get_models_with_quotas():
-            for aggregator_field in model.get_quotas_fields(field_class=fields.AggregatorQuotaField):
+            for aggregator_field in model.get_quotas_fields(
+                field_class=fields.AggregatorQuotaField
+            ):
                 for instance in model.objects.all():
                     aggregator_field.recalculate(scope=instance)
         self.stdout.write('...done')

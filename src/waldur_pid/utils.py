@@ -2,7 +2,7 @@ import logging
 
 from waldur_core.core import utils as core_utils
 
-from . import tasks, mixins
+from . import mixins, tasks
 
 logger = logging.getLogger(__name__)
 

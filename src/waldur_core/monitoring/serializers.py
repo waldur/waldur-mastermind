@@ -30,9 +30,7 @@ class MonitoringSerializerMixin(serializers.Serializer):
             items = items.filter(period=get_period(request))
             for item in items:
                 self.sla_map_cache[item.object_id] = dict(
-                    value=item.value,
-                    agreed_value=item.agreed_value,
-                    period=item.period
+                    value=item.value, agreed_value=item.agreed_value, period=item.period
                 )
 
         return self.sla_map_cache.get(resource.id)

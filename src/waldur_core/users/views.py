@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from waldur_core.core.views import ProtectedViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
-from waldur_core.users import models, filters, serializers, tasks
+from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.utils import parse_invitation_token
 
 User = get_user_model()
@@ -29,7 +29,9 @@ class InvitationViewSet(ProtectedViewSet):
     filterset_class = filters.InvitationFilter
     lookup_field = 'uuid'
 
-    def can_manage_invitation_with(self, customer, customer_role=None, project_role=None):
+    def can_manage_invitation_with(
+        self, customer, customer_role=None, project_role=None
+    ):
         user = self.request.user
         if user.is_staff:
             return True
@@ -58,12 +60,21 @@ class InvitationViewSet(ProtectedViewSet):
 
         invitation = serializer.save()
         sender = self.request.user.full_name or self.request.user.username
-        if settings.WALDUR_CORE['ONLY_STAFF_CAN_INVITE_USERS'] and not self.request.user.is_staff:
+        if (
+            settings.WALDUR_CORE['ONLY_STAFF_CAN_INVITE_USERS']
+            and not self.request.user.is_staff
+        ):
             invitation.state = models.Invitation.State.REQUESTED
             invitation.save()
-            transaction.on_commit(lambda: tasks.send_invitation_requested.delay(invitation.uuid.hex, sender))
+            transaction.on_commit(
+                lambda: tasks.send_invitation_requested.delay(
+                    invitation.uuid.hex, sender
+                )
+            )
         else:
-            transaction.on_commit(lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender))
+            transaction.on_commit(
+                lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender)
+            )
 
     @action(detail=False, methods=['post'], permission_classes=[])
     def approve(self, request):
@@ -81,10 +92,13 @@ class InvitationViewSet(ProtectedViewSet):
         sender = ''
         if invitation.created_by:
             sender = invitation.created_by.full_name or invitation.created_by.username
-        transaction.on_commit(lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender))
+        transaction.on_commit(
+            lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender)
+        )
 
-        return Response({'detail': _('Invitation has been approved.')},
-                        status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Invitation has been approved.')}, status=status.HTTP_200_OK
+        )
 
     @action(detail=False, methods=['post'], permission_classes=[])
     def reject(self, request):
@@ -101,21 +115,29 @@ class InvitationViewSet(ProtectedViewSet):
         sender = ''
         if invitation.created_by:
             sender = invitation.created_by.full_name or invitation.created_by.username
-        transaction.on_commit(lambda: tasks.send_invitation_rejected.delay(invitation.uuid.hex, sender))
+        transaction.on_commit(
+            lambda: tasks.send_invitation_rejected.delay(invitation.uuid.hex, sender)
+        )
 
-        return Response({'detail': _('Invitation has been rejected.')},
-                        status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Invitation has been rejected.')}, status=status.HTTP_200_OK
+        )
 
     @action(detail=True, methods=['post'])
     def send(self, request, uuid=None):
         invitation = self.get_object()
 
-        if not self.can_manage_invitation_with(invitation.customer,
-                                               invitation.customer_role,
-                                               invitation.project_role):
+        if not self.can_manage_invitation_with(
+            invitation.customer, invitation.customer_role, invitation.project_role
+        ):
             raise PermissionDenied()
-        elif invitation.state not in (models.Invitation.State.PENDING, models.Invitation.State.EXPIRED):
-            raise ValidationError(_('Only pending and expired invitations can be resent.'))
+        elif invitation.state not in (
+            models.Invitation.State.PENDING,
+            models.Invitation.State.EXPIRED,
+        ):
+            raise ValidationError(
+                _('Only pending and expired invitations can be resent.')
+            )
 
         if invitation.state == models.Invitation.State.EXPIRED:
             invitation.state = models.Invitation.State.PENDING
@@ -124,23 +146,27 @@ class InvitationViewSet(ProtectedViewSet):
 
         sender = request.user.full_name or request.user.username
         tasks.send_invitation_created.delay(invitation.uuid.hex, sender)
-        return Response({'detail': _('Invitation sending has been successfully scheduled.')},
-                        status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Invitation sending has been successfully scheduled.')},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, uuid=None):
         invitation = self.get_object()
 
-        if not self.can_manage_invitation_with(invitation.customer,
-                                               invitation.customer_role,
-                                               invitation.project_role):
+        if not self.can_manage_invitation_with(
+            invitation.customer, invitation.customer_role, invitation.project_role
+        ):
             raise PermissionDenied()
         elif invitation.state != models.Invitation.State.PENDING:
             raise ValidationError(_('Only pending invitation can be canceled.'))
 
         invitation.cancel()
-        return Response({'detail': _('Invitation has been successfully canceled.')},
-                        status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Invitation has been successfully canceled.')},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'], filter_backends=[])
     def accept(self, request, uuid=None):
@@ -153,7 +179,10 @@ class InvitationViewSet(ProtectedViewSet):
 
         if invitation.state != models.Invitation.State.PENDING:
             raise ValidationError(_('Only pending invitation can be accepted.'))
-        elif invitation.civil_number and invitation.civil_number != request.user.civil_number:
+        elif (
+            invitation.civil_number
+            and invitation.civil_number != request.user.civil_number
+        ):
             raise ValidationError(_('User has an invalid civil number.'))
 
         if invitation.project:
@@ -175,19 +204,25 @@ class InvitationViewSet(ProtectedViewSet):
 
         if settings.WALDUR_CORE['INVITATION_DISABLE_MULTIPLE_ROLES']:
             has_customer = structure_models.CustomerPermission.objects.filter(
-                user=request.user, is_active=True).exists()
+                user=request.user, is_active=True
+            ).exists()
             has_project = structure_models.ProjectPermission.objects.filter(
-                user=request.user, is_active=True).exists()
+                user=request.user, is_active=True
+            ).exists()
             if has_customer or has_project:
-                raise ValidationError(_('User already has role within another customer or project.'))
+                raise ValidationError(
+                    _('User already has role within another customer or project.')
+                )
 
         invitation.accept(request.user)
         if replace_email:
             request.user.email = invitation.email
             request.user.save(update_fields=['email'])
 
-        return Response({'detail': _('Invitation has been successfully accepted.')},
-                        status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Invitation has been successfully accepted.')},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'], filter_backends=[], permission_classes=[])
     def check(self, request, uuid=None):
@@ -196,6 +231,9 @@ class InvitationViewSet(ProtectedViewSet):
         if invitation.state != models.Invitation.State.PENDING:
             return Response(status=status.HTTP_404_NOT_FOUND)
         elif invitation.civil_number:
-            return Response({'email': invitation.email, 'civil_number_required': True}, status=status.HTTP_200_OK)
+            return Response(
+                {'email': invitation.email, 'civil_number_required': True},
+                status=status.HTTP_200_OK,
+            )
         else:
             return Response({'email': invitation.email}, status=status.HTTP_200_OK)

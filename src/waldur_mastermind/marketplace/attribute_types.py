@@ -48,7 +48,7 @@ class ChoiceAttribute(AttributeType):
         if not isinstance(values, str):
             raise ValidationError(_('Value must be a string.'))
 
-        if not(values in available_values):
+        if not (values in available_values):
             raise ValidationError(_('This value is not available.'))
 
 
@@ -66,7 +66,7 @@ class ListAttribute(AttributeType):
         if not isinstance(values, list):
             raise ValidationError(_('Value must be a list.'))
 
-        if not(set(values) <= set(available_values)):
+        if not (set(values) <= set(available_values)):
             raise ValidationError(_('These values are not available.'))
 
 

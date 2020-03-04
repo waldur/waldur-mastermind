@@ -3,7 +3,6 @@ import unittest
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
-
 from waldur_openstack.openstack_tenant.fields import StringTimestampField
 
 

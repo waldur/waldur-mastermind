@@ -1,9 +1,9 @@
 import base64
+import logging
 from csv import DictWriter
 from io import StringIO
-import logging
 
-from celery import shared_task, chain
+from celery import chain, shared_task
 from django.conf import settings
 from django.db.models import Q
 from django.template.loader import render_to_string
@@ -14,7 +14,6 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 
 from . import models, registrators, serializers, utils
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +28,8 @@ def create_monthly_invoices():
     date = timezone.now()
 
     old_invoices = models.Invoice.objects.filter(
-        Q(state=models.Invoice.States.PENDING, year__lt=date.year) |
-        Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
+        Q(state=models.Invoice.States.PENDING, year__lt=date.year)
+        | Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
     )
     for invoice in old_invoices:
         invoice.set_created()
@@ -40,7 +39,9 @@ def create_monthly_invoices():
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
     for customer in customers.iterator():
-        registrators.RegistrationManager.get_or_create_invoice(customer, core_utils.month_start(date))
+        registrators.RegistrationManager.get_or_create_invoice(
+            customer, core_utils.month_start(date)
+        )
 
     if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
         send_invoice_report.delay()
@@ -58,20 +59,24 @@ def send_invoice_notification(invoice_uuid):
     link_template = settings.WALDUR_INVOICES['INVOICE_LINK_TEMPLATE']
 
     if not link_template:
-        logger.error('INVOICE_LINK_TEMPLATE is not set. '
-                     'Sending of invoice notification is not available.')
+        logger.error(
+            'INVOICE_LINK_TEMPLATE is not set. '
+            'Sending of invoice notification is not available.'
+        )
         return
 
     if '{uuid}' not in link_template:
-        logger.error('INVOICE_LINK_TEMPLATE must include \'{uuid}\' parameter. '
-                     'Sending of invoice notification is not available.')
+        logger.error(
+            'INVOICE_LINK_TEMPLATE must include \'{uuid}\' parameter. '
+            'Sending of invoice notification is not available.'
+        )
         return
 
     context = {
         'month': invoice.month,
         'year': invoice.year,
         'customer': invoice.customer.name,
-        'link': link_template.format(uuid=invoice_uuid)
+        'link': link_template.format(uuid=invoice_uuid),
     }
 
     emails = [owner.email for owner in invoice.customer.get_owners()]
@@ -80,34 +85,48 @@ def send_invoice_notification(invoice_uuid):
     content_type = None
 
     if invoice._file:
-        filename = '%s_%s_%s.pdf' % (settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
-                                     invoice.year, invoice.month)
+        filename = '%s_%s_%s.pdf' % (
+            settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
+            invoice.year,
+            invoice.month,
+        )
         attachment = base64.b64decode(invoice._file)
         content_type = 'application/pdf'
 
-    logger.debug('About to send invoice {invoice} notification to {emails}'.format(invoice=invoice, emails=emails))
-    core_utils.broadcast_mail('invoices', 'notification', context, emails,
-                              filename=filename, attachment=attachment, content_type=content_type)
+    logger.debug(
+        'About to send invoice {invoice} notification to {emails}'.format(
+            invoice=invoice, emails=emails
+        )
+    )
+    core_utils.broadcast_mail(
+        'invoices',
+        'notification',
+        context,
+        emails,
+        filename=filename,
+        attachment=attachment,
+        content_type=content_type,
+    )
 
 
 @shared_task(name='invoices.send_invoice_report')
 def send_invoice_report():
     """ Sends aggregate accounting data as CSV """
     date = get_previous_month()
-    subject = render_to_string('invoices/report_subject.txt', {
-        'month': date.month,
-        'year': date.year,
-    }).strip()
-    body = render_to_string('invoices/report_body.txt', {
-        'month': date.month,
-        'year': date.year,
-    }).strip()
+    subject = render_to_string(
+        'invoices/report_subject.txt', {'month': date.month, 'year': date.year,}
+    ).strip()
+    body = render_to_string(
+        'invoices/report_body.txt', {'month': date.month, 'year': date.year,}
+    ).strip()
     filename = '3M%02d%dWaldur.txt' % (date.month, date.year)
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
     if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
-        invoices = invoices.filter(customer__accounting_start_date__lte=core_utils.month_end(date))
+        invoices = invoices.filter(
+            customer__accounting_start_date__lte=core_utils.month_end(date)
+        )
 
     # Report should not include customers with 0 invoice sum.
     invoices = [invoice for invoice in invoices if invoice.total > 0]
@@ -121,7 +140,7 @@ def send_invoice_report():
         body=body,
         to=emails,
         attachment=text_message,
-        filename=filename
+        filename=filename,
     )
 
 

@@ -1,4 +1,4 @@
-from django_filters import OrderingFilter, CharFilter
+from django_filters import CharFilter, OrderingFilter
 
 from waldur_core.structure import filters as structure_filters
 
@@ -11,14 +11,20 @@ class ImageFilter(structure_filters.BaseServicePropertyFilter):
 
     class Meta:
         model = models.Image
-        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('distribution', 'type')
+        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + (
+            'distribution',
+            'type',
+        )
 
 
 class SizeFilter(structure_filters.BaseServicePropertyFilter):
-
     class Meta:
         model = models.Size
-        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('cores', 'ram', 'disk')
+        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + (
+            'cores',
+            'ram',
+            'disk',
+        )
 
 
 class RegionFilter(structure_filters.BaseServicePropertyFilter):

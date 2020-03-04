@@ -4,11 +4,13 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.structure import serializers as structure_serializers, models as structure_models
-from waldur_openstack.openstack import (
-    apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common import exceptions
+from waldur_openstack.openstack import apps as openstack_apps
+from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import serializers as openstack_serializers
+from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import models
 
@@ -19,8 +21,9 @@ class PackageComponentSerializer(serializers.ModelSerializer):
         fields = ('type', 'amount', 'price')
 
 
-class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
-                                serializers.HyperlinkedModelSerializer):
+class PackageTemplateSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     price = serializers.DecimalField(max_digits=22, decimal_places=10)
     monthly_price = serializers.DecimalField(max_digits=16, decimal_places=2)
     components = PackageComponentSerializer(many=True)
@@ -29,9 +32,18 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta:
         model = models.PackageTemplate
         fields = (
-            'uuid', 'name', 'description', 'service_settings',
-            'price', 'monthly_price', 'icon_url', 'components', 'category', 'archived',
-            'product_code', 'article_code',
+            'uuid',
+            'name',
+            'description',
+            'service_settings',
+            'price',
+            'monthly_price',
+            'icon_url',
+            'components',
+            'category',
+            'archived',
+            'product_code',
+            'article_code',
         )
         extra_kwargs = {
             'service_settings': {'lookup_field': 'uuid'},
@@ -41,9 +53,13 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
 def _check_template_service_settings(serializer, template):
     """ Template service settings should be in state OK and has type OpenStack """
     if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
-        raise serializers.ValidationError(_('Template should be related to OpenStack service settings.'))
+        raise serializers.ValidationError(
+            _('Template should be related to OpenStack service settings.')
+        )
     elif template.service_settings.state != structure_models.ServiceSettings.States.OK:
-        raise serializers.ValidationError(_('Template\'s settings must be in OK state.'))
+        raise serializers.ValidationError(
+            _('Template\'s settings must be in OK state.')
+        )
     return template
 
 
@@ -88,10 +104,16 @@ def _has_access_to_package(user, spl):
     check_manager = settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
     check_admin = settings.WALDUR_OPENSTACK['ADMIN_CAN_MANAGE_TENANTS']
     return (
-        user.is_staff or
-        spl.service.customer.has_user(user, structure_models.CustomerRole.OWNER) or
-        (check_manager and spl.project.has_user(user, structure_models.ProjectRole.MANAGER)) or
-        (check_admin and spl.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR))
+        user.is_staff
+        or spl.service.customer.has_user(user, structure_models.CustomerRole.OWNER)
+        or (
+            check_manager
+            and spl.project.has_user(user, structure_models.ProjectRole.MANAGER)
+        )
+        or (
+            check_admin
+            and spl.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)
+        )
     )
 
 
@@ -100,11 +122,16 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     template = serializers.SlugRelatedField(
         slug_field='uuid',
         write_only=True,
-        queryset=models.PackageTemplate.objects.all())
+        queryset=models.PackageTemplate.objects.all(),
+    )
     skip_connection_extnet = serializers.BooleanField(default=False)
 
     class Meta(openstack_serializers.TenantSerializer.Meta):
-        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', 'quotas')
+        fields = openstack_serializers.TenantSerializer.Meta.fields + (
+            'template',
+            'skip_connection_extnet',
+            'quotas',
+        )
 
     def _validate_service_project_link(self, spl):
         # TODO: Drop permission check after migration to marketplace is completed [WAL-1901]
@@ -117,14 +144,18 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
 
         user = self.context['request'].user
         if not _has_access_to_package(user, spl):
-            raise serializers.ValidationError(_('You do not have permissions to create package for given project.'))
+            raise serializers.ValidationError(
+                _('You do not have permissions to create package for given project.')
+            )
         return spl
 
     def validate_template(self, template):
         template = _check_template_service_settings(self, template)
 
         if template.archived:
-            raise serializers.ValidationError(_('New package cannot be created for archived template.'))
+            raise serializers.ValidationError(
+                _('New package cannot be created for archived template.')
+            )
 
         return template
 
@@ -136,7 +167,10 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         self._validate_service_project_link(spl)
         if spl.service.settings != template.service_settings:
             raise serializers.ValidationError(
-                _('Template and service project link should be connected to the same service settings.'))
+                _(
+                    'Template and service project link should be connected to the same service settings.'
+                )
+            )
         return attrs
 
     @transaction.atomic
@@ -152,45 +186,54 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
 
         # service settings are created on tenant creation
         service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
+            scope=tenant, type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
         )
         package = models.OpenStackPackage.objects.create(
-            tenant=tenant,
-            template=template,
-            service_settings=service_settings,
+            tenant=tenant, template=template, service_settings=service_settings,
         )
         return package
 
 
-class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
-                                 serializers.HyperlinkedModelSerializer):
+class OpenStackPackageSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     name = serializers.CharField(source='tenant.name', read_only=True)
     description = serializers.CharField(source='tenant.description', read_only=True)
     template_uuid = serializers.CharField(source='template.uuid', read_only=True)
 
     class Meta:
         model = models.OpenStackPackage
-        fields = ('uuid', 'name', 'description', 'template_uuid', 'tenant', 'service_settings',)
+        fields = (
+            'uuid',
+            'name',
+            'description',
+            'template_uuid',
+            'tenant',
+            'service_settings',
+        )
 
         extra_kwargs = {
-            'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
+            'tenant': {
+                'lookup_field': 'uuid',
+                'view_name': 'openstack-tenant-detail',
+                'read_only': True,
+            },
             'service_settings': {'lookup_field': 'uuid', 'read_only': True},
         }
 
 
-class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer):
+class OpenStackPackageChangeSerializer(
+    structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer
+):
     package = serializers.SlugRelatedField(
-        slug_field='uuid',
-        queryset=models.OpenStackPackage.objects.all()
+        slug_field='uuid', queryset=models.OpenStackPackage.objects.all()
     )
     template = serializers.SlugRelatedField(
-        slug_field='uuid',
-        queryset=models.PackageTemplate.objects.all()
+        slug_field='uuid', queryset=models.PackageTemplate.objects.all()
     )
 
     def get_filtered_field_names(self):
-        return 'package',
+        return ('package',)
 
     validate_template = _check_template_service_settings
 
@@ -199,33 +242,58 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
         user = self.context['request'].user
 
         if package.tenant.state != openstack_models.Tenant.States.OK:
-            raise serializers.ValidationError(_('Package\'s tenant must be in OK state.'))
+            raise serializers.ValidationError(
+                _('Package\'s tenant must be in OK state.')
+            )
 
-        if 'skip_permission_check' not in self.context and not _has_access_to_package(user, spl):
-            raise serializers.ValidationError(_('You do not have permissions to extend given package.'))
+        if 'skip_permission_check' not in self.context and not _has_access_to_package(
+            user, spl
+        ):
+            raise serializers.ValidationError(
+                _('You do not have permissions to extend given package.')
+            )
 
         return package
 
     def validate(self, attrs):
         package = attrs['package']
         new_template = attrs['template']
-        if package.tenant.service_project_link.service.settings != new_template.service_settings:
+        if (
+            package.tenant.service_project_link.service.settings
+            != new_template.service_settings
+        ):
             raise serializers.ValidationError(
-                _('Template and package\'s tenant should be connected to the same service settings.'))
+                _(
+                    'Template and package\'s tenant should be connected to the same service settings.'
+                )
+            )
 
         if package.template == new_template:
             raise serializers.ValidationError(
-                _('New package template cannot be the same as package\'s current template.'))
+                _(
+                    'New package template cannot be the same as package\'s current template.'
+                )
+            )
 
         usage = package.get_quota_usage()
-        old_components = {component.type: component.amount for component in package.template.components.all()}
+        old_components = {
+            component.type: component.amount
+            for component in package.template.components.all()
+        }
         for component in new_template.components.all():
             if component.type not in old_components:
                 raise serializers.ValidationError(
-                    _('Template\'s components must be the same as package template\'s components'))
+                    _(
+                        'Template\'s components must be the same as package template\'s components'
+                    )
+                )
             if component.type in usage and usage[component.type] > component.amount:
-                msg = _("Current usage of {0} quota is greater than new template's {0} component.")
-                raise serializers.ValidationError(msg.format(component.get_type_display()))
+                msg = _(
+                    "Current usage of {0} quota is greater than new template's {0} component."
+                )
+                raise serializers.ValidationError(
+                    msg.format(component.get_type_display())
+                )
 
         # check price estimate limits
         try:
@@ -243,7 +311,7 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
                 models.OpenStackPackage.objects.create(
                     template=new_template,
                     service_settings=service_settings,
-                    tenant=tenant
+                    tenant=tenant,
                 )
                 raise exceptions.TransactionRollback()
         except exceptions.TransactionRollback:

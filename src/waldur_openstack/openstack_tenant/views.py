@@ -1,19 +1,23 @@
-from django.db.models import Count, OuterRef, Subquery, IntegerField
 from django.conf import settings
+from django.db.models import Count, IntegerField, OuterRef, Subquery
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import decorators, response, status, exceptions, serializers as rf_serializers, generics
+from rest_framework import decorators, exceptions, generics, response
+from rest_framework import serializers as rf_serializers
+from rest_framework import status
 
-from waldur_core.core import exceptions as core_exceptions, validators as core_validators
+from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import utils as core_utils
+from waldur_core.core import validators as core_validators
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import signals as structure_signals
-from waldur_core.structure import views as structure_views, filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import signals as structure_signals
+from waldur_core.structure import views as structure_views
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 
-from . import models, serializers, filters, executors
+from . import executors, filters, models, serializers
 
 
 class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
@@ -35,6 +39,7 @@ class UsageReporter:
     as the same as long as they have the same name.
     This is needed because in OpenStack UUID is not stable for images and flavors.
     """
+
     def __init__(self, view, request):
         self.view = view
         self.request = request
@@ -55,21 +60,29 @@ class UsageReporter:
     def serialize_result(self, queryset, running_stats, created_stats):
         result = []
         for name in queryset:
-            result.append({
-                'name': name,
-                'running_instances_count': running_stats.get(name, 0),
-                'created_instances_count': created_stats.get(name, 0),
-            })
+            result.append(
+                {
+                    'name': name,
+                    'running_instances_count': running_stats.get(name, 0),
+                    'created_instances_count': created_stats.get(name, 0),
+                }
+            )
         return result
 
     def apply_filters(self, qs):
         if self.query:
             filter_dict = dict()
             if self.query.get('shared', None):
-                filter_dict['service_project_link__service__settings__shared'] = self.query['shared']
+                filter_dict[
+                    'service_project_link__service__settings__shared'
+                ] = self.query['shared']
             if self.query.get('service_provider', None):
-                filter_dict['service_project_link__service__settings__uuid__in'] = self.query['service_provider']
-                filter_dict['service_project_link__service__settings__type'] = 'OpenStackTenant'
+                filter_dict[
+                    'service_project_link__service__settings__uuid__in'
+                ] = self.query['service_provider']
+                filter_dict[
+                    'service_project_link__service__settings__type'
+                ] = 'OpenStackTenant'
             return qs.filter(**filter_dict)
         return qs
 
@@ -88,7 +101,6 @@ class UsageReporter:
 
 
 class ImageUsageReporter(UsageReporter):
-
     def get_initial_queryset(self):
         return models.Image.objects.all()
 
@@ -96,12 +108,15 @@ class ImageUsageReporter(UsageReporter):
         volumes = models.Volume.objects.filter(bootable=True)
         if runtime_state:
             volumes = volumes.filter(instance__runtime_state=runtime_state)
-        rows = self.apply_filters(volumes).values('image_name').annotate(count=Count('image_name'))
+        rows = (
+            self.apply_filters(volumes)
+            .values('image_name')
+            .annotate(count=Count('image_name'))
+        )
         return {row['image_name']: row['count'] for row in rows}
 
 
 class FlavorUsageReporter(UsageReporter):
-
     def get_initial_queryset(self):
         return models.Flavor.objects.all()
 
@@ -109,8 +124,11 @@ class FlavorUsageReporter(UsageReporter):
         instances = models.Instance.objects.all()
         if runtime_state:
             instances = instances.filter(runtime_state=runtime_state)
-        rows = self.apply_filters(instances)\
-            .values('flavor_name').annotate(count=Count('flavor_name'))
+        rows = (
+            self.apply_filters(instances)
+            .values('flavor_name')
+            .annotate(count=Count('flavor_name'))
+        )
         return {row['flavor_name']: row['count'] for row in rows}
 
 
@@ -131,6 +149,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     CPU, memory, disk size etc. VM instance flavor is not to be confused with VM template -- flavor is a set of virtual
     hardware parameters whereas template is a definition of a system to be installed on this instance.
     """
+
     queryset = models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = serializers.FlavorSerializer
     lookup_field = 'uuid'
@@ -180,26 +199,41 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 
     def _volume_snapshots_exist(volume):
         if volume.snapshots.exists():
-            raise core_exceptions.IncorrectStateException(_('Volume has dependent snapshots.'))
+            raise core_exceptions.IncorrectStateException(
+                _('Volume has dependent snapshots.')
+            )
 
     delete_executor = executors.VolumeDeleteExecutor
     destroy_validators = [
         _volume_snapshots_exist,
-        core_validators.StateValidator(models.Volume.States.OK, models.Volume.States.ERRED),
-        core_validators.RuntimeStateValidator('available', 'error', 'error_restoring', 'error_extending', ''),
+        core_validators.StateValidator(
+            models.Volume.States.OK, models.Volume.States.ERRED
+        ),
+        core_validators.RuntimeStateValidator(
+            'available', 'error', 'error_restoring', 'error_extending', ''
+        ),
     ]
 
     def _is_volume_bootable(volume):
         if volume.bootable:
-            raise core_exceptions.IncorrectStateException(_('Volume cannot be bootable.'))
+            raise core_exceptions.IncorrectStateException(
+                _('Volume cannot be bootable.')
+            )
 
     def _is_volume_instance_shutoff(volume):
-        if volume.instance and volume.instance.runtime_state != models.Instance.RuntimeStates.SHUTOFF:
-            raise core_exceptions.IncorrectStateException(_('Volume instance should be in shutoff state.'))
+        if (
+            volume.instance
+            and volume.instance.runtime_state != models.Instance.RuntimeStates.SHUTOFF
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _('Volume instance should be in shutoff state.')
+            )
 
     def _is_volume_instance_ok(volume):
         if volume.instance and volume.instance.state != models.Instance.States.OK:
-            raise core_exceptions.IncorrectStateException(_('Volume instance should be in OK state.'))
+            raise core_exceptions.IncorrectStateException(
+                _('Volume instance should be in OK state.')
+            )
 
     @decorators.action(detail=True, methods=['post'])
     def extend(self, request, uuid=None):
@@ -211,14 +245,20 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         volume.refresh_from_db()
-        executors.VolumeExtendExecutor().execute(volume, old_size=old_size, new_size=volume.size)
+        executors.VolumeExtendExecutor().execute(
+            volume, old_size=old_size, new_size=volume.size
+        )
 
-        return response.Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    extend_validators = [_is_volume_bootable,
-                         _is_volume_instance_ok,
-                         _is_volume_instance_shutoff,
-                         core_validators.StateValidator(models.Volume.States.OK)]
+    extend_validators = [
+        _is_volume_bootable,
+        _is_volume_instance_ok,
+        _is_volume_instance_shutoff,
+        core_validators.StateValidator(models.Volume.States.OK),
+    ]
     extend_serializer_class = serializers.VolumeExtendSerializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -240,7 +280,9 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_snapshot_schedule_validators = [core_validators.StateValidator(models.Volume.States.OK)]
+    create_snapshot_schedule_validators = [
+        core_validators.StateValidator(models.Volume.States.OK)
+    ]
     create_snapshot_schedule_serializer_class = serializers.SnapshotScheduleSerializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -252,10 +294,14 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         executors.VolumeAttachExecutor().execute(volume)
-        return response.Response({'status': _('attach was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('attach was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    attach_validators = [core_validators.RuntimeStateValidator('available'),
-                         core_validators.StateValidator(models.Volume.States.OK)]
+    attach_validators = [
+        core_validators.RuntimeStateValidator('available'),
+        core_validators.StateValidator(models.Volume.States.OK),
+    ]
     attach_serializer_class = serializers.VolumeAttachSerializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -263,11 +309,15 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         """ Detach instance from volume """
         volume = self.get_object()
         executors.VolumeDetachExecutor().execute(volume)
-        return response.Response({'status': _('detach was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('detach was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    detach_validators = [_is_volume_bootable,
-                         core_validators.RuntimeStateValidator('in-use'),
-                         core_validators.StateValidator(models.Volume.States.OK)]
+    detach_validators = [
+        _is_volume_bootable,
+        core_validators.RuntimeStateValidator('in-use'),
+        core_validators.StateValidator(models.Volume.States.OK),
+    ]
 
     @decorators.action(detail=True, methods=['post'])
     def retype(self, request, uuid=None):
@@ -278,10 +328,14 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         executors.VolumeRetypeExecutor().execute(volume)
-        return response.Response({'status': _('retype was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('retype was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    retype_validators = [core_validators.RuntimeStateValidator('available'),
-                         core_validators.StateValidator(models.Volume.States.OK)]
+    retype_validators = [
+        core_validators.RuntimeStateValidator('available'),
+        core_validators.StateValidator(models.Volume.States.OK),
+    ]
 
     retype_serializer_class = serializers.VolumeRetypeSerializer
 
@@ -306,7 +360,9 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
         restoration = serializer.save()
 
         executors.SnapshotRestorationExecutor().execute(restoration)
-        serialized_volume = serializers.VolumeSerializer(restoration.volume, context={'request': self.request})
+        serialized_volume = serializers.VolumeSerializer(
+            restoration.volume, context={'request': self.request}
+        )
         return response.Response(serialized_volume.data, status=status.HTTP_201_CREATED)
 
     restore_serializer_class = serializers.SnapshotRestorationSerializer
@@ -326,7 +382,9 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
 
 
 class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.InstanceAvailabilityZone.objects.all().order_by('settings', 'name')
+    queryset = models.InstanceAvailabilityZone.objects.all().order_by(
+        'settings', 'name'
+    )
     serializer_class = serializers.InstanceAvailabilityZoneSerializer
     lookup_field = 'uuid'
     filterset_class = filters.InstanceAvailabilityZoneFilter
@@ -344,6 +402,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     - Project managers can list all VM instances in all the services that are connected to any of the projects they are
       managers in.
     """
+
     queryset = models.Instance.objects.all()
     serializer_class = serializers.InstanceSerializer
     filterset_class = filters.InstanceFilter
@@ -354,7 +413,9 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     pull_serializer_class = rf_serializers.Serializer
 
     update_executor = executors.InstanceUpdateExecutor
-    update_validators = partial_update_validators = [core_validators.StateValidator(models.Instance.States.OK)]
+    update_validators = partial_update_validators = [
+        core_validators.StateValidator(models.Instance.States.OK)
+    ]
 
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -367,19 +428,28 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     def _has_backups(instance):
         if instance.backups.exists():
-            raise core_exceptions.IncorrectStateException(_('Cannot delete instance that has backups.'))
+            raise core_exceptions.IncorrectStateException(
+                _('Cannot delete instance that has backups.')
+            )
 
     def _can_destroy_instance(instance):
         if instance.state == models.Instance.States.ERRED:
             return
-        if (instance.state == models.Instance.States.OK and
-                instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF):
+        if (
+            instance.state == models.Instance.States.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
+        ):
             return
-        if (instance.state == models.Instance.States.OK and
-                instance.runtime_state == models.Instance.RuntimeStates.ACTIVE):
-            raise core_exceptions.IncorrectStateException(_('Please stop the instance before its removal.'))
-        raise core_exceptions.IncorrectStateException(_('Instance should be shutoff and OK or erred. '
-                                                        'Please contact support.'))
+        if (
+            instance.state == models.Instance.States.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _('Please stop the instance before its removal.')
+            )
+        raise core_exceptions.IncorrectStateException(
+            _('Instance should be shutoff and OK or erred. ' 'Please contact support.')
+        )
 
     def destroy(self, request, uuid=None):
         """
@@ -408,7 +478,9 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
             Host: example.com
 
         """
-        serializer = self.get_serializer(data=request.query_params, instance=self.get_object())
+        serializer = self.get_serializer(
+            data=request.query_params, instance=self.get_object()
+        )
         serializer.is_valid(raise_exception=True)
         delete_volumes = serializer.validated_data['delete_volumes']
         release_floating_ips = serializer.validated_data['release_floating_ips']
@@ -423,7 +495,9 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
             is_async=self.async_executor,
         )
 
-        return response.Response({'status': _('destroy was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('destroy was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
     destroy_validators = [_can_destroy_instance, _has_backups]
     destroy_serializer_class = serializers.InstanceDeleteSerializer
@@ -437,65 +511,100 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         flavor = serializer.validated_data.get('flavor')
-        executors.InstanceFlavorChangeExecutor().execute(instance, flavor=flavor, old_flavor_name=old_flavor_name)
-        return response.Response({'status': _('change_flavor was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        executors.InstanceFlavorChangeExecutor().execute(
+            instance, flavor=flavor, old_flavor_name=old_flavor_name
+        )
+        return response.Response(
+            {'status': _('change_flavor was scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     def _can_change_flavor(instance):
-        if (instance.state == models.Instance.States.OK and
-                instance.runtime_state == models.Instance.RuntimeStates.ACTIVE):
-            raise core_exceptions.IncorrectStateException(_('Please stop the instance before changing its flavor.'))
+        if (
+            instance.state == models.Instance.States.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _('Please stop the instance before changing its flavor.')
+            )
 
     change_flavor_serializer_class = serializers.InstanceFlavorChangeSerializer
-    change_flavor_validators = [_can_change_flavor,
-                                core_validators.StateValidator(models.Instance.States.OK),
-                                core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF)]
+    change_flavor_validators = [
+        _can_change_flavor,
+        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
+    ]
 
     @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceStartExecutor().execute(instance)
-        return response.Response({'status': _('start was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('start was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
     def _can_start_instance(instance):
-        if (instance.state == models.Instance.States.OK and
-                instance.runtime_state == models.Instance.RuntimeStates.ACTIVE):
-            raise core_exceptions.IncorrectStateException(_('Instance is already active.'))
+        if (
+            instance.state == models.Instance.States.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.ACTIVE
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _('Instance is already active.')
+            )
 
-    start_validators = [_can_start_instance,
-                        core_validators.StateValidator(models.Instance.States.OK),
-                        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF)]
+    start_validators = [
+        _can_start_instance,
+        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
+    ]
     start_serializer_class = rf_serializers.Serializer
 
     @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceStopExecutor().execute(instance)
-        return response.Response({'status': _('stop was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('stop was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
     def _can_stop_instance(instance):
-        if (instance.state == models.Instance.States.OK and
-                instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF):
-            raise core_exceptions.IncorrectStateException(_('Instance is already stopped.'))
+        if (
+            instance.state == models.Instance.States.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _('Instance is already stopped.')
+            )
 
-    stop_validators = [_can_stop_instance,
-                       core_validators.StateValidator(models.Instance.States.OK),
-                       core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE)]
+    stop_validators = [
+        _can_stop_instance,
+        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
+    ]
     stop_serializer_class = rf_serializers.Serializer
 
     @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceRestartExecutor().execute(instance)
-        return response.Response({'status': _('restart was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('restart was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
     def _can_restart_instance(instance):
-        if (instance.state == models.Instance.States.OK and
-                instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF):
-            raise core_exceptions.IncorrectStateException(_('Please start instance first.'))
+        if (
+            instance.state == models.Instance.States.OK
+            and instance.runtime_state == models.Instance.RuntimeStates.SHUTOFF
+        ):
+            raise core_exceptions.IncorrectStateException(
+                _('Please start instance first.')
+            )
 
-    restart_validators = [_can_restart_instance,
-                          core_validators.StateValidator(models.Instance.States.OK),
-                          core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE)]
+    restart_validators = [
+        _can_restart_instance,
+        core_validators.StateValidator(models.Instance.States.OK),
+        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
+    ]
     restart_serializer_class = rf_serializers.Serializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -506,10 +615,17 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         executors.InstanceUpdateSecurityGroupsExecutor().execute(instance)
-        return response.Response({'status': _('security groups update was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('security groups update was scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
-    update_security_groups_validators = [core_validators.StateValidator(models.Instance.States.OK)]
-    update_security_groups_serializer_class = serializers.InstanceSecurityGroupsUpdateSerializer
+    update_security_groups_validators = [
+        core_validators.StateValidator(models.Instance.States.OK)
+    ]
+    update_security_groups_serializer_class = (
+        serializers.InstanceSecurityGroupsUpdateSerializer
+    )
 
     @decorators.action(detail=True, methods=['post'])
     def backup(self, request, uuid=None):
@@ -530,7 +646,9 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_backup_schedule_validators = [core_validators.StateValidator(models.Instance.States.OK)]
+    create_backup_schedule_validators = [
+        core_validators.StateValidator(models.Instance.States.OK)
+    ]
     create_backup_schedule_serializer_class = serializers.BackupScheduleSerializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -541,10 +659,17 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         executors.InstanceInternalIPsSetUpdateExecutor().execute(instance)
-        return response.Response({'status': _('internal ips update was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('internal ips update was scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
-    update_internal_ips_set_validators = [core_validators.StateValidator(models.Instance.States.OK)]
-    update_internal_ips_set_serializer_class = serializers.InstanceInternalIPsSetUpdateSerializer
+    update_internal_ips_set_validators = [
+        core_validators.StateValidator(models.Instance.States.OK)
+    ]
+    update_internal_ips_set_serializer_class = (
+        serializers.InstanceInternalIPsSetUpdateSerializer
+    )
 
     @decorators.action(detail=True, methods=['get'])
     def internal_ips_set(self, request, uuid=None):
@@ -562,16 +687,26 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         executors.InstanceFloatingIPsUpdateExecutor().execute(instance)
-        return response.Response({'status': _('floating ips update was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('floating ips update was scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
-    update_floating_ips_validators = [core_validators.StateValidator(models.Instance.States.OK)]
-    update_floating_ips_serializer_class = serializers.InstanceFloatingIPsUpdateSerializer
+    update_floating_ips_validators = [
+        core_validators.StateValidator(models.Instance.States.OK)
+    ]
+    update_floating_ips_serializer_class = (
+        serializers.InstanceFloatingIPsUpdateSerializer
+    )
 
     @decorators.action(detail=True, methods=['get'])
     def floating_ips(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(
-            instance=instance.floating_ips.all(), queryset=models.FloatingIP.objects.all(), many=True)
+            instance=instance.floating_ips.all(),
+            queryset=models.FloatingIP.objects.all(),
+            many=True,
+        )
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
     floating_ips_serializer_class = serializers.NestedFloatingIPSerializer
@@ -601,7 +736,9 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         if request.user.is_staff:
             return
 
-        if settings.WALDUR_OPENSTACK_TENANT['ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS']:
+        if settings.WALDUR_OPENSTACK_TENANT[
+            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS'
+        ]:
             structure_permissions.is_administrator(request, view, instance)
         else:
             raise exceptions.PermissionDenied()
@@ -634,9 +771,12 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         """
         return self.destroy(request, uuid)
 
-    force_destroy_validators = [_has_backups,
-                                core_validators.StateValidator(models.Instance.States.OK,
-                                                               models.Instance.States.ERRED)]
+    force_destroy_validators = [
+        _has_backups,
+        core_validators.StateValidator(
+            models.Instance.States.OK, models.Instance.States.ERRED
+        ),
+    ]
     force_destroy_serializer_class = destroy_serializer_class
 
 
@@ -662,8 +802,7 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
 
         # Note that connected volumes will be linked with new marketplace.Resources by handler in openstack_marketplace
         structure_signals.resource_imported.send(
-            sender=models.Instance,
-            instance=backup_restoration.instance,
+            sender=models.Instance, instance=backup_restoration.instance,
         )
 
         # It is assumed that SSH public key is already stored in OpenStack system volume.
@@ -675,8 +814,11 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
         )
 
         instance_serializer = serializers.InstanceSerializer(
-            backup_restoration.instance, context={'request': self.request})
-        return response.Response(instance_serializer.data, status=status.HTTP_201_CREATED)
+            backup_restoration.instance, context={'request': self.request}
+        )
+        return response.Response(
+            instance_serializer.data, status=status.HTTP_201_CREATED
+        )
 
     restore_validators = [core_validators.StateValidator(models.Backup.States.OK)]
     restore_serializer_class = serializers.BackupRestorationSerializer
@@ -714,7 +856,9 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
 
     def _is_schedule_active(resource_schedule):
         if resource_schedule.is_active:
-            raise core_exceptions.IncorrectStateException(_('Resource schedule is already activated.'))
+            raise core_exceptions.IncorrectStateException(
+                _('Resource schedule is already activated.')
+            )
 
     @decorators.action(detail=True, methods=['post'])
     def activate(self, request, uuid):
@@ -732,7 +876,9 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
 
     def _is_schedule_deactived(resource_schedule):
         if not resource_schedule.is_active:
-            raise core_exceptions.IncorrectStateException(_('A schedule is already deactivated.'))
+            raise core_exceptions.IncorrectStateException(
+                _('A schedule is already deactivated.')
+            )
 
     @decorators.action(detail=True, methods=['post'])
     def deactivate(self, request, uuid):
@@ -763,16 +909,22 @@ class SnapshotScheduleViewSet(BaseScheduleViewSet):
 class SharedSettingsBaseView(generics.GenericAPIView):
     def get_private_settings(self):
         service_settings_uuid = self.request.query_params.get('service_settings_uuid')
-        if not service_settings_uuid or not core_utils.is_uuid_like(service_settings_uuid):
+        if not service_settings_uuid or not core_utils.is_uuid_like(
+            service_settings_uuid
+        ):
             return structure_models.ServiceSettings.objects.none()
 
-        queryset = structure_models.ServiceSettings.objects.filter(type=OpenStackConfig.service_name)
+        queryset = structure_models.ServiceSettings.objects.filter(
+            type=OpenStackConfig.service_name
+        )
         try:
             shared_settings = queryset.get(uuid=service_settings_uuid)
         except structure_models.ServiceSettings.DoesNotExist:
             return structure_models.ServiceSettings.objects.none()
 
-        tenants = openstack_models.Tenant.objects.filter(service_project_link__service__settings=shared_settings)
+        tenants = openstack_models.Tenant.objects.filter(
+            service_project_link__service__settings=shared_settings
+        )
         if tenants:
             return structure_models.ServiceSettings.objects.filter(scope__in=tenants)
         else:
@@ -790,9 +942,9 @@ class SharedSettingsInstances(SharedSettingsBaseView):
 
     def get_queryset(self):
         private_settings = self.get_private_settings()
-        return models.Instance.objects\
-            .order_by('service_project_link__project__customer__name')\
-            .filter(service_project_link__service__settings__in=private_settings)
+        return models.Instance.objects.order_by(
+            'service_project_link__project__customer__name'
+        ).filter(service_project_link__service__settings__in=private_settings)
 
 
 class SharedSettingsCustomers(SharedSettingsBaseView):
@@ -801,10 +953,14 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
 
     def get_queryset(self):
         private_settings = self.get_private_settings()
-        vms = models.Instance.objects.filter(
-            service_project_link__service__settings__in=private_settings,
-            project__customer=OuterRef('pk')
-        ).annotate(count=Count('*')).values('count')
+        vms = (
+            models.Instance.objects.filter(
+                service_project_link__service__settings__in=private_settings,
+                project__customer=OuterRef('pk'),
+            )
+            .annotate(count=Count('*'))
+            .values('count')
+        )
 
         # Workaround for Django bug:
         # https://code.djangoproject.com/ticket/28296

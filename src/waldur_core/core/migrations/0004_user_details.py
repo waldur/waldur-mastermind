@@ -14,6 +14,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='user',
             name='details',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict, help_text='Extra details from authentication backend.'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Extra details from authentication backend.',
+            ),
         ),
     ]

@@ -1,18 +1,17 @@
 from django.http import Http404
-from rest_framework import viewsets, mixins, response, decorators
+from rest_framework import decorators, mixins, response, viewsets
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core.views import validate_authentication_method
 
-from . import models, serializers, executors
-
+from . import executors, models, serializers
 
 validate_valimo = validate_authentication_method('VALIMO')
 
 
-class AuthResultViewSet(core_mixins.CreateExecutorMixin,
-                        mixins.CreateModelMixin,
-                        viewsets.GenericViewSet):
+class AuthResultViewSet(
+    core_mixins.CreateExecutorMixin, mixins.CreateModelMixin, viewsets.GenericViewSet
+):
     queryset = models.AuthResult.objects.all()
     serializer_class = serializers.AuthResultSerializer
     permission_classes = ()

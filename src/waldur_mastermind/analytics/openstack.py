@@ -11,13 +11,15 @@ def get_tenants():
     quotas = Tenant.get_sum_of_quotas_as_dict(tenants, quota_names=quota_names)
 
     for quota_name in quota_names:
-        points.append({
-            'measurement': 'openstack_%s' % quota_name,
-            'fields': {
-                'limit': quotas[quota_name],
-                'usage': quotas['%s_usage' % quota_name],
+        points.append(
+            {
+                'measurement': 'openstack_%s' % quota_name,
+                'fields': {
+                    'limit': quotas[quota_name],
+                    'usage': quotas['%s_usage' % quota_name],
+                },
             }
-        })
+        )
     return points
 
 
@@ -26,15 +28,13 @@ def get_instances():
 
     points = []
     for state, count in states.items():
-        points.append({
-            'measurement': 'openstack_instance_runtime_state',
-            'tags': {
-                'state': state,
-            },
-            'fields': {
-                'count': count,
+        points.append(
+            {
+                'measurement': 'openstack_instance_runtime_state',
+                'tags': {'state': state,},
+                'fields': {'count': count,},
             }
-        })
+        )
     return points
 
 
@@ -59,5 +59,5 @@ def count_instances_by_state(instances):
         'online': online,
         'offline': offline,
         'provisioning': provisioning,
-        'total': erred + online + offline + provisioning
+        'total': erred + online + offline + provisioning,
     }

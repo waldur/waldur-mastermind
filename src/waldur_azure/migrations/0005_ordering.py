@@ -11,27 +11,15 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterModelOptions(
-            name='image',
-            options={'ordering': ['publisher', 'name', 'sku']},
+            name='image', options={'ordering': ['publisher', 'name', 'sku']},
         ),
+        migrations.AlterModelOptions(name='location', options={'ordering': ['name']},),
+        migrations.AlterUniqueTogether(name='image', unique_together=set([]),),
         migrations.AlterModelOptions(
-            name='location',
-            options={'ordering': ['name']},
+            name='size', options={'ordering': ['number_of_cores', 'memory_in_mb']},
         ),
         migrations.AlterUniqueTogether(
-            name='image',
-            unique_together=set([]),
+            name='image', unique_together=set([('settings', 'backend_id')]),
         ),
-        migrations.AlterModelOptions(
-            name='size',
-            options={'ordering': ['number_of_cores', 'memory_in_mb']},
-        ),
-        migrations.AlterUniqueTogether(
-            name='image',
-            unique_together=set([('settings', 'backend_id')]),
-        ),
-        migrations.RemoveField(
-            model_name='image',
-            name='offer',
-        ),
+        migrations.RemoveField(model_name='image', name='offer',),
     ]

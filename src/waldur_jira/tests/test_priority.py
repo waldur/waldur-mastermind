@@ -39,7 +39,7 @@ class PriorityPullTest(test.APITransactionTestCase):
         factories.PriorityFactory(
             settings=self.fixture.service_settings,
             backend_id=self.highest_priority.id,
-            name='Old name'
+            name='Old name',
         )
         self.backend.pull_priorities()
         self.assert_priorities_are_pulled()
@@ -51,10 +51,12 @@ class PriorityPullTest(test.APITransactionTestCase):
 
     def assert_priorities_are_pulled(self):
         for priority in self.priorities:
-            self.assertTrue(models.Priority.objects.filter(
-                settings=self.fixture.service_settings,
-                backend_id=priority.id,
-                name=priority.name,
-                description=priority.description,
-                icon_url=priority.iconUrl,
-            ).exists())
+            self.assertTrue(
+                models.Priority.objects.filter(
+                    settings=self.fixture.service_settings,
+                    backend_id=priority.id,
+                    name=priority.name,
+                    description=priority.description,
+                    icon_url=priority.iconUrl,
+                ).exists()
+            )

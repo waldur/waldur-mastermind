@@ -4,7 +4,7 @@ from celery import shared_task
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Sum, Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
@@ -14,7 +14,7 @@ from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace.utils import process_order_item
 
-from . import utils, models, views, exceptions
+from . import exceptions, models, utils, views
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,9 @@ def approve_order(order, user):
 
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)
-    transaction.on_commit(lambda: process_order.delay(serialized_order, serialized_user))
+    transaction.on_commit(
+        lambda: process_order.delay(serialized_order, serialized_user)
+    )
     transaction.on_commit(lambda: create_order_pdf.delay(order.pk))
 
 
@@ -96,37 +98,34 @@ def filter_aggregate_by_scope(queryset, scope):
 
 
 def aggregate_reported_usage(start, end, scope):
-    queryset = models.ComponentUsage.objects \
-        .filter(date__gte=start, date__lte=end) \
-        .exclude(component__parent=None)
+    queryset = models.ComponentUsage.objects.filter(
+        date__gte=start, date__lte=end
+    ).exclude(component__parent=None)
 
     queryset = filter_aggregate_by_scope(queryset, scope)
 
     queryset = queryset.values('component__parent_id').annotate(total=Sum('usage'))
 
-    return {
-        row['component__parent_id']: row['total']
-        for row in queryset
-    }
+    return {row['component__parent_id']: row['total'] for row in queryset}
 
 
 def aggregate_fixed_usage(start, end, scope):
     queryset = models.ResourcePlanPeriod.objects.filter(
         # Resource has been active during billing period
-        Q(start__gte=start, end__lte=end) |
-        # Resource is still active
-        Q(end__isnull=True) |
-        # Resource has been launched in previous billing period and stopped in current
-        Q(end__gte=start, end__lte=end)
+        Q(start__gte=start, end__lte=end)
+        | Q(end__isnull=True)  # Resource is still active
+        | Q(
+            end__gte=start, end__lte=end
+        )  # Resource has been launched in previous billing period and stopped in current
     )
     queryset = filter_aggregate_by_scope(queryset, scope)
 
-    queryset = queryset.values('plan__components__component__parent_id') \
-        .annotate(total=Sum('plan__components__amount'))
+    queryset = queryset.values('plan__components__component__parent_id').annotate(
+        total=Sum('plan__components__amount')
+    )
 
     return {
-        row['plan__components__component__parent_id']: row['total']
-        for row in queryset
+        row['plan__components__component__parent_id']: row['total'] for row in queryset
     }
 
 
@@ -147,7 +146,7 @@ def calculate_usage_for_scope(start, end, scope):
             defaults={
                 'reported_usage': reported_usage.get(component_id),
                 'fixed_usage': fixed_usage.get(component_id),
-            }
+            },
         )
 
 
@@ -174,7 +173,9 @@ def send_notifications_about_usages():
         warning['public_resources_url'] = utils.get_public_resources_url(customer)
 
         if customer.serviceprovider.enable_notifications and emails:
-            core_utils.broadcast_mail('marketplace', 'notification_usages', warning, emails)
+            core_utils.broadcast_mail(
+                'marketplace', 'notification_usages', warning, emails
+            )
 
 
 @shared_task(name='marketplace.terminate_resource')

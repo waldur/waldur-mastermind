@@ -1,10 +1,11 @@
 import decimal
+from unittest import mock
 
 from django.test import TestCase
-from unittest import mock
 from freezegun import freeze_time
 
 from waldur_freeipa import models as freeipa_models
+
 from .. import models
 from . import fixtures
 
@@ -30,7 +31,7 @@ class BackendTest(TestCase):
 
         self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2 * 2)
         self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
-        self.assertEqual(self.allocation.ram_usage, (1 + 2 * 2) * 51200 * 2**20)
+        self.assertEqual(self.allocation.ram_usage, (1 + 2 * 2) * 51200 * 2 ** 20)
 
     @freeze_time('2017-10-16')
     @mock.patch('subprocess.check_output')
@@ -47,14 +48,11 @@ class BackendTest(TestCase):
         backend.sync_usage()
 
         user1_allocation = models.AllocationUsage.objects.get(
-            allocation=self.allocation,
-            user=user1,
-            year=2017,
-            month=10,
+            allocation=self.allocation, user=user1, year=2017, month=10,
         )
         self.assertEqual(user1_allocation.cpu_usage, 1)
         self.assertEqual(user1_allocation.gpu_usage, 1)
-        self.assertEqual(user1_allocation.ram_usage, 51200 * 2**20)
+        self.assertEqual(user1_allocation.ram_usage, 51200 * 2 ** 20)
 
     @mock.patch('subprocess.check_output')
     def test_set_resource_limits(self, check_output):
@@ -63,11 +61,29 @@ class BackendTest(TestCase):
         self.allocation.ram_limit = 3000
         self.allocation.save()
 
-        template = 'sacctmgr --parsable2 --noheader --immediate' \
-                   ' modify account %s set GrpTRES=cpu=%d,gres/gpu=%d,mem=%d'
-        context = (self.account, self.allocation.cpu_limit, self.allocation.gpu_limit, self.allocation.ram_limit)
-        command = ['ssh', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no',
-                   'root@localhost', '-p', '22', '-i', '/etc/waldur/id_rsa', template % context]
+        template = (
+            'sacctmgr --parsable2 --noheader --immediate'
+            ' modify account %s set GrpTRES=cpu=%d,gres/gpu=%d,mem=%d'
+        )
+        context = (
+            self.account,
+            self.allocation.cpu_limit,
+            self.allocation.gpu_limit,
+            self.allocation.ram_limit,
+        )
+        command = [
+            'ssh',
+            '-o',
+            'UserKnownHostsFile=/dev/null',
+            '-o',
+            'StrictHostKeyChecking=no',
+            'root@localhost',
+            '-p',
+            '22',
+            '-i',
+            '/etc/waldur/id_rsa',
+            template % context,
+        ]
 
         backend = self.allocation.get_backend()
         backend.set_resource_limits(self.allocation)
@@ -90,7 +106,9 @@ class BackendMOABTest(TestCase):
             test_acc|4|||100|centos|0.03|1
             test_acc|4|||500|centos|0.17|1
             test_acc|4|||2|centos|0.00|1
-        """.replace('test_acc', 'waldur_allocation_' + self.fixture.allocation.uuid.hex)
+        """.replace(
+            'test_acc', 'waldur_allocation_' + self.fixture.allocation.uuid.hex
+        )
 
     def tearDown(self):
         mock.patch.stopall()

@@ -1,7 +1,7 @@
 import logging
-import requests
 
-from django.contrib.auth import get_user_model, authenticate
+import requests
+from django.contrib.auth import authenticate, get_user_model
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.utils import OperationalError
@@ -21,9 +21,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--check-api-endpoints-at',
-            dest='base_url', default=None,
+            dest='base_url',
+            default=None,
             help='Runs API endpoints check at specified base URL (i.e. http://example.com). '
-                 'If this argument is not provided, check will be skipped.',
+            'If this argument is not provided, check will be skipped.',
         )
 
     def handle(self, *args, **options):
@@ -43,8 +44,13 @@ class Command(BaseCommand):
         self.stdout.write('Checking Waldur MasterMind services...')
 
         # Check database connectivity
-        db_vendor = connection.vendor.capitalize().replace('sql', 'SQL').replace('Sql', 'SQL')
-        self.stdout.write((output_messages['database'] % {'vendor': db_vendor}).ljust(padding), ending='')
+        db_vendor = (
+            connection.vendor.capitalize().replace('sql', 'SQL').replace('Sql', 'SQL')
+        )
+        self.stdout.write(
+            (output_messages['database'] % {'vendor': db_vendor}).ljust(padding),
+            ending='',
+        )
         try:
             connection.cursor()
         except OperationalError:
@@ -69,8 +75,12 @@ class Command(BaseCommand):
             celery_results['redis'] = error_status
             celery_results['workers'] = error_status
         finally:
-            self.stdout.write(output_messages['workers'].ljust(padding) + celery_results['workers'])
-            self.stdout.write(output_messages['redis'].ljust(padding) + celery_results['redis'])
+            self.stdout.write(
+                output_messages['workers'].ljust(padding) + celery_results['workers']
+            )
+            self.stdout.write(
+                output_messages['redis'].ljust(padding) + celery_results['redis']
+            )
 
         if skip_endpoints:
             self.stderr.write('API endpoints check skipped due to erred services')
@@ -87,7 +97,9 @@ class Command(BaseCommand):
         self.stdout.write('\nChecking Waldur MasterMind API endpoints...')
         inspector = WaldurEndpointInspector()
         endpoints = inspector.get_api_endpoints()
-        user, _ = User.objects.get_or_create(username='waldur_status_checker', is_staff=True)
+        user, _ = User.objects.get_or_create(
+            username='waldur_status_checker', is_staff=True
+        )
         authenticate(username='waldur_status_checker')
         token = Token.objects.get(user=user)
 
@@ -99,7 +111,9 @@ class Command(BaseCommand):
             url = base_url + path
             self.stdout.write(' Checking %s endpoint...' % url, ending='')
             try:
-                response = requests.get(url, headers={'Authorization': 'Token %s' % token.key})
+                response = requests.get(
+                    url, headers={'Authorization': 'Token %s' % token.key}
+                )
             except requests.RequestException:
                 self.stdout.write(self.style.ERROR(' [ERROR]'))
             else:

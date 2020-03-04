@@ -1,15 +1,19 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import response, viewsets, permissions, status, decorators, mixins
+from rest_framework import decorators, mixins, permissions, response, status, viewsets
 
-from waldur_core.core import filters as core_filters, permissions as core_permissions
+from waldur_core.core import filters as core_filters
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core.managers import SummaryQuerySet
-from waldur_core.logging import models, serializers, filters, utils
+from waldur_core.logging import filters, models, serializers, utils
 from waldur_core.logging.loggers import get_event_groups
 
 
 class EventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Event.objects.all()
-    permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly)
+    permission_classes = (
+        permissions.IsAuthenticated,
+        core_permissions.IsAdminOrReadOnly,
+    )
     serializer_class = serializers.EventSerializer
     filter_backends = (DjangoFilterBackend, filters.EventFilterBackend)
     filterset_class = filters.EventFilter
@@ -28,7 +32,9 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
         """
 
         self.queryset = self.filter_queryset(self.get_queryset())
-        return response.Response({'count': self.queryset.count()}, status=status.HTTP_200_OK)
+        return response.Response(
+            {'count': self.queryset.count()}, status=status.HTTP_200_OK
+        )
 
     @decorators.action(detail=False)
     def scope_types(self, request, *args, **kwargs):
@@ -49,6 +55,7 @@ class BaseHookViewSet(viewsets.ModelViewSet):
     Hooks API allows user to receive event notifications via different channel, like email or webhook.
     To get a list of all your hooks, run **GET** against */api/hooks/* as an authenticated user.
     """
+
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
     lookup_field = 'uuid'
 
@@ -184,6 +191,7 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
     Use */api/hooks/* to get a list of all the hooks of any type that a user can see.
     """
+
     serializer_class = serializers.SummaryHookSerializer
     filter_backends = (core_filters.StaffOrUserFilter, filters.HookSummaryFilterBackend)
 

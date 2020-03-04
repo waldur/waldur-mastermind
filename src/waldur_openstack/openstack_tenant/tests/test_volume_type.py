@@ -1,5 +1,5 @@
-from ddt import ddt, data
-from rest_framework import test, status
+from ddt import data, ddt
+from rest_framework import status, test
 
 from . import factories, fixtures
 

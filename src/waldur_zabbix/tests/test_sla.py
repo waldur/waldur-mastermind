@@ -1,7 +1,7 @@
 import datetime
-from dateutil.relativedelta import relativedelta
 from unittest import mock
 
+from dateutil.relativedelta import relativedelta
 from rest_framework import status, test
 
 from waldur_core.core.utils import datetime_to_timestamp
@@ -9,8 +9,8 @@ from waldur_core.monitoring.utils import format_period
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_zabbix.tasks import pull_sla
 
-from . import factories
 from .. import models
+from . import factories
 
 
 class SlaViewTest(test.APITransactionTestCase):
@@ -27,9 +27,11 @@ class SlaViewTest(test.APITransactionTestCase):
         self.next_month = format_period(next_month)
 
         self.history = models.SlaHistory.objects.create(
-            itservice=self.itservice, period=period, value=100.0)
+            itservice=self.itservice, period=period, value=100.0
+        )
         self.events = models.SlaHistoryEvent.objects.create(
-            history=self.history, timestamp=self.timestamp, state='U')
+            history=self.history, timestamp=self.timestamp, state='U'
+        )
 
     def test_render_actual_sla(self):
         url = factories.ITServiceFactory.get_url(self.itservice)
@@ -53,7 +55,6 @@ class SlaViewTest(test.APITransactionTestCase):
 
 
 class SlaPullTest(test.APITransactionTestCase):
-
     @mock.patch('waldur_core.structure.models.ServiceProjectLink.get_backend')
     @mock.patch('waldur_zabbix.tasks.update_itservice_sla')
     def test_task_calls_backend(self, mock_task, mock_backend):
@@ -71,13 +72,19 @@ class SlaPullTest(test.APITransactionTestCase):
         mock_backend().get_sla_range.assert_called_once_with(itservice.backend_id)
         month1_beginning = min_dt.replace(day=1)
         month2_beginning = min_dt.replace(day=1) + relativedelta(months=+1)
-        mock_task.delay.assert_has_calls([
-            mock.call(itservice.pk,
-                      format_period(min_dt),
-                      datetime_to_timestamp(month1_beginning),
-                      datetime_to_timestamp(month2_beginning)),
-            mock.call(itservice.pk,
-                      format_period(max_dt),
-                      datetime_to_timestamp(month2_beginning),
-                      datetime_to_timestamp(max_dt))
-        ])
+        mock_task.delay.assert_has_calls(
+            [
+                mock.call(
+                    itservice.pk,
+                    format_period(min_dt),
+                    datetime_to_timestamp(month1_beginning),
+                    datetime_to_timestamp(month2_beginning),
+                ),
+                mock.call(
+                    itservice.pk,
+                    format_period(max_dt),
+                    datetime_to_timestamp(month2_beginning),
+                    datetime_to_timestamp(max_dt),
+                ),
+            ]
+        )

@@ -21,4 +21,6 @@ class Command(BaseCommand):
         if deleted_count == 0:
             self.stdout.write('Duplicate service project links not found')
         else:
-            self.stdout.write('%s duplicate service project links deleted' % deleted_count)
+            self.stdout.write(
+                '%s duplicate service project links deleted' % deleted_count
+            )

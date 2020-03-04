@@ -10,6 +10,6 @@ class OfferingCustomersFilterBackend(DjangoFilterBackend):
             return queryset
         else:
             customers = structure_models.CustomerPermission.objects.filter(
-                user=user,
-                role=structure_models.CustomerRole.OWNER).values_list('customer', flat=True)
+                user=user, role=structure_models.CustomerRole.OWNER
+            ).values_list('customer', flat=True)
             return queryset.filter(offering__customer_id__in=customers)

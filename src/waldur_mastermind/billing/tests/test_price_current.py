@@ -34,5 +34,8 @@ class PriceCurrentTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data['billing_price_estimate']['current'], 100 + 9 * 3)
-        diff = data['billing_price_estimate']['total'] - data['billing_price_estimate']['current']
+        diff = (
+            data['billing_price_estimate']['total']
+            - data['billing_price_estimate']['current']
+        )
         self.assertEqual(diff, (31 - 9) * 3)

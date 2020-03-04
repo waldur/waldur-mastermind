@@ -11,7 +11,10 @@ from django.utils import timezone
 from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import status, mixins as rf_mixins, viewsets, permissions as rf_permissions, exceptions
+from rest_framework import exceptions
+from rest_framework import mixins as rf_mixins
+from rest_framework import permissions as rf_permissions
+from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -19,8 +22,8 @@ from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
 from waldur_core import __version__
-from waldur_core.core import permissions, WaldurExtension
-from waldur_core.core.exceptions import IncorrectStateException, ExtensionDisabled
+from waldur_core.core import WaldurExtension, permissions
+from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import AuthTokenSerializer
 from waldur_core.logging.loggers import event_logger
@@ -33,14 +36,17 @@ def validate_authentication_method(method):
         @functools.wraps(view_func)
         def wrapped_view(*args, **kwargs):
             if method not in settings.WALDUR_CORE['AUTHENTICATION_METHODS']:
-                message = 'Authentication method is disabled. ' \
-                          'Please use another authentication method or contact staff.'
+                message = (
+                    'Authentication method is disabled. '
+                    'Please use another authentication method or contact staff.'
+                )
                 return JsonResponse(
-                    status=status.HTTP_401_UNAUTHORIZED,
-                    data={'detail': message}
+                    status=status.HTTP_401_UNAUTHORIZED, data={'detail': message}
                 )
             return view_func(*args, **kwargs)
+
         return wrapped_view
+
     return wrapper
 
 
@@ -125,6 +131,7 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
             "detail": "Invalid username/password"
         }
     """
+
     throttle_classes = ()
     permission_classes = ()
     serializer_class = AuthTokenSerializer
@@ -142,10 +149,15 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         lockout_time_in_mins = 10
 
         if auth_failures >= 4:
-            logger.debug('Not returning auth token: '
-                         'username %s from %s is locked out' % (username, source_ip))
+            logger.debug(
+                'Not returning auth token: '
+                'username %s from %s is locked out' % (username, source_ip)
+            )
             return Response(
-                data={'detail': _('Username is locked out. Try in %s minutes.') % lockout_time_in_mins},
+                data={
+                    'detail': _('Username is locked out. Try in %s minutes.')
+                    % lockout_time_in_mins
+                },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
         user = auth.authenticate(
@@ -155,13 +167,15 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         )
 
         if not user:
-            logger.debug('Not returning auth token: '
-                         'user %s does not exist', username)
+            logger.debug(
+                'Not returning auth token: ' 'user %s does not exist', username
+            )
             cache.set(auth_failure_key, auth_failures + 1, lockout_time_in_mins * 60)
             event_logger.auth.info(
                 'User {username} failed to authenticate with username and password.',
                 event_type='auth_login_failed_with_username',
-                event_context={'username': username})
+                event_context={'username': username},
+            )
 
             return Response(
                 data={'detail': _('Invalid username/password.')},
@@ -171,8 +185,7 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
             cache.delete(auth_failure_key)
 
         if not user.is_active:
-            logger.debug('Not returning auth token: '
-                         'user %s is disabled', username)
+            logger.debug('Not returning auth token: ' 'user %s is disabled', username)
             return Response(
                 data={'detail': _('User account is disabled.')},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -185,7 +198,8 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
             'User {user_username} with full name {user_full_name} '
             'authenticated successfully with username and password.',
             event_type='auth_logged_in_with_username',
-            event_context={'user': user})
+            event_context={'user': user},
+        )
 
         return Response({'token': token.key})
 
@@ -215,7 +229,9 @@ def exception_handler(exc, context):
         else:
             instance_name = force_text(instance_meta.verbose_name)
 
-        detail = _('Cannot delete {instance_name} with existing {dependant_objects}').format(
+        detail = _(
+            'Cannot delete {instance_name} with existing {dependant_objects}'
+        ).format(
             instance_name=instance_name,
             dependant_objects=force_text(dependent_meta.verbose_name_plural),
         )
@@ -227,11 +243,14 @@ def exception_handler(exc, context):
     return rf_exception_handler(exc, context)
 
 
-class ProtectedViewSet(rf_mixins.CreateModelMixin,
-                       rf_mixins.RetrieveModelMixin,
-                       rf_mixins.ListModelMixin,
-                       viewsets.GenericViewSet):
+class ProtectedViewSet(
+    rf_mixins.CreateModelMixin,
+    rf_mixins.RetrieveModelMixin,
+    rf_mixins.ListModelMixin,
+    viewsets.GenericViewSet,
+):
     """ All default operations except update and delete """
+
     pass
 
 
@@ -267,6 +286,7 @@ class ActionsViewSet(viewsets.ModelViewSet):
         class MyView(ActionsViewSet):
             disabled_actions = ['create']  # error 405 will be returned on POST request
     """
+
     disabled_actions = []
     permission_classes = (rf_permissions.IsAuthenticated, permissions.ActionsPermission)
 
@@ -278,11 +298,15 @@ class ActionsViewSet(viewsets.ModelViewSet):
         default_serializer_class = super(ActionsViewSet, self).get_serializer_class()
         if self.action is None:
             return default_serializer_class
-        return getattr(self, self.action + '_serializer_class', default_serializer_class)
+        return getattr(
+            self, self.action + '_serializer_class', default_serializer_class
+        )
 
     def initial(self, request, *args, **kwargs):
         super(ActionsViewSet, self).initial(request, *args, **kwargs)
-        if self.action is None:  # disable all checks if user tries to reach unsupported action
+        if (
+            self.action is None
+        ):  # disable all checks if user tries to reach unsupported action
             return
         # check if action is allowed
         if self.action in getattr(self, 'disabled_actions', []):
@@ -293,7 +317,11 @@ class ActionsViewSet(viewsets.ModelViewSet):
     def validate_object_action(self, action_name, obj=None):
         """ Execute validation for actions that are related to particular object """
         action_method = getattr(self, action_name)
-        if not getattr(action_method, 'detail', False) and action_name not in ('update', 'partial_update', 'destroy'):
+        if not getattr(action_method, 'detail', False) and action_name not in (
+            'update',
+            'partial_update',
+            'destroy',
+        ):
             # DRF does not add flag 'detail' to update and delete actions, however they execute operation with
             # particular object. We need to enable validation for them too.
             return
@@ -373,6 +401,7 @@ def logout_failed(message):
 
 class CheckExtensionMixin:
     """ Raise exception if extension is disabled """
+
     extension_name = NotImplemented
 
     def initial(self, request, *args, **kwargs):

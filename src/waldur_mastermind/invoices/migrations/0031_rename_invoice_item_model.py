@@ -8,6 +8,4 @@ class Migration(migrations.Migration):
         ('invoices', '0001_squashed_0030'),
     ]
 
-    operations = [
-        migrations.RenameModel('GenericInvoiceItem', 'InvoiceItem')
-    ]
+    operations = [migrations.RenameModel('GenericInvoiceItem', 'InvoiceItem')]

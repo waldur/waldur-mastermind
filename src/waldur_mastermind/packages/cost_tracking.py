@@ -1,10 +1,13 @@
 import logging
 
-from waldur_core.cost_tracking import CostTrackingStrategy, ConsumableItem, CostTrackingRegister
+from waldur_core.cost_tracking import (
+    ConsumableItem,
+    CostTrackingRegister,
+    CostTrackingStrategy,
+)
 from waldur_openstack.openstack import models as openstack_models
 
 from . import models, utils
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +26,16 @@ class TenantStrategy(CostTrackingStrategy):
         if tenant.state != tenant.States.ERRED:
             if 'package_name' not in tenant.extra_configuration:
                 logger.debug(
-                    'Package name is not defined in configuration of tenant %s, (PK: %s)', tenant.name, tenant.pk)
+                    'Package name is not defined in configuration of tenant %s, (PK: %s)',
+                    tenant.name,
+                    tenant.pk,
+                )
             else:
                 package_name = tenant.extra_configuration['package_name']
                 configuration = {
-                    ConsumableItem(item_type=utils.Types.PACKAGE_TEMPLATE, key=package_name): 1,
+                    ConsumableItem(
+                        item_type=utils.Types.PACKAGE_TEMPLATE, key=package_name
+                    ): 1,
                 }
         return configuration
 

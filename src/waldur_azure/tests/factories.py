@@ -1,12 +1,11 @@
 from random import randint
 
+import factory
 from django.urls import reverse
 from libcloud.compute.types import NodeState
 
-import factory
-
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
 
 from .. import models
 
@@ -30,7 +29,9 @@ class AzureServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = AzureServiceFactory()
-        url = 'http://testserver' + reverse('azure-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'azure-detail', kwargs={'uuid': service.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -69,7 +70,9 @@ class LocationFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = LocationFactory()
-        url = 'http://testserver' + reverse('azure-location-detail', kwargs={'uuid': spl.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'azure-location-detail', kwargs={'uuid': spl.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -95,7 +98,9 @@ class SizeFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = SizeFactory()
-        url = 'http://testserver' + reverse('azure-size-detail', kwargs={'uuid': spl.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'azure-size-detail', kwargs={'uuid': spl.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -119,7 +124,9 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = ImageFactory()
-        url = 'http://testserver' + reverse('azure-image-detail', kwargs={'uuid': spl.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'azure-image-detail', kwargs={'uuid': spl.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -181,7 +188,9 @@ class PublicIPFactory(factory.DjangoModelFactory):
     location = factory.SubFactory(LocationFactory)
     service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
-    ip_address = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4)))
+    ip_address = factory.LazyAttribute(
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+    )
 
 
 class VirtualMachineFactory(factory.DjangoModelFactory):
@@ -206,7 +215,9 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('azure-virtualmachine-detail', kwargs={'uuid': instance.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'azure-virtualmachine-detail', kwargs={'uuid': instance.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -228,7 +239,9 @@ class SQLServerFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('azure-sql-server-detail', kwargs={'uuid': instance.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'azure-sql-server-detail', kwargs={'uuid': instance.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod

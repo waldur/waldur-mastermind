@@ -1,21 +1,25 @@
-from django.contrib import admin
 from django.conf.urls import url
+from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse, resolve
+from django.urls import resolve, reverse
 from django.utils.html import format_html
-from django.utils.translation import ugettext_lazy as _, ungettext
-from waldur_core.core.admin import JsonWidget
+from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import ungettext
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core.admin import format_json_field, ExecutorAdminAction
+from waldur_core.core.admin import ExecutorAdminAction, JsonWidget, format_json_field
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
-from django.core.exceptions import ValidationError
-from waldur_core.structure.models import ServiceSettings, SharedServiceSettings, PrivateServiceSettings
+from waldur_core.structure.models import (
+    PrivateServiceSettings,
+    ServiceSettings,
+    SharedServiceSettings,
+)
 from waldur_pid import utils as pid_utils
 
-from . import models, tasks, executors
+from . import executors, models, tasks
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
@@ -28,7 +32,14 @@ class AttributeOptionInline(admin.TabularInline):
 
 class AttributeAdmin(admin.ModelAdmin):
     inlines = [AttributeOptionInline]
-    list_display = ('title', 'get_category', 'section', 'type', 'key', 'required',)
+    list_display = (
+        'title',
+        'get_category',
+        'section',
+        'type',
+        'key',
+        'required',
+    )
     list_filter = ('section',)
     ordering = ('section', 'title')
 
@@ -62,7 +73,10 @@ class CategoryComponentInline(admin.TabularInline):
 
 
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('title', 'uuid',)
+    list_display = (
+        'title',
+        'uuid',
+    )
     inlines = [SectionInline, CategoryColumnInline, CategoryComponentInline]
 
 
@@ -73,8 +87,16 @@ class ScreenshotsInline(admin.StackedInline):
 
 class PlansInline(admin.StackedInline):
     model = models.Plan
-    fields = ('name', 'description', 'unit_price', 'unit',
-              'product_code', 'article_code', 'archived', 'max_amount')
+    fields = (
+        'name',
+        'description',
+        'unit_price',
+        'unit',
+        'product_code',
+        'article_code',
+        'archived',
+        'max_amount',
+    )
 
 
 class ConnectedResourceMixin:
@@ -113,9 +135,9 @@ class ParentInlineMixin:
         return None
 
 
-class PlanComponentInline(ConnectedResourceMixin,
-                          ParentInlineMixin,
-                          admin.TabularInline):
+class PlanComponentInline(
+    ConnectedResourceMixin, ParentInlineMixin, admin.TabularInline
+):
     model = models.PlanComponent
     protected_fields = ('component', 'amount', 'price')
 
@@ -142,8 +164,13 @@ class PlanAdmin(ConnectedResourceMixin, admin.ModelAdmin):
     protected_fields = ('unit', 'unit_price', 'product_code', 'article_code')
     readonly_fields = ('scope_link', 'backend_id')
     fields = (
-        'name', 'description', 'unit', 'unit_price',
-        'product_code', 'article_code', 'max_amount',
+        'name',
+        'description',
+        'unit',
+        'unit_price',
+        'product_code',
+        'article_code',
+        'max_amount',
         'archived',
     ) + readonly_fields
 
@@ -171,7 +198,10 @@ def get_admin_url_for_scope(scope):
         model = scope.shared and SharedServiceSettings or PrivateServiceSettings
     else:
         model = scope
-    return reverse('admin:%s_%s_change' % (scope._meta.app_label, model._meta.model_name), args=[scope.id])
+    return reverse(
+        'admin:%s_%s_change' % (scope._meta.app_label, model._meta.model_name),
+        args=[scope.id],
+    )
 
 
 def get_admin_link_for_scope(scope):
@@ -182,18 +212,43 @@ class OfferingAdmin(admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
     list_display = ('name', 'customer', 'state', 'category', 'billable')
-    list_filter = ('state', 'shared', 'billable', ('category', RelatedOnlyDropdownFilter),)
+    list_filter = (
+        'state',
+        'shared',
+        'billable',
+        ('category', RelatedOnlyDropdownFilter),
+    )
     search_fields = ('name', 'uuid')
-    fields = ('state', 'customer', 'category', 'name', 'native_name',
-              'description', 'native_description', 'full_description',
-              'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
-              'shared', 'billable', 'allowed_customers', 'type', 'scope_link', 'vendor_details',
-              'paused_reason', 'datacite_doi')
+    fields = (
+        'state',
+        'customer',
+        'category',
+        'name',
+        'native_name',
+        'description',
+        'native_description',
+        'full_description',
+        'rating',
+        'thumbnail',
+        'attributes',
+        'options',
+        'geolocations',
+        'shared',
+        'billable',
+        'allowed_customers',
+        'type',
+        'scope_link',
+        'vendor_details',
+        'paused_reason',
+        'datacite_doi',
+    )
     readonly_fields = ('rating', 'scope_link')
 
     def scope_link(self, obj):
         if obj.scope:
-            return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope)
+            return format_html(
+                '<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope
+            )
 
     actions = ['activate', 'datacite_registration']
 
@@ -209,7 +264,7 @@ class OfferingAdmin(admin.ModelAdmin):
         message = ungettext(
             'One offering has been activated.',
             '%(count)d offerings have been activated.',
-            count
+            count,
         )
         message = message % {'count': count}
 
@@ -227,7 +282,7 @@ class OfferingAdmin(admin.ModelAdmin):
         message = ungettext(
             'One offering has been scheduled for datacite registration.',
             '%(count)d offerings have been scheduled for datacite registration.',
-            count
+            count,
         )
         message = message % {'count': count}
 
@@ -242,12 +297,32 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = fields
 
 
-class OrderAdmin(core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, admin.ModelAdmin):
+class OrderAdmin(
+    core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, admin.ModelAdmin
+):
     list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
-    fields = ['created_by', 'approved_by', 'approved_at', 'created', 'project', 'state',
-              'total_cost', 'modified', 'pdf_file']
-    readonly_fields = ('created', 'modified', 'created_by', 'approved_by', 'approved_at',
-                       'project', 'approved_by', 'total_cost', 'pdf_file')
+    fields = [
+        'created_by',
+        'approved_by',
+        'approved_at',
+        'created',
+        'project',
+        'state',
+        'total_cost',
+        'modified',
+        'pdf_file',
+    ]
+    readonly_fields = (
+        'created',
+        'modified',
+        'created_by',
+        'approved_by',
+        'approved_at',
+        'project',
+        'approved_by',
+        'total_cost',
+        'pdf_file',
+    )
 
     list_filter = ('state', 'created')
     ordering = ('-created',)
@@ -260,7 +335,10 @@ class OrderAdmin(core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, ad
 
     def get_urls(self):
         my_urls = [
-            url(r'^(.+)/change/pdf_file/$', self.admin_site.admin_view(self.pdf_file_view)),
+            url(
+                r'^(.+)/change/pdf_file/$',
+                self.admin_site.admin_view(self.pdf_file_view),
+            ),
         ]
         return my_urls + super(OrderAdmin, self).get_urls()
 
@@ -274,7 +352,9 @@ class OrderAdmin(core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, ad
         order = models.Order.objects.get(id=pk)
         file_response = HttpResponse(order.file, content_type='application/pdf')
         filename = order.get_filename()
-        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        file_response[
+            'Content-Disposition'
+        ] = 'attachment; filename="{filename}"'.format(filename=filename)
         return file_response
 
     def pdf_file(self, obj):
@@ -292,7 +372,8 @@ class ResourceForm(ModelForm):
         if self.instance and hasattr(self.instance, 'offering'):
             # Filter marketplace resource plans by offering
             self.fields['plan'].queryset = self.fields['plan'].queryset.filter(
-                offering=self.instance.offering)
+                offering=self.instance.offering
+            )
 
 
 class SharedOfferingFilter(admin.SimpleListFilter):
@@ -321,10 +402,17 @@ class ResourceAdmin(admin.ModelAdmin):
         'state',
         ('project', RelatedOnlyDropdownFilter),
         ('offering', RelatedOnlyDropdownFilter),
-        SharedOfferingFilter
+        SharedOfferingFilter,
     )
-    readonly_fields = ('state', 'scope_link', 'project_link', 'offering_link',
-                                'plan_link', 'formatted_attributes', 'formatted_limits')
+    readonly_fields = (
+        'state',
+        'scope_link',
+        'project_link',
+        'offering_link',
+        'plan_link',
+        'formatted_attributes',
+        'formatted_limits',
+    )
     fields = readonly_fields + ('plan',)
     date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
@@ -371,7 +459,10 @@ class ResourceAdmin(admin.ModelAdmin):
         confirmation = True
 
         def validate(self, resource):
-            if resource.state not in (models.Resource.States.OK, models.Resource.States.ERRED):
+            if resource.state not in (
+                models.Resource.States.OK,
+                models.Resource.States.ERRED,
+            ):
                 raise ValidationError(_('Resource has to be in OK or ERRED state.'))
 
         def get_execute_params(self, request, instance):

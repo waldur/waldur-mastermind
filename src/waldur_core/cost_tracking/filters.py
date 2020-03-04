@@ -1,18 +1,18 @@
 import uuid
 
+import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
-import django_filters
 from django_filters.constants import EMPTY_VALUES
 from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
 from waldur_core.cost_tracking import models, serializers
-from waldur_core.structure import models as structure_models, SupportedServices
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import models as structure_models
 
 
 class PriceEstimateScopeFilterBackend(core_filters.GenericKeyFilterBackend):
-
     def get_related_models(self):
         return models.PriceEstimate.get_estimated_models()
 
@@ -21,11 +21,11 @@ class PriceEstimateScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class PriceEstimateDateFilterBackend(filters.BaseFilterBackend):
-
     def filter_queryset(self, request, queryset, view):
         if 'date' in request.query_params:
             date_serializer = serializers.PriceEstimateDateFilterSerializer(
-                data={'date_list': request.query_params.getlist('date')})
+                data={'date_list': request.query_params.getlist('date')}
+            )
             date_serializer.is_valid(raise_exception=True)
             query = Q()
             for year, month in date_serializer.validated_data['date_list']:
@@ -33,14 +33,20 @@ class PriceEstimateDateFilterBackend(filters.BaseFilterBackend):
             queryset = queryset.filter(query)
 
         # Filter by date range
-        date_range_serializer = serializers.PriceEstimateDateRangeFilterSerializer(data=request.query_params)
+        date_range_serializer = serializers.PriceEstimateDateRangeFilterSerializer(
+            data=request.query_params
+        )
         date_range_serializer.is_valid(raise_exception=True)
         if 'start' in date_range_serializer.validated_data:
             year, month = date_range_serializer.validated_data['start']
-            queryset = queryset.filter(Q(year__gt=year) | Q(year=year, month__gte=month))
+            queryset = queryset.filter(
+                Q(year__gt=year) | Q(year=year, month__gte=month)
+            )
         if 'end' in date_range_serializer.validated_data:
             year, month = date_range_serializer.validated_data['end']
-            queryset = queryset.filter(Q(year__lt=year) | Q(year=year, month__lte=month))
+            queryset = queryset.filter(
+                Q(year__lt=year) | Q(year=year, month__lte=month)
+            )
 
         return queryset
 
@@ -70,7 +76,6 @@ class PriceEstimateCustomerFilterBackend(filters.BaseFilterBackend):
 
 
 class PriceListItemServiceFilterBackend(core_filters.GenericKeyFilterBackend):
-
     def get_related_models(self):
         return structure_models.Service.get_all_models()
 
@@ -79,7 +84,6 @@ class PriceListItemServiceFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class ResourceTypeFilter(django_filters.CharFilter):
-
     def filter(self, qs, value):
         if value in EMPTY_VALUES:
             return qs

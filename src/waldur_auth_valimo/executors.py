@@ -6,7 +6,6 @@ from .tasks import AuthTask, PollTask
 
 
 class AuthExecutor(executors.ErrorExecutorMixin, executors.BaseExecutor):
-
     @classmethod
     def get_task_signature(cls, instance, serialized_instance):
         return chain(

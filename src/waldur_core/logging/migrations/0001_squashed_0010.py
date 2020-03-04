@@ -20,95 +20,291 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Alert',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'created',
+                    model_utils.fields.AutoCreatedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='created',
+                    ),
+                ),
+                (
+                    'modified',
+                    model_utils.fields.AutoLastModifiedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='modified',
+                    ),
+                ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('alert_type', models.CharField(db_index=True, max_length=50)),
                 ('message', models.CharField(max_length=255)),
-                ('severity', models.SmallIntegerField(choices=[(10, 'Debug'), (20, 'Info'), (30, 'Warning'), (40, 'Error')])),
+                (
+                    'severity',
+                    models.SmallIntegerField(
+                        choices=[
+                            (10, 'Debug'),
+                            (20, 'Info'),
+                            (30, 'Warning'),
+                            (40, 'Error'),
+                        ]
+                    ),
+                ),
                 ('closed', models.DateTimeField(blank=True, null=True)),
                 ('is_closed', models.CharField(blank=True, max_length=32)),
                 ('acknowledged', models.BooleanField(default=False)),
                 ('context', waldur_core.core.fields.JSONField(blank=True)),
                 ('object_id', models.PositiveIntegerField(null=True)),
-                ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='contenttypes.ContentType')),
+                (
+                    'content_type',
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to='contenttypes.ContentType',
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
             name='EmailHook',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'created',
+                    model_utils.fields.AutoCreatedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='created',
+                    ),
+                ),
+                (
+                    'modified',
+                    model_utils.fields.AutoLastModifiedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='modified',
+                    ),
+                ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
-                ('event_types', waldur_core.core.fields.JSONField(verbose_name='List of event types')),
-                ('event_groups', waldur_core.core.fields.JSONField(default=[], verbose_name='List of event groups')),
+                (
+                    'event_types',
+                    waldur_core.core.fields.JSONField(
+                        verbose_name='List of event types'
+                    ),
+                ),
+                (
+                    'event_groups',
+                    waldur_core.core.fields.JSONField(
+                        default=[], verbose_name='List of event groups'
+                    ),
+                ),
                 ('is_active', models.BooleanField(default=True)),
-                ('last_published', models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    'last_published',
+                    models.DateTimeField(default=django.utils.timezone.now),
+                ),
                 ('email', models.EmailField(max_length=75)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                (
+                    'user',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
-            options={
-                'abstract': False,
-            },
+            options={'abstract': False,},
         ),
         migrations.CreateModel(
             name='PushHook',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'created',
+                    model_utils.fields.AutoCreatedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='created',
+                    ),
+                ),
+                (
+                    'modified',
+                    model_utils.fields.AutoLastModifiedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='modified',
+                    ),
+                ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
-                ('event_types', waldur_core.core.fields.JSONField(verbose_name='List of event types')),
-                ('event_groups', waldur_core.core.fields.JSONField(default=[], verbose_name='List of event groups')),
+                (
+                    'event_types',
+                    waldur_core.core.fields.JSONField(
+                        verbose_name='List of event types'
+                    ),
+                ),
+                (
+                    'event_groups',
+                    waldur_core.core.fields.JSONField(
+                        default=[], verbose_name='List of event groups'
+                    ),
+                ),
                 ('is_active', models.BooleanField(default=True)),
-                ('last_published', models.DateTimeField(default=django.utils.timezone.now)),
-                ('type', models.SmallIntegerField(choices=[(1, 'iOS'), (2, 'Android')])),
+                (
+                    'last_published',
+                    models.DateTimeField(default=django.utils.timezone.now),
+                ),
+                (
+                    'type',
+                    models.SmallIntegerField(choices=[(1, 'iOS'), (2, 'Android')]),
+                ),
                 ('device_id', models.CharField(max_length=255, null=True, unique=True)),
-                ('device_manufacturer', models.CharField(blank=True, max_length=255, null=True)),
-                ('device_model', models.CharField(blank=True, max_length=255, null=True)),
+                (
+                    'device_manufacturer',
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
+                (
+                    'device_model',
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
                 ('token', models.CharField(max_length=255, null=True, unique=True)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                (
+                    'user',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
             name='SystemNotification',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('event_types', waldur_core.core.fields.JSONField(verbose_name='List of event types')),
-                ('event_groups', waldur_core.core.fields.JSONField(default=[], verbose_name='List of event groups')),
-                ('hook_content_type', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'event_types',
+                    waldur_core.core.fields.JSONField(
+                        verbose_name='List of event types'
+                    ),
+                ),
+                (
+                    'event_groups',
+                    waldur_core.core.fields.JSONField(
+                        default=[], verbose_name='List of event groups'
+                    ),
+                ),
+                (
+                    'hook_content_type',
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name='+',
+                        to='contenttypes.ContentType',
+                    ),
+                ),
             ],
-            options={
-                'abstract': False,
-            },
+            options={'abstract': False,},
         ),
         migrations.CreateModel(
             name='WebHook',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'created',
+                    model_utils.fields.AutoCreatedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='created',
+                    ),
+                ),
+                (
+                    'modified',
+                    model_utils.fields.AutoLastModifiedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='modified',
+                    ),
+                ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
-                ('event_types', waldur_core.core.fields.JSONField(verbose_name='List of event types')),
-                ('event_groups', waldur_core.core.fields.JSONField(default=[], verbose_name='List of event groups')),
+                (
+                    'event_types',
+                    waldur_core.core.fields.JSONField(
+                        verbose_name='List of event types'
+                    ),
+                ),
+                (
+                    'event_groups',
+                    waldur_core.core.fields.JSONField(
+                        default=[], verbose_name='List of event groups'
+                    ),
+                ),
                 ('is_active', models.BooleanField(default=True)),
-                ('last_published', models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    'last_published',
+                    models.DateTimeField(default=django.utils.timezone.now),
+                ),
                 ('destination_url', models.URLField()),
-                ('content_type', models.SmallIntegerField(choices=[(1, 'json'), (2, 'form')], default=1)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                (
+                    'content_type',
+                    models.SmallIntegerField(
+                        choices=[(1, 'json'), (2, 'form')], default=1
+                    ),
+                ),
+                (
+                    'user',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
-            options={
-                'abstract': False,
-            },
+            options={'abstract': False,},
         ),
         migrations.AlterUniqueTogether(
-            name='pushhook',
-            unique_together=set([('user', 'device_id', 'type')]),
+            name='pushhook', unique_together=set([('user', 'device_id', 'type')]),
         ),
         migrations.AlterUniqueTogether(
             name='alert',
-            unique_together=set([('content_type', 'object_id', 'alert_type', 'is_closed')]),
+            unique_together=set(
+                [('content_type', 'object_id', 'alert_type', 'is_closed')]
+            ),
         ),
     ]

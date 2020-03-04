@@ -20,11 +20,14 @@ class SupportExtension(WaldurExtension):
                 'token': '',
                 'verify_ssl': False,
             },
-            'PROJECT': {
-                'key': 'PROJECT',
-            },
+            'PROJECT': {'key': 'PROJECT',},
             'ISSUE': {
-                'types': ['Informational', 'Service Request', 'Change Request', 'Incident'],
+                'types': [
+                    'Informational',
+                    'Service Request',
+                    'Change Request',
+                    'Incident',
+                ],
                 'impact_field': 'Impact',
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
@@ -71,11 +74,13 @@ class SupportExtension(WaldurExtension):
     @staticmethod
     def django_urls():
         from .urls import urlpatterns
+
         return urlpatterns
 
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
@@ -100,4 +105,5 @@ class SupportExtension(WaldurExtension):
     @staticmethod
     def get_cleanup_executor():
         from waldur_mastermind.support.executors import SupportCleanupExecutor
+
         return SupportCleanupExecutor

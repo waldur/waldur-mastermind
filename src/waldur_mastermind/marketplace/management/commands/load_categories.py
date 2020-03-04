@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
 import os
 
-from django.core.management.base import BaseCommand
 from django.core.files import File
+from django.core.management.base import BaseCommand
 
-from waldur_mastermind.marketplace.models import Category, CategoryColumn, \
-    CategoryComponent, Section, Attribute, AttributeOption
+from waldur_mastermind.marketplace.models import (
+    Attribute,
+    AttributeOption,
+    Category,
+    CategoryColumn,
+    CategoryComponent,
+    Section,
+)
 
 
 def merge_two_dicts(x, y):
-    z = x.copy()   # start with x's keys and values
-    z.update(y)    # modifies z with y's keys and values & returns None
+    z = x.copy()  # start with x's keys and values
+    z.update(y)  # modifies z with y's keys and values & returns None
     return z
 
 
@@ -39,51 +45,21 @@ available_categories = {
 
 category_columns = {
     'storage': [
-        {
-            'title': 'Size',
-            'widget': 'filesize',
-            'attribute': 'size',
-        },
-        {
-            'title': 'Attached to',
-            'widget': 'attached_instance',
-        },
-        {
-            'title': 'Type',
-            'attribute': 'type_name',
-        }
+        {'title': 'Size', 'widget': 'filesize', 'attribute': 'size',},
+        {'title': 'Attached to', 'widget': 'attached_instance',},
+        {'title': 'Type', 'attribute': 'type_name',},
     ],
     'vm': [
-        {
-            'title': 'Internal IP',
-            'attribute': 'internal_ips',
-            'widget': 'csv',
-        },
-        {
-            'title': 'External IP',
-            'attribute': 'external_ips',
-            'widget': 'csv',
-        },
+        {'title': 'Internal IP', 'attribute': 'internal_ips', 'widget': 'csv',},
+        {'title': 'External IP', 'attribute': 'external_ips', 'widget': 'csv',},
     ],
 }
 
 category_components = {
     'vpc': [
-        {
-            'type': 'storage',
-            'name': 'Storage',
-            'measured_unit': 'GB',
-        },
-        {
-            'type': 'ram',
-            'name': 'RAM',
-            'measured_unit': 'GB',
-        },
-        {
-            'type': 'cores',
-            'name': 'Cores',
-            'measured_unit': 'cores',
-        }
+        {'type': 'storage', 'name': 'Storage', 'measured_unit': 'GB',},
+        {'type': 'ram', 'name': 'RAM', 'measured_unit': 'GB',},
+        {'type': 'cores', 'name': 'Cores', 'measured_unit': 'cores',},
     ]
 }
 
@@ -101,28 +77,69 @@ common_sections = {
         ('high_sla_response', 'Response time (high priority, mins)', 'integer'),
     ],
     'SLA': [
-        ('low_sla_response_wh', 'Response time (low priority, working hours)', 'integer'),
-        ('low_sla_resolution_wh', 'Resolution time (low priority, working hours)', 'integer'),
-        ('low_sla_response_nwh', 'Response time (low priority, non-working hours)', 'integer'),
-        ('low_sla_resolution_nwh', 'Resolution time (low priority, non-working hours)', 'integer'),
-
-        ('medium_sla_response_wh', 'Response time (medium priority, working hours)', 'integer'),
-        ('medium_sla_resolution_wh', 'Resolution time (medium priority, working hours)', 'integer'),
-        ('medium_sla_response_nwh', 'Response time (medium priority, non-working hours)', 'integer'),
-        ('medium_sla_resolution_nwh', 'Resolution time (medium priority, non-working hours)', 'integer'),
-
-        ('high_sla_response_wh', 'Response time (high priority, working hours)', 'integer'),
-        ('high_sla_resolution_wh', 'Resolution time (high priority, working hours)', 'integer'),
-        ('high_sla_response_nwh', 'Response time (high priority, non-working hours)', 'integer'),
-        ('high_sla_resolution_nwh', 'Resolution time (high priority, non-working hours)', 'integer'),
+        (
+            'low_sla_response_wh',
+            'Response time (low priority, working hours)',
+            'integer',
+        ),
+        (
+            'low_sla_resolution_wh',
+            'Resolution time (low priority, working hours)',
+            'integer',
+        ),
+        (
+            'low_sla_response_nwh',
+            'Response time (low priority, non-working hours)',
+            'integer',
+        ),
+        (
+            'low_sla_resolution_nwh',
+            'Resolution time (low priority, non-working hours)',
+            'integer',
+        ),
+        (
+            'medium_sla_response_wh',
+            'Response time (medium priority, working hours)',
+            'integer',
+        ),
+        (
+            'medium_sla_resolution_wh',
+            'Resolution time (medium priority, working hours)',
+            'integer',
+        ),
+        (
+            'medium_sla_response_nwh',
+            'Response time (medium priority, non-working hours)',
+            'integer',
+        ),
+        (
+            'medium_sla_resolution_nwh',
+            'Resolution time (medium priority, non-working hours)',
+            'integer',
+        ),
+        (
+            'high_sla_response_wh',
+            'Response time (high priority, working hours)',
+            'integer',
+        ),
+        (
+            'high_sla_resolution_wh',
+            'Resolution time (high priority, working hours)',
+            'integer',
+        ),
+        (
+            'high_sla_response_nwh',
+            'Response time (high priority, non-working hours)',
+            'integer',
+        ),
+        (
+            'high_sla_resolution_nwh',
+            'Resolution time (high priority, non-working hours)',
+            'integer',
+        ),
     ],
-    'Security': [
-        ('certification', 'Certification', 'list'),
-    ],
-
-    'Location': [
-        ('address', 'Address', 'string')
-    ]
+    'Security': [('certification', 'Certification', 'list'),],
+    'Location': [('address', 'Address', 'string')],
 }
 
 hpc_sections = {
@@ -142,11 +159,9 @@ hpc_sections = {
     ],
     'performance': [
         ('tflops', 'Peak TFlop/s', 'integer'),
-        ('linpack', 'Linpack TFlop/s', 'integer')
+        ('linpack', 'Linpack TFlop/s', 'integer'),
     ],
-    'software': [
-        ('applications', 'Applications', 'list'),
-    ],
+    'software': [('applications', 'Applications', 'list'),],
 }
 
 collocation_sections = {
@@ -168,12 +183,12 @@ measurement_devices_sections = {
     'model': [
         ('measurement_devices_mark', 'Mark', 'string'),
         ('measurement_devices_model', 'Model', 'string'),
-        ('measurement_devices_manufacturer', 'Manufacturer', 'string')
+        ('measurement_devices_manufacturer', 'Manufacturer', 'string'),
     ],
     'usage_info': [
         ('measurement_devices_routine_application', 'Routine applications', 'text'),
-        ('measurement_devices_additional_components', 'Additional components', 'list')
-    ]
+        ('measurement_devices_additional_components', 'Additional components', 'list'),
+    ],
 }
 
 computing_common_sections = {
@@ -194,30 +209,28 @@ vpc_sections = {
 }
 
 vm_sections = {
-    'software': [
-        ('antivirus', 'Antivirus', 'boolean'),
-    ],
+    'software': [('antivirus', 'Antivirus', 'boolean'),],
     'remote_access': [
         ('vm_remote_access', 'Remote access', 'list'),
         ('vm_access_level', 'Access level', 'choice'),
-    ]
+    ],
 }
 
 email_sections = {
-    'software': [
-        ('email_software', 'Software', 'choice'),
-    ],
+    'software': [('email_software', 'Software', 'choice'),],
     'features': [
-        ('delegated_domain_administration', 'Delegated domain administration', 'boolean'),
+        (
+            'delegated_domain_administration',
+            'Delegated domain administration',
+            'boolean',
+        ),
         ('calendar', 'Calendar management', 'boolean'),
         ('webchat', 'Webchat', 'boolean'),
-    ]
+    ],
 }
 
 storage_sections = {
-    'details': [
-        ('storage_type', 'Storage type', 'choice'),
-    ],
+    'details': [('storage_type', 'Storage type', 'choice'),],
     'access': [
         ('web_interface', 'Web interface', 'boolean'),
         ('api', 'API', 'boolean'),
@@ -226,13 +239,11 @@ storage_sections = {
     'encryption': [
         ('encryption_at_rest', 'Encryption at-rest', 'boolean'),
         ('encryption_in_transit', 'Encryption in-transit', 'boolean'),
-    ]
+    ],
 }
 
 common_expert_sections = {
-    'Scope': [
-        ('scope_of_services', 'Scope of services', 'list'),
-    ]
+    'Scope': [('scope_of_services', 'Scope of services', 'list'),]
 }
 
 operations_sections = {
@@ -253,9 +264,7 @@ security_sections = {
         ('vendor_name', 'Vendor name', 'string'),
         ('application_version', 'Application version', 'string'),
     ],
-    'Access': [
-        ('security_access', 'Access', 'list'),
-    ]
+    'Access': [('security_access', 'Access', 'list'),],
 }
 
 network_section = {
@@ -289,30 +298,15 @@ enums = {
         ('sw', 'Swedish'),
         ('fi', 'Finnish'),
     ],
-    'collocation_dimensions': [
-        ('600x800', '600 x 800'),
-        ('600x1000', '600 x 1000'),
-    ],
+    'collocation_dimensions': [('600x800', '600 x 800'), ('600x1000', '600 x 1000'),],
     'deployment_type': [
         ('appliance', 'Appliance (Managed)'),
-        ('remote', 'Remote (SaaS)')
+        ('remote', 'Remote (SaaS)'),
     ],
-    'email_software': [
-        ('zimbra', 'Zimbra'),
-        ('ibm_lotus', 'IBM Lotus'),
-    ],
-    'workdays': [
-        ('base', '5 days'),
-        ('extended', '7 days'),
-    ],
-    'businesshours': [
-        ('basehours', '8 hours'),
-        ('extendedhours', '24 hours'),
-    ],
-    'priority': [
-        ('eob', 'End-of-business day'),
-        ('nbd', 'Next business day'),
-    ],
+    'email_software': [('zimbra', 'Zimbra'), ('ibm_lotus', 'IBM Lotus'),],
+    'workdays': [('base', '5 days'), ('extended', '7 days'),],
+    'businesshours': [('basehours', '8 hours'), ('extendedhours', '24 hours'),],
+    'priority': [('eob', 'End-of-business day'), ('nbd', 'Next business day'),],
     'certification': [
         ('iskel', 'ISKE L'),
         ('iskem', 'ISKE M'),
@@ -326,10 +320,14 @@ enums = {
         ('Ethernet_10G', 'Ethernet 10G'),
     ],
     'sla_response': [
-        '1', '1 hour',
-        '2', '2 hours',
-        '3', '3 hours',
-        'eob', 'End of business day',
+        '1',
+        '1 hour',
+        '2',
+        '2 hours',
+        '3',
+        '3 hours',
+        'eob',
+        'End of business day',
     ],
     'virtualization': [
         ('kvm', 'KVM'),
@@ -342,10 +340,7 @@ enums = {
         ('spectrophotometer', 'Spectrophotometer'),
         ('spectrometers', 'Spectrometers'),
     ],
-    'measurement_devices_sample_matrix': [
-        ('liquids', 'Liquids'),
-        ('solds', 'Solids'),
-    ],
+    'measurement_devices_sample_matrix': [('liquids', 'Liquids'), ('solds', 'Solids'),],
     'measurement_devices_principle': [
         ('x-ray-diffraction', 'X-ray diffraction'),
         ('chromatography', 'Chromatography'),
@@ -354,7 +349,10 @@ enums = {
         ('magnetic-resonance', 'Magnetic resonance'),
         ('physical-properties', 'Physical properties'),
         ('infrapuna-spektromeeter', 'Infrapuna spektromeeter'),
-        ('thz-radiation-amplitude-and-phase', 'Measurement of THz radiation amplitude and phase'),
+        (
+            'thz-radiation-amplitude-and-phase',
+            'Measurement of THz radiation amplitude and phase',
+        ),
     ],
     'measurement_devices_additional_components': [
         ('autosampler-with-cooling', 'Autosampler with cooling'),
@@ -362,7 +360,7 @@ enums = {
         ('photodiode-array-detector', 'Photodiode array detector (PDA)'),
         ('column-thermostate', 'Column thermostate'),
         ('flame-ionization-detector', 'Flame ionization detector (FID)'),
-        ('thermal-conductivity-detector', 'Thermal conductivity detector (TCD)')
+        ('thermal-conductivity-detector', 'Thermal conductivity detector (TCD)'),
     ],
     'scope_of_services': [
         ('analysis', 'Analysis'),
@@ -373,15 +371,8 @@ enums = {
         ('change_management', 'Change management'),
         ('disaster_recovery', 'Disaster recovery'),
     ],
-    'security_access': [
-        ('api', 'API'),
-        ('offline', 'Offline'),
-    ],
-    'storage_type': [
-        ('block', 'Block'),
-        ('object', 'Object'),
-        ('fs', 'Filesystem'),
-    ],
+    'security_access': [('api', 'API'), ('offline', 'Offline'),],
+    'storage_type': [('block', 'Block'), ('object', 'Object'), ('fs', 'Filesystem'),],
     'computing_network': [
         ('private', 'Private (own)'),
         ('aso', 'ASO'),
@@ -390,27 +381,15 @@ enums = {
         ('banglagovnet', 'BanglaGovNet'),
         ('public', 'Public Internet'),
     ],
-    'vpn_technology': [
-        ('ipsec', 'IPSEC'),
-        ('gre+ipsec', 'GRE + IPSEC'),
-    ],
-    'vm_access_level': [
-        ('root', 'Root / Administrator'),
-        ('user', 'User level'),
-    ],
-    'api_flavor': [
-        ('s3', 'S3'),
-        ('swift', 'Swift'),
-        ('custom', 'Custom'),
-    ],
+    'vpn_technology': [('ipsec', 'IPSEC'), ('gre+ipsec', 'GRE + IPSEC'),],
+    'vm_access_level': [('root', 'Root / Administrator'), ('user', 'User level'),],
+    'api_flavor': [('s3', 'S3'), ('swift', 'Swift'), ('custom', 'Custom'),],
     'vm_remote_access': [
         ('console', 'Console'),
         ('ssh_rdp', 'SSH/RDP'),
         ('direct_access', 'Direct access'),
     ],
-    'collocation_remote_access': [
-        ('vpn', 'VPN'),
-    ],
+    'collocation_remote_access': [('vpn', 'VPN'),],
     'os': [
         ('ubuntu16.04', 'Ubuntu 16.04'),
         ('centos7', 'CentOS 7'),
@@ -432,33 +411,45 @@ enums = {
 def populate_category(category_code, category, sections):
     for section_key in sections.keys():
         section_prefix = '%s_%s' % (category_code, section_key)
-        sec, _ = Section.objects.get_or_create(key=section_prefix, title=humanize(section_key), category=category)
+        sec, _ = Section.objects.get_or_create(
+            key=section_prefix, title=humanize(section_key), category=category
+        )
         sec.is_standalone = True
         sec.save()
         for attribute in sections[section_key]:
             key, title, attribute_type = attribute
-            attr, _ = Attribute.objects.get_or_create(key='%s_%s' % (section_prefix, key),
-                                                      title=title, type=attribute_type, section=sec)
+            attr, _ = Attribute.objects.get_or_create(
+                key='%s_%s' % (section_prefix, key),
+                title=title,
+                type=attribute_type,
+                section=sec,
+            )
             if key in enums:
                 values = enums[key]
                 for val_key, val_label in values:
                     AttributeOption.objects.get_or_create(
-                        attribute=attr, key='%s_%s_%s' % (section_prefix, key, val_key), title=val_label)
+                        attribute=attr,
+                        key='%s_%s_%s' % (section_prefix, key, val_key),
+                        title=val_label,
+                    )
 
 
 def load_category(category_short):
     category_name, category_description = available_categories[category_short]
-    new_category, _ = Category.objects.get_or_create(title=category_name, description=category_description)
+    new_category, _ = Category.objects.get_or_create(
+        title=category_name, description=category_description
+    )
     category_icon = '%s.svg' % category_short
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
-    new_category.icon.save(category_icon,
-                           File(open(path + category_icon, 'rb')))
+    new_category.icon.save(category_icon, File(open(path + category_icon, 'rb')))
     new_category.save()
     # populate category with common section
     populate_category(category_short, new_category, common_sections)
     # add specific sections
     if category_short in specific_sections.keys():
-        populate_category(category_short, new_category, specific_sections[category_short])
+        populate_category(
+            category_short, new_category, specific_sections[category_short]
+        )
 
     # add category columns
     columns = category_columns.get(category_short, [])
@@ -470,7 +461,7 @@ def load_category(category_short):
                 index=index,
                 attribute=attribute.get('attribute', ''),
                 widget=attribute.get('widget'),
-            )
+            ),
         )
 
     # add category components
@@ -480,9 +471,8 @@ def load_category(category_short):
             category=new_category,
             type=component['type'],
             defaults=dict(
-                name=component['name'],
-                measured_unit=component.get('measured_unit'),
-            )
+                name=component['name'], measured_unit=component.get('measured_unit'),
+            ),
         )
     return new_category
 
@@ -490,12 +480,22 @@ def load_category(category_short):
 class Command(BaseCommand):
     help = 'Loads a categories for the Marketplace'
 
-    missing_args_message = 'Please define at least one category to load, available are:\n%s' %\
-                           '\n'.join(available_categories.keys())
+    missing_args_message = (
+        'Please define at least one category to load, available are:\n%s'
+        % '\n'.join(available_categories.keys())
+    )
 
     def add_arguments(self, parser):
-        parser.add_argument('category', nargs='+', type=str, help='List of categories to load')
-        parser.add_argument('--basic_sla', nargs='?', type=bool, default=False, help='Use basic SLA for categories')
+        parser.add_argument(
+            'category', nargs='+', type=str, help='List of categories to load'
+        )
+        parser.add_argument(
+            '--basic_sla',
+            nargs='?',
+            type=bool,
+            default=False,
+            help='Use basic SLA for categories',
+        )
 
     def handle(self, *args, **options):
 
@@ -504,7 +504,15 @@ class Command(BaseCommand):
             del common_sections['SLA']
         for category_short in options['category']:
             if category_short not in all_categories:
-                self.stdout.write(self.style.WARNING('Category "%s" is not available' % category_short))
+                self.stdout.write(
+                    self.style.WARNING(
+                        'Category "%s" is not available' % category_short
+                    )
+                )
                 continue
             new_category = load_category(category_short)
-            self.stdout.write(self.style.SUCCESS('Loaded category %s, %s ' % (category_short, new_category.uuid)))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    'Loaded category %s, %s ' % (category_short, new_category.uuid)
+                )
+            )

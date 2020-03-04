@@ -4,7 +4,6 @@ from . import fixtures
 
 
 class TenantQuotasTest(test.APITransactionTestCase):
-
     def setUp(self):
         super(TenantQuotasTest, self).setUp()
         self.fixture = fixtures.OpenStackFixture()
@@ -22,7 +21,9 @@ class TenantQuotasTest(test.APITransactionTestCase):
         self.assertEqual(self.customer.quotas.get(name='vpc_cpu_count').usage, 0)
         self.assertEqual(self.customer.quotas.get(name='vpc_ram_size').usage, 0)
         self.assertEqual(self.customer.quotas.get(name='vpc_storage_size').usage, 0)
-        self.assertEqual(self.customer.quotas.get(name='vpc_floating_ip_count').usage, 0)
+        self.assertEqual(
+            self.customer.quotas.get(name='vpc_floating_ip_count').usage, 0
+        )
         self.assertEqual(self.customer.quotas.get(name='vpc_instance_count').usage, 0)
 
     def test_quotas_for_tenant_are_increased_for_project_and_customer(self):
@@ -40,6 +41,10 @@ class TenantQuotasTest(test.APITransactionTestCase):
 
         self.assertEqual(self.customer.quotas.get(name='vpc_cpu_count').usage, 1)
         self.assertEqual(self.customer.quotas.get(name='vpc_ram_size').usage, 1024)
-        self.assertEqual(self.customer.quotas.get(name='vpc_storage_size').usage, 102400)
-        self.assertEqual(self.customer.quotas.get(name='vpc_floating_ip_count').usage, 2)
+        self.assertEqual(
+            self.customer.quotas.get(name='vpc_storage_size').usage, 102400
+        )
+        self.assertEqual(
+            self.customer.quotas.get(name='vpc_floating_ip_count').usage, 2
+        )
         self.assertEqual(self.customer.quotas.get(name='vpc_instance_count').usage, 1)

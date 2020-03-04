@@ -8,9 +8,7 @@ from waldur_core.structure import models as structure_models
 
 class VMwareService(structure_models.Service):
     projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='+',
-        through='VMwareServiceProjectLink'
+        structure_models.Project, related_name='+', through='VMwareServiceProjectLink'
     )
 
     class Meta:
@@ -40,21 +38,30 @@ class VirtualMachineMixin(models.Model):
     class Meta:
         abstract = True
 
-    guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
-                                                           'types used for configuring a virtual machine'))
-    cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
-    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores per socket in a VM'))
-    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'), verbose_name=_('RAM'))
+    guest_os = models.CharField(
+        max_length=50,
+        help_text=_(
+            'Defines the valid guest operating system '
+            'types used for configuring a virtual machine'
+        ),
+    )
+    cores = models.PositiveSmallIntegerField(
+        default=0, help_text=_('Number of cores in a VM')
+    )
+    cores_per_socket = models.PositiveSmallIntegerField(
+        default=1, help_text=_('Number of cores per socket in a VM')
+    )
+    ram = models.PositiveIntegerField(
+        default=0, help_text=_('Memory size in MiB'), verbose_name=_('RAM')
+    )
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
 
 
-class VirtualMachine(VirtualMachineMixin,
-                     core_models.RuntimeStateMixin,
-                     structure_models.NewResource):
+class VirtualMachine(
+    VirtualMachineMixin, core_models.RuntimeStateMixin, structure_models.NewResource
+):
     service_project_link = models.ForeignKey(
-        VMwareServiceProjectLink,
-        related_name='+',
-        on_delete=models.PROTECT
+        VMwareServiceProjectLink, related_name='+', on_delete=models.PROTECT
     )
 
     class RuntimeStates:
@@ -103,7 +110,7 @@ class VirtualMachine(VirtualMachineMixin,
     networks = models.ManyToManyField('Network', blank=True)
     guest_power_enabled = models.BooleanField(
         default=False,
-        help_text='Flag indicating if the virtual machine is ready to process soft power operations.'
+        help_text='Flag indicating if the virtual machine is ready to process soft power operations.',
     )
     guest_power_state = models.CharField(
         'The power state of the guest operating system.',
@@ -123,8 +130,13 @@ class VirtualMachine(VirtualMachineMixin,
     @classmethod
     def get_backend_fields(cls):
         return super(VirtualMachine, cls).get_backend_fields() + (
-            'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk',
-            'tools_installed', 'tools_state',
+            'runtime_state',
+            'cores',
+            'cores_per_socket',
+            'ram',
+            'disk',
+            'tools_installed',
+            'tools_state',
         )
 
     @classmethod
@@ -141,13 +153,13 @@ class VirtualMachine(VirtualMachineMixin,
 
 class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
     service_project_link = models.ForeignKey(
-        VMwareServiceProjectLink,
-        related_name='+',
-        on_delete=models.PROTECT
+        VMwareServiceProjectLink, related_name='+', on_delete=models.PROTECT
     )
     vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine)
     network = models.ForeignKey(on_delete=models.CASCADE, to='Network')
-    mac_address = models.CharField(max_length=32, blank=True, verbose_name=_('MAC address'))
+    mac_address = models.CharField(
+        max_length=32, blank=True, verbose_name=_('MAC address')
+    )
 
     @classmethod
     def get_backend_fields(cls):
@@ -163,13 +175,13 @@ class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
 
 class Disk(structure_models.NewResource):
     service_project_link = models.ForeignKey(
-        VMwareServiceProjectLink,
-        related_name='+',
-        on_delete=models.PROTECT
+        VMwareServiceProjectLink, related_name='+', on_delete=models.PROTECT
     )
 
     size = models.PositiveIntegerField(help_text=_('Size in MiB'))
-    vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine, related_name='disks')
+    vm = models.ForeignKey(
+        on_delete=models.CASCADE, to=VirtualMachine, related_name='disks'
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -183,9 +195,9 @@ class Disk(structure_models.NewResource):
         return super(Disk, cls).get_backend_fields() + ('name', 'size')
 
 
-class Template(VirtualMachineMixin,
-               core_models.DescribableMixin,
-               structure_models.ServiceProperty):
+class Template(
+    VirtualMachineMixin, core_models.DescribableMixin, structure_models.ServiceProperty
+):
     created = models.DateTimeField()
     modified = models.DateTimeField()
 
@@ -254,8 +266,12 @@ class CustomerNetworkPair(models.Model):
 
 class Datastore(structure_models.ServiceProperty):
     type = models.CharField(max_length=255)
-    capacity = models.PositiveIntegerField(help_text="Capacity, in MB.", null=True, blank=True)
-    free_space = models.PositiveIntegerField(help_text="Available space, in MB.", null=True, blank=True)
+    capacity = models.PositiveIntegerField(
+        help_text="Capacity, in MB.", null=True, blank=True
+    )
+    free_space = models.PositiveIntegerField(
+        help_text="Available space, in MB.", null=True, blank=True
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -277,7 +293,6 @@ class CustomerDatastore(models.Model):
 
 
 class Folder(structure_models.ServiceProperty):
-
     def __str__(self):
         return '%s / %s' % (self.settings, self.name)
 

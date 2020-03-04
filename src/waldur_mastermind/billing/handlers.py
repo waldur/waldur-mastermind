@@ -34,10 +34,12 @@ def update_estimates_for_customer(customer):
 
 
 def process_invoice_item(sender, instance, created=False, **kwargs):
-    if (not created and
-            not instance.tracker.has_changed('unit_price') and
-            not instance.tracker.has_changed('start') and
-            not instance.tracker.has_changed('end')):
+    if (
+        not created
+        and not instance.tracker.has_changed('unit_price')
+        and not instance.tracker.has_changed('start')
+        and not instance.tracker.has_changed('end')
+    ):
         return
     if not instance.project:
         return
@@ -59,12 +61,18 @@ def log_price_estimate_limit_update(sender, instance, created=False, **kwargs):
         elif isinstance(instance.scope, structure_models.Project):
             event_type = 'customer_price_limit_updated'
         else:
-            logger.warning('A price estimate event for type of "%s" is not registered.', type(instance.scope))
+            logger.warning(
+                'A price estimate event for type of "%s" is not registered.',
+                type(instance.scope),
+            )
             return
 
-        message = 'Price limit for "%(scope)s" has been updated from "%(old)s" to "%(new)s".' % {
-            'scope': instance.scope,
-            'old': instance.tracker.previous('limit'),
-            'new': instance.limit
-        }
+        message = (
+            'Price limit for "%(scope)s" has been updated from "%(old)s" to "%(new)s".'
+            % {
+                'scope': instance.scope,
+                'old': instance.tracker.previous('limit'),
+                'new': instance.limit,
+            }
+        )
         log.event_logger.price_estimate.info(message, event_type=event_type)

@@ -1,11 +1,11 @@
-from django.test import TestCase
 from unittest import mock
+
+from django.test import TestCase
 
 from waldur_core.core import views
 
 
 class TestPublicSettings(TestCase):
-
     def setUp(self):
         super(TestPublicSettings, self).setUp()
 
@@ -24,26 +24,36 @@ class TestPublicSettings(TestCase):
         extensions = {
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},
-            'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'}
+            'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'},
         }
-        mock_settings = mock.Mock(WALDUR_CORE={}, WALDUR_CORE_PUBLIC_SETTINGS=[], **extensions)
-        self.patcher_settings = mock.patch('waldur_core.core.views.settings', new=mock_settings)
+        mock_settings = mock.Mock(
+            WALDUR_CORE={}, WALDUR_CORE_PUBLIC_SETTINGS=[], **extensions
+        )
+        self.patcher_settings = mock.patch(
+            'waldur_core.core.views.settings', new=mock_settings
+        )
         self.patcher_settings.start()
 
         self.patcher = mock.patch('waldur_core.core.views.WaldurExtension')
         self.mock = self.patcher.start()
-        self.mock.get_extensions.return_value = [MockExtension(e) for e in extensions.keys()]
+        self.mock.get_extensions.return_value = [
+            MockExtension(e) for e in extensions.keys()
+        ]
 
     def tearDown(self):
         super(TestPublicSettings, self).tearDown()
         mock.patch.stopall()
 
-    def test_if_extension_not_have_field_enabled_or_it_equally_true_this_extension_must_by_in_response(self):
+    def test_if_extension_not_have_field_enabled_or_it_equally_true_this_extension_must_by_in_response(
+        self,
+    ):
         response = views.get_public_settings()
         self.assertTrue('WALDUR_EXTENSION_2' in response.keys())
         self.assertTrue('WALDUR_EXTENSION_3' in response.keys())
 
-    def test_if_extension_have_field_enabled_and_it_equally_false_this_extension_not_to_be_in_response(self):
+    def test_if_extension_have_field_enabled_and_it_equally_false_this_extension_not_to_be_in_response(
+        self,
+    ):
         response = views.get_public_settings()
         self.assertFalse('WALDUR_EXTENSION_1' in response.keys())
 

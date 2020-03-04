@@ -1,4 +1,5 @@
 import logging
+
 from celery import shared_task
 
 from waldur_core.core import utils as core_utils
@@ -14,7 +15,9 @@ def create_doi(serialized_instance):
 
     if instance.datacite_doi:
         logger.warning(
-            'Registration of %s has been skipped because datacite_doi field is not empty.' % instance)
+            'Registration of %s has been skipped because datacite_doi field is not empty.'
+            % instance
+        )
         return
 
     try:

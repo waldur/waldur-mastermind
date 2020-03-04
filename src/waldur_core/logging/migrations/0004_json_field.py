@@ -14,41 +14,57 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='emailhook',
             name='event_groups',
-            field=django.contrib.postgres.fields.jsonb.JSONField(default=list, verbose_name='List of event groups'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                default=list, verbose_name='List of event groups'
+            ),
         ),
         migrations.AlterField(
             model_name='emailhook',
             name='event_types',
-            field=django.contrib.postgres.fields.jsonb.JSONField(verbose_name='List of event types'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                verbose_name='List of event types'
+            ),
         ),
         migrations.AlterField(
             model_name='pushhook',
             name='event_groups',
-            field=django.contrib.postgres.fields.jsonb.JSONField(default=list, verbose_name='List of event groups'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                default=list, verbose_name='List of event groups'
+            ),
         ),
         migrations.AlterField(
             model_name='pushhook',
             name='event_types',
-            field=django.contrib.postgres.fields.jsonb.JSONField(verbose_name='List of event types'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                verbose_name='List of event types'
+            ),
         ),
         migrations.AlterField(
             model_name='systemnotification',
             name='event_groups',
-            field=django.contrib.postgres.fields.jsonb.JSONField(default=list, verbose_name='List of event groups'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                default=list, verbose_name='List of event groups'
+            ),
         ),
         migrations.AlterField(
             model_name='systemnotification',
             name='event_types',
-            field=django.contrib.postgres.fields.jsonb.JSONField(verbose_name='List of event types'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                verbose_name='List of event types'
+            ),
         ),
         migrations.AlterField(
             model_name='webhook',
             name='event_groups',
-            field=django.contrib.postgres.fields.jsonb.JSONField(default=list, verbose_name='List of event groups'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                default=list, verbose_name='List of event groups'
+            ),
         ),
         migrations.AlterField(
             model_name='webhook',
             name='event_types',
-            field=django.contrib.postgres.fields.jsonb.JSONField(verbose_name='List of event types'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                verbose_name='List of event types'
+            ),
         ),
     ]

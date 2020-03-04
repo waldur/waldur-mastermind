@@ -1,9 +1,11 @@
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_openstack.openstack_tenant.tests.factories import (
+    InstanceFactory,
+    InternalIPFactory,
+)
 from waldur_openstack.openstack_tenant.tests.fixtures import OpenStackTenantFixture
-from waldur_openstack.openstack_tenant.tests.factories import InstanceFactory, InternalIPFactory
-
 from waldur_zabbix.tests import factories
 
 
@@ -13,10 +15,18 @@ class ZabbixServiceProjectLinkResourceFilterBackendTest(test.APITransactionTestC
         project = fixture.project
 
         server_vm = fixture.instance
-        internal_ip = InternalIPFactory.create(instance=server_vm, ip4_address='10.0.10.2')
-        settings = factories.ServiceSettingsFactory(customer=fixture.customer, scope=server_vm)
-        service = factories.ZabbixServiceFactory(customer=fixture.customer, settings=settings)
-        valid_link = factories.ZabbixServiceProjectLinkFactory(service=service, project=project)
+        internal_ip = InternalIPFactory.create(
+            instance=server_vm, ip4_address='10.0.10.2'
+        )
+        settings = factories.ServiceSettingsFactory(
+            customer=fixture.customer, scope=server_vm
+        )
+        service = factories.ZabbixServiceFactory(
+            customer=fixture.customer, settings=settings
+        )
+        valid_link = factories.ZabbixServiceProjectLinkFactory(
+            service=service, project=project
+        )
         valid_link_url = factories.ZabbixServiceProjectLinkFactory.get_url(valid_link)
 
         # This SPL should not be present in output

@@ -730,19 +730,6 @@ version = "3.0.12"
 
 [[package]]
 category = "dev"
-description = "the modular source code checker: pep8, pyflakes and co"
-name = "flake8"
-optional = false
-python-versions = "*"
-version = "3.5.0"
-
-[package.dependencies]
-mccabe = ">=0.6.0,<0.7.0"
-pycodestyle = ">=2.0.0,<2.4.0"
-pyflakes = ">=1.5.0,<1.7.0"
-
-[[package]]
-category = "dev"
 description = "Let your Python tests travel through time"
 name = "freezegun"
 optional = false
@@ -1118,14 +1105,6 @@ name = "markupsafe"
 optional = false
 python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"
 version = "1.1.1"
-
-[[package]]
-category = "dev"
-description = "McCabe checker, plugin for flake8"
-name = "mccabe"
-optional = false
-python-versions = "*"
-version = "0.6.1"
 
 [[package]]
 category = "dev"
@@ -1564,14 +1543,6 @@ version = "0.2.8"
 pyasn1 = ">=0.4.6,<0.5.0"
 
 [[package]]
-category = "dev"
-description = "Python style guide checker"
-name = "pycodestyle"
-optional = false
-python-versions = "*"
-version = "2.3.1"
-
-[[package]]
 category = "main"
 description = "ISO country, subdivision, language, currency and script definitions and their translations"
 name = "pycountry"
@@ -1586,14 +1557,6 @@ name = "pycparser"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 version = "2.19"
-
-[[package]]
-category = "dev"
-description = "passive checker of Python programs"
-name = "pyflakes"
-optional = false
-python-versions = "*"
-version = "1.6.0"
 
 [[package]]
 category = "main"
@@ -2303,7 +2266,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "2f6256bdb7c4c545a9c9b39ba4ed7894f433d658d6cb59c8154e940bab35eac4"
+content-hash = "af0abe33df76967916141a017adcdb879e979bbcf8f2fd07d51fe706d4b6cf29"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2619,10 +2582,6 @@ filelock = [
     {file = "filelock-3.0.12-py3-none-any.whl", hash = "sha256:929b7d63ec5b7d6b71b0fa5ac14e030b3f70b75747cef1b10da9b879fef15836"},
     {file = "filelock-3.0.12.tar.gz", hash = "sha256:18d82244ee114f543149c66a6e0c14e9c4f8a1044b5cdaadd0f82159d6a6ff59"},
 ]
-flake8 = [
-    {file = "flake8-3.5.0-py2.py3-none-any.whl", hash = "sha256:c7841163e2b576d435799169b78703ad6ac1bbb0f199994fc05f700b2a90ea37"},
-    {file = "flake8-3.5.0.tar.gz", hash = "sha256:7253265f7abd8b313e3892944044a365e3f4ac3fcdcfb4298f55ee9ddf188ba0"},
-]
 freezegun = [
     {file = "freezegun-0.3.7.tar.gz", hash = "sha256:1ca8e4833f50ab908398d92900865832d3d409f7ae2ede32c153966d404f8192"},
 ]
@@ -2801,10 +2760,6 @@ markupsafe = [
     {file = "MarkupSafe-1.1.1-cp38-cp38-win32.whl", hash = "sha256:596510de112c685489095da617b5bcbbac7dd6384aeebeda4df6025d0256a81b"},
     {file = "MarkupSafe-1.1.1-cp38-cp38-win_amd64.whl", hash = "sha256:e8313f01ba26fbbe36c7be1966a7b7424942f670f38e666995b88d012765b9be"},
     {file = "MarkupSafe-1.1.1.tar.gz", hash = "sha256:29872e92839765e546828bb7754a68c418d927cd064fd4708fab9fe9c8bb116b"},
-]
-mccabe = [
-    {file = "mccabe-0.6.1-py2.py3-none-any.whl", hash = "sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42"},
-    {file = "mccabe-0.6.1.tar.gz", hash = "sha256:dd8d182285a0fe56bace7f45b5e7d1a6ebcbf524e8f3bd87eb0f125271b8831f"},
 ]
 mock = [
     {file = "mock-4.0.1-py3-none-any.whl", hash = "sha256:5e48d216809f6f393987ed56920305d8f3c647e6ed35407c1ff2ecb88a9e1151"},
@@ -3059,19 +3014,11 @@ pyasn1-modules = [
     {file = "pyasn1_modules-0.2.8-py3.6.egg", hash = "sha256:cbac4bc38d117f2a49aeedec4407d23e8866ea4ac27ff2cf7fb3e5b570df19e0"},
     {file = "pyasn1_modules-0.2.8-py3.7.egg", hash = "sha256:c29a5e5cc7a3f05926aff34e097e84f8589cd790ce0ed41b67aed6857b26aafd"},
 ]
-pycodestyle = [
-    {file = "pycodestyle-2.3.1-py2.py3-none-any.whl", hash = "sha256:6c4245ade1edfad79c3446fadfc96b0de2759662dc29d07d80a6f27ad1ca6ba9"},
-    {file = "pycodestyle-2.3.1.tar.gz", hash = "sha256:682256a5b318149ca0d2a9185d365d8864a768a28db66a84a2ea946bcc426766"},
-]
 pycountry = [
     {file = "pycountry-1.20.tar.gz", hash = "sha256:0588efa3171e1d5e4cc96fce569ac865964285fdc8dbdc0860844f74598d1f98"},
 ]
 pycparser = [
     {file = "pycparser-2.19.tar.gz", hash = "sha256:a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3"},
-]
-pyflakes = [
-    {file = "pyflakes-1.6.0-py2.py3-none-any.whl", hash = "sha256:08bd6a50edf8cffa9fa09a463063c425ecaaf10d1eb0335a7e8b1401aef89e6f"},
-    {file = "pyflakes-1.6.0.tar.gz", hash = "sha256:8d616a382f243dbf19b54743f280b80198be0bca3a5396f1d2e1fca6223e8805"},
 ]
 pyinotify = [
     {file = "pyinotify-0.9.6.tar.gz", hash = "sha256:9c998a5d7606ca835065cdabc013ae6c66eb9ea76a00a1e3bc6e0cfe2b4f71f4"},

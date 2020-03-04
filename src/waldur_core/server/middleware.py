@@ -7,7 +7,10 @@ def cors_middleware(get_response):
     """
 
     def middleware(request):
-        if request.method == "OPTIONS" and "HTTP_ACCESS_CONTROL_REQUEST_METHOD" in request.META:
+        if (
+            request.method == "OPTIONS"
+            and "HTTP_ACCESS_CONTROL_REQUEST_METHOD" in request.META
+        ):
             response = http.HttpResponse()
             response["Content-Length"] = "0"
             return response

@@ -14,7 +14,6 @@ from waldur_core.structure.models import Service
 
 # TODO: This mixin duplicates quota filter manager - they need to be moved to core (NC-686)
 class UserFilterMixin:
-
     def filtered_for_user(self, user, queryset=None):
         if queryset is None:
             queryset = self.get_queryset()
@@ -24,9 +23,13 @@ class UserFilterMixin:
 
         query = Q()
         for model in self.get_available_models():
-            user_object_ids = filter_queryset_for_user(model.objects.all(), user).values_list('id', flat=True)
+            user_object_ids = filter_queryset_for_user(
+                model.objects.all(), user
+            ).values_list('id', flat=True)
             content_type_id = ContentType.objects.get_for_model(model).id
-            query |= Q(object_id__in=list(user_object_ids), content_type_id=content_type_id)
+            query |= Q(
+                object_id__in=list(user_object_ids), content_type_id=content_type_id
+            )
 
         return queryset.filter(query)
 
@@ -36,7 +39,6 @@ class UserFilterMixin:
 
 
 class PriceEstimateManager(GenericKeyMixin, UserFilterMixin, django_models.Manager):
-
     def get_available_models(self):
         """ Return list of models that are acceptable """
         return self.model.get_estimated_models()
@@ -55,7 +57,6 @@ class PriceEstimateManager(GenericKeyMixin, UserFilterMixin, django_models.Manag
 
 
 class ConsumptionDetailsQuerySet(django_models.QuerySet):
-
     def create(self, price_estimate):
         """ Take configuration from previous month, it it exists.
             Set last_update_time equals to the beginning of the month.
@@ -68,16 +69,21 @@ class ConsumptionDetailsQuerySet(django_models.QuerySet):
         else:
             configuration = previous_price_estimate.consumption_details.configuration
             kwargs['configuration'] = configuration
-        month_start = core_utils.month_start(datetime.date(price_estimate.year, price_estimate.month, 1))
+        month_start = core_utils.month_start(
+            datetime.date(price_estimate.year, price_estimate.month, 1)
+        )
         kwargs['last_update_time'] = month_start
-        return super(ConsumptionDetailsQuerySet, self).create(price_estimate=price_estimate, **kwargs)
+        return super(ConsumptionDetailsQuerySet, self).create(
+            price_estimate=price_estimate, **kwargs
+        )
 
 
-ConsumptionDetailsManager = django_models.Manager.from_queryset(ConsumptionDetailsQuerySet)
+ConsumptionDetailsManager = django_models.Manager.from_queryset(
+    ConsumptionDetailsQuerySet
+)
 
 
 class PriceListItemManager(GenericKeyMixin, UserFilterMixin, django_models.Manager):
-
     def get_available_models(self):
         """ Return list of models that are acceptable """
         return Service.get_all_models()

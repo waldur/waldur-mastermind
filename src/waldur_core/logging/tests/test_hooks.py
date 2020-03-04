@@ -1,15 +1,16 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from django.core import mail
 from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import loggers
-from waldur_core.logging.tests.factories import WebHookFactory, PushHookFactory
-from waldur_core.structure.tests import factories as structure_factories, fixtures as structure_fixtures
+from waldur_core.logging.tests.factories import PushHookFactory, WebHookFactory
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 
-from . import factories
 from .. import models, tasks
+from . import factories
 
 
 class BaseHookApiTest(test.APITransactionTestCase):
@@ -23,30 +24,35 @@ class BaseHookApiTest(test.APITransactionTestCase):
 
 
 class HookCreationViewTest(BaseHookApiTest):
-
     def test_user_can_create_webhook(self):
         self.client.force_authenticate(user=self.author)
-        response = self.client.post(WebHookFactory.get_list_url(), data={
-            'event_types': self.valid_event_types,
-            'destination_url': 'http://example.com/'
-        })
+        response = self.client.post(
+            WebHookFactory.get_list_url(),
+            data={
+                'event_types': self.valid_event_types,
+                'destination_url': 'http://example.com/',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_user_can_create_email_hook(self):
         self.client.force_authenticate(user=self.author)
-        response = self.client.post(reverse('emailhook-list'), data={
-            'event_types': self.valid_event_types,
-            'email': 'test@example.com'
-        })
+        response = self.client.post(
+            reverse('emailhook-list'),
+            data={'event_types': self.valid_event_types, 'email': 'test@example.com'},
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_user_can_create_push_hook(self):
         self.client.force_authenticate(user=self.author)
-        response = self.client.post(PushHookFactory.get_list_url(), data={
-            'event_types': self.valid_event_types,
-            'token': 'VALID_TOKEN',
-            'type': 'Android'
-        })
+        response = self.client.post(
+            PushHookFactory.get_list_url(),
+            data={
+                'event_types': self.valid_event_types,
+                'token': 'VALID_TOKEN',
+                'type': 'Android',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_user_can_subscribe_to_event_groups(self):
@@ -54,10 +60,13 @@ class HookCreationViewTest(BaseHookApiTest):
         event_types = loggers.expand_event_groups(event_groups)
 
         self.client.force_authenticate(user=self.author)
-        response = self.client.post(WebHookFactory.get_list_url(), data={
-            'event_groups': event_groups,
-            'destination_url': 'http://example.com/'
-        })
+        response = self.client.post(
+            WebHookFactory.get_list_url(),
+            data={
+                'event_groups': event_groups,
+                'destination_url': 'http://example.com/',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['event_groups'], set(event_groups))
         self.assertEqual(response.data['event_types'], set(event_types))
@@ -69,20 +78,16 @@ class HookUpdateTest(BaseHookApiTest):
         super(HookUpdateTest, self).setUp()
         self.hooks = {
             'web': WebHookFactory.get_url(WebHookFactory(user=self.author)),
-            'push': PushHookFactory.get_url(PushHookFactory(user=self.author))
+            'push': PushHookFactory.get_url(PushHookFactory(user=self.author)),
         }
 
     def test_author_can_update_webhook_destination_url(self):
-        new_data = {
-            'destination_url': 'http://another-host.com'
-        }
+        new_data = {'destination_url': 'http://another-host.com'}
         response = self.update_hook('web', new_data)
         self.assertEqual(new_data['destination_url'], response.data['destination_url'])
 
     def test_author_can_update_push_hook_token(self):
-        new_data = {
-            'token': 'NEW_VALID_TOKEN'
-        }
+        new_data = {'token': 'NEW_VALID_TOKEN'}
         response = self.update_hook('push', new_data)
         self.assertEqual(new_data['token'], response.data['token'])
 
@@ -98,9 +103,7 @@ class HookUpdateTest(BaseHookApiTest):
         event_types = loggers.expand_event_groups(event_groups)
 
         self.client.force_authenticate(user=self.author)
-        response = self.update_hook(hook, {
-            'event_groups': event_groups
-        })
+        response = self.update_hook(hook, {'event_groups': event_groups})
         self.assertEqual(response.data['event_groups'], set(event_groups))
         self.assertEqual(response.data['event_types'], set(event_types))
 
@@ -118,7 +121,6 @@ class HookUpdateTest(BaseHookApiTest):
 
 
 class HookPermissionsViewTest(BaseHookApiTest):
-
     def setUp(self):
         super(HookPermissionsViewTest, self).setUp()
         self.url = WebHookFactory.get_url(WebHookFactory(user=self.author))
@@ -145,7 +147,9 @@ class HookFilterViewTest(BaseHookApiTest):
         WebHookFactory(user=self.author)
         WebHookFactory(user=self.other_user)
         self.client.force_authenticate(user=self.staff)
-        response = self.client.get(WebHookFactory.get_list_url(), {'author_uuid': self.author.uuid.hex})
+        response = self.client.get(
+            WebHookFactory.get_list_url(), {'author_uuid': self.author.uuid.hex}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(str(self.author.uuid), str(response.data[0]['author_uuid']))
@@ -154,7 +158,9 @@ class HookFilterViewTest(BaseHookApiTest):
         WebHookFactory(user=self.author)
         PushHookFactory(user=self.other_user)
         self.client.force_authenticate(user=self.staff)
-        response = self.client.get(reverse('hooks-list'), {'author_uuid': self.author.uuid.hex})
+        response = self.client.get(
+            reverse('hooks-list'), {'author_uuid': self.author.uuid.hex}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(str(self.author.uuid), str(response.data[0]['author_uuid']))
@@ -171,7 +177,9 @@ class SystemNotificationTest(test.APITransactionTestCase):
         self.event = factories.EventFactory(event_type=self.event_types[0])
         self.feed = models.Feed.objects.create(scope=self.project, event=self.event)
 
-    def test_send_notification_if_user_is_not_subscribed_but_event_type_is_system_type(self):
+    def test_send_notification_if_user_is_not_subscribed_but_event_type_is_system_type(
+        self,
+    ):
         self.assertFalse(models.EmailHook.objects.count())
         tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)

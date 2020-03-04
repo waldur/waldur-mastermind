@@ -16,14 +16,14 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import views as structure_views
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
 from waldur_rancher.apps import RancherConfig
 
-from . import models, serializers, filters, executors, exceptions, validators
+from . import exceptions, executors, filters, models, serializers, validators
 
 logger = logging.getLogger(__name__)
 
@@ -54,29 +54,29 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
             node_data['cluster'] = cluster
             models.Node.objects.create(**node_data)
 
-        transaction.on_commit(lambda: executors.ClusterCreateExecutor.execute(
-            cluster,
-            user=user,
-            is_heavy_task=True,
-        ))
+        transaction.on_commit(
+            lambda: executors.ClusterCreateExecutor.execute(
+                cluster, user=user, is_heavy_task=True,
+            )
+        )
 
     def destroy(self, request, *args, **kwargs):
         user = self.request.user
         instance = self.get_object()
         executors.ClusterDeleteExecutor.execute(
-            instance,
-            user=user,
-            is_heavy_task=True,
+            instance, user=user, is_heavy_task=True,
         )
         return response.Response(
-            {'detail': _('Deletion was scheduled.')}, status=status.HTTP_202_ACCEPTED)
+            {'detail': _('Deletion was scheduled.')}, status=status.HTTP_202_ACCEPTED
+        )
 
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Cluster.States.OK),
     ]
-    destroy_validators = structure_views.ImportableResourceViewSet.destroy_validators + [
-        validators.all_cluster_related_vms_can_be_deleted,
-    ]
+    destroy_validators = (
+        structure_views.ImportableResourceViewSet.destroy_validators
+        + [validators.all_cluster_related_vms_can_be_deleted,]
+    )
     importable_resources_backend_method = 'get_clusters_for_import'
     importable_resources_serializer_class = serializers.ClusterImportableSerializer
     import_resource_serializer_class = serializers.ClusterImportSerializer
@@ -93,7 +93,9 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
 
         return response.Response({'config': config}, status=status.HTTP_200_OK)
 
-    kubeconfig_file_validators = [core_validators.StateValidator(models.Cluster.States.OK)]
+    kubeconfig_file_validators = [
+        core_validators.StateValidator(models.Cluster.States.OK)
+    ]
 
 
 class NodeViewSet(core_views.ActionsViewSet):
@@ -112,19 +114,17 @@ class NodeViewSet(core_views.ActionsViewSet):
     def perform_create(self, serializer):
         node = serializer.save()
         user = self.request.user
-        transaction.on_commit(lambda: executors.NodeCreateExecutor.execute(
-            node,
-            user_id=user.id,
-            is_heavy_task=True,
-        ))
+        transaction.on_commit(
+            lambda: executors.NodeCreateExecutor.execute(
+                node, user_id=user.id, is_heavy_task=True,
+            )
+        )
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         user = self.request.user
         executors.NodeDeleteExecutor.execute(
-            instance,
-            user_id=user.id,
-            is_heavy_task=True,
+            instance, user_id=user.id, is_heavy_task=True,
         )
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
@@ -181,20 +181,24 @@ class CatalogViewSet(core_views.ActionsViewSet):
 
     def filter_catalogs_for_cluster(self, cluster_uuid):
         qs = filter_queryset_for_user(
-            queryset=models.Cluster.objects.all(),
-            user=self.request.user,
+            queryset=models.Cluster.objects.all(), user=self.request.user,
         )
         cluster = get_object_or_404(qs, uuid=cluster_uuid)
         return self.queryset.filter(
-            Q(content_type=ContentType.objects.get_for_model(models.Cluster),
-              object_id=cluster.id) |
-            Q(content_type=ContentType.objects.get_for_model(ServiceSettings),
-              object_id=cluster.service_project_link.service.settings.id)
+            Q(
+                content_type=ContentType.objects.get_for_model(models.Cluster),
+                object_id=cluster.id,
+            )
+            | Q(
+                content_type=ContentType.objects.get_for_model(ServiceSettings),
+                object_id=cluster.service_project_link.service.settings.id,
+            )
         )
 
     def filter_visible_catalogs(self):
         settings_subquery = self.get_filtered_subquery(
-            models.ServiceSettings.objects.filter(type=RancherConfig.service_name))
+            models.ServiceSettings.objects.filter(type=RancherConfig.service_name)
+        )
         clusters_subquery = self.get_filtered_subquery(models.Cluster.objects.all())
         projects_subquery = self.get_filtered_subquery(models.Project.objects.all())
         visible_scopes = settings_subquery | clusters_subquery | projects_subquery
@@ -202,14 +206,13 @@ class CatalogViewSet(core_views.ActionsViewSet):
 
     def get_filtered_subquery(self, queryset):
         ids = filter_queryset_for_user(
-            queryset=queryset,
-            user=self.request.user,
+            queryset=queryset, user=self.request.user,
         ).values_list('id', flat=True)
         content_type = ContentType.objects.get_for_model(queryset.model)
-        return functools.reduce(operator.or_, [
-            Q(content_type=content_type, object_id=object_id)
-            for object_id in ids
-        ])
+        return functools.reduce(
+            operator.or_,
+            [Q(content_type=content_type, object_id=object_id) for object_id in ids],
+        )
 
     @decorators.action(detail=True, methods=['post'])
     def refresh(self, request, uuid=None):
@@ -290,12 +293,16 @@ class TemplateVersionView(APIView):
         client = template.settings.get_backend().client
         details = client.get_template_version_details(template.backend_id, version)
         readme = client.get_template_version_readme(template.backend_id, version)
-        app_readme = client.get_template_version_app_readme(template.backend_id, version)
-        return response.Response({
-            'questions': details.get('questions'),
-            'readme': readme,
-            'app_readme': app_readme,
-        })
+        app_readme = client.get_template_version_app_readme(
+            template.backend_id, version
+        )
+        return response.Response(
+            {
+                'questions': details.get('questions'),
+                'readme': readme,
+                'app_readme': app_readme,
+            }
+        )
 
 
 class ApplicationViewSet(APIView):
@@ -306,16 +313,18 @@ class ApplicationViewSet(APIView):
         project = self.get_object(request, models.Project, project_uuid)
         client = project.settings.get_backend().client
         applications = client.get_project_applications(project.backend_id)
-        return response.Response([
-            {
-                'name': app['name'],
-                'state': app['state'],
-                'created': app['created'],
-                'id': app['id'],
-                'answers': app['answers'],
-            }
-            for app in applications
-        ])
+        return response.Response(
+            [
+                {
+                    'name': app['name'],
+                    'state': app['state'],
+                    'created': app['created'],
+                    'id': app['id'],
+                    'answers': app['answers'],
+                }
+                for app in applications
+            ]
+        )
 
     def post(self, request):
         serializer = serializers.ApplicationCreateSerializer(request.data)
@@ -328,7 +337,11 @@ class ApplicationViewSet(APIView):
 
         settings = {template.settings, project.settings, namespace.settings}
         if len(settings) > 1:
-            raise ValidationError(_('The same settings should be used for template, project and namespace.'))
+            raise ValidationError(
+                _(
+                    'The same settings should be used for template, project and namespace.'
+                )
+            )
 
         client = project.settings.get_backend().client
         application = client.create_application(
@@ -345,5 +358,5 @@ class ApplicationViewSet(APIView):
     def get_object(self, request, model_class, object_uuid):
         return get_object_or_404(
             filter_queryset_for_user(model_class.objects.all(), request.user),
-            uuid=object_uuid
+            uuid=object_uuid,
         )

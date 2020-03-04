@@ -40,11 +40,13 @@ class OsTypes:
         (OTHER, 'Other'),
     )
 
-    CATEGORIES = OrderedDict([
-        ('Linux', (CENTOS6, CENTOS7, UBUNTU, RHEL6, RHEL7)),
-        ('Windows', (WINDOWS,)),
-        ('Other', (FREEBSD, OTHER)),
-    ])
+    CATEGORIES = OrderedDict(
+        [
+            ('Linux', (CENTOS6, CENTOS7, UBUNTU, RHEL6, RHEL7)),
+            ('Windows', (WINDOWS,)),
+            ('Other', (FREEBSD, OTHER)),
+        ]
+    )
 
 
 class ApplicationTypes:

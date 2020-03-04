@@ -13,6 +13,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='customer',
             name='backend_id',
-            field=models.CharField(blank=True, help_text='Organization identifier in another application.', max_length=255),
+            field=models.CharField(
+                blank=True,
+                help_text='Organization identifier in another application.',
+                max_length=255,
+            ),
         ),
     ]

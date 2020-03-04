@@ -23,8 +23,7 @@ class SizeFilter(structure_filters.ServicePropertySettingsFilter):
 
 class BaseResourceGroupFilter(structure_filters.BaseResourceFilter):
     resource_group = core_filters.URLFilter(
-        view_name='azure-resource-group-detail',
-        field_name='resource_group__uuid'
+        view_name='azure-resource-group-detail', field_name='resource_group__uuid'
     )
     resource_group_uuid = django_filters.UUIDFilter(field_name='resource_group__uuid')
 
@@ -49,7 +48,6 @@ class SQLDatabaseFilter(BaseResourceGroupFilter):
         model = models.SQLDatabase
 
     server = core_filters.URLFilter(
-        view_name='azure-server-detail',
-        field_name='server__uuid'
+        view_name='azure-server-detail', field_name='server__uuid'
     )
     server_uuid = django_filters.UUIDFilter(field_name='server__uuid')

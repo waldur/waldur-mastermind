@@ -1,7 +1,6 @@
 import factory
-from factory import fuzzy
-
 from django.urls import reverse
+from factory import fuzzy
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -12,14 +11,18 @@ class SlurmServiceFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.SlurmService
 
-    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type='SLURM')
+    settings = factory.SubFactory(
+        structure_factories.ServiceSettingsFactory, type='SLURM'
+    )
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
     @classmethod
     def get_url(cls, service=None, action=None):
         if service is None:
             service = SlurmServiceFactory()
-        url = 'http://testserver' + reverse('slurm-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'slurm-detail', kwargs={'uuid': service.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -59,7 +62,9 @@ class AllocationFactory(factory.DjangoModelFactory):
     def get_url(cls, allocation=None, action=None):
         if allocation is None:
             allocation = AllocationFactory()
-        url = 'http://testserver' + reverse('slurm-allocation-detail', kwargs={'uuid': allocation.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'slurm-allocation-detail', kwargs={'uuid': allocation.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -86,9 +91,9 @@ class AllocationUsageFactory(factory.DjangoModelFactory):
     def get_url(cls, allocation_usage=None):
         if allocation_usage is None:
             allocation_usage = AllocationUsageFactory()
-        return 'http://testserver' + reverse('slurm-allocation-usage-detail', kwargs={
-            'uuid': allocation_usage.uuid.hex
-        })
+        return 'http://testserver' + reverse(
+            'slurm-allocation-usage-detail', kwargs={'uuid': allocation_usage.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):

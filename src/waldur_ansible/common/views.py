@@ -4,7 +4,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.mixins import ListModelMixin
 from rest_framework.viewsets import GenericViewSet
 
-from waldur_core.structure import views as structure_views, filters as structure_filters
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import views as structure_views
 
 from . import filters, managers, models, serializers
 
@@ -12,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def get_applications_queryset():
-    return managers.ApplicationSummaryQuerySet(models.ApplicationModel.get_application_models())
+    return managers.ApplicationSummaryQuerySet(
+        models.ApplicationModel.get_application_models()
+    )
 
 
 def get_project_apps_count(project):

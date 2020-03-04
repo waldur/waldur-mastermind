@@ -1,19 +1,18 @@
-from ddt import ddt, data
-from rest_framework import test, status
+from ddt import data, ddt
+from rest_framework import status, test
 
 from waldur_core.structure import models
-from . import fixtures, factories
+
+from . import factories, fixtures
 
 
 class BaseServiceCertificationTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
 
 @ddt
 class ServiceCertificationRetrieveTest(BaseServiceCertificationTest):
-
     def setUp(self):
         super(ServiceCertificationRetrieveTest, self).setUp()
         self.url = factories.ServiceCertificationFactory.get_list_url()
@@ -31,7 +30,6 @@ class ServiceCertificationRetrieveTest(BaseServiceCertificationTest):
 
 @ddt
 class ServiceCertificationCreateTest(BaseServiceCertificationTest):
-
     def setUp(self):
         super(ServiceCertificationCreateTest, self).setUp()
         self.url = factories.ServiceCertificationFactory.get_list_url()
@@ -72,7 +70,6 @@ class ServiceCertificationCreateTest(BaseServiceCertificationTest):
 
 @ddt
 class ServiceCertificationUpdateTest(BaseServiceCertificationTest):
-
     def setUp(self):
         super(ServiceCertificationUpdateTest, self).setUp()
         self.certification = factories.ServiceCertificationFactory()
@@ -100,7 +97,6 @@ class ServiceCertificationUpdateTest(BaseServiceCertificationTest):
 
 @ddt
 class ServiceCertificationDeleteTest(BaseServiceCertificationTest):
-
     def setUp(self):
         super(ServiceCertificationDeleteTest, self).setUp()
         self.certification = factories.ServiceCertificationFactory()
@@ -123,4 +119,8 @@ class ServiceCertificationDeleteTest(BaseServiceCertificationTest):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.ServiceCertification.objects.filter(pk=self.certification.pk).exists())
+        self.assertTrue(
+            models.ServiceCertification.objects.filter(
+                pk=self.certification.pk
+            ).exists()
+        )

@@ -7,11 +7,12 @@ from django.core.management.base import CommandError
 from waldur_core.core.utils import DryRunCommand
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer
-from waldur_mastermind.marketplace import models as marketplace_models, plugins
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.utils import format_list
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
-from waldur_slurm import apps as slurm_apps
 from waldur_mastermind.slurm_invoices import models as slurm_invoices_models
+from waldur_slurm import apps as slurm_apps
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +31,20 @@ def import_slurm_service_settings(default_customer, dry_run=False):
     )
 
     slurm_offerings = marketplace_models.Offering.objects.filter(type=PLUGIN_NAME)
-    front_settings = set(slurm_offerings.exclude(object_id=None).values_list('object_id', flat=True))
+    front_settings = set(
+        slurm_offerings.exclude(object_id=None).values_list('object_id', flat=True)
+    )
 
-    back_settings = structure_models.ServiceSettings.objects.filter(type=service_type,
-                                                                    state=structure_models.ServiceSettings.States.OK)
+    back_settings = structure_models.ServiceSettings.objects.filter(
+        type=service_type, state=structure_models.ServiceSettings.States.OK
+    )
     missing_settings = back_settings.exclude(id__in=front_settings)
 
     if dry_run:
-        logger.warning('SLURM service settings would be imported to marketplace. '
-                       'IDs: %s.' % format_list(missing_settings))
+        logger.warning(
+            'SLURM service settings would be imported to marketplace. '
+            'IDs: %s.' % format_list(missing_settings)
+        )
         return missing_settings.count()
 
     for service_settings in missing_settings:
@@ -57,33 +63,37 @@ def import_slurm_service_settings(default_customer, dry_run=False):
 
         for component_data in components:
             marketplace_models.OfferingComponent.objects.create(
-                offering=offering,
-                **component_data._asdict()
+                offering=offering, **component_data._asdict()
             )
 
         try:
-            slurm_package = slurm_invoices_models.SlurmPackage.objects. \
-                get(service_settings=service_settings)
+            slurm_package = slurm_invoices_models.SlurmPackage.objects.get(
+                service_settings=service_settings
+            )
             plan = marketplace_models.Plan.objects.create(
-                offering=offering,
-                scope=slurm_package,
-                name=slurm_package.name)
+                offering=offering, scope=slurm_package, name=slurm_package.name
+            )
 
             marketplace_models.PlanComponent.objects.create(
                 plan=plan,
                 component=offering.components.filter(type='cpu').get(),
-                price=slurm_package.cpu_price)
+                price=slurm_package.cpu_price,
+            )
             marketplace_models.PlanComponent.objects.create(
                 plan=plan,
                 component=offering.components.filter(type='gpu').get(),
-                price=slurm_package.gpu_price)
+                price=slurm_package.gpu_price,
+            )
             marketplace_models.PlanComponent.objects.create(
                 plan=plan,
                 component=offering.components.filter(type='ram').get(),
-                price=slurm_package.ram_price)
+                price=slurm_package.ram_price,
+            )
         except slurm_invoices_models.SlurmPackage.DoesNotExist:
-            logger.warning('Plan has not been created. Because SlurmPackage is not found. '
-                           'Service settings UUID: %s.' % service_settings.uuid.hex)
+            logger.warning(
+                'Plan has not been created. Because SlurmPackage is not found. '
+                'Service settings UUID: %s.' % service_settings.uuid.hex
+            )
 
     return missing_settings.count()
 
@@ -93,8 +103,12 @@ class Command(DryRunCommand):
 
     def add_arguments(self, parser):
         super(Command, self).add_arguments(parser)
-        parser.add_argument('--customer', dest='customer_uuid', required=True,
-                            help='Default customer argument is used for shared service setting.')
+        parser.add_argument(
+            '--customer',
+            dest='customer_uuid',
+            required=True,
+            help='Default customer argument is used for shared service setting.',
+        )
 
     def handle(self, customer_uuid, dry_run, *args, **options):
         try:
@@ -104,9 +118,15 @@ class Command(DryRunCommand):
 
         try:
             offerings_counter = import_slurm_service_settings(customer, dry_run)
-            self.stdout.write(self.style.SUCCESS('%s offerings have been created.' % offerings_counter))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    '%s offerings have been created.' % offerings_counter
+                )
+            )
         except ImportSLURMException as e:
             raise CommandError(e.message)
         except marketplace_models.Category.DoesNotExist:
-            raise CommandError('Please ensure that WALDUR_MARKETPLACE_SLURM.CATEGORY_UUID '
-                               'setting has valid value.')
+            raise CommandError(
+                'Please ensure that WALDUR_MARKETPLACE_SLURM.CATEGORY_UUID '
+                'setting has valid value.'
+            )

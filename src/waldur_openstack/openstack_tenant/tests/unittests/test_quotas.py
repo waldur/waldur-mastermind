@@ -4,7 +4,6 @@ from .. import fixtures
 
 
 class TenantQuotasTest(test.APITransactionTestCase):
-
     def setUp(self):
         super(TenantQuotasTest, self).setUp()
         self.fixture = fixtures.OpenStackTenantFixture()

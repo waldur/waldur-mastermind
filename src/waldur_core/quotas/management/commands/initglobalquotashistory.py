@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core import serializers as django_serializers
 from django.core.management.base import BaseCommand
-from reversion.models import Version, Revision
+from reversion.models import Revision, Version
 
 from waldur_core.quotas import models
 from waldur_core.quotas.utils import get_models_with_quotas
@@ -13,8 +13,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for model in get_models_with_quotas():
             if hasattr(model, 'GLOBAL_COUNT_QUOTA_NAME'):
-                quota, _ = models.Quota.objects.get_or_create(name=model.GLOBAL_COUNT_QUOTA_NAME)
-                for index, instance in enumerate(model.objects.all().order_by('created')):
+                quota, _ = models.Quota.objects.get_or_create(
+                    name=model.GLOBAL_COUNT_QUOTA_NAME
+                )
+                for index, instance in enumerate(
+                    model.objects.all().order_by('created')
+                ):
                     revision = Revision.objects.create()
                     revision.date_created = instance.created
                     revision.save()

@@ -10,8 +10,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='cluster',
-            name='initial_data',
-        ),
+        migrations.RemoveField(model_name='cluster', name='initial_data',),
     ]

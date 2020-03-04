@@ -1,17 +1,23 @@
 from django.conf import settings
-from django.urls import reverse, NoReverseMatch
+from django.urls import NoReverseMatch, reverse
 from django.utils.translation import ugettext_lazy as _
-from fluent_dashboard.dashboard import modules, FluentIndexDashboard, FluentAppIndexDashboard
+from fluent_dashboard.dashboard import (
+    FluentAppIndexDashboard,
+    FluentIndexDashboard,
+    modules,
+)
 
 from waldur_core.core import models as core_models
 from waldur_core.logging import models as logging_models
-from waldur_core.structure import models as structure_models, SupportedServices
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import models as structure_models
 
 
 class CustomIndexDashboard(FluentIndexDashboard):
     """
     Custom index dashboard for admin site.
     """
+
     title = _('Waldur administration')
 
     def _get_quick_access_info(self):
@@ -27,11 +33,13 @@ class CustomIndexDashboard(FluentIndexDashboard):
         # add custom links
         quick_access_links.extend(settings.FLUENT_DASHBOARD_QUICK_ACCESS_LINKS)
 
-        for model in (structure_models.Project,
-                      structure_models.Customer,
-                      core_models.User,
-                      structure_models.SharedServiceSettings,
-                      logging_models.Report,):
+        for model in (
+            structure_models.Project,
+            structure_models.Customer,
+            core_models.User,
+            structure_models.SharedServiceSettings,
+            logging_models.Report,
+        ):
             link = self._get_link_to_model(model)
             if 'url' in link:
                 quick_access_links.append(link)
@@ -42,10 +50,13 @@ class CustomIndexDashboard(FluentIndexDashboard):
         result = self._get_link_to_model(model)
         result['title'] = _('%(num)s %(resources)s in ERRED state') % {
             'num': erred_amount,
-            'resources': result['title']
+            'resources': result['title'],
         }
         if 'url' in result:
-            result['url'] = '%s?shared__exact=1&state__exact=%s' % (result['url'], erred_state)
+            result['url'] = '%s?shared__exact=1&state__exact=%s' % (
+                result['url'],
+                erred_state,
+            )
         return result
 
     def _get_link_to_model(self, model):
@@ -55,7 +66,10 @@ class CustomIndexDashboard(FluentIndexDashboard):
             'attrs': {'target': '_blank'},
         }
         try:
-            result['url'] = reverse('admin:%s_%s_changelist' % (model._meta.app_label, model._meta.model_name))
+            result['url'] = reverse(
+                'admin:%s_%s_changelist'
+                % (model._meta.app_label, model._meta.model_name)
+            )
         except NoReverseMatch:
             pass
         return result
@@ -67,8 +81,11 @@ class CustomIndexDashboard(FluentIndexDashboard):
             'attrs': {'target': '_blank'},
         }
         try:
-            result['url'] = reverse('admin:%s_%s_change' % (instance._meta.app_label, instance._meta.model_name),
-                                    args=(instance.pk,))
+            result['url'] = reverse(
+                'admin:%s_%s_change'
+                % (instance._meta.app_label, instance._meta.model_name),
+                args=(instance.pk,),
+            )
         except NoReverseMatch:
             pass
         return result
@@ -77,7 +94,9 @@ class CustomIndexDashboard(FluentIndexDashboard):
         """
         Returns a LinkList based module which contains link to shared service setting instances in ERRED state.
         """
-        result_module = modules.LinkList(title=_('Shared provider settings in erred state'))
+        result_module = modules.LinkList(
+            title=_('Shared provider settings in erred state')
+        )
         result_module.template = 'admin/dashboard/erred_link_list.html'
         erred_state = structure_models.SharedServiceSettings.States.ERRED
 
@@ -85,7 +104,10 @@ class CustomIndexDashboard(FluentIndexDashboard):
         settings_in_erred_state = queryset.filter(state=erred_state).count()
 
         if settings_in_erred_state:
-            result_module.title = '%s (%s)' % (result_module.title, settings_in_erred_state)
+            result_module.title = '%s (%s)' % (
+                result_module.title,
+                settings_in_erred_state,
+            )
             for service_settings in queryset.filter(state=erred_state).iterator():
                 module_child = self._get_link_to_instance(service_settings)
                 if 'url' in module_child:
@@ -107,16 +129,25 @@ class CustomIndexDashboard(FluentIndexDashboard):
         resource_models = SupportedServices.get_resource_models()
         resources_in_erred_state_overall = 0
         for resource_type, resource_model in resource_models.items():
-            queryset = resource_model.objects.filter(service_project_link__service__settings__shared=True)
+            queryset = resource_model.objects.filter(
+                service_project_link__service__settings__shared=True
+            )
             erred_amount = queryset.filter(state=erred_state).count()
             if erred_amount:
-                resources_in_erred_state_overall = resources_in_erred_state_overall + erred_amount
-                link = self._get_erred_resource_link(resource_model, erred_amount, erred_state)
+                resources_in_erred_state_overall = (
+                    resources_in_erred_state_overall + erred_amount
+                )
+                link = self._get_erred_resource_link(
+                    resource_model, erred_amount, erred_state
+                )
                 if 'url' in link:
                     children.append(link)
 
         if resources_in_erred_state_overall:
-            result_module.title = '%s (%s)' % (result_module.title, resources_in_erred_state_overall)
+            result_module.title = '%s (%s)' % (
+                result_module.title,
+                resources_in_erred_state_overall,
+            )
             result_module.children = children
         else:
             result_module.pre_content = _('Nothing found.')
@@ -126,9 +157,8 @@ class CustomIndexDashboard(FluentIndexDashboard):
     def __init__(self, **kwargs):
         FluentIndexDashboard.__init__(self, **kwargs)
 
-        self.children.append(modules.LinkList(
-            _('Quick access'),
-            children=self._get_quick_access_info())
+        self.children.append(
+            modules.LinkList(_('Quick access'), children=self._get_quick_access_info())
         )
 
         self.children.append(self._get_erred_shared_settings_module())
@@ -142,4 +172,7 @@ class CustomAppIndexDashboard(FluentAppIndexDashboard):
         self.children = [modules.ModelList(title=app_title, models=[path])]
 
     def _get_app_models_path(self):
-        return '%s.models.*' % self.app_title.replace(' ', '.', 1).replace(' ', '_').lower()
+        return (
+            '%s.models.*'
+            % self.app_title.replace(' ', '.', 1).replace(' ', '_').lower()
+        )

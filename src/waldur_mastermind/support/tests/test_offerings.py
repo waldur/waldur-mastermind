@@ -1,15 +1,15 @@
 from decimal import Decimal
-
-from ddt import ddt, data
 from unittest import mock
+
+from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.support.tests.base import override_support_settings, BaseTest
+from waldur_mastermind.support.tests.base import BaseTest, override_support_settings
 
-from . import factories, fixtures
 from .. import models
+from . import factories, fixtures
 
 
 class BaseOfferingTest(BaseTest):
@@ -22,20 +22,23 @@ class BaseOfferingTest(BaseTest):
 
 @ddt
 class OfferingRetrieveTest(BaseOfferingTest):
-
     def setUp(self, **kwargs):
         super(OfferingRetrieveTest, self).setUp(**kwargs)
         self.url = factories.OfferingFactory.get_list_url()
 
     @data('staff', 'global_support', 'owner', 'admin', 'manager')
-    def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(self, user):
+    def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(
+        self, user
+    ):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(self.offering.uuid.hex, response.data[0]['uuid'])
 
-    def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
+    def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -86,7 +89,9 @@ class OfferingCreateTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.Issue.objects.count(), 1)
 
-    def test_issue_is_created_without_attributes_if_all_custom_attributes_are_optional(self):
+    def test_issue_is_created_without_attributes_if_all_custom_attributes_are_optional(
+        self,
+    ):
         # Arrange
         conf = self.offering_template.config['options']
         conf['storage']['required'] = False
@@ -194,7 +199,9 @@ class OfferingCreateTest(BaseTest):
         self.assertEqual(issue.project.uuid.hex, offering.project.uuid.hex)
 
     @data('user')
-    def test_user_cannot_associate_new_offering_with_project_if_he_has_no_project_level_permissions(self, user):
+    def test_user_cannot_associate_new_offering_with_project_if_he_has_no_project_level_permissions(
+        self, user
+    ):
         self.client.force_authenticate(getattr(self.fixture, user))
         request_data = self._get_valid_request()
 
@@ -209,22 +216,22 @@ class OfferingCreateTest(BaseTest):
         response = self.client.post(self.url, request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIsNotNone(response.data)
-        self.assertEqual(response.data['project_uuid'].hex, self.fixture.project.uuid.hex)
+        self.assertEqual(
+            response.data['project_uuid'].hex, self.fixture.project.uuid.hex
+        )
 
     def _get_valid_request(self, project=None):
         if project is None:
             project = self.fixture.project
 
         return {
-            'template': factories.OfferingTemplateFactory.get_url(self.offering_template),
+            'template': factories.OfferingTemplateFactory.get_url(
+                self.offering_template
+            ),
             'name': 'Do not reboot it, just patch',
             'description': 'We got Linux, and there\'s no doubt. Gonna fix',
             'project': structure_factories.ProjectFactory.get_url(project),
-            'attributes': {
-                'storage': 20,
-                'ram': 4,
-                'cpu_count': 2,
-            }
+            'attributes': {'storage': 20, 'ram': 4, 'cpu_count': 2,},
         }
 
 
@@ -234,16 +241,16 @@ class OfferingCreateProductTest(BaseOfferingTest):
         super(OfferingCreateProductTest, self).setUp()
         self.url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.staff)
-        self.offering_template = factories.OfferingTemplateFactory(name='security_package', config={
-            'label': 'Custom security package',
-            'order': ['vm_count'],
-            'options': {
-                'vm_count': {
-                    'type': 'integer',
-                    'label': 'Virtual machines count',
+        self.offering_template = factories.OfferingTemplateFactory(
+            name='security_package',
+            config={
+                'label': 'Custom security package',
+                'order': ['vm_count'],
+                'options': {
+                    'vm_count': {'type': 'integer', 'label': 'Virtual machines count',},
                 },
             },
-        })
+        )
         self.plan = models.OfferingPlan.objects.create(
             template=self.offering_template,
             name='Default',
@@ -255,15 +262,19 @@ class OfferingCreateProductTest(BaseOfferingTest):
 
     def _get_valid_request(self, project=None):
         return {
-            'template': factories.OfferingTemplateFactory.get_url(self.offering_template),
+            'template': factories.OfferingTemplateFactory.get_url(
+                self.offering_template
+            ),
             'name': 'Security package request',
-            'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project),
-            'attributes': {
-                'vm_count': 1000,
-            },
+            'project': structure_factories.ProjectFactory.get_url(
+                project or self.fixture.project
+            ),
+            'attributes': {'vm_count': 1000,},
         }
 
-    def test_product_code_is_copied_from_configuration_to_offering(self, mock_active_backend):
+    def test_product_code_is_copied_from_configuration_to_offering(
+        self, mock_active_backend
+    ):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -281,7 +292,9 @@ class OfferingCreateProductTest(BaseOfferingTest):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("Virtual machines count: '1000'", response.data['issue_description'])
+        self.assertIn(
+            "Virtual machines count: '1000'", response.data['issue_description']
+        )
 
 
 class OfferingUpdateTest(BaseOfferingTest):
@@ -295,7 +308,9 @@ class OfferingUpdateTest(BaseOfferingTest):
         self.client.force_authenticate(self.fixture.staff)
 
         new_name = 'New name'
-        response = self.client.put(self.url, {'name': new_name, 'report': self.new_report})
+        response = self.client.put(
+            self.url, {'name': new_name, 'report': self.new_report}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
@@ -322,7 +337,6 @@ class OfferingUpdateTest(BaseOfferingTest):
 
 
 class OfferingCompleteTest(BaseOfferingTest):
-
     def test_offering_is_in_ok_state_when_complete_is_called(self):
         offering = factories.OfferingFactory()
         self.assertEqual(offering.state, models.Offering.States.REQUESTED)
@@ -383,7 +397,9 @@ class OfferingCompleteTest(BaseOfferingTest):
 class OfferingTerminateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingTerminateTest, self).setUp()
-        self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering, action='terminate')
+        self.url = factories.OfferingFactory.get_url(
+            offering=self.fixture.offering, action='terminate'
+        )
 
     def test_staff_can_terminate_offering(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -441,7 +457,9 @@ class CountersTest(test.APITransactionTestCase):
         if has_request:
             factories.OfferingFactory(project=self.fixture.project)
 
-        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
+        url = structure_factories.ProjectFactory.get_url(
+            self.fixture.project, action='counters'
+        )
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.get(url, {'fields': ['offerings']})
@@ -455,7 +473,9 @@ class CountersTest(test.APITransactionTestCase):
         if has_request:
             factories.OfferingFactory(project=self.fixture.project)
 
-        url = structure_factories.CustomerFactory.get_url(self.fixture.customer, action='counters')
+        url = structure_factories.CustomerFactory.get_url(
+            self.fixture.customer, action='counters'
+        )
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.get(url, {'fields': ['offerings']})

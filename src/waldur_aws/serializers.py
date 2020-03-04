@@ -10,65 +10,56 @@ from . import models
 from .backend import AWSBackendError
 
 
-class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
-                        structure_serializers.BaseServiceSerializer):
+class ServiceSerializer(
+    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
+):
 
     SERVICE_ACCOUNT_FIELDS = {
         'username': '',
         'token': '',
     }
 
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'images_regex': ''
-    }
+    SERVICE_ACCOUNT_EXTRA_FIELDS = {'images_regex': ''}
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.AWSService
         extra_field_options = {
-            'username': {
-                'label': 'Access key ID',
-                'required': True
-            },
-            'token': {
-                'label': 'Secret access key',
-                'required': True
-            },
-            'images_regex': {
-                'help_text': _('Regular expression to limit images list')
-            }
+            'username': {'label': 'Access key ID', 'required': True},
+            'token': {'label': 'Secret access key', 'required': True},
+            'images_regex': {'help_text': _('Regular expression to limit images list')},
         }
 
 
 class RegionSerializer(structure_serializers.BasePropertySerializer):
-
     class Meta:
         model = models.Region
         fields = ('url', 'uuid', 'name')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'}
-        }
+        extra_kwargs = {'url': {'lookup_field': 'uuid'}}
 
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
-
     class Meta:
         model = models.Image
         fields = ('url', 'uuid', 'name', 'region')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'}
-        }
+        extra_kwargs = {'url': {'lookup_field': 'uuid'}}
 
     region = RegionSerializer(read_only=True)
 
 
 class SizeSerializer(structure_serializers.BasePropertySerializer):
-
     class Meta:
         model = models.Size
-        fields = ('url', 'uuid', 'name', 'cores', 'ram', 'disk', 'regions', 'description')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'}
-        }
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'cores',
+            'ram',
+            'disk',
+            'regions',
+            'description',
+        )
+        extra_kwargs = {'url': {'lookup_field': 'uuid'}}
 
     # AWS expose a more technical backend_id as a name. AWS's short codes are more popular
     name = serializers.ReadOnlyField(source='backend_id')
@@ -76,8 +67,9 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
     regions = RegionSerializer(many=True, read_only=True)
 
 
-class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
-
+class ServiceProjectLinkSerializer(
+    structure_serializers.BaseServiceProjectLinkSerializer
+):
     class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
         model = models.AWSServiceProjectLink
         extra_kwargs = {
@@ -88,9 +80,12 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
 class AWSImportSerializerMixin:
     def get_fields(self):
         from waldur_core.structure import SupportedServices
+
         fields = super(AWSImportSerializerMixin, self).get_fields()
         resources = SupportedServices.get_service_resources(models.AWSService)
-        choices = [SupportedServices.get_name_for_model(resource) for resource in resources]
+        choices = [
+            SupportedServices.get_name_for_model(resource) for resource in resources
+        ]
         fields['type'] = serializers.ChoiceField(choices=choices, write_only=True)
         return fields
 
@@ -100,7 +95,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         source='service_project_link.service',
         view_name='aws-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='aws-spl-detail',
@@ -113,27 +109,33 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         view_name='aws-region-detail',
         lookup_field='uuid',
         queryset=models.Region.objects.all(),
-        write_only=True)
+        write_only=True,
+    )
 
     image = serializers.HyperlinkedRelatedField(
         view_name='aws-image-detail',
         lookup_field='uuid',
         queryset=models.Image.objects.all(),
-        write_only=True)
+        write_only=True,
+    )
 
     size = serializers.HyperlinkedRelatedField(
         view_name='aws-size-detail',
         lookup_field='uuid',
         queryset=models.Size.objects.all(),
-        write_only=True)
+        write_only=True,
+    )
 
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
-            'region', 'image', 'size'
+            'region',
+            'image',
+            'size',
         )
-        protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
-            'region', 'image', 'size'
+        protected_fields = (
+            structure_serializers.VirtualMachineSerializer.Meta.protected_fields
+            + ('region', 'image', 'size')
         )
 
     def validate(self, attrs):
@@ -144,10 +146,14 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         size = attrs['size']
 
         if image.region != region:
-            raise serializers.ValidationError(_('Image is missing in region %s') % region.name)
+            raise serializers.ValidationError(
+                _('Image is missing in region %s') % region.name
+            )
 
         if not size.regions.filter(pk=region.pk).exists():
-            raise serializers.ValidationError(_('Size is missing in region %s') % region.name)
+            raise serializers.ValidationError(
+                _('Size is missing in region %s') % region.name
+            )
 
         return attrs
 
@@ -173,15 +179,16 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'service_project_link': instance.service_project_link,
             'region': instance.region,
             # Size will be received from the backend
-            'size': 0
+            'size': 0,
         }
         models.Volume.objects.create(**volume)
 
         return instance
 
 
-class InstanceImportSerializer(AWSImportSerializerMixin,
-                               structure_serializers.BaseResourceImportSerializer):
+class InstanceImportSerializer(
+    AWSImportSerializerMixin, structure_serializers.BaseResourceImportSerializer
+):
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Instance
 
@@ -191,7 +198,11 @@ class InstanceImportSerializer(AWSImportSerializerMixin,
             region, instance = backend.find_instance(validated_data['backend_id'])
         except AWSBackendError:
             raise serializers.ValidationError(
-                {'backend_id': _("Can't find instance with ID %s") % validated_data['backend_id']})
+                {
+                    'backend_id': _("Can't find instance with ID %s")
+                    % validated_data['backend_id']
+                }
+            )
 
         validated_data['name'] = instance['name']
         validated_data['public_ips'] = instance['public_ips']
@@ -206,8 +217,9 @@ class InstanceImportSerializer(AWSImportSerializerMixin,
         return super(InstanceImportSerializer, self).create(validated_data)
 
 
-class InstanceResizeSerializer(structure_serializers.PermissionFieldFilteringMixin,
-                               serializers.Serializer):
+class InstanceResizeSerializer(
+    structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer
+):
     size = serializers.HyperlinkedRelatedField(
         view_name='aws-size-detail',
         lookup_field='uuid',
@@ -217,9 +229,7 @@ class InstanceResizeSerializer(structure_serializers.PermissionFieldFilteringMix
     def get_fields(self):
         fields = super(InstanceResizeSerializer, self).get_fields()
         if self.instance:
-            fields['size'].query_params = {
-                'region_uuid': self.instance.region.uuid
-            }
+            fields['size'].query_params = {'region_uuid': self.instance.region.uuid}
         return fields
 
     def get_filtered_field_names(self):
@@ -230,19 +240,31 @@ class InstanceResizeSerializer(structure_serializers.PermissionFieldFilteringMix
         instance = self.instance
 
         if not size.regions.filter(uuid=self.instance.region.uuid).exists():
-            raise serializers.ValidationError(_('New size is not within the same region.'))
+            raise serializers.ValidationError(
+                _('New size is not within the same region.')
+            )
 
-        if (size.ram, size.disk, size.cores) == (self.instance.ram, self.instance.disk, self.instance.cores):
+        if (size.ram, size.disk, size.cores) == (
+            self.instance.ram,
+            self.instance.disk,
+            self.instance.cores,
+        ):
             raise serializers.ValidationError(_('New size is the same as current.'))
 
         if size.disk < self.instance.disk:
-            raise serializers.ValidationError(_('New disk size should be greater than the previous value'))
+            raise serializers.ValidationError(
+                _('New disk size should be greater than the previous value')
+            )
 
-        if instance.runtime_state not in [NodeState.TERMINATED,
-                                          NodeState.STOPPED,
-                                          NodeState.SUSPENDED,
-                                          NodeState.PAUSED]:
-            raise serializers.ValidationError(_('Instance runtime state must be in one of offline states.'))
+        if instance.runtime_state not in [
+            NodeState.TERMINATED,
+            NodeState.STOPPED,
+            NodeState.SUSPENDED,
+            NodeState.PAUSED,
+        ]:
+            raise serializers.ValidationError(
+                _('Instance runtime state must be in one of offline states.')
+            )
 
         return attrs
 
@@ -271,7 +293,8 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
         source='service_project_link.service',
         view_name='aws-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='aws-spl-detail',
@@ -284,27 +307,37 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
         view_name='aws-region-detail',
         lookup_field='uuid',
         queryset=models.Region.objects.all(),
-        write_only=True)
+        write_only=True,
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Volume
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'size', 'region', 'volume_type'
+            'size',
+            'region',
+            'volume_type',
         )
-        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'device', 'instance', 'runtime_state'
+        read_only_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
+            + ('device', 'instance', 'runtime_state')
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'size', 'region', 'volume_type', 'device', 'instance', 'runtime_state'
+            'size',
+            'region',
+            'volume_type',
+            'device',
+            'instance',
+            'runtime_state',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
-            'instance': {'lookup_field': 'uuid', 'view_name': 'aws-instance-detail'}
+            'instance': {'lookup_field': 'uuid', 'view_name': 'aws-instance-detail'},
         }
 
 
-class VolumeImportSerializer(AWSImportSerializerMixin,
-                             structure_serializers.BaseResourceImportSerializer):
+class VolumeImportSerializer(
+    AWSImportSerializerMixin, structure_serializers.BaseResourceImportSerializer
+):
     class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
         model = models.Volume
 
@@ -314,7 +347,11 @@ class VolumeImportSerializer(AWSImportSerializerMixin,
             region, volume = backend.find_volume(validated_data['backend_id'])
         except AWSBackendError:
             raise serializers.ValidationError(
-                {'backend_id': _("Can't find volume with ID %s") % validated_data['backend_id']})
+                {
+                    'backend_id': _("Can't find volume with ID %s")
+                    % validated_data['backend_id']
+                }
+            )
 
         instance_id = volume['instance_id']
         if instance_id:
@@ -322,7 +359,8 @@ class VolumeImportSerializer(AWSImportSerializerMixin,
                 instance = models.Instance.objects.get(backend_id=instance_id)
             except models.Instance.DoesNotExist:
                 raise serializers.ValidationError(
-                    _('You must import instance with ID %s first') % instance_id)
+                    _('You must import instance with ID %s first') % instance_id
+                )
             else:
                 validated_data['instance'] = instance
 
@@ -339,8 +377,9 @@ class VolumeImportSerializer(AWSImportSerializerMixin,
         return super(VolumeImportSerializer, self).create(validated_data)
 
 
-class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin,
-                             serializers.Serializer):
+class VolumeAttachSerializer(
+    structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer
+):
     instance = serializers.HyperlinkedRelatedField(
         view_name='aws-instance-detail',
         lookup_field='uuid',
@@ -348,15 +387,15 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
     )
     device = serializers.CharField(
         max_length=128,
-        help_text=_('The device name for attachment. For example, use /dev/sd[f-p] for Linux instances.')
+        help_text=_(
+            'The device name for attachment. For example, use /dev/sd[f-p] for Linux instances.'
+        ),
     )
 
     def get_fields(self):
         fields = super(VolumeAttachSerializer, self).get_fields()
         if self.instance:
-            fields['instance'].query_params = {
-                'region_uuid': self.instance.region.uuid
-            }
+            fields['instance'].query_params = {'region_uuid': self.instance.region.uuid}
         return fields
 
     def get_filtered_field_names(self):
@@ -367,16 +406,24 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
         instance = attrs['instance']
 
         if volume.instance:
-            raise serializers.ValidationError(_('Volume is already attached to instance.'))
+            raise serializers.ValidationError(
+                _('Volume is already attached to instance.')
+            )
 
         if volume.region != instance.region:
-            raise serializers.ValidationError(_('Instance is not within the same region.'))
+            raise serializers.ValidationError(
+                _('Instance is not within the same region.')
+            )
 
-        if instance.runtime_state not in [NodeState.TERMINATED,
-                                          NodeState.STOPPED,
-                                          NodeState.SUSPENDED,
-                                          NodeState.PAUSED]:
-            raise serializers.ValidationError(_('Instance runtime state must be in one of offline states.'))
+        if instance.runtime_state not in [
+            NodeState.TERMINATED,
+            NodeState.STOPPED,
+            NodeState.SUSPENDED,
+            NodeState.PAUSED,
+        ]:
+            raise serializers.ValidationError(
+                _('Instance runtime state must be in one of offline states.')
+            )
 
         return attrs
 

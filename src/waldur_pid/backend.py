@@ -1,6 +1,6 @@
 import logging
-import requests
 
+import requests
 from django.conf import settings
 
 from waldur_core.structure import ServiceBackend
@@ -26,7 +26,7 @@ class DataciteBackend(ServiceBackend):
             self.settings['API_URL'],
             headers=headers,
             json=data,
-            auth=(self.settings['REPOSITORY_ID'], self.settings['PASSWORD'])
+            auth=(self.settings['REPOSITORY_ID'], self.settings['PASSWORD']),
         )
 
         return response
@@ -38,21 +38,17 @@ class DataciteBackend(ServiceBackend):
                 'attributes': {
                     'prefix': self.settings['PREFIX'],
                     'event': 'publish',
-                    'creators': [{
-                        'name': instance.get_datacite_creators_name()
-                    }],
-                    'titles': [{
-                        'title': instance.get_datacite_title()
-                    }],
-                    'descriptions': [{'description': instance.get_datacite_description()}],
+                    'creators': [{'name': instance.get_datacite_creators_name()}],
+                    'titles': [{'title': instance.get_datacite_title()}],
+                    'descriptions': [
+                        {'description': instance.get_datacite_description()}
+                    ],
                     'publisher': self.settings['PUBLISHER'],
                     'publicationYear': instance.get_datacite_publication_year(),
-                    'types': {
-                        'resourceTypeGeneral': 'Service'
-                    },
+                    'types': {'resourceTypeGeneral': 'Service'},
                     'url': instance.get_datacite_url(),
-                    'schemaVersion': 'http://datacite.org/schema/kernel-4'
-                }
+                    'schemaVersion': 'http://datacite.org/schema/kernel-4',
+                },
             }
         }
         response = self.post(data)
@@ -61,8 +57,7 @@ class DataciteBackend(ServiceBackend):
             instance.datacite_doi = response.json()['data']['id']
             instance.save()
         else:
-            logger.error('Creating Datacite DOI for %s has failed. Status code: %s, message: %s.' % (
-                instance,
-                response.status_code,
-                response.text
-            ))
+            logger.error(
+                'Creating Datacite DOI for %s has failed. Status code: %s, message: %s.'
+                % (instance, response.status_code, response.text)
+            )

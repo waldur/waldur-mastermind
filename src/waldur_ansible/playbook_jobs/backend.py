@@ -20,7 +20,11 @@ class AnsiblePlaybookBackend:
         if not os.path.exists(playbook_path):
             raise AnsibleBackendError('Playbook %s does not exist.' % playbook_path)
 
-        command = [settings.WALDUR_ANSIBLE_COMMON.get('PLAYBOOK_EXECUTION_COMMAND', 'ansible-playbook')]
+        command = [
+            settings.WALDUR_ANSIBLE_COMMON.get(
+                'PLAYBOOK_EXECUTION_COMMAND', 'ansible-playbook'
+            )
+        ]
         if settings.WALDUR_ANSIBLE_COMMON.get('PLAYBOOK_ARGUMENTS'):
             command.extend(settings.WALDUR_ANSIBLE_COMMON.get('PLAYBOOK_ARGUMENTS'))
 
@@ -59,10 +63,9 @@ class AnsiblePlaybookBackend:
             ANSIBLE_HOST_KEY_CHECKING='False',
         )
         try:
-            output = subprocess.check_output(command,  # nosec
-                                             stderr=subprocess.STDOUT,
-                                             env=env,
-                                             encoding='utf-8')
+            output = subprocess.check_output(
+                command, stderr=subprocess.STDOUT, env=env, encoding='utf-8'  # nosec
+            )
         except subprocess.CalledProcessError as e:
             logger.info('Failed to execute command "%s".', command_str)
             job.output = e.output

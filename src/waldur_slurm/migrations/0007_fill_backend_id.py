@@ -3,7 +3,9 @@ from django.db import migrations
 
 
 def get_allocation_name(allocation):
-    return get_account_name(django_settings.WALDUR_SLURM['ALLOCATION_PREFIX'], allocation)
+    return get_account_name(
+        django_settings.WALDUR_SLURM['ALLOCATION_PREFIX'], allocation
+    )
 
 
 def get_account_name(prefix, object_or_uuid):

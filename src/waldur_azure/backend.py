@@ -1,6 +1,6 @@
 import logging
 
-from waldur_azure.client import AzureClient, AzureBackendError
+from waldur_azure.client import AzureBackendError, AzureClient
 from waldur_core.structure import ServiceBackend
 
 from . import models
@@ -36,19 +36,20 @@ class AzureBackend(ServiceBackend):
         }
 
         backend_locations = {
-            location.name: location
-            for location in self.client.list_locations()
+            location.name: location for location in self.client.list_locations()
         }
 
         resource_group_locations = self.client.get_resource_group_locations()
 
         new_locations = {
-            location for name, location in backend_locations.items()
+            location
+            for name, location in backend_locations.items()
             if name not in cached_locations
         }
 
         stale_locations = {
-            location for name, location in cached_locations.items()
+            location
+            for name, location in cached_locations.items()
             if name not in backend_locations
         }
 
@@ -64,8 +65,12 @@ class AzureBackend(ServiceBackend):
         for cached_location in stale_locations:
             cached_location.delete()
 
-        models.Location.objects.filter(name__in=resource_group_locations).update(enabled=True)
-        models.Location.objects.exclude(name__in=resource_group_locations).update(enabled=False)
+        models.Location.objects.filter(name__in=resource_group_locations).update(
+            enabled=True
+        )
+        models.Location.objects.exclude(name__in=resource_group_locations).update(
+            enabled=False
+        )
 
     def pull_public_ips(self, service_project_link):
         locations = {
@@ -75,21 +80,24 @@ class AzureBackend(ServiceBackend):
 
         cached_public_ips = {
             public_ip.backend_id: public_ip
-            for public_ip in models.PublicIP.objects.filter(service_project_link=service_project_link)
+            for public_ip in models.PublicIP.objects.filter(
+                service_project_link=service_project_link
+            )
         }
 
         backend_public_ips = {
-            public_ip.name: public_ip
-            for public_ip in self.client.list_all_public_ips()
+            public_ip.name: public_ip for public_ip in self.client.list_all_public_ips()
         }
 
         new_public_ips = {
-            public_ip for name, public_ip in backend_public_ips.items()
+            public_ip
+            for name, public_ip in backend_public_ips.items()
             if name not in cached_public_ips
         }
 
         stale_public_ips = {
-            public_ip for name, public_ip in cached_public_ips.items()
+            public_ip
+            for name, public_ip in cached_public_ips.items()
             if name not in backend_public_ips
         }
 
@@ -117,13 +125,11 @@ class AzureBackend(ServiceBackend):
         }
 
         new_sizes = {
-            size for name, size in backend_sizes.items()
-            if name not in cached_sizes
+            size for name, size in backend_sizes.items() if name not in cached_sizes
         }
 
         stale_sizes = {
-            size for name, size in cached_sizes.items()
-            if name not in backend_sizes
+            size for name, size in cached_sizes.items() if name not in backend_sizes
         }
 
         for backend_size in new_sizes:
@@ -139,22 +145,21 @@ class AzureBackend(ServiceBackend):
     def pull_resource_groups(self, service_project_link):
         cached_groups = {
             group.backend_id: group
-            for group in models.ResourceGroup.objects.filter(service_project_link=service_project_link)
+            for group in models.ResourceGroup.objects.filter(
+                service_project_link=service_project_link
+            )
         }
 
         backend_groups = {
-            group.name: group
-            for group in self.client.list_resource_groups()
+            group.name: group for group in self.client.list_resource_groups()
         }
 
         new_groups = {
-            group for name, group in backend_groups.items()
-            if name not in cached_groups
+            group for name, group in backend_groups.items() if name not in cached_groups
         }
 
         stale_groups = {
-            group for name, group in cached_groups.items()
-            if name not in backend_groups
+            group for name, group in cached_groups.items() if name not in backend_groups
         }
 
         locations = {
@@ -177,7 +182,7 @@ class AzureBackend(ServiceBackend):
     def create_resource_group(self, resource_group):
         backend_resource_group = self.client.create_resource_group(
             location=resource_group.location.backend_id,
-            resource_group_name=resource_group.name
+            resource_group_name=resource_group.name,
         )
         resource_group.backend_id = backend_resource_group.id
         resource_group.save()
@@ -334,12 +339,7 @@ class AzureBackend(ServiceBackend):
             username=server.username,
             password=server.password,
             storage_mb=server.storage_mb,
-            sku={
-                'name': 'B_Gen5_1',
-                'tier': 'Basic',
-                'family': 'Gen5',
-                'capacity': 1,
-            },
+            sku={'name': 'B_Gen5_1', 'tier': 'Basic', 'family': 'Gen5', 'capacity': 1,},
         )
         server.backend_id = backend_server.id
         server.fqdn = backend_server.fully_qualified_domain_name
@@ -355,8 +355,7 @@ class AzureBackend(ServiceBackend):
 
     def delete_pgsql_server(self, server):
         poller = self.client.delete_sql_server(
-            resource_group_name=server.resource_group.name,
-            server_name=server.name,
+            resource_group_name=server.resource_group.name, server_name=server.name,
         )
         poller.wait()
 

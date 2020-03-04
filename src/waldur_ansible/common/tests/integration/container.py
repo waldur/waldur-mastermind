@@ -10,17 +10,19 @@ class DockerContainer:
 
     def start(self):
         print("Starting container %s" % self.image)
-        self.container = docker.from_env().containers.run(self.image,
-                                                          detach=True,
-                                                          stdin_open=True,
-                                                          remove=True,
-                                                          tty=True,
-                                                          ports=self.ports,
-                                                          name=self.container_name,
-                                                          # these are for systemd
-                                                          security_opt=["seccomp=unconfined"],
-                                                          tmpfs={"/run": "", "/run/lock": ""},
-                                                          volumes=["/sys/fs/cgroup:/sys/fs/cgroup:ro"], )
+        self.container = docker.from_env().containers.run(
+            self.image,
+            detach=True,
+            stdin_open=True,
+            remove=True,
+            tty=True,
+            ports=self.ports,
+            name=self.container_name,
+            # these are for systemd
+            security_opt=["seccomp=unconfined"],
+            tmpfs={"/run": "", "/run/lock": ""},
+            volumes=["/sys/fs/cgroup:/sys/fs/cgroup:ro"],
+        )
         print("Container started: %s" % self.container.short_id)
         return self
 

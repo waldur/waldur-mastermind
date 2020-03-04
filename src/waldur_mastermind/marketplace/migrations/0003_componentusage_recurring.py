@@ -13,6 +13,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='componentusage',
             name='recurring',
-            field=models.BooleanField(default=False, help_text='Reported value is reused every month until changed.'),
+            field=models.BooleanField(
+                default=False,
+                help_text='Reported value is reused every month until changed.',
+            ),
         ),
     ]

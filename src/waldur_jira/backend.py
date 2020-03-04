@@ -1,9 +1,9 @@
 import functools
-from io import BytesIO
 import logging
+from io import BytesIO
 
 from django.conf import settings
-from django.db import transaction, IntegrityError
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
@@ -15,8 +15,8 @@ from waldur_core.core.models import StateMixin
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 
-from .jira_fix import JIRA, JIRAError
 from . import models
+from .jira_fix import JIRA, JIRAError
 
 logger = logging.getLogger(__name__)
 
@@ -88,10 +88,10 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def get_resources_for_import(self):
-        return [{
-            'name': proj.name,
-            'backend_id': proj.key,
-        } for proj in self.manager.projects()]
+        return [
+            {'name': proj.name, 'backend_id': proj.key,}
+            for proj in self.manager.projects()
+        ]
 
     @staticmethod
     def convert_field(value, choices, mapping=None):
@@ -120,10 +120,13 @@ class JiraBackend(ServiceBackend):
                 server=self.settings.backend_url,
                 options={'verify': self.verify},
                 basic_auth=basic_auth,
-                validate=False)
+                validate=False,
+            )
         except JIRAError as e:
             if check_captcha(e):
-                raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
+                raise JiraBackendError(
+                    'JIRA CAPTCHA is triggered. Please reset credentials.'
+                )
             raise JiraBackendError(e)
 
     @reraise_exceptions
@@ -141,7 +144,9 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def get_project_templates(self):
-        url = self.manager._options['server'] + '/rest/project-templates/latest/templates'
+        url = (
+            self.manager._options['server'] + '/rest/project-templates/latest/templates'
+        )
 
         response = self.manager._session.get(url)
         json_data = json_loads(response)
@@ -160,7 +165,8 @@ class JiraBackend(ServiceBackend):
                         'name': template['name'],
                         'description': template['description'],
                         'icon_url': icon_url,
-                    })
+                    },
+                )
 
     @reraise_exceptions
     def pull_priorities(self):
@@ -175,7 +181,9 @@ class JiraBackend(ServiceBackend):
                 for priority in models.Priority.objects.filter(settings=self.settings)
             }
 
-            stale_priorities = set(waldur_priorities.keys()) - set(backend_priorities_map.keys())
+            stale_priorities = set(waldur_priorities.keys()) - set(
+                backend_priorities_map.keys()
+            )
             models.Priority.objects.filter(backend_id__in=stale_priorities)
 
             for priority in backend_priorities:
@@ -186,7 +194,8 @@ class JiraBackend(ServiceBackend):
                         'name': priority.name,
                         'description': priority.description,
                         'icon_url': priority.iconUrl,
-                    })
+                    },
+                )
 
     @reraise_exceptions
     def import_priority(self, priority):
@@ -223,8 +232,7 @@ class JiraBackend(ServiceBackend):
     def pull_issue_types(self, project):
         backend_project = self.get_project(project.backend_id)
         backend_issue_types = {
-            issue_type.id: issue_type
-            for issue_type in backend_project.issueTypes
+            issue_type.id: issue_type for issue_type in backend_project.issueTypes
         }
         project_issue_types = {
             issue_type.backend_id: issue_type
@@ -235,7 +243,9 @@ class JiraBackend(ServiceBackend):
             for issue_type in models.IssueType.objects.filter(settings=self.settings)
         }
 
-        new_issue_types = set(backend_issue_types.keys()) - set(project_issue_types.keys())
+        new_issue_types = set(backend_issue_types.keys()) - set(
+            project_issue_types.keys()
+        )
         for issue_type_id in new_issue_types:
             if issue_type_id in global_issue_types:
                 issue_type = global_issue_types[issue_type_id]
@@ -244,16 +254,24 @@ class JiraBackend(ServiceBackend):
                 issue_type.save()
             project.issue_types.add(issue_type)
 
-        stale_issue_types = set(project_issue_types.keys()) - set(backend_issue_types.keys())
+        stale_issue_types = set(project_issue_types.keys()) - set(
+            backend_issue_types.keys()
+        )
         project.issue_types.filter(backend_id__in=stale_issue_types).delete()
 
-        common_issue_types = set(project_issue_types.keys()) & set(backend_issue_types.keys())
+        common_issue_types = set(project_issue_types.keys()) & set(
+            backend_issue_types.keys()
+        )
         for issue_type_id in common_issue_types:
             issue_type = project_issue_types[issue_type_id]
-            imported_issue_type = self.import_issue_type(backend_issue_types[issue_type_id])
-            update_pulled_fields(issue_type, imported_issue_type, (
-                'name', 'description', 'icon_url', 'subtask'
-            ))
+            imported_issue_type = self.import_issue_type(
+                backend_issue_types[issue_type_id]
+            )
+            update_pulled_fields(
+                issue_type,
+                imported_issue_type,
+                ('name', 'description', 'icon_url', 'subtask'),
+            )
 
     def import_issue_type(self, backend_issue_type):
         return models.IssueType(
@@ -284,23 +302,34 @@ class JiraBackend(ServiceBackend):
     def create_issue_from_jira(self, project, key):
         backend_issue = self.get_backend_issue(key)
         if not backend_issue:
-            logger.debug('Unable to create issue with key=%s, '
-                         'because it has already been deleted on backend.', key)
+            logger.debug(
+                'Unable to create issue with key=%s, '
+                'because it has already been deleted on backend.',
+                key,
+            )
             return
 
-        issue = self.model_issue(project=project, backend_id=key, state=StateMixin.States.OK)
+        issue = self.model_issue(
+            project=project, backend_id=key, state=StateMixin.States.OK
+        )
         self._backend_issue_to_issue(backend_issue, issue)
         try:
             issue.save()
         except IntegrityError:
-            logger.debug('Unable to create issue with key=%s, '
-                         'because it has been created in another thread.', key)
+            logger.debug(
+                'Unable to create issue with key=%s, '
+                'because it has been created in another thread.',
+                key,
+            )
 
     def update_issue(self, issue):
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
-            logger.debug('Unable to update issue with key=%s, '
-                         'because it has already been deleted on backend.', issue.backend_id)
+            logger.debug(
+                'Unable to update issue with key=%s, '
+                'because it has already been deleted on backend.',
+                issue.backend_id,
+            )
             return
 
         backend_issue.update(summary=issue.summary, description=issue.get_description())
@@ -310,15 +339,21 @@ class JiraBackend(ServiceBackend):
 
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
-            logger.debug('Unable to update issue with key=%s, '
-                         'because it has already been deleted on backend.', issue.backend_id)
+            logger.debug(
+                'Unable to update issue with key=%s, '
+                'because it has already been deleted on backend.',
+                issue.backend_id,
+            )
             return
 
         issue.refresh_from_db()
 
         if issue.modified > start_time:
-            logger.debug('Skipping issue update with key=%s, '
-                         'because it has been updated from other thread.', issue.backend_id)
+            logger.debug(
+                'Skipping issue update with key=%s, '
+                'because it has been updated from other thread.',
+                issue.backend_id,
+            )
             return
 
         self._backend_issue_to_issue(backend_issue, issue)
@@ -329,53 +364,80 @@ class JiraBackend(ServiceBackend):
         if backend_issue:
             backend_issue.delete()
         else:
-            logger.debug('Unable to delete issue with key=%s, '
-                         'because it has already been deleted on backend.', issue.backend_id)
+            logger.debug(
+                'Unable to delete issue with key=%s, '
+                'because it has already been deleted on backend.',
+                issue.backend_id,
+            )
 
     def delete_issue_from_jira(self, issue):
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
             issue.delete()
         else:
-            logger.debug('Skipping issue deletion with key=%s, '
-                         'because it still exists on backend.', issue.backend_id)
+            logger.debug(
+                'Skipping issue deletion with key=%s, '
+                'because it still exists on backend.',
+                issue.backend_id,
+            )
 
     @reraise_exceptions
     def create_comment(self, comment):
-        backend_comment = self.manager.add_comment(comment.issue.backend_id, comment.prepare_message())
+        backend_comment = self.manager.add_comment(
+            comment.issue.backend_id, comment.prepare_message()
+        )
         comment.backend_id = backend_comment.id
         comment.save(update_fields=['backend_id'])
 
     def create_comment_from_jira(self, issue, comment_backend_id):
         backend_comment = self.get_backend_comment(issue.backend_id, comment_backend_id)
         if not backend_comment:
-            logger.debug('Unable to create comment with id=%s, '
-                         'because it has already been deleted on backend.', comment_backend_id)
+            logger.debug(
+                'Unable to create comment with id=%s, '
+                'because it has already been deleted on backend.',
+                comment_backend_id,
+            )
             return
 
-        comment = self.model_comment(issue=issue, backend_id=comment_backend_id, state=StateMixin.States.OK)
+        comment = self.model_comment(
+            issue=issue, backend_id=comment_backend_id, state=StateMixin.States.OK
+        )
         self._backend_comment_to_comment(backend_comment, comment)
 
         try:
             comment.save()
         except IntegrityError:
-            logger.debug('Unable to create comment issue_id=%s, backend_id=%s, '
-                         'because it already exists  n Waldur.', issue.id, comment_backend_id)
+            logger.debug(
+                'Unable to create comment issue_id=%s, backend_id=%s, '
+                'because it already exists  n Waldur.',
+                issue.id,
+                comment_backend_id,
+            )
 
     def update_comment(self, comment):
-        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment = self.get_backend_comment(
+            comment.issue.backend_id, comment.backend_id
+        )
         if not backend_comment:
-            logger.debug('Unable to update comment with id=%s, '
-                         'because it has already been deleted on backend.', comment.id)
+            logger.debug(
+                'Unable to update comment with id=%s, '
+                'because it has already been deleted on backend.',
+                comment.id,
+            )
             return
 
         backend_comment.update(body=comment.prepare_message())
 
     def update_comment_from_jira(self, comment):
-        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment = self.get_backend_comment(
+            comment.issue.backend_id, comment.backend_id
+        )
         if not backend_comment:
-            logger.debug('Unable to update comment with id=%s, '
-                         'because it has already been deleted on backend.', comment.id)
+            logger.debug(
+                'Unable to update comment with id=%s, '
+                'because it has already been deleted on backend.',
+                comment.id,
+            )
             return
 
         comment.state = StateMixin.States.OK
@@ -384,30 +446,45 @@ class JiraBackend(ServiceBackend):
 
     @reraise_exceptions
     def delete_comment(self, comment):
-        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment = self.get_backend_comment(
+            comment.issue.backend_id, comment.backend_id
+        )
         if backend_comment:
             backend_comment.delete()
         else:
-            logger.debug('Unable to delete comment with id=%s, '
-                         'because it has already been deleted on backend.', comment.id)
+            logger.debug(
+                'Unable to delete comment with id=%s, '
+                'because it has already been deleted on backend.',
+                comment.id,
+            )
 
     def delete_comment_from_jira(self, comment):
-        backend_comment = self.get_backend_comment(comment.issue.backend_id, comment.backend_id)
+        backend_comment = self.get_backend_comment(
+            comment.issue.backend_id, comment.backend_id
+        )
         if not backend_comment:
             comment.delete()
         else:
-            logger.debug('Skipping comment deletion with id=%s, '
-                         'because it still exists on backend.', comment.id)
+            logger.debug(
+                'Skipping comment deletion with id=%s, '
+                'because it still exists on backend.',
+                comment.id,
+            )
 
     @reraise_exceptions
     def create_attachment(self, attachment):
         backend_issue = self.get_backend_issue(attachment.issue.backend_id)
         if not backend_issue:
-            logger.debug('Unable to add attachment to issue with id=%s, '
-                         'because it has already been deleted on backend.', attachment.issue.id)
+            logger.debug(
+                'Unable to add attachment to issue with id=%s, '
+                'because it has already been deleted on backend.',
+                attachment.issue.id,
+            )
             return
 
-        backend_attachment = self.manager.waldur_add_attachment(backend_issue, attachment.file.path)
+        backend_attachment = self.manager.waldur_add_attachment(
+            backend_issue, attachment.file.path
+        )
         attachment.backend_id = backend_attachment.id
         attachment.save(update_fields=['backend_id'])
 
@@ -417,26 +494,39 @@ class JiraBackend(ServiceBackend):
         if backend_attachment:
             backend_attachment.delete()
         else:
-            logger.debug('Unable to remove attachment with id=%s, '
-                         'because it has already been deleted on backend.', attachment.id)
+            logger.debug(
+                'Unable to remove attachment with id=%s, '
+                'because it has already been deleted on backend.',
+                attachment.id,
+            )
 
     @reraise_exceptions
     def import_project_issues(self, project, start_at=0, max_results=50, order=None):
-        waldur_issues = list(self.model_issue.objects.filter(project=project, backend_id__isnull=False).
-                             values_list('backend_id', flat=True))
+        waldur_issues = list(
+            self.model_issue.objects.filter(
+                project=project, backend_id__isnull=False
+            ).values_list('backend_id', flat=True)
+        )
 
         jql = 'project=%s' % project.backend_id
         if order:
             jql += ' ORDER BY %s' % order
 
-        for backend_issue in self.manager.search_issues(jql, startAt=start_at, maxResults=max_results, fields='*all'):
+        for backend_issue in self.manager.search_issues(
+            jql, startAt=start_at, maxResults=max_results, fields='*all'
+        ):
             key = backend_issue.key
             if key in waldur_issues:
-                logger.debug('Skipping import of issue with key=%s, '
-                             'because it already exists in Waldur.', key)
+                logger.debug(
+                    'Skipping import of issue with key=%s, '
+                    'because it already exists in Waldur.',
+                    key,
+                )
                 continue
 
-            issue = self.model_issue(project=project, backend_id=key, state=StateMixin.States.OK)
+            issue = self.model_issue(
+                project=project, backend_id=key, state=StateMixin.States.OK
+            )
             self._backend_issue_to_issue(backend_issue, issue)
             issue.save()
 
@@ -451,44 +541,57 @@ class JiraBackend(ServiceBackend):
                     message=tmp.message,
                     created=parse_datetime(backend_comment.created),
                     backend_id=backend_comment.id,
-                    state=issue.comments.model.States.OK)
+                    state=issue.comments.model.States.OK,
+                )
 
     def _import_project(self, project_backend_id, service_project_link, state):
         backend_project = self.get_project(project_backend_id)
         project = self.model_project(
             service_project_link=service_project_link,
             backend_id=project_backend_id,
-            state=state)
+            state=state,
+        )
         self._backend_project_to_project(backend_project, project)
         project.save()
         return project
 
     def import_project(self, project_backend_id, service_project_link):
-        project = self._import_project(project_backend_id, service_project_link,
-                                       models.Project.States.OK)
+        project = self._import_project(
+            project_backend_id, service_project_link, models.Project.States.OK
+        )
         self.import_project_issues(project)
         return project
 
     def import_project_scheduled(self, project_backend_id, service_project_link):
-        project = self._import_project(project_backend_id, service_project_link,
-                                       models.Project.States.OK)
+        project = self._import_project(
+            project_backend_id, service_project_link, models.Project.States.OK
+        )
         return project
 
     def import_project_batch(self, project):
         max_results = settings.WALDUR_JIRA.get('ISSUE_IMPORT_LIMIT')
         start_at = project.action_details.get('current_issue', 0)
-        self.import_project_issues(project, order='id', start_at=start_at, max_results=max_results)
+        self.import_project_issues(
+            project, order='id', start_at=start_at, max_results=max_results
+        )
 
         total_added = project.action_details.get('current_issue', 0) + max_results
 
         if total_added >= project.action_details.get('issues_count', 0):
-            project.action_details['current_issue'] = project.action_details.get('issues_count', 0)
+            project.action_details['current_issue'] = project.action_details.get(
+                'issues_count', 0
+            )
             project.action_details['percentage'] = 100
             project.runtime_state = 'success'
         else:
             project.action_details['current_issue'] = total_added
-            project.action_details['percentage'] = int((project.action_details['current_issue'] /
-                                                        project.action_details['issues_count']) * 100)
+            project.action_details['percentage'] = int(
+                (
+                    project.action_details['current_issue']
+                    / project.action_details['issues_count']
+                )
+                * 100
+            )
 
         project.save()
         return max_results
@@ -518,16 +621,25 @@ class JiraBackend(ServiceBackend):
                 backend_obj = func(*args, **kwargs)
             except JIRAError as e:
                 if e.status_code == status.HTTP_404_NOT_FOUND:
-                    logger.debug('Jira object {} has been already deleted on backend'.format(method))
+                    logger.debug(
+                        'Jira object {} has been already deleted on backend'.format(
+                            method
+                        )
+                    )
                     return
                 else:
                     raise e
             return backend_obj
+
         return f
 
     def _backend_issue_to_issue(self, backend_issue, issue):
-        priority = self._get_or_create_priority(issue.project, backend_issue.fields.priority)
-        issue_type = self._get_or_create_issue_type(issue.project, backend_issue.fields.issuetype)
+        priority = self._get_or_create_priority(
+            issue.project, backend_issue.fields.priority
+        )
+        issue_type = self._get_or_create_issue_type(
+            issue.project, backend_issue.fields.issuetype
+        )
         resolution_sla = self._get_resolution_sla(backend_issue)
 
         for obj in ['assignee', 'creator', 'reporter']:
@@ -547,7 +659,9 @@ class JiraBackend(ServiceBackend):
         issue.description = backend_issue.fields.description or ''
         issue.type = issue_type
         issue.status = backend_issue.fields.status.name or ''
-        issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
+        issue.resolution = (
+            backend_issue.fields.resolution and backend_issue.fields.resolution.name
+        ) or ''
         issue.resolution_date = backend_issue.fields.resolutiondate
         issue.resolution_sla = resolution_sla
         issue.backend_id = backend_issue.key
@@ -566,7 +680,7 @@ class JiraBackend(ServiceBackend):
         try:
             priority = models.Priority.objects.get(
                 settings=project.service_project_link.service.settings,
-                backend_id=backend_priority.id
+                backend_id=backend_priority.id,
             )
         except models.Priority.DoesNotExist:
             priority = self.import_priority(backend_priority)
@@ -577,7 +691,7 @@ class JiraBackend(ServiceBackend):
         try:
             issue_type = models.IssueType.objects.get(
                 settings=project.service_project_link.service.settings,
-                backend_id=backend_issue_type.id
+                backend_id=backend_issue_type.id,
             )
         except models.IssueType.DoesNotExist:
             issue_type = self.import_issue_type(backend_issue_type)
@@ -615,18 +729,22 @@ class JiraBackend(ServiceBackend):
         return args
 
     def _get_property(self, object_name, object_id, property_name):
-        url = self.manager._get_url('{0}/{1}/properties/{2}'.format(object_name, object_id, property_name))
+        url = self.manager._get_url(
+            '{0}/{1}/properties/{2}'.format(object_name, object_id, property_name)
+        )
         response = self.manager._session.get(url)
         return response.json()
 
     def get_issues_count(self, project_key):
         base = '{server}/rest/{rest_path}/{rest_api_version}/{path}'
-        page_params = {'jql': 'project=%s' % project_key,
-                       'validateQuery': True,
-                       'startAt': 0,
-                       'fields': [],
-                       'maxResults': 0,
-                       'expand': None}
+        page_params = {
+            'jql': 'project=%s' % project_key,
+            'validateQuery': True,
+            'startAt': 0,
+            'fields': [],
+            'maxResults': 0,
+            'expand': None,
+        }
         result = self.manager._get_json('search', params=page_params, base=base)
         return result['total']
 
@@ -639,19 +757,20 @@ class AttachmentSynchronizer:
 
     def perform_update(self):
         if self.stale_attachment_ids:
-            self.backend.model_attachment.objects.filter(backend_id__in=self.stale_attachment_ids).delete()
+            self.backend.model_attachment.objects.filter(
+                backend_id__in=self.stale_attachment_ids
+            ).delete()
 
         for attachment_id in self.new_attachment_ids:
             self._add_attachment(
-                self.current_issue,
-                self.get_backend_attachment(attachment_id)
+                self.current_issue, self.get_backend_attachment(attachment_id)
             )
 
         for attachment_id in self.updated_attachments_ids:
             self._update_attachment(
                 self.current_issue,
                 self.get_backend_attachment(attachment_id),
-                self.get_current_attachment(attachment_id)
+                self.get_current_attachment(attachment_id),
             )
 
     def get_current_attachment(self, attachment_id):
@@ -722,10 +841,12 @@ class AttachmentSynchronizer:
         return BytesIO(response.content)
 
     def _add_attachment(self, issue, backend_attachment):
-        attachment = self.backend.model_attachment(issue=issue,
-                                                   backend_id=backend_attachment.id,
-                                                   state=StateMixin.States.OK)
-        thumbnail = getattr(backend_attachment, 'thumbnail', False) and getattr(attachment, 'thumbnail', False)
+        attachment = self.backend.model_attachment(
+            issue=issue, backend_id=backend_attachment.id, state=StateMixin.States.OK
+        )
+        thumbnail = getattr(backend_attachment, 'thumbnail', False) and getattr(
+            attachment, 'thumbnail', False
+        )
 
         try:
             content = self._download_file(backend_attachment.content)
@@ -733,8 +854,11 @@ class AttachmentSynchronizer:
                 thumbnail_content = self._download_file(backend_attachment.thumbnail)
 
         except JIRAError as error:
-            logger.error('Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'
-                         .format(backend_id=issue.backend_id, error=error))
+            logger.error(
+                'Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'.format(
+                    backend_id=issue.backend_id, error=error
+                )
+            )
             return
 
         self.backend._backend_attachment_to_attachment(backend_attachment, attachment)
@@ -742,23 +866,34 @@ class AttachmentSynchronizer:
         try:
             attachment.save()
         except IntegrityError:
-            logger.debug('Unable to create attachment issue_id=%s, backend_id=%s, '
-                         'because it already exists in Waldur.', issue.id, backend_attachment.id)
+            logger.debug(
+                'Unable to create attachment issue_id=%s, backend_id=%s, '
+                'because it already exists in Waldur.',
+                issue.id,
+                backend_attachment.id,
+            )
 
         attachment.file.save(backend_attachment.filename, content, save=True)
 
         if thumbnail:
-            attachment.thumbnail.save(backend_attachment.filename, thumbnail_content, save=True)
+            attachment.thumbnail.save(
+                backend_attachment.filename, thumbnail_content, save=True
+            )
 
     def _update_attachment(self, issue, backend_attachment, current_attachment):
         try:
             content = self._download_file(backend_attachment.thumbnail)
         except JIRAError as error:
-            logger.error('Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'
-                         .format(backend_id=issue.backend_id, error=error))
+            logger.error(
+                'Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'.format(
+                    backend_id=issue.backend_id, error=error
+                )
+            )
             return
 
-        current_attachment.thumbnail.save(backend_attachment.filename, content, save=True)
+        current_attachment.thumbnail.save(
+            backend_attachment.filename, content, save=True
+        )
 
 
 class CommentSynchronizer:
@@ -769,7 +904,9 @@ class CommentSynchronizer:
 
     def perform_update(self):
         if self.stale_comments_ids:
-            self.backend.model_comment.objects.filter(backend_id__in=self.stale_comments_ids).delete()
+            self.backend.model_comment.objects.filter(
+                backend_id__in=self.stale_comments_ids
+            ).delete()
 
     def get_current_comment(self, comment_id):
         return self.current_comments_map[comment_id]

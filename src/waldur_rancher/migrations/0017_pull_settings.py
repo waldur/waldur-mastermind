@@ -24,7 +24,9 @@ def pull_settings(apps, schema_editor):
 
     for namespace in Namespace.objects.all():
         if namespace.project:
-            namespace.settings = namespace.project.cluster.service_project_link.service.settings
+            namespace.settings = (
+                namespace.project.cluster.service_project_link.service.settings
+            )
             namespace.save()
 
     for catalog in Catalog.objects.all():
@@ -52,6 +54,4 @@ class Migration(migrations.Migration):
         ('contenttypes', '0002_remove_content_type_name'),
     ]
 
-    operations = [
-        migrations.RunPython(pull_settings)
-    ]
+    operations = [migrations.RunPython(pull_settings)]

@@ -1,16 +1,18 @@
-from urllib.parse import urlparse
 import uuid
+from urllib.parse import urlparse
 
+import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.forms.fields import MultipleChoiceField
 from django.urls import resolve
-import django_filters
 from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
 
-from waldur_core.core import serializers as core_serializers, fields as core_fields, models as core_models
+from waldur_core.core import fields as core_fields
+from waldur_core.core import models as core_models
+from waldur_core.core import serializers as core_serializers
 
 
 class GenericKeyFilterBackend(DjangoFilterBackend):
@@ -28,6 +30,7 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
             def get_field_name(self):
                 return 'scope'
     """
+
     content_type_field = 'content_type'
     object_id_field = 'object_id'
 
@@ -46,23 +49,28 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
     def filter_queryset(self, request, queryset, view):
         value = self.get_field_value(request)
         if value:
-            field = core_serializers.GenericRelatedField(related_models=self.get_related_models())
+            field = core_serializers.GenericRelatedField(
+                related_models=self.get_related_models()
+            )
             # Trick to set field context without serializer
             field._context = {'request': request}
             obj = field.to_internal_value(value)
             ct = ContentType.objects.get_for_model(obj)
-            return queryset.filter(**{self.object_id_field: obj.id, self.content_type_field: ct})
+            return queryset.filter(
+                **{self.object_id_field: obj.id, self.content_type_field: ct}
+            )
         return queryset
 
 
 class MappedFilterMixin:
-
     def __init__(self, choice_mappings, **kwargs):
         super(MappedFilterMixin, self).__init__(**kwargs)
 
         # TODO: enable this assert then filtering by numbers will be disabled
         # assert set(k for k, _ in self.field.choices) == set(choice_mappings.keys()), 'Choices do not match mappings'
-        assert len(set(choice_mappings.values())) == len(choice_mappings), 'Mappings are not unique'
+        assert len(set(choice_mappings.values())) == len(
+            choice_mappings
+        ), 'Mappings are not unique'
 
         self.mapped_to_model = choice_mappings
         self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
@@ -81,7 +89,9 @@ class MappedChoiceFilter(MappedFilterMixin, django_filters.ChoiceFilter):
         return super(MappedChoiceFilter, self).filter(qs, value)
 
 
-class MappedMultipleChoiceFilter(MappedFilterMixin, django_filters.MultipleChoiceFilter):
+class MappedMultipleChoiceFilter(
+    MappedFilterMixin, django_filters.MultipleChoiceFilter
+):
     """
     A multiple choice field that maps enum values from representation to model ones and back.
 
@@ -103,6 +113,7 @@ class LooseMultipleChoiceFilter(MultipleChoiceFilter):
     A multiple choice filter field that skips validation of values.
     Based on https://github.com/carltongibson/django-filter/issues/137#issuecomment-37820702
     """
+
     field_class = LooseMultipleChoiceField
 
 
@@ -134,7 +145,9 @@ class StateFilter(MappedMultipleChoiceFilter):
     def __init__(self, choices=DEFAULT_CHOICES, choice_mappings=None, **kwargs):
         if choice_mappings is None:
             choice_mappings = self.DEFAULT_CHOICE_MAPPING
-        super(StateFilter, self).__init__(choices=choices, choice_mappings=choice_mappings, **kwargs)
+        super(StateFilter, self).__init__(
+            choices=choices, choice_mappings=choice_mappings, **kwargs
+        )
 
 
 class URLFilter(django_filters.CharFilter):
@@ -208,7 +221,6 @@ class StaffOrUserFilter(BaseFilterBackend):
 
 
 class ContentTypeFilter(django_filters.CharFilter):
-
     def filter(self, qs, value):
         if value in EMPTY_VALUES:
             return qs
@@ -231,7 +243,9 @@ class ExternalFilterBackend(BaseFilterBackend):
 
     @classmethod
     def register(cls, external_filter):
-        assert isinstance(external_filter, BaseFilterBackend), 'Registered filter has to inherit BaseFilterBackend'
+        assert isinstance(
+            external_filter, BaseFilterBackend
+        ), 'Registered filter has to inherit BaseFilterBackend'
         if hasattr(cls, '_filters'):
             cls._filters.append(external_filter)
         else:
@@ -283,6 +297,7 @@ class EmptyFilter(django_filters.CharFilter):
     It is used when model does not support particular filter field yet it
     should not simply ignore unknown field and instead should return empty queryset.
     """
+
     def filter(self, qs, value):
         if value in EMPTY_VALUES:
             return qs
@@ -291,7 +306,6 @@ class EmptyFilter(django_filters.CharFilter):
 
 
 class BaseSummaryFilterSet(django_filters.FilterSet):
-
     def filter_queryset(self, queryset):
         # Skip queryset class validation
         for name, value in self.form.cleaned_data.items():

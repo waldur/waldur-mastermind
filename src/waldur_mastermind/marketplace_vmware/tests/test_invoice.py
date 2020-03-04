@@ -11,7 +11,6 @@ from waldur_vmware.tests.fixtures import VMwareFixture
 
 @freeze_time('2019-07-01')
 class InvoiceTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=VIRTUAL_MACHINE_TYPE)
         self.plan = marketplace_factories.PlanFactory(
@@ -22,9 +21,8 @@ class InvoiceTest(test.APITransactionTestCase):
             marketplace_factories.PlanComponentFactory(
                 plan=self.plan,
                 component=marketplace_factories.OfferingComponentFactory(
-                    offering=self.offering,
-                    type=component_type
-                )
+                    offering=self.offering, type=component_type
+                ),
             )
 
         self.fixture = VMwareFixture()
@@ -94,7 +92,9 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(invoice.items.first().end.day, 10)
         self.assertEqual(invoice.items.last().start.day, 11)
 
-    def test_when_monthly_plan_is_used_and_vm_is_downgraded_daily_prorata_is_applied(self):
+    def test_when_monthly_plan_is_used_and_vm_is_downgraded_daily_prorata_is_applied(
+        self,
+    ):
         # Arrange
         self.plan.unit = UnitPriceMixin.Units.PER_MONTH
         self.plan.save()
@@ -112,7 +112,9 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(new.start.day, 11)
         self.assertGreater(old.unit_price, new.unit_price)
 
-    def test_when_monthly_plan_is_used_and_vm_is_upgraded_daily_prorata_is_applied(self):
+    def test_when_monthly_plan_is_used_and_vm_is_upgraded_daily_prorata_is_applied(
+        self,
+    ):
         # Arrange
         self.plan.unit = UnitPriceMixin.Units.PER_MONTH
         self.plan.save()

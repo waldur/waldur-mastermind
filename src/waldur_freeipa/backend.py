@@ -1,13 +1,13 @@
 import collections
-from io import StringIO
 import csv
+from io import StringIO
 
+import python_freeipa
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-import python_freeipa
 
-from waldur_core.structure import models as structure_models
 from waldur_core.quotas import models as quota_models
+from waldur_core.structure import models as structure_models
 
 from . import models, utils
 
@@ -76,7 +76,9 @@ class GroupSynchronizer:
     def add_project(self, project, limit):
         project_group = self.project_group_name(project)
         self.groups.add(project_group)
-        self.group_names[project_group] = self.get_group_description(project.name, limit)
+        self.group_names[project_group] = self.get_group_description(
+            project.name, limit
+        )
 
         customer_group = self.customer_group_name(project.customer)
         self.groups.add(customer_group)
@@ -96,10 +98,14 @@ class GroupSynchronizer:
             self.group_users[group].add(username)
 
     def collect_waldur_permissions(self):
-        for permission in structure_models.CustomerPermission.objects.filter(is_active=True):
+        for permission in structure_models.CustomerPermission.objects.filter(
+            is_active=True
+        ):
             self.add_customer_user(permission.customer, permission.user)
 
-        for permission in structure_models.ProjectPermission.objects.filter(is_active=True):
+        for permission in structure_models.ProjectPermission.objects.filter(
+            is_active=True
+        ):
             self.add_project_user(permission.project, permission.user)
 
     def get_limits(self, model):
@@ -107,10 +113,7 @@ class GroupSynchronizer:
         customer_quotas = quota_models.Quota.objects.filter(
             content_type=ctype, name=utils.QUOTA_NAME
         ).only('object_id', 'limit')
-        return {
-            quota.object_id: quota.limit
-            for quota in customer_quotas
-        }
+        return {quota.object_id: quota.limit for quota in customer_quotas}
 
     def collect_waldur_customers(self):
         limits = self.get_limits(structure_models.Customer)
@@ -128,7 +131,9 @@ class GroupSynchronizer:
         self.freeipa_groups.add(groupname)
         if description:
             self.freeipa_names[groupname] = description[0]
-        self.freeipa_children[groupname] = set(child for child in children if child.startswith(self.prefix))
+        self.freeipa_children[groupname] = set(
+            child for child in children if child.startswith(self.prefix)
+        )
 
     def add_freeipa_users(self, groupname, users):
         self.freeipa_users[groupname].update(users)
@@ -174,7 +179,9 @@ class GroupSynchronizer:
 
             stale_members = list(backend_members - waldur_members)
             if stale_members:
-                self.client.group_remove_member(group, users=stale_members, skip_errors=True)
+                self.client.group_remove_member(
+                    group, users=stale_members, skip_errors=True
+                )
 
     def sync_children(self):
         for group in self.groups:
@@ -184,11 +191,15 @@ class GroupSynchronizer:
 
             missing_children = list(waldur_children - freeipa_children)
             if missing_children:
-                self.client.group_add_member(group, groups=missing_children, skip_errors=True)
+                self.client.group_add_member(
+                    group, groups=missing_children, skip_errors=True
+                )
 
             stale_children = list(freeipa_children - waldur_children)
             if stale_children:
-                self.client.group_remove_member(group, groups=stale_children, skip_errors=True)
+                self.client.group_remove_member(
+                    group, groups=stale_children, skip_errors=True
+                )
 
     def delete_stale_groups(self):
         for group in self.freeipa_groups - self.groups:
@@ -216,8 +227,7 @@ class FreeIPABackend:
     def __init__(self):
         options = settings.WALDUR_FREEIPA
         self._client = python_freeipa.Client(
-            host=options['HOSTNAME'],
-            verify_ssl=options['VERIFY_SSL']
+            host=options['HOSTNAME'], verify_ssl=options['VERIFY_SSL']
         )
         self._client.login(options['USERNAME'], options['PASSWORD'])
 

@@ -137,7 +137,9 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         response = self.client.options(factories.DiskFactory.get_url(self.disk))
 
         # Assert
-        self.assertEqual(response.data['actions']['extend']['fields']['size']['max_value'], 25 * 1024)
+        self.assertEqual(
+            response.data['actions']['extend']['fields']['size']['max_value'], 25 * 1024
+        )
 
     def test_extension_is_allowed_when_vm_is_running(self):
         self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON

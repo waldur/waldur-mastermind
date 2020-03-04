@@ -1,10 +1,11 @@
 import json
-from zipfile import is_zipfile, ZipFile
+from zipfile import ZipFile, is_zipfile
 
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
+
 from waldur_core.core.admin import JsonWidget
 
 from . import models
@@ -33,7 +34,12 @@ class AddPlaybookParameterInline(admin.TabularInline):
 class ChangePlaybookAdminForm(forms.ModelForm):
     class Meta:
         model = models.Playbook
-        fields = ('name', 'description', 'image', 'entrypoint',)
+        fields = (
+            'name',
+            'description',
+            'image',
+            'entrypoint',
+        )
 
 
 class AddPlaybookAdminForm(forms.ModelForm):
@@ -54,8 +60,12 @@ class AddPlaybookAdminForm(forms.ModelForm):
         invalid_file = zip_file.testzip()
         if invalid_file is not None:
             raise ValidationError(
-                _('File {filename} in archive {archive_name} has an invalid type.'.format(
-                    filename=invalid_file, archive_name=zip_file.filename)))
+                _(
+                    'File {filename} in archive {archive_name} has an invalid type.'.format(
+                        filename=invalid_file, archive_name=zip_file.filename
+                    )
+                )
+            )
 
         return value
 
@@ -70,8 +80,12 @@ class AddPlaybookAdminForm(forms.ModelForm):
         zip_file = ZipFile(archive)
         if entrypoint not in zip_file.namelist():
             raise ValidationError(
-                _('Failed to find entrypoint {entrypoint} in archive {archive_name}.'.format(
-                    entrypoint=entrypoint, archive_name=zip_file.filename)))
+                _(
+                    'Failed to find entrypoint {entrypoint} in archive {archive_name}.'.format(
+                        entrypoint=entrypoint, archive_name=zip_file.filename
+                    )
+                )
+            )
 
         return cleaned_data
 
@@ -102,7 +116,9 @@ class PlaybookAdmin(admin.ModelAdmin):
     def change_view(self, request, object_id, form_url='', extra_context=None):
         self.inlines = [ChangePlaybookParameterInline]
         self.form = ChangePlaybookAdminForm
-        return super(PlaybookAdmin, self).change_view(request, object_id, form_url, extra_context)
+        return super(PlaybookAdmin, self).change_view(
+            request, object_id, form_url, extra_context
+        )
 
 
 class JobAdminForm(forms.ModelForm):
@@ -125,10 +141,18 @@ class JobAdminForm(forms.ModelForm):
         parameter_names = playbook.parameters.all().values_list('name', flat=True)
         for argument in arguments.keys():
             if argument not in parameter_names and argument != 'project_uuid':
-                raise ValidationError(_('Argument %s is not listed in playbook parameters.' % argument))
+                raise ValidationError(
+                    _('Argument %s is not listed in playbook parameters.' % argument)
+                )
 
-        if playbook.parameters.exclude(name__in=arguments.keys()).filter(required=True, default__exact='').exists():
-            raise ValidationError(_('Not all required playbook parameters were specified.'))
+        if (
+            playbook.parameters.exclude(name__in=arguments.keys())
+            .filter(required=True, default__exact='')
+            .exists()
+        ):
+            raise ValidationError(
+                _('Not all required playbook parameters were specified.')
+            )
 
         return cleaned_data
 
@@ -144,8 +168,15 @@ class JobAdminForm(forms.ModelForm):
 
 class JobAdmin(admin.ModelAdmin):
     form = JobAdminForm
-    fields = ('name', 'description', 'state', 'service_project_link',
-              'playbook', 'arguments', 'output')
+    fields = (
+        'name',
+        'description',
+        'state',
+        'service_project_link',
+        'playbook',
+        'arguments',
+        'output',
+    )
     list_filter = ('name', 'description', 'service_project_link', 'playbook')
     list_display = ('name', 'state', 'service_project_link', 'playbook')
     readonly_fields = ('output', 'created', 'modified')

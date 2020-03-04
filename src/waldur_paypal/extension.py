@@ -4,7 +4,6 @@ from waldur_core.core import WaldurExtension
 
 
 class PayPalExtension(WaldurExtension):
-
     class Settings:
         WALDUR_PAYPAL = {
             'ENABLED': False,
@@ -14,7 +13,7 @@ class PayPalExtension(WaldurExtension):
                 'client_secret': '',
                 'currency_name': 'USD',
             },
-            'STALE_PAYMENTS_LIFETIME': timedelta(weeks=1)
+            'STALE_PAYMENTS_LIFETIME': timedelta(weeks=1),
         }
 
     @staticmethod
@@ -24,16 +23,19 @@ class PayPalExtension(WaldurExtension):
     @staticmethod
     def django_urls():
         from .urls import urlpatterns
+
         return urlpatterns
 
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
     def celery_tasks():
         from celery.schedules import crontab
+
         return {
             'debit-customers': {
                 'task': 'waldur_paypal.DebitCustomers',
@@ -49,5 +51,5 @@ class PayPalExtension(WaldurExtension):
                 'task': 'waldur_paypal.SendInvoices',
                 'schedule': timedelta(hours=24),
                 'args': (),
-            }
+            },
         }

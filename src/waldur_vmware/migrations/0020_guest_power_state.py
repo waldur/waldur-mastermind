@@ -13,11 +13,26 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='virtualmachine',
             name='guest_power_enabled',
-            field=models.BooleanField(default=False, help_text='Flag indicating if the virtual machine is ready to process soft power operations.'),
+            field=models.BooleanField(
+                default=False,
+                help_text='Flag indicating if the virtual machine is ready to process soft power operations.',
+            ),
         ),
         migrations.AddField(
             model_name='virtualmachine',
             name='guest_power_state',
-            field=models.CharField(blank=True, choices=[('RUNNING', 'Running'), ('SHUTTING_DOWN', 'Shutting down'), ('RESETTING', 'Resetting'), ('STANDBY', 'Standby'), ('NOT_RUNNING', 'Not running'), ('UNAVAILABLE', 'Unavailable')], max_length=150, verbose_name='The power state of the guest operating system.'),
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ('RUNNING', 'Running'),
+                    ('SHUTTING_DOWN', 'Shutting down'),
+                    ('RESETTING', 'Resetting'),
+                    ('STANDBY', 'Standby'),
+                    ('NOT_RUNNING', 'Not running'),
+                    ('UNAVAILABLE', 'Unavailable'),
+                ],
+                max_length=150,
+                verbose_name='The power state of the guest operating system.',
+            ),
         ),
     ]

@@ -10,6 +10,8 @@ class BookingConfig(AppConfig):
 
         from . import PLUGIN_NAME, processors
 
-        manager.register(offering_type=PLUGIN_NAME,
-                         create_resource_processor=processors.BookingCreateProcessor,
-                         delete_resource_processor=processors.BookingDeleteProcessor)
+        manager.register(
+            offering_type=PLUGIN_NAME,
+            create_resource_processor=processors.BookingCreateProcessor,
+            delete_resource_processor=processors.BookingDeleteProcessor,
+        )

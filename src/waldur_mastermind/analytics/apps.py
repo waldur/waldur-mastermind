@@ -22,13 +22,17 @@ class AnalyticsConfig(AppConfig):
             signals.post_save.connect(
                 handlers.log_resource_created,
                 sender=model,
-                dispatch_uid=('waldur_mastermind.analytics.handlers.'
-                              'log_resource_created_{}_{}'.format(model.__name__, index)),
+                dispatch_uid=(
+                    'waldur_mastermind.analytics.handlers.'
+                    'log_resource_created_{}_{}'.format(model.__name__, index)
+                ),
             )
 
             signals.post_delete.connect(
                 handlers.log_resource_deleted,
                 sender=model,
-                dispatch_uid=('waldur_mastermind.analytics.handlers.'
-                              'log_resource_deleted_{}_{}'.format(model.__name__, index)),
+                dispatch_uid=(
+                    'waldur_mastermind.analytics.handlers.'
+                    'log_resource_deleted_{}_{}'.format(model.__name__, index)
+                ),
             )

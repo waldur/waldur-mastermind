@@ -1,20 +1,21 @@
-from rest_framework import test, status
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories
 from .. import models
+from . import factories
 
 
 class StatsTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(self.staff)
 
         self.service = factories.OpenStackServiceFactory()
         self.settings = self.service.settings
-        self.url = structure_factories.ServiceSettingsFactory.get_url(self.settings, 'stats')
+        self.url = structure_factories.ServiceSettingsFactory.get_url(
+            self.settings, 'stats'
+        )
 
     def test_empty_statistics(self):
         empty_stats = {
@@ -26,7 +27,7 @@ class StatsTest(test.APITransactionTestCase):
             'ram_usage': 0.0,
             'storage': -1.0,
             'storage_quota': -1.0,
-            'storage_usage': 0.0
+            'storage_usage': 0.0,
         }
 
         response = self.client.get(self.url)
@@ -58,7 +59,7 @@ class StatsTest(test.APITransactionTestCase):
             'ram_usage': 500,
             'storage': 10000,
             'storage_quota': 7000,
-            'storage_usage': 5000
+            'storage_usage': 5000,
         }
 
         response = self.client.get(self.url)

@@ -10,13 +10,20 @@ class StructureConfig(AppConfig):
     def ready(self):
         from waldur_core.core.models import User, ChangeEmailRequest
         from waldur_core.structure.executors import check_cleanup_executors
-        from waldur_core.structure.models import ResourceMixin, SubResource, Service, TagMixin, VirtualMachine, \
-            ServiceProjectLink
+        from waldur_core.structure.models import (
+            ResourceMixin,
+            SubResource,
+            Service,
+            TagMixin,
+            VirtualMachine,
+            ServiceProjectLink,
+        )
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
         from waldur_core.quotas import signals as quota_signals
 
         from django.core import checks
+
         checks.register(check_cleanup_executors)
 
         Customer = self.get_model('Customer')
@@ -52,7 +59,9 @@ class StructureConfig(AppConfig):
         # increase nc_user_count quota usage on adding user to customer
         structure_models_with_roles = (Customer, Project)
         for model in structure_models_with_roles:
-            name = 'increase_customer_nc_users_quota_on_adding_user_to_%s' % model.__name__
+            name = (
+                'increase_customer_nc_users_quota_on_adding_user_to_%s' % model.__name__
+            )
             structure_signals.structure_role_granted.connect(
                 handlers.change_customer_nc_users_quota,
                 sender=model,
@@ -61,7 +70,10 @@ class StructureConfig(AppConfig):
 
         # decrease nc_user_count quota usage on removing user from customer
         for model in structure_models_with_roles:
-            name = 'decrease_customer_nc_users_quota_on_removing_user_from_%s' % model.__name__
+            name = (
+                'decrease_customer_nc_users_quota_on_removing_user_from_%s'
+                % model.__name__
+            )
             structure_signals.structure_role_revoked.connect(
                 handlers.change_customer_nc_users_quota,
                 sender=model,
@@ -110,41 +122,48 @@ class StructureConfig(AppConfig):
             dispatch_uid='waldur_core.structure.handlers.revoke_roles_on_project_deletion',
         )
 
-        resource_and_subresources = ResourceMixin.get_all_models() + SubResource.get_all_models()
+        resource_and_subresources = (
+            ResourceMixin.get_all_models() + SubResource.get_all_models()
+        )
         for index, model in enumerate(resource_and_subresources):
             signals.pre_delete.connect(
                 handlers.log_resource_deleted,
                 sender=model,
                 dispatch_uid='waldur_core.structure.handlers.log_resource_deleted_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )
 
             structure_signals.resource_imported.connect(
                 handlers.log_resource_imported,
                 sender=model,
                 dispatch_uid='waldur_core.structure.handlers.log_resource_imported_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )
 
             fsm_signals.post_transition.connect(
                 handlers.log_resource_action,
                 sender=model,
                 dispatch_uid='waldur_core.structure.handlers.log_resource_action_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )
 
             signals.post_save.connect(
                 handlers.log_resource_creation_scheduled,
                 sender=model,
                 dispatch_uid='waldur_core.structure.handlers.log_resource_creation_scheduled_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )
 
             signals.pre_delete.connect(
                 handlers.delete_service_settings_on_scope_delete,
                 sender=model,
                 dispatch_uid='waldur_core.structure.handlers.delete_service_settings_on_scope_delete_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )
 
         for index, model in enumerate(VirtualMachine.get_all_models()):
@@ -152,7 +171,8 @@ class StructureConfig(AppConfig):
                 handlers.update_resource_start_time,
                 sender=model,
                 dispatch_uid='waldur_core.structure.handlers.update_resource_start_time_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )
 
         signals.post_save.connect(
@@ -172,27 +192,29 @@ class StructureConfig(AppConfig):
                 handlers.connect_service_to_all_projects_if_it_is_available_for_all,
                 sender=service_model,
                 dispatch_uid='waldur_core.structure.handlers.'
-                             'connect_service_{}_to_all_projects_if_it_is_available_for_all_{}'.format(
-                                 service_model.__name__, index),
+                'connect_service_{}_to_all_projects_if_it_is_available_for_all_{}'.format(
+                    service_model.__name__, index
+                ),
             )
 
             signals.post_delete.connect(
                 handlers.delete_service_settings_on_service_delete,
                 sender=service_model,
                 dispatch_uid='waldur_core.structure.handlers.delete_service_settings_on_service_delete_{}_{}'.format(
-                    service_model.__name__, index),
+                    service_model.__name__, index
+                ),
             )
 
         signals.post_save.connect(
             handlers.clean_tags_cache_after_tagged_item_saved,
             sender=TagMixin.tags.through,
-            dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created'
+            dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created',
         )
 
         signals.pre_delete.connect(
             handlers.clean_tags_cache_before_tagged_item_deleted,
             sender=TagMixin.tags.through,
-            dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created'
+            dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created',
         )
 
         signals.post_save.connect(

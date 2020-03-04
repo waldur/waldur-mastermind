@@ -3,7 +3,6 @@ from waldur_core.structure import models as structure_models
 
 from . import models
 
-
 TENANT_QUOTAS = (
     ('vpc_cpu_count', 'vcpu'),
     ('vpc_ram_size', 'ram'),
@@ -29,7 +28,6 @@ def inject_tenant_quotas():
             model.add_quota_field(
                 name=quota_name,
                 quota_field=quota_fields.UsageAggregatorQuotaField(
-                    get_children=get_children,
-                    child_quota_name=child_quota_name,
-                )
+                    get_children=get_children, child_quota_name=child_quota_name,
+                ),
             )

@@ -10,16 +10,17 @@ from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core.admin import (
-    format_json_field, ReadOnlyAdminMixin,
-    ExtraActionsMixin, UpdateOnlyModelAdmin
+    ExtraActionsMixin,
+    ReadOnlyAdminMixin,
+    UpdateOnlyModelAdmin,
+    format_json_field,
 )
 from waldur_core.core.utils import serialize_instance
 from waldur_core.logging import models, tasks
-from waldur_core.logging.loggers import get_valid_events, get_event_groups
+from waldur_core.logging.loggers import get_event_groups, get_valid_events
 
 
 class JSONMultipleChoiceField(forms.MultipleChoiceField):
-
     def prepare_value(self, value):
         if isinstance(value, str):
             return json.loads(value)
@@ -49,11 +50,13 @@ class SystemNotificationForm(BaseHookForm):
 
     class Meta:
         model = models.SystemNotification
-        exclude = 'uuid',
+        exclude = ('uuid',)
 
     def __init__(self, *args, **kwargs):
         super(SystemNotificationForm, self).__init__(*args, **kwargs)
-        self.fields['hook_content_type'].queryset = models.BaseHook.get_all_content_types()
+        self.fields[
+            'hook_content_type'
+        ].queryset = models.BaseHook.get_all_content_types()
 
 
 class SystemNotificationAdmin(admin.ModelAdmin):

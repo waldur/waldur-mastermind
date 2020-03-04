@@ -7,7 +7,9 @@ from . import models
 
 
 class ServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='rancher-detail', field_name='service__uuid')
+    service = core_filters.URLFilter(
+        view_name='rancher-detail', field_name='service__uuid'
+    )
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.RancherServiceProjectLink
@@ -31,7 +33,9 @@ class ProjectFilter(structure_filters.ServicePropertySettingsFilter):
 
     class Meta:
         model = models.Project
-        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + ('cluster_uuid',)
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            'cluster_uuid',
+        )
 
 
 class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
@@ -39,7 +43,9 @@ class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
 
     class Meta:
         model = models.Namespace
-        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + ('project_uuid',)
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            'project_uuid',
+        )
 
 
 class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
@@ -50,5 +56,7 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta:
         model = models.Template
         fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
-            'catalog_uuid', 'cluster_uuid', 'project_uuid',
+            'catalog_uuid',
+            'cluster_uuid',
+            'project_uuid',
         )

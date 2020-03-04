@@ -14,8 +14,7 @@ class SupportInvoicesConfig(AppConfig):
         from . import handlers, registrators as support_registrators
 
         registrators.RegistrationManager.add_registrator(
-            support_models.Offering,
-            support_registrators.OfferingRegistrator
+            support_models.Offering, support_registrators.OfferingRegistrator
         )
 
         signals.post_save.connect(

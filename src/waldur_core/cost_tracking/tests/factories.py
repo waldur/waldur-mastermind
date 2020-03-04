@@ -1,8 +1,8 @@
+import factory
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
-import factory
 
-from waldur_core.cost_tracking import models, CostTrackingStrategy, ConsumableItem
+from waldur_core.cost_tracking import ConsumableItem, CostTrackingStrategy, models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as test_models
 
@@ -25,7 +25,9 @@ class PriceEstimateFactory(factory.DjangoModelFactory):
     def get_url(cls, price_estimate, action=None):
         if price_estimate is None:
             price_estimate = PriceEstimateFactory()
-        url = 'http://testserver' + reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'priceestimate-detail', kwargs={'uuid': price_estimate.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
 
@@ -50,7 +52,8 @@ class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
         model = models.DefaultPriceListItem
 
     resource_content_type = factory.LazyAttribute(
-        lambda _: ContentType.objects.get_for_model(test_models.TestNewInstance))
+        lambda _: ContentType.objects.get_for_model(test_models.TestNewInstance)
+    )
 
     key = factory.Sequence(lambda n: 'price list item %s' % n)
     item_type = factory.Iterator(['flavor', 'storage'])
@@ -64,7 +67,9 @@ class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
         if default_price_list_item is None:
             default_price_list_item = DefaultPriceListItemFactory()
         url = 'http://testserver' + reverse(
-            'defaultpricelistitem-detail', kwargs={'uuid': default_price_list_item.uuid.hex})
+            'defaultpricelistitem-detail',
+            kwargs={'uuid': default_price_list_item.uuid.hex},
+        )
         return url if action is None else url + action + '/'
 
 
@@ -83,7 +88,9 @@ class PriceListItemFactory(AbstractPriceListItemFactory):
     def get_url(cls, price_list_item, action=None):
         if price_list_item is None:
             price_list_item = PriceListItemFactory()
-        url = 'http://testserver' + reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'pricelistitem-detail', kwargs={'uuid': price_list_item.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
 
@@ -102,25 +109,37 @@ class TestNewInstanceCostTrackingStrategy(CostTrackingStrategy):
         States = test_models.TestNewInstance.States
         if resource.state == States.ERRED:
             return {}
-        resource_quota_usage = resource.quotas.get(name=test_models.TestNewInstance.Quotas.test_quota).usage
+        resource_quota_usage = resource.quotas.get(
+            name=test_models.TestNewInstance.Quotas.test_quota
+        ).usage
         consumables = {
             ConsumableItem(item_type=cls.Types.STORAGE, key='1 MB'): resource.disk,
-            ConsumableItem(item_type=cls.Types.QUOTAS, key='test_quota'): resource_quota_usage,
+            ConsumableItem(
+                item_type=cls.Types.QUOTAS, key='test_quota'
+            ): resource_quota_usage,
         }
         if resource.runtime_state == 'online':
-            consumables.update({
-                ConsumableItem(item_type=cls.Types.RAM, key='1 MB'): resource.ram,
-                ConsumableItem(item_type=cls.Types.CORES, key='1 core'): resource.cores,
-            })
+            consumables.update(
+                {
+                    ConsumableItem(item_type=cls.Types.RAM, key='1 MB'): resource.ram,
+                    ConsumableItem(
+                        item_type=cls.Types.CORES, key='1 core'
+                    ): resource.cores,
+                }
+            )
         if resource.flavor_name:
-            consumables[ConsumableItem(item_type=cls.Types.FLAVOR, key=resource.flavor_name)] = 1
+            consumables[
+                ConsumableItem(item_type=cls.Types.FLAVOR, key=resource.flavor_name)
+            ] = 1
         return consumables
 
     @classmethod
     def get_consumable_items(cls):
         return [
             ConsumableItem(cls.Types.STORAGE, "1 MB", units='MB', name='Storage'),
-            ConsumableItem(cls.Types.RAM, "1 MB", units='MB', name='RAM', default_price=1),
+            ConsumableItem(
+                cls.Types.RAM, "1 MB", units='MB', name='RAM', default_price=1
+            ),
             ConsumableItem(cls.Types.CORES, "1 core", name='Cores'),
             ConsumableItem(cls.Types.QUOTAS, "test_quota", name='Test quota'),
             ConsumableItem(cls.Types.FLAVOR, "small", name='Small flavor'),

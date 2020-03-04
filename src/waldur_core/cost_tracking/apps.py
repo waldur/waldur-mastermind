@@ -17,14 +17,16 @@ class CostTrackingConfig(AppConfig):
             signals.pre_delete.connect(
                 handlers.scope_deletion,
                 sender=model,
-                dispatch_uid='waldur_core.cost_tracking.handlers.scope_deletion_%s_%s' % (model.__name__, index),
+                dispatch_uid='waldur_core.cost_tracking.handlers.scope_deletion_%s_%s'
+                % (model.__name__, index),
             )
 
         for index, model in enumerate(structure_models.ResourceMixin.get_all_models()):
             signals.post_save.connect(
                 handlers.resource_update,
                 sender=model,
-                dispatch_uid='waldur_core.cost_tracking.resource_update_%s_%s' % (model.__name__, index),
+                dispatch_uid='waldur_core.cost_tracking.resource_update_%s_%s'
+                % (model.__name__, index),
             )
 
         signals.post_save.connect(
