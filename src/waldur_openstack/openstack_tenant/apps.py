@@ -17,7 +17,12 @@ class OpenStackTenantConfig(AppConfig):
     def ready(self):
         from waldur_core.quotas.fields import QuotaField, TotalQuotaField
         from waldur_core.quotas.models import Quota
-        from waldur_core.structure.models import ServiceSettings, Project, Customer
+        from waldur_core.structure.models import (
+            ServiceSettings,
+            Project,
+            Customer,
+            SharedServiceSettings,
+        )
         from waldur_core.structure import SupportedServices
         from waldur_openstack.openstack.models import Tenant
 
@@ -203,12 +208,14 @@ class OpenStackTenantConfig(AppConfig):
             'copy_flavor_exclude_regex_to_openstacktenant_service_settings',
         )
 
-        signals.post_save.connect(
-            handlers.copy_config_drive_to_openstacktenant_service_settings,
-            sender=ServiceSettings,
-            dispatch_uid='openstack_tenant.handlers.'
-            'copy_config_drive_to_openstacktenant_service_settings',
-        )
+        for model in (SharedServiceSettings, ServiceSettings):
+            signals.post_save.connect(
+                handlers.copy_config_drive_to_openstacktenant_service_settings,
+                sender=model,
+                dispatch_uid='openstack_tenant.handlers.'
+                'copy_config_drive_to_openstacktenant_service_settings_%s'
+                % model.__class__,
+            )
 
         signals.post_save.connect(
             handlers.create_service_from_tenant,
