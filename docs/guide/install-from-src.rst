@@ -11,6 +11,7 @@ Installation from source
 
   - CentOS: ``gcc libffi-devel openssl-devel postgresql-devel libjpeg-devel zlib-devel python-devel xmlsec1 xz-devel``
   - Ubuntu: ``gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev python-dev xmlsec1 libldap2-dev liblzma-dev``
+  - OS X: ``brew install openssl; export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"; export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"``
 
 **Waldur MasterMind installation**
 
