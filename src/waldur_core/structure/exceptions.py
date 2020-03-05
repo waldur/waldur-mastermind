@@ -1,4 +1,4 @@
-import pickle  # nosec
+import pickle  # noqa: S403
 
 from . import ServiceBackendError
 
@@ -21,7 +21,7 @@ class SerializableBackendError(ServiceBackendError):
             try:
                 # pickle is used to check celery internal errors serialization,
                 # it is safe from security point of view
-                pickle.loads(pickle.dumps(arg))  # nosec
+                pickle.loads(pickle.dumps(arg))  # noqa: S301
             except (pickle.PickleError, TypeError):
                 args[i] = str(arg)
 

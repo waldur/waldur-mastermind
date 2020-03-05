@@ -1,6 +1,6 @@
 import abc
 import logging
-import subprocess  # nosec
+import subprocess  # noqa: S404
 
 from django.utils.functional import cached_property
 
@@ -133,8 +133,8 @@ class BaseBatchClient(metaclass=abc.ABCMeta):
         ]
         try:
             logger.debug('Executing SSH command: %s', ' '.join(ssh_command))
-            return subprocess.check_output(
-                ssh_command, stderr=subprocess.STDOUT, encoding='utf-8'  # nosec
+            return subprocess.check_output(  # noqa: S603
+                ssh_command, stderr=subprocess.STDOUT, encoding='utf-8'
             )
         except subprocess.CalledProcessError as e:
             logger.exception('Failed to execute command "%s".', ssh_command)

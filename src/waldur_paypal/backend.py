@@ -1,10 +1,10 @@
 import datetime
 import decimal
 from urllib.parse import parse_qs, urlencode, urlparse
-from urllib.request import urlopen
 
 import dateutil.parser
 import paypalrestsdk as paypal
+import requests
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils import timezone
@@ -433,6 +433,6 @@ class PaypalBackend:
         invoice_url = self.get_payment_view_url(
             invoice.backend_id, {'printPdfMode': 'true'}
         )
-        response = urlopen(invoice_url)  # nosec
-        content = response.read()
+        response = requests.get(invoice_url)
+        content = response.content
         invoice.pdf.save(invoice.file_name, ContentFile(content), save=True)

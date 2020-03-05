@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-import subprocess  # nosec
+import subprocess  # noqa: S404
 
 from django.conf import settings
 

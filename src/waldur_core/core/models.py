@@ -332,7 +332,7 @@ def get_ssh_key_fingerprint(ssh_key):
     import hashlib
 
     key_body = base64.b64decode(ssh_key.strip().split()[1].encode('ascii'))
-    fp_plain = hashlib.md5(key_body).hexdigest()  # nosec
+    fp_plain = hashlib.md5(key_body).hexdigest()  # noqa: S303
     return ':'.join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
 
 

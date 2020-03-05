@@ -9,7 +9,7 @@ from waldur_core.core import models as core_models
 
 
 def _default_message():
-    return '{0:4.0f}'.format(randint(0, 9999)).replace(' ', '0')  # nosec
+    return '{0:4.0f}'.format(randint(0, 9999)).replace(' ', '0')  # noqa: S311
 
 
 class AuthResult(

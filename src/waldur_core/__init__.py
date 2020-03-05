@@ -13,13 +13,13 @@ def _get_version(package_name='waldur_mastermind'):
     except pkg_resources.DistributionNotFound:
         import os.path
         import re
-        import subprocess  # nosec
+        import subprocess  # noqa: S404
 
         repo_dir = os.path.join(os.path.dirname(__file__), os.path.pardir)
 
         try:
             with open(os.devnull, 'w') as DEV_NULL:
-                description = subprocess.check_output(  # nosec
+                description = subprocess.check_output(  # noqa: S603, S607
                     ['git', 'describe', '--tags', '--dirty=.dirty'],
                     cwd=repo_dir,
                     stderr=DEV_NULL,

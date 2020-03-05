@@ -349,8 +349,8 @@ class AzureBackend(ServiceBackend):
             resource_group_name=server.resource_group.name,
             server_name=server.name,
             firewall_rule_name='firewall{}'.format(server.name),
-            start_ip_address='0.0.0.0',  # nosec
-            end_ip_address='255.255.255.255',  # nosec
+            start_ip_address='0.0.0.0',  # noqa: S104
+            end_ip_address='255.255.255.255',
         )
 
     def delete_pgsql_server(self, server):

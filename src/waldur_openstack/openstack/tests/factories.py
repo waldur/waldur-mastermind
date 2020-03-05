@@ -155,7 +155,8 @@ class SecurityGroupRuleFactory(factory.DjangoModelFactory):
     from_port = factory.fuzzy.FuzzyInteger(1, 30000)
     to_port = factory.fuzzy.FuzzyInteger(30000, 65535)
     cidr = factory.LazyAttribute(
-        lambda o: '.'.join('%s' % randint(1, 255) for i in range(4)) + '/24'
+        lambda o: '.'.join('%s' % randint(1, 255) for i in range(4))  # noqa: S311
+        + '/24'
     )
 
 
@@ -166,7 +167,7 @@ class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
     service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
     runtime_state = factory.Iterator(['ACTIVE', 'SHUTOFF', 'DOWN'])
     address = factory.LazyAttribute(
-        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
     )
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
 

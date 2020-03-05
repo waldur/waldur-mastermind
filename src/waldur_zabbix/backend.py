@@ -56,7 +56,7 @@ class ZabbixBackend(ServiceBackend):
         },
         'interface_parameters': {
             'dns': '',
-            'ip': '0.0.0.0',  # nosec
+            'ip': '0.0.0.0',  # noqa: S104
             'main': 1,
             'port': '10050',
             'type': 1,

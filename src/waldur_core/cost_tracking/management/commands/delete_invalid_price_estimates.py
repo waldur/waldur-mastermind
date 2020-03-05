@@ -45,7 +45,7 @@ class Command(BaseCommand):
     def confirm(self):
         if self.assume_yes:
             return True
-        confirm = input('Enter [y] to continue: ')
+        confirm = input('Enter [y] to continue: ')  # noqa: S322
         return confirm.strip().lower() == 'y'
 
     def delete_price_estimates_for_invalid_month(self):

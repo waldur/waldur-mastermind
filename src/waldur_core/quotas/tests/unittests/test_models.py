@@ -50,7 +50,7 @@ class QuotaModelMixinTest(TestCase):
         # each membership has non zero quotas:
         for instance in instances:
             for quota_name in instance.get_quotas_names():
-                limit = random.choice([10, 20, 30, 40])
+                limit = random.choice([10, 20, 30, 40])  # noqa: S311
                 instance.set_quota_limit(quota_name, limit)
                 instance.set_quota_usage(quota_name, limit / 2)
         owners = instances[:2]

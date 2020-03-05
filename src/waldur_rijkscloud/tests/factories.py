@@ -85,7 +85,7 @@ class FloatingIPFactory(UrlModelFactory):
     settings = factory.SubFactory(ServiceSettingsFactory)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
     address = factory.LazyAttribute(
-        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
     )
 
 
@@ -106,7 +106,7 @@ class SubNetFactory(UrlModelFactory):
     settings = factory.SubFactory(ServiceSettingsFactory)
     network = factory.SubFactory(NetworkFactory)
     gateway_ip = factory.LazyAttribute(
-        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
     )
 
 
@@ -119,7 +119,7 @@ class InternalIPFactory(UrlModelFactory):
     subnet = factory.SubFactory(SubNetFactory)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
     address = factory.LazyAttribute(
-        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
     )
 
 

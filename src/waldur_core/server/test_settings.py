@@ -1,7 +1,7 @@
 # Django test settings for Waldur Core.
 from waldur_core.server.doc_settings import *  # noqa: F403
 
-MEDIA_ROOT = '/tmp/'  # nosec
+MEDIA_ROOT = '/tmp/'  # noqa: S108
 
 INSTALLED_APPS += (  # noqa: F405
     'waldur_core.quotas.tests',

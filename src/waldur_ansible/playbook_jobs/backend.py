@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-import subprocess  # nosec
+import subprocess  # noqa: S404
 
 from django.conf import settings
 
@@ -63,8 +63,8 @@ class AnsiblePlaybookBackend:
             ANSIBLE_HOST_KEY_CHECKING='False',
         )
         try:
-            output = subprocess.check_output(
-                command, stderr=subprocess.STDOUT, env=env, encoding='utf-8'  # nosec
+            output = subprocess.check_output(  # noqa: S603
+                command, stderr=subprocess.STDOUT, env=env, encoding='utf-8'
             )
         except subprocess.CalledProcessError as e:
             logger.info('Failed to execute command "%s".', command_str)
