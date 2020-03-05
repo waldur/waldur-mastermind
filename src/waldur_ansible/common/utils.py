@@ -1,8 +1,8 @@
-import subprocess  # nosec
+import subprocess  # noqa: S404
 
 
 def subprocess_output_iterator(command, env, **kwargs):
-    process = subprocess.Popen(
+    process = subprocess.Popen(  # noqa: S603
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -10,7 +10,7 @@ def subprocess_output_iterator(command, env, **kwargs):
         bufsize=1,
         env=env,
         **kwargs
-    )  # nosec
+    )
     for stdout_line in iter(process.stdout.readline, ""):
         yield stdout_line
     process.stdout.close()

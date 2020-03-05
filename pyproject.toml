@@ -84,7 +84,6 @@ crudini = { git = "https://github.com/pixelb/crudini", tag = "0.9.3" }
 python-freeipa = "0.2.5"
 
 [tool.poetry.dev-dependencies]
-bandit = "1.4.0"
 pytest = "3.6.2"
 pytest-cov = "2.5.1"
 pytest-django = "3.3.2"

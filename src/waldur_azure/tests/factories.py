@@ -189,7 +189,7 @@ class PublicIPFactory(factory.DjangoModelFactory):
     service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     ip_address = factory.LazyAttribute(
-        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
     )
 
 

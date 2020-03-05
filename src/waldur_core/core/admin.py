@@ -90,7 +90,7 @@ class CopyButtonMixin:
             'data-target-id': attrs['id'],
         }
         result += "<a %(attrs)s>Copy</a>" % {'attrs': flatatt(button_attrs)}
-        return mark_safe(result)  # nosec
+        return mark_safe(result)  # noqa: S308, S703
 
 
 class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
@@ -108,7 +108,7 @@ class JsonWidget(CopyButtonMixin, JSONEditor):
 def format_json_field(value):
     template = '<div><pre style="overflow: hidden">{0}</pre></div>'
     formatted_value = json.dumps(value, indent=True, ensure_ascii=False)
-    return mark_safe(template.format(formatted_value))  # nosec
+    return mark_safe(template.format(formatted_value))  # noqa: S308, S703
 
 
 class OptionalChoiceField(forms.ChoiceField):
@@ -286,16 +286,16 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         ).order_by('customer')
 
         return format_html_join(
-            mark_safe('<br/>'),  # nosec
+            mark_safe('<br/>'),  # noqa: S308
             '<a href={}>{}</a>',
             (
                 (get_admin_url(permission.customer), str(permission))
                 for permission in permissions
             ),
-        ) or mark_safe(
+        ) or mark_safe(  # noqa: S308, S703
             "<span class='errors'>%s</span>"
             % _('User has no roles in any organization.')
-        )  # nosec
+        )
 
     customer_roles.short_description = _('Roles in organizations')
 
@@ -307,15 +307,15 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         ).order_by('project')
 
         return format_html_join(
-            mark_safe('<br/>'),  # nosec
+            mark_safe('<br/>'),  # noqa: S308
             '<a href={}>{}</a>',
             (
                 (get_admin_url(permission.project), str(permission))
                 for permission in permissions
             ),
-        ) or mark_safe(
+        ) or mark_safe(  # noqa: S308, S703
             "<span class='errors'>%s</span>" % _('User has no roles in any project.')
-        )  # nosec
+        )
 
     project_roles.short_description = _('Roles in projects')
 

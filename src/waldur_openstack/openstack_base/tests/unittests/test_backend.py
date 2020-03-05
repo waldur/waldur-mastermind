@@ -1,4 +1,4 @@
-import pickle
+import pickle  # noqa: S403
 from unittest import TestCase
 
 from cinderclient import exceptions as cinder_exceptions
@@ -33,6 +33,6 @@ class TestOpenStackBackendError(TestCase):
 
     def _test_exception_is_serializable(self, exc):
         try:
-            pickle.loads(pickle.dumps(exc))
+            pickle.loads(pickle.dumps(exc))  # noqa: S301
         except Exception as e:
             self.fail('Reraised exception is not serializable: %s' % str(e))

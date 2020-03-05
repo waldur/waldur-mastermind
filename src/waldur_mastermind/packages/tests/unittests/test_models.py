@@ -14,7 +14,7 @@ class PackageTemplateTest(TestCase):
         total = Decimal('0.00')
         for t in models.PackageTemplate.get_required_component_types():
             component = package_template.components.get(type=t)
-            component.amount = random.randint(1, 10)
+            component.amount = random.randint(1, 10)  # noqa: S311
             component.price = Decimal('4.95')
             component.save()
             total += component.amount * component.price

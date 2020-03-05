@@ -1,7 +1,7 @@
 import logging
 from urllib.parse import urljoin
 
-import lxml.etree  # nosec
+import lxml.etree  # noqa: S410
 import requests
 from django.conf import settings as django_settings
 from django.utils import timezone
@@ -35,7 +35,7 @@ class Response:
     ns_namespace = 'http://uri.etsi.org/TS102204/v1.1.2#'
 
     def __init__(self, content):
-        etree = lxml.etree.fromstring(content)  # nosec
+        etree = lxml.etree.fromstring(content)  # noqa: S320
         self.init_response_attributes(etree)
 
     def init_response_attributes(self, etree):
