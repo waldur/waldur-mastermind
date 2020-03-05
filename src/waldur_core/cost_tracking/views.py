@@ -1,12 +1,13 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Prefetch
-from rest_framework import viewsets, exceptions
+from rest_framework import exceptions, viewsets
 
 from waldur_core.core import views as core_views
-from waldur_core.cost_tracking import models, serializers, filters
+from waldur_core.cost_tracking import filters, models, serializers
 from waldur_core.structure import SupportedServices
-from waldur_core.structure import models as structure_models, permissions as structure_permissions
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.filters import ScopeTypeFilterBackend
 
 
@@ -28,12 +29,15 @@ class PriceEstimateViewSet(core_views.ReadOnlyActionsViewSet):
         except (TypeError, KeyError):
             pass  # use default depth if it is not defined or defined wrongly.
         else:
-            context['depth'] = min(depth, 10)  # DRF restriction - serializer depth cannot be > 10
+            context['depth'] = min(
+                depth, 10
+            )  # DRF restriction - serializer depth cannot be > 10
         return context
 
     def get_queryset(self):
-        return models.PriceEstimate.objects.filtered_for_user(self.request.user).order_by(
-            '-year', '-month')
+        return models.PriceEstimate.objects.filtered_for_user(
+            self.request.user
+        ).order_by('-year', '-month')
 
     def list(self, request, *args, **kwargs):
         """
@@ -122,7 +126,9 @@ class PriceListItemViewSet(viewsets.ModelViewSet):
         return super(PriceListItemViewSet, self).initial(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        if not self._user_can_modify_price_list_item(serializer.validated_data['service']):
+        if not self._user_can_modify_price_list_item(
+            serializer.validated_data['service']
+        ):
             raise exceptions.PermissionDenied()
 
         super(PriceListItemViewSet, self).perform_create(serializer)
@@ -181,7 +187,9 @@ class MergedPriceListItemViewSet(viewsets.ReadOnlyModelViewSet):
 
             # Attach service-specific items
             price_list_items = models.PriceListItem.objects.filter(service=service)
-            prefetch = Prefetch('pricelistitem_set', queryset=price_list_items, to_attr='service_item')
+            prefetch = Prefetch(
+                'pricelistitem_set', queryset=price_list_items, to_attr='service_item'
+            )
             queryset = queryset.prefetch_related(prefetch)
         return queryset
 

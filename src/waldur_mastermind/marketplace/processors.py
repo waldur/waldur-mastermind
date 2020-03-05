@@ -2,10 +2,11 @@ import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from rest_framework import status, serializers
+from rest_framework import serializers, status
 from rest_framework.reverse import reverse
 
-from waldur_core.structure import models as structure_models, SupportedServices
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.utils import validate_limits
@@ -21,9 +22,13 @@ def get_spl_url(spl_model_class, order_item):
 
     service_settings_type = spl_model_class._meta.app_config.service_name
 
-    if not isinstance(service_settings, structure_models.ServiceSettings) or \
-            service_settings.type != service_settings_type:
-        raise serializers.ValidationError('Offering has invalid scope. Service settings object is expected.')
+    if (
+        not isinstance(service_settings, structure_models.ServiceSettings)
+        or service_settings.type != service_settings_type
+    ):
+        raise serializers.ValidationError(
+            'Offering has invalid scope. Service settings object is expected.'
+        )
 
     project = order_item.order.project
 
@@ -35,7 +40,9 @@ def get_spl_url(spl_model_class, order_item):
         )
         return reverse('{}-detail'.format(spl.get_url_name()), kwargs={'pk': spl.pk})
     except ObjectDoesNotExist:
-        raise serializers.ValidationError('Project does not have access to the service.')
+        raise serializers.ValidationError(
+            'Project does not have access to the service.'
+        )
 
 
 def copy_attributes(fields, order_item):
@@ -184,10 +191,13 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
             except NotImplementedError:
                 self.order_item.set_state_erred()
                 self.order_item.save(update_fields=['state'])
-                logger.warning('An update of limits has been called. '
-                               'But update limits process for the plugin has not been implemented. '
-                               'Order item ID: %s, Plugin: %s.',
-                               self.order_item.id, self.order_item.offering.type)
+                logger.warning(
+                    'An update of limits has been called. '
+                    'But update limits process for the plugin has not been implemented. '
+                    'Order item ID: %s, Plugin: %s.',
+                    self.order_item.id,
+                    self.order_item.offering.type,
+                )
             except Exception as e:
                 signals.limit_update_failed.send(
                     sender=self.order_item.resource.__class__,
@@ -299,8 +309,13 @@ class DeleteResourceProcessor(AbstractDeleteResourceProcessor):
     def send_request(self, user, resource):
         view = self.get_viewset().as_view({'delete': 'destroy'})
         delete_attributes = self.order_item.attributes
-        response = common_utils.delete_request(view, user, uuid=resource.uuid.hex, query_params=delete_attributes)
-        if response.status_code not in (status.HTTP_204_NO_CONTENT, status.HTTP_202_ACCEPTED):
+        response = common_utils.delete_request(
+            view, user, uuid=resource.uuid.hex, query_params=delete_attributes
+        )
+        if response.status_code not in (
+            status.HTTP_204_NO_CONTENT,
+            status.HTTP_202_ACCEPTED,
+        ):
             raise serializers.ValidationError(response.data)
         return response.status_code == status.HTTP_204_NO_CONTENT
 
@@ -317,6 +332,7 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
     Abstract base class to adapt resource provisioning endpoints to marketplace API.
     It is assumed that resource model and serializer uses service project link.
     """
+
     viewset = NotImplementedError
     fields = NotImplementedError
 
@@ -340,14 +356,18 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         """
         Get service project link model used by resource model using service registry.
         """
-        return SupportedServices.get_related_models(self.get_resource_model())['service_project_link']
+        return SupportedServices.get_related_models(self.get_resource_model())[
+            'service_project_link'
+        ]
 
     def get_serializer_class(self):
         """
         Use create_serializer_class if it is defined. Otherwise fallback to standard serializer class.
         """
         viewset = self.get_viewset()
-        return getattr(viewset, 'create_serializer_class', None) or getattr(viewset, 'serializer_class')
+        return getattr(viewset, 'create_serializer_class', None) or getattr(
+            viewset, 'serializer_class'
+        )
 
     def get_post_data(self):
         order_item = self.order_item

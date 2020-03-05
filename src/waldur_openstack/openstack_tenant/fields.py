@@ -27,12 +27,17 @@ class StringTimestampField(serializers.CharField):
             else:
                 return core_utils.datetime_to_timestamp(date_time)
 
-        raise serializers.ValidationError(_('This field does not have datetime format that matches %s string.') % value)
+        raise serializers.ValidationError(
+            _('This field does not have datetime format that matches %s string.')
+            % value
+        )
 
     def to_internal_value(self, value):
         try:
             date_time = core_utils.timestamp_to_datetime(value)
             datetime_str = date_time.strftime(self.formats[0])
         except ValueError:
-            raise serializers.ValidationError(_('Value "{}" should be valid UNIX timestamp.').format(value))
+            raise serializers.ValidationError(
+                _('Value "{}" should be valid UNIX timestamp.').format(value)
+            )
         return datetime_str

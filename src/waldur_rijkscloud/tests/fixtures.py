@@ -12,7 +12,9 @@ class RijkscloudFixture(ProjectFixture):
 
     @cached_property
     def service(self):
-        return factories.ServiceFactory(customer=self.customer, settings=self.service_settings)
+        return factories.ServiceFactory(
+            customer=self.customer, settings=self.service_settings
+        )
 
     @cached_property
     def network(self):
@@ -20,11 +22,15 @@ class RijkscloudFixture(ProjectFixture):
 
     @cached_property
     def subnet(self):
-        return factories.SubNetFactory(settings=self.service_settings, network=self.network)
+        return factories.SubNetFactory(
+            settings=self.service_settings, network=self.network
+        )
 
     @cached_property
     def internal_ip(self):
-        return factories.InternalIPFactory(settings=self.service_settings, subnet=self.subnet)
+        return factories.InternalIPFactory(
+            settings=self.service_settings, subnet=self.subnet
+        )
 
     @cached_property
     def floating_ip(self):
@@ -32,7 +38,9 @@ class RijkscloudFixture(ProjectFixture):
 
     @cached_property
     def spl(self):
-        return factories.ServiceProjectLinkFactory(project=self.project, service=self.service)
+        return factories.ServiceProjectLinkFactory(
+            project=self.project, service=self.service
+        )
 
     @cached_property
     def instance(self):

@@ -24,9 +24,11 @@ def check_availability_of_auto_approving(items, user, project):
         return structure_permissions._has_admin_access(user, project)
 
     # Service provider is not required to approve termination order
-    if (len(items) == 1 and
-            items[0].type == models.OrderItem.Types.TERMINATE and
-            structure_permissions._has_owner_access(user, items[0].offering.customer)):
+    if (
+        len(items) == 1
+        and items[0].type == models.OrderItem.Types.TERMINATE
+        and structure_permissions._has_owner_access(user, items[0].offering.customer)
+    ):
         return True
 
     return user_can_approve_order(user, project)
@@ -47,16 +49,19 @@ def user_can_approve_order(user, project):
     if user.is_staff:
         return True
 
-    if django_settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER'] and \
-            structure_permissions._has_owner_access(user, project.customer):
+    if django_settings.WALDUR_MARKETPLACE[
+        'OWNER_CAN_APPROVE_ORDER'
+    ] and structure_permissions._has_owner_access(user, project.customer):
         return True
 
-    if django_settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER'] and \
-            structure_permissions._has_manager_access(user, project):
+    if django_settings.WALDUR_MARKETPLACE[
+        'MANAGER_CAN_APPROVE_ORDER'
+    ] and structure_permissions._has_manager_access(user, project):
         return True
 
-    if django_settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER'] and \
-            structure_permissions._has_admin_access(user, project):
+    if django_settings.WALDUR_MARKETPLACE[
+        'ADMIN_CAN_APPROVE_ORDER'
+    ] and structure_permissions._has_admin_access(user, project):
         return True
 
     return False
@@ -89,16 +94,26 @@ def user_can_list_importable_resources(request, view, offering=None):
         return
 
     if offering.shared:
-        raise exceptions.PermissionDenied('Import is limited to staff for shared offerings.')
+        raise exceptions.PermissionDenied(
+            'Import is limited to staff for shared offerings.'
+        )
 
-    owned_customers = set(structure_models.Customer.objects.all().filter(
-        permissions__user=user,
-        permissions__is_active=True,
-        permissions__role=structure_models.CustomerRole.OWNER
-    ).distinct())
+    owned_customers = set(
+        structure_models.Customer.objects.all()
+        .filter(
+            permissions__user=user,
+            permissions__is_active=True,
+            permissions__role=structure_models.CustomerRole.OWNER,
+        )
+        .distinct()
+    )
 
-    if offering.customer not in owned_customers and not (offering.allowed_customers & owned_customers):
-        raise exceptions.PermissionDenied('Import is limited to owners for private offerings.')
+    if offering.customer not in owned_customers and not (
+        offering.allowed_customers & owned_customers
+    ):
+        raise exceptions.PermissionDenied(
+            'Import is limited to owners for private offerings.'
+        )
 
 
 def user_can_terminate_resource(request, view, resource=None):
@@ -110,7 +125,9 @@ def user_can_terminate_resource(request, view, resource=None):
         return
 
     # Service provider is allowed to terminate resource too.
-    if structure_permissions._has_owner_access(request.user, resource.offering.customer):
+    if structure_permissions._has_owner_access(
+        request.user, resource.offering.customer
+    ):
         return
 
     raise exceptions.PermissionDenied()

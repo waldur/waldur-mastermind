@@ -1,7 +1,7 @@
 from django.contrib import admin
-from django.utils.translation import ugettext_lazy as _
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import admin as structure_admin
@@ -13,7 +13,9 @@ class RancherUserClusterLinkInline(admin.TabularInline):
     model = models.RancherUserClusterLink
 
 
-class RancherUserAdmin(core_admin.ExtraActionsMixin, core_admin.ReadOnlyAdminMixin, admin.ModelAdmin):
+class RancherUserAdmin(
+    core_admin.ExtraActionsMixin, core_admin.ReadOnlyAdminMixin, admin.ModelAdmin
+):
     list_display = ('__str__', 'settings', 'is_active')
 
     inlines = [
@@ -46,11 +48,18 @@ class NamespaceAdmin(admin.ModelAdmin):
     list_display = ('name', 'project', 'runtime_state')
 
 
+class TemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'catalog', 'runtime_state')
+
+
 admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
-admin.site.register(models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
+admin.site.register(
+    models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
+)
 admin.site.register(models.Cluster)
 admin.site.register(models.Node)
 admin.site.register(models.RancherUser, RancherUserAdmin)
 admin.site.register(models.Catalog, CatalogAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.Namespace, NamespaceAdmin)
+admin.site.register(models.Template, TemplateAdmin)

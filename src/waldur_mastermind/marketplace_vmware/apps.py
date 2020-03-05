@@ -16,30 +16,48 @@ class MarketplaceVMwareConfig(AppConfig):
         from waldur_vmware import signals as vmware_signals
         from waldur_vmware.apps import VMwareConfig
 
-        from . import handlers, registrators as vmware_registrators, processors, VIRTUAL_MACHINE_TYPE
-
-        resource_models = (
-            vmware_models.VirtualMachine,
+        from . import (
+            handlers,
+            registrators as vmware_registrators,
+            processors,
+            VIRTUAL_MACHINE_TYPE,
         )
+
+        resource_models = (vmware_models.VirtualMachine,)
 
         marketplace_handlers.connect_resource_handlers(*resource_models)
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
 
         USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
-        manager.register(offering_type=VIRTUAL_MACHINE_TYPE,
-                         create_resource_processor=processors.VirtualMachineCreateProcessor,
-                         service_type=VMwareConfig.service_name,
-                         components=(
-                             Component(type='cpu', name='CPU', measured_unit='vCPU', billing_type=USAGE),
-                             # Price is stored per GiB but size is stored per MiB
-                             # therefore we need to divide size by factor when price estimate is calculated.
-                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE, factor=1024),
-                             Component(type='disk', name='Disk', measured_unit='GB', billing_type=USAGE, factor=1024),
-                         ))
+        manager.register(
+            offering_type=VIRTUAL_MACHINE_TYPE,
+            create_resource_processor=processors.VirtualMachineCreateProcessor,
+            service_type=VMwareConfig.service_name,
+            components=(
+                Component(
+                    type='cpu', name='CPU', measured_unit='vCPU', billing_type=USAGE
+                ),
+                # Price is stored per GiB but size is stored per MiB
+                # therefore we need to divide size by factor when price estimate is calculated.
+                Component(
+                    type='ram',
+                    name='RAM',
+                    measured_unit='GB',
+                    billing_type=USAGE,
+                    factor=1024,
+                ),
+                Component(
+                    type='disk',
+                    name='Disk',
+                    measured_unit='GB',
+                    billing_type=USAGE,
+                    factor=1024,
+                ),
+            ),
+        )
 
         registrators.RegistrationManager.add_registrator(
-            vmware_models.VirtualMachine,
-            vmware_registrators.VirtualMachineRegistrator
+            vmware_models.VirtualMachine, vmware_registrators.VirtualMachineRegistrator
         )
 
         vmware_signals.vm_created.connect(
@@ -61,5 +79,5 @@ class MarketplaceVMwareConfig(AppConfig):
         vmware_signals.vm_updated.connect(
             handlers.update_marketplace_resource_limits_when_vm_is_updated,
             dispatch_uid='marketplace_vmware.handlers.'
-                         'update_marketplace_resource_limits_when_vm_is_updated',
+            'update_marketplace_resource_limits_when_vm_is_updated',
         )

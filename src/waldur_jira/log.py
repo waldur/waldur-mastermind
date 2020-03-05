@@ -1,6 +1,6 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
 
-from .models import Issue, Comment
+from .models import Comment, Issue
 
 
 def get_issue_scopes(issue):
@@ -15,12 +15,12 @@ class IssueEventLogger(EventLogger):
     issue = Issue
 
     class Meta:
-        event_types = ('issue_deletion_succeeded',
-                       'issue_update_succeeded',
-                       'issue_creation_succeeded')
-        event_groups = {
-            'jira': event_types
-        }
+        event_types = (
+            'issue_deletion_succeeded',
+            'issue_update_succeeded',
+            'issue_creation_succeeded',
+        )
+        event_groups = {'jira': event_types}
 
     @staticmethod
     def get_scopes(event_context):
@@ -32,12 +32,12 @@ class CommentEventLogger(EventLogger):
     comment = Comment
 
     class Meta:
-        event_types = ('comment_deletion_succeeded',
-                       'comment_update_succeeded',
-                       'comment_creation_succeeded')
-        event_groups = {
-            'jira': event_types
-        }
+        event_types = (
+            'comment_deletion_succeeded',
+            'comment_update_succeeded',
+            'comment_creation_succeeded',
+        )
+        event_groups = {'jira': event_types}
 
     @staticmethod
     def get_scopes(event_context):

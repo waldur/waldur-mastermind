@@ -31,29 +31,32 @@ class SlurmConfig(AppConfig):
             dispatch_uid='waldur_slurm.handlers.process_user_deletion',
         )
 
-        structure_models_with_roles = (structure_models.Customer, structure_models.Project)
+        structure_models_with_roles = (
+            structure_models.Customer,
+            structure_models.Project,
+        )
         for model in structure_models_with_roles:
             structure_signals.structure_role_granted.connect(
                 handlers.process_role_granted,
                 sender=model,
-                dispatch_uid='waldur_slurm.handlers.process_role_granted.%s' % model.__class__,
+                dispatch_uid='waldur_slurm.handlers.process_role_granted.%s'
+                % model.__class__,
             )
 
             structure_signals.structure_role_revoked.connect(
                 handlers.process_role_revoked,
                 sender=model,
-                dispatch_uid='waldur_slurm.handlers.process_role_revoked.%s' % model.__class__,
+                dispatch_uid='waldur_slurm.handlers.process_role_revoked.%s'
+                % model.__class__,
             )
 
         for quota in utils.QUOTA_NAMES:
             structure_models.Customer.add_quota_field(
-                name=quota,
-                quota_field=QuotaField(is_backend=True)
+                name=quota, quota_field=QuotaField(is_backend=True)
             )
 
             structure_models.Project.add_quota_field(
-                name=quota,
-                quota_field=QuotaField(is_backend=True)
+                name=quota, quota_field=QuotaField(is_backend=True)
             )
 
         structure_models.Project.add_quota_field(
@@ -61,7 +64,7 @@ class SlurmConfig(AppConfig):
             quota_field=CounterQuotaField(
                 target_models=lambda: [models.Allocation],
                 path_to_scope='service_project_link.project',
-            )
+            ),
         )
 
         structure_models.Customer.add_quota_field(
@@ -69,7 +72,7 @@ class SlurmConfig(AppConfig):
             quota_field=CounterQuotaField(
                 target_models=lambda: [models.Allocation],
                 path_to_scope='service_project_link.project.customer',
-            )
+            ),
         )
 
         signals.post_save.connect(

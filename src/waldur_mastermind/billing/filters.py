@@ -3,7 +3,7 @@ from django.db.models import OuterRef, Subquery
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
-from waldur_core.core.utils import order_with_nulls, get_ordering
+from waldur_core.core.utils import get_ordering, order_with_nulls
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
@@ -13,7 +13,6 @@ from . import models
 
 
 class PriceEstimateScopeFilterBackend(core_filters.GenericKeyFilterBackend):
-
     def get_related_models(self):
         return models.PriceEstimate.get_estimated_models()
 
@@ -29,8 +28,12 @@ class CustomerEstimatedCostFilter(BaseFilterBackend):
             return queryset
 
         ct = ContentType.objects.get_for_model(structure_models.Customer)
-        estimates = models.PriceEstimate.objects.filter(content_type=ct, object_id=OuterRef('pk'))
-        queryset = queryset.annotate(estimated_cost=Subquery(estimates.values('total')[:1]))
+        estimates = models.PriceEstimate.objects.filter(
+            content_type=ct, object_id=OuterRef('pk')
+        )
+        queryset = queryset.annotate(
+            estimated_cost=Subquery(estimates.values('total')[:1])
+        )
         return order_with_nulls(queryset, order_by)
 
 
@@ -42,8 +45,12 @@ class CustomerCurrentCostFilter(BaseFilterBackend):
             return queryset
 
         year, month = invoice_utils.parse_period(request.query_params)
-        invoices = invoice_models.Invoice.objects.filter(year=year, month=month, customer=OuterRef('pk'))
-        queryset = queryset.annotate(current_cost=Subquery(invoices.values('current_cost')[:1]))
+        invoices = invoice_models.Invoice.objects.filter(
+            year=year, month=month, customer=OuterRef('pk')
+        )
+        queryset = queryset.annotate(
+            current_cost=Subquery(invoices.values('current_cost')[:1])
+        )
         return order_with_nulls(queryset, order_by)
 
 

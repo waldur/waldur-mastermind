@@ -1,10 +1,11 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.cost_tracking import models as ct_models
 from waldur_core.cost_tracking.tests import factories as ct_factories
-from waldur_openstack.openstack_tenant import models as ot_models, cost_tracking as ot_cost_tracking
+from waldur_openstack.openstack_tenant import cost_tracking as ot_cost_tracking
+from waldur_openstack.openstack_tenant import models as ot_models
 from waldur_openstack.openstack_tenant.tests import factories as ot_factories
 
 from . import factories, fixtures
@@ -28,9 +29,12 @@ class OpenStackTenantOptimizerTest(test.APITransactionTestCase):
         for p in self.flavor_params:
             ot_factories.FlavorFactory(settings=self.settings, **p)
             ct_models.DefaultPriceListItem.objects.update_or_create(
-                resource_content_type=ContentType.objects.get_for_model(ot_models.Instance),
+                resource_content_type=ContentType.objects.get_for_model(
+                    ot_models.Instance
+                ),
                 item_type='flavor',
-                key=p['name'])
+                key=p['name'],
+            )
 
         ct_factories.DefaultPriceListItemFactory(
             resource_content_type=ContentType.objects.get_for_model(ot_models.Volume),
@@ -47,9 +51,7 @@ class OpenStackTenantOptimizerTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data[0]['error_message'])
 
-    @data(
-        {'variant': 'large', 'cores': 8, 'ram': 4 * 1024},
-    )
+    @data({'variant': 'large', 'cores': 8, 'ram': 4 * 1024},)
     def test_negative_case(self, preset_param):
         response = self._get_response(preset_param)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -57,7 +59,9 @@ class OpenStackTenantOptimizerTest(test.APITransactionTestCase):
         self.assertTrue('It is too big' in response.data[0]['error_message'])
 
     def _get_response(self, preset_param):
-        self.preset = factories.PresetFactory(category=self.fixture.category, **preset_param)
+        self.preset = factories.PresetFactory(
+            category=self.fixture.category, **preset_param
+        )
         factories.DeploymentPlanItemFactory(plan=self.plan, preset=self.preset)
 
         self.client.force_authenticate(self.fixture.staff)

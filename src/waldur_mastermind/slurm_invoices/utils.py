@@ -27,5 +27,7 @@ def get_deposit_usage(allocation, package):
     if allocation.batch_service == 'MOAB':
         return allocation.deposit_usage
     else:
-        quotas = Quotas(allocation.cpu_usage, allocation.gpu_usage, allocation.ram_usage)
+        quotas = Quotas(
+            allocation.cpu_usage, allocation.gpu_usage, allocation.ram_usage
+        )
         return get_price(quotas, package)

@@ -1,4 +1,4 @@
-FROM centos:7
+FROM centos:8
 MAINTAINER Victor Mireyev <victor@opennodecloud.com>
 
 LABEL   summary="Waldur Mastermind REST API Image for Unit Test" \
@@ -12,9 +12,10 @@ LABEL   summary="Waldur Mastermind REST API Image for Unit Test" \
 
 # set UTF-8 locale as default
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
-RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 
 RUN yum --assumeyes install epel-release
+RUN yum --assumeyes install 'dnf-command(config-manager)'
+RUN yum --assumeyes config-manager --set-enabled PowerTools
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install \
   gcc \
@@ -27,7 +28,6 @@ RUN yum --assumeyes install \
   openldap-devel \
   openssl-devel \
   python3-devel \
-  rsync \
   xmlsec1 \
   zlib-devel
 

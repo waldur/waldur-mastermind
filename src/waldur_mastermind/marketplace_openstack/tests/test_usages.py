@@ -4,7 +4,6 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 
-
 TenantQuotas = openstack_models.Tenant.Quotas
 
 

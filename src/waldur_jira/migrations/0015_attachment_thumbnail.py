@@ -13,6 +13,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='attachment',
             name='thumbnail',
-            field=models.FileField(blank=True, null=True, upload_to='jira_attachments_thumbnails'),
+            field=models.FileField(
+                blank=True, null=True, upload_to='jira_attachments_thumbnails'
+            ),
         ),
     ]

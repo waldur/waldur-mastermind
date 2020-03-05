@@ -1,9 +1,8 @@
 import pickle
-
 from unittest import TestCase
 
 from cinderclient import exceptions as cinder_exceptions
-from ddt import ddt, data
+from ddt import data, ddt
 from glanceclient import exc as glance_exceptions
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions

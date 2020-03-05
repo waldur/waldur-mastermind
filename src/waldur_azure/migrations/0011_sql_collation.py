@@ -13,11 +13,15 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='sqldatabase',
             name='charset',
-            field=models.CharField(blank=True, default='utf8', max_length=255, null=True),
+            field=models.CharField(
+                blank=True, default='utf8', max_length=255, null=True
+            ),
         ),
         migrations.AlterField(
             model_name='sqldatabase',
             name='collation',
-            field=models.CharField(blank=True, default='utf8_general_ci', max_length=255, null=True),
+            field=models.CharField(
+                blank=True, default='utf8_general_ci', max_length=255, null=True
+            ),
         ),
     ]

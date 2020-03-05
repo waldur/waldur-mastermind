@@ -7,10 +7,12 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
 
-class Invitation(core_models.UuidMixin,
-                 TimeStampedModel,
-                 core_models.ErrorMessageMixin,
-                 core_models.UserDetailsMixin):
+class Invitation(
+    core_models.UuidMixin,
+    TimeStampedModel,
+    core_models.ErrorMessageMixin,
+    core_models.UserDetailsMixin,
+):
     class Permissions:
         customer_path = 'customer'
 
@@ -31,23 +33,63 @@ class Invitation(core_models.UuidMixin,
             (EXPIRED, 'Expired'),
         )
 
-    created_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
-    approved_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    created_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=settings.AUTH_USER_MODEL,
+        related_name='+',
+        blank=True,
+        null=True,
+    )
+    approved_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=settings.AUTH_USER_MODEL,
+        related_name='+',
+        blank=True,
+        null=True,
+    )
 
-    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, verbose_name=_('organization'), related_name='invitations')
-    customer_role = structure_models.CustomerRole(verbose_name=_('organization role'), null=True, blank=True)
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Customer,
+        verbose_name=_('organization'),
+        related_name='invitations',
+    )
+    customer_role = structure_models.CustomerRole(
+        verbose_name=_('organization role'), null=True, blank=True
+    )
 
-    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, related_name='invitations', blank=True, null=True)
+    project = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Project,
+        related_name='invitations',
+        blank=True,
+        null=True,
+    )
     project_role = structure_models.ProjectRole(null=True, blank=True)
 
-    state = models.CharField(max_length=10, choices=State.CHOICES, default=State.PENDING)
-    link_template = models.CharField(max_length=255, help_text=_('The template must include {uuid} parameter '
-                                                                 'e.g. http://example.com/invitation/{uuid}'))
-    email = models.EmailField(help_text=_('Invitation link will be sent to this email. Note that user can accept '
-                                          'invitation with different email.'))
+    state = models.CharField(
+        max_length=10, choices=State.CHOICES, default=State.PENDING
+    )
+    link_template = models.CharField(
+        max_length=255,
+        help_text=_(
+            'The template must include {uuid} parameter '
+            'e.g. http://example.com/invitation/{uuid}'
+        ),
+    )
+    email = models.EmailField(
+        help_text=_(
+            'Invitation link will be sent to this email. Note that user can accept '
+            'invitation with different email.'
+        )
+    )
     civil_number = models.CharField(
-        max_length=50, blank=True,
-        help_text=_('Civil number of invited user. If civil number is not defined any user can accept invitation.'))
+        max_length=50,
+        blank=True,
+        help_text=_(
+            'Civil number of invited user. If civil number is not defined any user can accept invitation.'
+        ),
+    )
     tax_number = models.CharField(_('tax number'), max_length=50, blank=True)
 
     def get_expiration_time(self):

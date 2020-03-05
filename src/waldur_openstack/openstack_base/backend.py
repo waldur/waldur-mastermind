@@ -19,8 +19,8 @@ from neutronclient.v2_0 import client as neutron_client
 from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
-from waldur_core.core.utils import QuietSession
 
+from waldur_core.core.utils import QuietSession
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.exceptions import SerializableBackendError
 from waldur_openstack.openstack.models import Tenant
@@ -51,7 +51,9 @@ class OpenStackSession(dict):
             if not verify_ssl:
                 session = QuietSession()
                 session.verify = False
-            self.keystone_session = keystone_session.Session(auth=auth_plugin, verify=verify_ssl, session=session)
+            self.keystone_session = keystone_session.Session(
+                auth=auth_plugin, verify=verify_ssl, session=session
+            )
 
         try:
             # This will eagerly sign in throwing AuthorizationFailure on bad credentials
@@ -59,7 +61,13 @@ class OpenStackSession(dict):
         except keystone_exceptions.ClientException as e:
             raise OpenStackAuthorizationFailed(e)
 
-        for opt in ('auth_ref', 'auth_url', 'project_id', 'project_name', 'project_domain_name'):
+        for opt in (
+            'auth_ref',
+            'auth_url',
+            'project_id',
+            'project_name',
+            'project_domain_name',
+        ):
             self[opt] = getattr(self.auth, opt)
 
     def __getattr__(self, name):
@@ -83,7 +91,7 @@ class OpenStackSession(dict):
         auth_method = v3.Token(**args)
         auth_data = {
             'auth_token': session['auth_ref'].auth_token,
-            'body': session['auth_ref']._data
+            'body': session['auth_ref']._data,
         }
         auth_state = json.dumps(auth_data)
         auth_method.set_auth_state(auth_state)
@@ -121,12 +129,18 @@ class OpenStackClient:
 
     @property
     def keystone(self):
-        return keystone_client.Client(session=self.session.keystone_session, interface='public')
+        return keystone_client.Client(
+            session=self.session.keystone_session, interface='public'
+        )
 
     @property
     def nova(self):
         try:
-            return nova_client.Client(version='2', session=self.session.keystone_session, endpoint_type='publicURL')
+            return nova_client.Client(
+                version='2',
+                session=self.session.keystone_session,
+                endpoint_type='publicURL',
+            )
         except nova_exceptions.ClientException as e:
             logger.exception('Failed to create nova client: %s', e)
             raise OpenStackBackendError(e)
@@ -157,14 +171,21 @@ class OpenStackClient:
 
 
 class BaseOpenStackBackend(ServiceBackend):
-
     def __init__(self, settings, tenant_id=None):
         self.settings = settings
         self.tenant_id = tenant_id
 
     def _get_cached_session_key(self, admin):
-        key = 'OPENSTACK_ADMIN_SESSION' if admin else 'OPENSTACK_SESSION_%s' % self.tenant_id
-        settings_key = str(self.settings.backend_url) + str(self.settings.password) + str(self.settings.username)
+        key = (
+            'OPENSTACK_ADMIN_SESSION'
+            if admin
+            else 'OPENSTACK_SESSION_%s' % self.tenant_id
+        )
+        settings_key = (
+            str(self.settings.backend_url)
+            + str(self.settings.password)
+            + str(self.settings.username)
+        )
         hashed_settings_key = hashlib.sha256(settings_key.encode('utf-8')).hexdigest()
         return '%s_%s_%s' % (self.settings.uuid.hex, hashed_settings_key, key)
 
@@ -220,7 +241,8 @@ class BaseOpenStackBackend(ServiceBackend):
                 return self.get_client(client, admin=True)
 
         raise AttributeError(
-            "'%s' object has no attribute '%s'" % (self.__class__.__name__, name))
+            "'%s' object has no attribute '%s'" % (self.__class__.__name__, name)
+        )
 
     def ping(self, raise_exception=False):
         try:
@@ -255,9 +277,11 @@ class BaseOpenStackBackend(ServiceBackend):
             nova_quotas = nova.quotas.get(tenant_id=tenant_backend_id)
             cinder_quotas = cinder.quotas.get(tenant_id=tenant_backend_id)
             neutron_quotas = neutron.show_quota(tenant_id=tenant_backend_id)['quota']
-        except (nova_exceptions.ClientException,
-                cinder_exceptions.ClientException,
-                neutron_exceptions.NeutronClientException) as e:
+        except (
+            nova_exceptions.ClientException,
+            cinder_exceptions.ClientException,
+            neutron_exceptions.NeutronClientException,
+        ) as e:
             raise OpenStackBackendError(e)
 
         quotas = {
@@ -268,7 +292,9 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.volumes: cinder_quotas.volumes,
             Tenant.Quotas.instances: nova_quotas.instances,
             Tenant.Quotas.security_group_count: neutron_quotas['security_group'],
-            Tenant.Quotas.security_group_rule_count: neutron_quotas['security_group_rule'],
+            Tenant.Quotas.security_group_rule_count: neutron_quotas[
+                'security_group_rule'
+            ],
             Tenant.Quotas.floating_ip_count: neutron_quotas['floatingip'],
             Tenant.Quotas.network_count: neutron_quotas['network'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet'],
@@ -288,8 +314,12 @@ class BaseOpenStackBackend(ServiceBackend):
             volumes = cinder.volumes.list()
             snapshots = cinder.volume_snapshots.list()
             instances = nova.servers.list()
-            security_groups = neutron.list_security_groups(tenant_id=tenant_backend_id)['security_groups']
-            floating_ips = neutron.list_floatingips(tenant_id=tenant_backend_id)['floatingips']
+            security_groups = neutron.list_security_groups(tenant_id=tenant_backend_id)[
+                'security_groups'
+            ]
+            floating_ips = neutron.list_floatingips(tenant_id=tenant_backend_id)[
+                'floatingips'
+            ]
             networks = neutron.list_networks(tenant_id=tenant_backend_id)['networks']
             subnets = neutron.list_subnets(tenant_id=tenant_backend_id)['subnets']
 
@@ -306,9 +336,11 @@ class BaseOpenStackBackend(ServiceBackend):
                 ram += getattr(flavor, 'ram', 0)
                 vcpu += getattr(flavor, 'vcpus', 0)
 
-        except (nova_exceptions.ClientException,
-                cinder_exceptions.ClientException,
-                neutron_exceptions.NeutronClientException) as e:
+        except (
+            nova_exceptions.ClientException,
+            cinder_exceptions.ClientException,
+            neutron_exceptions.NeutronClientException,
+        ) as e:
             raise OpenStackBackendError(e)
 
         volumes_size = sum(self.gb2mb(v.size) for v in volumes)
@@ -325,8 +357,9 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.snapshots_size: snapshots_size,
             Tenant.Quotas.instances: len(instances),
             Tenant.Quotas.security_group_count: len(security_groups),
-            Tenant.Quotas.security_group_rule_count: len(sum([sg['security_group_rules']
-                                                              for sg in security_groups], [])),
+            Tenant.Quotas.security_group_rule_count: len(
+                sum([sg['security_group_rules'] for sg in security_groups], [])
+            ),
             Tenant.Quotas.floating_ip_count: len(floating_ips),
             Tenant.Quotas.network_count: len(networks),
             Tenant.Quotas.subnet_count: len(subnets),
@@ -373,7 +406,8 @@ class BaseOpenStackBackend(ServiceBackend):
                     'to_port': backend_rule['port_range_max'],
                     'protocol': backend_rule['protocol'],
                     'cidr': backend_rule['remote_ip_prefix'],
-                })
+                },
+            )
         security_group.rules.filter(backend_id__in=cur_rules.keys()).delete()
 
     def _get_current_properties(self, model):
@@ -401,15 +435,24 @@ class BaseOpenStackBackend(ServiceBackend):
                         'name': backend_image['name'],
                         'min_ram': backend_image['min_ram'],
                         'min_disk': self.gb2mb(backend_image['min_disk']),
-                    })
-            model_class.objects.filter(backend_id__in=cur_images.keys(), settings=self.settings).delete()
+                    },
+                )
+            model_class.objects.filter(
+                backend_id__in=cur_images.keys(), settings=self.settings
+            ).delete()
 
     def _delete_backend_floating_ip(self, backend_id, tenant_backend_id):
         neutron = self.neutron_client
         try:
-            logger.info("Deleting floating IP %s from tenant %s", backend_id, tenant_backend_id)
+            logger.info(
+                "Deleting floating IP %s from tenant %s", backend_id, tenant_backend_id
+            )
             neutron.delete_floatingip(backend_id)
         except neutron_exceptions.NotFound:
-            logger.debug("Floating IP %s is already gone from tenant %s", backend_id, tenant_backend_id)
+            logger.debug(
+                "Floating IP %s is already gone from tenant %s",
+                backend_id,
+                tenant_backend_id,
+            )
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)

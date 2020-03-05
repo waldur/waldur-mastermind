@@ -2,15 +2,14 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
-from django.db.models import Count, signals
 from django.db import transaction
+from django.db.models import Count, signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.models import Project, Customer
+from waldur_core.structure.models import Customer, Project
 
-from . import callbacks, tasks, log, models, utils
-
+from . import callbacks, log, models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,9 @@ def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
     if not created:
         return
 
-    transaction.on_commit(lambda: tasks.create_screenshot_thumbnail.delay(instance.uuid))
+    transaction.on_commit(
+        lambda: tasks.create_screenshot_thumbnail.delay(instance.uuid)
+    )
 
 
 def log_order_events(sender, instance, created=False, **kwargs):
@@ -79,15 +80,20 @@ def complete_order_when_all_items_are_done(sender, instance, created=False, **kw
 
     order = instance.order
     # check if there are any non-finished OrderItems left and finish order if none is found
-    if models.OrderItem.objects.filter(order=order).\
-            exclude(state__in=models.OrderItem.States.TERMINAL_STATES).exists():
+    if (
+        models.OrderItem.objects.filter(order=order)
+        .exclude(state__in=models.OrderItem.States.TERMINAL_STATES)
+        .exists()
+    ):
         return
 
     order.complete()
     order.save(update_fields=['state'])
 
 
-def update_category_quota_when_offering_is_created(sender, instance, created=False, **kwargs):
+def update_category_quota_when_offering_is_created(
+    sender, instance, created=False, **kwargs
+):
     def get_delta():
         if created:
             if instance.state == models.Offering.States.ACTIVE:
@@ -96,7 +102,9 @@ def update_category_quota_when_offering_is_created(sender, instance, created=Fal
             if instance.tracker.has_changed('state'):
                 if instance.state == models.Offering.States.ACTIVE:
                     return 1
-                elif instance.tracker.previous('state') == models.Offering.States.ACTIVE:
+                elif (
+                    instance.tracker.previous('state') == models.Offering.States.ACTIVE
+                ):
                     return -1
 
     delta = get_delta()
@@ -111,12 +119,15 @@ def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
 
 def update_category_offerings_count(sender, **kwargs):
     for category in models.Category.objects.all():
-        value = models.Offering.objects.filter(category=category,
-                                               state=models.Offering.States.ACTIVE).count()
+        value = models.Offering.objects.filter(
+            category=category, state=models.Offering.States.ACTIVE
+        ).count()
         category.set_quota_usage(models.Category.Quotas.offering_count, value)
 
 
-def update_aggregate_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
+def update_aggregate_resources_count_when_resource_is_updated(
+    sender, instance, created=False, **kwargs
+):
     def apply_change(delta):
         for field in ('project', 'customer'):
             try:
@@ -126,8 +137,7 @@ def update_aggregate_resources_count_when_resource_is_updated(sender, instance, 
                 # Therefore it is okay if project does not exists.
                 continue
             counter, _ = models.AggregateResourceCount.objects.get_or_create(
-                scope=scope,
-                category=instance.offering.category,
+                scope=scope, category=instance.offering.category,
             )
             if delta == 1:
                 counter.count += 1
@@ -138,7 +148,10 @@ def update_aggregate_resources_count_when_resource_is_updated(sender, instance, 
 
     if created and instance.state != models.Resource.States.TERMINATED:
         apply_change(1)
-    elif instance.tracker.has_changed('state') and instance.state == models.Resource.States.TERMINATED:
+    elif (
+        instance.tracker.has_changed('state')
+        and instance.state == models.Resource.States.TERMINATED
+    ):
         apply_change(-1)
 
 
@@ -148,11 +161,12 @@ def update_aggregate_resources_count(sender, **kwargs):
             ('project_id', ContentType.objects.get_for_model(Project)),
             ('project__customer_id', ContentType.objects.get_for_model(Customer)),
         ):
-            rows = models.Resource.objects\
-                .filter(offering__category=category)\
-                .exclude(state=models.Resource.States.TERMINATED)\
-                .values(field, 'offering__category')\
+            rows = (
+                models.Resource.objects.filter(offering__category=category)
+                .exclude(state=models.Resource.States.TERMINATED)
+                .values(field, 'offering__category')
                 .annotate(count=Count('*'))
+            )
             for row in rows:
                 models.AggregateResourceCount.objects.update_or_create(
                     content_type=content_type,
@@ -162,7 +176,9 @@ def update_aggregate_resources_count(sender, **kwargs):
                 )
 
 
-def close_resource_plan_period_when_resource_is_terminated(sender, instance, created=False, **kwargs):
+def close_resource_plan_period_when_resource_is_terminated(
+    sender, instance, created=False, **kwargs
+):
     """
     Handle case when resource has been terminated by service provider.
     """
@@ -184,9 +200,7 @@ def close_resource_plan_period_when_resource_is_terminated(sender, instance, cre
         return
 
     models.ResourcePlanPeriod.objects.filter(
-        resource=instance,
-        plan=instance.plan,
-        end=None
+        resource=instance, plan=instance.plan, end=None
     ).update(end=now())
 
 
@@ -199,8 +213,10 @@ def reject_order(sender, instance, created=False, **kwargs):
     if not order.tracker.has_changed('state'):
         return
 
-    if instance.tracker.previous('state') == models.Order.States.REQUESTED_FOR_APPROVAL and \
-            order.state == models.Order.States.REJECTED:
+    if (
+        instance.tracker.previous('state') == models.Order.States.REQUESTED_FOR_APPROVAL
+        and order.state == models.Order.States.REJECTED
+    ):
         for item in order.items.all():
             item.set_state_terminated()
             item.save(update_fields=['state'])
@@ -213,9 +229,12 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     try:
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.warning('Skipping resource state synchronization '
-                       'because marketplace resource is not found. '
-                       'Resource ID: %s', core_utils.serialize_instance(instance))
+        logger.warning(
+            'Skipping resource state synchronization '
+            'because marketplace resource is not found. '
+            'Resource ID: %s',
+            core_utils.serialize_instance(instance),
+        )
     else:
         callbacks.sync_resource_state(instance, resource)
 
@@ -224,9 +243,12 @@ def terminate_resource(sender, instance, **kwargs):
     try:
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.debug('Skipping terminate for resource '
-                     'because marketplace resource does not exist. '
-                     'Resource ID: %s', core_utils.serialize_instance(instance))
+        logger.debug(
+            'Skipping terminate for resource '
+            'because marketplace resource does not exist. '
+            'Resource ID: %s',
+            core_utils.serialize_instance(instance),
+        )
     else:
         callbacks.resource_deletion_succeeded(resource)
 
@@ -238,7 +260,8 @@ def connect_resource_handlers(*resources):
         signals.post_save.connect(
             change_order_item_state,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketpace.change_order_item_state_%s' % suffix,
+            dispatch_uid='waldur_mastermind.marketpace.change_order_item_state_%s'
+            % suffix,
         )
 
         signals.pre_delete.connect(
@@ -256,9 +279,12 @@ def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
     try:
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.debug('Skipping resource synchronization for OpenStack resource '
-                     'because marketplace resource does not exist. '
-                     'Resource ID: %s', instance.id)
+        logger.debug(
+            'Skipping resource synchronization for OpenStack resource '
+            'because marketplace resource does not exist. '
+            'Resource ID: %s',
+            instance.id,
+        )
         return
 
     utils.import_resource_metadata(resource)
@@ -270,7 +296,7 @@ def connect_resource_metadata_handlers(*resources):
             synchronize_resource_metadata,
             sender=model,
             dispatch_uid='waldur_mastermind.marketpace.'
-                         'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
+            'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
         )
 
 
@@ -282,11 +308,13 @@ def limit_update_succeeded(sender, order_item, **kwargs):
     resource.save()
     order_item.set_state_done()
     order_item.save(update_fields=['state'])
-    logger.info('Resource limits have been updated. Resource: %s, old limits: %s, new limits: %s, created by: %s',
-                core_utils.serialize_instance(resource),
-                old_limits,
-                resource.limits,
-                order_item.order.created_by)
+    logger.info(
+        'Resource limits have been updated. Resource: %s, old limits: %s, new limits: %s, created by: %s',
+        core_utils.serialize_instance(resource),
+        old_limits,
+        resource.limits,
+        order_item.order.created_by,
+    )
     log.log_resource_limit_update_succeeded(resource)
 
 
@@ -295,10 +323,12 @@ def limit_update_failed(sender, order_item, error_message, **kwargs):
     order_item.error_message = error_message
     order_item.save()
     resource = order_item.resource
-    logger.info('Resource limit update failed. Resource: %s, requested limits: %s, created by: %s, '
-                'error message: %s',
-                core_utils.serialize_instance(resource),
-                resource.limits,
-                order_item.order.created_by,
-                error_message)
+    logger.info(
+        'Resource limit update failed. Resource: %s, requested limits: %s, created by: %s, '
+        'error message: %s',
+        core_utils.serialize_instance(resource),
+        resource.limits,
+        order_item.order.created_by,
+        error_message,
+    )
     log.log_resource_limit_update_failed(resource)

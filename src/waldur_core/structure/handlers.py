@@ -6,12 +6,19 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from waldur_core.core.models import StateMixin
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import StateMixin
 from waldur_core.structure import SupportedServices, signals
 from waldur_core.structure.log import event_logger
-from waldur_core.structure.models import (Customer, CustomerPermission, Project, ProjectPermission,
-                                          Service, ServiceSettings, CustomerRole)
+from waldur_core.structure.models import (
+    Customer,
+    CustomerPermission,
+    CustomerRole,
+    Project,
+    ProjectPermission,
+    Service,
+    ServiceSettings,
+)
 
 from . import tasks
 
@@ -32,25 +39,22 @@ def log_customer_save(sender, instance, created=False, **kwargs):
         event_logger.customer.info(
             'Customer {customer_name} has been created.',
             event_type='customer_creation_succeeded',
-            event_context={
-                'customer': instance,
-            })
+            event_context={'customer': instance,},
+        )
     else:
         event_logger.customer.info(
             'Customer {customer_name} has been updated.',
             event_type='customer_update_succeeded',
-            event_context={
-                'customer': instance,
-            })
+            event_context={'customer': instance,},
+        )
 
 
 def log_customer_delete(sender, instance, **kwargs):
     event_logger.customer.info(
         'Customer {customer_name} has been deleted.',
         event_type='customer_deletion_succeeded',
-        event_context={
-            'customer': instance,
-        })
+        event_context={'customer': instance,},
+    )
 
 
 def log_project_save(sender, instance, created=False, **kwargs):
@@ -58,9 +62,8 @@ def log_project_save(sender, instance, created=False, **kwargs):
         event_logger.project.info(
             'Project {project_name} has been created.',
             event_type='project_creation_succeeded',
-            event_context={
-                'project': instance,
-            })
+            event_context={'project': instance,},
+        )
     else:
         changed_fields = instance.tracker.changed().copy()
         changed_fields.pop('modified', None)
@@ -78,16 +81,19 @@ def log_project_save(sender, instance, created=False, **kwargs):
                 current_value,
             )
 
-        event_logger.project.info(message, event_type='project_update_succeeded', event_context={'project': instance})
+        event_logger.project.info(
+            message,
+            event_type='project_update_succeeded',
+            event_context={'project': instance},
+        )
 
 
 def log_project_delete(sender, instance, **kwargs):
     event_logger.project.info(
         'Project {project_name} has been deleted.',
         event_type='project_deletion_succeeded',
-        event_context={
-            'project': instance,
-        })
+        event_context={'project': instance,},
+    )
 
 
 def log_customer_role_granted(sender, structure, user, role, created_by=None, **kwargs):
@@ -102,7 +108,9 @@ def log_customer_role_granted(sender, structure, user, role, created_by=None, **
 
     event_logger.customer_role.info(
         'User {affected_user_username} has gained role of {role_name} in customer {customer_name}.',
-        event_type='role_granted', event_context=event_context)
+        event_type='role_granted',
+        event_context=event_context,
+    )
 
 
 def log_customer_role_revoked(sender, structure, user, role, removed_by=None, **kwargs):
@@ -117,13 +125,17 @@ def log_customer_role_revoked(sender, structure, user, role, removed_by=None, **
 
     event_logger.customer_role.info(
         'User {affected_user_username} has lost role of {role_name} in customer {customer_name}.',
-        event_type='role_revoked', event_context=event_context)
+        event_type='role_revoked',
+        event_context=event_context,
+    )
 
 
 def log_customer_role_updated(sender, instance, user, **kwargs):
-    template = 'User %(user_username)s has changed permission expiration time ' \
-               'for user {affected_user_username} in customer {customer_name} from ' \
-               '%(old_expiration_time)s to %(new_expiration_time)s.'
+    template = (
+        'User %(user_username)s has changed permission expiration time '
+        'for user {affected_user_username} in customer {customer_name} from '
+        '%(old_expiration_time)s to %(new_expiration_time)s.'
+    )
 
     context = {
         'old_expiration_time': instance.tracker.previous('expiration_time'),
@@ -139,7 +151,8 @@ def log_customer_role_updated(sender, instance, user, **kwargs):
             'affected_user': instance.user,
             'structure_type': 'customer',
             'role_name': instance.get_role_display(),
-        })
+        },
+    )
 
 
 def log_project_role_granted(sender, structure, user, role, created_by=None, **kwargs):
@@ -154,7 +167,9 @@ def log_project_role_granted(sender, structure, user, role, created_by=None, **k
 
     event_logger.project_role.info(
         'User {affected_user_username} has gained role of {role_name} in project {project_name}.',
-        event_type='role_granted', event_context=event_context)
+        event_type='role_granted',
+        event_context=event_context,
+    )
 
 
 def log_project_role_revoked(sender, structure, user, role, removed_by=None, **kwargs):
@@ -162,20 +177,24 @@ def log_project_role_revoked(sender, structure, user, role, removed_by=None, **k
         'project': structure,
         'affected_user': user,
         'structure_type': 'project',
-        'role_name': ProjectPermission(role=role).get_role_display()
+        'role_name': ProjectPermission(role=role).get_role_display(),
     }
     if removed_by:
         event_context['user'] = removed_by
 
     event_logger.project_role.info(
         'User {affected_user_username} has revoked role of {role_name} in project {project_name}.',
-        event_type='role_revoked', event_context=event_context)
+        event_type='role_revoked',
+        event_context=event_context,
+    )
 
 
 def log_project_role_updated(sender, instance, user, **kwargs):
-    template = 'User %(user_username)s has changed permission expiration time ' \
-               'for user {affected_user_username} in project {project_name} from ' \
-               '%(old_expiration_time)s to %(new_expiration_time)s.'
+    template = (
+        'User %(user_username)s has changed permission expiration time '
+        'for user {affected_user_username} in project {project_name} from '
+        '%(old_expiration_time)s to %(new_expiration_time)s.'
+    )
 
     context = {
         'old_expiration_time': instance.tracker.previous('expiration_time'),
@@ -191,15 +210,20 @@ def log_project_role_updated(sender, instance, user, **kwargs):
             'affected_user': instance.user,
             'structure_type': 'project',
             'role_name': instance.get_role_display(),
-        })
+        },
+    )
 
 
 def change_customer_nc_users_quota(sender, structure, user, role, signal, **kwargs):
     """ Modify nc_user_count quota usage on structure role grant or revoke """
-    assert signal in (signals.structure_role_granted, signals.structure_role_revoked), \
-        'Handler "change_customer_nc_users_quota" has to be used only with structure_role signals'
-    assert sender in (Customer, Project), \
-        'Handler "change_customer_nc_users_quota" works only with Project and Customer models'
+    assert signal in (
+        signals.structure_role_granted,
+        signals.structure_role_revoked,
+    ), 'Handler "change_customer_nc_users_quota" has to be used only with structure_role signals'
+    assert sender in (
+        Customer,
+        Project,
+    ), 'Handler "change_customer_nc_users_quota" works only with Project and Customer models'
 
     if sender == Customer:
         customer = structure
@@ -214,7 +238,8 @@ def log_resource_deleted(sender, instance, **kwargs):
     event_logger.resource.info(
         '{resource_full_name} has been deleted.',
         event_type='resource_deletion_succeeded',
-        event_context={'resource': instance})
+        event_context={'resource': instance},
+    )
 
 
 def log_resource_imported(sender, instance, **kwargs):
@@ -223,25 +248,32 @@ def log_resource_imported(sender, instance, **kwargs):
     event_logger.resource.info(
         'Resource {resource_full_name} has been imported.',
         event_type='resource_import_succeeded',
-        event_context={'resource': instance})
+        event_context={'resource': instance},
+    )
 
 
 def log_resource_creation_succeeded(instance):
     event_logger.resource.info(
         'Resource {resource_name} has been created.',
         event_type='resource_creation_succeeded',
-        event_context={'resource': instance})
+        event_context={'resource': instance},
+    )
 
 
 def log_resource_creation_failed(instance):
     event_logger.resource.error(
         'Resource {resource_name} creation has failed.',
         event_type='resource_creation_failed',
-        event_context={'resource': instance})
+        event_context={'resource': instance},
+    )
 
 
 def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
-    if created and isinstance(instance, StateMixin) and instance.state == StateMixin.States.CREATION_SCHEDULED:
+    if (
+        created
+        and isinstance(instance, StateMixin)
+        and instance.state == StateMixin.States.CREATION_SCHEDULED
+    ):
         transaction.on_commit(lambda: _log_resource_creation_scheduled(instance))
 
 
@@ -262,7 +294,10 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
             elif target == StateMixin.States.ERRED:
                 log_resource_creation_failed(instance)
 
-    if isinstance(instance, StateMixin) and target == StateMixin.States.DELETION_SCHEDULED:
+    if (
+        isinstance(instance, StateMixin)
+        and target == StateMixin.States.DELETION_SCHEDULED
+    ):
         event_logger.resource.info(
             'Resource {resource_name} deletion has been scheduled.',
             event_type='resource_deletion_scheduled',
@@ -270,38 +305,50 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
         )
 
 
-def connect_customer_to_shared_service_settings(sender, instance, created=False, **kwargs):
+def connect_customer_to_shared_service_settings(
+    sender, instance, created=False, **kwargs
+):
     if not created:
         return
     customer = instance
 
     for shared_settings in ServiceSettings.objects.filter(shared=True):
         try:
-            service_model = SupportedServices.get_service_models()[shared_settings.type]['service']
-            service_model.objects.create(customer=customer,
-                                         settings=shared_settings,
-                                         available_for_all=True)
+            service_model = SupportedServices.get_service_models()[
+                shared_settings.type
+            ]['service']
+            service_model.objects.create(
+                customer=customer, settings=shared_settings, available_for_all=True
+            )
         except KeyError:
             logger.warning("Unregistered service of type %s" % shared_settings.type)
 
 
-def connect_project_to_all_available_services(sender, instance, created=False, **kwargs):
+def connect_project_to_all_available_services(
+    sender, instance, created=False, **kwargs
+):
     if not created:
         return
     project = instance
 
     for service_model in Service.get_all_models():
-        for service in service_model.objects.filter(available_for_all=True, customer=project.customer):
+        for service in service_model.objects.filter(
+            available_for_all=True, customer=project.customer
+        ):
             service_project_link_model = service.projects.through
             service_project_link_model.objects.create(project=project, service=service)
 
 
-def connect_service_to_all_projects_if_it_is_available_for_all(sender, instance, created=False, **kwargs):
+def connect_service_to_all_projects_if_it_is_available_for_all(
+    sender, instance, created=False, **kwargs
+):
     service = instance
     if service.available_for_all:
         service_project_link_model = service.projects.through
         for project in service.customer.projects.all():
-            service_project_link_model.objects.get_or_create(project=project, service=service)
+            service_project_link_model.objects.get_or_create(
+                project=project, service=service
+            )
 
 
 def delete_service_settings_on_service_delete(sender, instance, **kwargs):
@@ -361,7 +408,8 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
     organizations = Customer.objects.filter(
         permissions__user=user,
         permissions__is_active=True,
-        permissions__role=CustomerRole.OWNER)
+        permissions__role=CustomerRole.OWNER,
+    )
 
     if not ((set(change_fields) & set(user.tracker.changed())) and organizations):
         return
@@ -369,24 +417,24 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
     fields = []
     for field in change_fields:
         if user.tracker.has_changed(field):
-            fields.append({
-                'name': field,
-                'old_value': user.tracker.previous(field),
-                'new_value': getattr(user, field, None)
-            })
+            fields.append(
+                {
+                    'name': field,
+                    'old_value': user.tracker.previous(field),
+                    'new_value': getattr(user, field, None),
+                }
+            )
 
-    msg = render_to_string('structure/notifications_profile_changes.html', {
-        'user': user,
-        'fields': fields,
-        'organizations': organizations
-    })
+    msg = render_to_string(
+        'structure/notifications_profile_changes.html',
+        {'user': user, 'fields': fields, 'organizations': organizations},
+    )
 
     msg = re.sub(r'\s+', ' ', msg).strip()
 
     event_logger.user.info(
-        msg,
-        event_type='user_profile_changed',
-        event_context={'affected_user': user})
+        msg, event_type='user_profile_changed', event_context={'affected_user': user}
+    )
 
 
 def update_customer_users_count(sender, **kwargs):
@@ -403,9 +451,8 @@ def log_spl_create(sender, instance, created=False, **kwargs):
             'settings type: \'{service_settings_type}\') '
             'has been created.',
             event_type='spl_creation_succeeded',
-            event_context={
-                'spl': instance,
-            })
+            event_context={'spl': instance,},
+        )
 
 
 def log_spl_delete(sender, instance, **kwargs):
@@ -415,9 +462,8 @@ def log_spl_delete(sender, instance, **kwargs):
         'settings type: \'{service_settings_type}\') '
         'has been deleted.',
         event_type='spl_deletion_succeeded',
-        event_context={
-            'spl': instance,
-        })
+        event_context={'spl': instance,},
+    )
 
 
 def change_email_has_been_requested(sender, instance, created=False, **kwargs):
@@ -425,4 +471,6 @@ def change_email_has_been_requested(sender, instance, created=False, **kwargs):
         return
 
     request_serialized = core_utils.serialize_instance(instance)
-    transaction.on_commit(lambda: tasks.send_change_email_notification.delay(request_serialized))
+    transaction.on_commit(
+        lambda: tasks.send_change_email_notification.delay(request_serialized)
+    )

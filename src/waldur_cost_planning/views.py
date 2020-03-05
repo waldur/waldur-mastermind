@@ -1,10 +1,11 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, decorators, response, status
+from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import views as core_views
-from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import permissions as structure_permissions
 
-from . import models, serializers, filters, optimizers
+from . import filters, models, optimizers, serializers
 
 
 class DeploymentPlanViewSet(core_views.ActionsViewSet):
@@ -87,7 +88,9 @@ class DeploymentPlanViewSet(core_views.ActionsViewSet):
         """
         return super(DeploymentPlanViewSet, self).update(request, *args, **kwargs)
 
-    update_serializer_class = partial_update_serializer_class = serializers.DeploymentPlanCreateSerializer
+    update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.DeploymentPlanCreateSerializer
 
     @decorators.action(detail=True, methods=['GET'])
     def evaluate(self, request, *args, **kwargs):

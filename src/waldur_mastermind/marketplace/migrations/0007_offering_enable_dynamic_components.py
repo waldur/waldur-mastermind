@@ -13,6 +13,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offering',
             name='enable_dynamic_components',
-            field=models.BooleanField(default=False, help_text='For example, allow to use offering components related to volume types.'),
+            field=models.BooleanField(
+                default=False,
+                help_text='For example, allow to use offering components related to volume types.',
+            ),
         ),
     ]

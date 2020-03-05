@@ -1,4 +1,8 @@
-from waldur_core.cost_tracking import CostTrackingRegister, CostTrackingStrategy, ConsumableItem
+from waldur_core.cost_tracking import (
+    ConsumableItem,
+    CostTrackingRegister,
+    CostTrackingStrategy,
+)
 
 from . import models
 
@@ -11,14 +15,22 @@ class InstanceStrategy(CostTrackingStrategy):
 
     @classmethod
     def get_consumable_items(cls):
-        return [ConsumableItem(item_type=cls.Types.FLAVOR, key=size.backend_id, default_price=size.price)
-                for size in models.Size.objects.all()]
+        return [
+            ConsumableItem(
+                item_type=cls.Types.FLAVOR,
+                key=size.backend_id,
+                default_price=size.price,
+            )
+            for size in models.Size.objects.all()
+        ]
 
     @classmethod
     def get_configuration(cls, instance):
         consumables = {}
         if instance.state != models.Instance.States.ERRED:
-            consumables[ConsumableItem(item_type=cls.Types.FLAVOR, key=instance.size_backend_id)] = 1
+            consumables[
+                ConsumableItem(item_type=cls.Types.FLAVOR, key=instance.size_backend_id)
+            ] = 1
         return consumables
 
 

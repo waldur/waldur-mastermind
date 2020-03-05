@@ -22,11 +22,15 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
             template = None
 
         if not isinstance(template, support_models.OfferingTemplate):
-            raise serializers.ValidationError('Offering has invalid scope. Support template is expected.')
+            raise serializers.ValidationError(
+                'Offering has invalid scope. Support template is expected.'
+            )
 
         project = order_item.order.project
         project_url = reverse('project-detail', kwargs={'uuid': project.uuid.hex})
-        template_url = reverse('support-offering-template-detail', kwargs={'uuid': template.uuid.hex})
+        template_url = reverse(
+            'support-offering-template-detail', kwargs={'uuid': template.uuid.hex}
+        )
         attributes = order_item.attributes.copy()
 
         post_data = dict(
@@ -37,23 +41,31 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         )
 
         description = attributes.pop('description', '')
-        description += format_description('CREATE_RESOURCE_TEMPLATE', {
-            'order_item': order_item,
-            'order_item_url': get_order_item_url(order_item),
-        })
+        description += format_description(
+            'CREATE_RESOURCE_TEMPLATE',
+            {
+                'order_item': order_item,
+                'order_item_url': get_order_item_url(order_item),
+            },
+        )
 
         if order_item.limits:
             components_map = order_item.offering.get_usage_components()
             for key, value in order_item.limits.items():
                 component = components_map.get(key)
                 if component:
-                    description += "\n%s (%s): %s %s" % \
-                                   (component.name, component.type, value, component.measured_unit)
+                    description += "\n%s (%s): %s %s" % (
+                        component.name,
+                        component.type,
+                        value,
+                        component.measured_unit,
+                    )
 
         if order_item.plan and order_item.plan.scope:
-            post_data['plan'] = reverse('support-offering-plan-detail', kwargs={
-                'uuid': order_item.plan.scope.uuid
-            })
+            post_data['plan'] = reverse(
+                'support-offering-plan-detail',
+                kwargs={'uuid': order_item.plan.scope.uuid},
+            )
 
         if description:
             post_data['description'] = description

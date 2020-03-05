@@ -7,6 +7,7 @@ class ApplicationSerializerRegistry:
     """
     Holds application-related model-serializer mappings
     """
+
     APPLICATION_SERIALIZERS = dict()
 
     @staticmethod
@@ -15,7 +16,9 @@ class ApplicationSerializerRegistry:
 
     @staticmethod
     def register(model_class, application_serializer):
-        ApplicationSerializerRegistry.APPLICATION_SERIALIZERS[model_class] = application_serializer
+        ApplicationSerializerRegistry.APPLICATION_SERIALIZERS[
+            model_class
+        ] = application_serializer
 
 
 class ApplicationSerializerMetaclass(serializers.SerializerMetaclass):
@@ -23,14 +26,18 @@ class ApplicationSerializerMetaclass(serializers.SerializerMetaclass):
     """
 
     def __new__(cls, name, bases, args):
-        serializer = super(ApplicationSerializerMetaclass, cls).__new__(cls, name, bases, args)
+        serializer = super(ApplicationSerializerMetaclass, cls).__new__(
+            cls, name, bases, args
+        )
         ApplicationSerializerRegistry.register(args['Meta'].model, serializer)
         return serializer
 
 
-class BaseApplicationSerializer(core_serializers.AugmentedSerializerMixin,
-                                serializers.HyperlinkedModelSerializer,
-                                metaclass=ApplicationSerializerMetaclass):
+class BaseApplicationSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+    metaclass=ApplicationSerializerMetaclass,
+):
     class Meta:
         model = NotImplemented
 

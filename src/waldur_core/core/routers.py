@@ -9,7 +9,6 @@ from rest_framework.routers import DefaultRouter
 
 
 class SortedDefaultRouter(DefaultRouter):
-
     def get_api_root_view(self, api_urls=None):
         """
         Return a basic root view.
@@ -36,7 +35,7 @@ class SortedDefaultRouter(DefaultRouter):
                             args=args,
                             kwargs=kwargs,
                             request=request,
-                            format=kwargs.get('format', None)
+                            format=kwargs.get('format', None),
                         )
                     except NoReverseMatch:
                         # Don't bail out if eg. no list routes exist, only detail routes.

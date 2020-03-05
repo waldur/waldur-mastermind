@@ -1,10 +1,10 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from rest_framework import status
 
 from waldur_core.media.utils import dummy_image
 
-from . import factories, base
 from .. import models
+from . import base, factories
 
 
 class AttachmentTest(base.BaseTest):
@@ -42,22 +42,28 @@ class AttachmentCreateTest(AttachmentTest):
     @data('staff', 'owner', 'caller')
     def test_can_add_attachment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, data=self._get_valid_payload(), format='multipart')
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(), format='multipart'
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         uuid = response.data['uuid']
         self.assertTrue(models.Attachment.objects.filter(uuid=uuid).exists())
         self.add_attachment = models.Attachment.objects.get(uuid=uuid)
 
-    @data('admin', 'manager', )
+    @data(
+        'admin', 'manager',
+    )
     def test_cannot_add_attachment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, data=self._get_valid_payload(), format='multipart')
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(), format='multipart'
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def _get_valid_payload(self):
         return {
             'issue': factories.IssueFactory.get_url(self.fixture.issue),
-            'file': self.file
+            'file': self.file,
         }
 
 

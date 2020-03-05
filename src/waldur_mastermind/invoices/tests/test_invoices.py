@@ -1,11 +1,11 @@
 from decimal import Decimal
-
-from django.test import override_settings
 from unittest import mock
-from ddt import ddt, data
+
+from ddt import data, ddt
 from django.core import mail
+from django.test import override_settings
 from freezegun import freeze_time
-from rest_framework import test, status
+from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
@@ -15,8 +15,9 @@ from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
-from . import factories, fixtures, utils as test_utils
 from .. import models, utils
+from . import factories, fixtures
+from . import utils as test_utils
 
 
 @ddt
@@ -27,13 +28,17 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
     @data('owner', 'staff')
     def test_user_with_access_can_retrieve_customer_invoice(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.get(factories.InvoiceFactory.get_url(self.fixture.invoice))
+        response = self.client.get(
+            factories.InvoiceFactory.get_url(self.fixture.invoice)
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data('manager', 'admin', 'user')
     def test_user_cannot_retrieve_customer_invoice(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.get(factories.InvoiceFactory.get_url(self.fixture.invoice))
+        response = self.client.get(
+            factories.InvoiceFactory.get_url(self.fixture.invoice)
+        )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
@@ -41,7 +46,9 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
 class InvoiceSendNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
-        self.url = factories.InvoiceFactory.get_url(self.fixture.invoice, action='send_notification')
+        self.url = factories.InvoiceFactory.get_url(
+            self.fixture.invoice, action='send_notification'
+        )
         self.fixture.invoice.state = models.Invoice.States.CREATED
         self.fixture.invoice.save(update_fields=['state'])
 
@@ -66,7 +73,9 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_settings(task_always_eager=True)
-    @test_utils.override_invoices_settings(INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}')
+    @test_utils.override_invoices_settings(
+        INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}'
+    )
     def test_notification_email_is_rendered(self):
         # Arrange
         self.fixture.owner
@@ -81,7 +90,9 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
 
     @override_settings(task_always_eager=True)
-    @test_utils.override_invoices_settings(INVOICE_LINK_TEMPLATE='http://example.com/invoice/')
+    @test_utils.override_invoices_settings(
+        INVOICE_LINK_TEMPLATE='http://example.com/invoice/'
+    )
     def test_user_cannot_send_invoice_notification_with_invalid_link_template(self):
         # Arrange
         self.fixture.owner
@@ -100,12 +111,13 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, ["Notification only for the created invoice can be sent."])
+        self.assertEqual(
+            response.data, ["Notification only for the created invoice can be sent."]
+        )
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
 class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice = self.fixture.invoice
@@ -160,8 +172,13 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
         self.assertEqual(item['details']['tenant_name'], self.package.tenant.name)
         self.assertEqual(item['details']['tenant_uuid'], self.package.tenant.uuid.hex)
         self.assertEqual(item['details']['template_name'], self.package.template.name)
-        self.assertEqual(item['details']['template_uuid'], self.package.template.uuid.hex)
-        self.assertEqual(item['details']['template_category'], self.package.template.get_category_display())
+        self.assertEqual(
+            item['details']['template_uuid'], self.package.template.uuid.hex
+        )
+        self.assertEqual(
+            item['details']['template_category'],
+            self.package.template.get_category_display(),
+        )
 
     def test_details_are_rendered_if_package_exists(self):
         self.check_output()
@@ -175,7 +192,9 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
 class InvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = slurm_fixtures.SlurmFixture()
-        self.package = slurm_factories.SlurmPackageFactory(service_settings=self.fixture.service.settings)
+        self.package = slurm_factories.SlurmPackageFactory(
+            service_settings=self.fixture.service.settings
+        )
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.scope = self.fixture.allocation
         self.item = models.InvoiceItem.objects.filter(scope=self.scope).get()
@@ -209,7 +228,7 @@ class InvoiceItemTest(test.APITransactionTestCase):
             invoice=invoice,
             unit=models.InvoiceItem.Units.QUANTITY,
             quantity=10,
-            unit_price=10
+            unit_price=10,
         )
         url = factories.InvoiceFactory.get_url(invoice)
 
@@ -285,7 +304,9 @@ class InvoicePDFTest(test.APITransactionTestCase):
         self.assertTrue(self.invoice.has_file())
 
     @mock.patch('waldur_mastermind.invoices.handlers.tasks')
-    def test_create_invoice_pdf_is_not_called_if_invoice_cost_has_not_been_changed(self, mock_tasks):
+    def test_create_invoice_pdf_is_not_called_if_invoice_cost_has_not_been_changed(
+        self, mock_tasks
+    ):
         with freeze_time('2019-01-02'):
             invoice = factories.InvoiceFactory()
             factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
@@ -294,7 +315,9 @@ class InvoicePDFTest(test.APITransactionTestCase):
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
 
     @mock.patch('waldur_mastermind.invoices.handlers.tasks')
-    def test_create_invoice_pdf_is_called_if_invoice_cost_has_been_changed(self, mock_tasks):
+    def test_create_invoice_pdf_is_called_if_invoice_cost_has_been_changed(
+        self, mock_tasks
+    ):
         with freeze_time('2019-01-02'):
             invoice = factories.InvoiceFactory()
             factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))

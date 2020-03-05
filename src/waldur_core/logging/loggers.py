@@ -1,12 +1,12 @@
 """ Custom loggers that allows to store logs in DB """
 
-from collections import defaultdict
 import datetime
 import decimal
 import importlib
 import logging
 import types
 import uuid
+from collections import defaultdict
 
 from django.apps import apps
 from django.core.exceptions import ObjectDoesNotExist
@@ -59,15 +59,17 @@ class BaseLogger:
             msg = str(message_template).format(**context)
         except KeyError as e:
             raise LoggerError(
-                "Cannot find %s context field. Choices are: %s" % (
-                    str(e), ', '.join(context.keys())))
+                "Cannot find %s context field. Choices are: %s"
+                % (str(e), ', '.join(context.keys()))
+            )
         return msg
 
     def validate_logging_type(self, logging_type):
         if self.supported_types and logging_type not in self.supported_types:
             raise EventLoggerError(
-                "Unsupported logging type '%s'. Choices are: %s" % (
-                    logging_type, ', '.join(self.supported_types)))
+                "Unsupported logging type '%s'. Choices are: %s"
+                % (logging_type, ', '.join(self.supported_types))
+            )
 
     def compile_context(self, **kwargs):
         # Get a list of fields here in order to be sure all models already loaded.
@@ -75,11 +77,19 @@ class BaseLogger:
             self.fields = {
                 k: self.get_field_model(v)
                 for k, v in self.__class__.__dict__.items()
-                if (not k.startswith('_') and
-                    not isinstance(v, types.FunctionType) and
-                    not isinstance(v, staticmethod) and k != 'Meta')}
+                if (
+                    not k.startswith('_')
+                    and not isinstance(v, types.FunctionType)
+                    and not isinstance(v, staticmethod)
+                    and k != 'Meta'
+                )
+            }
 
-        missed = set(self.fields.keys()) - set(self.get_nullable_fields()) - set(kwargs.keys())
+        missed = (
+            set(self.fields.keys())
+            - set(self.get_nullable_fields())
+            - set(kwargs.keys())
+        )
         if missed:
             raise LoggerError("Missed fields in event context: %s" % ', '.join(missed))
 
@@ -90,8 +100,11 @@ class BaseLogger:
             context.update(event_context)
             username = event_context.get('user_username')
             if 'user' in self.fields and username:
-                logger.warning("User is passed directly to event context. "
-                               "Currently authenticated user %s is ignored.", username)
+                logger.warning(
+                    "User is passed directly to event context. "
+                    "Currently authenticated user %s is ignored.",
+                    username,
+                )
 
         for entity_name, entity in kwargs.items():
             if entity_name in self.fields:
@@ -100,12 +113,19 @@ class BaseLogger:
                     continue
                 if not isinstance(entity, entity_class):
                     raise LoggerError(
-                        "Field '%s' must be an instance of %s but %s received" % (
-                            entity_name, entity_class.__name__, entity.__class__.__name__))
+                        "Field '%s' must be an instance of %s but %s received"
+                        % (
+                            entity_name,
+                            entity_class.__name__,
+                            entity.__class__.__name__,
+                        )
+                    )
             else:
                 logger.error(
                     "Field '%s' cannot be used in logging context for %s",
-                    entity_name, self.__class__.__name__)
+                    entity_name,
+                    self.__class__.__name__,
+                )
                 continue
 
             if isinstance(entity, LoggableMixin):
@@ -118,7 +138,8 @@ class BaseLogger:
                 context[entity_name] = str(entity)
                 logger.warning(
                     "Cannot properly serialize '%s' context field. "
-                    "Must be inherited from LoggableMixin." % entity_name)
+                    "Must be inherited from LoggableMixin." % entity_name
+                )
 
         return context
 
@@ -192,7 +213,9 @@ class EventLogger(BaseLogger):
     def debug(self, *args, **kwargs):
         self.process('debug', *args, **kwargs)
 
-    def process(self, level, message_template, event_type='undefined', event_context=None):
+    def process(
+        self, level, message_template, event_type='undefined', event_context=None
+    ):
         self.validate_logging_type(event_type)
 
         if not event_context:
@@ -204,9 +227,7 @@ class EventLogger(BaseLogger):
         log(msg, extra={'event_type': event_type, 'event_context': context})
 
         event = models.Event.objects.create(
-            event_type=event_type,
-            message=msg,
-            context=context,
+            event_type=event_type, message=msg, context=context,
         )
         if event_context:
             for scope in self.get_scopes(event_context) or []:
@@ -274,7 +295,6 @@ class LoggableMixin:
 
 
 class BaseLoggerRegistry:
-
     def get_loggers(self):
         raise NotImplementedError('Method "get_loggers" is not implemented.')
 
@@ -308,7 +328,6 @@ class BaseLoggerRegistry:
 
 
 class EventLoggerRegistry(BaseLoggerRegistry):
-
     def get_loggers(self):
         return [l for l in self.__dict__.values() if isinstance(l, EventLogger)]
 
@@ -333,6 +352,7 @@ class CustomEventLogger(EventLogger):
     """
     Logger for custom events e.g. created by staff user
     """
+
     scope = LoggableMixin
 
     class Meta:

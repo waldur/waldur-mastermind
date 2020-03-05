@@ -1,5 +1,4 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
-
 from waldur_mastermind.marketplace.models import Resource
 
 

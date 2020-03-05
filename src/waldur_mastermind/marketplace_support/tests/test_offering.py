@@ -5,14 +5,13 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
-from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 
 
 class OfferingTemplateCreateTest(test.APITransactionTestCase):
-
     def test_offering_template_is_created_for_valid_type(self):
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
         offering.refresh_from_db()
@@ -38,7 +37,6 @@ class OfferingTemplateCreateTest(test.APITransactionTestCase):
 
 
 class OfferingTemplateUpdateTest(test.APITransactionTestCase):
-
     def test_offering_template_is_updated(self):
         # Arrange
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
@@ -61,12 +59,13 @@ class SupportOfferingTest(BaseTest):
         self.success_issue_status = 'Completed'
         support_factories.IssueStatusFactory(
             name=self.success_issue_status,
-            type=support_models.IssueStatus.Types.RESOLVED)
+            type=support_models.IssueStatus.Types.RESOLVED,
+        )
 
         self.fail_issue_status = 'Cancelled'
         support_factories.IssueStatusFactory(
-            name=self.fail_issue_status,
-            type=support_models.IssueStatus.Types.CANCELED)
+            name=self.fail_issue_status, type=support_models.IssueStatus.Types.CANCELED
+        )
 
         self.offering = support_factories.OfferingFactory()
         resource = marketplace_factories.ResourceFactory(scope=self.offering)
@@ -91,7 +90,9 @@ class SupportOfferingTest(BaseTest):
         self.offering.issue.save()
 
         self.order_item.refresh_from_db()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.ERRED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.ERRED
+        )
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.state, support_models.Offering.States.TERMINATED)
 
@@ -103,7 +104,11 @@ class SupportOfferingResourceTest(BaseTest):
         customer = structure_factories.CustomerFactory()
 
         marketplace_support_utils.init_offerings_and_resources(category, customer)
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=offering, project=offering.project).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(
+                scope=offering, project=offering.project
+            ).exists()
+        )
 
     def test_filter_when_creating_missing_support_offerings(self):
         offering = support_factories.OfferingFactory()
@@ -113,33 +118,47 @@ class SupportOfferingResourceTest(BaseTest):
         marketplace_factories.ResourceFactory(scope=offering, project=new_project)
 
         marketplace_support_utils.init_offerings_and_resources(category, customer)
-        self.assertFalse(marketplace_models.Resource.objects.filter(scope=offering, project=offering.project).exists())
+        self.assertFalse(
+            marketplace_models.Resource.objects.filter(
+                scope=offering, project=offering.project
+            ).exists()
+        )
 
     def test_create_missing_support_offerings_with_offering_plan(self):
         offering = support_factories.OfferingFactory()
         category = marketplace_factories.CategoryFactory()
         customer = structure_factories.CustomerFactory()
-        offering_plan = support_factories.OfferingPlanFactory(template=offering.template,
-                                                              unit_price=offering.unit_price)
+        offering_plan = support_factories.OfferingPlanFactory(
+            template=offering.template, unit_price=offering.unit_price
+        )
 
         marketplace_support_utils.init_offerings_and_resources(category, customer)
-        self.assertTrue(marketplace_models.Plan.objects.filter(scope=offering_plan).exists())
+        self.assertTrue(
+            marketplace_models.Plan.objects.filter(scope=offering_plan).exists()
+        )
         self.assertEqual(marketplace_models.Plan.objects.count(), 1)
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=offering).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=offering).exists()
+        )
 
     def test_create_missing_support_offerings_with_changed_unit_price(self):
         offering = support_factories.OfferingFactory()
         category = marketplace_factories.CategoryFactory()
         customer = structure_factories.CustomerFactory()
-        offering_plan = support_factories.OfferingPlanFactory(template=offering.template,
-                                                              unit_price=offering.unit_price)
+        offering_plan = support_factories.OfferingPlanFactory(
+            template=offering.template, unit_price=offering.unit_price
+        )
         offering.unit_price += 10
         offering.save()
 
         marketplace_support_utils.init_offerings_and_resources(category, customer)
-        self.assertTrue(marketplace_models.Plan.objects.filter(scope=offering_plan).exists())
+        self.assertTrue(
+            marketplace_models.Plan.objects.filter(scope=offering_plan).exists()
+        )
         self.assertEqual(marketplace_models.Plan.objects.count(), 2)
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=offering).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=offering).exists()
+        )
         resource = marketplace_models.Resource.objects.get(scope=offering)
         self.assertEqual(resource.plan.unit_price, offering.unit_price)
 
@@ -149,7 +168,15 @@ class SupportOfferingResourceTest(BaseTest):
         customer = structure_factories.CustomerFactory()
 
         marketplace_support_utils.init_offerings_and_resources(category, customer)
-        self.assertTrue(marketplace_models.Offering.objects.filter(scope=offering_template).exists())
-        self.assertTrue(marketplace_models.Offering.objects.filter(scope=offering_template).count(), 1)
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(scope=offering_template).exists()
+        )
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(scope=offering_template).count(),
+            1,
+        )
         marketplace_support_utils.init_offerings_and_resources(category, customer)
-        self.assertTrue(marketplace_models.Offering.objects.filter(scope=offering_template).count(), 1)
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(scope=offering_template).count(),
+            1,
+        )

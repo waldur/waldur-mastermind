@@ -9,7 +9,6 @@ from waldur_mastermind.packages import models as packages_models
 
 
 class OpenStackItemRegistrator(BaseRegistrator):
-
     def get_customer(self, source):
         return source.tenant.service_project_link.project.customer
 
@@ -17,9 +16,14 @@ class OpenStackItemRegistrator(BaseRegistrator):
         if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
             return packages_models.OpenStackPackage.objects.none()
 
-        return packages_models.OpenStackPackage.objects.filter(
-            tenant__service_project_link__project__customer=customer
-        ).exclude(tenant__backend_id='').exclude(tenant__backend_id=None).distinct()
+        return (
+            packages_models.OpenStackPackage.objects.filter(
+                tenant__service_project_link__project__customer=customer
+            )
+            .exclude(tenant__backend_id='')
+            .exclude(tenant__backend_id=None)
+            .distinct()
+        )
 
     def _create_item(self, source, invoice, start, end):
         package = source
@@ -33,7 +37,8 @@ class OpenStackItemRegistrator(BaseRegistrator):
             price = package.template.monthly_price
 
         start = invoices_models.adjust_invoice_items(
-            invoice, source, start, price, package.template.unit)
+            invoice, source, start, price, package.template.unit
+        )
 
         item = invoices_models.InvoiceItem.objects.create(
             scope=package,
@@ -45,7 +50,8 @@ class OpenStackItemRegistrator(BaseRegistrator):
             invoice=invoice,
             start=start,
             end=end,
-            details=self.get_details(package))
+            details=self.get_details(package),
+        )
         self.init_details(item)
 
     def get_details(self, source):

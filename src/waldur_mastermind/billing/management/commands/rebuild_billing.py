@@ -11,6 +11,8 @@ class Command(BaseCommand):
         with transaction.atomic():
             for model in models.PriceEstimate.get_estimated_models():
                 for instance in model.objects.all():
-                    estimate, _ = models.PriceEstimate.objects.get_or_create(scope=instance)
+                    estimate, _ = models.PriceEstimate.objects.get_or_create(
+                        scope=instance
+                    )
                     estimate.update_total()
                     estimate.save()

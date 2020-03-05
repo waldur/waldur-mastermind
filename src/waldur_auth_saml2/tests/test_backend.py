@@ -11,8 +11,8 @@ class WaldurSaml2BackendTest(TestCase):
     def test_email_should_be_unique_positive(self):
         User.objects.create(username='john', email='john@example.com')
         attribute_mapping = {
-            'uid': ('username', ),
-            'mail': ('email', ),
+            'uid': ('username',),
+            'mail': ('email',),
         }
         attributes = {
             'uid': ['john'],
@@ -21,17 +21,15 @@ class WaldurSaml2BackendTest(TestCase):
 
         backend = WaldurSaml2Backend()
         user = backend.authenticate(
-            None,
-            session_info={'ava': attributes},
-            attribute_mapping=attribute_mapping,
+            None, session_info={'ava': attributes}, attribute_mapping=attribute_mapping,
         )
         self.assertIsNotNone(user)
 
     def test_email_should_be_unique_negative(self):
         User.objects.create(username='harry', email='john@example.com')
         attribute_mapping = {
-            'uid': ('username', ),
-            'mail': ('email', ),
+            'uid': ('username',),
+            'mail': ('email',),
         }
         attributes = {
             'uid': ['john'],
@@ -39,6 +37,10 @@ class WaldurSaml2BackendTest(TestCase):
         }
 
         backend = WaldurSaml2Backend()
-        self.assertRaises(ValidationError, backend.authenticate,
-                          None, session_info={'ava': attributes},
-                          attribute_mapping=attribute_mapping)
+        self.assertRaises(
+            ValidationError,
+            backend.authenticate,
+            None,
+            session_info={'ava': attributes},
+            attribute_mapping=attribute_mapping,
+        )

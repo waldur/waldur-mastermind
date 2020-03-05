@@ -1,6 +1,7 @@
-import jira
 from unittest import mock
-from ddt import ddt, data
+
+import jira
+from ddt import data, ddt
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -8,13 +9,12 @@ from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests.base import override_support_settings
 
-from . import factories, base
 from .. import exceptions
+from . import base, factories
 
 
 @ddt
 class SupportUserRetrieveTest(base.BaseTest):
-
     def setUp(self):
         super(SupportUserRetrieveTest, self).setUp()
         self.support_user = factories.SupportUserFactory()
@@ -84,7 +84,6 @@ class SupportUserPullTest(base.BaseTest):
 @mock.patch('waldur_jira.backend.JIRA')
 class SupportUserValidateTest(base.BaseTest):
     def test_not_create_user_if_user_exists_but_he_inactive(self, mocked_jira):
-
         def side_effect(*args, **kwargs):
             if kwargs.get('includeInactive'):
                 return [jira.User(None, None, raw={'active': False})]
@@ -92,4 +91,6 @@ class SupportUserValidateTest(base.BaseTest):
 
         mocked_jira().search_users.side_effect = side_effect
         user = structure_factories.UserFactory()
-        self.assertRaises(exceptions.SupportUserInactive, ServiceDeskBackend().create_user, user)
+        self.assertRaises(
+            exceptions.SupportUserInactive, ServiceDeskBackend().create_user, user
+        )

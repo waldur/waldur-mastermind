@@ -1,6 +1,6 @@
-from django.db import models
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
@@ -13,17 +13,27 @@ from waldur_mastermind.invoices import utils as invoices_utils
 from . import exceptions, managers
 
 
-class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, models.Model):
-    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
+class PriceEstimate(
+    logging_models.AlertThresholdMixin, core_models.UuidMixin, models.Model
+):
+    content_type = models.ForeignKey(
+        on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'
+    )
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
     objects = managers.PriceEstimateManager('scope')
     tracker = FieldTracker()
 
-    total = models.FloatField(default=0, help_text=_('Predicted price for scope for current month.'))
-    limit = models.FloatField(default=-1, help_text=_('Price limit of a scope object in current month. '
-                                                      '-1 means no limit.'))
+    total = models.FloatField(
+        default=0, help_text=_('Predicted price for scope for current month.')
+    )
+    limit = models.FloatField(
+        default=-1,
+        help_text=_(
+            'Price limit of a scope object in current month. ' '-1 means no limit.'
+        ),
+    )
 
     def is_over_threshold(self):  # For AlertThresholdMixin
         return self.total > self.threshold
@@ -38,8 +48,7 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
 
     def _get_sum(self, year, month, field):
         items = invoices_models.InvoiceItem.objects.filter(
-            invoice__year=year,
-            invoice__month=month
+            invoice__year=year, invoice__month=month
         )
         if self.content_type.model_class() == structure_models.Project:
             items = items.filter(project__uuid=self.scope.uuid.hex)

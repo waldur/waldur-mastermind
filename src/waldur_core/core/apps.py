@@ -70,7 +70,8 @@ class CoreConfig(AppConfig):
             fsm_signals.post_transition.connect(
                 handlers.delete_error_message,
                 sender=model,
-                dispatch_uid='waldur_core.core.handlers.delete_error_message_%s_%s' % (model.__name__, index),
+                dispatch_uid='waldur_core.core.handlers.delete_error_message_%s_%s'
+                % (model.__name__, index),
             )
 
         # Database fields should be patched only after database models are initialized

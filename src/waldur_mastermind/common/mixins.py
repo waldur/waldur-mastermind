@@ -13,6 +13,7 @@ class UnitPriceMixin(models.Model):
     """
     Mixin to expose standardized "unit_price" and "unit" field.
     """
+
     class Meta:
         abstract = True
 
@@ -31,8 +32,12 @@ class UnitPriceMixin(models.Model):
             (QUANTITY, _('Quantity')),
         )
 
-    unit_price = models.DecimalField(default=0, max_digits=22, decimal_places=7,
-                                     validators=[MinValueValidator(Decimal('0'))])
+    unit_price = models.DecimalField(
+        default=0,
+        max_digits=22,
+        decimal_places=7,
+        validators=[MinValueValidator(Decimal('0'))],
+    )
     unit = models.CharField(default=Units.PER_DAY, max_length=30, choices=Units.CHOICES)
 
 

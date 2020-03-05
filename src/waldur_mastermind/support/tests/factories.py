@@ -1,5 +1,5 @@
-from django.urls import reverse
 import factory
+from django.urls import reverse
 from factory import fuzzy
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -33,7 +33,9 @@ class IssueFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueFactory()
-        url = 'http://testserver' + reverse('support-issue-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-issue-detail', kwargs={'uuid': issue.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -55,7 +57,9 @@ class CommentFactory(factory.DjangoModelFactory):
     def get_url(cls, comment=None, action=None):
         if comment is None:
             comment = IssueFactory()
-        url = 'http://testserver' + reverse('support-comment-detail', kwargs={'uuid': comment.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-comment-detail', kwargs={'uuid': comment.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -100,7 +104,10 @@ class OfferingTemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, offering_template=None, action=None):
         if offering_template is None:
             offering_template = OfferingTemplateFactory()
-        url = 'http://testserver' + reverse('support-offering-template-detail', kwargs={'uuid': offering_template.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-offering-template-detail',
+            kwargs={'uuid': offering_template.uuid.hex},
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -120,7 +127,9 @@ class OfferingPlanFactory(factory.DjangoModelFactory):
     def get_url(cls, plan=None, action=None):
         if plan is None:
             plan = OfferingPlanFactory()
-        url = 'http://testserver' + reverse('support-offering-plan-detail', kwargs={'uuid': plan.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-offering-plan-detail', kwargs={'uuid': plan.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -129,7 +138,6 @@ class OfferingPlanFactory(factory.DjangoModelFactory):
 
 
 class OfferingFactory(factory.DjangoModelFactory):
-
     class Meta:
         model = models.Offering
 
@@ -142,7 +150,9 @@ class OfferingFactory(factory.DjangoModelFactory):
     def get_url(cls, offering=None, action=None):
         if offering is None:
             offering = OfferingFactory()
-        url = 'http://testserver' + reverse('support-offering-detail', kwargs={'uuid': offering.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-offering-detail', kwargs={'uuid': offering.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -167,7 +177,9 @@ class AttachmentFactory(factory.DjangoModelFactory):
     def get_url(cls, attachment=None, action=None):
         if attachment is None:
             attachment = AttachmentFactory()
-        url = 'http://testserver' + reverse('support-attachment-detail', kwargs={'uuid': attachment.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-attachment-detail', kwargs={'uuid': attachment.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -186,7 +198,9 @@ class TemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, template=None, action=None):
         if template is None:
             template = TemplateFactory()
-        url = 'http://testserver' + reverse('support-template-detail', kwargs={'uuid': template.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'support-template-detail', kwargs={'uuid': template.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -222,7 +236,9 @@ class PriorityFactory(factory.DjangoModelFactory):
     def get_url(cls, priority=None):
         if priority is None:
             priority = PriorityFactory()
-        return 'http://testserver' + reverse('support-priority-detail', kwargs={'uuid': priority.uuid.hex})
+        return 'http://testserver' + reverse(
+            'support-priority-detail', kwargs={'uuid': priority.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):

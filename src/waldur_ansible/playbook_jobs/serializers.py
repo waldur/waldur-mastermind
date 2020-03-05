@@ -1,14 +1,17 @@
-from zipfile import is_zipfile, ZipFile
+from zipfile import ZipFile, is_zipfile
 
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import serializers, exceptions
+from rest_framework import exceptions, serializers
 
 from waldur_ansible.common import serializers as common_serializers
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
-from waldur_core.media.serializers import ProtectedMediaSerializerMixin, ProtectedFileField
+from waldur_core.media.serializers import (
+    ProtectedFileField,
+    ProtectedMediaSerializerMixin,
+)
 from waldur_core.structure import permissions as structure
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack_tenant import models as openstack_models
@@ -17,22 +20,33 @@ from . import models as playbook_jobs_models
 
 
 class PlaybookParameterSerializer(serializers.ModelSerializer):
-    name = serializers.RegexField('^[\w]+$')
+    name = serializers.RegexField(r'^[\w]+$')
 
     class Meta:
         model = playbook_jobs_models.PlaybookParameter
         fields = ('name', 'description', 'required', 'default')
 
 
-class PlaybookSerializer(ProtectedMediaSerializerMixin,
-                         core_serializers.AugmentedSerializerMixin,
-                         serializers.HyperlinkedModelSerializer):
+class PlaybookSerializer(
+    ProtectedMediaSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
     archive = serializers.FileField(write_only=True)
     parameters = PlaybookParameterSerializer(many=True, required=False)
 
     class Meta:
         model = playbook_jobs_models.Playbook
-        fields = ('url', 'uuid', 'name', 'description', 'archive', 'entrypoint', 'parameters', 'image')
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'description',
+            'archive',
+            'entrypoint',
+            'parameters',
+            'image',
+        )
         protected_fields = ('entrypoint', 'parameters', 'archive')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -48,8 +62,12 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
         invalid_file = zip_file.testzip()
         if invalid_file is not None:
             raise serializers.ValidationError(
-                _('File {filename} in archive {archive_name} has an invalid type.'.format(
-                    filename=invalid_file, archive_name=zip_file.filename)))
+                _(
+                    'File {filename} in archive {archive_name} has an invalid type.'.format(
+                        filename=invalid_file, archive_name=zip_file.filename
+                    )
+                )
+            )
 
         return value
 
@@ -61,8 +79,12 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
         entrypoint = attrs['entrypoint']
         if entrypoint not in zip_file.namelist():
             raise serializers.ValidationError(
-                _('Failed to find entrypoint {entrypoint} in archive {archive_name}.'.format(
-                    entrypoint=entrypoint, archive_name=zip_file.filename)))
+                _(
+                    'Failed to find entrypoint {entrypoint} in archive {archive_name}.'.format(
+                        entrypoint=entrypoint, archive_name=zip_file.filename
+                    )
+                )
+            )
 
         return attrs
 
@@ -70,7 +92,9 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
     def create(self, validated_data):
         parameters_data = validated_data.pop('parameters', [])
         archive = validated_data.pop('archive')
-        validated_data['workspace'] = playbook_jobs_models.Playbook.generate_workspace_path()
+        validated_data[
+            'workspace'
+        ] = playbook_jobs_models.Playbook.generate_workspace_path()
 
         zip_file = ZipFile(archive)
         zip_file.extractall(validated_data['workspace'])
@@ -78,13 +102,17 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
 
         playbook = playbook_jobs_models.Playbook.objects.create(**validated_data)
         for parameter_data in parameters_data:
-            playbook_jobs_models.PlaybookParameter.objects.create(playbook=playbook, **parameter_data)
+            playbook_jobs_models.PlaybookParameter.objects.create(
+                playbook=playbook, **parameter_data
+            )
 
         return playbook
 
 
-class JobSerializer(common_serializers.BaseApplicationSerializer,
-                    structure_serializers.PermissionFieldFilteringMixin):
+class JobSerializer(
+    common_serializers.BaseApplicationSerializer,
+    structure_serializers.PermissionFieldFilteringMixin,
+):
     service_project_link = serializers.HyperlinkedRelatedField(
         lookup_field='pk',
         view_name='openstacktenant-spl-detail',
@@ -96,7 +124,9 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
         view_name='openstacktenant-detail',
         read_only=True,
     )
-    service_name = serializers.ReadOnlyField(source='service_project_link.service.settings.name')
+    service_name = serializers.ReadOnlyField(
+        source='service_project_link.service.settings.name'
+    )
     service_uuid = serializers.ReadOnlyField(source='service_project_link.service.uuid')
     ssh_public_key = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
@@ -130,15 +160,41 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
 
     class Meta:
         model = playbook_jobs_models.Job
-        fields = ('url', 'uuid', 'name', 'description',
-                  'service_project_link', 'service', 'service_name', 'service_uuid',
-                  'ssh_public_key', 'ssh_public_key_name', 'ssh_public_key_uuid',
-                  'project', 'project_name', 'project_uuid',
-                  'playbook', 'playbook_name', 'playbook_uuid',
-                  'playbook_image', 'playbook_description',
-                  'arguments', 'state', 'output', 'created', 'modified', 'tag', 'type')
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'description',
+            'service_project_link',
+            'service',
+            'service_name',
+            'service_uuid',
+            'ssh_public_key',
+            'ssh_public_key_name',
+            'ssh_public_key_uuid',
+            'project',
+            'project_name',
+            'project_uuid',
+            'playbook',
+            'playbook_name',
+            'playbook_uuid',
+            'playbook_image',
+            'playbook_description',
+            'arguments',
+            'state',
+            'output',
+            'created',
+            'modified',
+            'tag',
+            'type',
+        )
         read_only_fields = ('output', 'created', 'modified', 'type')
-        protected_fields = ('service_project_link', 'ssh_public_key', 'playbook', 'arguments')
+        protected_fields = (
+            'service_project_link',
+            'ssh_public_key',
+            'playbook',
+            'arguments',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
@@ -169,10 +225,18 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
         parameter_names = playbook.parameters.all().values_list('name', flat=True)
         for argument in arguments.keys():
             if argument not in parameter_names and argument != 'project_uuid':
-                raise serializers.ValidationError(_('Argument %s is not listed in playbook parameters.' % argument))
+                raise serializers.ValidationError(
+                    _('Argument %s is not listed in playbook parameters.' % argument)
+                )
 
-        if playbook.parameters.exclude(name__in=arguments.keys()).filter(required=True, default__exact='').exists():
-            raise serializers.ValidationError(_('Not all required playbook parameters were specified.'))
+        if (
+            playbook.parameters.exclude(name__in=arguments.keys())
+            .filter(required=True, default__exact='')
+            .exists()
+        ):
+            raise serializers.ValidationError(
+                _('Not all required playbook parameters were specified.')
+            )
 
         unfilled_parameters = playbook.parameters.exclude(name__in=arguments.keys())
         for parameter in unfilled_parameters:
@@ -183,9 +247,13 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
         if not self.instance:
             settings = attrs['service_project_link'].service.settings
             if not openstack_models.SubNet.objects.filter(settings=settings).exists():
-                raise serializers.ValidationError(_('Selected OpenStack provider does not have any subnet yet.'))
+                raise serializers.ValidationError(
+                    _('Selected OpenStack provider does not have any subnet yet.')
+                )
             else:
-                attrs['subnet'] = openstack_models.SubNet.objects.filter(settings=settings).first()
+                attrs['subnet'] = openstack_models.SubNet.objects.filter(
+                    settings=settings
+                ).first()
 
     def validate(self, attrs):
         if not self.instance:

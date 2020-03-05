@@ -13,9 +13,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         def print_message(count, action):
             if count == 1:
-                self.stdout.write(self.style.SUCCESS('%s user has been %s.' % (count, action)))
+                self.stdout.write(
+                    self.style.SUCCESS('%s user has been %s.' % (count, action))
+                )
             else:
-                self.stdout.write(self.style.SUCCESS('%s users have been %s.' % (count, action)))
+                self.stdout.write(
+                    self.style.SUCCESS('%s users have been %s.' % (count, action))
+                )
 
         result = SyncUser.run()
 

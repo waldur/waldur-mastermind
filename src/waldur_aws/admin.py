@@ -2,13 +2,21 @@ from django.contrib import admin
 
 from waldur_core.structure import admin as structure_admin
 
-from .models import AWSService, AWSServiceProjectLink, Instance, Image, Region, Size, Volume
+from .models import (
+    AWSService,
+    AWSServiceProjectLink,
+    Image,
+    Instance,
+    Region,
+    Size,
+    Volume,
+)
 
 
 class ImageAdmin(structure_admin.BackendModelAdmin):
     fields = 'name', 'region', 'backend_id'
     list_display = 'name', 'region', 'backend_id'
-    list_filter = 'region',
+    list_filter = ('region',)
 
 
 class ImageInline(admin.TabularInline):
@@ -16,9 +24,11 @@ class ImageInline(admin.TabularInline):
     extra = 1
 
 
-class RegionAdmin(structure_admin.ProtectedModelMixin, structure_admin.BackendModelAdmin):
+class RegionAdmin(
+    structure_admin.ProtectedModelMixin, structure_admin.BackendModelAdmin
+):
     readonly_fields = 'name', 'backend_id'
-    inlines = ImageInline,
+    inlines = (ImageInline,)
 
 
 class SizeAdmin(structure_admin.ProtectedModelMixin, structure_admin.BackendModelAdmin):

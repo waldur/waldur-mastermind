@@ -7,7 +7,9 @@ class PriceEstimateLimitExceeded(exceptions.APIException):
 
     def __init__(self, price_estimate):
         super(PriceEstimateLimitExceeded, self).__init__()
-        message = _('Price for %(scope_type)s "%(scope_name)s" is over limit. Required: %(required)s, limit: %(limit)s')
+        message = _(
+            'Price for %(scope_type)s "%(scope_name)s" is over limit. Required: %(required)s, limit: %(limit)s'
+        )
         context = {
             'scope_type': price_estimate.content_type,
             'scope_name': price_estimate.scope.name,

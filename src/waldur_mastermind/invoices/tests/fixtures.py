@@ -9,16 +9,13 @@ from . import factories
 class InvoiceFixture(packages_fixtures.PackageFixture):
     @cached_property
     def invoice(self):
-        return factories.InvoiceFactory(
-            customer=self.customer
-        )
+        return factories.InvoiceFactory(customer=self.customer)
 
 
 def create_package_template(component_price=10, component_amount=1):
     template = packages_factories.PackageTemplateFactory(name='PackageTemplate')
     template.components.update(
-        price=component_price,
-        amount=component_amount,
+        price=component_price, amount=component_amount,
     )
     return template
 
@@ -28,5 +25,7 @@ def create_package(component_price, tenant=None):
     if not tenant:
         tenant = packages_factories.TenantFactory()
 
-    package = packages_factories.OpenStackPackageFactory(template=template, tenant=tenant)
+    package = packages_factories.OpenStackPackageFactory(
+        template=template, tenant=tenant
+    )
     return package

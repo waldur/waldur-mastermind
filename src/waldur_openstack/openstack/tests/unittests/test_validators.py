@@ -8,7 +8,6 @@ from waldur_openstack.openstack.serializers import validate_private_subnet_cidr
 
 @ddt.ddt
 class PrivateSubnetCIDRTest(unittest.TestCase):
-
     @ddt.data('192.168.42.0/24', '172.19.200.0/24', '10.10.10.0/24')
     def test_positive(self, cidr):
         # it is expected that exception is not thrown here

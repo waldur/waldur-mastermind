@@ -24,24 +24,9 @@ class SlurmAnalyticsTest(TestCase):
         allocation2.save()
 
         expected_points = [
-            {
-                'measurement': 'slurm_cpu_usage',
-                'fields': {
-                    'value': 600,
-                }
-            },
-            {
-                'measurement': 'slurm_ram_usage',
-                'fields': {
-                    'value': 12000,
-                }
-            },
-            {
-                'measurement': 'slurm_gpu_usage',
-                'fields': {
-                    'value': 1200,
-                }
-            },
+            {'measurement': 'slurm_cpu_usage', 'fields': {'value': 600,}},
+            {'measurement': 'slurm_ram_usage', 'fields': {'value': 12000,}},
+            {'measurement': 'slurm_gpu_usage', 'fields': {'value': 1200,}},
         ]
         self.assertEquals(sort(slurm.get_usage()), sort(expected_points))
 

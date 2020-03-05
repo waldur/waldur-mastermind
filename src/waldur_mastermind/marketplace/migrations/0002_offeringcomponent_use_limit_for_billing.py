@@ -13,6 +13,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offeringcomponent',
             name='use_limit_for_billing',
-            field=models.BooleanField(default=False, help_text='Charge for usage-based component is based on user-requested limit.'),
+            field=models.BooleanField(
+                default=False,
+                help_text='Charge for usage-based component is based on user-requested limit.',
+            ),
         ),
     ]

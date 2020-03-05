@@ -8,7 +8,9 @@ from . import models
 
 
 class ServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='rijkscloud-detail', field_name='service__uuid')
+    service = core_filters.URLFilter(
+        view_name='rijkscloud-detail', field_name='service__uuid'
+    )
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.RijkscloudServiceProjectLink
@@ -36,13 +38,14 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
 
 
 class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
-
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Network
 
 
 class SubNetFilter(structure_filters.ServicePropertySettingsFilter):
-    network = core_filters.URLFilter(view_name='rijkscloud-network-detail', field_name='network__uuid')
+    network = core_filters.URLFilter(
+        view_name='rijkscloud-network-detail', field_name='network__uuid'
+    )
     network_uuid = django_filters.UUIDFilter(field_name='network__uuid')
 
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
@@ -55,7 +58,9 @@ class InternalIPFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.InternalIP
         fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
-            'address', 'subnet')
+            'address',
+            'subnet',
+        )
 
 
 class FloatingIPFilter(structure_filters.ServicePropertySettingsFilter):
@@ -64,4 +69,5 @@ class FloatingIPFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.FloatingIP
         fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
-            'address',)
+            'address',
+        )

@@ -11,4 +11,5 @@ class AWSConfig(AppConfig):
         from waldur_core.structure import SupportedServices
 
         from .backend import AWSBackend
+
         SupportedServices.register_backend(AWSBackend)

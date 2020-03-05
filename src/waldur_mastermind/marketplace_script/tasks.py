@@ -2,7 +2,7 @@ from celery import shared_task
 from django.conf import settings
 
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace_script import serializers, utils, PLUGIN_NAME
+from waldur_mastermind.marketplace_script import PLUGIN_NAME, serializers, utils
 
 
 @shared_task(name='waldur_marketplace_script.pull_resources')
@@ -10,7 +10,7 @@ def pull_resources():
     for resource in models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
         offering__plugin_options__has_key='pull',
-        state__in=[models.Resource.States.OK, models.Resource.States.ERRED]
+        state__in=[models.Resource.States.OK, models.Resource.States.ERRED],
     ):
         pull_resource.delay(resource.id)
 
@@ -28,8 +28,5 @@ def pull_resource(resource_id):
     language = options['language']
     image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)
     utils.execute_script(
-        image=image,
-        command=language,
-        src=options['pull'],
-        environment=environment
+        image=image, command=language, src=options['pull'], environment=environment
     )

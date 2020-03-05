@@ -1,8 +1,9 @@
 Installation from source
 ------------------------
 
-Additional requirements:
+**Prerequisites**
 
+- Linux OS: Ubuntu or CentOS. If you use Windows 10, you should install Linux either via `Virtualbox <https://www.freecodecamp.org/news/how-to-install-ubuntu-with-oracle-virtualbox/>`_ or `Windows Subsystem for Linux  <https://docs.microsoft.com/en-us/windows/wsl/install-win10/>`_.
 - ``git``
 - ``redis`` and ``hiredis`` library
 - ``virtualenv``
@@ -10,6 +11,7 @@ Additional requirements:
 
   - CentOS: ``gcc libffi-devel openssl-devel postgresql-devel libjpeg-devel zlib-devel python-devel xmlsec1 xz-devel``
   - Ubuntu: ``gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev python-dev xmlsec1 libldap2-dev liblzma-dev``
+  - OS X: ``brew install openssl; export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"; export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"``
 
 **Waldur MasterMind installation**
 
@@ -31,6 +33,7 @@ Additional requirements:
   .. code-block:: bash
 
     poetry install
+    poetry run pre-commit install
 
 4. Create and edit settings file (see 'Configuration' section for details):
 

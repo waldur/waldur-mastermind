@@ -1,13 +1,17 @@
+import datetime
 import unittest
 
-import datetime
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.core.utils import datetime_to_timestamp
-from waldur_core.structure.tests.factories import TestNewInstanceFactory, TestServiceProjectLinkFactory, UserFactory
+from waldur_core.structure.tests.factories import (
+    TestNewInstanceFactory,
+    TestServiceProjectLinkFactory,
+    UserFactory,
+)
 
-from ..models import ResourceSla, ResourceItem, ResourceSlaStateTransition
+from ..models import ResourceItem, ResourceSla, ResourceSlaStateTransition
 from ..utils import format_period
 
 
@@ -36,13 +40,17 @@ class SlaTest(BaseMonitoringTest):
         ResourceSla.objects.create(scope=self.vm2, period=period, value=80)
 
     def test_sorting(self):
-        response = self.client.get(TestNewInstanceFactory.get_list_url(), data={'o': 'actual_sla'})
+        response = self.client.get(
+            TestNewInstanceFactory.get_list_url(), data={'o': 'actual_sla'}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(2, len(response.data))
         self.assertEqual([80, 90], [item['sla']['value'] for item in response.data])
 
     def test_filtering(self):
-        response = self.client.get(TestNewInstanceFactory.get_list_url(), data={'actual_sla': 80})
+        response = self.client.get(
+            TestNewInstanceFactory.get_list_url(), data={'actual_sla': 80}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(1, len(response.data))
 
@@ -61,8 +69,12 @@ class EventsTest(BaseMonitoringTest):
         timestamp = datetime_to_timestamp(today)
         period = format_period(today)
 
-        ResourceSlaStateTransition.objects.create(scope=self.vm1, period=period, timestamp=timestamp, state=True)
-        ResourceSlaStateTransition.objects.create(scope=self.vm2, period=period, timestamp=timestamp, state=False)
+        ResourceSlaStateTransition.objects.create(
+            scope=self.vm1, period=period, timestamp=timestamp, state=True
+        )
+        ResourceSlaStateTransition.objects.create(
+            scope=self.vm2, period=period, timestamp=timestamp, state=False
+        )
 
         self.url = reverse('resource-sla-state-transition-list')
 
@@ -103,18 +115,24 @@ class ItemTest(BaseMonitoringTest):
     def test_serializer(self):
         response = self.client.get(TestNewInstanceFactory.get_url(self.vm1))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual({'application_status': 1, 'ram_usage': 10},
-                         response.data['monitoring_items'])
+        self.assertEqual(
+            {'application_status': 1, 'ram_usage': 10},
+            response.data['monitoring_items'],
+        )
 
     def test_filter(self):
-        response = self.client.get(TestNewInstanceFactory.get_list_url(),
-                                   data={'monitoring__application_status': 1})
+        response = self.client.get(
+            TestNewInstanceFactory.get_list_url(),
+            data={'monitoring__application_status': 1},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(1, len(response.data))
 
     def test_sorter(self):
-        response = self.client.get(TestNewInstanceFactory.get_list_url(),
-                                   data={'o': 'monitoring__application_status'})
+        response = self.client.get(
+            TestNewInstanceFactory.get_list_url(),
+            data={'o': 'monitoring__application_status'},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         values = []
         for item in response.data:

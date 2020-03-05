@@ -7,7 +7,9 @@ def prefix_storage(apps, schema_editor):
     ContentType = apps.get_model('contenttypes', 'ContentType')
 
     content_type = ContentType.objects.get_for_model(VolumeType)
-    for offering_component in OfferingComponent.objects.filter(content_type=content_type):
+    for offering_component in OfferingComponent.objects.filter(
+        content_type=content_type
+    ):
         if offering_component.name.startswith('Storage ('):
             continue
         offering_component.name = 'Storage (%s)' % offering_component.name
@@ -22,6 +24,4 @@ class Migration(migrations.Migration):
         ('openstack', '0002_volumetype'),
     ]
 
-    operations = [
-        migrations.RunPython(prefix_storage)
-    ]
+    operations = [migrations.RunPython(prefix_storage)]

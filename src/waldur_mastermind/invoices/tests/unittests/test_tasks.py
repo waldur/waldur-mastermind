@@ -1,12 +1,11 @@
 from datetime import timedelta
+from unittest import mock
 
-from ddt import ddt, data
+from ddt import data, ddt
 from django.core import mail
-from django.test import TestCase
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from freezegun import freeze_time
-from unittest import mock
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
@@ -14,13 +13,13 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 
-from .. import factories, utils as test_utils
 from ... import models, tasks, utils
+from .. import factories
+from .. import utils as test_utils
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
 class CreateMonthlyInvoicesForPackagesTest(TestCase):
-
     def test_invoice_is_created_monthly(self):
         with freeze_time('2016-11-01'):
             fixture = package_fixtures.PackageFixture()
@@ -37,7 +36,9 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
             self.assertEqual(invoice.state, models.Invoice.States.CREATED)
 
             # Check that new invoice where created with the same openstack items
-            new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.PENDING)
+            new_invoice = models.Invoice.objects.get(
+                customer=fixture.customer, state=models.Invoice.States.PENDING
+            )
             self.assertEqual(package, new_invoice.generic_items.first().scope)
 
     def test_old_invoices_are_marked_as_created(self):
@@ -53,12 +54,18 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
         with freeze_time('2017-02-4'):
             tasks.create_monthly_invoices()
             invoice1.refresh_from_db()
-            self.assertEqual(invoice1.state, models.Invoice.States.CREATED,
-                             'Invoice for previous year is not marked as CREATED')
+            self.assertEqual(
+                invoice1.state,
+                models.Invoice.States.CREATED,
+                'Invoice for previous year is not marked as CREATED',
+            )
 
             invoice2.refresh_from_db()
-            self.assertEqual(invoice2.state, models.Invoice.States.CREATED,
-                             'Invoice for previous month is not marked as CREATED')
+            self.assertEqual(
+                invoice2.state,
+                models.Invoice.States.CREATED,
+                'Invoice for previous month is not marked as CREATED',
+            )
 
 
 @ddt
@@ -80,11 +87,16 @@ class CheckAccountingStartDateTest(TestCase):
             customer.accounting_start_date = accounting_start_date
             customer.save()
             tasks.create_monthly_invoices()
-            self.assertEqual(invoice_exists, models.Invoice.objects.filter(customer=customer).exists())
+            self.assertEqual(
+                invoice_exists,
+                models.Invoice.objects.filter(customer=customer).exists(),
+            )
 
 
 @override_settings(task_always_eager=True)
-@test_utils.override_invoices_settings(INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}')
+@test_utils.override_invoices_settings(
+    INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}'
+)
 class NotificationTest(TestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()

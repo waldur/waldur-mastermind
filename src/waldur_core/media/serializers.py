@@ -14,9 +14,9 @@ class ProtectedFileMixin:
         if settings.DEBUG:
             return super(ProtectedFileMixin, self).to_representation(value)
 
-        return encode_protected_url(value.instance,
-                                    field=self.source_attrs[-1],
-                                    request=self.context['request'])
+        return encode_protected_url(
+            value.instance, field=self.source_attrs[-1], request=self.context['request']
+        )
 
 
 class ProtectedFileField(ProtectedFileMixin, serializers.FileField):
@@ -30,8 +30,5 @@ class ProtectedImageField(ProtectedFileMixin, serializers.ImageField):
 class ProtectedMediaSerializerMixin(serializers.ModelSerializer):
     serializer_field_mapping = merge_dictionaries(
         serializers.ModelSerializer.serializer_field_mapping,
-        {
-            models.FileField: ProtectedFileField,
-            models.ImageField: ProtectedImageField,
-        },
+        {models.FileField: ProtectedFileField, models.ImageField: ProtectedImageField,},
     )

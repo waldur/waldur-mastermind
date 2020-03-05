@@ -6,26 +6,30 @@ from django.contrib import auth
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.translation import ugettext_lazy as _
-from djangosaml2.cache import OutstandingQueriesCache, IdentityCache, StateCache
+from djangosaml2.cache import IdentityCache, OutstandingQueriesCache, StateCache
 from djangosaml2.conf import get_config
 from djangosaml2.signals import post_authenticated
 from djangosaml2.utils import get_custom_setting, get_location
-from djangosaml2.views import _set_subject_id, _get_subject_id
+from djangosaml2.views import _get_subject_id, _set_subject_id
 from rest_framework.authtoken.models import Token
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
 from saml2.client import Saml2Client
 from saml2.response import StatusRequestDenied
-from saml2.xmldsig import SIG_RSA_SHA1, DIGEST_SHA1
+from saml2.xmldsig import DIGEST_SHA1, SIG_RSA_SHA1
 
 from waldur_core.core.views import (
-    login_failed, login_completed, logout_failed, logout_completed, RefreshTokenMixin,
-    validate_authentication_method)
+    RefreshTokenMixin,
+    login_completed,
+    login_failed,
+    logout_completed,
+    logout_failed,
+    validate_authentication_method,
+)
 
 from . import filters, models, serializers, utils
 from .log import event_logger
-
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +50,7 @@ class Saml2LoginView(BaseSaml2View):
     redirects them to corresponding IdP authorization page.
     The "metadata" has to be set in SAML_CONFIG in settings.py
     """
+
     serializer_class = serializers.Saml2LoginSerializer
 
     @validate_saml2
@@ -79,8 +84,12 @@ class Saml2LoginView(BaseSaml2View):
         kwargs = {}
         sign_requests = getattr(conf, '_sp_authn_requests_signed', False)
         if sign_requests:
-            signature_algorithm = settings.WALDUR_AUTH_SAML2.get('signature_algorithm') or SIG_RSA_SHA1
-            digest_algorithm = settings.WALDUR_AUTH_SAML2.get('digest_algorithm') or DIGEST_SHA1
+            signature_algorithm = (
+                settings.WALDUR_AUTH_SAML2.get('signature_algorithm') or SIG_RSA_SHA1
+            )
+            digest_algorithm = (
+                settings.WALDUR_AUTH_SAML2.get('digest_algorithm') or DIGEST_SHA1
+            )
 
             kwargs['sign'] = True
             kwargs['sigalg'] = signature_algorithm
@@ -93,7 +102,8 @@ class Saml2LoginView(BaseSaml2View):
 
         if binding == BINDING_HTTP_REDIRECT:
             session_id, result = client.prepare_for_authenticate(
-                entityid=idp, binding=binding, **kwargs)
+                entityid=idp, binding=binding, **kwargs
+            )
 
             data = {
                 'binding': 'redirect',
@@ -106,7 +116,9 @@ class Saml2LoginView(BaseSaml2View):
                 error_message = _('Invalid identity provider specified.')
                 return JsonResponse({'error_message': error_message}, status=400)
 
-            session_id, request_xml = client.create_authn_request(location, binding=binding, **kwargs)
+            session_id, request_xml = client.create_authn_request(
+                location, binding=binding, **kwargs
+            )
             data = {
                 'binding': 'post',
                 'url': location,
@@ -130,6 +142,7 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
     djangosaml2.backends.Saml2Backend that should be
     enabled in the settings.py
     """
+
     serializer_class = serializers.Saml2LoginCompleteSerializer
 
     @validate_saml2
@@ -138,9 +151,9 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         serializer.is_valid(raise_exception=True)
 
         attribute_mapping = get_custom_setting(
-            'SAML_ATTRIBUTE_MAPPING', {'uid': ('username', )})
-        create_unknown_user = get_custom_setting(
-            'SAML_CREATE_UNKNOWN_USER', True)
+            'SAML_ATTRIBUTE_MAPPING', {'uid': ('username',)}
+        )
+        create_unknown_user = get_custom_setting('SAML_CREATE_UNKNOWN_USER', True)
 
         conf = get_config(request=request)
         client = Saml2Client(conf, identity_cache=IdentityCache(request.session))
@@ -152,11 +165,17 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
 
         # process the authentication response
         try:
-            response = client.parse_authn_request_response(xmlstr, BINDING_HTTP_POST, outstanding_queries)
+            response = client.parse_authn_request_response(
+                xmlstr, BINDING_HTTP_POST, outstanding_queries
+            )
         except Exception as e:
             if isinstance(e, StatusRequestDenied):
-                return login_failed(_('Authentication request has been denied by identity provider. '
-                                      'Please check your credentials.'))
+                return login_failed(
+                    _(
+                        'Authentication request has been denied by identity provider. '
+                        'Please check your credentials.'
+                    )
+                )
             logger.error('SAML response parsing failed %s' % e)
             return login_failed(_('SAML2 response has errors.'))
 
@@ -204,10 +223,14 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         post_authenticated.send_robust(sender=user, session_info=session_info)
         token = self.refresh_token(user)
 
-        logger.info('Authenticated with SAML token. Returning token for successful login of user %s', user)
+        logger.info(
+            'Authenticated with SAML token. Returning token for successful login of user %s',
+            user,
+        )
         event_logger.saml2_auth.info(
             'User {user_username} with full name {user_full_name} logged in successfully with SAML2.',
-            event_type='auth_logged_in_with_saml2', event_context={'user': user}
+            event_type='auth_logged_in_with_saml2',
+            event_context={'user': user},
         )
         return login_completed(token.key, 'saml2')
 
@@ -224,7 +247,9 @@ class Saml2LogoutView(BaseSaml2View):
         state = StateCache(request.session)
         conf = get_config(request=request)
 
-        client = Saml2Client(conf, state_cache=state, identity_cache=IdentityCache(request.session))
+        client = Saml2Client(
+            conf, state_cache=state, identity_cache=IdentityCache(request.session)
+        )
         subject_id = _get_subject_id(request.session)
         if subject_id is None:
             return logout_failed(_('You cannot be logged out.'))
@@ -275,8 +300,9 @@ class Saml2LogoutCompleteView(BaseSaml2View):
         conf = get_config(request=request)
 
         state = StateCache(request.session)
-        client = Saml2Client(conf, state_cache=state,
-                             identity_cache=IdentityCache(request.session))
+        client = Saml2Client(
+            conf, state_cache=state, identity_cache=IdentityCache(request.session)
+        )
 
         if 'SAMLResponse' in data:
             # Logout started by us
@@ -288,8 +314,12 @@ class Saml2LogoutCompleteView(BaseSaml2View):
             if subject_id is None:
                 http_response = logout_completed()
             else:
-                http_info = client.handle_logout_request(data['SAMLRequest'], subject_id, binding,
-                                                         relay_state=data.get('RelayState', ''))
+                http_info = client.handle_logout_request(
+                    data['SAMLRequest'],
+                    subject_id,
+                    binding,
+                    relay_state=data.get('RelayState', ''),
+                )
                 http_response = HttpResponseRedirect(get_location(http_info))
 
         state.sync()
@@ -300,7 +330,8 @@ class Saml2LogoutCompleteView(BaseSaml2View):
         auth.logout(request)
         event_logger.saml2_auth.info(
             'User {user_username} with full name {user_full_name} logged out successfully with SAML2.',
-            event_type='auth_logged_out_with_saml2', event_context={'user': user}
+            event_type='auth_logged_out_with_saml2',
+            event_context={'user': user},
         )
         return http_response
 

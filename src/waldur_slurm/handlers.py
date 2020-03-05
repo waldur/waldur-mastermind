@@ -12,10 +12,12 @@ from . import models, tasks, utils
 
 def if_plugin_enabled(f):
     """Calls decorated handler only if plugin is enabled."""
+
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
         if settings.WALDUR_SLURM['ENABLED']:
             return f(*args, **kwargs)
+
     return wrapped
 
 
@@ -23,14 +25,16 @@ def if_plugin_enabled(f):
 def process_user_creation(sender, instance, created=False, **kwargs):
     if not created:
         return
-    transaction.on_commit(lambda:
-                          tasks.add_user.delay(core_utils.serialize_instance(instance)))
+    transaction.on_commit(
+        lambda: tasks.add_user.delay(core_utils.serialize_instance(instance))
+    )
 
 
 @if_plugin_enabled
 def process_user_deletion(sender, instance, **kwargs):
-    transaction.on_commit(lambda:
-                          tasks.delete_user.delay(core_utils.serialize_instance(instance)))
+    transaction.on_commit(
+        lambda: tasks.delete_user.delay(core_utils.serialize_instance(instance))
+    )
 
 
 @if_plugin_enabled
@@ -39,8 +43,11 @@ def process_role_granted(sender, structure, user, role, **kwargs):
         freeipa_profile = freeipa_models.Profile.objects.get(user=user)
         serialized_profile = core_utils.serialize_instance(freeipa_profile)
         serialized_structure = core_utils.serialize_instance(structure)
-        transaction.on_commit(lambda:
-                              tasks.process_role_granted.delay(serialized_profile, serialized_structure))
+        transaction.on_commit(
+            lambda: tasks.process_role_granted.delay(
+                serialized_profile, serialized_structure
+            )
+        )
     except freeipa_models.Profile.DoesNotExist:
         pass
 
@@ -51,8 +58,11 @@ def process_role_revoked(sender, structure, user, role, **kwargs):
         freeipa_profile = freeipa_models.Profile.objects.get(user=user)
         serialized_profile = core_utils.serialize_instance(freeipa_profile)
         serialized_structure = core_utils.serialize_instance(structure)
-        transaction.on_commit(lambda:
-                              tasks.process_role_revoked.delay(serialized_profile, serialized_structure))
+        transaction.on_commit(
+            lambda: tasks.process_role_revoked.delay(
+                serialized_profile, serialized_structure
+            )
+        )
     except freeipa_models.Profile.DoesNotExist:
         pass
 

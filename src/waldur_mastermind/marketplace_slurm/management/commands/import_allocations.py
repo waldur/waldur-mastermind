@@ -20,16 +20,22 @@ class ImportAllocationException(Exception):
 @transaction.atomic()
 def import_allocation(dry_run=False):
     ct = ContentType.objects.get_for_model(slurm_models.Allocation)
-    exist_ids = marketplace_models.Resource.objects.filter(content_type=ct).values_list('object_id', flat=True)
+    exist_ids = marketplace_models.Resource.objects.filter(content_type=ct).values_list(
+        'object_id', flat=True
+    )
     missing_allocations = slurm_models.Allocation.objects.exclude(id__in=exist_ids)
 
     if dry_run:
-        logger.warning('Allocations would be imported to marketplace. '
-                       'IDs: %s.' % format_list(missing_allocations))
+        logger.warning(
+            'Allocations would be imported to marketplace. '
+            'IDs: %s.' % format_list(missing_allocations)
+        )
         return missing_allocations.count()
 
     for allocation in missing_allocations:
-        offering = marketplace_models.Offering.objects.filter(scope=allocation.service_settings).first()
+        offering = marketplace_models.Offering.objects.filter(
+            scope=allocation.service_settings
+        ).first()
         component_cpu = offering.components.get(type='cpu')
         component_gpu = offering.components.get(type='gpu')
         component_ram = offering.components.get(type='ram')
@@ -37,12 +43,17 @@ def import_allocation(dry_run=False):
         try:
             plan = marketplace_models.Plan.objects.get(offering=offering)
         except marketplace_models.Plan.DoesNotExist:
-            logger.warning('Resource has not been created. Because Plan is not found. '
-                           'Offering UUID: %s.' % offering.uuid.hex)
+            logger.warning(
+                'Resource has not been created. Because Plan is not found. '
+                'Offering UUID: %s.' % offering.uuid.hex
+            )
             continue
 
-        state = marketplace_models.Resource.States.OK if allocation.is_active \
+        state = (
+            marketplace_models.Resource.States.OK
+            if allocation.is_active
             else marketplace_models.Resource.States.TERMINATED
+        )
         resource = marketplace_models.Resource.objects.create(
             content_type=ct,
             object_id=allocation.id,
@@ -51,32 +62,28 @@ def import_allocation(dry_run=False):
             offering=offering,
             created=allocation.created,
             plan=plan,
-            limits={'deposit_limit': int(allocation.deposit_limit)}
+            limits={'deposit_limit': int(allocation.deposit_limit)},
         )
 
         marketplace_models.ComponentQuota.objects.create(
-            resource=resource,
-            limit=allocation.cpu_limit,
-            component=component_cpu)
+            resource=resource, limit=allocation.cpu_limit, component=component_cpu
+        )
         marketplace_models.ComponentQuota.objects.create(
-            resource=resource,
-            limit=allocation.gpu_limit,
-            component=component_gpu)
+            resource=resource, limit=allocation.gpu_limit, component=component_gpu
+        )
         marketplace_models.ComponentQuota.objects.create(
-            resource=resource,
-            limit=allocation.ram_limit,
-            component=component_ram)
+            resource=resource, limit=allocation.ram_limit, component=component_ram
+        )
 
         resource_plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
-            resource=resource,
-            plan=resource.plan,
-            start=allocation.created,
-            end=None,
+            resource=resource, plan=resource.plan, start=allocation.created, end=None,
         )
 
         for allocation_usage in allocation.allocationusage_set.all():
-            if allocation_usage.year == allocation.created.year and \
-                    allocation_usage.month == allocation.created.month:
+            if (
+                allocation_usage.year == allocation.created.year
+                and allocation_usage.month == allocation.created.month
+            ):
                 day = allocation.created.day
             else:
                 day = 1
@@ -104,7 +111,7 @@ def import_allocation(dry_run=False):
                 usage=allocation_usage.ram_usage,
                 date=date,
                 billing_period=month_start(date),
-                plan_period=resource_plan_period
+                plan_period=resource_plan_period,
             )
     return missing_allocations.count()
 
@@ -116,6 +123,10 @@ class Command(DryRunCommand):
     def handle(self, dry_run, *args, **options):
         try:
             allocation_counter = import_allocation(dry_run)
-            self.stdout.write(self.style.SUCCESS('%s resources have been created.' % allocation_counter))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    '%s resources have been created.' % allocation_counter
+                )
+            )
         except ImportAllocationException as e:
             raise CommandError(e.message)

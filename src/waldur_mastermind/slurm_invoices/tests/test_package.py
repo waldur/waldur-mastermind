@@ -1,4 +1,4 @@
-from rest_framework import test, status
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -12,8 +12,13 @@ class SlurmPackageTest(test.APITransactionTestCase):
 
     def test_authorized_user_can_list_slurm_packages(self):
         self.client.force_login(self.fixture.owner)
-        service_settings = structure_factories.ServiceSettingsFactory.get_url(self.fixture.service_settings)
-        response = self.client.get(factories.SlurmPackageFactory.get_list_url(), {'service_settings': service_settings})
+        service_settings = structure_factories.ServiceSettingsFactory.get_url(
+            self.fixture.service_settings
+        )
+        response = self.client.get(
+            factories.SlurmPackageFactory.get_list_url(),
+            {'service_settings': service_settings},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['uuid'], self.package.uuid.hex)
 

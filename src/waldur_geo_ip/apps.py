@@ -14,5 +14,6 @@ class GeoIPConfig(AppConfig):
                 handlers.detect_vm_coordinates,
                 sender=model,
                 dispatch_uid='waldur_geo_ip.handlers.detect_vm_coordinates_{}_{}'.format(
-                    model.__name__, index),
+                    model.__name__, index
+                ),
             )

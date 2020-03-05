@@ -6,7 +6,6 @@ from . import factories
 
 
 class DigitalOceanFixture(ProjectFixture):
-
     @cached_property
     def size(self):
         size = factories.SizeFactory()
@@ -34,6 +33,5 @@ class DigitalOceanFixture(ProjectFixture):
     @cached_property
     def spl(self):
         return factories.DigitalOceanServiceProjectLinkFactory(
-            service=self.service,
-            project=self.project,
+            service=self.service, project=self.project,
         )

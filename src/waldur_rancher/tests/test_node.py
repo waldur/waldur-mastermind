@@ -4,10 +4,12 @@ from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
-from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
+from waldur_openstack.openstack_tenant.tests import (
+    factories as openstack_tenant_factories,
+)
 
-from . import factories, fixtures, test_cluster
 from .. import models, tasks
+from . import factories, fixtures, test_cluster
 
 
 class NodeGetTest(test.APITransactionTestCase):
@@ -52,14 +54,14 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertTrue(mock_executors.ClusterCreateExecutor.execute.called)
         create_node_task = tasks.CreateNodeTask()
         create_node_task.execute(
-            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0].node_set.first(),
-            user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['user'].id,
+            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][
+                0
+            ].node_set.first(),
+            user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2][
+                'user'
+            ].id,
         )
         self.assertTrue(cluster.node_set.filter(cluster=cluster).exists())
-        node = cluster.node_set.first()
-        self.assertTrue(node.controlplane_role)
-        self.assertTrue(node.etcd_role)
-        self.assertTrue(node.worker_role)
 
     def create_node(self, user):
         self.client.force_authenticate(user)
@@ -86,10 +88,12 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             'data_volumes': [
                 {
                     'size': 12 * 1024,
-                    'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(volume_type),
+                    'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(
+                        volume_type
+                    ),
                     'mount_point': '/var/lib/etcd',
                 }
-            ]
+            ],
         }
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -101,15 +105,24 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def test_poll_node_after_it_has_been_created(self, mock_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1)
+        self.assertEqual(
+            mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1
+        )
 
     @mock.patch('waldur_rancher.backend.RancherBackend.update_node_details')
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
     @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
-    def test_not_pulling_if_node_has_been_created(self, mock_retry, mock_client, mock_update_node_details):
+    def test_not_pulling_if_node_has_been_created(
+        self, mock_retry, mock_client, mock_update_node_details
+    ):
         backend_cluster = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
-        backend_node = backend_cluster['appliedSpec']['rancherKubernetesEngineConfig']['nodes'][0]
+            pkg_resources.resource_stream(__name__, 'backend_cluster.json')
+            .read()
+            .decode()
+        )
+        backend_node = backend_cluster['appliedSpec']['rancherKubernetesEngineConfig'][
+            'nodes'
+        ][0]
         self.fixture.node.name = backend_node['hostnameOverride']
         self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
         self.fixture.node.save()
@@ -138,7 +151,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def test_create_node_if_flavor_has_been_specified(self, mock_tasks):
         del self.payload['cpu']
         del self.payload['memory']
-        self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(self.flavor)
+        self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(
+            self.flavor
+        )
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
@@ -151,7 +166,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
         del self.payload['cpu']
         del self.payload['memory']
-        self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(self.flavor)
+        self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(
+            self.flavor
+        )
         response = self.create_node(self.fixture.staff)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -174,7 +191,9 @@ class NodeDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.RancherFixture()
         self.cluster_name = self.fixture.cluster.name
         self.url = factories.NodeFactory.get_url(self.fixture.node)
-        self.fixture.node.instance.runtime_state = self.fixture.node.instance.RuntimeStates.SHUTOFF
+        self.fixture.node.instance.runtime_state = (
+            self.fixture.node.instance.RuntimeStates.SHUTOFF
+        )
         self.fixture.node.instance.save()
 
     def test_delete_node(self):
@@ -193,9 +212,13 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
         self.patcher_client = mock.patch('waldur_rancher.backend.RancherBackend.client')
         self.mock_client = self.patcher_client.start()
         self.mock_client.get_node.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode())
+            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
+        )
         self.mock_client.get_cluster.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
+            pkg_resources.resource_stream(__name__, 'backend_cluster.json')
+            .read()
+            .decode()
+        )
 
     def _check_node_fields(self, node):
         node.refresh_from_db()
@@ -215,7 +238,8 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
 
     def test_update_node_if_key_does_not_exists(self):
         backend_node = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode())
+            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
+        )
         backend_node.pop('annotations')
         self.mock_client.get_node.return_value = backend_node
         tasks.update_nodes(self.fixture.cluster.id)

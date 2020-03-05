@@ -8,9 +8,15 @@ from django.conf.urls import url
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.contrib.admin.widgets import FilteredSelectMultiple
-from django.core.exceptions import ValidationError, FieldDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models as django_models
-from django.forms import ModelMultipleChoiceField, ModelForm, RadioSelect, ChoiceField, CharField
+from django.forms import (
+    CharField,
+    ChoiceField,
+    ModelForm,
+    ModelMultipleChoiceField,
+    RadioSelect,
+)
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.utils import timezone
@@ -19,21 +25,24 @@ from django.utils.translation import ungettext
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
-    get_admin_url, ExecutorAdminAction, PasswordWidget,
-    NativeNameAdminMixin, JsonWidget, ReadOnlyAdminMixin,
+    ExecutorAdminAction,
+    JsonWidget,
+    NativeNameAdminMixin,
+    PasswordWidget,
+    ReadOnlyAdminMixin,
+    get_admin_url,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.core.models import User
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.quotas.admin import QuotaInline
-from waldur_core.structure import models, SupportedServices, executors, utils
+from waldur_core.structure import SupportedServices, executors, models, utils
 from waldur_geo_ip import tasks as geo_ip_tasks
 
 logger = logging.getLogger(__name__)
 
 
 class BackendModelAdmin(admin.ModelAdmin):
-
     def get_list_filter(self, request):
         try:
             self.model._meta.get_field('settings')
@@ -96,7 +105,9 @@ class ChangeReadonlyMixin:
 class ProtectedModelMixin:
     def delete_view(self, request, *args, **kwargs):
         try:
-            response = super(ProtectedModelMixin, self).delete_view(request, *args, **kwargs)
+            response = super(ProtectedModelMixin, self).delete_view(
+                request, *args, **kwargs
+            )
         except django_models.ProtectedError as e:
             self.message_user(request, e, messages.ERROR)
             return HttpResponseRedirect('.')
@@ -122,11 +133,18 @@ class ResourceCounterFormMixin:
 
 
 class CustomerAdminForm(ModelForm):
-    owners = ModelMultipleChoiceField(User.objects.all().order_by('full_name'), required=False,
-                                      widget=FilteredSelectMultiple(verbose_name=_('Owners'), is_stacked=False))
-    support_users = ModelMultipleChoiceField(User.objects.all().order_by('full_name'), required=False,
-                                             widget=FilteredSelectMultiple(verbose_name=_('Support users'),
-                                                                           is_stacked=False))
+    owners = ModelMultipleChoiceField(
+        User.objects.all().order_by('full_name'),
+        required=False,
+        widget=FilteredSelectMultiple(verbose_name=_('Owners'), is_stacked=False),
+    )
+    support_users = ModelMultipleChoiceField(
+        User.objects.all().order_by('full_name'),
+        required=False,
+        widget=FilteredSelectMultiple(
+            verbose_name=_('Support users'), is_stacked=False
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         super(CustomerAdminForm, self).__init__(*args, **kwargs)
@@ -145,7 +163,9 @@ class CustomerAdminForm(ModelForm):
         self.fields['access_subnets'].widget.attrs = textarea_attrs
         type_choices = ['']
         type_choices.extend(settings.WALDUR_CORE['COMPANY_TYPES'])
-        self.fields['type'] = ChoiceField(required=False, choices=[(t, t) for t in type_choices])
+        self.fields['type'] = ChoiceField(
+            required=False, choices=[(t, t) for t in type_choices]
+        )
 
     def save(self, commit=True):
         customer = super(CustomerAdminForm, self).save(commit=False)
@@ -181,13 +201,21 @@ class CustomerAdminForm(ModelForm):
         invalid_users = set(owners) & set(support_users)
         if invalid_users:
             invalid_users_list = ', '.join(map(str, invalid_users))
-            raise ValidationError(_('User role within organization must be unique. '
-                                    'Role assignment of The following users is invalid: %s.') % invalid_users_list)
+            raise ValidationError(
+                _(
+                    'User role within organization must be unique. '
+                    'Role assignment of The following users is invalid: %s.'
+                )
+                % invalid_users_list
+            )
         return cleaned_data
 
     def clean_accounting_start_date(self):
         accounting_start_date = self.cleaned_data['accounting_start_date']
-        if 'accounting_start_date' in self.changed_data and accounting_start_date < timezone.now():
+        if (
+            'accounting_start_date' in self.changed_data
+            and accounting_start_date < timezone.now()
+        ):
             # If accounting_start_date < timezone.now(), we change accounting_start_date
             # but not raise an exception, because accounting_start_date default value is
             # timezone.now(), but init time of form and submit time of form are always diff.
@@ -197,22 +225,56 @@ class CustomerAdminForm(ModelForm):
         return accounting_start_date
 
 
-class CustomerAdmin(FormRequestAdminMixin,
-                    ResourceCounterFormMixin,
-                    NativeNameAdminMixin,
-                    ProtectedModelMixin,
-                    admin.ModelAdmin):
+class CustomerAdmin(
+    FormRequestAdminMixin,
+    ResourceCounterFormMixin,
+    NativeNameAdminMixin,
+    ProtectedModelMixin,
+    admin.ModelAdmin,
+):
     form = CustomerAdminForm
-    fields = ('name', 'uuid', 'image', 'native_name', 'abbreviation', 'division', 'contact_details',
-              'registration_code', 'backend_id', 'domain',
-              'agreement_number', 'email', 'phone_number', 'access_subnets', 'homepage',
-              'country', 'vat_code', 'is_company', 'owners', 'support_users',
-              'type', 'address', 'postal', 'latitude', 'longitude',
-              'bank_name', 'bank_account',
-              'accounting_start_date', 'default_tax_percent', 'blocked')
-    list_display = ('name', 'uuid', 'abbreviation',
-                    'created', 'accounting_start_date',
-                    'get_vm_count', 'get_app_count', 'get_private_cloud_count')
+    fields = (
+        'name',
+        'uuid',
+        'image',
+        'native_name',
+        'abbreviation',
+        'division',
+        'contact_details',
+        'registration_code',
+        'backend_id',
+        'domain',
+        'agreement_number',
+        'email',
+        'phone_number',
+        'access_subnets',
+        'homepage',
+        'country',
+        'vat_code',
+        'is_company',
+        'owners',
+        'support_users',
+        'type',
+        'address',
+        'postal',
+        'latitude',
+        'longitude',
+        'bank_name',
+        'bank_account',
+        'accounting_start_date',
+        'default_tax_percent',
+        'blocked',
+    )
+    list_display = (
+        'name',
+        'uuid',
+        'abbreviation',
+        'created',
+        'accounting_start_date',
+        'get_vm_count',
+        'get_app_count',
+        'get_private_cloud_count',
+    )
     list_filter = ('blocked', 'division')
     search_fields = ('name', 'uuid', 'abbreviation')
     date_hierarchy = 'created'
@@ -227,13 +289,23 @@ class CustomerAdmin(FormRequestAdminMixin,
 
 
 class ProjectAdminForm(ModelForm):
-    admins = ModelMultipleChoiceField(User.objects.all().order_by('full_name'), required=False,
-                                      widget=FilteredSelectMultiple(verbose_name=_('Admins'), is_stacked=False))
-    managers = ModelMultipleChoiceField(User.objects.all().order_by('full_name'), required=False,
-                                        widget=FilteredSelectMultiple(verbose_name=_('Managers'), is_stacked=False))
-    support_users = ModelMultipleChoiceField(User.objects.all().order_by('full_name'), required=False,
-                                             widget=FilteredSelectMultiple(verbose_name=_('Support users'),
-                                                                           is_stacked=False))
+    admins = ModelMultipleChoiceField(
+        User.objects.all().order_by('full_name'),
+        required=False,
+        widget=FilteredSelectMultiple(verbose_name=_('Admins'), is_stacked=False),
+    )
+    managers = ModelMultipleChoiceField(
+        User.objects.all().order_by('full_name'),
+        required=False,
+        widget=FilteredSelectMultiple(verbose_name=_('Managers'), is_stacked=False),
+    )
+    support_users = ModelMultipleChoiceField(
+        User.objects.all().order_by('full_name'),
+        required=False,
+        widget=FilteredSelectMultiple(
+            verbose_name=_('Support users'), is_stacked=False
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         super(ProjectAdminForm, self).__init__(*args, **kwargs)
@@ -253,12 +325,19 @@ class ProjectAdminForm(ModelForm):
         admins = self.cleaned_data['admins']
         managers = self.cleaned_data['managers']
         support_users = self.cleaned_data['support_users']
-        for xs, ys in itertools.combinations([set(admins), set(managers), set(support_users)], 2):
+        for xs, ys in itertools.combinations(
+            [set(admins), set(managers), set(support_users)], 2
+        ):
             invalid_users = xs & ys
             if invalid_users:
                 invalid_users_list = ', '.join(map(str, invalid_users))
-                raise ValidationError(_('User role within project must be unique. '
-                                        'Role assignment of The following users is invalid: %s.') % invalid_users_list)
+                raise ValidationError(
+                    _(
+                        'User role within project must be unique. '
+                        'Role assignment of The following users is invalid: %s.'
+                    )
+                    % invalid_users_list
+                )
         return cleaned_data
 
     def save(self, commit=True):
@@ -289,18 +368,36 @@ class ProjectAdminForm(ModelForm):
         self.save_m2m()
 
 
-class ProjectAdmin(FormRequestAdminMixin,
-                   ResourceCounterFormMixin,
-                   ProtectedModelMixin,
-                   ChangeReadonlyMixin,
-                   admin.ModelAdmin):
+class ProjectAdmin(
+    FormRequestAdminMixin,
+    ResourceCounterFormMixin,
+    ProtectedModelMixin,
+    ChangeReadonlyMixin,
+    admin.ModelAdmin,
+):
     form = ProjectAdminForm
 
-    fields = ('name', 'description', 'customer', 'type',
-              'admins', 'managers', 'support_users', 'certifications')
+    fields = (
+        'name',
+        'description',
+        'customer',
+        'type',
+        'admins',
+        'managers',
+        'support_users',
+        'certifications',
+    )
 
-    list_display = ['name', 'uuid', 'customer', 'created', 'get_type_name',
-                    'get_vm_count', 'get_app_count', 'get_private_cloud_count']
+    list_display = [
+        'name',
+        'uuid',
+        'customer',
+        'created',
+        'get_type_name',
+        'get_vm_count',
+        'get_app_count',
+        'get_private_cloud_count',
+    ]
     search_fields = ['name', 'uuid']
     change_readonly_fields = ['customer']
     inlines = [QuotaInline]
@@ -327,7 +424,9 @@ class ServiceCertificationAdmin(admin.ModelAdmin):
 
 
 class ServiceSettingsAdminForm(ModelForm):
-    backend_url = CharField(max_length=200, required=False, validators=[BackendURLValidator()])
+    backend_url = CharField(
+        max_length=200, required=False, validators=[BackendURLValidator()]
+    )
 
     def clean(self):
         cleaned_data = super(ServiceSettingsAdminForm, self).clean()
@@ -347,20 +446,32 @@ class ServiceSettingsAdminForm(ModelForm):
                 try:
                     self.add_error(field, _('This field is required.'))
                 except ValueError:
-                    logger.warning('Incorrect field %s in %s required_fields' %
-                                   (field, service_type))
+                    logger.warning(
+                        'Incorrect field %s in %s required_fields'
+                        % (field, service_type)
+                    )
 
         # Check required extra fields of service type
         try:
             if 'options' in cleaned_data:
                 options = json.loads(cleaned_data.get('options'))
-                unfilled = set(extra_fields_required[service_type]) - set(options.keys()) - set(fields_default.keys())
+                unfilled = (
+                    set(extra_fields_required[service_type])
+                    - set(options.keys())
+                    - set(fields_default.keys())
+                )
 
                 if unfilled:
-                    self.add_error('options', _('This field must include keys: %s') %
-                                   ', '.join(unfilled))
-                service_serializer = SupportedServices.get_service_serializer_for_key(service_type)
-                options_serializer_class = getattr(service_serializer.Meta, 'options_serializer', None)
+                    self.add_error(
+                        'options',
+                        _('This field must include keys: %s') % ', '.join(unfilled),
+                    )
+                service_serializer = SupportedServices.get_service_serializer_for_key(
+                    service_type
+                )
+                options_serializer_class = getattr(
+                    service_serializer.Meta, 'options_serializer', None
+                )
                 if options_serializer_class:
                     options_serializer = options_serializer_class(data=options)
                     if not options_serializer.is_valid():
@@ -383,8 +494,9 @@ class ServiceSettingsAdminForm(ModelForm):
 
     def __init__(self, *args, **kwargs):
         super(ServiceSettingsAdminForm, self).__init__(*args, **kwargs)
-        self.fields['type'] = ChoiceField(choices=SupportedServices.get_choices(),
-                                          widget=RadioSelect)
+        self.fields['type'] = ChoiceField(
+            choices=SupportedServices.get_choices(), widget=RadioSelect
+        )
 
 
 class ServiceTypeFilter(SimpleListFilter):
@@ -403,21 +515,55 @@ class ServiceTypeFilter(SimpleListFilter):
 
 class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
     readonly_fields = ('error_message', 'uuid')
-    list_display = ('name', 'customer', 'get_type_display', 'state', 'error_message', 'uuid')
+    list_display = (
+        'name',
+        'customer',
+        'get_type_display',
+        'state',
+        'error_message',
+        'uuid',
+    )
     list_filter = (ServiceTypeFilter, 'state')
     search_fields = ('name', 'uuid')
     change_readonly_fields = ('customer',)
     actions = ['pull']
     form = ServiceSettingsAdminForm
-    fields = ('type', 'name', 'uuid', 'backend_url', 'username', 'password',
-              'token', 'domain', 'certificate', 'options', 'customer',
-              'state', 'error_message', 'tags', 'homepage', 'terms_of_services',
-              'certifications', 'geolocations')
+    fields = (
+        'type',
+        'name',
+        'uuid',
+        'backend_url',
+        'username',
+        'password',
+        'token',
+        'domain',
+        'certificate',
+        'options',
+        'customer',
+        'state',
+        'error_message',
+        'tags',
+        'homepage',
+        'terms_of_services',
+        'certifications',
+        'geolocations',
+    )
     inlines = [QuotaInline]
     filter_horizontal = ('certifications',)
-    common_fields = ('type', 'name', 'uuid', 'options', 'customer',
-                     'state', 'error_message', 'tags', 'homepage', 'terms_of_services',
-                     'certifications', 'geolocations')
+    common_fields = (
+        'type',
+        'name',
+        'uuid',
+        'options',
+        'customer',
+        'state',
+        'error_message',
+        'tags',
+        'homepage',
+        'terms_of_services',
+        'certifications',
+        'geolocations',
+    )
 
     # must be specified explicitly not to be constructed from model name by default.
     change_form_template = 'admin/structure/servicesettings/change_form.html'
@@ -442,10 +588,14 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
 
         extra_context['service_fields'] = json.dumps(service_field_names)
         extra_context['service_fields_required'] = json.dumps(service_fields_required)
-        return super(PrivateServiceSettingsAdmin, self).changeform_view(request, object_id, form_url, extra_context)
+        return super(PrivateServiceSettingsAdmin, self).changeform_view(
+            request, object_id, form_url, extra_context
+        )
 
     def get_readonly_fields(self, request, obj=None):
-        fields = super(PrivateServiceSettingsAdmin, self).get_readonly_fields(request, obj)
+        fields = super(PrivateServiceSettingsAdmin, self).get_readonly_fields(
+            request, obj
+        )
         if not obj:
             return fields + ('state',)
         elif obj.scope:
@@ -462,19 +612,27 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         settings = models.ServiceSettings.objects.get(id=pk)
         projects = {}
 
-        spl_model = SupportedServices.get_related_models(settings)['service_project_link']
+        spl_model = SupportedServices.get_related_models(settings)[
+            'service_project_link'
+        ]
         for spl in spl_model.objects.filter(service__settings=settings):
-            projects.setdefault(spl.project.id, {
-                'name': str(spl.project),
-                'url': get_admin_url(spl.project),
-                'services': [],
-            })
-            projects[spl.project.id]['services'].append({
-                'name': str(spl.service),
-                'url': get_admin_url(spl.service),
-            })
+            projects.setdefault(
+                spl.project.id,
+                {
+                    'name': str(spl.project),
+                    'url': get_admin_url(spl.project),
+                    'services': [],
+                },
+            )
+            projects[spl.project.id]['services'].append(
+                {'name': str(spl.service), 'url': get_admin_url(spl.service),}
+            )
 
-        return render(request, 'structure/service_settings_entities.html', {'projects': projects.values()})
+        return render(
+            request,
+            'structure/service_settings_entities.html',
+            {'projects': projects.values()},
+        )
 
     class Pull(ExecutorAdminAction):
         executor = executors.ServiceSettingsPullExecutor
@@ -511,7 +669,9 @@ class SharedServiceSettingsAdmin(PrivateServiceSettingsAdmin):
         field_info = utils.get_all_services_field_info()
         extra_fields_default = field_info.extra_fields_default[obj.type]
         extra_fields_required = field_info.extra_fields_required[obj.type]
-        default = (set(extra_fields_required) - set(obj.options.keys())) & set(extra_fields_default.keys())
+        default = (set(extra_fields_required) - set(obj.options.keys())) & set(
+            extra_fields_default.keys()
+        )
 
         if default:
             for d in default:
@@ -527,7 +687,9 @@ class SharedServiceSettingsAdmin(PrivateServiceSettingsAdmin):
 
         def validate(self, service_settings):
             if not service_settings.shared:
-                raise ValidationError(_('It is impossible to connect not shared settings.'))
+                raise ValidationError(
+                    _('It is impossible to connect not shared settings.')
+                )
 
     connect_shared = ConnectShared()
 
@@ -543,9 +705,7 @@ class ServiceAdmin(admin.ModelAdmin):
 
 class ServicePropertyAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     search_fields = ('name',)
-    list_filter = (
-        ('settings', RelatedOnlyDropdownFilter),
-    )
+    list_filter = (('settings', RelatedOnlyDropdownFilter),)
     readonly_fields = ('name', 'settings')
     list_display = ('name', 'settings')
 
@@ -555,7 +715,11 @@ class ServiceProjectLinkAdmin(admin.ModelAdmin):
     list_filter = ('service__settings', 'project__name', 'service__settings__name')
     ordering = ('service__customer__name', 'project__name')
     list_display_links = ('get_service_name',)
-    search_fields = ('service__customer__name', 'project__name', 'service__settings__name')
+    search_fields = (
+        'service__customer__name',
+        'project__name',
+        'service__settings__name',
+    )
     inlines = [QuotaInline]
 
     def get_readonly_fields(self, request, obj=None):
@@ -592,16 +756,30 @@ class DerivedFromSharedSettingsResourceFilter(SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value() is not None:
-            return queryset.filter(service_project_link__service__settings__shared=self.value())
+            return queryset.filter(
+                service_project_link__service__settings__shared=self.value()
+            )
         else:
             return queryset
 
 
 class ResourceAdmin(BackendModelAdmin):
     readonly_fields = ('error_message',)
-    list_display = ('uuid', 'name', 'backend_id', 'state', 'created',
-                    'get_service', 'get_project', 'error_message', 'get_settings_shared')
-    list_filter = BackendModelAdmin.list_filter + ('state', DerivedFromSharedSettingsResourceFilter)
+    list_display = (
+        'uuid',
+        'name',
+        'backend_id',
+        'state',
+        'created',
+        'get_service',
+        'get_project',
+        'error_message',
+        'get_settings_shared',
+    )
+    list_filter = BackendModelAdmin.list_filter + (
+        'state',
+        DerivedFromSharedSettingsResourceFilter,
+    )
     search_fields = ('name',)
 
     def get_settings_shared(self, obj):
@@ -632,12 +810,14 @@ class VirtualMachineAdmin(ResourceAdmin):
     actions = ['detect_coordinates']
 
     def detect_coordinates(self, request, queryset):
-        geo_ip_tasks.detect_vm_coordinates_batch.delay([core_utils.serialize_instance(vm) for vm in queryset])
+        geo_ip_tasks.detect_vm_coordinates_batch.delay(
+            [core_utils.serialize_instance(vm) for vm in queryset]
+        )
         tasks_scheduled = queryset.count()
         message = ungettext(
             'Coordinates detection has been scheduled for one virtual machine.',
             'Coordinates detection has been scheduled for %(tasks_scheduled)d virtual machines.',
-            tasks_scheduled
+            tasks_scheduled,
         )
         message = message % {'tasks_scheduled': tasks_scheduled}
 

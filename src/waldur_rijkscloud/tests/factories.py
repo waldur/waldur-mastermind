@@ -1,8 +1,8 @@
-from random import randint
 import uuid
+from random import randint
 
-from django.urls import reverse
 import factory
+from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -20,12 +20,16 @@ class UrlModelFactory(factory.DjangoModelFactory):
             kwargs['uuid'] = service.uuid
         else:
             kwargs['pk'] = service.pk
-        url = 'http://testserver' + reverse('{}-detail'.format(cls._meta.model.get_url_name()), kwargs=kwargs)
+        url = 'http://testserver' + reverse(
+            '{}-detail'.format(cls._meta.model.get_url_name()), kwargs=kwargs
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('{}-list'.format(cls._meta.model.get_url_name()))
+        return 'http://testserver' + reverse(
+            '{}-list'.format(cls._meta.model.get_url_name())
+        )
 
 
 class ServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
@@ -80,7 +84,9 @@ class FloatingIPFactory(UrlModelFactory):
     name = factory.Sequence(lambda n: 'floating_ip%s' % n)
     settings = factory.SubFactory(ServiceSettingsFactory)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
-    address = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4)))
+    address = factory.LazyAttribute(
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+    )
 
 
 class NetworkFactory(UrlModelFactory):
@@ -99,7 +105,9 @@ class SubNetFactory(UrlModelFactory):
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
     settings = factory.SubFactory(ServiceSettingsFactory)
     network = factory.SubFactory(NetworkFactory)
-    gateway_ip = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4)))
+    gateway_ip = factory.LazyAttribute(
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+    )
 
 
 class InternalIPFactory(UrlModelFactory):
@@ -110,7 +118,9 @@ class InternalIPFactory(UrlModelFactory):
     settings = factory.SubFactory(ServiceSettingsFactory)
     subnet = factory.SubFactory(SubNetFactory)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
-    address = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4)))
+    address = factory.LazyAttribute(
+        lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))
+    )
 
 
 class InstanceFactory(UrlModelFactory):

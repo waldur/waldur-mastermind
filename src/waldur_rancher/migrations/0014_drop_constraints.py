@@ -10,8 +10,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterUniqueTogether(
-            name='cluster',
-            unique_together=set(),
-        ),
+        migrations.AlterUniqueTogether(name='cluster', unique_together=set(),),
     ]

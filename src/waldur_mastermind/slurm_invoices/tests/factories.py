@@ -1,5 +1,4 @@
 import factory
-
 from rest_framework.reverse import reverse
 
 from waldur_core.structure import models as structure_models
@@ -25,7 +24,9 @@ class SlurmPackageFactory(factory.DjangoModelFactory):
     def get_url(cls, package=None, action=None):
         if package is None:
             package = SlurmPackageFactory()
-        url = 'http://testserver' + reverse('slurm-package-detail', kwargs={'uuid': package.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'slurm-package-detail', kwargs={'uuid': package.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod

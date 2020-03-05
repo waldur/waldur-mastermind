@@ -18,7 +18,9 @@ class InvoiceFactory(factory.DjangoModelFactory):
     def get_url(cls, invoice=None, action=None):
         if invoice is None:
             invoice = InvoiceFactory()
-        url = 'http://testserver' + reverse('invoice-detail', kwargs={'uuid': invoice.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'invoice-detail', kwargs={'uuid': invoice.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod

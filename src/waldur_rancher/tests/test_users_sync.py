@@ -1,11 +1,12 @@
 from unittest import mock
-from rest_framework import test
 
 from django.core import mail
+from rest_framework import test
+
 from waldur_core.structure.models import ProjectRole
 
-from . import fixtures, factories
-from .. import models, utils, tasks
+from .. import models, tasks, utils
+from . import factories, fixtures
 
 
 class UserSyncTest(test.APITransactionTestCase):

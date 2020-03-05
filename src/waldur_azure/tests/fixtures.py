@@ -6,18 +6,21 @@ from . import factories
 
 
 class AzureFixture(ProjectFixture):
-
     @cached_property
     def settings(self):
         return factories.AzureServiceSettingsFactory(customer=self.customer)
 
     @cached_property
     def service(self):
-        return factories.AzureServiceFactory(customer=self.customer, settings=self.settings)
+        return factories.AzureServiceFactory(
+            customer=self.customer, settings=self.settings
+        )
 
     @cached_property
     def spl(self):
-        return factories.AzureServiceProjectLinkFactory(service=self.service, project=self.project)
+        return factories.AzureServiceProjectLinkFactory(
+            service=self.service, project=self.project
+        )
 
     @cached_property
     def location(self):
@@ -34,15 +37,13 @@ class AzureFixture(ProjectFixture):
     @cached_property
     def resource_group(self):
         return factories.ResourceGroupFactory(
-            location=self.location,
-            service_project_link=self.spl
+            location=self.location, service_project_link=self.spl
         )
 
     @cached_property
     def network(self):
         return factories.NetworkFactory(
-            resource_group=self.resource_group,
-            service_project_link=self.spl
+            resource_group=self.resource_group, service_project_link=self.spl
         )
 
     @cached_property
@@ -82,6 +83,5 @@ class AzureFixture(ProjectFixture):
     @cached_property
     def sql_server(self):
         return factories.SQLServerFactory(
-            service_project_link=self.spl,
-            resource_group=self.resource_group,
+            service_project_link=self.spl, resource_group=self.resource_group,
         )

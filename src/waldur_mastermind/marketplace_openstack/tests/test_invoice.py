@@ -11,16 +11,21 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import signals as marketplace_signals
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE, STORAGE_MODE_DYNAMIC, \
-    STORAGE_MODE_FIXED
+from waldur_mastermind.marketplace_openstack import (
+    CORES_TYPE,
+    RAM_TYPE,
+    STORAGE_MODE_DYNAMIC,
+    STORAGE_MODE_FIXED,
+    STORAGE_TYPE,
+)
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import serializers as packages_serializers
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests import utils as openstack_test_utils
 from waldur_openstack.openstack import models as openstack_models
 
-from .utils import BaseOpenStackTest, override_plugin_settings
 from .. import PACKAGE_TYPE
+from .utils import BaseOpenStackTest, override_plugin_settings
 
 
 @openstack_test_utils.override_plugin_settings(BILLING_ENABLED=True)
@@ -60,21 +65,20 @@ class InvoiceTest(BaseOpenStackTest):
             self.assertEqual(self.invoice.price, 60 * 31)
 
     def _create_plan(self, price, unit):
-        plan = marketplace_factories.PlanFactory(
-            offering=self.offering,
-            unit=unit
-        )
+        plan = marketplace_factories.PlanFactory(offering=self.offering, unit=unit)
 
         components = package_models.PackageTemplate.get_required_component_types()
         for component_type in components:
-            offering_component, _ = marketplace_models.OfferingComponent.objects.get_or_create(
-                offering=self.offering,
-                type=component_type
+            (
+                offering_component,
+                _,
+            ) = marketplace_models.OfferingComponent.objects.get_or_create(
+                offering=self.offering, type=component_type
             )
             marketplace_factories.PlanComponentFactory(
                 component=offering_component,
                 plan=plan,
-                price=Decimal(price) / len(components)
+                price=Decimal(price) / len(components),
             )
         return plan
 
@@ -84,32 +88,36 @@ class InvoiceTest(BaseOpenStackTest):
 
         user = self.fixture.staff
         self.client.force_login(user)
-        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'switch_plan')
-        self.client.post(url, {
-            'plan': new_plan_url,
-        })
+        url = marketplace_factories.ResourceFactory.get_url(
+            self.resource, 'switch_plan'
+        )
+        self.client.post(url, {'plan': new_plan_url,})
         update_order_item = marketplace_models.OrderItem.objects.get(
-            resource=self.resource,
-            type=marketplace_models.OrderItem.Types.UPDATE)
+            resource=self.resource, type=marketplace_models.OrderItem.Types.UPDATE
+        )
 
         marketplace_utils.process_order_item(update_order_item, user)
 
         new_template = update_order_item.plan.scope
         packages_serializers._set_tenant_quotas(self.tenant, new_template)
-        packages_serializers._set_related_service_settings_quotas(self.tenant, new_template)
+        packages_serializers._set_related_service_settings_quotas(
+            self.tenant, new_template
+        )
         packages_serializers._set_tenant_extra_configuration(self.tenant, new_template)
         self.package.delete()
         package_models.OpenStackPackage.objects.create(
             template=new_template,
             service_settings=self.package.service_settings,
-            tenant=self.tenant
+            tenant=self.tenant,
         )
 
         callbacks.resource_update_succeeded(self.resource)
 
     def _init(self, price, unit):
         self.fixture = package_fixtures.PackageFixture()
-        self.project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
+        self.project_url = structure_factories.ProjectFactory.get_url(
+            self.fixture.project
+        )
 
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.openstack_service_settings,
@@ -139,7 +147,7 @@ class InvoiceTest(BaseOpenStackTest):
                     'plan': plan_url,
                     'attributes': attributes,
                 },
-            ]
+            ],
         }
 
         user = self.fixture.staff
@@ -147,7 +155,9 @@ class InvoiceTest(BaseOpenStackTest):
         url = marketplace_factories.OrderFactory.get_list_url()
         response = self.client.post(url, payload)
 
-        order_item = marketplace_models.OrderItem.objects.get(uuid=response.data['items'][0]['uuid'])
+        order_item = marketplace_models.OrderItem.objects.get(
+            uuid=response.data['items'][0]['uuid']
+        )
         marketplace_utils.process_order_item(order_item, user)
         self.resource = order_item.resource
         callbacks.resource_creation_succeeded(self.resource)
@@ -158,7 +168,9 @@ class InvoiceTest(BaseOpenStackTest):
         self.tenant.save()
 
         self.package = package_models.OpenStackPackage.objects.get(tenant=self.tenant)
-        self.invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
+        self.invoice = invoices_models.Invoice.objects.get(
+            customer=self.fixture.customer
+        )
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
@@ -181,8 +193,7 @@ class MarketplaceInvoiceBaseTest(test.APITransactionTestCase):
             marketplace_factories.PlanComponentFactory(
                 plan=self.plan,
                 component=marketplace_factories.OfferingComponentFactory(
-                    offering=self.offering,
-                    type=ct,
+                    offering=self.offering, type=ct,
                 ),
                 price=self.prices[ct],
             )
@@ -197,19 +208,19 @@ class MarketplaceInvoiceBaseTest(test.APITransactionTestCase):
 class MarketplaceInvoiceTest(MarketplaceInvoiceBaseTest):
     def test_when_resource_is_created_invoice_is_updated(self):
         marketplace_signals.resource_creation_succeeded.send(
-            sender=self.resource.__class__,
-            instance=self.resource,
+            sender=self.resource.__class__, instance=self.resource,
         )
         invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
-        self.assertEqual(invoice_item.unit_price,
-                         self.limits[RAM_TYPE] * self.prices[RAM_TYPE] / 1024 +
-                         self.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
-                         self.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE] / 1024)
+        self.assertEqual(
+            invoice_item.unit_price,
+            self.limits[RAM_TYPE] * self.prices[RAM_TYPE] / 1024
+            + self.limits[CORES_TYPE] * self.prices[CORES_TYPE]
+            + self.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE] / 1024,
+        )
 
     def test_when_resource_is_updated_invoice_is_updated(self):
         marketplace_signals.resource_creation_succeeded.send(
-            sender=self.resource.__class__,
-            instance=self.resource,
+            sender=self.resource.__class__, instance=self.resource,
         )
         self.resource.limits = {
             RAM_TYPE: 10 * 1024,
@@ -229,27 +240,28 @@ class MarketplaceInvoiceTest(MarketplaceInvoiceBaseTest):
             limits=self.resource.limits,
         )
         marketplace_signals.limit_update_succeeded.send(
-            sender=self.resource.__class__,
-            order_item=order_item,
+            sender=self.resource.__class__, order_item=order_item,
         )
         invoice_items = invoices_models.InvoiceItem.objects.filter(scope=self.resource)
 
         self.assertEqual(invoice_items.count(), 2)
-        self.assertNotEqual(invoice_items.last().unit_price, invoice_items.first().unit_price)
-        self.assertEqual(invoice_items.last().unit_price,
-                         self.resource.limits[RAM_TYPE] * self.prices[RAM_TYPE] / 1024 +
-                         self.resource.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
-                         self.resource.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE] / 1024)
+        self.assertNotEqual(
+            invoice_items.last().unit_price, invoice_items.first().unit_price
+        )
+        self.assertEqual(
+            invoice_items.last().unit_price,
+            self.resource.limits[RAM_TYPE] * self.prices[RAM_TYPE] / 1024
+            + self.resource.limits[CORES_TYPE] * self.prices[CORES_TYPE]
+            + self.resource.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE] / 1024,
+        )
 
     def test_when_resource_is_deleted_invoice_is_updated(self):
         marketplace_signals.resource_creation_succeeded.send(
-            sender=self.resource.__class__,
-            instance=self.resource,
+            sender=self.resource.__class__, instance=self.resource,
         )
         with freeze_time('2019-09-18'):
             marketplace_signals.resource_deletion_succeeded.send(
-                sender=self.resource.__class__,
-                instance=self.resource,
+                sender=self.resource.__class__, instance=self.resource,
             )
         invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
         self.assertEqual(invoice_item.end.day, 18)
@@ -262,14 +274,11 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
         fixture = package_fixtures.OpenStackFixture()
         tenant = fixture.openstack_tenant
         offering_component = marketplace_models.OfferingComponent.objects.create(
-            offering=self.offering,
-            type='gigabytes_gpfs'
+            offering=self.offering, type='gigabytes_gpfs'
         )
 
         marketplace_models.PlanComponent.objects.create(
-            component=offering_component,
-            plan=self.plan,
-            price=10,
+            component=offering_component, plan=self.plan, price=10,
         )
 
         self.resource.scope = tenant
@@ -288,7 +297,9 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
         self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), 100 * 1024)
         self.assertEqual(self.resource.current_usages.get('gigabytes_gpfs'), 100 * 1024)
 
-        invoice_item = invoices_models.InvoiceItem.objects.filter(scope=self.resource).get()
+        invoice_item = invoices_models.InvoiceItem.objects.filter(
+            scope=self.resource
+        ).get()
         self.assertTrue('100 GB gpfs storage' in invoice_item.name)
 
     def test_when_storage_mode_is_switched_to_fixed_limits_are_updated(self):
@@ -302,5 +313,7 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
         self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), None)
         self.assertEqual(self.resource.current_usages.get('gigabytes_gpfs'), None)
 
-        invoice_item = invoices_models.InvoiceItem.objects.filter(scope=self.resource).get()
+        invoice_item = invoices_models.InvoiceItem.objects.filter(
+            scope=self.resource
+        ).get()
         self.assertTrue('30 GB storage' in invoice_item.name)

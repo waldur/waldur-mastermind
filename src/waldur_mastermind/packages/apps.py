@@ -27,8 +27,7 @@ class PackageConfig(AppConfig):
         )
 
         registrators.RegistrationManager.add_registrator(
-            OpenStackPackage,
-            openstack_registrator.OpenStackItemRegistrator
+            OpenStackPackage, openstack_registrator.OpenStackItemRegistrator
         )
 
         signals.post_save.connect(

@@ -15,5 +15,5 @@ Please note, that only authentication is supported - no auto-registration is cur
 * The client is expected to poll for the authentication process by issuing POST requests
   against **/api/auth-valimo/result/** with UUID in the payload of a request. Please see details in the API
   documentation.
- 
+
 * After a successful login, endpoint **/api/auth-valimo/result/** will contain authentication token.

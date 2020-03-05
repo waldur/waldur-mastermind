@@ -1,8 +1,8 @@
+import pytz
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
-import pytz
 
 from waldur_core.core.admin import ExecutorAdminAction, format_json_field
 from waldur_core.structure import admin as structure_admin
@@ -19,7 +19,14 @@ class ImageAdmin(structure_admin.BackendModelAdmin):
 
 
 class FloatingIPAdmin(structure_admin.BackendModelAdmin):
-    list_display = ('name', 'address', 'settings', 'runtime_state', 'backend_network_id', 'is_booked')
+    list_display = (
+        'name',
+        'address',
+        'settings',
+        'runtime_state',
+        'backend_network_id',
+        'is_booked',
+    )
 
 
 class SecurityGroupRule(admin.TabularInline):
@@ -37,7 +44,9 @@ class SecurityGroupAdmin(structure_admin.BackendModelAdmin):
 
 class MetadataMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
-        return super(MetadataMixin, self).get_readonly_fields(request, obj) + ('format_metadata',)
+        return super(MetadataMixin, self).get_readonly_fields(request, obj) + (
+            'format_metadata',
+        )
 
     def format_metadata(self, obj):
         return format_json_field(obj.metadata)
@@ -48,7 +57,9 @@ class MetadataMixin(admin.ModelAdmin):
 
 class ImageMetadataMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
-        return super(ImageMetadataMixin, self).get_readonly_fields(request, obj) + ('format_image_metadata',)
+        return super(ImageMetadataMixin, self).get_readonly_fields(request, obj) + (
+            'format_image_metadata',
+        )
 
     def format_image_metadata(self, obj):
         return format_json_field(obj.image_metadata)
@@ -59,7 +70,9 @@ class ImageMetadataMixin(admin.ModelAdmin):
 
 class ActionDetailsMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
-        return super(ActionDetailsMixin, self).get_readonly_fields(request, obj) + ('format_action_details',)
+        return super(ActionDetailsMixin, self).get_readonly_fields(request, obj) + (
+            'format_action_details',
+        )
 
     def format_action_details(self, obj):
         return format_json_field(obj.action_details)
@@ -68,10 +81,9 @@ class ActionDetailsMixin(admin.ModelAdmin):
     format_action_details.short_description = _('Action details')
 
 
-class VolumeAdmin(MetadataMixin,
-                  ImageMetadataMixin,
-                  ActionDetailsMixin,
-                  structure_admin.ResourceAdmin):
+class VolumeAdmin(
+    MetadataMixin, ImageMetadataMixin, ActionDetailsMixin, structure_admin.ResourceAdmin
+):
     exclude = ('metadata', 'image_metadata', 'action_details')
 
     class Pull(ExecutorAdminAction):
@@ -79,7 +91,10 @@ class VolumeAdmin(MetadataMixin,
         short_description = _('Pull')
 
         def validate(self, instance):
-            if instance.state not in (models.Volume.States.OK, models.Volume.States.ERRED):
+            if instance.state not in (
+                models.Volume.States.OK,
+                models.Volume.States.ERRED,
+            ):
                 raise ValidationError(_('Volume has to be in OK or ERRED state.'))
 
     pull = Pull()
@@ -91,7 +106,10 @@ class SnapshotAdmin(structure_admin.ResourceAdmin):
         short_description = _('Pull')
 
         def validate(self, instance):
-            if instance.state not in (models.Snapshot.States.OK, models.Snapshot.States.ERRED):
+            if instance.state not in (
+                models.Snapshot.States.OK,
+                models.Snapshot.States.ERRED,
+            ):
                 raise ValidationError(_('Snapshot has to be in OK or ERRED state.'))
 
     pull = Pull()
@@ -104,7 +122,11 @@ class InternalIpInline(admin.TabularInline):
         return False
 
     def get_readonly_fields(self, request, obj=None):
-        return models.InternalIP.get_backend_fields() + ('backend_id', 'instance', 'subnet')
+        return models.InternalIP.get_backend_fields() + (
+            'backend_id',
+            'instance',
+            'subnet',
+        )
 
 
 class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
@@ -112,14 +134,21 @@ class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
     exclude = ('action_details',)
     inlines = [InternalIpInline]
     list_filter = structure_admin.VirtualMachineAdmin.list_filter + ('runtime_state',)
-    search_fields = structure_admin.VirtualMachineAdmin.search_fields + ('uuid', 'backend_id', 'runtime_state')
+    search_fields = structure_admin.VirtualMachineAdmin.search_fields + (
+        'uuid',
+        'backend_id',
+        'runtime_state',
+    )
 
     class Pull(ExecutorAdminAction):
         executor = executors.InstancePullExecutor
         short_description = _('Pull')
 
         def validate(self, instance):
-            if instance.state not in (models.Instance.States.OK, models.Instance.States.ERRED):
+            if instance.state not in (
+                models.Instance.States.OK,
+                models.Instance.States.ERRED,
+            ):
                 raise ValidationError(_('Instance has to be in OK or ERRED state.'))
 
     pull = Pull()
@@ -150,7 +179,12 @@ class BaseScheduleAdmin(structure_admin.ResourceAdmin):
     form = BaseScheduleForm
     readonly_fields = ('next_trigger_at',)
     list_filter = ('is_active',) + structure_admin.ResourceAdmin.list_filter
-    list_display = ('uuid', 'next_trigger_at', 'is_active', 'timezone') + structure_admin.ResourceAdmin.list_display
+    list_display = (
+        'uuid',
+        'next_trigger_at',
+        'is_active',
+        'timezone',
+    ) + structure_admin.ResourceAdmin.list_display
 
 
 class BackupScheduleAdmin(BaseScheduleAdmin):
@@ -162,7 +196,9 @@ class SnapshotScheduleAdmin(BaseScheduleAdmin):
 
 
 admin.site.register(models.OpenStackTenantService, structure_admin.ServiceAdmin)
-admin.site.register(models.OpenStackTenantServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
+admin.site.register(
+    models.OpenStackTenantServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
+)
 admin.site.register(models.Flavor, FlavorAdmin)
 admin.site.register(models.Image, ImageAdmin)
 admin.site.register(models.FloatingIP, FloatingIPAdmin)
@@ -171,7 +207,9 @@ admin.site.register(models.Volume, VolumeAdmin)
 admin.site.register(models.VolumeType, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.VolumeAvailabilityZone, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.Snapshot, SnapshotAdmin)
-admin.site.register(models.InstanceAvailabilityZone, structure_admin.ServicePropertyAdmin)
+admin.site.register(
+    models.InstanceAvailabilityZone, structure_admin.ServicePropertyAdmin
+)
 admin.site.register(models.Instance, InstanceAdmin)
 admin.site.register(models.Backup, BackupAdmin)
 admin.site.register(models.BackupSchedule, BackupScheduleAdmin)

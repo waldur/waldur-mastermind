@@ -1,5 +1,5 @@
-from decimal import Decimal
 import logging
+from decimal import Decimal
 
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
@@ -11,12 +11,12 @@ from waldur_core.structure.models import VATException
 
 from . import models
 
-
 logger = logging.getLogger(__name__)
 
 
-class PaymentSerializer(core_serializers.AugmentedSerializerMixin,
-                        serializers.HyperlinkedModelSerializer):
+class PaymentSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
 
     amount = serializers.DecimalField(max_digits=9, decimal_places=2)
     state = serializers.ReadOnlyField(source='get_state_display')
@@ -27,8 +27,18 @@ class PaymentSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.Payment
 
         fields = (
-            'url', 'uuid', 'created', 'modified', 'state',
-            'amount', 'customer', 'return_url', 'cancel_url', 'approval_url', 'error_message', 'tax'
+            'url',
+            'uuid',
+            'created',
+            'modified',
+            'state',
+            'amount',
+            'customer',
+            'return_url',
+            'cancel_url',
+            'approval_url',
+            'error_message',
+            'tax',
         )
 
         read_only_fields = ('approval_url', 'error_message', 'tax')
@@ -47,8 +57,11 @@ class PaymentSerializer(core_serializers.AugmentedSerializerMixin,
             rate = customer.get_vat_rate() or 0
         except (NotImplementedError, VATException) as e:
             rate = 0
-            logger.warning('Unable to compute VAT rate for customer with UUID %s, error is %s',
-                           customer.uuid.hex, e)
+            logger.warning(
+                'Unable to compute VAT rate for customer with UUID %s, error is %s',
+                customer.uuid.hex,
+                e,
+            )
         validated_data['tax'] = Decimal(rate) / Decimal(100) * amount
 
         return super(PaymentSerializer, self).create(validated_data)
@@ -67,11 +80,21 @@ class PaymentCancelSerializer(serializers.Serializer):
 class InvoiceItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.InvoiceItem
-        fields = ('price', 'tax', 'unit_price', 'quantity', 'unit_of_measure', 'name', 'start', 'end')
+        fields = (
+            'price',
+            'tax',
+            'unit_price',
+            'quantity',
+            'unit_of_measure',
+            'name',
+            'start',
+            'end',
+        )
 
 
-class InvoiceSerializer(core_serializers.AugmentedSerializerMixin,
-                        serializers.HyperlinkedModelSerializer):
+class InvoiceSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
 
     pdf = ProtectedFileField(read_only=True)
     items = InvoiceItemSerializer(many=True, read_only=True)
@@ -82,23 +105,43 @@ class InvoiceSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta:
         model = models.Invoice
         fields = (
-            'url', 'uuid', 'total', 'price', 'tax', 'pdf', 'backend_id', 'issuer_details',
-            'invoice_date', 'end_date', 'state', 'items', 'payment_url', 'customer_details',
-            'customer', 'customer_uuid', 'customer_name', 'year', 'month', 'number',
+            'url',
+            'uuid',
+            'total',
+            'price',
+            'tax',
+            'pdf',
+            'backend_id',
+            'issuer_details',
+            'invoice_date',
+            'end_date',
+            'state',
+            'items',
+            'payment_url',
+            'customer_details',
+            'customer',
+            'customer_uuid',
+            'customer_name',
+            'year',
+            'month',
+            'number',
         )
         related_paths = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'paypal-invoice-detail'},
-            'customer': {'lookup_field': 'uuid'}
+            'customer': {'lookup_field': 'uuid'},
         }
 
     def get_payment_url(self, invoice):
         backend = invoice.get_backend()
-        return backend.get_payment_view_url(invoice.backend_id) if invoice.backend_id else None
+        return (
+            backend.get_payment_view_url(invoice.backend_id)
+            if invoice.backend_id
+            else None
+        )
 
 
 class InvoiceUpdateWebHookSerializer(serializers.Serializer):
-
     @transaction.atomic()
     def save(self, **kwargs):
         backend_id = self.initial_data['resource']['id']
@@ -107,7 +150,9 @@ class InvoiceUpdateWebHookSerializer(serializers.Serializer):
         try:
             invoice = models.Invoice.objects.get(backend_id=backend_id)
         except models.Invoice.DoesNotExist:
-            raise serializers.ValidationError({'backend_id': _('Invoice with id "%s" cannot be found.') % backend_id})
+            raise serializers.ValidationError(
+                {'backend_id': _('Invoice with id "%s" cannot be found.') % backend_id}
+            )
 
         invoice.state = status
         invoice.save(update_fields=['state'])

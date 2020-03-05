@@ -1,12 +1,12 @@
 import json
-
 from unittest import mock
+
 import pkg_resources
 from django.urls import reverse
-from rest_framework import test, status
+from rest_framework import status, test
 
-from . import factories, fixtures
 from .. import models
+from . import factories, fixtures
 
 
 class BaseTest(test.APITransactionTestCase):
@@ -18,18 +18,25 @@ class BaseTest(test.APITransactionTestCase):
         self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
         self.jira_mock = self.jira_patcher.start()
 
-        self.jira_mock().comment.return_value = mock.Mock(**{
-            'body': 'comment message',
-        })
+        self.jira_mock().comment.return_value = mock.Mock(
+            **{'body': 'comment message',}
+        )
 
     def _create_request_data(self, file_path):
-        jira_request = pkg_resources.\
-            resource_stream(__name__, file_path).read().decode()
+        jira_request = (
+            pkg_resources.resource_stream(__name__, file_path).read().decode()
+        )
         self.request_data = json.loads(jira_request)
         self.request_data['issue']['key'] = self.issue.backend_id
-        self.request_data['issue']['fields']['project']['key'] = self.issue.project.backend_id
-        self.request_data['issue']['fields']['priority']['id'] = self.fixture.priority.backend_id
-        self.request_data['issue']['fields']['issuetype']['id'] = self.fixture.issue_type.backend_id
+        self.request_data['issue']['fields']['project'][
+            'key'
+        ] = self.issue.project.backend_id
+        self.request_data['issue']['fields']['priority'][
+            'id'
+        ] = self.fixture.priority.backend_id
+        self.request_data['issue']['fields']['issuetype'][
+            'id'
+        ] = self.fixture.issue_type.backend_id
 
 
 class CommentCreateTest(BaseTest):
@@ -43,7 +50,9 @@ class CommentCreateTest(BaseTest):
         result = self.client.post(self.url, self.request_data)
         self.assertEqual(result.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            models.Comment.objects.filter(issue=self.issue, backend_id=result.data['comment']['id']).exists()
+            models.Comment.objects.filter(
+                issue=self.issue, backend_id=result.data['comment']['id']
+            ).exists()
         )
 
     def test_dont_create_comment_if_issue_not_exists(self):
@@ -88,12 +97,16 @@ class CommentDeleteTest(BaseTest):
         result = self.client.post(self.url, self.request_data)
         self.assertEqual(result.status_code, status.HTTP_201_CREATED)
         self.assertFalse(
-            models.Comment.objects.filter(backend_id=self.comment.backend_id, issue=self.issue).exists()
+            models.Comment.objects.filter(
+                backend_id=self.comment.backend_id, issue=self.issue
+            ).exists()
         )
 
     def test_dont_delete_comment_if_exist_backend_comment(self):
         result = self.client.post(self.url, self.request_data)
         self.assertEqual(result.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            models.Comment.objects.filter(backend_id=self.comment.backend_id, issue=self.issue).exists()
+            models.Comment.objects.filter(
+                backend_id=self.comment.backend_id, issue=self.issue
+            ).exists()
         )

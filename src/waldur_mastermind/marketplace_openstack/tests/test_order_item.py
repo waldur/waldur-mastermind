@@ -19,10 +19,21 @@ from waldur_mastermind.packages.tests import utils as package_utils
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
-from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
-from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
+from waldur_openstack.openstack_tenant.tests import (
+    factories as openstack_tenant_factories,
+)
+from waldur_openstack.openstack_tenant.tests import (
+    fixtures as openstack_tenant_fixtures,
+)
 
-from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE
+from .. import (
+    CORES_TYPE,
+    INSTANCE_TYPE,
+    PACKAGE_TYPE,
+    RAM_TYPE,
+    STORAGE_TYPE,
+    VOLUME_TYPE,
+)
 
 
 class TenantGetTest(test.APITransactionTestCase):
@@ -33,7 +44,7 @@ class TenantGetTest(test.APITransactionTestCase):
         self.order_item = marketplace_factories.OrderItemFactory(
             order=self.order,
             offering=self.offering,
-            attributes=dict(user_username='admin', user_userpassword='secret')
+            attributes=dict(user_username='admin', user_userpassword='secret'),
         )
 
     def get_order_item(self):
@@ -54,7 +65,6 @@ class TenantGetTest(test.APITransactionTestCase):
 
 @ddt
 class TenantCreateTest(BaseOpenStackTest):
-
     def setUp(self):
         super(TenantCreateTest, self).setUp()
         self.fixture = package_fixtures.PackageFixture()
@@ -64,8 +74,7 @@ class TenantCreateTest(BaseOpenStackTest):
             state=marketplace_models.Offering.States.ACTIVE,
         )
         self.plan = marketplace_factories.PlanFactory(
-            scope=self.fixture.openstack_template,
-            offering=self.offering
+            scope=self.fixture.openstack_template, offering=self.offering
         )
 
     @data('staff', 'owner', 'manager', 'admin')
@@ -79,31 +88,29 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertTrue('user_username' in response.data)
 
     def test_limits_are_not_checked_if_offering_components_limits_are_not_defined(self):
-        response = self.create_order(limits={
-            'cores': 2,
-            'ram': 1024 * 10,
-            'storage': 1024 * 1024 * 10
-        })
+        response = self.create_order(
+            limits={'cores': 2, 'ram': 1024 * 10, 'storage': 1024 * 1024 * 10}
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_limits_are_checked_against_offering_components(self):
         create_offering_components(self.offering)
         self.offering.components.filter(type=CORES_TYPE).update(max_value=10)
         self.offering.components.filter(type=RAM_TYPE).update(max_value=1024 * 10)
-        self.offering.components.filter(type=STORAGE_TYPE).update(max_value=1024 * 1024 * 10)
+        self.offering.components.filter(type=STORAGE_TYPE).update(
+            max_value=1024 * 1024 * 10
+        )
 
-        response = self.create_order(limits={
-            'cores': 20,
-            'ram': 1024 * 100,
-            'storage': 1024 * 1024 * 100
-        })
+        response = self.create_order(
+            limits={'cores': 20, 'ram': 1024 * 100, 'storage': 1024 * 1024 * 100}
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def create_plan_component(self, type, price):
         return marketplace_factories.PlanComponentFactory(
             component=self.offering.components.get(type=type),
             plan=self.plan,
-            price=price
+            price=price,
         )
 
     def test_cost_estimate_is_calculated_using_limits(self):
@@ -113,11 +120,9 @@ class TenantCreateTest(BaseOpenStackTest):
         self.create_plan_component(RAM_TYPE, 0.5)
         self.create_plan_component(STORAGE_TYPE, 0.1)
 
-        response = self.create_order(limits={
-            'cores': 20,
-            'ram': 1024 * 100,
-            'storage': 1024 * 10000
-        })
+        response = self.create_order(
+            limits={'cores': 20, 'ram': 1024 * 100, 'storage': 1024 * 10000}
+        )
         expected = 20 * 1 + 100 * 0.5 + 10000 * 0.1
         self.assertEqual(float(response.data['total_cost']), expected)
 
@@ -137,12 +142,8 @@ class TenantCreateTest(BaseOpenStackTest):
         payload = {
             'project': project_url,
             'items': [
-                {
-                    'offering': offering_url,
-                    'plan': plan_url,
-                    'attributes': attributes,
-                },
-            ]
+                {'offering': offering_url, 'plan': plan_url, 'attributes': attributes,},
+            ],
         }
         if limits:
             payload['items'][0]['limits'] = limits
@@ -163,10 +164,7 @@ class TenantCreateTest(BaseOpenStackTest):
             user_username='admin_user',
         )
         order_item = marketplace_factories.OrderItemFactory(
-            order=order,
-            offering=self.offering,
-            attributes=attributes,
-            plan=self.plan
+            order=order, offering=self.offering, attributes=attributes, plan=self.plan
         )
 
         serialized_order = core_utils.serialize_instance(order)
@@ -198,7 +196,9 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(order_item.state, order_item.States.DONE)
 
         order_item.resource.refresh_from_db()
-        self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(
+            order_item.resource.state, marketplace_models.Resource.States.OK
+        )
 
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
@@ -212,11 +212,9 @@ class TenantCreateTest(BaseOpenStackTest):
             billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
         )
 
-        response = self.create_order(limits={
-            'cores': 2,
-            'ram': 1024 * 10,
-            'gigabytes_llvm': 10,
-        })
+        response = self.create_order(
+            limits={'cores': 2, 'ram': 1024 * 10, 'gigabytes_llvm': 10,}
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         order = marketplace_models.Order.objects.get(uuid=response.data['uuid'])
@@ -235,8 +233,7 @@ class TenantMutateTest(test.APITransactionTestCase):
         self.tenant = self.fixture.openstack_package.tenant
         self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
         self.plan = marketplace_factories.PlanFactory(
-            offering=self.offering,
-            scope=self.fixture.openstack_template
+            offering=self.offering, scope=self.fixture.openstack_template
         )
         self.resource = marketplace_factories.ResourceFactory(
             scope=self.tenant,
@@ -260,9 +257,15 @@ class TenantDeleteTest(TenantMutateTest):
 
     def test_deletion_is_scheduled(self):
         self.trigger_deletion()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
-        self.assertEqual(self.tenant.state, openstack_models.Tenant.States.DELETION_SCHEDULED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATING
+        )
+        self.assertEqual(
+            self.tenant.state, openstack_models.Tenant.States.DELETION_SCHEDULED
+        )
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -271,8 +274,12 @@ class TenantDeleteTest(TenantMutateTest):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATED
+        )
         self.assertRaises(ObjectDoesNotExist, self.tenant.refresh_from_db)
 
     def trigger_deletion(self):
@@ -297,8 +304,7 @@ class TenantUpdateTest(TenantMutateTest):
             service_settings=self.fixture.openstack_service_settings
         )
         self.new_plan = marketplace_factories.PlanFactory(
-            offering=self.offering,
-            scope=self.new_template,
+            offering=self.offering, scope=self.new_template,
         )
         self.order_item = marketplace_factories.OrderItemFactory(
             resource=self.resource,
@@ -310,24 +316,32 @@ class TenantUpdateTest(TenantMutateTest):
     @data('staff', 'owner', 'manager', 'admin')
     def test_user_can_create_order_item(self, user):
         self.order_item.delete()
-        url = marketplace_factories.ResourceFactory.get_url(resource=self.resource, action='switch_plan')
-        payload = {
-            'plan': marketplace_factories.PlanFactory.get_url(self.new_plan)
-        }
+        url = marketplace_factories.ResourceFactory.get_url(
+            resource=self.resource, action='switch_plan'
+        )
+        payload = {'plan': marketplace_factories.PlanFactory.get_url(self.new_plan)}
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_update_is_scheduled(self):
         self.trigger_update()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.UPDATING)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.UPDATING
+        )
         self.assertEqual(self.resource.plan, self.plan)
 
-        package_utils.run_openstack_package_change_executor(self.package, self.new_template)
+        package_utils.run_openstack_package_change_executor(
+            self.package, self.new_template
+        )
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
         self.assertEqual(self.resource.plan, self.new_plan)
 
@@ -349,7 +363,9 @@ class TenantUpdateTest(TenantMutateTest):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
         self.assertEqual(self.resource.plan, self.new_plan)
 
@@ -370,14 +386,22 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
     def test_instance_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_instance_creation()
-        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertTrue(openstack_tenant_models.Instance.objects.filter(name='virtual-machine').exists())
+        self.assertEqual(
+            order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertTrue(
+            openstack_tenant_models.Instance.objects.filter(
+                name='virtual-machine'
+            ).exists()
+        )
 
     def test_availability_zone_is_passed_to_plugin(self):
         availability_zone = openstack_tenant_factories.InstanceAvailabilityZoneFactory(
-            settings=self.fixture.openstack_tenant_service_settings)
+            settings=self.fixture.openstack_tenant_service_settings
+        )
         az_url = openstack_tenant_factories.InstanceAvailabilityZoneFactory.get_url(
-            availability_zone)
+            availability_zone
+        )
         order_item = self.trigger_instance_creation(availability_zone=az_url)
         self.assertEqual(order_item.resource.scope.availability_zone, availability_zone)
 
@@ -399,7 +423,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(order_item.state, order_item.States.DONE)
 
         order_item.resource.refresh_from_db()
-        self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(
+            order_item.resource.state, marketplace_models.Resource.States.OK
+        )
 
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
@@ -408,17 +434,21 @@ class InstanceCreateTest(test.APITransactionTestCase):
         order_item = self.trigger_instance_creation()
         instance = order_item.resource.scope
         volume = instance.volumes.first()
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=volume).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=volume).exists()
+        )
 
     def trigger_instance_creation(self, **kwargs):
         image = openstack_tenant_factories.ImageFactory(
-            settings=self.service_settings,
-            min_disk=10240,
-            min_ram=1024
+            settings=self.service_settings, min_disk=10240, min_ram=1024
         )
-        flavor = openstack_tenant_factories.FlavorFactory(settings=self.service_settings)
+        flavor = openstack_tenant_factories.FlavorFactory(
+            settings=self.service_settings
+        )
 
-        subnet_url = openstack_tenant_factories.SubNetFactory.get_url(self.fixture.subnet)
+        subnet_url = openstack_tenant_factories.SubNetFactory.get_url(
+            self.fixture.subnet
+        )
         attributes = {
             'flavor': openstack_tenant_factories.FlavorFactory.get_url(flavor),
             'image': openstack_tenant_factories.ImageFactory.get_url(image),
@@ -431,8 +461,12 @@ class InstanceCreateTest(test.APITransactionTestCase):
         }
         attributes.update(kwargs)
 
-        offering = marketplace_factories.OfferingFactory(type=INSTANCE_TYPE, scope=self.service_settings)
-        marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=self.service_settings)
+        offering = marketplace_factories.OfferingFactory(
+            type=INSTANCE_TYPE, scope=self.service_settings
+        )
+        marketplace_factories.OfferingFactory(
+            type=VOLUME_TYPE, scope=self.service_settings
+        )
         # Ensure that SPL exists
         self.fixture.spl
         order = marketplace_factories.OrderFactory(
@@ -440,9 +474,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering,
-            attributes=attributes,
-            order=order,
+            offering=offering, attributes=attributes, order=order,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -458,7 +490,9 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.instance = self.fixture.instance
         self.offering = marketplace_factories.OfferingFactory(type=INSTANCE_TYPE)
-        self.resource = marketplace_factories.ResourceFactory(scope=self.instance, offering=self.offering)
+        self.resource = marketplace_factories.ResourceFactory(
+            scope=self.instance, offering=self.offering
+        )
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
@@ -470,23 +504,36 @@ class InstanceDeleteTest(test.APITransactionTestCase):
 
     def test_deletion_is_scheduled(self):
         self.trigger_deletion()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
-        self.assertEqual(self.instance.state, openstack_tenant_models.Instance.States.DELETION_SCHEDULED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATING
+        )
+        self.assertEqual(
+            self.instance.state,
+            openstack_tenant_models.Instance.States.DELETION_SCHEDULED,
+        )
 
     @mock.patch('waldur_openstack.openstack_tenant.views.executors')
     def test_cancel_of_volume_deleting(self, mock_executors):
         self.order_item.attributes = {'delete_volumes': False}
         self.order_item.save()
         self.trigger_deletion()
-        self.assertFalse(mock_executors.InstanceDeleteExecutor.execute.call_args[1]['delete_volumes'])
+        self.assertFalse(
+            mock_executors.InstanceDeleteExecutor.execute.call_args[1]['delete_volumes']
+        )
 
     @mock.patch('waldur_openstack.openstack_tenant.views.executors')
     def test_cancel_of_floating_ips_deleting(self, mock_executors):
         self.order_item.attributes = {'release_floating_ips': False}
         self.order_item.save()
         self.trigger_deletion()
-        self.assertFalse(mock_executors.InstanceDeleteExecutor.execute.call_args[1]['release_floating_ips'])
+        self.assertFalse(
+            mock_executors.InstanceDeleteExecutor.execute.call_args[1][
+                'release_floating_ips'
+            ]
+        )
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -495,8 +542,12 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATED
+        )
         self.assertRaises(ObjectDoesNotExist, self.instance.refresh_from_db)
 
     def trigger_deletion(self):
@@ -516,14 +567,20 @@ class VolumeCreateTest(test.APITransactionTestCase):
 
     def test_volume_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_volume_creation()
-        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertTrue(openstack_tenant_models.Volume.objects.filter(name='Volume').exists())
+        self.assertEqual(
+            order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertTrue(
+            openstack_tenant_models.Volume.objects.filter(name='Volume').exists()
+        )
 
     def test_availability_zone_is_passed_to_plugin(self):
         availability_zone = openstack_tenant_factories.VolumeAvailabilityZoneFactory(
-            settings=self.fixture.openstack_tenant_service_settings)
+            settings=self.fixture.openstack_tenant_service_settings
+        )
         az_url = openstack_tenant_factories.VolumeAvailabilityZoneFactory.get_url(
-            availability_zone)
+            availability_zone
+        )
         order_item = self.trigger_volume_creation(availability_zone=az_url)
         self.assertEqual(order_item.resource.scope.availability_zone, availability_zone)
 
@@ -546,32 +603,32 @@ class VolumeCreateTest(test.APITransactionTestCase):
 
     def trigger_volume_creation(self, **kwargs):
         image = openstack_tenant_factories.ImageFactory(
-            settings=self.service_settings,
-            min_disk=10240,
-            min_ram=1024
+            settings=self.service_settings, min_disk=10240, min_ram=1024
         )
 
         attributes = {
             'image': openstack_tenant_factories.ImageFactory.get_url(image),
             'name': 'Volume',
-            'size': 10 * 1024
+            'size': 10 * 1024,
         }
         attributes.update(kwargs)
 
-        offering = marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=self.service_settings)
+        offering = marketplace_factories.OfferingFactory(
+            type=VOLUME_TYPE, scope=self.service_settings
+        )
 
-        order_item = marketplace_factories.OrderItemFactory(offering=offering, attributes=attributes)
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=offering, attributes=attributes
+        )
         order_item.order.approve()
         order_item.order.save()
 
         service = openstack_tenant_models.OpenStackTenantService.objects.create(
-            customer=order_item.order.project.customer,
-            settings=self.service_settings,
+            customer=order_item.order.project.customer, settings=self.service_settings,
         )
 
         openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.create(
-            project=order_item.order.project,
-            service=service,
+            project=order_item.order.project, service=service,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -591,7 +648,9 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.volume.save()
 
         self.offering = marketplace_factories.OfferingFactory(type=VOLUME_TYPE)
-        self.resource = marketplace_factories.ResourceFactory(scope=self.volume, offering=self.offering)
+        self.resource = marketplace_factories.ResourceFactory(
+            scope=self.volume, offering=self.offering
+        )
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
@@ -603,9 +662,15 @@ class VolumeDeleteTest(test.APITransactionTestCase):
 
     def test_deletion_is_scheduled(self):
         self.trigger_deletion()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
-        self.assertEqual(self.volume.state, openstack_tenant_models.Volume.States.DELETION_SCHEDULED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATING
+        )
+        self.assertEqual(
+            self.volume.state, openstack_tenant_models.Volume.States.DELETION_SCHEDULED
+        )
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -614,8 +679,12 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATED
+        )
         self.assertRaises(ObjectDoesNotExist, self.volume.refresh_from_db)
 
     def trigger_deletion(self):
@@ -637,15 +706,26 @@ class TenantUpdateLimitTestBase(test.APITransactionTestCase):
             offering=self.offering,
             project=self.fixture.project,
             plan=self.plan,
-            state=marketplace_models.Resource.States.OK)
+            state=marketplace_models.Resource.States.OK,
+        )
         tenant = self.fixture.tenant
         self.mock_get_backend = mock.MagicMock()
         tenant.get_backend = self.mock_get_backend
         self.resource.scope = tenant
         self.resource.save()
-        self.quotas = {'network_count': 100, 'cores': 4, 'ram': 1024, 'storage': 1024, 'snapshots': 50, 'instances': 30,
-                       'floating_ip_count': 50, 'subnet_count': 100, 'volumes': 50, 'security_group_rule_count': 100,
-                       'security_group_count': 100}
+        self.quotas = {
+            'network_count': 100,
+            'cores': 4,
+            'ram': 1024,
+            'storage': 1024,
+            'snapshots': 50,
+            'instances': 30,
+            'floating_ip_count': 50,
+            'subnet_count': 100,
+            'volumes': 50,
+            'security_group_rule_count': 100,
+            'security_group_count': 100,
+        }
 
 
 class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
@@ -660,20 +740,28 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
             attributes={'old_limits': self.resource.limits},
         )
 
-    def test_resource_limits_have_been_updated_if_backend_does_not_raise_exception(self):
+    def test_resource_limits_have_been_updated_if_backend_does_not_raise_exception(
+        self,
+    ):
         marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits, self.quotas)
         self.order_item.refresh_from_db()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
 
     def test_resource_limits_have_been_not_updated_if_backend_raises_exception(self):
-        self.mock_get_backend().push_tenant_quotas = mock.Mock(side_effect=Exception('foo'))
+        self.mock_get_backend().push_tenant_quotas = mock.Mock(
+            side_effect=Exception('foo')
+        )
         marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits, {})
         self.order_item.refresh_from_db()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.ERRED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.ERRED
+        )
         self.assertEqual(self.order_item.error_message, 'foo')
 
     def test_volume_type_quotas_are_propagated(self):
@@ -690,10 +778,7 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
     def setUp(self):
         super(TenantUpdateLimitValidationTest, self).setUp()
         marketplace_models.OfferingComponent.objects.create(
-            offering=self.offering,
-            max_value=20,
-            min_value=2,
-            type='cores'
+            offering=self.offering, max_value=20, min_value=2, type='cores'
         )
 
     def update_limits(self, user, resource, limits=None):

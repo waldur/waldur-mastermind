@@ -13,6 +13,10 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='virtualmachine',
             name='user_data',
-            field=models.TextField(blank=True, help_text='Additional data that will be added to instance on provisioning', max_length=87380),
+            field=models.TextField(
+                blank=True,
+                help_text='Additional data that will be added to instance on provisioning',
+                max_length=87380,
+            ),
         ),
     ]

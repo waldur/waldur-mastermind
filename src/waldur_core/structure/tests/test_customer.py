@@ -15,13 +15,19 @@ from waldur_core.structure.tests import factories, fixtures
 
 class CustomerBaseTest(test.APITransactionTestCase):
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
+        return 'http://testserver' + reverse(
+            'customer-detail', kwargs={'uuid': customer.uuid.hex}
+        )
 
     def _get_project_url(self, project):
-        return 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid.hex})
+        return 'http://testserver' + reverse(
+            'project-detail', kwargs={'uuid': project.uuid.hex}
+        )
 
     def _get_user_url(self, user):
-        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex})
+        return 'http://testserver' + reverse(
+            'user-detail', kwargs={'uuid': user.uuid.hex}
+        )
 
 
 @freeze_time('2017-11-01')
@@ -34,13 +40,17 @@ class CustomerUserTest(CustomerBaseTest):
     def test_add_user_returns_created_if_grant_didnt_exist_before(self):
         _, created = self.customer.add_user(self.user, CustomerRole.OWNER)
 
-        self.assertTrue(created, 'Customer permission should have been reported as created')
+        self.assertTrue(
+            created, 'Customer permission should have been reported as created'
+        )
 
     def test_add_user_returns_not_created_if_grant_existed_before(self):
         self.customer.add_user(self.user, CustomerRole.OWNER)
         _, created = self.customer.add_user(self.user, CustomerRole.OWNER)
 
-        self.assertFalse(created, 'Customer permission should have been reported as not created')
+        self.assertFalse(
+            created, 'Customer permission should have been reported as not created'
+        )
 
     def test_add_user_returns_membership(self):
         membership, _ = self.customer.add_user(self.user, CustomerRole.OWNER)
@@ -48,7 +58,9 @@ class CustomerUserTest(CustomerBaseTest):
         self.assertEqual(membership.user, self.user)
         self.assertEqual(membership.customer, self.customer)
 
-    def test_add_user_returns_same_membership_for_consequent_calls_with_same_arguments(self):
+    def test_add_user_returns_same_membership_for_consequent_calls_with_same_arguments(
+        self,
+    ):
         membership1, _ = self.customer.add_user(self.user, CustomerRole.OWNER)
         membership2, _ = self.customer.add_user(self.user, CustomerRole.OWNER)
 
@@ -62,10 +74,9 @@ class CustomerUserTest(CustomerBaseTest):
             structure=self.customer,
             user=self.user,
             role=CustomerRole.OWNER,
-
             sender=Customer,
             signal=signals.structure_role_granted,
-            created_by=self.created_by
+            created_by=self.created_by,
         )
 
     def test_add_user_doesnt_emit_structure_role_granted_if_grant_existed_before(self):
@@ -74,9 +85,13 @@ class CustomerUserTest(CustomerBaseTest):
         with mock_signal_receiver(signals.structure_role_granted) as receiver:
             self.customer.add_user(self.user, CustomerRole.OWNER)
 
-        self.assertFalse(receiver.called, 'structure_role_granted should not be emitted')
+        self.assertFalse(
+            receiver.called, 'structure_role_granted should not be emitted'
+        )
 
-    def test_remove_user_emits_structure_role_revoked_for_each_role_user_had_in_customer(self):
+    def test_remove_user_emits_structure_role_revoked_for_each_role_user_had_in_customer(
+        self,
+    ):
         self.customer.add_user(self.user, CustomerRole.OWNER)
 
         with mock_signal_receiver(signals.structure_role_revoked) as receiver:
@@ -87,7 +102,6 @@ class CustomerUserTest(CustomerBaseTest):
             user=self.user,
             role=CustomerRole.OWNER,
             removed_by=self.created_by,
-
             sender=Customer,
             signal=signals.structure_role_revoked,
         )
@@ -103,12 +117,13 @@ class CustomerUserTest(CustomerBaseTest):
             user=self.user,
             role=CustomerRole.OWNER,
             removed_by=self.created_by,
-
             sender=Customer,
             signal=signals.structure_role_revoked,
         )
 
-    def test_remove_user_doesnt_emit_structure_role_revoked_if_grant_didnt_exist_before(self):
+    def test_remove_user_doesnt_emit_structure_role_revoked_if_grant_didnt_exist_before(
+        self,
+    ):
         with mock_signal_receiver(signals.structure_role_revoked) as receiver:
             self.customer.remove_user(self.user, CustomerRole.OWNER)
 
@@ -124,7 +139,15 @@ class CustomerListTest(CustomerBaseTest):
         self.fixture = fixtures.ProjectFixture()
 
     # List filtration tests
-    @data('staff', 'global_support', 'owner', 'customer_support', 'admin', 'manager', 'project_support')
+    @data(
+        'staff',
+        'global_support',
+        'owner',
+        'customer_support',
+        'admin',
+        'manager',
+        'project_support',
+    )
     def test_user_can_list_customers(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -146,7 +169,8 @@ class CustomerListTest(CustomerBaseTest):
 
         project_urls = set([project['url'] for project in response.data['projects']])
         self.assertIn(
-            self._get_project_url(self.fixture.project), project_urls,
+            self._get_project_url(self.fixture.project),
+            project_urls,
             'User should see project',
         )
 
@@ -161,13 +185,16 @@ class CustomerListTest(CustomerBaseTest):
 
         project_urls = set([project['url'] for project in response.data['projects']])
         self.assertNotIn(
-            self._get_project_url(non_seen_project), project_urls,
+            self._get_project_url(non_seen_project),
+            project_urls,
             'User should not see project',
         )
 
     # Direct instance access tests
     @data(('owner', 'owners'), ('customer_support', 'support_users'))
-    def test_user_can_see_its_owner_membership_in_a_service_he_is_owner_of(self, user_data):
+    def test_user_can_see_its_owner_membership_in_a_service_he_is_owner_of(
+        self, user_data
+    ):
         user, response_field = user_data
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self._get_customer_url(self.fixture.customer))
@@ -180,7 +207,9 @@ class CustomerListTest(CustomerBaseTest):
     def test_user_can_access_all_customers_if_he_is_staff(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        self._check_user_direct_access_customer(self.fixture.customer, status.HTTP_200_OK)
+        self._check_user_direct_access_customer(
+            self.fixture.customer, status.HTTP_200_OK
+        )
 
         customer = factories.CustomerFactory()
         self._check_user_direct_access_customer(customer, status.HTTP_200_OK)
@@ -216,7 +245,14 @@ class CustomerDeleteTest(CustomerBaseTest):
         self.fixture = fixtures.ProjectFixture()
 
     # Deletion tests
-    @data('owner', 'admin', 'manager', 'global_support', 'customer_support', 'project_support')
+    @data(
+        'owner',
+        'admin',
+        'manager',
+        'global_support',
+        'customer_support',
+        'project_support',
+    )
     def test_user_cannot_delete_customer(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -230,8 +266,10 @@ class CustomerDeleteTest(CustomerBaseTest):
         response = self.client.delete(self._get_customer_url(self.fixture.customer))
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertDictContainsSubset({'detail': 'Cannot delete organization with existing projects'},
-                                      response.data)
+        self.assertDictContainsSubset(
+            {'detail': 'Cannot delete organization with existing projects'},
+            response.data,
+        )
 
 
 class BaseCustomerMutationTest(CustomerBaseTest):
@@ -252,9 +290,7 @@ class BaseCustomerMutationTest(CustomerBaseTest):
         payload = self._get_valid_payload(customer)
 
         for field, value in payload.items():
-            data = {
-                field: value
-            }
+            data = {field: value}
 
             response = self.client.patch(self._get_customer_url(customer), data)
             self.assertEqual(response.status_code, status_code)
@@ -262,31 +298,41 @@ class BaseCustomerMutationTest(CustomerBaseTest):
 
 @ddt
 class CustomerCreateTest(BaseCustomerMutationTest):
-
     @data('user', 'global_support')
     def test_user_can_not_create_customer_if_he_is_not_staff(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        response = self.client.post(factories.CustomerFactory.get_list_url(), self._get_valid_payload())
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(), self._get_valid_payload()
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_waldur_core_settings(CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION=True)
     def test_default_project_is_created_if_configured(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        response = self.client.post(factories.CustomerFactory.get_list_url(), self._get_valid_payload())
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(), self._get_valid_payload()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         customer = Customer.objects.get(uuid=response.data['uuid'])
         self.assertEqual(customer.projects.count(), 1)
         self.assertEqual(customer.projects.first().name, 'First project')
-        self.assertEqual(customer.projects.first().description, 'First project we have created for you')
+        self.assertEqual(
+            customer.projects.first().description,
+            'First project we have created for you',
+        )
 
-    @override_waldur_core_settings(CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION=False)
+    @override_waldur_core_settings(
+        CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION=False
+    )
     def test_default_project_is_not_created_if_configured(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        response = self.client.post(factories.CustomerFactory.get_list_url(), self._get_valid_payload())
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(), self._get_valid_payload()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         customer = Customer.objects.get(uuid=response.data['uuid'])
@@ -295,7 +341,9 @@ class CustomerCreateTest(BaseCustomerMutationTest):
     @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_user_can_create_customer_if_he_is_not_staff_if_settings_are_tweaked(self):
         self.client.force_authenticate(user=self.fixture.user)
-        response = self.client.post(factories.CustomerFactory.get_list_url(), self._get_valid_payload())
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(), self._get_valid_payload()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -305,7 +353,9 @@ class CustomerCreateTest(BaseCustomerMutationTest):
     def test_user_can_create_customer_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        response = self.client.post(factories.CustomerFactory.get_list_url(), self._get_valid_payload())
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(), self._get_valid_payload()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -315,18 +365,18 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         self.fixture.user.save()
 
         self.client.force_authenticate(user=self.fixture.user)
-        response = self.client.post(factories.CustomerFactory.get_list_url(), {
-            'name': 'Computer Science Lab'
-        })
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(), {'name': 'Computer Science Lab'}
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['domain'], 'ut.ee')
 
     def test_domain_name_is_filled_from_input_for_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(factories.CustomerFactory.get_list_url(), {
-            'name': 'Computer Science Lab',
-            'domain': 'ut.ee'
-        })
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(),
+            {'name': 'Computer Science Lab', 'domain': 'ut.ee'},
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['domain'], 'ut.ee')
 
@@ -335,61 +385,73 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         self.fixture.user.organization = ''
         self.fixture.user.save()
         self.client.force_authenticate(user=self.fixture.user)
-        response = self.client.post(factories.CustomerFactory.get_list_url(), {
-            'name': 'Computer Science Lab',
-            'domain': 'ut.ee'
-        })
+        response = self.client.post(
+            factories.CustomerFactory.get_list_url(),
+            {'name': 'Computer Science Lab', 'domain': 'ut.ee'},
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['domain'], '')
 
 
 @ddt
 class CustomerUpdateTest(BaseCustomerMutationTest):
-
     @data('manager', 'admin', 'customer_support', 'project_support', 'global_support')
     def test_user_cannot_change_customer_as_whole(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        response = self.client.put(self._get_customer_url(self.fixture.customer),
-                                   self._get_valid_payload())
+        response = self.client.put(
+            self._get_customer_url(self.fixture.customer), self._get_valid_payload()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_cannot_change_customer_he_is_owner_of(self):
         self.client.force_authenticate(user=self.fixture.owner)
 
-        response = self.client.put(self._get_customer_url(self.fixture.customer),
-                                   self._get_valid_payload())
+        response = self.client.put(
+            self._get_customer_url(self.fixture.customer), self._get_valid_payload()
+        )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_can_change_customer_as_whole_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        response = self.client.put(self._get_customer_url(self.fixture.customer),
-                                   self._get_valid_payload())
-        self.assertEqual(response.status_code, status.HTTP_200_OK, 'Error message: %s' % response.data)
+        response = self.client.put(
+            self._get_customer_url(self.fixture.customer), self._get_valid_payload()
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            'Error message: %s' % response.data,
+        )
 
     def test_user_cannot_change_single_customer_field_he_is_not_owner_of(self):
         self.client.force_authenticate(user=self.fixture.user)
 
-        self._check_single_customer_field_change_permission(self.fixture.customer, status.HTTP_404_NOT_FOUND)
+        self._check_single_customer_field_change_permission(
+            self.fixture.customer, status.HTTP_404_NOT_FOUND
+        )
 
     def test_user_cannot_change_customer_field_he_is_owner_of(self):
         self.client.force_authenticate(user=self.fixture.owner)
 
-        self._check_single_customer_field_change_permission(self.fixture.customer, status.HTTP_403_FORBIDDEN)
+        self._check_single_customer_field_change_permission(
+            self.fixture.customer, status.HTTP_403_FORBIDDEN
+        )
 
     def test_user_can_change_single_customer_field_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        self._check_single_customer_field_change_permission(self.fixture.customer, status.HTTP_200_OK)
+        self._check_single_customer_field_change_permission(
+            self.fixture.customer, status.HTTP_200_OK
+        )
 
     def test_staff_can_change_organization_domain(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
-        response = self.client.patch(self._get_customer_url(self.fixture.customer), {
-            'domain': 'ut.ee'
-        })
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer), {'domain': 'ut.ee'}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.domain, 'ut.ee')
@@ -398,16 +460,15 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
     def test_owner_can_not_change_organization_domain(self):
         self.client.force_authenticate(user=self.fixture.owner)
 
-        response = self.client.patch(self._get_customer_url(self.fixture.customer), {
-            'domain': 'ut.ee'
-        })
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer), {'domain': 'ut.ee'}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.domain, '')
 
 
 class CustomerQuotasTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.customer = factories.CustomerFactory()
         self.staff = factories.UserFactory(is_staff=True)
@@ -417,9 +478,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         quota = self.customer.quotas.get(name=Customer.Quotas.nc_project_count)
 
         url = quota_factories.QuotaFactory.get_url(quota)
-        response = self.client.put(url, {
-            'limit': 100
-        })
+        response = self.client.put(url, {'limit': 100})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         quota.refresh_from_db()
@@ -433,9 +492,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         quota = self.customer.quotas.get(name=Customer.Quotas.nc_project_count)
 
         url = quota_factories.QuotaFactory.get_url(quota)
-        response = self.client.put(url, {
-            'limit': 100
-        })
+        response = self.client.put(url, {'limit': 100})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         quota.refresh_from_db()
@@ -469,8 +526,12 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         project2 = factories.ProjectFactory(customer=self.customer)
         factories.TestServiceProjectLinkFactory(service=service, project=project2)
 
-        self.assertEqual(project1.quotas.get(name='nc_service_project_link_count').usage, 1)
-        self.assertEqual(project2.quotas.get(name='nc_service_project_link_count').usage, 1)
+        self.assertEqual(
+            project1.quotas.get(name='nc_service_project_link_count').usage, 1
+        )
+        self.assertEqual(
+            project2.quotas.get(name='nc_service_project_link_count').usage, 1
+        )
 
         self.assert_quota_usage('nc_service_project_link_count', 2)
         self.assert_quota_usage('nc_service_count', 1)
@@ -551,11 +612,21 @@ class CustomerQuotasTest(test.APITransactionTestCase):
 
 @ddt
 class CustomerUsersListTest(test.APITransactionTestCase):
-    all_users = ('staff', 'owner', 'manager', 'admin', 'customer_support', 'project_support', 'global_support')
+    all_users = (
+        'staff',
+        'owner',
+        'manager',
+        'admin',
+        'customer_support',
+        'project_support',
+        'global_support',
+    )
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.url = factories.CustomerFactory.get_url(self.fixture.customer, action='users')
+        self.url = factories.CustomerFactory.get_url(
+            self.fixture.customer, action='users'
+        )
 
     @data(*all_users)
     def test_user_can_list_customer_users(self, user):
@@ -568,12 +639,26 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 5)
 
-        self.assertSetEqual({user['role'] for user in response.data}, {'owner', 'support', None, None})
-        self.assertSetEqual({user['uuid'] for user in response.data},
-                            {self.fixture.owner.uuid.hex, self.fixture.admin.uuid.hex, self.fixture.manager.uuid.hex,
-                             self.fixture.customer_support.uuid.hex, self.fixture.project_support.uuid.hex})
-        self.assertSetEqual({user['projects'] and user['projects'][0]['role'] or None
-                             for user in response.data}, {None, 'admin', 'manager', 'support'})
+        self.assertSetEqual(
+            {user['role'] for user in response.data}, {'owner', 'support', None, None}
+        )
+        self.assertSetEqual(
+            {user['uuid'] for user in response.data},
+            {
+                self.fixture.owner.uuid.hex,
+                self.fixture.admin.uuid.hex,
+                self.fixture.manager.uuid.hex,
+                self.fixture.customer_support.uuid.hex,
+                self.fixture.project_support.uuid.hex,
+            },
+        )
+        self.assertSetEqual(
+            {
+                user['projects'] and user['projects'][0]['role'] or None
+                for user in response.data
+            },
+            {None, 'admin', 'manager', 'support'},
+        )
 
     def test_user_can_not_list_project_users(self):
         self.client.force_authenticate(self.fixture.user)
@@ -600,9 +685,15 @@ class CustomerUsersListTest(test.APITransactionTestCase):
             self.assertEqual(serialized_user['uuid'], expected_user.uuid.hex)
 
     def test_filter_by_email(self):
-        walter = factories.UserFactory(full_name='', username='walter', email='walter@gmail.com')
-        admin = factories.UserFactory(full_name='admin', username='zzz', email='admin@waldur.com')
-        alice = factories.UserFactory(full_name='', username='alice', email='alice@gmail.com')
+        walter = factories.UserFactory(
+            full_name='', username='walter', email='walter@gmail.com'
+        )
+        admin = factories.UserFactory(
+            full_name='admin', username='zzz', email='admin@waldur.com'
+        )
+        alice = factories.UserFactory(
+            full_name='', username='alice', email='alice@gmail.com'
+        )
 
         for user in [admin, alice, walter]:
             self.fixture.customer.add_user(user, CustomerRole.OWNER)
@@ -628,7 +719,9 @@ class CustomerCountersListTest(test.APITransactionTestCase):
     @data('owner', 'customer_support')
     def test_user_can_get_customer_counters(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.get(self.url, {'fields': ['users', 'projects', 'services']})
+        response = self.client.get(
+            self.url, {'fields': ['users', 'projects', 'services']}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {'users': 5, 'projects': 1, 'services': 1})
 
@@ -647,28 +740,32 @@ class UserCustomersFilterTest(test.APITransactionTestCase):
         self.customer2.add_user(self.user2, CustomerRole.OWNER)
 
     def test_staff_can_filter_customer_by_user(self):
-        self.assert_staff_can_filter_customer_by_user(self.user1, {self.customer1, self.customer2})
+        self.assert_staff_can_filter_customer_by_user(
+            self.user1, {self.customer1, self.customer2}
+        )
         self.assert_staff_can_filter_customer_by_user(self.user2, {self.customer2})
 
     def assert_staff_can_filter_customer_by_user(self, user, customers):
         self.client.force_authenticate(self.staff)
-        response = self.client.get(factories.CustomerFactory.get_list_url(), {
-            'user_uuid': user.uuid.hex,
-            'fields': ['uuid']
-        })
+        response = self.client.get(
+            factories.CustomerFactory.get_list_url(),
+            {'user_uuid': user.uuid.hex, 'fields': ['uuid']},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual({customer['uuid'] for customer in response.data},
-                         {customer.uuid.hex for customer in customers})
+        self.assertEqual(
+            {customer['uuid'] for customer in response.data},
+            {customer.uuid.hex for customer in customers},
+        )
 
 
 @ddt
 class AccountingIsRunningFilterTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.enabled_customers = factories.CustomerFactory.create_batch(2)
         future_date = timezone.now() + timezone.timedelta(days=1)
         self.disabled_customers = factories.CustomerFactory.create_batch(
-            3, accounting_start_date=future_date)
+            3, accounting_start_date=future_date
+        )
         self.all_customers = self.enabled_customers + self.disabled_customers
 
     def count_customers(self, accounting_is_running=None):
@@ -683,7 +780,7 @@ class AccountingIsRunningFilterTest(test.APITransactionTestCase):
     @data(
         (True, 'enabled_customers'),
         (False, 'disabled_customers'),
-        (None, 'all_customers')
+        (None, 'all_customers'),
     )
     @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_feature_is_enabled(self, params):
@@ -699,7 +796,9 @@ class AccountingIsRunningFilterTest(test.APITransactionTestCase):
         self.assertEqual(expected, actual)
 
 
-@override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True, OWNERS_CAN_MANAGE_OWNERS=True)
+@override_waldur_core_settings(
+    OWNER_CAN_MANAGE_CUSTOMER=True, OWNERS_CAN_MANAGE_OWNERS=True
+)
 class CustomerBlockedTest(CustomerBaseTest):
     def setUp(self):
         self.user = factories.UserFactory()
@@ -753,7 +852,9 @@ class CustomerBlockedTest(CustomerBaseTest):
         response = self.client.post(reverse('customer_permission-list'), data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_customer_permission_updating_is_not_available_for_blocked_organization(self):
+    def test_customer_permission_updating_is_not_available_for_blocked_organization(
+        self,
+    ):
         permission = factories.CustomerPermissionFactory(customer=self.customer)
         url = factories.CustomerPermissionFactory.get_url(permission)
         data = {
@@ -763,7 +864,9 @@ class CustomerBlockedTest(CustomerBaseTest):
         response = self.client.put(url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_customer_permission_deleting_is_not_available_for_blocked_organization(self):
+    def test_customer_permission_deleting_is_not_available_for_blocked_organization(
+        self,
+    ):
         permission = factories.CustomerPermissionFactory(customer=self.customer)
         url = factories.CustomerPermissionFactory.get_url(permission)
         self.client.force_authenticate(user=self.user)
@@ -782,7 +885,9 @@ class CustomerBlockedTest(CustomerBaseTest):
         response = self.client.post(reverse('project_permission-list'), data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_project_permission_updating_is_not_available_for_blocked_organization(self):
+    def test_project_permission_updating_is_not_available_for_blocked_organization(
+        self,
+    ):
         project = factories.ProjectFactory(customer=self.customer)
         permission = factories.ProjectPermissionFactory(project=project)
         url = factories.ProjectPermissionFactory.get_url(permission)
@@ -793,7 +898,9 @@ class CustomerBlockedTest(CustomerBaseTest):
         response = self.client.put(url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_project_permission_deleting_is_not_available_for_blocked_organization(self):
+    def test_project_permission_deleting_is_not_available_for_blocked_organization(
+        self,
+    ):
         project = factories.ProjectFactory(customer=self.customer)
         permission = factories.ProjectPermissionFactory(project=project)
         url = factories.ProjectPermissionFactory.get_url(permission)
@@ -813,8 +920,16 @@ class CustomerDivisionFilterTest(test.APITransactionTestCase):
     def test_filters(self):
         """Test of customers' list filter by division name and division UUID."""
         rows = [
-            {'name': 'division_name', 'valid': self.division.name[2:], 'invalid': 'invalid'},
-            {'name': 'division_uuid', 'valid': self.division.uuid.hex, 'invalid': 'invalid'},
+            {
+                'name': 'division_name',
+                'valid': self.division.name[2:],
+                'invalid': 'invalid',
+            },
+            {
+                'name': 'division_uuid',
+                'valid': self.division.uuid.hex,
+                'invalid': 'invalid',
+            },
         ]
 
         self.client.force_authenticate(self.user)

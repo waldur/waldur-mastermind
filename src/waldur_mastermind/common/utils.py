@@ -1,6 +1,5 @@
 import json
-
-from decimal import Decimal, ROUND_UP
+from decimal import ROUND_UP, Decimal
 from urllib.parse import urlencode
 
 from dateutil import parser
@@ -27,7 +26,7 @@ def get_headers(user):
     return dict(
         content_type='application/json',
         HTTP_AUTHORIZATION='Token %s' % token.key,
-        SERVER_NAME='localhost'
+        SERVER_NAME='localhost',
     )
 
 

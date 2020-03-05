@@ -38,18 +38,28 @@ def patch_fsm_field_mixin(cls):
         method_name = method.__name__
         current_state = self.get_state(instance)
         try:
-            current_state_name = filter(lambda x: x[0] == current_state, meta.field.choices)[0][1]
+            current_state_name = filter(
+                lambda x: x[0] == current_state, meta.field.choices
+            )[0][1]
         except Exception:
             current_state_name = current_state
 
         if not meta.has_transition(current_state):
             raise TransitionNotAllowed(
-                "Can't switch from state '{0}' using method '{1}'".format(current_state_name, method_name),
-                object=instance, method=method)
+                "Can't switch from state '{0}' using method '{1}'".format(
+                    current_state_name, method_name
+                ),
+                object=instance,
+                method=method,
+            )
         if not meta.conditions_met(instance, current_state):
             raise TransitionNotAllowed(
-                "Transition conditions have not been met for method '{0}'".format(method_name),
-                object=instance, method=method)
+                "Transition conditions have not been met for method '{0}'".format(
+                    method_name
+                ),
+                object=instance,
+                method=method,
+            )
 
         next_state = meta.next_state(current_state)
 
@@ -58,7 +68,7 @@ def patch_fsm_field_mixin(cls):
             'instance': instance,
             'name': method_name,
             'source': current_state,
-            'target': next_state
+            'target': next_state,
         }
 
         pre_transition.send(**signal_kwargs)
@@ -87,5 +97,6 @@ def patch_fsm_field_mixin(cls):
 
 def monkey_patch_fields():
     from django_fsm import FSMFieldDescriptor, FSMFieldMixin
+
     patch_field_descriptor(FSMFieldDescriptor)
     patch_fsm_field_mixin(FSMFieldMixin)

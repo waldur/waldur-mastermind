@@ -12,7 +12,6 @@ from . import executors, models
 
 
 class DiskAdmin(structure_admin.ResourceAdmin):
-
     class Pull(ExecutorAdminAction):
         executor = executors.DiskPullExecutor
         short_description = _('Pull')
@@ -25,14 +24,18 @@ class DiskAdmin(structure_admin.ResourceAdmin):
 
 
 class VirtualMachineAdmin(structure_admin.ResourceAdmin):
-
     class Pull(ExecutorAdminAction):
         executor = executors.VirtualMachinePullExecutor
         short_description = _('Pull')
 
         def validate(self, instance):
-            if instance.state not in (models.VirtualMachine.States.OK, models.VirtualMachine.States.ERRED):
-                raise ValidationError(_('Virtual machine has to be in OK or ERRED state.'))
+            if instance.state not in (
+                models.VirtualMachine.States.OK,
+                models.VirtualMachine.States.ERRED,
+            ):
+                raise ValidationError(
+                    _('Virtual machine has to be in OK or ERRED state.')
+                )
 
     pull = Pull()
 
@@ -63,8 +66,12 @@ class CustomerInlineFormset(BaseInlineFormSet):
                 # Ensure that the same service settings are not used multiple times
                 service_settings = cleaned_data[self.service_property_field].settings
                 if service_settings in enabled_settings:
-                    raise ValidationError(_('There should be exactly one property '
-                                            'assigned to the each service settings.'))
+                    raise ValidationError(
+                        _(
+                            'There should be exactly one property '
+                            'assigned to the each service settings.'
+                        )
+                    )
                 else:
                     enabled_settings[service_settings] = True
 
@@ -115,7 +122,9 @@ class CustomerFolderInline(options.TabularInline):
 
 
 admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
-admin.site.register(models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
+admin.site.register(
+    models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
+)
 admin.site.register(models.Disk, DiskAdmin)
 admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
 admin.site.register(models.Template, structure_admin.ServicePropertyAdmin)

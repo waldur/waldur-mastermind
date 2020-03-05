@@ -12,7 +12,8 @@ class LinkSerializer(zabbix_serializers.ServiceProjectLinkSerializer):
         source='service.settings',
         view_name='servicesettings-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
     service_settings_uuid = serializers.ReadOnlyField(source='service.settings.uuid')
 
     def get_internal_ip(self, link):
@@ -28,7 +29,9 @@ class LinkSerializer(zabbix_serializers.ServiceProjectLinkSerializer):
 
     class Meta(zabbix_serializers.ServiceProjectLinkSerializer.Meta):
         fields = zabbix_serializers.ServiceProjectLinkSerializer.Meta.fields + (
-            'internal_ip', 'service_settings', 'service_settings_uuid',
+            'internal_ip',
+            'service_settings',
+            'service_settings_uuid',
         )
 
 
@@ -56,6 +59,5 @@ def add_zabbix_host(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=openstack_serializers.InstanceSerializer,
-    receiver=add_zabbix_host,
+    sender=openstack_serializers.InstanceSerializer, receiver=add_zabbix_host,
 )

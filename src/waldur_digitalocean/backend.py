@@ -2,7 +2,6 @@ import functools
 import logging
 
 import digitalocean
-
 from django.db import IntegrityError, transaction
 from django.utils import dateparse
 
@@ -10,7 +9,6 @@ from waldur_core.core.models import SshPublicKey
 from waldur_core.structure import ServiceBackend, ServiceBackendError, SupportedServices
 
 from . import models
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,18 +34,20 @@ def digitalocean_error_handler(func):
     Convert DigitalOcean exception to specific classes based on text message.
     It should be applied to functions which directly call `manager`.
     """
+
     @functools.wraps(func)
     def wrapped(*args, **kwargs):
         error_messages = {
             'You do not have access for the attempted action.': TokenScopeError,
             'The resource you were accessing could not be found.': NotFoundError,
-            'Unable to authenticate you.': UnauthorizedError
+            'Unable to authenticate you.': UnauthorizedError,
         }
         logger.debug('About to execute DO backend method `%s`' % func.__name__)
         try:
             return func(*args, **kwargs)
         except digitalocean.DataReadError as e:
             raise error_messages.get(str(e))
+
     return wrapped
 
 
@@ -65,8 +65,14 @@ class DigitalOceanBackend(ServiceBackend):
         self.pull_droplets()
 
     @digitalocean_error_handler
-    def create_droplet(self, droplet, backend_region_id=None, backend_image_id=None,
-                       backend_size_id=None, ssh_key_uuid=None):
+    def create_droplet(
+        self,
+        droplet,
+        backend_region_id=None,
+        backend_image_id=None,
+        backend_size_id=None,
+        ssh_key_uuid=None,
+    ):
 
         if ssh_key_uuid:
             ssh_key = SshPublicKey.objects.get(uuid=ssh_key_uuid)
@@ -82,7 +88,8 @@ class DigitalOceanBackend(ServiceBackend):
             region=backend_region_id,
             image=backend_image_id,
             size_slug=backend_size_id,
-            ssh_keys=[backend_ssh_key.id] if ssh_key_uuid else [])
+            ssh_keys=[backend_ssh_key.id] if ssh_key_uuid else [],
+        )
         backend_droplet.create()
 
         action_id = backend_droplet.action_ids[-1]
@@ -167,11 +174,13 @@ class DigitalOceanBackend(ServiceBackend):
                 try:
                     models.Region.objects.update_or_create(
                         backend_id=backend_region.slug,
-                        defaults={'name': backend_region.name})
+                        defaults={'name': backend_region.name},
+                    )
                 except IntegrityError:
                     logger.warning(
                         'Could not create DigitalOcean region with id %s due to concurrent update',
-                        backend_region.slug)
+                        backend_region.slug,
+                    )
 
         models.Region.objects.filter(backend_id__in=cur_regions.keys()).delete()
 
@@ -184,18 +193,24 @@ class DigitalOceanBackend(ServiceBackend):
                 image, _ = models.Image.objects.update_or_create(
                     backend_id=backend_image.id,
                     defaults={
-                        'name': '{} {}'.format(backend_image.distribution, backend_image.name),
+                        'name': '{} {}'.format(
+                            backend_image.distribution, backend_image.name
+                        ),
                         'type': backend_image.type,
                         'distribution': backend_image.distribution,
                         'is_official': backend_image.slug is not None,
                         'min_disk_size': self.gb2mb(backend_image.min_disk_size),
-                        'created_at': dateparse.parse_datetime(backend_image.created_at)
-                    })
+                        'created_at': dateparse.parse_datetime(
+                            backend_image.created_at
+                        ),
+                    },
+                )
                 self._update_entity_regions(image, backend_image)
             except IntegrityError:
                 logger.warning(
                     'Could not create DigitalOcean image with id %s due to concurrent update',
-                    backend_image.id)
+                    backend_image.id,
+                )
 
         models.Image.objects.filter(backend_id__in=cur_images.keys()).delete()
 
@@ -213,21 +228,28 @@ class DigitalOceanBackend(ServiceBackend):
                         'ram': backend_size.memory,
                         'disk': self.gb2mb(backend_size.disk),
                         'transfer': int(self.tb2mb(backend_size.transfer)),
-                        'price': backend_size.price_hourly})
+                        'price': backend_size.price_hourly,
+                    },
+                )
                 self._update_entity_regions(size, backend_size)
             except IntegrityError:
                 logger.warning(
                     'Could not create DigitalOcean size with id %s due to concurrent update',
-                    backend_size.slug)
+                    backend_size.slug,
+                )
 
         models.Size.objects.filter(backend_id__in=cur_sizes.keys()).delete()
 
     @transaction.atomic
     def pull_droplets(self):
-        backend_droplets = {str(droplet.id): droplet for droplet in self.get_all_droplets()}
+        backend_droplets = {
+            str(droplet.id): droplet for droplet in self.get_all_droplets()
+        }
         backend_ids = set(backend_droplets.keys())
 
-        nc_droplets = models.Droplet.objects.filter(service_project_link__service__settings=self.settings)
+        nc_droplets = models.Droplet.objects.filter(
+            service_project_link__service__settings=self.settings
+        )
         nc_droplets = {droplet.backend_id: droplet for droplet in nc_droplets}
         nc_ids = set(nc_droplets.keys())
 
@@ -241,7 +263,9 @@ class DigitalOceanBackend(ServiceBackend):
         for droplet_id in nc_ids & backend_ids:
             backend_droplet = backend_droplets[droplet_id]
             nc_droplet = nc_droplets[droplet_id]
-            nc_droplet.state, nc_droplet.runtime_state = self._get_droplet_states(backend_droplet)
+            nc_droplet.state, nc_droplet.runtime_state = self._get_droplet_states(
+                backend_droplet
+            )
             nc_droplet.image_name = self.format_image_name(backend_droplet.image)
             nc_droplet.save()
 
@@ -273,17 +297,20 @@ class DigitalOceanBackend(ServiceBackend):
         cur_droplets = models.Droplet.objects.all().values_list('backend_id', flat=True)
         statuses = ('active', 'off')
         droplets = self.get_all_droplets()
-        return [{
-            'id': droplet.id,
-            'name': droplet.name,
-            'created_at': droplet.created_at,
-            'cores': droplet.vcpus,
-            'ram': droplet.memory,
-            'disk': self.gb2mb(droplet.disk),
-            'flavor_name': droplet.size_slug,
-            'resource_type': SupportedServices.get_name_for_model(models.Droplet)
-        } for droplet in droplets
-            if str(droplet.id) not in cur_droplets and droplet.status in statuses]
+        return [
+            {
+                'id': droplet.id,
+                'name': droplet.name,
+                'created_at': droplet.created_at,
+                'cores': droplet.vcpus,
+                'ram': droplet.memory,
+                'disk': self.gb2mb(droplet.disk),
+                'flavor_name': droplet.size_slug,
+                'resource_type': SupportedServices.get_name_for_model(models.Droplet),
+            }
+            for droplet in droplets
+            if str(droplet.id) not in cur_droplets and droplet.status in statuses
+        ]
 
     def import_droplet(self, backend_droplet_id, service_project_link=None, save=True):
         backend_droplet = self.get_droplet(backend_droplet_id)
@@ -339,9 +366,8 @@ class DigitalOceanBackend(ServiceBackend):
     @digitalocean_error_handler
     def push_ssh_key(self, ssh_key):
         backend_ssh_key = digitalocean.SSHKey(
-            token=self.manager.token,
-            name=ssh_key.name,
-            public_key=ssh_key.public_key)
+            token=self.manager.token, name=ssh_key.name, public_key=ssh_key.public_key
+        )
 
         backend_ssh_key.create()
         return backend_ssh_key
@@ -349,10 +375,8 @@ class DigitalOceanBackend(ServiceBackend):
     @digitalocean_error_handler
     def pull_ssh_key(self, name, fingerprint):
         backend_ssh_key = digitalocean.SSHKey(
-            token=self.manager.token,
-            fingerprint=fingerprint,
-            name=name,
-            id=None)
+            token=self.manager.token, fingerprint=fingerprint, name=name, id=None
+        )
 
         backend_ssh_key.load()
         return backend_ssh_key
@@ -362,7 +386,9 @@ class DigitalOceanBackend(ServiceBackend):
 
     def _update_entity_regions(self, entity, backend_entity):
         all_regions = set(entity.regions.all())
-        actual_regions = set(models.Region.objects.filter(backend_id__in=backend_entity.regions))
+        actual_regions = set(
+            models.Region.objects.filter(backend_id__in=backend_entity.regions)
+        )
 
         entity.regions.add(*(actual_regions - all_regions))
         entity.regions.remove(*(all_regions - actual_regions))

@@ -12,11 +12,12 @@ class OpenStackPackageLogger(EventLogger):
             'openstack_package_change_scheduled',
             'openstack_package_change_succeeded',
             'openstack_package_change_failed',
-            'openstack_package_deleted')
+            'openstack_package_deleted',
+        )
         event_groups = {
             'customers': event_types,
             'packages': event_types,
-            'debug_only': event_types
+            'debug_only': event_types,
         }
         nullable_fields = ('service_settings',)
 

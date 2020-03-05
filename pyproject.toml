@@ -1,6 +1,10 @@
+[tool.black]
+line-length = 88
+skip-string-normalization = true
+
 [tool.poetry]
 name = "waldur-mastermind"
-version = "4.5.4"
+version = "4.5.5"
 description = "Waldur MasterMind is a hybrid cloud orchestrator."
 authors = ["OpenNode Team <info@opennodecloud.com>"]
 license = "MIT"
@@ -91,10 +95,10 @@ ddt = "1.0.3"
 factory-boy = "2.4.1"
 freezegun = "0.3.7"
 mock-django = "0.6.9"
-flake8 = "3.5.0"
 SQLAlchemy = "1.3.0"
 django-cors-headers = "^3.2.1"
 attrs = "18.1.0"
+pre-commit = "^2.1.1"
 
 [tool.poetry.plugins.console_scripts]
 waldur = "waldur_core.server.manage:main"

@@ -19,25 +19,29 @@ class FreeIPAConfig(AppConfig):
             signals.post_save.connect(
                 handlers.schedule_sync,
                 sender=model,
-                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_creation' % model.__class__,
+                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_creation'
+                % model.__class__,
             )
 
             signals.pre_delete.connect(
                 handlers.schedule_sync,
                 sender=model,
-                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_deletion' % model.__class__,
+                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_deletion'
+                % model.__class__,
             )
 
             structure_signals.structure_role_granted.connect(
                 handlers.schedule_sync,
                 sender=model,
-                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_role_granted' % model.__class__,
+                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_role_granted'
+                % model.__class__,
             )
 
             structure_signals.structure_role_revoked.connect(
                 handlers.schedule_sync,
                 sender=model,
-                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_role_revoked' % model.__class__,
+                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_role_revoked'
+                % model.__class__,
             )
 
         signals.post_save.connect(
@@ -59,13 +63,11 @@ class FreeIPAConfig(AppConfig):
         )
 
         structure_models.Customer.add_quota_field(
-            name=utils.QUOTA_NAME,
-            quota_field=QuotaField()
+            name=utils.QUOTA_NAME, quota_field=QuotaField()
         )
 
         structure_models.Project.add_quota_field(
-            name=utils.QUOTA_NAME,
-            quota_field=QuotaField()
+            name=utils.QUOTA_NAME, quota_field=QuotaField()
         )
 
         signals.pre_save.connect(

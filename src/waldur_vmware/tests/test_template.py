@@ -1,9 +1,11 @@
 from unittest import mock
+
 from rest_framework import test
 
 from waldur_vmware.tests.utils import override_plugin_settings
-from . import factories
+
 from .. import backend, models
+from . import factories
 
 
 class TemplatePullTest(test.APITransactionTestCase):
@@ -23,13 +25,10 @@ class TemplatePullTest(test.APITransactionTestCase):
                     "last_sync_time": "2015-01-01T22:13:05.651Z",
                     "name": "string",
                     "type": "vm-template",
-                    "version": "string"
+                    "version": "string",
                 },
                 'template': {
-                    "cpu": {
-                        "cores_per_socket": 1,
-                        "count": 1
-                    },
+                    "cpu": {"cores_per_socket": 1, "count": 1},
                     "disks": [
                         {
                             "key": "obj-103",
@@ -37,31 +36,29 @@ class TemplatePullTest(test.APITransactionTestCase):
                                 "capacity": 1,
                                 "disk_storage": {
                                     "datastore": "obj-103",
-                                    "storage_policy": "obj-103"
-                                }
-                            }
+                                    "storage_policy": "obj-103",
+                                },
+                            },
                         }
                     ],
                     "guest_OS": "DOS",
-                    "memory": {
-                        "size_MiB": 1
-                    },
+                    "memory": {"size_MiB": 1},
                     "nics": [
                         {
                             "key": "obj-103",
                             "value": {
                                 "backing_type": "STANDARD_PORTGROUP",
                                 "mac_type": "MANUAL",
-                                "network": "obj-103"
-                            }
+                                "network": "obj-103",
+                            },
                         }
                     ],
                     "vm_home_storage": {
                         "datastore": "obj-103",
-                        "storage_policy": "obj-103"
+                        "storage_policy": "obj-103",
                     },
-                    "vm_template": "string"
-                }
+                    "vm_template": "string",
+                },
             }
         ]
 
@@ -87,14 +84,16 @@ class TemplatePullTest(test.APITransactionTestCase):
     def test_template_with_multiple_nics_is_skipped(self):
         client = mock.MagicMock()
         self.mock_client.return_value = client
-        self.ALL_TEMPLATES[0]['template']['nics'].append({
-            "key": "obj-104",
-            "value": {
-                "backing_type": "STANDARD_PORTGROUP",
-                "mac_type": "MANUAL",
-                "network": "obj-104"
+        self.ALL_TEMPLATES[0]['template']['nics'].append(
+            {
+                "key": "obj-104",
+                "value": {
+                    "backing_type": "STANDARD_PORTGROUP",
+                    "mac_type": "MANUAL",
+                    "network": "obj-104",
+                },
             }
-        })
+        )
         client.list_all_templates.return_value = self.ALL_TEMPLATES
 
         self.backend.pull_templates()

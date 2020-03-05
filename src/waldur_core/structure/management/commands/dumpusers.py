@@ -1,20 +1,22 @@
 from collections import OrderedDict
 
+import prettytable
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
-import prettytable
 
 from waldur_core.structure import models
 
 User = get_user_model()
 
-USER_COLUMNS = OrderedDict([
-    # (Column name, User fields)
-    ('Full name, Civil number', ('full_name', 'civil_number')),
-    ('Email, Phone nr.', ('email', 'phone_number')),
-    ('Job title', ('job_title',)),
-    ('Staff, Support', ('is_staff', 'is_support',)),
-])
+USER_COLUMNS = OrderedDict(
+    [
+        # (Column name, User fields)
+        ('Full name, Civil number', ('full_name', 'civil_number')),
+        ('Email, Phone nr.', ('email', 'phone_number')),
+        ('Job title', ('job_title',)),
+        ('Staff, Support', ('is_staff', 'is_support',)),
+    ]
+)
 
 # in chars
 COLUMN_MAX_WIDTH = 25
@@ -24,7 +26,10 @@ def format_string_to_column_size(string):
     if len(string) <= COLUMN_MAX_WIDTH:
         return string
 
-    formatted = '\n'.join(string[i:i + COLUMN_MAX_WIDTH] for i in range(0, len(string), COLUMN_MAX_WIDTH))
+    formatted = '\n'.join(
+        string[i : i + COLUMN_MAX_WIDTH]
+        for i in range(0, len(string), COLUMN_MAX_WIDTH)
+    )
     if isinstance(formatted, str):
         formatted = str(formatted, errors='replace')
     return formatted
@@ -52,8 +57,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-o', '--output',
-            dest='output', default=None,
+            '-o',
+            '--output',
+            dest='output',
+            default=None,
             help='Specifies file to which the output is written. The output will be printed to stdout by default.',
         )
 
@@ -69,8 +76,16 @@ class Command(BaseCommand):
         for user in users:
             user_customers = to_string(list(customer_roles.filter(user=user)))
             user_projects = to_string(list(project_roles.filter(user=user)))
-            row = [to_string([getattr(user, f) for f in fields if getattr(user, f) not in ('', None)])
-                   for fields in USER_COLUMNS.values()]
+            row = [
+                to_string(
+                    [
+                        getattr(user, f)
+                        for f in fields
+                        if getattr(user, f) not in ('', None)
+                    ]
+                )
+                for fields in USER_COLUMNS.values()
+            ]
             row += [user_customers, user_projects]
             table.add_row(row)
 

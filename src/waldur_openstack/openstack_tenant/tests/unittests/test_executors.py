@@ -1,12 +1,13 @@
 from django.test import TestCase
 
-from waldur_openstack.openstack_tenant.executors import InstanceFloatingIPsUpdateExecutor
+from waldur_openstack.openstack_tenant.executors import (
+    InstanceFloatingIPsUpdateExecutor,
+)
 
 from .. import factories
 
 
 class InstanceFloatingIPsUpdateExecutorTest(TestCase):
-
     def setUp(self):
         self.executor = InstanceFloatingIPsUpdateExecutor()
         self.instance = factories.InstanceFactory()

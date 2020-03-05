@@ -9,5 +9,7 @@ class VpcExternalFilter(core_filters.BaseFilterBackend):
             return queryset
         if not django_settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']:
             return queryset
-        category_uuid = django_settings.WALDUR_MARKETPLACE_OPENSTACK['TENANT_CATEGORY_UUID']
+        category_uuid = django_settings.WALDUR_MARKETPLACE_OPENSTACK[
+            'TENANT_CATEGORY_UUID'
+        ]
         return queryset.exclude(category__uuid=category_uuid)

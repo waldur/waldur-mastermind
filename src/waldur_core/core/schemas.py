@@ -1,10 +1,10 @@
 from django.urls import NoReverseMatch
-from django.utils.encoding import smart_text, force_text
-from django_filters import OrderingFilter, ChoiceFilter, ModelMultipleChoiceFilter
+from django.utils.encoding import force_text, smart_text
+from django_filters import ChoiceFilter, ModelMultipleChoiceFilter, OrderingFilter
 from rest_framework import exceptions, schemas
 from rest_framework.compat import coreapi
-from rest_framework.fields import ChoiceField, ModelField, HiddenField
-from rest_framework.permissions import AllowAny, SAFE_METHODS
+from rest_framework.fields import ChoiceField, HiddenField, ModelField
+from rest_framework.permissions import SAFE_METHODS, AllowAny
 from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -14,10 +14,14 @@ from rest_framework.utils import formatting
 from rest_framework.views import APIView
 from rest_framework_swagger import renderers
 
-from waldur_core.core import (permissions as core_permissions, views as core_views,
-                              utils as core_utils, filters as core_filters, serializers as core_serializers)
+from waldur_core.core import filters as core_filters
+from waldur_core.core import permissions as core_permissions
+from waldur_core.core import serializers as core_serializers
+from waldur_core.core import utils as core_utils
+from waldur_core.core import views as core_views
 from waldur_core.cost_tracking.filters import ResourceTypeFilter
-from waldur_core.structure import SupportedServices, filters as structure_filters
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import filters as structure_filters
 
 
 # XXX: Drop after removing HEAD requests
@@ -27,11 +31,14 @@ class WaldurEndpointInspector(EndpointEnumerator):
         Return a list of the valid HTTP methods for this endpoint.
         """
         if hasattr(callback, 'actions'):
-            return [method.upper() for method in callback.actions.keys() if method != 'head']
+            return [
+                method.upper() for method in callback.actions.keys() if method != 'head'
+            ]
 
         return [
-            method for method in
-            callback.cls().allowed_methods if method not in ('OPTIONS', 'HEAD')
+            method
+            for method in callback.cls().allowed_methods
+            if method not in ('OPTIONS', 'HEAD')
         ]
 
 
@@ -50,7 +57,9 @@ def get_entity_description(entity):
 
     label = '* %s' % formatting.camelcase_to_spaces(entity_name)
     if entity.__doc__ is not None:
-        entity_docstring = formatting.dedent(smart_text(entity.__doc__)).replace('\n', '\n\t')
+        entity_docstring = formatting.dedent(smart_text(entity.__doc__)).replace(
+            '\n', '\n\t'
+        )
         return '%s\n * %s' % (label, entity_docstring)
 
     return label
@@ -73,7 +82,9 @@ def get_validators_description(view):
     validators = getattr(view, action + '_validators', [])
     for validator in validators:
         validator_description = get_entity_description(validator)
-        description += '\n' + validator_description if description else validator_description
+        description += (
+            '\n' + validator_description if description else validator_description
+        )
 
     return '### Validators:\n' + description if description else ''
 
@@ -102,7 +113,11 @@ def get_actions_permission_description(view, method):
         action_perms = getattr(view, permission_type + '_permissions', [])
         for permission in action_perms:
             action_perm_description = get_entity_description(permission)
-            description += '\n' + action_perm_description if description else action_perm_description
+            description += (
+                '\n' + action_perm_description
+                if description
+                else action_perm_description
+            )
 
     return description
 
@@ -124,7 +139,11 @@ def get_permissions_description(view, method):
         if permission_class == core_permissions.ActionsPermission:
             actions_perm_description = get_actions_permission_description(view, method)
             if actions_perm_description:
-                description += '\n' + actions_perm_description if description else actions_perm_description
+                description += (
+                    '\n' + actions_perm_description
+                    if description
+                    else actions_perm_description
+                )
             continue
         perm_description = get_entity_description(permission_class)
         description += '\n' + perm_description if description else perm_description
@@ -157,9 +176,13 @@ def get_validation_description(view, method):
         field_validation = getattr(serializer, 'validate_' + field.field_name)
 
         if field_validation.__doc__ is not None:
-            docstring = formatting.dedent(smart_text(field_validation.__doc__)).replace('\n', '\n\t')
+            docstring = formatting.dedent(smart_text(field_validation.__doc__)).replace(
+                '\n', '\n\t'
+            )
             field_description = '* %s\n * %s' % (field.field_name, docstring)
-            description += '\n' + field_description if description else field_description
+            description += (
+                '\n' + field_description if description else field_description
+            )
 
     return '### Validation:\n' + description if description else ''
 
@@ -195,13 +218,19 @@ def get_field_type(field):
         return ' | '.join(['"%s"' % f for f in sorted(field.choices)])
     if isinstance(field, HyperlinkedRelatedField):
         if field.view_name.endswith('detail'):
-            return 'link to %s' % reverse(field.view_name,
-                                          kwargs={'%s' % field.lookup_field: "'%s'" % field.lookup_field})
+            return 'link to %s' % reverse(
+                field.view_name,
+                kwargs={'%s' % field.lookup_field: "'%s'" % field.lookup_field},
+            )
         return reverse(field.view_name)
     if isinstance(field, structure_filters.ServiceTypeFilter):
-        return ' | '.join(['"%s"' % f for f in SupportedServices.get_filter_mapping().keys()])
+        return ' | '.join(
+            ['"%s"' % f for f in SupportedServices.get_filter_mapping().keys()]
+        )
     if isinstance(field, ResourceTypeFilter):
-        return ' | '.join(['"%s"' % f for f in SupportedServices.get_resource_models().keys()])
+        return ' | '.join(
+            ['"%s"' % f for f in SupportedServices.get_resource_models().keys()]
+        )
     if isinstance(field, core_serializers.GenericRelatedField):
         links = []
         for model in field.related_models:
@@ -271,20 +300,34 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         This will be based on the method docstring if one exists,
         or else the class docstring.
         """
-        description = super(WaldurSchemaGenerator, self).get_description(path, method, view)
+        description = super(WaldurSchemaGenerator, self).get_description(
+            path, method, view
+        )
 
         permissions_description = get_permissions_description(view, method)
         if permissions_description:
-            description += '\n\n' + permissions_description if description else permissions_description
+            description += (
+                '\n\n' + permissions_description
+                if description
+                else permissions_description
+            )
 
         if isinstance(view, core_views.ActionsViewSet):
             validators_description = get_validators_description(view)
             if validators_description:
-                description += '\n\n' + validators_description if description else validators_description
+                description += (
+                    '\n\n' + validators_description
+                    if description
+                    else validators_description
+                )
 
         validation_description = get_validation_description(view, method)
         if validation_description:
-            description += '\n\n' + validation_description if description else validation_description
+            description += (
+                '\n\n' + validation_description
+                if description
+                else validation_description
+            )
 
         return description
 
@@ -309,9 +352,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
             for filter_name, filter_instance in filter_class().filters.items():
                 filter_type = get_field_type(filter_instance)
                 field = coreapi.Field(
-                    name=filter_name,
-                    required=False,
-                    location=filter_type,
+                    name=filter_name, required=False, location=filter_type,
                 )
                 # Prevent double rendering
                 if field not in fields:
@@ -359,15 +400,10 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
 
 class WaldurSchemaView(APIView):
     permission_classes = [AllowAny]
-    renderer_classes = [
-        renderers.OpenAPIRenderer,
-        renderers.SwaggerUIRenderer
-    ]
+    renderer_classes = [renderers.OpenAPIRenderer, renderers.SwaggerUIRenderer]
 
     def get(self, request):
-        generator = WaldurSchemaGenerator(
-            title='Waldur MasterMind',
-        )
+        generator = WaldurSchemaGenerator(title='Waldur MasterMind',)
         schema = generator.get_schema(request=request)
 
         if not schema:

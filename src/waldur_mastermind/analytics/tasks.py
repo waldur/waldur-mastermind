@@ -1,12 +1,11 @@
 from celery import shared_task
-
 from django.contrib.contenttypes import models as ct_models
 from django.utils import timezone
 
 from waldur_core.quotas import models as quota_models
 from waldur_core.structure import models as structure_models
 
-from . import cost_tracking, openstack, slurm, utils, models
+from . import cost_tracking, models, openstack, slurm, utils
 
 
 @shared_task(name='analytics.push_points')
@@ -31,4 +30,5 @@ def sync_daily_quotas():
             if not quota.scope:
                 continue
             models.DailyQuotaHistory.objects.update_or_create_quota(
-                quota.scope, quota.name, date, quota.usage)
+                quota.scope, quota.name, date, quota.usage
+            )

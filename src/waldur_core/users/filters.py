@@ -1,7 +1,7 @@
 import uuid
 
-from django.db.models import Q
 import django_filters
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 
 from waldur_core.core import filters as core_filters
@@ -9,12 +9,9 @@ from waldur_core.users import models
 
 
 class InvitationFilter(django_filters.FilterSet):
-    project = django_filters.UUIDFilter(
-        field_name='project__uuid',
-    )
+    project = django_filters.UUIDFilter(field_name='project__uuid',)
     project_url = core_filters.URLFilter(
-        view_name='project-detail',
-        field_name='project__uuid',
+        view_name='project-detail', field_name='project__uuid',
     )
     state = django_filters.MultipleChoiceFilter(choices=models.Invitation.State.CHOICES)
 
@@ -32,8 +29,7 @@ class InvitationFilter(django_filters.FilterSet):
 
 class InvitationCustomerFilterBackend(DjangoFilterBackend):
     url_filter = core_filters.URLFilter(
-        view_name='customer-detail',
-        field_name='customer__uuid',
+        view_name='customer-detail', field_name='customer__uuid',
     )
 
     def filter_queryset(self, request, queryset, view):

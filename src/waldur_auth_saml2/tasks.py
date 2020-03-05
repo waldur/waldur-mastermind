@@ -1,5 +1,6 @@
-from celery import shared_task
 import subprocess  # nosec
+
+from celery import shared_task
 
 
 @shared_task(name='waldur_auth_saml2.sync_providers')

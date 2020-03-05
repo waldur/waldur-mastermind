@@ -2,13 +2,12 @@ import logging
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.template import Context, Template
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,9 @@ def init_offerings_and_resources(category, customer):
 
     # Import marketplace offerings
     ct = ContentType.objects.get_for_model(support_models.OfferingTemplate)
-    exist_ids = marketplace_models.Offering.objects.filter(content_type=ct).values_list('object_id', flat=True)
+    exist_ids = marketplace_models.Offering.objects.filter(content_type=ct).values_list(
+        'object_id', flat=True
+    )
 
     for template in support_models.OfferingTemplate.objects.exclude(id__in=exist_ids):
         marketplace_models.Offering.objects.create(
@@ -40,7 +41,7 @@ def init_offerings_and_resources(category, customer):
             state=marketplace_models.Offering.States.ACTIVE,
             options={
                 'order': template.config.get('order', []),
-                'options': template.config.get('options', {})
+                'options': template.config.get('options', {}),
             },
             description=template.config.get('description', ''),
             full_description=template.config.get('summary', ''),
@@ -50,11 +51,15 @@ def init_offerings_and_resources(category, customer):
 
     # Import marketplace resources
     ct = ContentType.objects.get_for_model(support_models.Offering)
-    exist_ids = marketplace_models.Resource.objects.filter(content_type=ct).values_list('object_id', flat=True)
+    exist_ids = marketplace_models.Resource.objects.filter(content_type=ct).values_list(
+        'object_id', flat=True
+    )
 
     for support_offering in support_models.Offering.objects.exclude(id__in=exist_ids):
         # get offering
-        offering = marketplace_models.Offering.objects.get(scope=support_offering.template, type=PLUGIN_NAME)
+        offering = marketplace_models.Offering.objects.get(
+            scope=support_offering.template, type=PLUGIN_NAME
+        )
 
         # get plan
         for offering_plan in support_offering.template.plans.all():
@@ -66,14 +71,16 @@ def init_offerings_and_resources(category, customer):
                     unit_price=offering_plan.unit_price,
                     unit=offering_plan.unit,
                     product_code=offering_plan.product_code,
-                    article_code=offering_plan.article_code
-                )
+                    article_code=offering_plan.article_code,
+                ),
             )
             if create:
                 plans_counter += 1
 
         try:
-            marketplace_plan = offering.plans.get(unit_price=support_offering.unit_price, unit=support_offering.unit)
+            marketplace_plan = offering.plans.get(
+                unit_price=support_offering.unit_price, unit=support_offering.unit
+            )
         except marketplace_models.Plan.DoesNotExist:
             marketplace_plan = marketplace_models.Plan.objects.create(
                 scope=support_offering,
@@ -95,9 +102,11 @@ def init_offerings_and_resources(category, customer):
             plan=marketplace_plan,
             scope=support_offering,
             state=get_match_states()[support_offering.state],
-            attributes={'summary': support_offering.issue.summary,
-                        'description': support_offering.issue.description,
-                        'name': support_offering.name}
+            attributes={
+                'summary': support_offering.issue.summary,
+                'description': support_offering.issue.description,
+                'name': support_offering.name,
+            },
         )
         if marketplace_plan:
             marketplace_models.ResourcePlanPeriod.objects.create(

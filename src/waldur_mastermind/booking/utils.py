@@ -41,13 +41,14 @@ def get_offering_bookings(offering):
     """
     States = marketplace_models.Resource.States
     schedules = marketplace_models.Resource.objects.filter(
-        offering=offering,
-        state__in=(States.OK, States.CREATING),
+        offering=offering, state__in=(States.OK, States.CREATING),
     ).values_list('attributes__schedules', flat=True)
     return [
         TimePeriod(period['start'], period['end'])
-        for schedule in schedules if schedule
-        for period in schedule if period
+        for schedule in schedules
+        if schedule
+        for period in schedule
+        if period
     ]
 
 
@@ -56,32 +57,41 @@ def get_info_about_upcoming_bookings():
     upcoming_bookings = marketplace_models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
         state=marketplace_models.Resource.States.OK,
-        attributes__schedules__0__start__icontains='%s-%02d-%02dT' % (tomorrow.year, tomorrow.month, tomorrow.day))
+        attributes__schedules__0__start__icontains='%s-%02d-%02dT'
+        % (tomorrow.year, tomorrow.month, tomorrow.day),
+    )
 
     result = []
 
     for resource in upcoming_bookings:
         try:
             order_item = marketplace_models.OrderItem.objects.get(
-                resource=resource,
-                type=marketplace_models.OrderItem.Types.CREATE)
+                resource=resource, type=marketplace_models.OrderItem.Types.CREATE
+            )
             user = order_item.order.created_by
         except marketplace_models.OrderItem.DoesNotExist:
-            logger.warning('Skipping notification because '
-                           'marketplace resource hasn\'t got a order item. '
-                           'Resource ID: %s', resource.id)
+            logger.warning(
+                'Skipping notification because '
+                'marketplace resource hasn\'t got a order item. '
+                'Resource ID: %s',
+                resource.id,
+            )
         except marketplace_models.OrderItem.MultipleObjectsReturned:
-            logger.warning('Skipping notification because '
-                           'marketplace resource has got few order items. '
-                           'Resource ID: %s', resource.id)
+            logger.warning(
+                'Skipping notification because '
+                'marketplace resource has got few order items. '
+                'Resource ID: %s',
+                resource.id,
+            )
         else:
-            rows = list(filter(lambda x: x['user'] == resource.project.customer, result))
+            rows = list(
+                filter(lambda x: x['user'] == resource.project.customer, result)
+            )
             if rows:
                 rows[0]['resources'].append(resource)
             else:
-                result.append({
-                    'user': user,
-                    'resources': [resource],
-                })
+                result.append(
+                    {'user': user, 'resources': [resource],}
+                )
 
     return result

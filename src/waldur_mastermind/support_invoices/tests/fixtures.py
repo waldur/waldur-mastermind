@@ -17,7 +17,9 @@ class SupportFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def offering(self):
-        return marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
+        return marketplace_factories.OfferingFactory(
+            type=PLUGIN_NAME, options={'order': []}
+        )
 
     @cached_property
     def plan(self):
@@ -32,19 +34,13 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def plan_component_cpu(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.plan,
-            component=self.offering_component_cpu,
-            price=4,
-            amount=1,
+            plan=self.plan, component=self.offering_component_cpu, price=4, amount=1,
         )
 
     @cached_property
     def plan_component_ram(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.plan,
-            component=self.offering_component_ram,
-            price=3,
-            amount=2,
+            plan=self.plan, component=self.offering_component_ram, price=3, amount=2,
         )
 
     @cached_property
@@ -72,7 +68,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         return marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
-            type='ram'
+            type='ram',
         )
 
     @cached_property
@@ -88,17 +84,13 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def new_plan_component_cpu(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.new_plan,
-            component=self.offering_component_cpu,
-            price=3
+            plan=self.new_plan, component=self.offering_component_cpu, price=3
         )
 
     @cached_property
     def new_plan_component_ram(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.new_plan,
-            component=self.offering_component_ram,
-            price=2
+            plan=self.new_plan, component=self.offering_component_ram, price=2
         )
 
     @cached_property
@@ -111,13 +103,15 @@ class SupportFixture(structure_fixtures.ProjectFixture):
             offering=self.offering,
             attributes={'name': 'item_name_2', 'description': 'Description_2'},
             plan=self.plan,
-            order=self.new_order
+            order=self.new_order,
         )
 
     @cached_property
     def service_provider(self):
-        return marketplace_factories.ServiceProviderFactory(customer=self.order_item.offering.customer,
-                                                            description='ServiceProvider\'s description')
+        return marketplace_factories.ServiceProviderFactory(
+            customer=self.order_item.offering.customer,
+            description='ServiceProvider\'s description',
+        )
 
     def update_plan_prices(self):
         self._update_plan_price('plan')

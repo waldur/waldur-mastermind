@@ -7,26 +7,34 @@ https://docs.microsoft.com/en-us/azure/virtual-machines/linux/faq
 import re
 
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator, MinLengthValidator, \
-    MaxLengthValidator, MinValueValidator, MaxValueValidator
+from django.core.validators import (
+    MaxLengthValidator,
+    MaxValueValidator,
+    MinLengthValidator,
+    MinValueValidator,
+    RegexValidator,
+)
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core.validators import BlacklistValidator
 
-
 ResourceGroupNameValidator = RegexValidator(
     regex=re.compile(r'^[-\w._()]+$'),
-    message=_('The name can include alphanumeric, underscore, parentheses, '
-              'hyphen, period (except at end), and Unicode characters '
-              'that match the allowed characters.')
+    message=_(
+        'The name can include alphanumeric, underscore, parentheses, '
+        'hyphen, period (except at end), and Unicode characters '
+        'that match the allowed characters.'
+    ),
 )
 
 
 VirtualMachineNameValidator = RegexValidator(
     regex=re.compile(r'^[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$'),
-    message=_('The name can contain only letters, numbers, and hyphens. '
-              'The name must be shorter than 15 characters and start with '
-              'a letter and must end with a letter or a number.')
+    message=_(
+        'The name can contain only letters, numbers, and hyphens. '
+        'The name must be shorter than 15 characters and start with '
+        'a letter and must end with a letter or a number.'
+    ),
 )
 
 
@@ -85,9 +93,13 @@ class VirtualMachinePasswordValidator(BlacklistValidator):
 def validate_password(password):
     groups = (r'[a-z]', r'[A-Z]', r'[0-9]', r'[\W_]')
     if sum(bool(re.search(g, password)) for g in groups) < 3:
-        raise ValidationError(_('The supplied password must contain 3 of the following: '
-                                'a lowercase character, an uppercase character, a number, '
-                                'a special character.'))
+        raise ValidationError(
+            _(
+                'The supplied password must contain 3 of the following: '
+                'a lowercase character, an uppercase character, a number, '
+                'a special character.'
+            )
+        )
 
 
 VirtualMachinePasswordValidators = [
@@ -100,20 +112,24 @@ VirtualMachinePasswordValidators = [
 
 NetworkingNameValidator = RegexValidator(
     regex=re.compile(r'^[a-zA-Z][a-zA-Z0-9._-]+$'),
-    message=_('The name can contain only letters, numbers, underscore, period and hyphens.')
+    message=_(
+        'The name can contain only letters, numbers, underscore, period and hyphens.'
+    ),
 )
 
 
 StorageAccountNameValidator = RegexValidator(
     regex=re.compile(r'^[a-z][a-z0-9]{2,23}$'),
-    message=_('The name can contain only letters and numbers.')
+    message=_('The name can contain only letters and numbers.'),
 )
 
 
 SQLServerNameValidator = RegexValidator(
     regex=re.compile(r'^[a-z0-9][a-z0-9-]+[a-z0-9]$'),
-    message=_('The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. '
-              'The hyphen may not lead or trail in the name.')
+    message=_(
+        'The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. '
+        'The hyphen may not lead or trail in the name.'
+    ),
 )
 
 

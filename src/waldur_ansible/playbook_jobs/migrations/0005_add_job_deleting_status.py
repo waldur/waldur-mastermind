@@ -12,13 +12,23 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='job',
-            name='error_message',
-            field=models.TextField(blank=True),
+            model_name='job', name='error_message', field=models.TextField(blank=True),
         ),
         migrations.AlterField(
             model_name='job',
             name='state',
-            field=django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5),
+            field=django_fsm.FSMIntegerField(
+                choices=[
+                    (5, 'Creation Scheduled'),
+                    (6, 'Creating'),
+                    (1, 'Update Scheduled'),
+                    (2, 'Updating'),
+                    (7, 'Deletion Scheduled'),
+                    (8, 'Deleting'),
+                    (3, 'OK'),
+                    (4, 'Erred'),
+                ],
+                default=5,
+            ),
         ),
     ]

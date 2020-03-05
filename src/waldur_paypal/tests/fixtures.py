@@ -6,7 +6,6 @@ from . import factories
 
 
 class PayPalFixture(structure_fixtures.CustomerFixture):
-
     @cached_property
     def payment(self):
         return factories.PaypalPaymentFactory(customer=self.customer)

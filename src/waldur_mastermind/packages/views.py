@@ -5,10 +5,11 @@ from rest_framework import response, status
 from rest_framework.decorators import action
 
 from waldur_core.core import views as core_views
-from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import permissions as structure_permissions
 
+from . import executors, models, serializers
 from .log import event_logger
-from . import models, serializers, executors
 
 
 class OpenStackPackageViewSet(core_views.ActionsViewSet):
@@ -25,12 +26,20 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         package = serializer.save()
-        skip = (settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES'] and
-                serializer.validated_data['skip_connection_extnet'])
-        executors.OpenStackPackageCreateExecutor.execute(package, skip_connection_extnet=skip)
+        skip = (
+            settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']
+            and serializer.validated_data['skip_connection_extnet']
+        )
+        executors.OpenStackPackageCreateExecutor.execute(
+            package, skip_connection_extnet=skip
+        )
 
-        display_serializer = serializers.OpenStackPackageSerializer(instance=package, context={'request': request})
-        return response.Response(display_serializer.data, status=status.HTTP_201_CREATED)
+        display_serializer = serializers.OpenStackPackageSerializer(
+            instance=package, context={'request': request}
+        )
+        return response.Response(
+            display_serializer.data, status=status.HTTP_201_CREATED
+        )
 
     create_serializer_class = serializers.OpenStackPackageCreateSerializer
     create_permissions = [structure_permissions.check_access_to_services_management]
@@ -53,15 +62,20 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
                 'tenant': tenant,
                 'package_template_name': new_template.name,
                 'service_settings': service_settings,
-            })
+            },
+        )
 
-        executors.OpenStackPackageChangeExecutor.execute(tenant,
-                                                         new_template=new_template,
-                                                         old_package=package,
-                                                         service_settings=service_settings)
+        executors.OpenStackPackageChangeExecutor.execute(
+            tenant,
+            new_template=new_template,
+            old_package=package,
+            service_settings=service_settings,
+        )
 
-        return response.Response({'detail': _('OpenStack package extend has been scheduled')},
-                                 status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'detail': _('OpenStack package extend has been scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     change_serializer_class = serializers.OpenStackPackageChangeSerializer
     change_permissions = create_permissions

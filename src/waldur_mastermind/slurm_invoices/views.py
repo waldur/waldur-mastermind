@@ -11,5 +11,8 @@ class SlurmPackageViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.SlurmPackageSerializer
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend,)
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
     filterset_class = filters.SlurmPackageFilter

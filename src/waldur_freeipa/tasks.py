@@ -8,7 +8,6 @@ from python_freeipa import exceptions as freeipa_exceptions
 from . import models, utils
 from .backend import FreeIPABackend
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +17,9 @@ def schedule_sync():
     The goal is to avoid race conditions during concurrent task execution.
     """
     if utils.is_syncing():
-        logger.debug('Skipping FreeIPA synchronization because synchronization is already in progress.')
+        logger.debug(
+            'Skipping FreeIPA synchronization because synchronization is already in progress.'
+        )
         return
 
     if not settings.WALDUR_FREEIPA['ENABLED']:
@@ -26,7 +27,9 @@ def schedule_sync():
         return
 
     if not settings.WALDUR_FREEIPA['GROUP_SYNCHRONIZATION_ENABLED']:
-        logger.debug('Skipping FreeIPA group synchronization because this feature is disabled.')
+        logger.debug(
+            'Skipping FreeIPA group synchronization because this feature is disabled.'
+        )
         return
 
     utils.renew_task_status()
@@ -74,14 +77,20 @@ def sync_profile_ssh_keys(profile_id):
     try:
         profile = models.Profile.objects.get(id=profile_id)
     except ObjectDoesNotExist:
-        logger.debug('Skipping SSH key synchronization because FreeIPA profile has been deleted. '
-                     'Profile ID: %s', profile_id)
+        logger.debug(
+            'Skipping SSH key synchronization because FreeIPA profile has been deleted. '
+            'Profile ID: %s',
+            profile_id,
+        )
         return
 
     try:
         FreeIPABackend().update_ssh_keys(profile)
     except freeipa_exceptions.NotFound:
-        logger.warning('Skipping SSH key synchronization because '
-                       'FreeIPA profile has been removed on backend. '
-                       'Profile ID: %s', profile.id)
+        logger.warning(
+            'Skipping SSH key synchronization because '
+            'FreeIPA profile has been removed on backend. '
+            'Profile ID: %s',
+            profile.id,
+        )
         return

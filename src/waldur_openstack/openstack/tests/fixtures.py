@@ -2,8 +2,8 @@ from django.utils.functional import cached_property
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 
-from . import factories
 from .. import models
+from . import factories
 
 
 class OpenStackFixture(ProjectFixture):
@@ -14,12 +14,14 @@ class OpenStackFixture(ProjectFixture):
     @cached_property
     def openstack_service(self):
         return factories.OpenStackServiceFactory(
-            customer=self.customer, settings=self.openstack_service_settings)
+            customer=self.customer, settings=self.openstack_service_settings
+        )
 
     @cached_property
     def openstack_spl(self):
         return factories.OpenStackServiceProjectLinkFactory(
-            project=self.project, service=self.openstack_service)
+            project=self.project, service=self.openstack_service
+        )
 
     @cached_property
     def tenant(self):
@@ -27,22 +29,26 @@ class OpenStackFixture(ProjectFixture):
 
     @cached_property
     def network(self):
-        return factories.NetworkFactory(service_project_link=self.openstack_spl,
-                                        tenant=self.tenant,
-                                        state=models.Network.States.OK)
+        return factories.NetworkFactory(
+            service_project_link=self.openstack_spl,
+            tenant=self.tenant,
+            state=models.Network.States.OK,
+        )
 
     @cached_property
     def subnet(self):
-        return factories.SubNetFactory(network=self.network,
-                                       service_project_link=self.openstack_spl,
-                                       state=models.SubNet.States.OK)
+        return factories.SubNetFactory(
+            network=self.network,
+            service_project_link=self.openstack_spl,
+            state=models.SubNet.States.OK,
+        )
 
     @cached_property
     def floating_ip(self):
         return factories.FloatingIPFactory(
             service_project_link=self.openstack_spl,
             tenant=self.tenant,
-            state=models.FloatingIP.States.OK
+            state=models.FloatingIP.States.OK,
         )
 
     @cached_property
@@ -50,7 +56,7 @@ class OpenStackFixture(ProjectFixture):
         return factories.SecurityGroupFactory(
             service_project_link=self.openstack_spl,
             tenant=self.tenant,
-            state=models.SecurityGroup.States.OK
+            state=models.SecurityGroup.States.OK,
         )
 
     @cached_property

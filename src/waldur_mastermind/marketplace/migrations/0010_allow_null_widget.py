@@ -13,6 +13,11 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='categorycolumn',
             name='widget',
-            field=models.CharField(blank=True, help_text='Widget field allows to customise table cell rendering.', max_length=255, null=True),
+            field=models.CharField(
+                blank=True,
+                help_text='Widget field allows to customise table cell rendering.',
+                max_length=255,
+                null=True,
+            ),
         ),
     ]

@@ -12,7 +12,10 @@ from waldur_geo_ip.utils import get_coordinates_by_ip
 
 class AWSService(structure_models.Service):
     projects = models.ManyToManyField(
-        structure_models.Project, related_name='aws_services', through='AWSServiceProjectLink')
+        structure_models.Project,
+        related_name='aws_services',
+        through='AWSServiceProjectLink',
+    )
 
     class Meta(structure_models.Service.Meta):
         verbose_name = _('AWS provider')
@@ -21,12 +24,11 @@ class AWSService(structure_models.Service):
     class Quotas(QuotaModelMixin.Quotas):
         instance_count = CounterQuotaField(
             target_models=lambda: [Instance],
-            path_to_scope='service_project_link.service'
+            path_to_scope='service_project_link.service',
         )
 
         volume_count = CounterQuotaField(
-            target_models=lambda: [Volume],
-            path_to_scope='service_project_link.service'
+            target_models=lambda: [Volume], path_to_scope='service_project_link.service'
         )
 
     @classmethod
@@ -81,7 +83,9 @@ class Size(structure_models.GeneralServiceProperty):
     cores = models.PositiveSmallIntegerField(help_text=_('Number of cores in a VM'))
     ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(help_text=_('Disk size in MiB'))
-    price = models.DecimalField(_('Hourly price rate'), default=0, max_digits=11, decimal_places=5)
+    price = models.DecimalField(
+        _('Hourly price rate'), default=0, max_digits=11, decimal_places=5
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -89,16 +93,27 @@ class Size(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Size, cls).get_backend_fields() + ('cores', 'ram', 'disk', 'price', 'regions')
+        return super(Size, cls).get_backend_fields() + (
+            'cores',
+            'ram',
+            'disk',
+            'price',
+            'regions',
+        )
 
 
 class Instance(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
-        AWSServiceProjectLink, related_name='instances', on_delete=models.PROTECT)
+        AWSServiceProjectLink, related_name='instances', on_delete=models.PROTECT
+    )
 
     region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
-    public_ips = JSONField(default=list, help_text=_('List of public IP addresses'), blank=True)
-    private_ips = JSONField(default=list, help_text=_('List of private IP addresses'), blank=True)
+    public_ips = JSONField(
+        default=list, help_text=_('List of public IP addresses'), blank=True
+    )
+    private_ips = JSONField(
+        default=list, help_text=_('List of private IP addresses'), blank=True
+    )
     size_backend_id = models.CharField(max_length=150, blank=True)
 
     def increase_backend_quotas_usage(self, validate=True):
@@ -108,9 +123,15 @@ class Instance(structure_models.VirtualMachine):
         spl.add_quota_usage(spl.Quotas.vcpu, self.cores, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.service_project_link.add_quota_usage(self.service_project_link.Quotas.storage, -self.disk)
-        self.service_project_link.add_quota_usage(self.service_project_link.Quotas.ram, -self.ram)
-        self.service_project_link.add_quota_usage(self.service_project_link.Quotas.vcpu, -self.cores)
+        self.service_project_link.add_quota_usage(
+            self.service_project_link.Quotas.storage, -self.disk
+        )
+        self.service_project_link.add_quota_usage(
+            self.service_project_link.Quotas.ram, -self.ram
+        )
+        self.service_project_link.add_quota_usage(
+            self.service_project_link.Quotas.vcpu, -self.cores
+        )
 
     @property
     def external_ips(self):
@@ -146,18 +167,21 @@ class Instance(structure_models.VirtualMachine):
 
 class Volume(RuntimeStateMixin, structure_models.NewResource):
     service_project_link = models.ForeignKey(
-        AWSServiceProjectLink, related_name='volumes', on_delete=models.PROTECT)
+        AWSServiceProjectLink, related_name='volumes', on_delete=models.PROTECT
+    )
 
     VOLUME_TYPES = (
         ('gp2', _('General Purpose SSD')),
         ('io1', _('Provisioned IOPS SSD')),
-        ('standard', _('Magnetic volumes'))
+        ('standard', _('Magnetic volumes')),
     )
     size = models.PositiveIntegerField(help_text=_('Size of volume in gigabytes'))
     region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
     volume_type = models.CharField(max_length=8, choices=VOLUME_TYPES)
     device = models.CharField(max_length=128, blank=True, null=True)
-    instance = models.ForeignKey(on_delete=models.CASCADE, to=Instance, blank=True, null=True)
+    instance = models.ForeignKey(
+        on_delete=models.CASCADE, to=Instance, blank=True, null=True
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -165,4 +189,10 @@ class Volume(RuntimeStateMixin, structure_models.NewResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Volume, cls).get_backend_fields() + ('name', 'device', 'size', 'volume_type', 'runtime_state')
+        return super(Volume, cls).get_backend_fields() + (
+            'name',
+            'device',
+            'size',
+            'volume_type',
+            'runtime_state',
+        )

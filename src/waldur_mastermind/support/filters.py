@@ -1,7 +1,8 @@
 import django_filters
 
 from waldur_core.core import filters as core_filters
-from waldur_core.structure import models as structure_models, filters as structure_filters
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 
 from . import models
 
@@ -9,20 +10,34 @@ from . import models
 class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_expr='icontains')
 
-    customer = core_filters.URLFilter(view_name='customer-detail', field_name='customer__uuid')
+    customer = core_filters.URLFilter(
+        view_name='customer-detail', field_name='customer__uuid'
+    )
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
 
-    project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
+    project = core_filters.URLFilter(
+        view_name='project-detail', field_name='project__uuid'
+    )
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
 
-    reporter_name = django_filters.CharFilter(lookup_expr='icontains', field_name='reporter__name')
-    reporter = core_filters.URLFilter(view_name='support-user-detail', field_name='reporter__uuid')
+    reporter_name = django_filters.CharFilter(
+        lookup_expr='icontains', field_name='reporter__name'
+    )
+    reporter = core_filters.URLFilter(
+        view_name='support-user-detail', field_name='reporter__uuid'
+    )
 
-    caller_full_name = django_filters.CharFilter(lookup_expr='icontains', field_name='caller__full_name')
+    caller_full_name = django_filters.CharFilter(
+        lookup_expr='icontains', field_name='caller__full_name'
+    )
     caller = core_filters.URLFilter(view_name='user-detail', field_name='caller__uuid')
 
-    assignee_name = django_filters.CharFilter(lookup_expr='icontains', field_name='assignee__name')
-    assignee = core_filters.URLFilter(view_name='support-user-detail', field_name='assignee__uuid')
+    assignee_name = django_filters.CharFilter(
+        lookup_expr='icontains', field_name='assignee__name'
+    )
+    assignee = core_filters.URLFilter(
+        view_name='support-user-detail', field_name='assignee__uuid'
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -38,7 +53,8 @@ class IssueFilter(django_filters.FilterSet):
             ('caller__full_name', 'caller_full_name'),
             ('reporter__name', 'reporter_name'),
             ('assignee__name', 'assignee_name'),
-        ))
+        )
+    )
 
     class Meta:
         model = models.Issue
@@ -75,24 +91,36 @@ class CommentIssueResourceFilterBackend(IssueResourceFilterBackend):
 
 class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     def filter_queryset(self, request, queryset, view):
-        return super(IssueCallerOrRoleFilterBackend, self).filter_queryset(request, queryset, view).distinct() | \
-            queryset.filter(caller=request.user).distinct()
+        return (
+            super(IssueCallerOrRoleFilterBackend, self)
+            .filter_queryset(request, queryset, view)
+            .distinct()
+            | queryset.filter(caller=request.user).distinct()
+        )
 
 
 class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     def filter_queryset(self, request, queryset, view):
-        return super(CommentIssueCallerOrRoleFilterBackend, self).filter_queryset(request,
-                                                                                  queryset,
-                                                                                  view).distinct() | \
-            queryset.filter(issue__caller=request.user).distinct()
+        return (
+            super(CommentIssueCallerOrRoleFilterBackend, self)
+            .filter_queryset(request, queryset, view)
+            .distinct()
+            | queryset.filter(issue__caller=request.user).distinct()
+        )
 
 
 class CommentFilter(django_filters.FilterSet):
     description = django_filters.CharFilter(lookup_expr='icontains')
-    issue = core_filters.URLFilter(view_name='support-issue-detail', field_name='issue__uuid')
+    issue = core_filters.URLFilter(
+        view_name='support-issue-detail', field_name='issue__uuid'
+    )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
-    author_name = django_filters.CharFilter(lookup_expr='icontains', field_name='author__name')
-    author_user = core_filters.URLFilter(view_name='user-detail', field_name='author__user__uuid')
+    author_name = django_filters.CharFilter(
+        lookup_expr='icontains', field_name='author__name'
+    )
+    author_user = core_filters.URLFilter(
+        view_name='user-detail', field_name='author__user__uuid'
+    )
 
     o = django_filters.OrderingFilter(fields=('created', 'modified'))
 
@@ -114,18 +142,32 @@ class SupportUserFilter(django_filters.FilterSet):
 class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
-    type = django_filters.ModelMultipleChoiceFilter(queryset=models.OfferingTemplate.objects.all(),
-                                                    to_field_name='name',
-                                                    method='offering_template_filter')
-    template = django_filters.ModelMultipleChoiceFilter(queryset=models.OfferingTemplate.objects.all(), )
-    issue = core_filters.URLFilter(view_name='support-issue-detail', field_name='issue__uuid')
+    type = django_filters.ModelMultipleChoiceFilter(
+        queryset=models.OfferingTemplate.objects.all(),
+        to_field_name='name',
+        method='offering_template_filter',
+    )
+    template = django_filters.ModelMultipleChoiceFilter(
+        queryset=models.OfferingTemplate.objects.all(),
+    )
+    issue = core_filters.URLFilter(
+        view_name='support-issue-detail', field_name='issue__uuid'
+    )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
     issue_key = django_filters.CharFilter(field_name='issue__key')
-    project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
+    project = core_filters.URLFilter(
+        view_name='project-detail', field_name='project__uuid'
+    )
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     state = core_filters.MappedMultipleChoiceFilter(
-        choices=[(representation, representation) for db_value, representation in models.Offering.States.CHOICES],
-        choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
+        choices=[
+            (representation, representation)
+            for db_value, representation in models.Offering.States.CHOICES
+        ],
+        choice_mappings={
+            representation: db_value
+            for db_value, representation in models.Offering.States.CHOICES
+        },
     )
 
     o = django_filters.OrderingFilter(fields=('created', 'modified', 'state'))
@@ -137,11 +179,22 @@ class OfferingFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Offering
-        fields = ('name', 'description', 'template', 'issue', 'issue_uuid', 'project', 'project_uuid', 'state')
+        fields = (
+            'name',
+            'description',
+            'template',
+            'issue',
+            'issue_uuid',
+            'project',
+            'project_uuid',
+            'state',
+        )
 
 
 class AttachmentFilter(django_filters.FilterSet):
-    issue = core_filters.URLFilter(view_name='support-issue-detail', field_name='issue__uuid')
+    issue = core_filters.URLFilter(
+        view_name='support-issue-detail', field_name='issue__uuid'
+    )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
 
     class Meta:

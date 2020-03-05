@@ -9,7 +9,7 @@ class UniquePropertiesTest(test.APITransactionTestCase):
         property_factories = (
             factories.ImageFactory,
             factories.RegionFactory,
-            factories.SizeFactory
+            factories.SizeFactory,
         )
 
         for factory in property_factories:

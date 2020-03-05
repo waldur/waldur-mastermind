@@ -8,5 +8,9 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(r'^api/ansible-estimator/$', views.AnsibleEstimatorView.as_view(), name='ansible-estimator'),
+    url(
+        r'^api/ansible-estimator/$',
+        views.AnsibleEstimatorView.as_view(),
+        name='ansible-estimator',
+    ),
 ]

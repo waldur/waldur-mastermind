@@ -10,8 +10,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='defaultpricelistitem',
-            name='metadata',
-        ),
+        migrations.RemoveField(model_name='defaultpricelistitem', name='metadata',),
     ]

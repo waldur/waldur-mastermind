@@ -4,6 +4,7 @@ from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import decorators, exceptions, response, status
 
 from waldur_core.core import views as core_views
+
 from . import backend, filters, models, serializers, tasks
 
 
@@ -31,9 +32,9 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             backend.FreeIPABackend().create_profile(profile)
             tasks.schedule_sync()
         except freeipa_exceptions.DuplicateEntry:
-            raise exceptions.ValidationError({
-                'username': _('Profile with such name already exists.')
-            })
+            raise exceptions.ValidationError(
+                {'username': _('Profile with such name already exists.')}
+            )
 
     @decorators.action(detail=True, methods=['post'])
     def update_ssh_keys(self, request, uuid=None):
@@ -51,9 +52,9 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     def disable(self, request, uuid=None):
         profile = self.get_object()
         if not profile.is_active:
-            raise exceptions.ValidationError({
-                'detail': _('Profile is already disabled.')
-            })
+            raise exceptions.ValidationError(
+                {'detail': _('Profile is already disabled.')}
+            )
         try:
             backend.FreeIPABackend().disable_profile(profile)
         except freeipa_exceptions.NotFound:
@@ -73,9 +74,9 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     def enable(self, request, uuid=None):
         profile = self.get_object()
         if profile.is_active:
-            raise exceptions.ValidationError({
-                'detail': _('Profile is already enabled.')
-            })
+            raise exceptions.ValidationError(
+                {'detail': _('Profile is already enabled.')}
+            )
         try:
             backend.FreeIPABackend().enable_profile(profile)
         except freeipa_exceptions.NotFound:

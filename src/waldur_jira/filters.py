@@ -28,31 +28,51 @@ class PriorityFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class IssueFilter(django_filters.FilterSet):
-    created_before = django_filters.IsoDateTimeFilter(field_name="created", lookup_expr="lte")
-    created_after = django_filters.IsoDateTimeFilter(field_name="created", lookup_expr="gte")
+    created_before = django_filters.IsoDateTimeFilter(
+        field_name="created", lookup_expr="lte"
+    )
+    created_after = django_filters.IsoDateTimeFilter(
+        field_name="created", lookup_expr="gte"
+    )
     summary = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
-    jira_project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
+    jira_project = core_filters.URLFilter(
+        view_name='project-detail', field_name='project__uuid'
+    )
     jira_project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     priority_name = django_filters.ModelMultipleChoiceFilter(
         field_name='priority__name',
         to_field_name='name',
-        queryset=models.Priority.objects.all()
+        queryset=models.Priority.objects.all(),
     )
-    project = core_filters.URLFilter(view_name='project-detail', field_name='project__service_project_link__project__uuid')
-    project_uuid = django_filters.UUIDFilter(field_name='project__service_project_link__project__uuid')
+    project = core_filters.URLFilter(
+        view_name='project-detail',
+        field_name='project__service_project_link__project__uuid',
+    )
+    project_uuid = django_filters.UUIDFilter(
+        field_name='project__service_project_link__project__uuid'
+    )
     type_name = django_filters.CharFilter(field_name='type__name')
-    updated_before = django_filters.IsoDateTimeFilter(field_name="updated", lookup_expr="lte")
-    updated_after = django_filters.IsoDateTimeFilter(field_name="updated", lookup_expr="gte")
+    updated_before = django_filters.IsoDateTimeFilter(
+        field_name="updated", lookup_expr="lte"
+    )
+    updated_after = django_filters.IsoDateTimeFilter(
+        field_name="updated", lookup_expr="gte"
+    )
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
     key = django_filters.CharFilter(field_name='backend_id')
     status = core_filters.LooseMultipleChoiceFilter()
-    sla_ttr_breached = django_filters.BooleanFilter(field_name='resolution_sla', method='filter_resolution_sla',
-                                                    widget=django_filters.widgets.BooleanWidget())
+    sla_ttr_breached = django_filters.BooleanFilter(
+        field_name='resolution_sla',
+        method='filter_resolution_sla',
+        widget=django_filters.widgets.BooleanWidget(),
+    )
 
     def filter_resolution_sla(self, queryset, name, value):
         if value:
-            return queryset.exclude(Q(resolution_sla__gte=0) | Q(resolution_sla__isnull=True))
+            return queryset.exclude(
+                Q(resolution_sla__gte=0) | Q(resolution_sla__isnull=True)
+            )
         else:
             return queryset.filter(resolution_sla__gte=0)
 
@@ -78,7 +98,9 @@ class IssueFilter(django_filters.FilterSet):
 
 
 class CommentFilter(django_filters.FilterSet):
-    issue = core_filters.URLFilter(view_name='jira-issues-detail', field_name='issue__uuid')
+    issue = core_filters.URLFilter(
+        view_name='jira-issues-detail', field_name='issue__uuid'
+    )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
 
@@ -88,7 +110,9 @@ class CommentFilter(django_filters.FilterSet):
 
 
 class AttachmentFilter(django_filters.FilterSet):
-    issue = core_filters.URLFilter(view_name='jira-issues-detail', field_name='issue__uuid')
+    issue = core_filters.URLFilter(
+        view_name='jira-issues-detail', field_name='issue__uuid'
+    )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
 
     class Meta:

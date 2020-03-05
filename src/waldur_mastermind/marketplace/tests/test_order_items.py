@@ -3,21 +3,22 @@ import unittest
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.structure.tests import fixtures
 from waldur_core.quotas import signals as quota_signals
+from waldur_core.structure.tests import fixtures
 
-from . import factories
 from .. import models
+from . import factories
 
 
 @ddt
 class ItemGetTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
         self.order_item = factories.OrderItemFactory(order=self.order)
 
     @data('staff', 'owner', 'admin', 'manager')
@@ -47,12 +48,13 @@ class ItemGetTest(test.APITransactionTestCase):
 @unittest.skip('OrderItem creation is irrelevant now.')
 @ddt
 class ItemCreateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
         self.offering = factories.OfferingFactory()
 
     @data('staff', 'owner', 'admin', 'manager')
@@ -70,7 +72,7 @@ class ItemCreateTest(test.APITransactionTestCase):
         url = factories.OrderItemFactory.get_list_url()
         payload = {
             'offering': factories.OfferingFactory.get_url(self.offering),
-            'order': factories.OrderFactory.get_url(self.order)
+            'order': factories.OrderFactory.get_url(self.order),
         }
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -95,7 +97,7 @@ class ItemCreateTest(test.APITransactionTestCase):
         url = factories.OrderItemFactory.get_list_url()
         payload = {
             'offering': factories.OfferingFactory.get_url(self.offering),
-            'order': factories.OrderFactory.get_url(self.order)
+            'order': factories.OrderFactory.get_url(self.order),
         }
         return self.client.post(url, payload)
 
@@ -103,12 +105,13 @@ class ItemCreateTest(test.APITransactionTestCase):
 @unittest.skip('OrderItem update is irrelevant now.')
 @ddt
 class ItemUpdateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
         self.order_item = factories.OrderItemFactory(order=self.order)
 
     @data('staff', 'owner')
@@ -139,7 +142,7 @@ class ItemUpdateTest(test.APITransactionTestCase):
         url = factories.OrderItemFactory.get_url(self.order_item)
         payload = {
             'offering': factories.OfferingFactory.get_url(self.order_item.offering),
-            'plan': factories.PlanFactory.get_url(self.order_item.plan)
+            'plan': factories.PlanFactory.get_url(self.order_item.plan),
         }
         response = self.client.patch(url, payload)
         self.order_item.refresh_from_db()
@@ -148,18 +151,21 @@ class ItemUpdateTest(test.APITransactionTestCase):
 
 @ddt
 class ItemDeleteTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
         self.order_item = factories.OrderItemFactory(order=self.order)
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_delete_item(self, user):
         response = self.delete_item(user)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
         self.assertFalse(models.OrderItem.objects.filter(order=self.order).exists())
 
     @data('user')
@@ -190,14 +196,17 @@ class ItemDeleteTest(test.APITransactionTestCase):
 
 @ddt
 class ItemTerminateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.offering = factories.OfferingFactory(type='Support.OfferingTemplate')
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
-        self.order_item = factories.OrderItemFactory(order=self.order, offering=self.offering)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
+        self.order_item = factories.OrderItemFactory(
+            order=self.order, offering=self.offering
+        )
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_terminate_item(self, user):
@@ -206,7 +215,11 @@ class ItemTerminateTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.assertEqual(self.order_item.state, models.OrderItem.States.TERMINATING)
 
-    @data(models.OrderItem.States.DONE, models.OrderItem.States.ERRED, models.OrderItem.States.TERMINATED)
+    @data(
+        models.OrderItem.States.DONE,
+        models.OrderItem.States.ERRED,
+        models.OrderItem.States.TERMINATED,
+    )
     def test_order_item_cannot_be_terminated_if_it_is_in_terminal_state(self, state):
         self.order_item.state = state
         self.order_item.save()
@@ -233,19 +246,25 @@ class AggregateResourceCountTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         self.plan = factories.PlanFactory()
         self.resource = models.Resource.objects.create(
-            project=self.project,
-            offering=self.plan.offering,
-            plan=self.plan,
+            project=self.project, offering=self.plan.offering, plan=self.plan,
         )
         self.category = self.plan.offering.category
 
     def test_when_resource_scope_is_updated_resource_count_is_increased(self):
         self.resource.scope = self.fixture.resource
         self.resource.save()
-        self.assertEqual(models.AggregateResourceCount.objects.get(
-            scope=self.project, category=self.category).count, 1)
-        self.assertEqual(models.AggregateResourceCount.objects.get(
-            scope=self.customer, category=self.category).count, 1)
+        self.assertEqual(
+            models.AggregateResourceCount.objects.get(
+                scope=self.project, category=self.category
+            ).count,
+            1,
+        )
+        self.assertEqual(
+            models.AggregateResourceCount.objects.get(
+                scope=self.customer, category=self.category
+            ).count,
+            1,
+        )
 
     def test_when_resource_scope_is_updated_resource_count_is_decreased(self):
         self.resource.scope = self.fixture.resource
@@ -253,10 +272,18 @@ class AggregateResourceCountTest(test.APITransactionTestCase):
         self.resource.state = models.Resource.States.TERMINATED
         self.resource.save()
 
-        self.assertEqual(models.AggregateResourceCount.objects.get(
-            scope=self.project, category=self.category).count, 0)
-        self.assertEqual(models.AggregateResourceCount.objects.get(
-            scope=self.customer, category=self.category).count, 0)
+        self.assertEqual(
+            models.AggregateResourceCount.objects.get(
+                scope=self.project, category=self.category
+            ).count,
+            0,
+        )
+        self.assertEqual(
+            models.AggregateResourceCount.objects.get(
+                scope=self.customer, category=self.category
+            ).count,
+            0,
+        )
 
     def test_recalculate_count(self):
         self.resource.scope = self.fixture.resource
@@ -264,7 +291,15 @@ class AggregateResourceCountTest(test.APITransactionTestCase):
         models.AggregateResourceCount.objects.all().delete()
         quota_signals.recalculate_quotas.send(sender=self)
 
-        self.assertEqual(models.AggregateResourceCount.objects.get(
-            scope=self.project, category=self.category).count, 1)
-        self.assertEqual(models.AggregateResourceCount.objects.get(
-            scope=self.customer, category=self.category).count, 1)
+        self.assertEqual(
+            models.AggregateResourceCount.objects.get(
+                scope=self.project, category=self.category
+            ).count,
+            1,
+        )
+        self.assertEqual(
+            models.AggregateResourceCount.objects.get(
+                scope=self.customer, category=self.category
+            ).count,
+            1,
+        )

@@ -1,14 +1,15 @@
 import logging
 
-
-from waldur_core.core import models as core_models, tasks as core_tasks, utils as core_utils
-from waldur_core.structure import (filters as structure_filters, permissions as structure_permissions,
-                                   models as structure_models)
+from waldur_core.core import models as core_models
+from waldur_core.core import tasks as core_tasks
+from waldur_core.core import utils as core_utils
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_openstack.openstack import apps
 
 from .log import event_logger
 from .models import Tenant
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,11 @@ def remove_ssh_key_from_tenants(sender, structure, user, role, **kwargs):
         serialized_tenant = core_utils.serialize_instance(tenant)
         for key in ssh_keys:
             core_tasks.BackendMethodTask().delay(
-                serialized_tenant, 'remove_ssh_key_from_tenant', key.name, key.fingerprint)
+                serialized_tenant,
+                'remove_ssh_key_from_tenant',
+                key.name,
+                key.fingerprint,
+            )
 
 
 def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
@@ -36,7 +41,11 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
             continue
         serialized_tenant = core_utils.serialize_instance(tenant)
         core_tasks.BackendMethodTask().delay(
-            serialized_tenant, 'remove_ssh_key_from_tenant', ssh_key.name, ssh_key.fingerprint)
+            serialized_tenant,
+            'remove_ssh_key_from_tenant',
+            ssh_key.name,
+            ssh_key.fingerprint,
+        )
 
 
 def log_tenant_quota_update(sender, instance, created=False, **kwargs):
@@ -49,17 +58,20 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
 
     tenant = quota.scope
     new_value_representation = quota.scope.format_quota(quota.name, quota.limit)
-    old_value_representation = quota.scope.format_quota(quota.name, quota.tracker.previous('limit'))
+    old_value_representation = quota.scope.format_quota(
+        quota.name, quota.tracker.previous('limit')
+    )
     event_logger.openstack_tenant_quota.info(
-        '{quota_name} quota limit has been changed from %s to %s for tenant {tenant_name}.' %
-        (old_value_representation, new_value_representation),
+        '{quota_name} quota limit has been changed from %s to %s for tenant {tenant_name}.'
+        % (old_value_representation, new_value_representation),
         event_type='openstack_tenant_quota_limit_updated',
         event_context={
             'quota': quota,
             'tenant': tenant,
             'limit': float(quota.limit),
             'old_limit': float(quota.tracker.previous('limit')),
-        })
+        },
+    )
 
 
 def update_service_settings_name(sender, instance, created=False, **kwargs):
@@ -69,8 +81,9 @@ def update_service_settings_name(sender, instance, created=False, **kwargs):
         return
 
     try:
-        service_settings = structure_models.ServiceSettings.objects.get(scope=tenant,
-                                                                        type=apps.OpenStackConfig.service_name)
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant, type=apps.OpenStackConfig.service_name
+        )
     except structure_models.ServiceSettings.DoesNotExist:
         return
     else:

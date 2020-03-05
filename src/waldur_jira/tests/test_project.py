@@ -1,8 +1,10 @@
 from unittest import mock
-from ddt import ddt, data
-from rest_framework import test, status
 
-from waldur_jira import models, executors
+from ddt import data, ddt
+from rest_framework import status, test
+
+from waldur_jira import executors, models
+
 from . import factories, fixtures
 
 
@@ -13,7 +15,6 @@ class ProjectBaseTest(test.APITransactionTestCase):
 
 @ddt
 class ProjectGetTest(ProjectBaseTest):
-
     @data('owner', 'admin', 'manager')
     def test_user_with_access_can_access_project(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -29,7 +30,6 @@ class ProjectGetTest(ProjectBaseTest):
 @ddt
 @mock.patch('waldur_jira.executors.ProjectCreateExecutor.execute')
 class ProjectCreateTest(ProjectBaseTest):
-
     def test_user_can_create_project(self, executor):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.get_url(), self.get_valid_payload())
@@ -59,7 +59,6 @@ class ProjectCreateTest(ProjectBaseTest):
 @ddt
 @mock.patch('waldur_jira.executors.ProjectDeleteExecutor.execute')
 class ProjectDeleteTest(ProjectBaseTest):
-
     @data('staff',)
     def test_staff_can_delete_project(self, user, executor):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -75,7 +74,6 @@ class ProjectDeleteTest(ProjectBaseTest):
 
 
 class BaseProjectImportTest(test.APITransactionTestCase):
-
     def _generate_backend_projects(self, count=1):
         projects = []
         for i in range(count):
@@ -87,7 +85,6 @@ class BaseProjectImportTest(test.APITransactionTestCase):
 
 
 class ProjectImportableResourcesTest(BaseProjectImportTest):
-
     def setUp(self):
         super(ProjectImportableResourcesTest, self).setUp()
         self.url = factories.ProjectFactory.get_list_url('importable_resources')
@@ -99,8 +96,9 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
         backend_projects = self._generate_backend_projects()
         get_projects_mock.return_value = backend_projects
         data = {
-            'service_project_link':
-                factories.JiraServiceProjectLinkFactory.get_url(self.fixture.service_project_link)
+            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(
+                self.fixture.service_project_link
+            )
         }
 
         response = self.client.get(self.url, data=data)
@@ -114,14 +112,15 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
 
 
 class ProjectImportResourceTest(BaseProjectImportTest):
-
     def setUp(self):
         super(ProjectImportResourceTest, self).setUp()
         self.url = factories.ProjectFactory.get_list_url('import_resource')
         self.fixture = fixtures.JiraFixture()
         self.client.force_authenticate(self.fixture.owner)
 
-        self.jira_patcher_get_project = mock.patch('waldur_jira.backend.JiraBackend.get_project')
+        self.jira_patcher_get_project = mock.patch(
+            'waldur_jira.backend.JiraBackend.get_project'
+        )
         self.jira_mock_get_project = self.jira_patcher_get_project.start()
 
         def get_project(backend_id):
@@ -140,19 +139,27 @@ class ProjectImportResourceTest(BaseProjectImportTest):
 
         payload = {
             'backend_id': backend_id,
-            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(self.fixture.service_project_link),
+            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(
+                self.fixture.service_project_link
+            ),
         }
 
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(self.jira_mock_executors.ProjectPullExecutor.execute.call_count, 1)
+        self.assertEqual(
+            self.jira_mock_executors.ProjectPullExecutor.execute.call_count, 1
+        )
 
     def test_backend_project_cannot_be_imported_if_it_is_registered_in_waldur(self):
-        project = factories.ProjectFactory(service_project_link=self.fixture.service_project_link)
+        project = factories.ProjectFactory(
+            service_project_link=self.fixture.service_project_link
+        )
 
         payload = {
             'backend_id': project.backend_id,
-            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(self.fixture.service_project_link),
+            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(
+                self.fixture.service_project_link
+            ),
         }
 
         response = self.client.post(self.url, payload)
@@ -161,7 +168,6 @@ class ProjectImportResourceTest(BaseProjectImportTest):
 
 
 class TasksTest(BaseProjectImportTest):
-
     def setUp(self):
         super(TasksTest, self).setUp()
 
@@ -169,7 +175,9 @@ class TasksTest(BaseProjectImportTest):
         self.fixture = fixtures.JiraFixture()
         self.client.force_authenticate(self.fixture.owner)
 
-        self.jira_patcher_get_project = mock.patch('waldur_jira.backend.JiraBackend.get_project')
+        self.jira_patcher_get_project = mock.patch(
+            'waldur_jira.backend.JiraBackend.get_project'
+        )
         self.jira_mock_get_project = self.jira_patcher_get_project.start()
 
         def get_project(backend_id):
@@ -177,12 +185,18 @@ class TasksTest(BaseProjectImportTest):
 
         self.jira_mock_get_project.side_effect = get_project
 
-        self.jira_patcher_get_issues_count = mock.patch('waldur_jira.backend.JiraBackend.get_issues_count')
+        self.jira_patcher_get_issues_count = mock.patch(
+            'waldur_jira.backend.JiraBackend.get_issues_count'
+        )
         self.jira_mock_get_issues_count = self.jira_patcher_get_issues_count.start()
         self.jira_mock_get_issues_count.return_value = 1
 
-        self.jira_patcher_import_project_batch = mock.patch('waldur_jira.backend.JiraBackend.import_project_issues')
-        self.jira_mock_import_project_batch = self.jira_patcher_import_project_batch.start()
+        self.jira_patcher_import_project_batch = mock.patch(
+            'waldur_jira.backend.JiraBackend.import_project_issues'
+        )
+        self.jira_mock_import_project_batch = (
+            self.jira_patcher_import_project_batch.start()
+        )
 
     def tearDown(self):
         mock.patch.stopall()

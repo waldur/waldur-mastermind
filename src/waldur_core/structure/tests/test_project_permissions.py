@@ -1,14 +1,14 @@
 import collections
 import datetime
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
-from unittest import mock
 
 from waldur_core.structure import tasks
-from waldur_core.structure.models import ProjectRole, CustomerRole, ProjectPermission
+from waldur_core.structure.models import CustomerRole, ProjectPermission, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 User = get_user_model()
@@ -82,7 +82,9 @@ class ProjectPermissionBaseTest(test.APITransactionTestCase):
             role=self.role_map[role],
             project=self.projects[project],
         )
-        return 'http://testserver' + reverse('project_permission-detail', kwargs={'pk': permission.pk})
+        return 'http://testserver' + reverse(
+            'project_permission-detail', kwargs={'pk': permission.pk}
+        )
 
 
 class ProjectPermissionListTest(ProjectPermissionBaseTest):
@@ -92,27 +94,47 @@ class ProjectPermissionListTest(ProjectPermissionBaseTest):
 
     def test_user_cannot_list_roles_of_project_he_is_not_affiliated(self):
         for project in self.projects.keys():
-            self.assert_user_access_to_permission_list(user='no_role', project=project, should_see=False)
+            self.assert_user_access_to_permission_list(
+                user='no_role', project=project, should_see=False
+            )
 
     def test_customer_owner_can_list_roles_of_his_customers_project(self):
-        self.assert_user_access_to_permission_list(user='owner1', project='project11', should_see=True)
-        self.assert_user_access_to_permission_list(user='owner1', project='project12', should_see=True)
-        self.assert_user_access_to_permission_list(user='owner1', project='project13', should_see=True)
+        self.assert_user_access_to_permission_list(
+            user='owner1', project='project11', should_see=True
+        )
+        self.assert_user_access_to_permission_list(
+            user='owner1', project='project12', should_see=True
+        )
+        self.assert_user_access_to_permission_list(
+            user='owner1', project='project13', should_see=True
+        )
 
     def test_customer_owner_cannot_list_roles_of_another_customers_project(self):
-        self.assert_user_access_to_permission_list(user='owner1', project='project21', should_see=False)
+        self.assert_user_access_to_permission_list(
+            user='owner1', project='project21', should_see=False
+        )
 
     def test_project_admin_can_list_roles_of_his_project(self):
-        self.assert_user_access_to_permission_list(user='admin1', project='project11', should_see=True)
+        self.assert_user_access_to_permission_list(
+            user='admin1', project='project11', should_see=True
+        )
 
     def test_project_admin_cannot_list_roles_of_another_project(self):
-        self.assert_user_access_to_permission_list(user='admin2', project='project12', should_see=False)
-        self.assert_user_access_to_permission_list(user='admin2', project='project13', should_see=False)
-        self.assert_user_access_to_permission_list(user='admin2', project='project21', should_see=False)
+        self.assert_user_access_to_permission_list(
+            user='admin2', project='project12', should_see=False
+        )
+        self.assert_user_access_to_permission_list(
+            user='admin2', project='project13', should_see=False
+        )
+        self.assert_user_access_to_permission_list(
+            user='admin2', project='project21', should_see=False
+        )
 
     def test_staff_can_list_roles_of_any_project(self):
         for project in self.projects.keys():
-            self.assert_user_access_to_permission_list(user='staff', project=project, should_see=True)
+            self.assert_user_access_to_permission_list(
+                user='staff', project=project, should_see=True
+            )
 
     def assert_user_access_to_permission_list(self, user, project, should_see):
         self.client.force_authenticate(user=self.users[user])
@@ -131,13 +153,15 @@ class ProjectPermissionListTest(ProjectPermissionBaseTest):
         for role, role_url in expected_urls.items():
             if should_see:
                 self.assertIn(
-                    role_url, actual_urls,
+                    role_url,
+                    actual_urls,
                     '{0} user does not see privilege '
                     'he is supposed to see: {1}'.format(user, role),
                 )
             else:
                 self.assertNotIn(
-                    role_url, actual_urls,
+                    role_url,
+                    actual_urls,
                     '{0} user sees privilege '
                     'he is not supposed to see: {1}'.format(user, role),
                 )
@@ -152,7 +176,9 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_201_CREATED,
         )
 
-    def test_customer_owner_can_grant_new_role_within_his_customers_project_for_himself(self):
+    def test_customer_owner_can_grant_new_role_within_his_customers_project_for_himself(
+        self,
+    ):
         self.assert_user_access_to_permission_granting(
             login_user='owner1',
             affected_user='owner1',
@@ -167,11 +193,15 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             affected_project='project11',
             expected_status=status.HTTP_400_BAD_REQUEST,
             expected_payload={
-                'non_field_errors': ['The fields project and user must make a unique set.'],
-            }
+                'non_field_errors': [
+                    'The fields project and user must make a unique set.'
+                ],
+            },
         )
 
-    def test_customer_owner_cannot_grant_role_within_his_project_if_user_already_has_role(self):
+    def test_customer_owner_cannot_grant_role_within_his_project_if_user_already_has_role(
+        self,
+    ):
         self.assert_user_access_to_permission_granting(
             login_user='owner1',
             affected_user='admin1',
@@ -179,8 +209,10 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             affected_project='project11',
             expected_status=status.HTTP_400_BAD_REQUEST,
             expected_payload={
-                'non_field_errors': ['The fields project and user must make a unique set.'],
-            }
+                'non_field_errors': [
+                    'The fields project and user must make a unique set.'
+                ],
+            },
         )
 
     def test_customer_owner_cannot_grant_role_within_another_customers_project(self):
@@ -191,7 +223,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_400_BAD_REQUEST,
             expected_payload={
                 'project': ['Invalid hyperlink - Object does not exist.'],
-            }
+            },
         )
 
     def test_project_manager_can_grant_new_admin_role_within_his_project(self):
@@ -212,7 +244,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             role='manager',
             expected_payload={
                 'detail': 'You do not have permission to perform this action.',
-            }
+            },
         )
 
     def test_project_manager_cannot_grant_new_admin_role_within_not_his_project(self):
@@ -232,7 +264,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_403_FORBIDDEN,
             expected_payload={
                 'detail': 'You do not have permission to perform this action.',
-            }
+            },
         )
 
     def test_project_manager_cannot_grant_existing_role_within_his_project(self):
@@ -242,8 +274,10 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             affected_project='project11',
             expected_status=status.HTTP_400_BAD_REQUEST,
             expected_payload={
-                'non_field_errors': ['The fields project and user must make a unique set.'],
-            }
+                'non_field_errors': [
+                    'The fields project and user must make a unique set.'
+                ],
+            },
         )
 
     def test_project_manager_cannot_grant_role_to_himself(self):
@@ -262,7 +296,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_400_BAD_REQUEST,
             expected_payload={
                 'project': ['Invalid hyperlink - Object does not exist.'],
-            }
+            },
         )
 
     def test_staff_can_grant_new_role_within_any_project(self):
@@ -293,16 +327,27 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
                 expected_status=status.HTTP_400_BAD_REQUEST,
                 role=role,
                 expected_payload={
-                    'non_field_errors': ['The fields project and user must make a unique set.'],
-                }
+                    'non_field_errors': [
+                        'The fields project and user must make a unique set.'
+                    ],
+                },
             )
 
-    def assert_user_access_to_permission_granting(self, login_user, affected_user, affected_project,
-                                                  expected_status, expected_payload=None, role='admin'):
+    def assert_user_access_to_permission_granting(
+        self,
+        login_user,
+        affected_user,
+        affected_project,
+        expected_status,
+        expected_payload=None,
+        role='admin',
+    ):
         self.client.force_authenticate(user=self.users[login_user])
 
         data = {
-            'project': factories.ProjectFactory.get_url(self.projects[affected_project]),
+            'project': factories.ProjectFactory.get_url(
+                self.projects[affected_project]
+            ),
             'user': factories.UserFactory.get_url(self.users[affected_user]),
             'role': role,
         }
@@ -322,8 +367,12 @@ class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_204_NO_CONTENT,
         )
 
-    def test_customer_owner_can_revoke_role_within_his_customers_project_for_himself(self):
-        self.projects['project11'].add_user(self.users['owner1'], ProjectRole.ADMINISTRATOR)
+    def test_customer_owner_can_revoke_role_within_his_customers_project_for_himself(
+        self,
+    ):
+        self.projects['project11'].add_user(
+            self.users['owner1'], ProjectRole.ADMINISTRATOR
+        )
         self.assert_user_access_to_permission_revocation(
             login_user='owner1',
             affected_user='owner1',
@@ -356,7 +405,7 @@ class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
             role='manager',
             expected_payload={
                 'detail': 'You do not have permission to perform this action.',
-            }
+            },
         )
 
     def test_project_admin_cannot_revoke_role_within_his_project(self):
@@ -367,7 +416,7 @@ class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_403_FORBIDDEN,
             expected_payload={
                 'detail': 'You do not have permission to perform this action.',
-            }
+            },
         )
 
     def test_project_admin_cannot_revoke_role_within_within_another_project(self):
@@ -392,8 +441,15 @@ class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
                 role=role,
             )
 
-    def assert_user_access_to_permission_revocation(self, login_user, affected_user, affected_project,
-                                                    expected_status, expected_payload=None, role='admin'):
+    def assert_user_access_to_permission_revocation(
+        self,
+        login_user,
+        affected_user,
+        affected_project,
+        expected_status,
+        expected_payload=None,
+        role='admin',
+    ):
         self.client.force_authenticate(user=self.users[login_user])
 
         url = self._get_permission_url(affected_user, affected_project, role)
@@ -405,7 +461,6 @@ class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
 
 
 class ProjectPermissionFilterTest(test.APITransactionTestCase):
-
     def setUp(self):
         fixture = fixtures.ProjectFixture()
         self.staff = fixture.staff
@@ -432,7 +487,9 @@ class ProjectPermissionFilterTest(test.APITransactionTestCase):
 
     def test_user_can_filter_permission_by_empty_customer(self):
         self.client.force_authenticate(self.staff)
-        response = self.client.get(self.url, {'customer': factories.CustomerFactory().uuid.hex})
+        response = self.client.get(
+            self.url, {'customer': factories.CustomerFactory().uuid.hex}
+        )
         self.assertEqual(len(response.data), 0)
 
 
@@ -447,9 +504,7 @@ class ProjectPermissionExpirationTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.user)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {
-            'expiration_time': expiration_time
-        })
+        response = self.client.put(self.url, {'expiration_time': expiration_time})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_can_update_permission_expiration_time(self):
@@ -457,11 +512,11 @@ class ProjectPermissionExpirationTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=staff_user)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {
-            'expiration_time': expiration_time
-        })
+        response = self.client.put(self.url, {'expiration_time': expiration_time})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['expiration_time'], expiration_time, response.data)
+        self.assertEqual(
+            response.data['expiration_time'], expiration_time, response.data
+        )
 
     def test_owner_can_update_permission_for_himself(self):
         owner = factories.UserFactory()
@@ -469,20 +524,18 @@ class ProjectPermissionExpirationTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=owner)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {
-            'expiration_time': expiration_time
-        })
+        response = self.client.put(self.url, {'expiration_time': expiration_time})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['expiration_time'], expiration_time, response.data)
+        self.assertEqual(
+            response.data['expiration_time'], expiration_time, response.data
+        )
 
     def test_user_can_set_permission_expiration_time_lower_than_current(self):
         staff_user = factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=staff_user)
 
         expiration_time = timezone.now() - datetime.timedelta(days=100)
-        response = self.client.put(self.url, {
-            'expiration_time': expiration_time
-        })
+        response = self.client.put(self.url, {'expiration_time': expiration_time})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_set_expiration_time_role_when_role_is_created(self):
@@ -490,40 +543,56 @@ class ProjectPermissionExpirationTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=staff_user)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.post(factories.ProjectPermissionFactory.get_list_url(), {
-            'project': factories.ProjectFactory.get_url(),
-            'user': factories.UserFactory.get_url(),
-            'role': factories.ProjectPermissionFactory.role,
-            'expiration_time': expiration_time,
-        })
+        response = self.client.post(
+            factories.ProjectPermissionFactory.get_list_url(),
+            {
+                'project': factories.ProjectFactory.get_url(),
+                'user': factories.UserFactory.get_url(),
+                'role': factories.ProjectPermissionFactory.role,
+                'expiration_time': expiration_time,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['expiration_time'], expiration_time, response.data)
+        self.assertEqual(
+            response.data['expiration_time'], expiration_time, response.data
+        )
 
     def test_user_cannot_grant_permissions_with_greater_expiration_time(self):
         expiration_time = timezone.now() + datetime.timedelta(days=100)
         permission = factories.ProjectPermissionFactory(
-            role=ProjectRole.MANAGER,
-            expiration_time=expiration_time)
+            role=ProjectRole.MANAGER, expiration_time=expiration_time
+        )
         self.client.force_authenticate(user=permission.user)
-        response = self.client.post(factories.ProjectPermissionFactory.get_list_url(), {
-            'project': factories.ProjectFactory.get_url(project=permission.project),
-            'user': factories.UserFactory.get_url(),
-            'role': factories.ProjectPermissionFactory.role,
-            'expiration_time': expiration_time + datetime.timedelta(days=1),
-        })
+        response = self.client.post(
+            factories.ProjectPermissionFactory.get_list_url(),
+            {
+                'project': factories.ProjectFactory.get_url(project=permission.project),
+                'user': factories.UserFactory.get_url(),
+                'role': factories.ProjectPermissionFactory.role,
+                'expiration_time': expiration_time + datetime.timedelta(days=1),
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_task_revokes_expired_permissions(self):
         expired_permission = factories.ProjectPermissionFactory(
-            expiration_time=timezone.now() - datetime.timedelta(days=100))
+            expiration_time=timezone.now() - datetime.timedelta(days=100)
+        )
         not_expired_permission = factories.ProjectPermissionFactory(
-            expiration_time=timezone.now() + datetime.timedelta(days=100))
+            expiration_time=timezone.now() + datetime.timedelta(days=100)
+        )
         tasks.check_expired_permissions()
 
-        self.assertFalse(expired_permission.project.has_user(
-            expired_permission.user, expired_permission.role))
-        self.assertTrue(not_expired_permission.project.has_user(
-            not_expired_permission.user, not_expired_permission.role))
+        self.assertFalse(
+            expired_permission.project.has_user(
+                expired_permission.user, expired_permission.role
+            )
+        )
+        self.assertTrue(
+            not_expired_permission.project.has_user(
+                not_expired_permission.user, not_expired_permission.role
+            )
+        )
 
     def test_when_expiration_time_is_updated_event_is_emitted(self):
         staff_user = factories.UserFactory(is_staff=True)
@@ -561,7 +630,6 @@ class ProjectPermissionCreatedByTest(test.APITransactionTestCase):
 
 
 class GetProjectUsersTest(test.APITransactionTestCase):
-
     def setUp(self):
         fixture = fixtures.ProjectFixture()
         self.project = fixture.project

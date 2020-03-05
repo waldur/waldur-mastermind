@@ -1,6 +1,6 @@
 from django.conf.urls import url
 from django.contrib import admin
-from django.forms import ModelForm, ModelChoiceField
+from django.forms import ModelChoiceField, ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -17,9 +17,18 @@ from . import executors, models, tasks
 class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
     model = models.InvoiceItem
     readonly_fields = (
-        'name', 'price', 'unit_price', 'unit', 'start', 'end',
-        'project_name', 'project_uuid', 'product_code', 'article_code',
-        'format_details', 'quantity'
+        'name',
+        'price',
+        'unit_price',
+        'unit',
+        'start',
+        'end',
+        'project_name',
+        'project_uuid',
+        'product_code',
+        'article_code',
+        'format_details',
+        'quantity',
     )
     exclude = ('details', 'project', 'content_type', 'object_id')
 
@@ -30,11 +39,20 @@ class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
     format_details.short_description = _('Details')
 
 
-class InvoiceAdmin(core_admin.ExtraActionsMixin,
-                   core_admin.UpdateOnlyModelAdmin,
-                   admin.ModelAdmin):
+class InvoiceAdmin(
+    core_admin.ExtraActionsMixin, core_admin.UpdateOnlyModelAdmin, admin.ModelAdmin
+):
     inlines = [GenericItemInline]
-    fields = ['tax_percent', 'invoice_date', 'customer', 'state', 'total', 'year', 'month', 'pdf_file']
+    fields = [
+        'tax_percent',
+        'invoice_date',
+        'customer',
+        'state',
+        'total',
+        'year',
+        'month',
+        'pdf_file',
+    ]
     readonly_fields = ('customer', 'total', 'year', 'month', 'pdf_file')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
@@ -50,7 +68,10 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
 
     def get_urls(self):
         my_urls = [
-            url(r'^(.+)/change/pdf_file/$', self.admin_site.admin_view(self.pdf_file_view)),
+            url(
+                r'^(.+)/change/pdf_file/$',
+                self.admin_site.admin_view(self.pdf_file_view),
+            ),
         ]
         return my_urls + super(InvoiceAdmin, self).get_urls()
 
@@ -58,7 +79,9 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
         invoice = models.Invoice.objects.get(id=pk)
         file_response = HttpResponse(invoice.file, content_type='application/pdf')
         filename = invoice.get_filename()
-        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        file_response[
+            'Content-Disposition'
+        ] = 'attachment; filename="{filename}"'.format(filename=filename)
         return file_response
 
     def pdf_file(self, obj):
@@ -106,7 +129,7 @@ class PackageChoiceField(ModelChoiceField):
         return '%s > %s > %s' % (
             obj.tenant.service_project_link.project.customer,
             obj.tenant.service_project_link.project.name,
-            obj.tenant.name
+            obj.tenant.name,
         )
 
 
@@ -124,7 +147,10 @@ class ServiceDowntimeAdmin(admin.ModelAdmin):
     list_display = ('get_customer', 'get_project', 'get_name', 'start', 'end')
     list_display_links = ('get_name',)
     list_filter = (
-        ('package__tenant__service_project_link__project__customer', RelatedOnlyDropdownFilter),
+        (
+            'package__tenant__service_project_link__project__customer',
+            RelatedOnlyDropdownFilter,
+        ),
         ('package__tenant__service_project_link__project', RelatedOnlyDropdownFilter),
     )
     search_fields = ('package__tenant__name',)
@@ -141,7 +167,9 @@ class ServiceDowntimeAdmin(admin.ModelAdmin):
         return downtime.package.tenant.service_project_link.project.customer
 
     get_customer.short_description = _('Organization')
-    get_customer.admin_order_field = 'package__tenant__service_project_link__project__customer'
+    get_customer.admin_order_field = (
+        'package__tenant__service_project_link__project__customer'
+    )
 
     def get_project(self, downtime):
         return downtime.package.tenant.service_project_link.project

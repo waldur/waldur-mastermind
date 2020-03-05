@@ -2,7 +2,9 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import utils
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
-from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
+from waldur_openstack.openstack_tenant.tests import (
+    fixtures as openstack_tenant_fixtures,
+)
 
 
 class VolumeMetadataTest(BaseOpenStackTest):
@@ -33,14 +35,22 @@ class VolumeMetadataTest(BaseOpenStackTest):
         resource = self.import_resource()
         self.assertEqual(resource.name, self.volume.name)
         self.assertEqual(resource.backend_metadata['size'], self.volume.size)
-        self.assertEqual(resource.backend_metadata['state'], self.volume.get_state_display())
-        self.assertEqual(resource.backend_metadata['runtime_state'], self.volume.runtime_state)
+        self.assertEqual(
+            resource.backend_metadata['state'], self.volume.get_state_display()
+        )
+        self.assertEqual(
+            resource.backend_metadata['runtime_state'], self.volume.runtime_state
+        )
         self.assertEqual(resource.backend_metadata['action'], self.volume.action)
-        self.assertEqual(resource.backend_metadata['action_details'], self.volume.action_details)
+        self.assertEqual(
+            resource.backend_metadata['action_details'], self.volume.action_details
+        )
 
     def test_instance(self):
         resource = self.import_resource()
-        self.assertEqual(resource.backend_metadata['instance_uuid'], self.instance.uuid.hex)
+        self.assertEqual(
+            resource.backend_metadata['instance_uuid'], self.instance.uuid.hex
+        )
         self.assertEqual(resource.backend_metadata['instance_name'], self.instance.name)
 
         instance = marketplace_models.Resource.objects.get(scope=self.instance)
@@ -81,7 +91,9 @@ class NetworkMetadataTest(BaseOpenStackTest):
     def test_internal_ip_address_is_synchronized(self):
         internal_ip = self.fixture.internal_ip
         resource = self.import_resource()
-        self.assertEqual(resource.backend_metadata['internal_ips'], [internal_ip.ip4_address])
+        self.assertEqual(
+            resource.backend_metadata['internal_ips'], [internal_ip.ip4_address]
+        )
 
     def test_internal_ip_address_is_updated(self):
         internal_ip = self.fixture.internal_ip
@@ -110,7 +122,9 @@ class NetworkMetadataTest(BaseOpenStackTest):
         floating_ip.save()
 
         resource = self.import_resource()
-        self.assertEqual(resource.backend_metadata['external_ips'], [floating_ip.address])
+        self.assertEqual(
+            resource.backend_metadata['external_ips'], [floating_ip.address]
+        )
 
     def test_floating_ip_address_is_synchronized_on_delete(self):
         internal_ip = self.fixture.internal_ip

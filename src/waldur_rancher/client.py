@@ -2,109 +2,11 @@ import logging
 
 import requests
 
+from waldur_core.core.utils import QuietSession
+
 from .exceptions import RancherException
 
 logger = logging.getLogger(__name__)
-
-
-class GlobalRoleId:
-    admin = 'admin'
-    authn_manage = 'authn-manage'
-    catalogs_manage = 'catalogs-manage'
-    catalogs_use = 'catalogs-use'
-    clusters_create = 'clusters-create'
-    kontainerdrivers_manage = 'kontainerdrivers-manage'
-    nodedrivers_manage = 'nodedrivers-manage'
-    podsecuritypolicytemplates_manage = 'podsecuritypolicytemplates-manage'
-    roles_manage = 'roles-manage'
-    settings_manage = 'settings-manage'
-    user = 'user'
-    user_base = 'user-base'
-    users_manage = 'users-manage'
-
-
-class ClusterRoleId:
-    admin = 'admin'
-    backups_manage = 'backups-manage'
-    cluster_admin = 'cluster-admin'
-    cluster_member = 'cluster-member'
-    cluster_owner = 'cluster-owner'
-    clustercatalogs_manage = 'clustercatalogs-manage'
-    clustercatalogs_view = 'clustercatalogs-view'
-    clusterroletemplatebindings_manage = 'clusterroletemplatebindings-manage'
-    clusterroletemplatebindings_view = 'clusterroletemplatebindings-view'
-    configmaps_manage = 'configmaps-manage'
-    configmaps_view = 'configmaps-view'
-    create_ns = 'create-ns'
-    edit = 'edit'
-    ingress_manage = 'ingress-manage'
-    ingress_view = 'ingress-view'
-    nodes_manage = 'nodes-manage'
-    nodes_view = 'nodes-view'
-    persistentvolumeclaims_manage = 'persistentvolumeclaims-manage'
-    persistentvolumeclaims_view = 'persistentvolumeclaims-view'
-    project_member = 'project-member'
-    project_monitoring_readonly = 'project-monitoring-readonly'
-    project_owner = 'project-owner'
-    projectcatalogs_manage = 'projectcatalogs-manage'
-    projectcatalogs_view = 'projectcatalogs-view'
-    projectroletemplatebindings_manage = 'projectroletemplatebindings-manage'
-    projectroletemplatebindings_view = 'projectroletemplatebindings-view'
-    projects_create = 'projects-create'
-    projects_view = 'projects-view'
-    read_only = 'read-only'
-    secrets_manage = 'secrets-manage'
-    secrets_view = 'secrets-view'
-    serviceaccounts_manage = 'serviceaccounts-manage'
-    serviceaccounts_view = 'serviceaccounts-view'
-    services_manage = 'services-manage'
-    services_view = 'services-view'
-    storage_manage = 'storage-manage'
-    view = 'view'
-    workloads_manage = 'workloads-manage'
-    workloads_view = 'workloads-view'
-
-
-class ProjectRoleId:
-    admin = 'admin'
-    backups_manage = 'backups-manage'
-    cluster_admin = 'cluster-admin'
-    cluster_member = 'cluster-member'
-    cluster_owner = 'cluster-owner'
-    clustercatalogs_manage = 'clustercatalogs-manage'
-    clustercatalogs_view = 'clustercatalogs-view'
-    clusterroletemplatebindings_manage = 'clusterroletemplatebindings-manage'
-    clusterroletemplatebindings_view = 'clusterroletemplatebindings-view'
-    configmaps_manage = 'configmaps-manage'
-    configmaps_view = 'configmaps-view'
-    create_ns = 'create-ns'
-    edit = 'edit'
-    ingress_manage = 'ingress-manage'
-    ingress_view = 'ingress-view'
-    nodes_manage = 'nodes-manage'
-    nodes_view = 'nodes-view'
-    persistentvolumeclaims_manage = 'persistentvolumeclaims-manage'
-    persistentvolumeclaims_view = 'persistentvolumeclaims-view'
-    project_member = 'project-member'
-    project_monitoring_readonly = 'project-monitoring-readonly'
-    project_owner = 'project-owner'
-    projectcatalogs_manage = 'projectcatalogs-manage'
-    projectcatalogs_view = 'projectcatalogs-view'
-    projectroletemplatebindings_manage = 'projectroletemplatebindings-manage'
-    projectroletemplatebindings_view = 'projectroletemplatebindings-view'
-    projects_create = 'projects-create'
-    projects_view = 'projects-view'
-    read_only = 'read-only'
-    secrets_manage = 'secrets-manage'
-    secrets_view = 'secrets-view'
-    serviceaccounts_manage = 'serviceaccounts-manage'
-    serviceaccounts_view = 'serviceaccounts-view'
-    services_manage = 'services-manage'
-    services_view = 'services-view'
-    storage_manage = 'storage-manage'
-    view = 'view'
-    workloads_manage = 'workloads-manage'
-    workloads_view = 'workloads-view'
 
 
 class RancherClient:
@@ -112,6 +14,7 @@ class RancherClient:
     Rancher API client.
     See also: https://rancher.com/docs/rancher/v2.x/en/api/
     """
+
     def __init__(self, host, verify_ssl=True):
         """
         Initialize client with connection options.
@@ -124,6 +27,8 @@ class RancherClient:
         self._host = host
         self._base_url = '{0}/v3'.format(self._host)
         self._session = requests.Session()
+        if not verify_ssl:
+            self._session = QuietSession()
         self._session.verify = verify_ssl
 
     def _request(self, method, endpoint, json=None, **kwargs):
@@ -135,16 +40,21 @@ class RancherClient:
             raise RancherException(e)
 
         data = None
-        if response.content:
+        content_type = response.headers['Content-Type'].lower()
+        if content_type == 'application/json':
             data = response.json()
+        elif content_type == 'text/plain':
+            data = response.content.decode('utf-8')
+        else:
+            data = response.content
 
         status_code = response.status_code
-        if status_code in (requests.codes.ok,
-                           requests.codes.created,
-                           requests.codes.accepted,
-                           requests.codes.no_content):
-            if isinstance(data, dict) and 'value' in data:
-                return data['value']
+        if status_code in (
+            requests.codes.ok,
+            requests.codes.created,
+            requests.codes.accepted,
+            requests.codes.no_content,
+        ):
             return data
         else:
             raise RancherException(data)
@@ -185,7 +95,9 @@ class RancherClient:
         return self._get('clusters/{0}'.format(cluster_id))
 
     def create_cluster(self, cluster_name):
-        return self._post('clusters', json={'name': cluster_name, 'rancherKubernetesEngineConfig': {}})
+        return self._post(
+            'clusters', json={'name': cluster_name, 'rancherKubernetesEngineConfig': {}}
+        )
 
     def delete_cluster(self, cluster_id):
         return self._delete('clusters/{0}'.format(cluster_id))
@@ -197,8 +109,10 @@ class RancherClient:
         return self._get('clusterregistrationtokens', params={'limit': -1})['data']
 
     def create_cluster_registration_token(self, cluster_id):
-        return self._post('clusterregistrationtoken',
-                          json={'type': 'clusterRegistrationToken', 'clusterId': cluster_id})
+        return self._post(
+            'clusterregistrationtoken',
+            json={'type': 'clusterRegistrationToken', 'clusterId': cluster_id},
+        )
 
     def get_node_command(self, cluster_id):
         cluster_list = self.list_cluster_registration_tokens()
@@ -214,52 +128,50 @@ class RancherClient:
         return self._get('nodes/{0}'.format(node_id))
 
     def get_kubeconfig_file(self, cluster_id):
-        data = self._post('clusters/{0}'.format(cluster_id), params={'action': 'generateKubeconfig'})
+        data = self._post(
+            'clusters/{0}'.format(cluster_id), params={'action': 'generateKubeconfig'}
+        )
         return data['config']
 
     def list_users(self):
         return self._get('users')['data']
 
     def create_user(self, name, username, password, mustChangePassword=True):
-        return self._post('users', json={
-            'name': name,
-            'mustChangePassword': mustChangePassword,
-            'password': password,
-            'username': username,
-        })
+        return self._post(
+            'users',
+            json={
+                'name': name,
+                'mustChangePassword': mustChangePassword,
+                'password': password,
+                'username': username,
+            },
+        )
 
     def enable_user(self, user_id):
-        return self._put('users/{0}'.format(user_id), json={
-            'enabled': True,
-        })
+        return self._put('users/{0}'.format(user_id), json={'enabled': True,})
 
     def disable_user(self, user_id):
-        return self._put('users/{0}'.format(user_id), json={
-            'enabled': False,
-        })
+        return self._put('users/{0}'.format(user_id), json={'enabled': False,})
 
     def create_global_role(self, user_id, role):
-        return self._post('globalrolebindings', json={
-            'globalRoleId': role,
-            'userId': user_id,
-        })
+        return self._post(
+            'globalrolebindings', json={'globalRoleId': role, 'userId': user_id,}
+        )
 
     def delete_global_role(self, role_id):
         return self._delete('globalrolebindings/{0}'.format(role_id))
 
     def create_cluster_role(self, user_id, cluster_id, role):
-        return self._post('clusterroletemplatebindings', json={
-            'roleTemplateId': role,
-            'clusterId': cluster_id,
-            'userId': user_id,
-        })
+        return self._post(
+            'clusterroletemplatebindings',
+            json={'roleTemplateId': role, 'clusterId': cluster_id, 'userId': user_id,},
+        )
 
     def create_project_role(self, user_id, project_id, role):
-        return self._post('projectroletemplatebindings', json={
-            'roleTemplateId': role,
-            'projectId': project_id,
-            'userId': user_id,
-        })
+        return self._post(
+            'projectroletemplatebindings',
+            json={'roleTemplateId': role, 'projectId': project_id, 'userId': user_id,},
+        )
 
     def delete_user(self, user_id):
         return self._delete('users/{0}'.format(user_id))
@@ -277,13 +189,19 @@ class RancherClient:
         return self._get('projectcatalogs', params={'limit': -1})['data']
 
     def refresh_global_catalog(self, catalog_id):
-        return self._post('catalogs/{0}'.format(catalog_id), params={'action': 'refresh'})
+        return self._post(
+            'catalogs/{0}'.format(catalog_id), params={'action': 'refresh'}
+        )
 
     def refresh_cluster_catalog(self, catalog_id):
-        return self._post('clustercatalogs/{0}'.format(catalog_id), params={'action': 'refresh'})
+        return self._post(
+            'clustercatalogs/{0}'.format(catalog_id), params={'action': 'refresh'}
+        )
 
     def refresh_project_catalog(self, catalog_id):
-        return self._post('projectcatalogs/{0}'.format(catalog_id), params={'action': 'refresh'})
+        return self._post(
+            'projectcatalogs/{0}'.format(catalog_id), params={'action': 'refresh'}
+        )
 
     def delete_global_catalog(self, catalog_id):
         return self._delete('catalogs/{0}'.format(catalog_id))
@@ -316,4 +234,44 @@ class RancherClient:
         return self._get('projects', params={'limit': -1})['data']
 
     def list_namespaces(self, cluster_id):
-        return self._get(f'cluster/{cluster_id}/namespaces', params={'limit': -1})['data']
+        return self._get(f'cluster/{cluster_id}/namespaces', params={'limit': -1})[
+            'data'
+        ]
+
+    def list_templates(self):
+        return self._get('templates', params={'limit': -1})['data']
+
+    def get_template_icon(self, template_id):
+        return self._get(f'templates/{template_id}/icon')
+
+    def get_template_version_details(self, template_id, template_version):
+        return self._get(f'templateVersions/{template_id}-{template_version}')
+
+    def get_template_version_readme(self, template_id, template_version):
+        return self._get(f'templateVersions/{template_id}-{template_version}/readme')
+
+    def get_template_version_app_readme(self, template_id, template_version):
+        return self._get(
+            f'templateVersions/{template_id}-{template_version}/app-readme'
+        )
+
+    def create_application(
+        self, catalog_id, template_id, version, project_id, namespace_id, name, answers,
+    ):
+        return self._post(
+            f'projects/f{project_id}/app',
+            json={
+                'prune': False,
+                'timeout': 300,
+                'wait': False,
+                'type': 'app',
+                'name': name,
+                'answers': answers,
+                'targetNamespace': namespace_id,
+                'externalId': f'catalog://?catalog={catalog_id}&template={template_id}&version={version}',
+                'projectId': project_id,
+            },
+        )
+
+    def get_project_applications(self, project_id):
+        return self._get(f'project/{project_id}/apps', params={'limit': -1})['data']

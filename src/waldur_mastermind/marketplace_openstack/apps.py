@@ -27,17 +27,28 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace import signals as marketplace_signals
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
-        from waldur_mastermind.marketplace_openstack.registrators import MarketplaceItemRegistrator
+        from waldur_mastermind.marketplace_openstack.registrators import (
+            MarketplaceItemRegistrator,
+        )
         from waldur_mastermind.packages import models as package_models
 
         from . import (
-            filters, handlers, processors,
-            INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
-            RAM_TYPE, CORES_TYPE, STORAGE_TYPE, AVAILABLE_LIMITS,
+            filters,
+            handlers,
+            processors,
+            INSTANCE_TYPE,
+            VOLUME_TYPE,
+            PACKAGE_TYPE,
+            RAM_TYPE,
+            CORES_TYPE,
+            STORAGE_TYPE,
+            AVAILABLE_LIMITS,
             STORAGE_MODE_DYNAMIC,
         )
 
-        marketplace_filters.ExternalOfferingFilterBackend.register(filters.VpcExternalFilter())
+        marketplace_filters.ExternalOfferingFilterBackend.register(
+            filters.VpcExternalFilter()
+        )
 
         signals.post_save.connect(
             handlers.create_offering_from_tenant,
@@ -51,7 +62,11 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.archive_offering',
         )
 
-        resource_models = (tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant)
+        resource_models = (
+            tenant_models.Instance,
+            tenant_models.Volume,
+            openstack_models.Tenant,
+        )
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
@@ -82,41 +97,65 @@ class MarketplaceOpenStackConfig(AppConfig):
         def get_filtered_components(offering):
             storage_mode = (offering.plugin_options or {}).get('storage_mode')
             if storage_mode == STORAGE_MODE_DYNAMIC:
-                content_type = ContentType.objects.get_for_model(openstack_models.VolumeType)
+                content_type = ContentType.objects.get_for_model(
+                    openstack_models.VolumeType
+                )
                 return offering.components.filter(
-                    Q(type__in=(CORES_TYPE, RAM_TYPE)) |
-                    Q(content_type=content_type)
+                    Q(type__in=(CORES_TYPE, RAM_TYPE)) | Q(content_type=content_type)
                 )
             else:
                 return offering.components.filter(type__in=AVAILABLE_LIMITS)
 
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
-        manager.register(offering_type=PACKAGE_TYPE,
-                         create_resource_processor=processors.TenantCreateProcessor,
-                         update_resource_processor=processors.TenantUpdateProcessor,
-                         delete_resource_processor=processors.TenantDeleteProcessor,
-                         components=(
-                             Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
-                             # Price is stored per GiB but size is stored per MiB
-                             # therefore we need to divide size by factor when price estimate is calculated.
-                             Component(type=RAM_TYPE, name='RAM', measured_unit='GB', billing_type=FIXED, factor=1024),
-                             Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED, factor=1024),
-                         ),
-                         service_type=OpenStackConfig.service_name,
-                         secret_attributes=get_secret_attributes,
-                         available_limits=AVAILABLE_LIMITS,
-                         resource_model=openstack_models.Tenant,
-                         get_filtered_components=get_filtered_components)
+        manager.register(
+            offering_type=PACKAGE_TYPE,
+            create_resource_processor=processors.TenantCreateProcessor,
+            update_resource_processor=processors.TenantUpdateProcessor,
+            delete_resource_processor=processors.TenantDeleteProcessor,
+            components=(
+                Component(
+                    type=CORES_TYPE,
+                    name='Cores',
+                    measured_unit='cores',
+                    billing_type=FIXED,
+                ),
+                # Price is stored per GiB but size is stored per MiB
+                # therefore we need to divide size by factor when price estimate is calculated.
+                Component(
+                    type=RAM_TYPE,
+                    name='RAM',
+                    measured_unit='GB',
+                    billing_type=FIXED,
+                    factor=1024,
+                ),
+                Component(
+                    type=STORAGE_TYPE,
+                    name='Storage',
+                    measured_unit='GB',
+                    billing_type=FIXED,
+                    factor=1024,
+                ),
+            ),
+            service_type=OpenStackConfig.service_name,
+            secret_attributes=get_secret_attributes,
+            available_limits=AVAILABLE_LIMITS,
+            resource_model=openstack_models.Tenant,
+            get_filtered_components=get_filtered_components,
+        )
 
-        manager.register(offering_type=INSTANCE_TYPE,
-                         create_resource_processor=processors.InstanceCreateProcessor,
-                         delete_resource_processor=processors.InstanceDeleteProcessor,
-                         resource_model=tenant_models.Instance)
+        manager.register(
+            offering_type=INSTANCE_TYPE,
+            create_resource_processor=processors.InstanceCreateProcessor,
+            delete_resource_processor=processors.InstanceDeleteProcessor,
+            resource_model=tenant_models.Instance,
+        )
 
-        manager.register(offering_type=VOLUME_TYPE,
-                         create_resource_processor=processors.VolumeCreateProcessor,
-                         delete_resource_processor=processors.VolumeDeleteProcessor,
-                         resource_model=tenant_models.Volume)
+        manager.register(
+            offering_type=VOLUME_TYPE,
+            create_resource_processor=processors.VolumeCreateProcessor,
+            delete_resource_processor=processors.VolumeDeleteProcessor,
+            resource_model=tenant_models.Volume,
+        )
 
         signals.post_save.connect(
             handlers.synchronize_volume_metadata,
@@ -158,74 +197,77 @@ class MarketplaceOpenStackConfig(AppConfig):
             handlers.create_resource_of_volume_if_instance_created,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                         'create_resource_of_volume_if_instance_created',
+            'create_resource_of_volume_if_instance_created',
         )
 
-        for model in [tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant]:
+        for model in [
+            tenant_models.Instance,
+            tenant_models.Volume,
+            openstack_models.Tenant,
+        ]:
             structure_signals.resource_imported.connect(
                 handlers.create_marketplace_resource_for_imported_resources,
                 sender=model,
                 dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                             'create_resource_for_imported_%s' % model,
+                'create_resource_for_imported_%s' % model,
             )
 
         signals.post_save.connect(
             handlers.import_resource_metadata_when_resource_is_created,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                         'import_resource_metadata_when_resource_is_created',
+            'import_resource_metadata_when_resource_is_created',
         )
 
         signals.post_save.connect(
             handlers.update_openstack_tenant_usages,
             sender=quota_models.Quota,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                         'update_openstack_tenant_usages',
+            'update_openstack_tenant_usages',
         )
 
         registrators.RegistrationManager.add_registrator(
-            marketplace_models.Resource,
-            MarketplaceItemRegistrator,
+            marketplace_models.Resource, MarketplaceItemRegistrator,
         )
 
         marketplace_signals.resource_creation_succeeded.connect(
             handlers.update_invoice_when_resource_is_created,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
-                         'update_invoice_when_resource_is_created',
+            'update_invoice_when_resource_is_created',
         )
 
         marketplace_signals.limit_update_succeeded.connect(
             handlers.update_invoice_when_resource_is_updated,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
-                         'update_invoice_when_resource_is_updated',
+            'update_invoice_when_resource_is_updated',
         )
 
         marketplace_signals.resource_deletion_succeeded.connect(
             handlers.update_invoice_when_resource_is_deleted,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
-                         'update_invoice_when_resource_is_deleted',
+            'update_invoice_when_resource_is_deleted',
         )
 
         signals.post_save.connect(
             handlers.create_offering_component_for_volume_type,
             sender=openstack_models.VolumeType,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                         'create_offering_component_for_volume_type',
+            'create_offering_component_for_volume_type',
         )
 
         signals.post_delete.connect(
             handlers.delete_offering_component_for_volume_type,
             sender=openstack_models.VolumeType,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                         'delete_offering_component_for_volume_type',
+            'delete_offering_component_for_volume_type',
         )
 
         signals.post_save.connect(
             handlers.synchronize_limits_when_storage_mode_is_switched,
             sender=marketplace_models.Offering,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                         'synchronize_limits_when_storage_mode_is_switched',
+            'synchronize_limits_when_storage_mode_is_switched',
         )

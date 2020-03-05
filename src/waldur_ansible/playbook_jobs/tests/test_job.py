@@ -1,7 +1,9 @@
 from unittest import mock
+
 from ddt import data, ddt
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
+
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack_tenant import models as openstack_models
 from waldur_openstack.openstack_tenant.tests import factories as openstack_factories
@@ -19,7 +21,9 @@ class JobBaseTest(APITransactionTestCase):
         key = structure_factories.SshPublicKeyFactory(user=user)
         return {
             'name': 'test job',
-            'service_project_link': openstack_factories.OpenStackTenantServiceProjectLinkFactory.get_url(self.fixture.spl),
+            'service_project_link': openstack_factories.OpenStackTenantServiceProjectLinkFactory.get_url(
+                self.fixture.spl
+            ),
             'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(key),
             'playbook': factories.PlaybookFactory.get_url(job.playbook),
             'arguments': job.arguments,
@@ -28,13 +32,19 @@ class JobBaseTest(APITransactionTestCase):
 
 @ddt
 class JobRetrieveTest(JobBaseTest):
-
     def test_anonymous_user_cannot_retrieve_job(self):
         response = self.client.get(factories.JobFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('staff', 'global_support', 'owner',
-          'customer_support', 'admin', 'manager', 'project_support')
+    @data(
+        'staff',
+        'global_support',
+        'owner',
+        'customer_support',
+        'admin',
+        'manager',
+        'project_support',
+    )
     def test_user_can_retrieve_job(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(factories.JobFactory.get_url(self.job))
@@ -48,7 +58,6 @@ class JobRetrieveTest(JobBaseTest):
 
 @ddt
 class JobCreateTest(JobBaseTest):
-
     @data('staff', 'owner', 'manager', 'admin')
     def test_user_can_create_job(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -70,24 +79,30 @@ class JobCreateTest(JobBaseTest):
 
         response = self.client.post(factories.JobFactory.get_list_url(), data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'], ['Argument invalid is not listed in playbook parameters.'])
+        self.assertEqual(
+            response.data['non_field_errors'],
+            ['Argument invalid is not listed in playbook parameters.'],
+        )
 
     def test_user_cannot_create_job_with_unspecified_required_parameter(self):
         self.client.force_authenticate(self.fixture.staff)
         playbook = factories.PlaybookFactory(
-            parameters=[factories.PlaybookParameterFactory(required=True, default='')])
+            parameters=[factories.PlaybookParameterFactory(required=True, default='')]
+        )
         job = factories.JobFactory(playbook=playbook)
         payload = self._get_valid_payload(self.fixture.staff, job)
         payload['arguments'] = {}
 
         response = self.client.post(factories.JobFactory.get_list_url(), data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'], ['Not all required playbook parameters were specified.'])
+        self.assertEqual(
+            response.data['non_field_errors'],
+            ['Not all required playbook parameters were specified.'],
+        )
 
 
 @ddt
 class JobUpdateTest(JobBaseTest):
-
     @data('staff', 'owner', 'manager', 'admin')
     def test_user_can_update_job(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -108,7 +123,6 @@ class JobUpdateTest(JobBaseTest):
 
 @ddt
 class JobDeleteTest(JobBaseTest):
-
     @data('staff', 'owner', 'manager', 'admin')
     def test_authorized_user_can_delete_job(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -134,7 +148,9 @@ class JobDeleteTest(JobBaseTest):
 
 class CountersTest(JobBaseTest):
     def test_project_counter_has_jobs(self):
-        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
+        url = structure_factories.ProjectFactory.get_url(
+            self.fixture.project, action='counters'
+        )
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.get(url, {'fields': ['ansible']})
@@ -146,7 +162,9 @@ class CountersTest(JobBaseTest):
 class JobBackendTest(JobBaseTest):
     @mock.patch('subprocess.check_output')
     @mock.patch('os.path.exists')
-    def test_job_id_is_passed_as_extra_argument_to_ansible(self, path_exists, check_output):
+    def test_job_id_is_passed_as_extra_argument_to_ansible(
+        self, path_exists, check_output
+    ):
         path_exists.return_value = True
         check_output.return_value = 'OK'
 

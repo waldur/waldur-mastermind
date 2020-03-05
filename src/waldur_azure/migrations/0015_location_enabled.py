@@ -13,6 +13,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='location',
             name='enabled',
-            field=models.BooleanField(default=True, help_text='Indicates whether location is available for resource group.'),
+            field=models.BooleanField(
+                default=True,
+                help_text='Indicates whether location is available for resource group.',
+            ),
         ),
     ]

@@ -23,38 +23,54 @@ class MarketplaceOrderLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         order = event_context['order']
-        project = Project.all_objects.get(id=order.project_id)  # handle case when project is already deleted
+        project = Project.all_objects.get(
+            id=order.project_id
+        )  # handle case when project is already deleted
         return {order, project, project.customer}
 
 
 class MarketplaceResourceLogger(EventLogger):
     resource = models.Resource
 
-    def process(self, level, message_template, event_type='undefined', event_context=None):
-        super(MarketplaceResourceLogger, self).process(level, message_template, event_type, event_context)
+    def process(
+        self, level, message_template, event_type='undefined', event_context=None
+    ):
+        super(MarketplaceResourceLogger, self).process(
+            level, message_template, event_type, event_context
+        )
 
         if not event_context:
             event_context = {}
 
-        if not settings.WALDUR_MARKETPLACE['NOTIFY_ABOUT_RESOURCE_CHANGE'] or event_type not in (
-                'marketplace_resource_create_succeeded',
-                'marketplace_resource_create_failed',
-                'marketplace_resource_update_succeeded',
-                'marketplace_resource_update_failed',
-                'marketplace_resource_terminate_succeeded',
-                'marketplace_resource_terminate_failed',
-                'marketplace_resource_update_limits_succeeded',
-                'marketplace_resource_update_limits_failed',
+        if not settings.WALDUR_MARKETPLACE[
+            'NOTIFY_ABOUT_RESOURCE_CHANGE'
+        ] or event_type not in (
+            'marketplace_resource_create_succeeded',
+            'marketplace_resource_create_failed',
+            'marketplace_resource_update_succeeded',
+            'marketplace_resource_update_failed',
+            'marketplace_resource_terminate_succeeded',
+            'marketplace_resource_terminate_failed',
+            'marketplace_resource_update_limits_succeeded',
+            'marketplace_resource_update_limits_failed',
         ):
             return
 
-        if (settings.WALDUR_MARKETPLACE['DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE'] and
-                event_type == 'marketplace_resource_update_succeeded'):
+        if (
+            settings.WALDUR_MARKETPLACE[
+                'DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE'
+            ]
+            and event_type == 'marketplace_resource_update_succeeded'
+        ):
             return
 
         context = self.compile_context(**event_context)
         resource = event_context['resource']
-        transaction.on_commit(lambda: tasks.notify_about_resource_change.delay(event_type, context, resource.uuid))
+        transaction.on_commit(
+            lambda: tasks.notify_about_resource_change.delay(
+                event_type, context, resource.uuid
+            )
+        )
 
     class Meta:
         event_types = (
@@ -74,7 +90,9 @@ class MarketplaceResourceLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['resource']
-        project = Project.all_objects.get(id=resource.project_id)  # handle case when project is already deleted
+        project = Project.all_objects.get(
+            id=resource.project_id
+        )  # handle case when project is already deleted
         return {resource, project, project.customer}
 
 

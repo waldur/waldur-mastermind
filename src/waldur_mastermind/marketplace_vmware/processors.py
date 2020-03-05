@@ -1,5 +1,5 @@
-from waldur_vmware import views as vmware_views
 from waldur_mastermind.marketplace import processors
+from waldur_vmware import views as vmware_views
 
 
 class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):

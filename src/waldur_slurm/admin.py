@@ -3,7 +3,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.structure import admin as structure_admin
 
-from .models import SlurmService, SlurmServiceProjectLink, Allocation
+from .models import Allocation, SlurmService, SlurmServiceProjectLink
 
 
 def get_allocation_count(self, scope):

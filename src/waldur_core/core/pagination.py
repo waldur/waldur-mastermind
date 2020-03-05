@@ -10,12 +10,14 @@ class LinkHeaderPagination(pagination.PageNumberPagination):
     max_page_size = 300
 
     def get_paginated_response(self, data):
-        link_candidates = OrderedDict((
-            ('first', self.get_first_link),
-            ('prev', self.get_previous_link),
-            ('next', self.get_next_link),
-            ('last', self.get_last_link),
-        ))
+        link_candidates = OrderedDict(
+            (
+                ('first', self.get_first_link),
+                ('prev', self.get_previous_link),
+                ('next', self.get_next_link),
+                ('last', self.get_last_link),
+            )
+        )
 
         link = ', '.join(
             '<%s>; rel="%s"' % (get_link(), rel)
@@ -49,4 +51,5 @@ class UnlimitedLinkHeaderPagination(LinkHeaderPagination):
 
     Should be used only as a temporary workaround!
     """
+
     page_size = None

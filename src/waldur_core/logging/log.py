@@ -6,7 +6,6 @@ from celery import current_app
 
 
 class EventFormatter(logging.Formatter):
-
     def format_timestamp(self, time):
         return datetime.datetime.utcfromtimestamp(time).isoformat() + 'Z'
 
@@ -28,7 +27,6 @@ class EventFormatter(logging.Formatter):
             '@timestamp': self.format_timestamp(record.created),
             '@version': 1,
             'message': record.getMessage(),
-
             # logging details
             'levelname': record.levelname,
             'logger': record.name,
@@ -46,7 +44,6 @@ class EventFormatter(logging.Formatter):
 
 
 class EventLoggerAdapter(logging.LoggerAdapter):
-
     def __init__(self, logger):
         super(EventLoggerAdapter, self).__init__(logger, {})
 
@@ -86,7 +83,6 @@ class RequireNotBackgroundTask(logging.Filter):
 
 
 class TCPEventHandler(logging.handlers.SocketHandler):
-
     def __init__(self, host='localhost', port=5959):
         super(TCPEventHandler, self).__init__(host, int(port))
         self.formatter = EventFormatter()

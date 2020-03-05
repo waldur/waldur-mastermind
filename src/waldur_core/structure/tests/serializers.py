@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from waldur_core.structure import serializers as structure_serializers
+
 from . import models
 
 
@@ -16,7 +17,9 @@ class ServiceSerializer(structure_serializers.BaseServiceSerializer):
         extra_field_options = {}
 
 
-class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
+class ServiceProjectLinkSerializer(
+    structure_serializers.BaseServiceProjectLinkSerializer
+):
     class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
         model = models.TestServiceProjectLink
         extra_kwargs = {
@@ -30,7 +33,8 @@ class NewInstanceSerializer(structure_serializers.VirtualMachineSerializer):
         source='service_project_link.service',
         view_name='test-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='test-spl-detail',

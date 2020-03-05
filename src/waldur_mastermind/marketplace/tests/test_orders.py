@@ -1,24 +1,27 @@
 from unittest import mock
+
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.models import CustomerRole
-from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace.base import override_marketplace_settings
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 
-from . import factories
 from .. import models
+from . import factories
 
 
 @ddt
 class OrderGetTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_orders_should_be_visible_to_colleagues_and_staff(self, user):
@@ -46,7 +49,6 @@ class OrderGetTest(test.APITransactionTestCase):
 
 @ddt
 class OrderCreateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -73,71 +75,94 @@ class OrderCreateTest(test.APITransactionTestCase):
     def test_create_order_with_plan(self):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(offering),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': {}
-            },
-        ]}
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @mock.patch('waldur_mastermind.marketplace.tasks.notify_order_approvers.delay')
     def test_notification_is_sent_when_order_is_created(self, mock_task):
         offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE, shared=True, billable=True)
+            state=models.Offering.States.ACTIVE, shared=True, billable=True
+        )
         plan = factories.PlanFactory(offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(offering),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': {}
-            },
-        ]}
-        response = self.create_order(self.fixture.manager, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.manager, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_task.assert_called_once()
 
     def test_can_not_create_order_if_offering_is_not_available_to_customer(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, shared=False)
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE, shared=False
+        )
         offering.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
         plan = factories.PlanFactory(offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(offering),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': {}
-            },
-        ]}
-        response = self.create_order(self.fixture.owner, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.owner, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_can_not_create_order_with_plan_related_to_another_offering(self):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': {}
-            },
-        ]}
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_can_not_create_order_if_plan_max_amount_has_been_reached(self):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering, max_amount=3)
         factories.ResourceFactory.create_batch(3, plan=plan, offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(offering),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': {}
-            },
-        ]}
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_create_order_with_valid_attributes_specified_by_options(self):
@@ -146,16 +171,22 @@ class OrderCreateTest(test.APITransactionTestCase):
             'ram': 30,
             'cpu_count': 5,
         }
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS)
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS
+        )
         plan = factories.PlanFactory(offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(offering),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': attributes,
-            },
-        ]}
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': attributes,
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['items'][0]['attributes'], attributes)
 
@@ -163,16 +194,22 @@ class OrderCreateTest(test.APITransactionTestCase):
         attributes = {
             'storage': 'invalid value',
         }
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS)
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS
+        )
         plan = factories.PlanFactory(offering=offering)
-        add_payload = {'items': [
-            {
-                'offering': factories.OfferingFactory.get_url(offering),
-                'plan': factories.PlanFactory.get_url(plan),
-                'attributes': attributes,
-            },
-        ]}
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'attributes': attributes,
+                },
+            ]
+        }
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_create_order_with_valid_limits(self):
@@ -189,7 +226,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             models.OfferingComponent.objects.create(
                 offering=offering,
                 type=key,
-                billing_type=models.OfferingComponent.BillingTypes.USAGE
+                billing_type=models.OfferingComponent.BillingTypes.USAGE,
             )
 
         add_payload = {
@@ -203,7 +240,9 @@ class OrderCreateTest(test.APITransactionTestCase):
             ]
         }
 
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         order_item = models.OrderItem.objects.last()
@@ -223,7 +262,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             models.OfferingComponent.objects.create(
                 offering=offering,
                 type=key,
-                billing_type=models.OfferingComponent.BillingTypes.FIXED
+                billing_type=models.OfferingComponent.BillingTypes.FIXED,
             )
 
         add_payload = {
@@ -237,7 +276,9 @@ class OrderCreateTest(test.APITransactionTestCase):
             ]
         }
 
-        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_order_creating_is_not_available_for_blocked_organization(self):
@@ -257,7 +298,7 @@ class OrderCreateTest(test.APITransactionTestCase):
                 {
                     'offering': factories.OfferingFactory.get_url(offering),
                     'attributes': {},
-                    'accepting_terms_of_service': True
+                    'accepting_terms_of_service': True,
                 },
             ]
         }
@@ -310,14 +351,17 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_url(offering),
-                    'attributes': {}
+                    'attributes': {},
                 },
             ]
         }
         response = self.create_order(user, offering=offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(str(response.content, 'utf-8'),
-                         '{"items":["Terms of service for offering \'%s\' have not been accepted."]}' % offering)
+        self.assertEqual(
+            str(response.content, 'utf-8'),
+            '{"items":["Terms of service for offering \'%s\' have not been accepted."]}'
+            % offering,
+        )
         self.assertFalse(models.Order.objects.filter(created_by=user).exists())
 
     def create_order(self, user, offering=None, add_payload=None):
@@ -330,9 +374,9 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_url(offering),
-                    'attributes': {}
+                    'attributes': {},
                 },
-            ]
+            ],
         }
 
         if add_payload:
@@ -343,12 +387,13 @@ class OrderCreateTest(test.APITransactionTestCase):
 
 @ddt
 class OrderApproveTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
         self.url = factories.OrderFactory.get_url(self.order, 'approve')
 
     def test_owner_can_approve_order(self):
@@ -401,12 +446,13 @@ class OrderApproveTest(test.APITransactionTestCase):
 
 @ddt
 class OrderRejectTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
         self.order_item_1 = factories.OrderItemFactory(order=self.order)
         self.order_item_2 = factories.OrderItemFactory(order=self.order)
         self.url = factories.OrderFactory.get_url(self.order, 'reject')
@@ -446,17 +492,20 @@ class OrderRejectTest(test.APITransactionTestCase):
 
 @ddt
 class OrderDeleteTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
 
     @data('staff', 'owner')
     def test_owner_and_staff_can_delete_order(self, user):
         response = self.delete_order(user)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
         self.assertFalse(models.Order.objects.filter(created_by=self.manager).exists())
 
     @data('admin', 'manager')
@@ -496,7 +545,9 @@ class OrderStateTest(test.APITransactionTestCase):
         order.refresh_from_db()
         self.assertEqual(order.state, models.Order.States.DONE)
 
-    def test_not_switch_order_state_to_done_when_not_all_order_items_are_processed(self):
+    def test_not_switch_order_state_to_done_when_not_all_order_items_are_processed(
+        self,
+    ):
         order_item = factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING)
         order = order_item.order
         factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING, order=order)

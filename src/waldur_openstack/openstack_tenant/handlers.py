@@ -2,15 +2,15 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
-from django.db import transaction, IntegrityError
+from django.db import IntegrityError, transaction
 
 from waldur_core.core.models import StateMixin
 from waldur_core.quotas.models import Quota
 from waldur_core.structure import models as structure_models
 
-from ..openstack import models as openstack_models, apps as openstack_apps
+from ..openstack import apps as openstack_apps
+from ..openstack import models as openstack_models
 from . import apps, log, models, utils
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,8 @@ def _log_scheduled_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.info(
-        'Operation "%s" has been scheduled for %s "%s"' % (message, class_name, resource.name),
+        'Operation "%s" has been scheduled for %s "%s"'
+        % (message, class_name, resource.name),
         event_type=_get_action_event_type(action, 'scheduled'),
         event_context={'resource': resource, 'action_details': action_details},
     )
@@ -31,7 +32,8 @@ def _log_succeeded_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.info(
-        'Successfully executed "%s" operation for %s "%s"' % (message, class_name, resource.name),
+        'Successfully executed "%s" operation for %s "%s"'
+        % (message, class_name, resource.name),
         event_type=_get_action_event_type(action, 'succeeded'),
         event_context={'resource': resource, 'action_details': action_details},
     )
@@ -41,7 +43,8 @@ def _log_failed_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.warning(
-        'Failed to execute "%s" operation for %s "%s"' % (message, class_name, resource.name),
+        'Failed to execute "%s" operation for %s "%s"'
+        % (message, class_name, resource.name),
         event_type=_get_action_event_type(action, 'failed'),
         event_context={'resource': resource, 'action_details': action_details},
     )
@@ -72,10 +75,16 @@ def log_action(sender, instance, created=False, **kwargs):
         _log_scheduled_action(resource, resource.action, resource.action_details)
     if resource.state == StateMixin.States.OK:
         _log_succeeded_action(
-            resource, resource.tracker.previous('action'), resource.tracker.previous('action_details'))
+            resource,
+            resource.tracker.previous('action'),
+            resource.tracker.previous('action_details'),
+        )
     elif resource.state == StateMixin.States.ERRED:
         _log_failed_action(
-            resource, resource.tracker.previous('action'), resource.tracker.previous('action_details'))
+            resource,
+            resource.tracker.previous('action'),
+            resource.tracker.previous('action_details'),
+        )
 
 
 def log_snapshot_schedule_creation(sender, instance, created=False, **kwargs):
@@ -86,7 +95,10 @@ def log_snapshot_schedule_creation(sender, instance, created=False, **kwargs):
     log.event_logger.openstack_snapshot_schedule.info(
         'Snapshot schedule "%s" has been created' % snapshot_schedule.name,
         event_type='resource_snapshot_schedule_created',
-        event_context={'resource': snapshot_schedule.source_volume, 'snapshot_schedule': snapshot_schedule},
+        event_context={
+            'resource': snapshot_schedule.source_volume,
+            'snapshot_schedule': snapshot_schedule,
+        },
     )
 
 
@@ -95,7 +107,10 @@ def log_snapshot_schedule_action(sender, instance, created=False, **kwargs):
     if created or not snapshot_schedule.tracker.has_changed('is_active'):
         return
 
-    context = {'resource': snapshot_schedule.source_volume, 'snapshot_schedule': snapshot_schedule}
+    context = {
+        'resource': snapshot_schedule.source_volume,
+        'snapshot_schedule': snapshot_schedule,
+    }
     if snapshot_schedule.is_active:
         log.event_logger.openstack_snapshot_schedule.info(
             'Snapshot schedule "%s" has been activated' % snapshot_schedule.name,
@@ -104,10 +119,14 @@ def log_snapshot_schedule_action(sender, instance, created=False, **kwargs):
         )
     else:
         if snapshot_schedule.error_message:
-            message = 'Snapshot schedule "%s" has been deactivated because of error: %s' % (
-                snapshot_schedule.name, snapshot_schedule.error_message)
+            message = (
+                'Snapshot schedule "%s" has been deactivated because of error: %s'
+                % (snapshot_schedule.name, snapshot_schedule.error_message)
+            )
         else:
-            message = 'Snapshot schedule "%s" has been deactivated' % snapshot_schedule.name
+            message = (
+                'Snapshot schedule "%s" has been deactivated' % snapshot_schedule.name
+            )
         log.event_logger.openstack_snapshot_schedule.warning(
             message,
             event_type='resource_snapshot_schedule_deactivated',
@@ -120,7 +139,10 @@ def log_snapshot_schedule_deletion(sender, instance, **kwargs):
     log.event_logger.openstack_snapshot_schedule.info(
         'Snapshot schedule "%s" has been deleted' % snapshot_schedule.name,
         event_type='resource_snapshot_schedule_deleted',
-        event_context={'resource': snapshot_schedule.source_volume, 'snapshot_schedule': snapshot_schedule},
+        event_context={
+            'resource': snapshot_schedule.source_volume,
+            'snapshot_schedule': snapshot_schedule,
+        },
     )
 
 
@@ -132,7 +154,10 @@ def log_backup_schedule_creation(sender, instance, created=False, **kwargs):
     log.event_logger.openstack_backup_schedule.info(
         'Backup schedule "%s" has been created' % backup_schedule.name,
         event_type='resource_backup_schedule_created',
-        event_context={'resource': backup_schedule.instance, 'backup_schedule': backup_schedule},
+        event_context={
+            'resource': backup_schedule.instance,
+            'backup_schedule': backup_schedule,
+        },
     )
 
 
@@ -150,8 +175,10 @@ def log_backup_schedule_action(sender, instance, created=False, **kwargs):
         )
     else:
         if backup_schedule.error_message:
-            message = 'Backup schedule "%s" has been deactivated because of error: %s' % (
-                backup_schedule.name, backup_schedule.error_message)
+            message = (
+                'Backup schedule "%s" has been deactivated because of error: %s'
+                % (backup_schedule.name, backup_schedule.error_message)
+            )
         else:
             message = 'Backup schedule "%s" has been deactivated' % backup_schedule.name
         log.event_logger.openstack_backup_schedule.warning(
@@ -166,7 +193,10 @@ def log_backup_schedule_deletion(sender, instance, **kwargs):
     log.event_logger.openstack_backup_schedule.info(
         'Backup schedule "%s" has been deleted' % backup_schedule.name,
         event_type='resource_backup_schedule_deleted',
-        event_context={'resource': backup_schedule.instance, 'backup_schedule': backup_schedule},
+        event_context={
+            'resource': backup_schedule.instance,
+            'backup_schedule': backup_schedule,
+        },
     )
 
 
@@ -180,8 +210,12 @@ def update_service_settings_credentials(sender, instance, created=False, **kwarg
         return
 
     tenant = instance
-    if tenant.tracker.has_changed('user_password') or tenant.tracker.has_changed('user_username'):
-        service_settings = structure_models.ServiceSettings.objects.filter(scope=tenant).first()
+    if tenant.tracker.has_changed('user_password') or tenant.tracker.has_changed(
+        'user_username'
+    ):
+        service_settings = structure_models.ServiceSettings.objects.filter(
+            scope=tenant
+        ).first()
         if service_settings:
             service_settings.username = tenant.user_username
             service_settings.password = tenant.user_password
@@ -196,6 +230,7 @@ class BaseSynchronizationHandler:
     resources in openstack application. However they are implemented as service properties
     in the openstack_tenant application.
     """
+
     property_model = None
     resource_model = None
     fields = []
@@ -205,15 +240,25 @@ class BaseSynchronizationHandler:
 
     def get_service_settings(self, resource):
         try:
-            return structure_models.ServiceSettings.objects.get(scope=self.get_tenant(resource),
-                                                                type=apps.OpenStackTenantConfig.service_name)
-        except (django_exceptions.ObjectDoesNotExist, django_exceptions.MultipleObjectsReturned):
+            return structure_models.ServiceSettings.objects.get(
+                scope=self.get_tenant(resource),
+                type=apps.OpenStackTenantConfig.service_name,
+            )
+        except (
+            django_exceptions.ObjectDoesNotExist,
+            django_exceptions.MultipleObjectsReturned,
+        ):
             return
 
     def get_service_property(self, resource, settings):
         try:
-            return self.property_model.objects.get(settings=settings, backend_id=resource.backend_id)
-        except (django_exceptions.ObjectDoesNotExist, django_exceptions.MultipleObjectsReturned):
+            return self.property_model.objects.get(
+                settings=settings, backend_id=resource.backend_id
+            )
+        except (
+            django_exceptions.ObjectDoesNotExist,
+            django_exceptions.MultipleObjectsReturned,
+        ):
             return
 
     def map_resource_to_dict(self, resource):
@@ -225,14 +270,16 @@ class BaseSynchronizationHandler:
         try:
             with transaction.atomic():
                 return self.property_model.objects.get_or_create(
-                    settings=settings,
-                    backend_id=resource.backend_id,
-                    defaults=defaults
+                    settings=settings, backend_id=resource.backend_id, defaults=defaults
                 )
         except IntegrityError:
-            logger.warning('Could not create %s with backend ID %s '
-                           'and service settings %s due to concurrent update.',
-                           self.property_model, resource.backend_id, settings)
+            logger.warning(
+                'Could not create %s with backend ID %s '
+                'and service settings %s due to concurrent update.',
+                self.property_model,
+                resource.backend_id,
+                settings,
+            )
 
     def update_service_property(self, resource, settings):
         service_property = self.get_service_property(resource, settings)
@@ -297,24 +344,31 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
     fields = ('description',)
 
     def map_rules(self, security_group, openstack_security_group):
-        return [models.SecurityGroupRule(
-            protocol=rule.protocol,
-            from_port=rule.from_port,
-            to_port=rule.to_port,
-            cidr=rule.cidr,
-            backend_id=rule.backend_id,
-            security_group=security_group,
-        ) for rule in openstack_security_group.rules.iterator()]
+        return [
+            models.SecurityGroupRule(
+                protocol=rule.protocol,
+                from_port=rule.from_port,
+                to_port=rule.to_port,
+                cidr=rule.cidr,
+                backend_id=rule.backend_id,
+                security_group=security_group,
+            )
+            for rule in openstack_security_group.rules.iterator()
+        ]
 
     def create_service_property(self, resource, settings):
-        service_property, _ = super(SecurityGroupHandler, self).create_service_property(resource, settings)
+        service_property, _ = super(SecurityGroupHandler, self).create_service_property(
+            resource, settings
+        )
         if resource.rules.count() > 0:
             group_rules = self.map_rules(service_property, resource)
             service_property.rules.bulk_create(group_rules)
         return service_property
 
     def update_service_property(self, resource, settings):
-        service_property = super(SecurityGroupHandler, self).update_service_property(resource, settings)
+        service_property = super(SecurityGroupHandler, self).update_service_property(
+            resource, settings
+        )
         if not service_property:
             return
 
@@ -333,14 +387,22 @@ class NetworkHandler(BaseSynchronizationHandler):
 class SubNetHandler(BaseSynchronizationHandler):
     property_model = models.SubNet
     resource_model = openstack_models.SubNet
-    fields = ('allocation_pools', 'cidr', 'dns_nameservers', 'enable_dhcp', 'ip_version')
+    fields = (
+        'allocation_pools',
+        'cidr',
+        'dns_nameservers',
+        'enable_dhcp',
+        'ip_version',
+    )
 
     def get_tenant(self, resource):
         return resource.network.tenant
 
     def map_resource_to_dict(self, resource):
         params = super(SubNetHandler, self).map_resource_to_dict(resource)
-        params['network'] = models.Network.objects.get(backend_id=resource.network.backend_id)
+        params['network'] = models.Network.objects.get(
+            backend_id=resource.network.backend_id
+        )
         return params
 
 
@@ -352,22 +414,30 @@ resource_handlers = (
 )
 
 
-def sync_certificates_between_openstack_service_with_openstacktenant_service(sender, instance, action, **kwargs):
+def sync_certificates_between_openstack_service_with_openstacktenant_service(
+    sender, instance, action, **kwargs
+):
     """
     Copies certifications links in original service settings to derived openstack tenant service settings.
     Handling works only for OpenStack service settings and ignored for all others.
     """
     service_settings = instance
-    if (action not in ['post_add', 'post_remove', 'post_clear'] or
-            service_settings.type != openstack_apps.OpenStackConfig.service_name):
+    if (
+        action not in ['post_add', 'post_remove', 'post_clear']
+        or service_settings.type != openstack_apps.OpenStackConfig.service_name
+    ):
         return
 
-    tenants = openstack_models.Tenant.objects.filter(service_project_link__service__settings=service_settings)
+    tenants = openstack_models.Tenant.objects.filter(
+        service_project_link__service__settings=service_settings
+    )
 
     if not tenants:
         return
 
-    openstack_settings = structure_models.ServiceSettings.objects.filter(scope__in=tenants)
+    openstack_settings = structure_models.ServiceSettings.objects.filter(
+        scope__in=tenants
+    )
 
     with transaction.atomic():
         for settings in openstack_settings:
@@ -375,7 +445,9 @@ def sync_certificates_between_openstack_service_with_openstacktenant_service(sen
             settings.certifications.add(*service_settings.certifications.all())
 
 
-def copy_certifications_from_openstack_service_to_openstacktenant_service(sender, instance, created=False, **kwargs):
+def copy_certifications_from_openstack_service_to_openstacktenant_service(
+    sender, instance, created=False, **kwargs
+):
     if not created or instance.type != apps.OpenStackTenantConfig.service_name:
         return
 
@@ -390,7 +462,9 @@ def copy_certifications_from_openstack_service_to_openstacktenant_service(sender
         instance.certifications.add(*admin_settings.certifications.all())
 
 
-def copy_flavor_exclude_regex_to_openstacktenant_service_settings(sender, instance, created=False, **kwargs):
+def copy_flavor_exclude_regex_to_openstacktenant_service_settings(
+    sender, instance, created=False, **kwargs
+):
     if not created or instance.type != apps.OpenStackTenantConfig.service_name:
         return
 
@@ -399,11 +473,15 @@ def copy_flavor_exclude_regex_to_openstacktenant_service_settings(sender, instan
         return
 
     admin_settings = tenant.service_project_link.service.settings
-    instance.options['flavor_exclude_regex'] = admin_settings.options.get('flavor_exclude_regex', '')
+    instance.options['flavor_exclude_regex'] = admin_settings.options.get(
+        'flavor_exclude_regex', ''
+    )
     instance.save(update_fields=['options'])
 
 
-def copy_config_drive_to_openstacktenant_service_settings(sender, instance, created=False, **kwargs):
+def copy_config_drive_to_openstacktenant_service_settings(
+    sender, instance, created=False, **kwargs
+):
     if created:
         return
 
@@ -419,9 +497,13 @@ def copy_config_drive_to_openstacktenant_service_settings(sender, instance, crea
     if old_value == new_value:
         return
 
-    tenants = openstack_models.Tenant.objects.filter(service_project_link__service__settings=instance)
+    tenants = openstack_models.Tenant.objects.filter(
+        service_project_link__service__settings=instance
+    )
     ctype = ContentType.objects.get_for_model(openstack_models.Tenant)
-    tenant_settings = structure_models.ServiceSettings.objects.filter(object_id__in=tenants.values_list('id'), content_type=ctype)
+    tenant_settings = structure_models.ServiceSettings.objects.filter(
+        object_id__in=tenants.values_list('id'), content_type=ctype
+    )
     for item in tenant_settings:
         item.options['config_drive'] = new_value
         item.save(update_fields=['options'])
@@ -432,8 +514,7 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
         return
 
     if structure_models.ServiceSettings.objects.filter(
-        scope=instance,
-        type=apps.OpenStackTenantConfig.service_name,
+        scope=instance, type=apps.OpenStackTenantConfig.service_name,
     ).exists():
         return
 
@@ -456,30 +537,31 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
     )
 
     if admin_settings.options.get('console_type'):
-        service_settings.options['console_type'] = admin_settings.options.get('console_type')
+        service_settings.options['console_type'] = admin_settings.options.get(
+            'console_type'
+        )
         service_settings.save()
 
     service = models.OpenStackTenantService.objects.create(
-        settings=service_settings,
-        customer=customer,
+        settings=service_settings, customer=customer,
     )
 
     models.OpenStackTenantServiceProjectLink.objects.create(
-        service=service,
-        project=tenant.service_project_link.project,
+        service=service, project=tenant.service_project_link.project,
     )
 
 
 def update_service_settings(sender, instance, created=False, **kwargs):
     tenant = instance
 
-    if created or not (set(['external_network_id', 'name']) & set(tenant.tracker.changed())):
+    if created or not (
+        set(['external_network_id', 'name']) & set(tenant.tracker.changed())
+    ):
         return
 
     try:
         service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant,
-            type=apps.OpenStackTenantConfig.service_name
+            scope=tenant, type=apps.OpenStackTenantConfig.service_name
         )
     except structure_models.ServiceSettings.DoesNotExist:
         return
@@ -496,7 +578,9 @@ def sync_price_list_item_for_flavor(sender, instance, created=False, **kwargs):
         utils.sync_price_list_item(instance)
 
 
-def sync_private_settings_quotas_with_tenant_quotas(sender, instance, created=False, **kwargs):
+def sync_private_settings_quotas_with_tenant_quotas(
+    sender, instance, created=False, **kwargs
+):
     if created:
         return
 
@@ -507,6 +591,6 @@ def sync_private_settings_quotas_with_tenant_quotas(sender, instance, created=Fa
     tenant = quota.scope
     private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
 
-    Quota.objects\
-        .filter(scope__in=private_settings, name=quota.name)\
-        .update(limit=quota.limit, usage=quota.usage)
+    Quota.objects.filter(scope__in=private_settings, name=quota.name).update(
+        limit=quota.limit, usage=quota.usage
+    )

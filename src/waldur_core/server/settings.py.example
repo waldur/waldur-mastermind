@@ -1,7 +1,7 @@
 # Django settings for Waldur Core
-from waldur_core.server.base_settings import *
-
 import logging.handlers
+
+from waldur_core.server.base_settings import *
 
 # Debugging
 # See also:

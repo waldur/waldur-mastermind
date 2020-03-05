@@ -14,7 +14,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='node',
             name='annotations',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                blank=True, default=dict
+            ),
         ),
         migrations.AddField(
             model_name='node',
@@ -39,7 +41,9 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='node',
             name='labels',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                blank=True, default=dict
+            ),
         ),
         migrations.AddField(
             model_name='node',
@@ -54,11 +58,15 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='node',
             name='ram_allocated',
-            field=models.IntegerField(blank=True, null=True, help_text='Allocated RAM in Mi.'),
+            field=models.IntegerField(
+                blank=True, null=True, help_text='Allocated RAM in Mi.'
+            ),
         ),
         migrations.AddField(
             model_name='node',
             name='ram_total',
-            field=models.IntegerField(blank=True, null=True, help_text='Total RAM in Mi.'),
+            field=models.IntegerField(
+                blank=True, null=True, help_text='Total RAM in Mi.'
+            ),
         ),
     ]

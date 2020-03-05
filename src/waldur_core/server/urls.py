@@ -7,7 +7,8 @@ from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.core.schemas import WaldurSchemaView
-from waldur_core.cost_tracking import urls as cost_tracking_urls, CostTrackingRegister
+from waldur_core.cost_tracking import CostTrackingRegister
+from waldur_core.cost_tracking import urls as cost_tracking_urls
 from waldur_core.logging import urls as logging_urls
 from waldur_core.monitoring import urls as monitoring_urls
 from waldur_core.quotas import urls as quotas_urls
@@ -51,7 +52,10 @@ urlpatterns += [
 
 if settings.DEBUG:
     from django.conf.urls.static import static
+
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
     # enable login/logout for web UI in debug mode
-    urlpatterns += url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    urlpatterns += (
+        url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    )

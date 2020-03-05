@@ -6,13 +6,11 @@ from waldur_vmware.tests.fixtures import VMwareFixture
 
 
 class HandlersTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = VMwareFixture()
         self.vm = self.fixture.virtual_machine
         self.resource = marketplace_factories.ResourceFactory(
-            scope=self.vm,
-            project=self.fixture.project
+            scope=self.vm, project=self.fixture.project
         )
 
     def test_when_vm_is_updated_marketplace_resource_limits_are_updated(self):

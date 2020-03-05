@@ -6,7 +6,6 @@ from waldur_core.core.managers import GenericKeyMixin
 
 
 class QuotaManager(GenericKeyMixin, models.Manager):
-
     def filtered_for_user(self, user, queryset=None):
         from waldur_core.quotas import utils
 
@@ -22,7 +21,9 @@ class QuotaManager(GenericKeyMixin, models.Manager):
         quota_scope_models = utils.get_models_with_quotas()
         query = Q()
         for model in quota_scope_models:
-            user_object_ids = filter_queryset_for_user(model.objects.all(), user).values_list('id', flat=True)
+            user_object_ids = filter_queryset_for_user(
+                model.objects.all(), user
+            ).values_list('id', flat=True)
             content_type_id = ct_models.ContentType.objects.get_for_model(model).id
             query |= Q(object_id__in=user_object_ids, content_type_id=content_type_id)
 

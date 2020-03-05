@@ -1,7 +1,8 @@
 from django.contrib.admin.filters import (
     AllValuesFieldListFilter,
     ChoicesFieldListFilter,
-    RelatedFieldListFilter, RelatedOnlyFieldListFilter
+    RelatedFieldListFilter,
+    RelatedOnlyFieldListFilter,
 )
 
 

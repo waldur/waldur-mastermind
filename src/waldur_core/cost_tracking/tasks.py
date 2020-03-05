@@ -22,15 +22,20 @@ def recalculate_estimate(recalculate_total=False):
             _update_resource_consumed(resource, recalculate_total=recalculate_total)
     # Step 2. Move from down to top and recalculate consumed estimate for each
     #         object based on its children.
-    ancestors_models = [m for m in models.PriceEstimate.get_estimated_models()
-                        if not issubclass(m, structure_models.ResourceMixin)]
+    ancestors_models = [
+        m
+        for m in models.PriceEstimate.get_estimated_models()
+        if not issubclass(m, structure_models.ResourceMixin)
+    ]
     for model in ancestors_models:
         for ancestor in model.objects.all():
             _update_ancestor_consumed(ancestor)
 
 
 def _update_resource_consumed(resource, recalculate_total):
-    price_estimate, created = models.PriceEstimate.objects.get_or_create_current(scope=resource)
+    price_estimate, created = models.PriceEstimate.objects.get_or_create_current(
+        scope=resource
+    )
     if created:
         models.ConsumptionDetails.objects.create(price_estimate=price_estimate)
         price_estimate.create_ancestors()
@@ -41,8 +46,15 @@ def _update_resource_consumed(resource, recalculate_total):
 
 
 def _update_ancestor_consumed(ancestor):
-    price_estimate, _ = models.PriceEstimate.objects.get_or_create_current(scope=ancestor)
-    resource_descendants = [descendant for descendant in price_estimate.get_descendants()
-                            if isinstance(descendant.scope, structure_models.ResourceMixin)]
-    price_estimate.consumed = sum([descendant.consumed for descendant in resource_descendants])
+    price_estimate, _ = models.PriceEstimate.objects.get_or_create_current(
+        scope=ancestor
+    )
+    resource_descendants = [
+        descendant
+        for descendant in price_estimate.get_descendants()
+        if isinstance(descendant.scope, structure_models.ResourceMixin)
+    ]
+    price_estimate.consumed = sum(
+        [descendant.consumed for descendant in resource_descendants]
+    )
     price_estimate.save(update_fields=['consumed'])

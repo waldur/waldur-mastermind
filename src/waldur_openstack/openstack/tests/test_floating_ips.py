@@ -1,15 +1,18 @@
-from rest_framework import test, status
+from rest_framework import status, test
 
 from .. import models
 from . import factories, fixtures
 
 
 class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
-        self.active_ip = factories.FloatingIPFactory(runtime_state='ACTIVE', service_project_link=self.fixture.openstack_spl)
-        self.down_ip = factories.FloatingIPFactory(runtime_state='DOWN', service_project_link=self.fixture.openstack_spl)
+        self.active_ip = factories.FloatingIPFactory(
+            runtime_state='ACTIVE', service_project_link=self.fixture.openstack_spl
+        )
+        self.down_ip = factories.FloatingIPFactory(
+            runtime_state='DOWN', service_project_link=self.fixture.openstack_spl
+        )
         self.other_ip = factories.FloatingIPFactory(runtime_state='UNDEFINED')
 
     def test_floating_ip_list_can_be_filtered_by_project(self):
@@ -104,23 +107,26 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.options(url)
         actions = dict(response.data['actions'])
-        self.assertEqual(actions, {
-            "destroy": {
-                "title": "Destroy",
-                "url": url,
-                "enabled": True,
-                "reason": None,
-                "destructive": True,
-                "type": "button",
-                "method": "DELETE"
+        self.assertEqual(
+            actions,
+            {
+                "destroy": {
+                    "title": "Destroy",
+                    "url": url,
+                    "enabled": True,
+                    "reason": None,
+                    "destructive": True,
+                    "type": "button",
+                    "method": "DELETE",
+                },
+                "pull": {
+                    "title": "Pull",
+                    "url": url + "pull/",
+                    "enabled": True,
+                    "reason": None,
+                    "destructive": False,
+                    "type": "button",
+                    "method": "POST",
+                },
             },
-            "pull": {
-                "title": "Pull",
-                "url": url + "pull/",
-                "enabled": True,
-                "reason": None,
-                "destructive": False,
-                "type": "button",
-                "method": "POST"
-            }
-        })
+        )

@@ -1,11 +1,11 @@
 from django.db import transaction
-from django.utils.translation import ugettext_lazy as _
 from django.utils.dateparse import datetime_re
+from django.utils.translation import ugettext_lazy as _
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.booking.utils import get_offering_bookings
-from waldur_mastermind.marketplace import processors
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import processors
 
 from .utils import TimePeriod, is_interval_in_schedules
 
@@ -43,30 +43,49 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 start = period['start']
                 end = period['end']
             except KeyError:
-                raise ValidationError(_('Key \'start\' or \'end\' does not exist in schedules item.'))
+                raise ValidationError(
+                    _('Key \'start\' or \'end\' does not exist in schedules item.')
+                )
 
             for value in [start, end]:
                 match = datetime_re.match(value)
                 kw = match.groupdict()
-                if list(filter(lambda x: not kw[x], ['hour', 'month', 'second', 'year', 'tzinfo', 'day', 'minute'])):
-                    raise ValidationError(_('The value %s does not match the format.') % value)
+                if list(
+                    filter(
+                        lambda x: not kw[x],
+                        ['hour', 'month', 'second', 'year', 'tzinfo', 'day', 'minute'],
+                    )
+                ):
+                    raise ValidationError(
+                        _('The value %s does not match the format.') % value
+                    )
 
         # Check that the schedule is available for the offering.
         offering = self.order_item.offering
         offering_schedules = offering.attributes.get('schedules', [])
 
         for period in schedules:
-            if not is_interval_in_schedules(TimePeriod(period['start'], period['end']),
-                                            [TimePeriod(i['start'], i['end']) for i in offering_schedules]):
-                raise ValidationError(_('Time period from %s to %s is not available for selected offering.') %
-                                      (period['start'], period['end']))
+            if not is_interval_in_schedules(
+                TimePeriod(period['start'], period['end']),
+                [TimePeriod(i['start'], i['end']) for i in offering_schedules],
+            ):
+                raise ValidationError(
+                    _(
+                        'Time period from %s to %s is not available for selected offering.'
+                    )
+                    % (period['start'], period['end'])
+                )
 
         # Check that there are no other bookings.
         bookings = get_offering_bookings(offering)
         for period in schedules:
-            if is_interval_in_schedules(TimePeriod(period['start'], period['end']), bookings):
-                raise ValidationError(_('Time period from %s to %s is not available.') %
-                                      (period['start'], period['end']))
+            if is_interval_in_schedules(
+                TimePeriod(period['start'], period['end']), bookings
+            ):
+                raise ValidationError(
+                    _('Time period from %s to %s is not available.')
+                    % (period['start'], period['end'])
+                )
 
 
 class BookingDeleteProcessor(processors.DeleteResourceProcessor):

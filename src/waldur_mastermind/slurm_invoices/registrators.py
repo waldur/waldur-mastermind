@@ -1,7 +1,7 @@
 import logging
 
-from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_slurm import models as slurm_models
 
@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 class AllocationRegistrator(registrators.BaseRegistrator):
     def get_sources(self, customer):
-        return slurm_models.Allocation.objects.filter(service_project_link__project__customer=customer).distinct()
+        return slurm_models.Allocation.objects.filter(
+            service_project_link__project__customer=customer
+        ).distinct()
 
     def get_customer(self, source):
         return source.service_project_link.project.customer
@@ -41,8 +43,11 @@ class AllocationRegistrator(registrators.BaseRegistrator):
         try:
             return models.SlurmPackage.objects.get(service_settings=service_settings)
         except models.SlurmPackage.DoesNotExist:
-            logger.debug('Skip SLURM invoice item because pricing package'
-                         ' for service settings %s is not defined.', service_settings)
+            logger.debug(
+                'Skip SLURM invoice item because pricing package'
+                ' for service settings %s is not defined.',
+                service_settings,
+            )
 
     def get_details(self, source):
         details = {
@@ -58,10 +63,12 @@ class AllocationRegistrator(registrators.BaseRegistrator):
 
     def get_component_details(self, offering, plan_component):
         details = self.get_details(offering)
-        details.update({
-            'plan_component_id': plan_component.id,
-            'offering_component_type': plan_component.component.type,
-            'offering_component_name': plan_component.component.name,
-            'offering_component_measured_unit': plan_component.component.measured_unit,
-        })
+        details.update(
+            {
+                'plan_component_id': plan_component.id,
+                'offering_component_type': plan_component.component.type,
+                'offering_component_name': plan_component.component.name,
+                'offering_component_measured_unit': plan_component.component.measured_unit,
+            }
+        )
         return details

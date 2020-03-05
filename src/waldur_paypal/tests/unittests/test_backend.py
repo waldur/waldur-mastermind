@@ -1,5 +1,6 @@
-from django.test import TestCase
 from unittest import mock
+
+from django.test import TestCase
 
 from waldur_paypal.backend import PaypalBackend, PayPalError
 
@@ -7,7 +8,6 @@ from .. import factories, fixtures
 
 
 class BaseBackendTest(TestCase):
-
     def setUp(self):
         self.fixture = fixtures.PayPalFixture()
         self.backend = PaypalBackend()
@@ -15,7 +15,6 @@ class BaseBackendTest(TestCase):
 
 
 class CreateInvoiceTest(BaseBackendTest):
-
     def setUp(self):
         super(CreateInvoiceTest, self).setUp()
         self.invoice.backend_id = ''
@@ -56,7 +55,6 @@ class CreateInvoiceTest(BaseBackendTest):
 
 
 class DownloadInvoicePDFTest(BaseBackendTest):
-
     def setUp(self):
         super(DownloadInvoicePDFTest, self).setUp()
 
@@ -80,7 +78,6 @@ class DownloadInvoicePDFTest(BaseBackendTest):
 
 
 class SendInvoiceTest(BaseBackendTest):
-
     @mock.patch('waldur_paypal.backend.paypal.Invoice')
     def test_draft_invoice_is_sent(self, invoice_mock):
         self.invoice.items.add(factories.InvoiceItemFactory())

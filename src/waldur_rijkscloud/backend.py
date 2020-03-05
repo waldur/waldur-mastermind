@@ -1,16 +1,22 @@
 import logging
 
+import requests
 from django.db import transaction
 from django.utils import timezone
-import requests
 
-from waldur_core.structure import log_backend_action, ServiceBackend, ServiceBackendError
+from waldur_core.structure import (
+    ServiceBackend,
+    ServiceBackendError,
+    log_backend_action,
+)
 from waldur_core.structure.utils import (
-    update_pulled_fields, handle_resource_not_found, handle_resource_update_success)
+    handle_resource_not_found,
+    handle_resource_update_success,
+    update_pulled_fields,
+)
 
 from . import models
 from .client import RijkscloudClient
-
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +26,12 @@ class RijkscloudBackendError(ServiceBackendError):
 
 
 class RijkscloudBackend(ServiceBackend):
-
     def __init__(self, settings):
         """
         :type settings: :class:`waldur_core.structure.models.ServiceSettings`
         """
         self.settings = settings
-        self.client = RijkscloudClient(
-            userid=settings.username,
-            apikey=settings.token,
-        )
+        self.client = RijkscloudClient(userid=settings.username, apikey=settings.token,)
 
     def ping(self, raise_exception=False):
         try:
@@ -55,8 +57,13 @@ class RijkscloudBackend(ServiceBackend):
 
     def _get_backend_resource(self, model, resources):
         registered_backend_ids = model.objects.filter(
-            service_project_link__service__settings=self.settings).values_list('backend_id', flat=True)
-        return [instance for instance in resources if instance.backend_id not in registered_backend_ids]
+            service_project_link__service__settings=self.settings
+        ).values_list('backend_id', flat=True)
+        return [
+            instance
+            for instance in resources
+            if instance.backend_id not in registered_backend_ids
+        ]
 
     def pull_flavors(self):
         try:
@@ -75,7 +82,8 @@ class RijkscloudBackend(ServiceBackend):
                         'name': backend_flavor['name'],
                         'cores': backend_flavor['vcpus'],
                         'ram': backend_flavor['ram'],
-                    })
+                    },
+                )
 
             models.Flavor.objects.filter(backend_id__in=cur_flavors.keys()).delete()
 
@@ -83,16 +91,21 @@ class RijkscloudBackend(ServiceBackend):
         backend_volumes = self.get_volumes()
         volumes = models.Volume.objects.filter(
             service_project_link__service__settings=self.settings,
-            state__in=[models.Volume.States.OK, models.Volume.States.ERRED]
+            state__in=[models.Volume.States.OK, models.Volume.States.ERRED],
         )
-        backend_volumes_map = {backend_volume.backend_id: backend_volume for backend_volume in backend_volumes}
+        backend_volumes_map = {
+            backend_volume.backend_id: backend_volume
+            for backend_volume in backend_volumes
+        }
         for volume in volumes:
             try:
                 backend_volume = backend_volumes_map[volume.backend_id]
             except KeyError:
                 handle_resource_not_found(volume)
             else:
-                update_pulled_fields(volume, backend_volume, models.Volume.get_backend_fields())
+                update_pulled_fields(
+                    volume, backend_volume, models.Volume.get_backend_fields()
+                )
                 handle_resource_update_success(volume)
 
     def get_volumes(self):
@@ -101,8 +114,10 @@ class RijkscloudBackend(ServiceBackend):
         except requests.RequestException as e:
             raise RijkscloudBackendError(e)
         else:
-            return [self._backend_volume_to_volume(backend_volume)
-                    for backend_volume in backend_volumes]
+            return [
+                self._backend_volume_to_volume(backend_volume)
+                for backend_volume in backend_volumes
+            ]
 
     def _backend_volume_to_volume(self, backend_volume):
         return models.Volume(
@@ -177,8 +192,10 @@ class RijkscloudBackend(ServiceBackend):
             service_project_link__service__settings=self.settings,
             state__in=[models.Instance.States.OK, models.Instance.States.ERRED],
         )
-        backend_instances_map = {backend_instance.backend_id: backend_instance
-                                 for backend_instance in backend_instances}
+        backend_instances_map = {
+            backend_instance.backend_id: backend_instance
+            for backend_instance in backend_instances
+        }
         for instance in instances:
             try:
                 backend_instance = backend_instances_map[instance.backend_id]
@@ -209,7 +226,9 @@ class RijkscloudBackend(ServiceBackend):
         instances = []
         for backend_instance in backend_instances:
             instance_flavor = backend_flavors_map.get(backend_instance['flavor'])
-            instances.append(self._backend_instance_to_instance(backend_instance, instance_flavor))
+            instances.append(
+                self._backend_instance_to_instance(backend_instance, instance_flavor)
+            )
         return instances
 
     def _backend_instance_to_instance(self, backend_instance, backend_flavor=None):
@@ -228,10 +247,12 @@ class RijkscloudBackend(ServiceBackend):
         # This code does not handle case when internal subnet CIDR overlaps with other internal subnet.
         addresses = backend_instance['addresses']
         instance.internal_ip = models.InternalIP.objects.filter(
-            settings=self.settings, address=addresses[0]).first()
+            settings=self.settings, address=addresses[0]
+        ).first()
         if len(addresses) == 2:
             instance.floating_ip = models.FloatingIP.objects.filter(
-                settings=self.settings, address=addresses[1]).first()
+                settings=self.settings, address=addresses[1]
+            ).first()
         return instance
 
     @log_backend_action()
@@ -245,7 +266,9 @@ class RijkscloudBackend(ServiceBackend):
                 update_fields = models.Instance.get_backend_fields()
             update_pulled_fields(instance, imported_instance, update_fields)
 
-    def import_instance(self, backend_instance_id, save=True, service_project_link=None):
+    def import_instance(
+        self, backend_instance_id, save=True, service_project_link=None
+    ):
         try:
             backend_instance = self.client.get_instance(backend_instance_id)
             flavor = self.client.get_flavor(backend_instance['flavor'])
@@ -297,9 +320,9 @@ class RijkscloudBackend(ServiceBackend):
                         }
                     ],
                     'network': instance.internal_ip.subnet.network.name,
-                    'security_groups': ['any-any']
+                    'security_groups': ['any-any'],
                 }
-            ]
+            ],
         }
 
         if instance.floating_ip:
@@ -348,9 +371,12 @@ class RijkscloudBackend(ServiceBackend):
                     defaults={
                         'address': backend_fip['float_ip'],
                         'is_available': backend_fip['available'],
-                    })
+                    },
+                )
 
-            models.FloatingIP.objects.filter(backend_id__in=cur_floating_ips.keys()).delete()
+            models.FloatingIP.objects.filter(
+                backend_id__in=cur_floating_ips.keys()
+            ).delete()
 
     def pull_networks(self):
         try:
@@ -370,7 +396,9 @@ class RijkscloudBackend(ServiceBackend):
                 )
                 self.pull_subnets(network, backend_network['subnets'])
 
-            models.Network.objects.filter(backend_id__in=current_networks.keys()).delete()
+            models.Network.objects.filter(
+                backend_id__in=current_networks.keys()
+            ).delete()
 
     def pull_subnets(self, network, backend_subnets):
         for backend_subnet in backend_subnets:
@@ -387,7 +415,7 @@ class RijkscloudBackend(ServiceBackend):
                     gateway_ip=gateway_ip,
                     allocation_pools=backend_subnet['allocation_pools'],
                     dns_nameservers=backend_subnet['dns_nameservers'],
-                )
+                ),
             )
             self.pull_internal_ips(subnet, backend_subnet['ips'])
 
@@ -401,5 +429,5 @@ class RijkscloudBackend(ServiceBackend):
                     'name': internal_ip['ip'],
                     'address': internal_ip['ip'],
                     'is_available': internal_ip['available'],
-                }
+                },
             )

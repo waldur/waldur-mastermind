@@ -4,15 +4,18 @@ from django.conf import settings
 from django.test import override_settings
 from rest_framework import test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_slurm.management.commands.import_allocations import import_allocation
-from waldur_mastermind.marketplace_slurm.management.commands.import_slurm_service_settings import \
-    import_slurm_service_settings
+from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm.management.commands.import_allocations import (
+    import_allocation,
+)
+from waldur_mastermind.marketplace_slurm.management.commands.import_slurm_service_settings import (
+    import_slurm_service_settings,
+)
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
 from waldur_slurm.tests import factories as slurm_factories
-from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 
 
 def override_plugin_settings(**kwargs):
@@ -25,9 +28,7 @@ class AllocationImportTest(test.APITransactionTestCase):
     def setUp(self):
         super(AllocationImportTest, self).setUp()
         self.category = marketplace_factories.CategoryFactory(title='SLURM')
-        self.decorator = override_plugin_settings(
-            CATEGORY_UUID=self.category.uuid.hex,
-        )
+        self.decorator = override_plugin_settings(CATEGORY_UUID=self.category.uuid.hex,)
         self.decorator.enable()
 
     def tearDown(self):
@@ -40,7 +41,7 @@ class AllocationImportTest(test.APITransactionTestCase):
             service_settings=allocation.service_settings,
             cpu_price=5,
             gpu_price=15,
-            ram_price=30
+            ram_price=30,
         )
         allocation_usage = slurm_factories.AllocationUsageFactory(
             allocation=allocation,
@@ -55,19 +56,33 @@ class AllocationImportTest(test.APITransactionTestCase):
         import_slurm_service_settings(customer)
         import_allocation()
 
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=allocation).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=allocation).exists()
+        )
         self.assertEqual(marketplace_models.Resource.objects.count(), 1)
         resource = marketplace_models.Resource.objects.get(scope=allocation)
-        self.assertEqual(resource.plan.components.get(component__type='cpu').price, package.cpu_price)
-        self.assertEqual(resource.plan.components.get(component__type='gpu').price, package.gpu_price)
-        self.assertEqual(resource.plan.components.get(component__type='ram').price, package.ram_price)
+        self.assertEqual(
+            resource.plan.components.get(component__type='cpu').price, package.cpu_price
+        )
+        self.assertEqual(
+            resource.plan.components.get(component__type='gpu').price, package.gpu_price
+        )
+        self.assertEqual(
+            resource.plan.components.get(component__type='ram').price, package.ram_price
+        )
         self.assertEqual(marketplace_models.ComponentUsage.objects.count(), 3)
-        self.assertEqual(marketplace_models.ComponentUsage.objects.get(component__type='cpu').usage,
-                         allocation_usage.cpu_usage)
-        self.assertEqual(marketplace_models.ComponentUsage.objects.get(component__type='gpu').usage,
-                         allocation_usage.gpu_usage)
-        self.assertEqual(marketplace_models.ComponentUsage.objects.get(component__type='ram').usage,
-                         allocation_usage.ram_usage)
+        self.assertEqual(
+            marketplace_models.ComponentUsage.objects.get(component__type='cpu').usage,
+            allocation_usage.cpu_usage,
+        )
+        self.assertEqual(
+            marketplace_models.ComponentUsage.objects.get(component__type='gpu').usage,
+            allocation_usage.gpu_usage,
+        )
+        self.assertEqual(
+            marketplace_models.ComponentUsage.objects.get(component__type='ram').usage,
+            allocation_usage.ram_usage,
+        )
 
     def test_dry_run_allocation_import(self):
         allocation = slurm_factories.AllocationFactory()
@@ -75,14 +90,16 @@ class AllocationImportTest(test.APITransactionTestCase):
             service_settings=allocation.service_settings,
             cpu_price=5,
             gpu_price=15,
-            ram_price=30
+            ram_price=30,
         )
         customer = structure_factories.CustomerFactory()
 
         import_slurm_service_settings(customer)
         allocation_counter = import_allocation(True)
         self.assertEqual(allocation_counter, 1)
-        self.assertFalse(marketplace_models.Resource.objects.filter(scope=allocation).exists())
+        self.assertFalse(
+            marketplace_models.Resource.objects.filter(scope=allocation).exists()
+        )
 
     def test_service_settings_import(self):
         allocation = slurm_factories.AllocationFactory()
@@ -105,12 +122,14 @@ class AllocationImportTest(test.APITransactionTestCase):
 
     def test_resource_plan_imported_once(self):
         allocation = slurm_factories.AllocationFactory()
-        allocation = slurm_factories.AllocationFactory(service_project_link=allocation.service_project_link)
+        allocation = slurm_factories.AllocationFactory(
+            service_project_link=allocation.service_project_link
+        )
         slurm_invoices_factories.SlurmPackageFactory(
             service_settings=allocation.service_settings,
             cpu_price=5,
             gpu_price=15,
-            ram_price=30
+            ram_price=30,
         )
         customer = structure_factories.CustomerFactory()
 
@@ -126,14 +145,16 @@ class AllocationImportTest(test.APITransactionTestCase):
             service_settings=allocation.service_settings,
             cpu_price=5,
             gpu_price=15,
-            ram_price=30
+            ram_price=30,
         )
         customer = structure_factories.CustomerFactory()
 
         import_slurm_service_settings(customer)
         import_allocation()
 
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=allocation).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=allocation).exists()
+        )
         self.assertEqual(marketplace_models.Resource.objects.count(), 1)
         resource = marketplace_models.Resource.objects.get(scope=allocation)
         self.assertEqual(resource.state, marketplace_models.Resource.States.TERMINATED)
@@ -144,7 +165,7 @@ class AllocationImportTest(test.APITransactionTestCase):
             service_settings=allocation.service_settings,
             cpu_price=5,
             gpu_price=15,
-            ram_price=30
+            ram_price=30,
         )
         customer = structure_factories.CustomerFactory()
 
@@ -153,7 +174,16 @@ class AllocationImportTest(test.APITransactionTestCase):
 
         resource = marketplace_models.Resource.objects.get(scope=allocation)
         self.assertEqual(resource.quotas.count(), 3)
-        self.assertEqual(resource.quotas.filter(component__type='cpu').get().limit, allocation.cpu_limit)
-        self.assertEqual(resource.quotas.filter(component__type='gpu').get().limit, allocation.gpu_limit)
-        self.assertEqual(resource.quotas.filter(component__type='ram').get().limit, allocation.ram_limit)
+        self.assertEqual(
+            resource.quotas.filter(component__type='cpu').get().limit,
+            allocation.cpu_limit,
+        )
+        self.assertEqual(
+            resource.quotas.filter(component__type='gpu').get().limit,
+            allocation.gpu_limit,
+        )
+        self.assertEqual(
+            resource.quotas.filter(component__type='ram').get().limit,
+            allocation.ram_limit,
+        )
         self.assertEqual(resource.limits['deposit_limit'], allocation.deposit_limit)

@@ -1,6 +1,6 @@
 from django.db.models import F, signals
 
-from waldur_core.quotas import models, utils, fields
+from waldur_core.quotas import fields, models, utils
 from waldur_core.quotas.exceptions import CreationConditionFailedQuotaError
 
 
@@ -8,7 +8,9 @@ from waldur_core.quotas.exceptions import CreationConditionFailedQuotaError
 def create_global_quotas(**kwargs):
     for model in utils.get_models_with_quotas():
         if hasattr(model, 'GLOBAL_COUNT_QUOTA_NAME'):
-            models.Quota.objects.get_or_create(name=getattr(model, 'GLOBAL_COUNT_QUOTA_NAME'))
+            models.Quota.objects.get_or_create(
+                name=getattr(model, 'GLOBAL_COUNT_QUOTA_NAME')
+            )
 
 
 def increase_global_quota(sender, instance=None, created=False, **kwargs):
@@ -24,6 +26,7 @@ def decrease_global_quota(sender, **kwargs):
 
 
 # new quotas
+
 
 def init_quotas(sender, instance, created=False, **kwargs):
     """ Initialize new instances quotas """
@@ -63,6 +66,8 @@ def handle_aggregated_quotas(sender, instance, **kwargs):
     for aggregator_quota in quota_field.get_aggregator_quotas(quota):
         field = aggregator_quota.get_field()
         if signal == signals.post_save:
-            field.post_child_quota_save(aggregator_quota.scope, child_quota=quota, created=kwargs.get('created'))
+            field.post_child_quota_save(
+                aggregator_quota.scope, child_quota=quota, created=kwargs.get('created')
+            )
         elif signal == signals.pre_delete:
             field.pre_child_quota_delete(aggregator_quota.scope, child_quota=quota)

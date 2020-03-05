@@ -1,15 +1,14 @@
-from decimal import Decimal
 import random
+from decimal import Decimal
 
-from django.test import TestCase
 from django.db.models import ProtectedError
+from django.test import TestCase
 
-from .. import factories
 from ... import models
+from .. import factories
 
 
 class PackageTemplateTest(TestCase):
-
     def test_package_price_is_based_on_components(self):
         package_template = factories.PackageTemplateFactory()
         total = Decimal('0.00')

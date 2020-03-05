@@ -6,8 +6,7 @@ class DropletResizeEventLogger(EventLogger):
     size = 'waldur_digitalocean.Size'
 
     class Meta:
-        event_types = ('droplet_resize_scheduled',
-                       'droplet_resize_succeeded')
+        event_types = ('droplet_resize_scheduled', 'droplet_resize_succeeded')
 
     @staticmethod
     def get_scopes(event_context):

@@ -10,7 +10,9 @@ def update_node_usage(sender, instance, created=False, **kwargs):
     utils.create_usage(instance)
 
 
-def create_invoice_item_if_component_usage_has_been_created(sender, instance, created=False, **kwargs):
+def create_invoice_item_if_component_usage_has_been_created(
+    sender, instance, created=False, **kwargs
+):
     component_usage = instance
 
     if not component_usage.tracker.has_changed('usage'):

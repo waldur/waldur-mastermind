@@ -1,11 +1,10 @@
 import logging
 from urllib.parse import urljoin
 
-from django.conf import settings as django_settings
-from django.utils import timezone
 import lxml.etree  # nosec
 import requests
-
+from django.conf import settings as django_settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +65,26 @@ class Request:
         )
         cert = (cls.settings['cert_path'], cls.settings['key_path'])
         # TODO: add verification
-        logger.debug('Executing POST request to %s with data:\n %s \nheaders: %s', url, data, headers)
-        response = requests.post(url, data=data, headers=headers, cert=cert, verify=cls.settings['verify_ssl'])
+        logger.debug(
+            'Executing POST request to %s with data:\n %s \nheaders: %s',
+            url,
+            data,
+            headers,
+        )
+        response = requests.post(
+            url,
+            data=data,
+            headers=headers,
+            cert=cert,
+            verify=cls.settings['verify_ssl'],
+        )
         if response.ok:
             return cls.response_class(response.content)
         else:
-            message = 'Failed to execute POST request against %s endpoint. Response [%s]: %s' % (
-                url, response.status_code, response.content)
+            message = (
+                'Failed to execute POST request against %s endpoint. Response [%s]: %s'
+                % (url, response.status_code, response.content)
+            )
             raise RequestError(message, response)
 
     @classmethod
@@ -89,14 +101,19 @@ class Request:
 
 
 class SignatureResponse(Response):
-
     def init_response_attributes(self, etree):
         try:
-            self.backend_transaction_id = etree.xpath('//MSS_SignatureResp')[0].attrib['MSSP_TransID']
-            self.status = etree.xpath('//ns6:StatusCode', namespaces={'ns6': self.ns_namespace})[0].attrib['Value']
+            self.backend_transaction_id = etree.xpath('//MSS_SignatureResp')[0].attrib[
+                'MSSP_TransID'
+            ]
+            self.status = etree.xpath(
+                '//ns6:StatusCode', namespaces={'ns6': self.ns_namespace}
+            )[0].attrib['Value']
         except (IndexError, KeyError, lxml.etree.XMLSchemaError) as e:
-            raise ResponseParseError('Cannot parse signature response: %s. Response content: %s' % (
-                e, lxml.etree.tostring(etree)))
+            raise ResponseParseError(
+                'Cannot parse signature response: %s. Response content: %s'
+                % (e, lxml.etree.tostring(etree))
+            )
 
 
 class SignatureRequest(Request):
@@ -142,7 +159,7 @@ class SignatureRequest(Request):
             'AP_TransID': cls._format_transaction_id(transaction_id),
             'MSISDN': phone,
             'DataToBeSigned': '%s %s' % (cls.settings['message_prefix'], message),
-            'SignatureProfile': cls.settings['SignatureProfile']
+            'SignatureProfile': cls.settings['SignatureProfile'],
         }
         return super(SignatureRequest, cls).execute(**kwargs)
 
@@ -159,21 +176,28 @@ class Statuses:
         elif status_code == '504':
             return cls.PROCESSING
         else:
-            raise UnknownStatusError('Received unsupported status in response: %s' % status_code)
+            raise UnknownStatusError(
+                'Received unsupported status in response: %s' % status_code
+            )
 
 
 class StatusResponse(Response):
-
     def init_response_attributes(self, etree):
         try:
-            status_code = etree.xpath('//ns5:StatusCode', namespaces={'ns5': self.ns_namespace})[0].attrib['Value']
+            status_code = etree.xpath(
+                '//ns5:StatusCode', namespaces={'ns5': self.ns_namespace}
+            )[0].attrib['Value']
         except (IndexError, KeyError, lxml.etree.XMLSchemaError) as e:
-            raise ResponseParseError('Cannot parse status response: %s. Response content: %s' % (
-                e, lxml.etree.tostring(etree)))
+            raise ResponseParseError(
+                'Cannot parse status response: %s. Response content: %s'
+                % (e, lxml.etree.tostring(etree))
+            )
         self.status = Statuses.map(status_code)
 
         try:
-            civil_number_tag = etree.xpath('//ns4:UserIdentifier', namespaces={'ns4': self.ns_namespace})[0]
+            civil_number_tag = etree.xpath(
+                '//ns4:UserIdentifier', namespaces={'ns4': self.ns_namespace}
+            )[0]
         except IndexError:
             # civil number tag does not exist - this is possible if request is still processing
             return
@@ -181,7 +205,9 @@ class StatusResponse(Response):
             try:
                 self.civil_number = civil_number_tag.text.split('=')[1]
             except IndexError:
-                raise ResponseParseError('Cannot get civil_number from tag text: %s' % civil_number_tag.text)
+                raise ResponseParseError(
+                    'Cannot get civil_number from tag text: %s' % civil_number_tag.text
+                )
 
 
 class ErredStatusResponse(Response):
@@ -190,10 +216,14 @@ class ErredStatusResponse(Response):
     def init_response_attributes(self, etree):
         self.status = Statuses.ERRED
         try:
-            self.details = etree.xpath('//soapenv:Text', namespaces={'soapenv': self.soapenv_namespace})[0].text
+            self.details = etree.xpath(
+                '//soapenv:Text', namespaces={'soapenv': self.soapenv_namespace}
+            )[0].text
         except (IndexError, lxml.etree.XMLSchemaError) as e:
-            raise ResponseParseError('Cannot parse error status response: %s. Response content: %s' % (
-                e, lxml.etree.tostring(etree)))
+            raise ResponseParseError(
+                'Cannot parse error status response: %s. Response content: %s'
+                % (e, lxml.etree.tostring(etree))
+            )
 
 
 class StatusRequest(Request):

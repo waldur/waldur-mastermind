@@ -8,17 +8,21 @@ from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_azure import VIRTUAL_MACHINE_TYPE, SQL_SERVER_TYPE
+from waldur_mastermind.marketplace_azure import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE
 
 
 class VirtualMachineCreateTest(test.APITransactionTestCase):
     def test_virtual_machine_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_virtual_machine_creation()
-        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
+        self.assertEqual(
+            order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
         self.assertTrue(azure_models.VirtualMachine.objects.exists())
 
     def test_request_payload_is_validated(self):
-        order_item = self.trigger_virtual_machine_creation(name='Name should not contain spaces')
+        order_item = self.trigger_virtual_machine_creation(
+            name='Name should not contain spaces'
+        )
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
 
     def test_virtual_machine_state_is_synchronized(self):
@@ -35,7 +39,9 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         self.assertEqual(order_item.state, order_item.States.DONE)
 
         order_item.resource.refresh_from_db()
-        self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(
+            order_item.resource.state, marketplace_models.Resource.States.OK
+        )
 
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
@@ -52,17 +58,16 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         }
         attributes.update(kwargs)
 
-        offering = marketplace_factories.OfferingFactory(type=VIRTUAL_MACHINE_TYPE, scope=service_settings)
+        offering = marketplace_factories.OfferingFactory(
+            type=VIRTUAL_MACHINE_TYPE, scope=service_settings
+        )
         # Ensure that SPL exists
         fixture.spl
         order = marketplace_factories.OrderFactory(
-            project=fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
+            project=fixture.project, state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering,
-            attributes=attributes,
-            order=order,
+            offering=offering, attributes=attributes, order=order,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -78,7 +83,9 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
         self.fixture = azure_fixtures.AzureFixture()
         self.virtual_machine = self.fixture.virtual_machine
         self.offering = marketplace_factories.OfferingFactory(type=VIRTUAL_MACHINE_TYPE)
-        self.resource = marketplace_factories.ResourceFactory(scope=self.virtual_machine, offering=self.offering)
+        self.resource = marketplace_factories.ResourceFactory(
+            scope=self.virtual_machine, offering=self.offering
+        )
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
@@ -90,9 +97,16 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
 
     def test_deletion_is_scheduled(self):
         self.trigger_deletion()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
-        self.assertEqual(self.virtual_machine.state, azure_models.VirtualMachine.States.DELETION_SCHEDULED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATING
+        )
+        self.assertEqual(
+            self.virtual_machine.state,
+            azure_models.VirtualMachine.States.DELETION_SCHEDULED,
+        )
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -101,8 +115,12 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATED
+        )
         self.assertRaises(ObjectDoesNotExist, self.virtual_machine.refresh_from_db)
 
     def trigger_deletion(self):
@@ -118,11 +136,15 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
 class SQLServerCreateTest(test.APITransactionTestCase):
     def test_virtual_machine_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_resource_creation()
-        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
+        self.assertEqual(
+            order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
         self.assertTrue(azure_models.SQLServer.objects.exists())
 
     def test_request_payload_is_validated(self):
-        order_item = self.trigger_resource_creation(name='Name should not contain spaces')
+        order_item = self.trigger_resource_creation(
+            name='Name should not contain spaces'
+        )
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
 
     def test_virtual_machine_state_is_synchronized(self):
@@ -139,7 +161,9 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         self.assertEqual(order_item.state, order_item.States.DONE)
 
         order_item.resource.refresh_from_db()
-        self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(
+            order_item.resource.state, marketplace_models.Resource.States.OK
+        )
 
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
@@ -154,17 +178,16 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         }
         attributes.update(kwargs)
 
-        offering = marketplace_factories.OfferingFactory(type=SQL_SERVER_TYPE, scope=service_settings)
+        offering = marketplace_factories.OfferingFactory(
+            type=SQL_SERVER_TYPE, scope=service_settings
+        )
         # Ensure that SPL exists
         fixture.spl
         order = marketplace_factories.OrderFactory(
-            project=fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
+            project=fixture.project, state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering,
-            attributes=attributes,
-            order=order,
+            offering=offering, attributes=attributes, order=order,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -180,7 +203,9 @@ class SQLServerDeleteTest(test.APITransactionTestCase):
         self.fixture = azure_fixtures.AzureFixture()
         self.sql_server = self.fixture.sql_server
         self.offering = marketplace_factories.OfferingFactory(type=SQL_SERVER_TYPE)
-        self.resource = marketplace_factories.ResourceFactory(scope=self.sql_server, offering=self.offering)
+        self.resource = marketplace_factories.ResourceFactory(
+            scope=self.sql_server, offering=self.offering
+        )
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
@@ -192,9 +217,15 @@ class SQLServerDeleteTest(test.APITransactionTestCase):
 
     def test_deletion_is_scheduled(self):
         self.trigger_deletion()
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
-        self.assertEqual(self.sql_server.state, azure_models.VirtualMachine.States.DELETION_SCHEDULED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATING
+        )
+        self.assertEqual(
+            self.sql_server.state, azure_models.VirtualMachine.States.DELETION_SCHEDULED
+        )
 
     def test_deletion_is_completed(self):
         self.trigger_deletion()
@@ -203,8 +234,12 @@ class SQLServerDeleteTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.DONE
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATED
+        )
         self.assertRaises(ObjectDoesNotExist, self.sql_server.refresh_from_db)
 
     def trigger_deletion(self):

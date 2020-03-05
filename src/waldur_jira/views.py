@@ -8,7 +8,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
-from . import filters, executors, models, serializers
+from . import executors, filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +70,7 @@ class PriorityViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
 
 
-class IssueViewSet(JiraPermissionMixin,
-                   structure_views.ResourceViewSet):
+class IssueViewSet(JiraPermissionMixin, structure_views.ResourceViewSet):
     queryset = models.Issue.objects.all()
     filterset_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
@@ -81,8 +80,7 @@ class IssueViewSet(JiraPermissionMixin,
     async_executor = False
 
 
-class CommentViewSet(JiraPermissionMixin,
-                     structure_views.ResourceViewSet):
+class CommentViewSet(JiraPermissionMixin, structure_views.ResourceViewSet):
     queryset = models.Comment.objects.all()
     filterset_class = filters.CommentFilter
     serializer_class = serializers.CommentSerializer
@@ -92,14 +90,19 @@ class CommentViewSet(JiraPermissionMixin,
     async_executor = False
 
 
-class AttachmentViewSet(JiraPermissionMixin,
-                        core_mixins.CreateExecutorMixin,
-                        core_mixins.DeleteExecutorMixin,
-                        viewsets.ModelViewSet):
+class AttachmentViewSet(
+    JiraPermissionMixin,
+    core_mixins.CreateExecutorMixin,
+    core_mixins.DeleteExecutorMixin,
+    viewsets.ModelViewSet,
+):
     queryset = models.Attachment.objects.all()
     filterset_class = filters.AttachmentFilter
     filter_backends = structure_filters.GenericRoleFilter, DjangoFilterBackend
-    permission_classes = permissions.IsAuthenticated, permissions.DjangoObjectPermissions
+    permission_classes = (
+        permissions.IsAuthenticated,
+        permissions.DjangoObjectPermissions,
+    )
     serializer_class = serializers.AttachmentSerializer
     create_executor = executors.AttachmentCreateExecutor
     delete_executor = executors.AttachmentDeleteExecutor
@@ -125,4 +128,6 @@ def get_jira_projects_count(project):
     return project.quotas.get(name='nc_jira_project_count').usage
 
 
-structure_views.ProjectCountersView.register_counter('jira-projects', get_jira_projects_count)
+structure_views.ProjectCountersView.register_counter(
+    'jira-projects', get_jira_projects_count
+)

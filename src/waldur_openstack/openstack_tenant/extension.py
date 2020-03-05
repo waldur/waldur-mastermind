@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class OpenStackTenantExtension(WaldurExtension):
-
     class Settings:
         # wiki: https://opennode.atlassian.net/wiki/display/WD/OpenStack+plugin+configuration
         WALDUR_OPENSTACK_TENANT = {
@@ -29,16 +28,19 @@ class OpenStackTenantExtension(WaldurExtension):
     @staticmethod
     def django_urls():
         from .urls import urlpatterns
+
         return urlpatterns
 
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
     def celery_tasks():
         from datetime import timedelta
+
         return {
             'openstacktenant-schedule-backups': {
                 'task': 'openstack_tenant.ScheduleBackups',
@@ -65,4 +67,5 @@ class OpenStackTenantExtension(WaldurExtension):
     @staticmethod
     def get_cleanup_executor():
         from .executors import OpenStackTenantCleanupExecutor
+
         return OpenStackTenantCleanupExecutor

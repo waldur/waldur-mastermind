@@ -1,29 +1,36 @@
-from django.conf import settings as conf_settings
+import io
+import logging
+
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
 
-from waldur_core.core import utils as core_utils, models as core_models
+from waldur_core.core import models as core_models
+from waldur_core.core import utils as core_utils
+from waldur_core.media import magic
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
+from waldur_rancher.enums import ClusterRoles, GlobalRoles
+from waldur_rancher.exceptions import RancherException
 
-from . import models, signals, client
+from . import client, models, signals
+
+logger = logging.getLogger(__name__)
 
 
 class RancherBackend(ServiceBackend):
 
     DEFAULTS = {
-        'cloud_init_template':
-            '#cloud-config\n'
-            'packages: \n'
-            '  - curl\n'
-            'runcmd:\n'
-            '  - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh\n'
-            '  - sudo systemctl start docker\n'
-            '  - sudo systemctl enable docker\n'
-            '  - [ sh, -c, "{command}" ]\n'
+        'cloud_init_template': '#cloud-config\n'
+        'packages: \n'
+        '  - curl\n'
+        'runcmd:\n'
+        '  - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh\n'
+        '  - sudo systemctl start docker\n'
+        '  - sudo systemctl enable docker\n'
+        '  - [ sh, -c, "{command}" ]\n'
     }
 
     def __init__(self, settings):
@@ -49,6 +56,8 @@ class RancherBackend(ServiceBackend):
         self.pull_catalogs()
         self.pull_projects()
         self.pull_namespaces()
+        self.pull_templates()
+        self.pull_template_icons()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -62,14 +71,29 @@ class RancherBackend(ServiceBackend):
 
     def delete_cluster(self, cluster):
         if cluster.backend_id:
-            self.client.delete_cluster(cluster.backend_id)
+            try:
+                self.client.delete_cluster(cluster.backend_id)
+            except RancherException as e:
+                if 'status' in e.args[0] and e.args[0]['status'] == 404:
+                    logger.warning(
+                        'Cluster %s is not present in the backend ' % cluster.backend_id
+                    )
+                else:
+                    raise RancherException(e.args[0])
 
         cluster.delete()
 
     def delete_node(self, node):
         if node.backend_id:
-            self.client.delete_node(node.backend_id)
-
+            try:
+                self.client.delete_node(node.backend_id)
+            except RancherException as e:
+                if 'status' in e.args[0] and e.args[0]['status'] == 404:
+                    logger.warning(
+                        'Node %s is not present in the backend ' % node.backend_id
+                    )
+                else:
+                    raise RancherException(e.args[0])
         node.delete()
 
     def update_cluster(self, cluster):
@@ -85,11 +109,17 @@ class RancherBackend(ServiceBackend):
         return {'name': cluster.name}
 
     def _backend_node_to_node(self, backend_node):
-        return {'backend_id': backend_node['nodeId'], 'name': backend_node['hostnameOverride']}
+        return {
+            'backend_id': backend_node['nodeId'],
+            'name': backend_node['hostnameOverride'],
+        }
 
     def get_clusters_for_import(self):
-        cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
-                           .values_list('backend_id', flat=True))
+        cur_clusters = set(
+            models.Cluster.objects.filter(settings=self.settings).values_list(
+                'backend_id', flat=True
+            )
+        )
         backend_clusters = self.client.list_clusters()
         return filter(lambda c: c['id'] not in cur_clusters, backend_clusters)
 
@@ -99,7 +129,9 @@ class RancherBackend(ServiceBackend):
             backend_id=backend_id,
             service_project_link=service_project_link,
             state=models.Cluster.States.OK,
-            runtime_state=backend_cluster['state'])
+            runtime_state=backend_cluster['state'],
+            settings=self.settings,
+        )
         self.pull_cluster(cluster, backend_cluster)
         return cluster
 
@@ -107,7 +139,11 @@ class RancherBackend(ServiceBackend):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
-        backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        backend_nodes = (
+            backend_cluster.get('appliedSpec', {})
+            .get('rancherKubernetesEngineConfig', {})
+            .get('nodes', [])
+        )
 
         for backend_node in backend_nodes:
             roles = backend_node.get('role', [])
@@ -121,8 +157,8 @@ class RancherBackend(ServiceBackend):
                     backend_id=backend_node.get('nodeId'),
                     controlplane_role='controlplane' in roles,
                     etcd_role='etcd' in roles,
-                    worker_role='worker' in roles
-                )
+                    worker_role='worker' in roles,
+                ),
             )
 
             if not node.backend_id:
@@ -145,16 +181,20 @@ class RancherBackend(ServiceBackend):
     def check_cluster_creating(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
-        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
+        if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
             cluster.state = models.Cluster.States.OK
             cluster.save()
             return
 
-        for node in cluster.node_set.filter(Q(controlplane_role=True) | Q(etcd_role=True)):
+        for node in cluster.node_set.filter(
+            Q(controlplane_role=True) | Q(etcd_role=True)
+        ):
             controlplane_role = etcd_role = False
-            if node.instance.state not in [core_models.StateMixin.States.ERRED,
-                                           core_models.StateMixin.States.DELETING,
-                                           core_models.StateMixin.States.DELETION_SCHEDULED]:
+            if node.instance.state not in [
+                core_models.StateMixin.States.ERRED,
+                core_models.StateMixin.States.DELETING,
+                core_models.StateMixin.States.DELETION_SCHEDULED,
+            ]:
                 if node.controlplane_role:
                     controlplane_role = True
                 if node.etcd_role:
@@ -165,20 +205,26 @@ class RancherBackend(ServiceBackend):
                     # Here 'return' means that cluster state checking must be retry later.
                     return
 
-        cluster.error_message = 'The cluster is not connected with any ' \
-                                'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
+        cluster.error_message = (
+            'The cluster is not connected with any '
+            'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
+        )
         cluster.runtime_state = 'error'
         cluster.state = core_models.StateMixin.States.ERRED
         cluster.save()
 
     def get_cluster_nodes(self, backend_id):
         backend_cluster = self.client.get_cluster(backend_id)
-        nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        nodes = (
+            backend_cluster.get('appliedSpec', {})
+            .get('rancherKubernetesEngineConfig', {})
+            .get('nodes', [])
+        )
         return [self._backend_node_to_node(node) for node in nodes]
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
+        return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
 
     def update_node_details(self, node):
         if not node.backend_id:
@@ -211,30 +257,29 @@ class RancherBackend(ServiceBackend):
         cpu_allocated = get_backend_node_field('requested', 'cpu')
 
         if cpu_allocated:
-            node.cpu_allocated = \
-                core_utils.parse_int(cpu_allocated) / 1000  # convert data from 380m to 0.38
+            node.cpu_allocated = (
+                core_utils.parse_int(cpu_allocated) / 1000
+            )  # convert data from 380m to 0.38
 
         ram_allocated = get_backend_node_field('requested', 'memory')
         update_node_field('allocatable', 'cpu', field='cpu_total')
 
         if ram_allocated:
-            node.ram_allocated = \
-                int(core_utils.parse_int(ram_allocated) / 2 ** 20)  # convert data to Mi
+            node.ram_allocated = int(
+                core_utils.parse_int(ram_allocated) / 2 ** 20
+            )  # convert data to Mi
 
         ram_total = get_backend_node_field('allocatable', 'memory')
 
         if ram_total:
-            node.ram_total = \
-                int(core_utils.parse_int(ram_total) / 2 ** 20)  # convert data to Mi
+            node.ram_total = int(
+                core_utils.parse_int(ram_total) / 2 ** 20
+            )  # convert data to Mi
 
         update_node_field('requested', 'pods', field='pods_allocated')
         update_node_field('allocatable', 'pods', field='pods_total')
         update_node_field('state', field='runtime_state')
 
-        if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
-            node.state = models.Node.States.OK
-        else:
-            node.state = models.Node.States.ERRED
         return node.save()
 
     def create_user(self, user):
@@ -243,18 +288,14 @@ class RancherBackend(ServiceBackend):
 
         password = models.RancherUser.make_random_password()
         response = self.client.create_user(
-            name=user.user.username,
-            username=user.user.username,
-            password=password
+            name=user.user.username, username=user.user.username, password=password
         )
         user_id = response['id']
         user.backend_id = user_id
         user.save()
-        self.client.create_global_role(user.backend_id, client.GlobalRoleId.user_base)
+        self.client.create_global_role(user.backend_id, GlobalRoles.user_base)
         signals.rancher_user_created.send(
-            sender=models.RancherUser,
-            instance=user,
-            password=password,
+            sender=models.RancherUser, instance=user, password=password,
         )
 
     def delete_user(self, user):
@@ -279,15 +320,14 @@ class RancherBackend(ServiceBackend):
         role = None
 
         if link.role == models.ClusterRole.CLUSTER_OWNER:
-            role = client.ClusterRoleId.cluster_owner
+            role = ClusterRoles.cluster_owner
 
         if link.role == models.ClusterRole.CLUSTER_MEMBER:
-            role = client.ClusterRoleId.cluster_member
+            role = ClusterRoles.cluster_member
 
         response = self.client.create_cluster_role(
-            link.user.backend_id,
-            link.cluster.backend_id,
-            role)
+            link.user.backend_id, link.cluster.backend_id, role
+        )
         link_id = response['id']
         link.backend_id = link_id
         link.save()
@@ -301,7 +341,7 @@ class RancherBackend(ServiceBackend):
     def pull_catalogs(self):
         self.pull_global_catalogs()
         self.pull_cluster_catalogs()
-        # TODO: Implement Rancher project catalogs synchronization
+        self.pull_project_catalogs()
 
     def pull_global_catalogs(self):
         remote_catalogs = self.client.list_global_catalogs()
@@ -309,24 +349,25 @@ class RancherBackend(ServiceBackend):
 
     def pull_cluster_catalogs(self):
         remote_catalogs = self.client.list_cluster_catalogs()
-        for cluster in models.Cluster.objects.filter(service_project_link__service__settings=self.settings):
+        for cluster in models.Cluster.objects.filter(settings=self.settings):
+            self.pull_catalogs_for_scope(remote_catalogs, cluster)
+
+    def pull_project_catalogs(self):
+        remote_catalogs = self.client.list_project_catalogs()
+        for cluster in models.Project.objects.filter(settings=self.settings):
             self.pull_catalogs_for_scope(remote_catalogs, cluster)
 
     def pull_catalogs_for_scope(self, remote_catalogs, scope):
         content_type = ContentType.objects.get_for_model(scope)
         local_catalogs = models.Catalog.objects.filter(
-            content_type=content_type,
-            object_id=scope.id,
+            content_type=content_type, object_id=scope.id,
         )
 
         remote_catalog_map = {
             catalog['id']: self.remote_catalog_to_local(catalog, content_type, scope.id)
             for catalog in remote_catalogs
         }
-        local_catalog_map = {
-            catalog.id: catalog
-            for catalog in local_catalogs
-        }
+        local_catalog_map = {catalog.backend_id: catalog for catalog in local_catalogs}
         remote_catalog_ids = set(remote_catalog_map.keys())
         local_catalog_ids = set(local_catalog_map.keys())
 
@@ -339,8 +380,14 @@ class RancherBackend(ServiceBackend):
 
         existing_catalogs = remote_catalog_ids & local_catalog_ids
         pulled_fields = {
-            'name', 'description', 'catalog_url', 'branch',
-            'commit', 'username', 'password', 'runtime_state',
+            'name',
+            'description',
+            'catalog_url',
+            'branch',
+            'commit',
+            'username',
+            'password',
+            'runtime_state',
         }
         for catalog_id in existing_catalogs:
             local_catalog = local_catalog_map[catalog_id]
@@ -364,6 +411,7 @@ class RancherBackend(ServiceBackend):
             username=remote_catalog.get('username', ''),
             password=remote_catalog.get('password', ''),
             runtime_state=remote_catalog['state'],
+            settings=self.settings,
         )
 
     def refresh_catalog(self, catalog):
@@ -422,23 +470,15 @@ class RancherBackend(ServiceBackend):
 
     def pull_projects(self):
         remote_projects = self.client.list_projects()
-        local_projects = models.Project.objects.filter(
-            cluster__service_project_link__service__settings=self.settings)
-        local_clusters = models.Cluster.objects.filter(
-            service_project_link__service__settings=self.settings)
+        local_projects = models.Project.objects.filter(settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
 
-        local_cluster_map = {
-            cluster.backend_id: cluster
-            for cluster in local_clusters
-        }
+        local_cluster_map = {cluster.backend_id: cluster for cluster in local_clusters}
         remote_project_map = {
             project['id']: self.remote_project_to_local(project, local_cluster_map)
             for project in remote_projects
         }
-        local_project_map = {
-            project.id: project
-            for project in local_projects
-        }
+        local_project_map = {project.backend_id: project for project in local_projects}
         remote_project_ids = set(remote_project_map.keys())
         local_project_ids = set(local_project_map.keys())
 
@@ -451,7 +491,10 @@ class RancherBackend(ServiceBackend):
 
         existing_projects = remote_project_ids & local_project_ids
         pulled_fields = {
-            'name', 'description', 'runtime_state', 'cluster',
+            'name',
+            'description',
+            'runtime_state',
+            'cluster',
         }
         for project_id in existing_projects:
             local_project = local_project_map[project_id]
@@ -468,12 +511,12 @@ class RancherBackend(ServiceBackend):
             description=remote_project['description'],
             created=parse_datetime(remote_project['created']),
             runtime_state=remote_project['state'],
-            cluster=local_cluster_map.get(remote_project['clusterId'])
+            cluster=local_cluster_map.get(remote_project['clusterId']),
+            settings=self.settings,
         )
 
     def pull_namespaces(self):
-        local_clusters = models.Cluster.objects.filter(
-            service_project_link__service__settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
             self.pull_cluster_namespaces(cluster)
 
@@ -482,17 +525,15 @@ class RancherBackend(ServiceBackend):
         local_namespaces = models.Namespace.objects.filter(project__cluster=cluster)
         local_projects = models.Project.objects.filter(cluster=cluster)
 
-        local_project_map = {
-            project.backend_id: project
-            for project in local_projects
-        }
+        local_project_map = {project.backend_id: project for project in local_projects}
         remote_namespace_map = {
-            namespace['id']: self.remote_namespace_to_local(namespace, local_project_map)
+            namespace['id']: self.remote_namespace_to_local(
+                namespace, local_project_map
+            )
             for namespace in remote_namespaces
         }
         local_namespace_map = {
-            namespace.id: namespace
-            for namespace in local_namespaces
+            namespace.backend_id: namespace for namespace in local_namespaces
         }
         remote_namespace_ids = set(remote_namespace_map.keys())
         local_namespace_ids = set(local_namespace_map.keys())
@@ -506,7 +547,9 @@ class RancherBackend(ServiceBackend):
 
         existing_namespaces = remote_namespace_ids & local_namespace_ids
         pulled_fields = {
-            'name', 'runtime_state', 'project',
+            'name',
+            'runtime_state',
+            'project',
         }
         for namespace_id in existing_namespaces:
             local_namespace = local_namespace_map[namespace_id]
@@ -522,5 +565,89 @@ class RancherBackend(ServiceBackend):
             name=remote_namespace['name'],
             created=parse_datetime(remote_namespace['created']),
             runtime_state=remote_namespace['state'],
-            project=local_project_map.get(remote_namespace['projectId'])
+            project=local_project_map.get(remote_namespace['projectId']),
+            settings=self.settings,
         )
+
+    def pull_templates(self):
+        remote_templates = self.client.list_templates()
+        local_templates = models.Template.objects.filter(settings=self.settings)
+        local_catalogs = models.Catalog.objects.filter(settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        local_projects = models.Project.objects.filter(settings=self.settings)
+
+        local_catalog_map = {catalog.backend_id: catalog for catalog in local_catalogs}
+        local_cluster_map = {cluster.backend_id: cluster for cluster in local_clusters}
+        local_project_map = {project.backend_id: project for project in local_projects}
+        local_template_map = {
+            template.backend_id: template for template in local_templates
+        }
+        remote_template_map = {
+            template['id']: self.remote_template_to_local(
+                template, local_catalog_map, local_cluster_map, local_project_map
+            )
+            for template in remote_templates
+        }
+        remote_template_ids = set(remote_template_map.keys())
+        local_template_ids = set(local_template_map.keys())
+
+        stale_templates = local_template_ids - remote_template_ids
+
+        new_templates = [
+            remote_template_map[template_id]
+            for template_id in remote_template_ids - local_template_ids
+        ]
+
+        existing_templates = remote_template_ids & local_template_ids
+        pulled_fields = {
+            'name',
+            'description',
+            'runtime_state',
+            'project_url',
+            'icon_url',
+            'default_version',
+            'versions',
+            'catalog',
+            'cluster',
+            'project',
+        }
+        for template_id in existing_templates:
+            local_template = local_template_map[template_id]
+            remote_template = remote_template_map[template_id]
+            update_pulled_fields(local_template, remote_template, pulled_fields)
+
+        models.Template.objects.bulk_create(new_templates)
+        local_templates.filter(id__in=stale_templates).delete()
+
+    def remote_template_to_local(
+        self, remote_template, local_catalog_map, local_cluster_map, local_project_map
+    ):
+        return models.Template(
+            backend_id=remote_template['id'],
+            name=remote_template['name'],
+            description=remote_template['description'],
+            created=parse_datetime(remote_template['created']),
+            runtime_state=remote_template['state'],
+            icon_url=remote_template['links']['icon'],
+            project_url=remote_template.get('projectURL', ''),
+            default_version=remote_template['defaultVersion'],
+            versions=list(remote_template['versionLinks'].keys()),
+            catalog=local_catalog_map.get(remote_template['catalogId']),
+            cluster=local_cluster_map.get(remote_template['clusterId']),
+            project=local_project_map.get(remote_template['projectId']),
+            settings=self.settings,
+        )
+
+    def pull_template_icons(self):
+        for template in models.Template.objects.filter(settings=self.settings):
+            content = self.client.get_template_icon(template.backend_id)
+            mime_type = magic.from_buffer(content[:1024], mime=True)
+            extension = {
+                'image/svg+xml': 'svg',
+                'image/png': 'png',
+                'image/jpeg': 'jpeg',
+                'image/webp': 'webp',
+            }.get(mime_type)
+            if not extension:
+                continue
+            template.icon.save(f'{template.uuid}.{extension}', io.BytesIO(content))

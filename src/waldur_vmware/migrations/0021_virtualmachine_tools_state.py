@@ -13,6 +13,15 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='virtualmachine',
             name='tools_state',
-            field=models.CharField(blank=True, choices=[('STARTING', 'Starting'), ('RUNNING', 'Running'), ('NOT_RUNNING', 'Not running')], max_length=50, verbose_name='Current running status of VMware Tools running in the guest operating system.'),
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ('STARTING', 'Starting'),
+                    ('RUNNING', 'Running'),
+                    ('NOT_RUNNING', 'Not running'),
+                ],
+                max_length=50,
+                verbose_name='Current running status of VMware Tools running in the guest operating system.',
+            ),
         ),
     ]

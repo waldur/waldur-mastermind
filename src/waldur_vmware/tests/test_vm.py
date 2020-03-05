@@ -1,6 +1,6 @@
-import ddt
 from unittest import mock
 
+import ddt
 from rest_framework import status, test
 
 from waldur_vmware.tests.utils import override_plugin_settings
@@ -18,7 +18,9 @@ class VirtualMachineCreateBaseTest(test.APITransactionTestCase):
     def get_valid_payload(self):
         return {
             'name': 'VMware VM',
-            'service_project_link': factories.VMwareServiceProjectLinkFactory.get_url(self.fixture.spl),
+            'service_project_link': factories.VMwareServiceProjectLinkFactory.get_url(
+                self.fixture.spl
+            ),
             'template': factories.TemplateFactory.get_url(self.fixture.template),
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
             'datastore': factories.DatastoreFactory.get_url(self.fixture.datastore),
@@ -37,7 +39,10 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
         payload['cluster'] = factories.ClusterFactory.get_url()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This cluster is not available for this service.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This cluster is not available for this service.',
+        )
 
     def test_cluster_customer_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -46,11 +51,16 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
         payload['cluster'] = factories.ClusterFactory.get_url(cluster)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This cluster is not available for this customer.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This cluster is not available for this customer.',
+        )
 
     def test_default_cluster_label_is_defined(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['default_cluster_label'] = self.fixture.cluster.name
+        self.fixture.settings.options[
+            'default_cluster_label'
+        ] = self.fixture.cluster.name
         self.fixture.settings.save(update_fields=['options'])
         payload = self.get_valid_payload()
         del payload['cluster']
@@ -63,7 +73,10 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
         del payload['cluster']
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'Default cluster is not defined for this service.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'Default cluster is not defined for this service.',
+        )
 
     @override_plugin_settings(BASIC_MODE=True)
     def test_with_basic_mode_cluster_is_matched_by_customer_and_settings(self):
@@ -78,7 +91,9 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(vm.cluster, self.fixture.cluster)
 
     @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_be_at_least_one_cluster_for_customer_and_service(self):
+    def test_with_basic_mode_there_should_be_at_least_one_cluster_for_customer_and_service(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         del payload['cluster']
@@ -88,20 +103,23 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_not_be_multiple_clusters_for_the_same_customer_and_service(self):
+    def test_with_basic_mode_there_should_not_be_multiple_clusters_for_the_same_customer_and_service(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         del payload['cluster']
 
         cluster = factories.ClusterFactory(settings=self.fixture.settings)
-        factories.CustomerClusterFactory(cluster=cluster, customer=self.fixture.customer)
+        factories.CustomerClusterFactory(
+            cluster=cluster, customer=self.fixture.customer
+        )
 
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
-
     def test_create_vm_with_network(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
@@ -117,7 +135,10 @@ class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
         payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This network is not available for this customer.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This network is not available for this customer.',
+        )
 
     def test_network_settings_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -126,7 +147,10 @@ class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
         payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This network is not available for this service.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This network is not available for this service.',
+        )
 
     @override_plugin_settings(BASIC_MODE=True)
     def test_with_basic_mode_network_is_matched_by_customer_and_settings(self):
@@ -140,7 +164,9 @@ class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(vm.networks.get(), self.fixture.network)
 
     @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_be_at_least_one_network_for_customer_and_service(self):
+    def test_with_basic_mode_there_should_be_at_least_one_network_for_customer_and_service(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         self.fixture.network.delete()
@@ -149,23 +175,28 @@ class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_not_be_multiple_networks_for_the_same_customer_and_service(self):
+    def test_with_basic_mode_there_should_not_be_multiple_networks_for_the_same_customer_and_service(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
 
         network = factories.NetworkFactory(settings=self.fixture.settings)
-        factories.CustomerNetworkFactory(network=network, customer=self.fixture.customer)
+        factories.CustomerNetworkFactory(
+            network=network, customer=self.fixture.customer
+        )
 
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
-
     def test_create_vm_with_datastore(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
-        payload['datastore'] = factories.DatastoreFactory.get_url(self.fixture.datastore)
+        payload['datastore'] = factories.DatastoreFactory.get_url(
+            self.fixture.datastore
+        )
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -176,7 +207,10 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
         payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This datastore is not available for this customer.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This datastore is not available for this customer.',
+        )
 
     def test_datastore_settings_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -185,7 +219,10 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
         payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This datastore is not available for this service.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This datastore is not available for this service.',
+        )
 
     def test_datastore_size_validation(self):
         self.fixture.template.disk = 200
@@ -195,11 +232,15 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
 
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
-        payload['datastore'] = factories.DatastoreFactory.get_url(self.fixture.datastore)
+        payload['datastore'] = factories.DatastoreFactory.get_url(
+            self.fixture.datastore
+        )
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0],
-                         'There is no datastore with enough free space available for current customer.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'There is no datastore with enough free space available for current customer.',
+        )
 
     @override_plugin_settings(BASIC_MODE=True)
     def test_with_basic_mode_datastore_is_matched_by_customer_and_settings(self):
@@ -214,7 +255,9 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(vm.datastore, self.fixture.datastore)
 
     @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_be_at_least_one_datastore_for_customer_and_service(self):
+    def test_with_basic_mode_there_should_be_at_least_one_datastore_for_customer_and_service(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         del payload['datastore']
@@ -225,14 +268,16 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
 
 
 class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
-
     def test_folder_settings_validation(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         payload['folder'] = factories.FolderFactory.get_url()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This folder is not available for this service.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This folder is not available for this service.',
+        )
 
     def test_folder_customer_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -241,7 +286,10 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
         payload['folder'] = factories.FolderFactory.get_url(cluster)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['non_field_errors'][0], 'This folder is not available for this customer.')
+        self.assertEqual(
+            response.data['non_field_errors'][0],
+            'This folder is not available for this customer.',
+        )
 
     @override_plugin_settings(BASIC_MODE=True)
     def test_with_basic_mode_folder_is_matched_by_customer_and_settings(self):
@@ -255,7 +303,9 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(vm.folder, self.fixture.folder)
 
     @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_be_at_least_one_folder_for_customer_and_service(self):
+    def test_with_basic_mode_there_should_be_at_least_one_folder_for_customer_and_service(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         self.fixture.folder.delete()
@@ -265,7 +315,6 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
 
 
 class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
-
     def test_max_cpu_is_not_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
         self.fixture.settings.options['max_cpu'] = 100
@@ -393,10 +442,7 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
         backend.client = self.client
         backend.client.deploy_vm_from_template.return_value = 'vm-01'
         backend.client.create_vm.return_value = 'vm-01'
-        backend.client.get_vm.return_value = {
-            'power_state': 'POWERED_OFF',
-            'disks': []
-        }
+        backend.client.get_vm.return_value = {'power_state': 'POWERED_OFF', 'disks': []}
 
         backend.create_virtual_machine(vm)
 
@@ -419,14 +465,8 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
         vm.folder = None
         vm.save()
         self.client.list_folders.return_value = [
-            {
-                "name": "string",
-                "folder": "obj-103"
-            },
-            {
-                "name": "string",
-                "folder": "obj-104"
-            }
+            {"name": "string", "folder": "obj-103"},
+            {"name": "string", "folder": "obj-104"},
         ]
 
         # Act
@@ -453,14 +493,8 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
         vm.cluster = None
         vm.save()
         self.client.list_resource_pools.return_value = [
-            {
-                "name": "string",
-                "resource_pool": "obj-103"
-            },
-            {
-                "name": "string",
-                "resource_pool": "obj-104"
-            }
+            {"name": "string", "resource_pool": "obj-103"},
+            {"name": "string", "resource_pool": "obj-104"},
         ]
 
         # Act
@@ -480,8 +514,8 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
                     "value": {
                         "backing_type": "STANDARD_PORTGROUP",
                         "mac_type": "MANUAL",
-                        "network": "obj-103"
-                    }
+                        "network": "obj-103",
+                    },
                 }
             ]
         }
@@ -492,12 +526,10 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
 
         # Assert
         spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
-        self.assertEqual(spec['hardware_customization']['nics'], [{
-            'key': 'obj-103',
-            'value': {
-                'network': self.fixture.network.backend_id
-            }
-        }])
+        self.assertEqual(
+            spec['hardware_customization']['nics'],
+            [{'key': 'obj-103', 'value': {'network': self.fixture.network.backend_id}}],
+        )
 
     def test_nic_is_created_from_scratch(self):
         # Arrange
@@ -510,43 +542,62 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
         self.create_vm(vm)
 
         # Assert
-        self.client.create_nic.assert_called_once_with('vm-01', self.fixture.network.backend_id)
+        self.client.create_nic.assert_called_once_with(
+            'vm-01', self.fixture.network.backend_id
+        )
 
 
 class NetworkPortCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
-        self.url = factories.VirtualMachineFactory.get_url(self.fixture.virtual_machine, 'create_port')
+        self.url = factories.VirtualMachineFactory.get_url(
+            self.fixture.virtual_machine, 'create_port'
+        )
 
     def test_if_customer_network_pair_does_not_exist_port_can_not_be_created(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post(self.url, {
-            'name': 'Test',
-            'network': factories.NetworkFactory.get_url(self.fixture.network)
-        })
+        response = self.client.post(
+            self.url,
+            {
+                'name': 'Test',
+                'network': factories.NetworkFactory.get_url(self.fixture.network),
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_if_customer_network_pair_exists_port_can_be_created(self):
         self.client.force_authenticate(self.fixture.owner)
         self.fixture.customer_network_pair
-        response = self.client.post(self.url, {
-            'name': 'Test',
-            'network': factories.NetworkFactory.get_url(self.fixture.network)
-        })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+        response = self.client.post(
+            self.url,
+            {
+                'name': 'Test',
+                'network': factories.NetworkFactory.get_url(self.fixture.network),
+            },
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_201_CREATED, response.content
+        )
 
     def test_vm_can_have_at_most_10_network_adapters(self):
         self.client.force_authenticate(self.fixture.owner)
         self.fixture.customer_network_pair
-        factories.PortFactory.create_batch(10,
-                                           vm=self.fixture.virtual_machine,
-                                           network=self.fixture.network,
-                                           service_project_link=self.fixture.virtual_machine.service_project_link)
-        response = self.client.post(self.url, {
-            'name': 'Test',
-            'network': factories.NetworkFactory.get_url(self.fixture.network)
-        })
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.content)
+        factories.PortFactory.create_batch(
+            10,
+            vm=self.fixture.virtual_machine,
+            network=self.fixture.network,
+            service_project_link=self.fixture.virtual_machine.service_project_link,
+        )
+        response = self.client.post(
+            self.url,
+            {
+                'name': 'Test',
+                'network': factories.NetworkFactory.get_url(self.fixture.network),
+            },
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.content
+        )
 
 
 @ddt.ddt
@@ -570,7 +621,9 @@ class GuestPowerTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
     @ddt.data('reboot_guest', 'shutdown_guest')
-    def test_if_vm_tools_are_not_running_guest_power_management_is_not_allowed(self, action):
+    def test_if_vm_tools_are_not_running_guest_power_management_is_not_allowed(
+        self, action
+    ):
         # Arrange
         self.vm.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         self.vm.save()
@@ -581,4 +634,6 @@ class GuestPowerTest(test.APITransactionTestCase):
         response = self.client.post(url)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )

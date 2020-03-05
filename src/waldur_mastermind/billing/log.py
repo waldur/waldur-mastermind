@@ -1,9 +1,8 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
-from waldur_core.structure.models import Project, Customer
+from waldur_core.structure.models import Customer, Project
 
 
 class PriceEstimateEventLogger(EventLogger):
-
     class Meta:
         event_types = ('project_price_limit_updated', 'customer_price_limit_updated')
         event_groups = {

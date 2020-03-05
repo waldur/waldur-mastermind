@@ -26,11 +26,11 @@ Total price estimate - price of the consumables that resource will use in a mont
 Total price estimate is calculated for all registered resources and their
 structure objects: SPLs, projects, services, service settings, customers.
 
-Module "cost_tracking" connects to Django signals to keep resource estimate and 
+Module "cost_tracking" connects to Django signals to keep resource estimate and
 consumption details up to date (check the code of the handlers for more details).
 Model "ConsumptionDetails" stores current resource configuration and how many
 consumables were used by a resource. On each configuration update module updates
-consumption details and recalculates price estimates for resource and all his 
+consumption details and recalculates price estimates for resource and all his
 ancestors.
 
 

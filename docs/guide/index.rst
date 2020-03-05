@@ -1,6 +1,5 @@
 .. toctree::
 
-    install-from-rpm.rst
     install-from-src.rst
     api.rst
     background.rst

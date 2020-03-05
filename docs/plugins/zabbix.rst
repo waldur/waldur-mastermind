@@ -94,7 +94,7 @@ Setup
 
 3. Create template group:
 
-  - name, description, icon_url - support parameters for the application store 
+  - name, description, icon_url - support parameters for the application store
   - tags - SaaS
 
 4. Add OpenStack instance provision template:
@@ -132,13 +132,13 @@ Setup
    {
         "engine": "django.db.backends.mysql",
         "name": "zabbix",
-        "host": "XXX", 
+        "host": "XXX",
         "user": "waldur",
         "password": "{{ response.user_data|bootstrap_opts:'p' }}",
         "port": "3306"
    }
 
-Parameter "host" should be specified based on environment and Zabbix image 
+Parameter "host" should be specified based on environment and Zabbix image
 configuration.
 
 
@@ -148,16 +148,16 @@ Requests from frontend
 1. To create instance with advance monitoring issue POST request to template_group provision endpoint with project, name
    and security group named "zabbix".
 
-2. To get list of all available for instance advanced zabbix services - issue GET request against **/api/zabbix/** with 
+2. To get list of all available for instance advanced zabbix services - issue GET request against **/api/zabbix/** with
    parameters:
 
     - project=<instance project>
     - tag=advanced
 
-3. To create host for instance - issue POST request against **/api/zabbix-hosts/** with instance url as scope. Check 
+3. To create host for instance - issue POST request against **/api/zabbix-hosts/** with instance url as scope. Check
    endpoint details for other parameters details.
 
-4. Instance advanced monitoring can be enabled/disabled by changing host status with PUT/PATCH request against 
+4. Instance advanced monitoring can be enabled/disabled by changing host status with PUT/PATCH request against
    **/api/zabbix-hosts/<uuid>/**.
 
 5. If instance is already monitored - host will appear in <related_resources> with tag "advanced" in service_tags field.

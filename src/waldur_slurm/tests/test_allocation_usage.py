@@ -1,4 +1,4 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from rest_framework import status, test
 
 from . import factories, fixtures
@@ -17,7 +17,10 @@ class AllocationUsageGetTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['allocation'], factories.AllocationFactory.get_url(self.usage.allocation))
+        self.assertEqual(
+            response.data[0]['allocation'],
+            factories.AllocationFactory.get_url(self.usage.allocation),
+        )
 
         self.assertEqual(response.data[0]['cpu_usage'], self.usage.cpu_usage)
         self.assertEqual(response.data[0]['gpu_usage'], self.usage.gpu_usage)

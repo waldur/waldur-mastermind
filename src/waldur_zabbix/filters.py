@@ -9,7 +9,6 @@ from . import models
 
 
 class HostScopeFilterBackend(core_filters.GenericKeyFilterBackend):
-
     def get_related_models(self):
         return structure_models.ResourceMixin.get_all_models()
 
@@ -18,12 +17,17 @@ class HostScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class TriggerFilter(ServicePropertySettingsFilter):
-    template = core_filters.URLFilter(view_name='zabbix-template-detail', field_name='template__uuid', distinct=True)
+    template = core_filters.URLFilter(
+        view_name='zabbix-template-detail', field_name='template__uuid', distinct=True
+    )
     template_uuid = django_filters.UUIDFilter(field_name='template__uuid')
 
     class Meta(ServicePropertySettingsFilter.Meta):
         model = models.Trigger
-        fields = ServicePropertySettingsFilter.Meta.fields + ('template', 'template_uuid')
+        fields = ServicePropertySettingsFilter.Meta.fields + (
+            'template',
+            'template_uuid',
+        )
 
 
 class UserFilter(ServicePropertySettingsFilter):

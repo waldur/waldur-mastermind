@@ -24,7 +24,10 @@ class MinCronValueValidator(BaseValidator):
     Validate that the period of cron schedule is greater than or equal to provided limit_value in hours,
     otherwise raise ValidationError.
     """
-    message = _('Ensure schedule period is greater than or equal to %(limit_value)s hour(s).')
+
+    message = _(
+        'Ensure schedule period is greater than or equal to %(limit_value)s hour(s).'
+    )
     code = 'min_cron_value'
 
     def compare(self, cleaned, limit_value):
@@ -34,32 +37,41 @@ class MinCronValueValidator(BaseValidator):
         schedule = croniter(cleaned, now)
         closest_schedule = schedule.get_next(timezone.datetime)
         next_schedule = schedule.get_next(timezone.datetime)
-        schedule_interval_in_hours = (next_schedule - closest_schedule).total_seconds() / 3600
+        schedule_interval_in_hours = (
+            next_schedule - closest_schedule
+        ).total_seconds() / 3600
         return schedule_interval_in_hours < limit_value
 
 
 def validate_name(value):
     if len(value.strip()) == 0:
-        raise ValidationError(_('Ensure that name has at least one non-whitespace character.'))
+        raise ValidationError(
+            _('Ensure that name has at least one non-whitespace character.')
+        )
 
 
 class StateValidator:
-
     def __init__(self, *valid_states):
         self.valid_states = valid_states
 
     def __call__(self, resource):
         if resource.state not in self.valid_states:
             states_names = dict(resource.States.CHOICES)
-            valid_states_names = [str(states_names[state]) for state in self.valid_states]
-            raise exceptions.IncorrectStateException(_('Valid states for operation: %s.') % ', '.join(valid_states_names))
+            valid_states_names = [
+                str(states_names[state]) for state in self.valid_states
+            ]
+            raise exceptions.IncorrectStateException(
+                _('Valid states for operation: %s.') % ', '.join(valid_states_names)
+            )
 
 
 class RuntimeStateValidator(StateValidator):
-
     def __call__(self, resource):
         if resource.runtime_state not in self.valid_states:
-            raise exceptions.IncorrectStateException(_('Valid runtime states for operation: %s.') % ', '.join(self.valid_states))
+            raise exceptions.IncorrectStateException(
+                _('Valid runtime states for operation: %s.')
+                % ', '.join(self.valid_states)
+            )
 
 
 class BackendURLValidator(URLValidator):

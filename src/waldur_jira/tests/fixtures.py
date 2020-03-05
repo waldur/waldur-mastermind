@@ -13,20 +13,26 @@ class JiraFixture(structure_fixtures.ProjectFixture):
         return structure_factories.ServiceSettingsFactory(
             type=JiraConfig.service_name,
             backend_url='http://jira/',
-            customer=self.customer
+            customer=self.customer,
         )
 
     @cached_property
     def service(self):
-        return factories.JiraServiceFactory(settings=self.service_settings, customer=self.customer)
+        return factories.JiraServiceFactory(
+            settings=self.service_settings, customer=self.customer
+        )
 
     @cached_property
     def service_project_link(self):
-        return factories.JiraServiceProjectLinkFactory(service=self.service, project=self.project)
+        return factories.JiraServiceProjectLinkFactory(
+            service=self.service, project=self.project
+        )
 
     @cached_property
     def service_project_link_url(self):
-        return factories.JiraServiceProjectLinkFactory.get_url(self.service_project_link)
+        return factories.JiraServiceProjectLinkFactory.get_url(
+            self.service_project_link
+        )
 
     @cached_property
     def jira_project(self):

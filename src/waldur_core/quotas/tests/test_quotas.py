@@ -1,14 +1,15 @@
 from datetime import timedelta
-from ddt import ddt, data
+
+from ddt import data, ddt
 from django.utils import timezone
-from rest_framework import test, status
+from rest_framework import status, test
 from reversion.models import Version
 
 from waldur_core.core import utils as core_utils
 from waldur_core.quotas.tests import factories
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.tests import (factories as structure_factories,
-                                         fixtures as structure_fixtures)
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 @ddt
@@ -41,7 +42,6 @@ class QuotaUpdateTest(test.APITransactionTestCase):
 
 
 class QuotaHistoryTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.owner = structure_factories.UserFactory(username='owner')
@@ -50,7 +50,11 @@ class QuotaHistoryTest(test.APITransactionTestCase):
         self.quota = factories.QuotaFactory(scope=self.customer)
         self.url = factories.QuotaFactory.get_url(self.quota, 'history')
         # Hook for test: lets say that revision was created one hour ago
-        version = Version.objects.get_for_object(self.quota).filter(revision__date_created__lte=timezone.now()).first()
+        version = (
+            Version.objects.get_for_object(self.quota)
+            .filter(revision__date_created__lte=timezone.now())
+            .first()
+        )
         version.revision.date_created = timezone.now() - timedelta(hours=1)
         version.revision.save()
 
@@ -58,7 +62,9 @@ class QuotaHistoryTest(test.APITransactionTestCase):
         old_usage = self.quota.usage
         self.quota.usage = self.quota.usage + 1
         self.quota.save()
-        history_timestamp = core_utils.datetime_to_timestamp(timezone.now() - timedelta(minutes=30))
+        history_timestamp = core_utils.datetime_to_timestamp(
+            timezone.now() - timedelta(minutes=30)
+        )
 
         self.client.force_authenticate(self.owner)
         response = self.client.get(self.url, data={'point': history_timestamp})
@@ -68,7 +74,9 @@ class QuotaHistoryTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]['object']['usage'], old_usage)
 
     def test_endpoint_does_not_return_object_if_date(self):
-        history_timestamp = core_utils.datetime_to_timestamp(timezone.now() - timedelta(hours=2))
+        history_timestamp = core_utils.datetime_to_timestamp(
+            timezone.now() - timedelta(hours=2)
+        )
 
         self.client.force_authenticate(self.owner)
         response = self.client.get(self.url, data={'point': history_timestamp})
@@ -81,11 +89,17 @@ class QuotaHistoryTest(test.APITransactionTestCase):
         end_timestamp = 1436096000
 
         self.client.force_authenticate(self.owner)
-        response = self.client.get(self.url, data={'points_count': 3, 'start': start_timestamp, 'end': end_timestamp})
+        response = self.client.get(
+            self.url,
+            data={'points_count': 3, 'start': start_timestamp, 'end': end_timestamp},
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]['point'], start_timestamp)
-        self.assertEqual(response.data[1]['point'], start_timestamp + (end_timestamp - start_timestamp) / 2)
+        self.assertEqual(
+            response.data[1]['point'],
+            start_timestamp + (end_timestamp - start_timestamp) / 2,
+        )
         self.assertEqual(response.data[2]['point'], end_timestamp)
 
 

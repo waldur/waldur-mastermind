@@ -8,7 +8,6 @@ from .. import factories
 
 
 class DumpUsersCommandTest(TestCase):
-
     def test_dump_users_command_with_unicode_full_name(self):
         user = factories.UserFactory(full_name='äöur šipākøv')
         output = StringIO()

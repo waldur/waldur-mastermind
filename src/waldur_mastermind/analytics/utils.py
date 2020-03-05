@@ -10,7 +10,6 @@ from waldur_core.structure.models import Customer, Project
 
 from . import models
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,9 +29,9 @@ def write_points(client, points):
 def import_daily_usage():
     quotas = {}
     cutoff = timezone.now() - timedelta(days=90)
-    versions = Version.objects.filter(
-        revision__date_created__gte=cutoff
-    ).order_by('revision__date_created')
+    versions = Version.objects.filter(revision__date_created__gte=cutoff).order_by(
+        'revision__date_created'
+    )
     for version in versions:
         try:
             scope = version.object.scope
@@ -58,4 +57,6 @@ def import_daily_usage():
             for i in range(days + 1):
                 date = start + timedelta(days=i)
                 usage = records.get(date, usage)
-                models.DailyQuotaHistory.objects.update_or_create_quota(scope, name, date, usage)
+                models.DailyQuotaHistory.objects.update_or_create_quota(
+                    scope, name, date, usage
+                )

@@ -6,17 +6,19 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import models, validators, exceptions, utils
+from . import exceptions, models, utils, validators
 
 
-class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
-                        structure_serializers.BaseServiceSerializer):
+class ServiceSerializer(
+    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
+):
 
     SERVICE_ACCOUNT_FIELDS = {
         'backend_url': _('Rancher server URL'),
@@ -34,7 +36,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         required_fields = ('backend_url', 'username', 'password', 'base_image_name')
 
 
-class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
+class ServiceProjectLinkSerializer(
+    structure_serializers.BaseServiceProjectLinkSerializer
+):
     class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
         model = models.RancherServiceProjectLink
         extra_kwargs = {
@@ -42,8 +46,9 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
-class DataVolumeSerializer(structure_serializers.PermissionFieldFilteringMixin,
-                           serializers.Serializer):
+class DataVolumeSerializer(
+    structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer
+):
     size = serializers.IntegerField()
     volume_type = serializers.HyperlinkedRelatedField(
         view_name='openstacktenant-volume-type-detail',
@@ -68,13 +73,16 @@ class DataVolumeSerializer(structure_serializers.PermissionFieldFilteringMixin,
         mount_point = attrs['mount_point']
         min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
         if size < min_size * 1024:
-            raise serializers.ValidationError('Volume %s capacity should be at least %s GB' %
-                                              (mount_point, min_size))
+            raise serializers.ValidationError(
+                'Volume %s capacity should be at least %s GB' % (mount_point, min_size)
+            )
         return attrs
 
 
-class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
-                         serializers.HyperlinkedModelSerializer):
+class BaseNodeSerializer(
+    structure_serializers.PermissionFieldFilteringMixin,
+    serializers.HyperlinkedModelSerializer,
+):
     ROLE_CHOICES = ('controlplane', 'etcd', 'worker')
     subnet = serializers.HyperlinkedRelatedField(
         view_name='openstacktenant-subnet-detail',
@@ -94,8 +102,11 @@ class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
     system_volume_size = serializers.IntegerField(
         write_only=True,
         required=False,
-        validators=[django_validators.MinValueValidator(
-            lambda: settings.WALDUR_RANCHER['SYSTEM_VOLUME_MIN_SIZE'])],
+        validators=[
+            django_validators.MinValueValidator(
+                lambda: settings.WALDUR_RANCHER['SYSTEM_VOLUME_MIN_SIZE']
+            )
+        ],
     )
     system_volume_type = serializers.HyperlinkedRelatedField(
         view_name='openstacktenant-volume-type-detail',
@@ -119,14 +130,13 @@ class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
 class NestedNodeSerializer(BaseNodeSerializer):
     instance = core_serializers.GenericRelatedField(
-        related_models=VirtualMachine.get_all_models(),
-        read_only=True
+        related_models=VirtualMachine.get_all_models(), read_only=True
     )
 
     class Meta(BaseNodeSerializer.Meta):
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
-            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
         }
         exclude = ('cluster', 'object_id', 'content_type', 'name')
 
@@ -148,30 +158,35 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
 
     tenant_settings = serializers.HyperlinkedRelatedField(
         queryset=structure_models.ServiceSettings.objects.filter(
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name),
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name
+        ),
         view_name='servicesettings-detail',
         lookup_field='uuid',
     )
 
-    name = serializers.CharField(max_length=150, validators=[validators.ClusterNameValidator])
+    name = serializers.CharField(
+        max_length=150, validators=[validators.ClusterNameValidator]
+    )
     nodes = NestedNodeSerializer(many=True, source='node_set')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'node_command', 'nodes', 'tenant_settings', 'runtime_state',
+            'node_command',
+            'nodes',
+            'tenant_settings',
+            'runtime_state',
         )
-        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'node_command', 'runtime_state',
+        read_only_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
+            + ('node_command', 'runtime_state',)
         )
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'nodes', 'tenant_settings',
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + ('nodes', 'tenant_settings',)
         )
         extra_kwargs = dict(
-            cluster={
-                'view_name': 'rancher-cluster-detail',
-                'lookup_field': 'uuid',
-            },
+            cluster={'view_name': 'rancher-cluster-detail', 'lookup_field': 'uuid',},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
@@ -184,9 +199,10 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         name = attrs.get('name')
         spl = attrs.get('service_project_link')
 
+        attrs['settings'] = spl.service.settings
+
         clusters = models.Cluster.objects.filter(
-            service_project_link__service__settings=spl.service.settings,
-            name=name
+            settings=spl.service.settings, name=name
         )
         if self.instance:
             clusters = clusters.exclude(id=self.instance.id)
@@ -200,26 +216,30 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
     def validate_nodes(self, nodes):
         if len([node for node in nodes if 'etcd' in node['roles']]) not in [1, 3, 5]:
             raise serializers.ValidationError(
-                'Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.' % len(nodes)
+                'Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.'
+                % len(nodes)
             )
 
         if not len([node for node in nodes if 'worker' in node['roles']]):
             raise serializers.ValidationError('Count of workers roles must be min 1.')
 
         if not len([node for node in nodes if 'controlplane' in node['roles']]):
-            raise serializers.ValidationError('Count of controlplane nodes must be min 1.')
+            raise serializers.ValidationError(
+                'Count of controlplane nodes must be min 1.'
+            )
 
         return nodes
 
 
 class NodeSerializer(serializers.HyperlinkedModelSerializer):
     instance = core_serializers.GenericRelatedField(
-        related_models=VirtualMachine.get_all_models(),
-        required=True,
+        related_models=VirtualMachine.get_all_models(), required=True,
     )
     resource_type = serializers.SerializerMethodField()
     state = serializers.ReadOnlyField(source='get_state_display')
-    service_name = serializers.ReadOnlyField(source='service_project_link.service.settings.name')
+    service_name = serializers.ReadOnlyField(
+        source='service_project_link.service.settings.name'
+    )
     service_uuid = serializers.ReadOnlyField(source='service_project_link.service.uuid')
     project_uuid = serializers.ReadOnlyField(source='service_project_link.project.uuid')
     cluster_name = serializers.ReadOnlyField(source='cluster.name')
@@ -229,29 +249,69 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.Node
-        fields = ('uuid', 'url', 'created', 'modified', 'name', 'backend_id', 'project_uuid',
-                  'service_name', 'service_uuid', 'resource_type', 'state',
-                  'cluster', 'cluster_name', 'cluster_uuid',
-                  'instance', 'instance_name', 'instance_uuid',
-                  'controlplane_role', 'etcd_role', 'worker_role', 'get_node_command', 'k8s_version',
-                  'docker_version', 'cpu_allocated', 'cpu_total', 'ram_allocated', 'ram_total', 'pods_allocated',
-                  'pods_total', 'labels', 'annotations', 'runtime_state')
-        read_only_fields = ('backend_id', 'k8s_version', 'docker_version', 'cpu_allocated', 'cpu_total',
-                            'ram_allocated', 'ram_total', 'pods_allocated', 'pods_total', 'labels', 'annotations',
-                            'runtime_state')
+        fields = (
+            'uuid',
+            'url',
+            'created',
+            'modified',
+            'name',
+            'backend_id',
+            'project_uuid',
+            'service_name',
+            'service_uuid',
+            'resource_type',
+            'state',
+            'cluster',
+            'cluster_name',
+            'cluster_uuid',
+            'instance',
+            'instance_name',
+            'instance_uuid',
+            'controlplane_role',
+            'etcd_role',
+            'worker_role',
+            'get_node_command',
+            'k8s_version',
+            'docker_version',
+            'cpu_allocated',
+            'cpu_total',
+            'ram_allocated',
+            'ram_total',
+            'pods_allocated',
+            'pods_total',
+            'labels',
+            'annotations',
+            'runtime_state',
+        )
+        read_only_fields = (
+            'backend_id',
+            'k8s_version',
+            'docker_version',
+            'cpu_allocated',
+            'cpu_total',
+            'ram_allocated',
+            'ram_total',
+            'pods_allocated',
+            'pods_total',
+            'labels',
+            'annotations',
+            'runtime_state',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
-            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
         }
 
     def validate(self, attrs):
         instance = attrs.get('instance')
 
         if models.Node.objects.filter(
-                object_id=instance.id,
-                content_type=ContentType.objects.get_for_model(instance)
+            object_id=instance.id,
+            content_type=ContentType.objects.get_for_model(instance),
         ).exists():
-            raise serializers.ValidationError({'instance': 'The selected instance is already in use.'})
+            raise serializers.ValidationError(
+                {'instance': 'The selected instance is already in use.'}
+            )
 
         attrs['name'] = instance.name
 
@@ -264,8 +324,17 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 class CreateNodeSerializer(BaseNodeSerializer):
     class Meta:
         model = models.Node
-        fields = ('cluster', 'roles', 'system_volume_size', 'system_volume_type',
-                  'memory', 'cpu', 'subnet', 'flavor', 'data_volumes')
+        fields = (
+            'cluster',
+            'roles',
+            'system_volume_size',
+            'system_volume_type',
+            'memory',
+            'cpu',
+            'subnet',
+            'flavor',
+            'data_volumes',
+        )
         extra_kwargs = {
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
         }
@@ -283,7 +352,8 @@ class ClusterImportableSerializer(serializers.Serializer):
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='rancher-spl-detail',
         queryset=models.RancherServiceProjectLink.objects.all(),
-        write_only=True)
+        write_only=True,
+    )
 
     name = serializers.CharField(read_only=True)
     backend_id = serializers.CharField(source="id", read_only=True)
@@ -298,14 +368,8 @@ class ClusterImportableSerializer(serializers.Serializer):
         config = spec.get('rancherKubernetesEngineConfig', {})
         backend_nodes = config.get('nodes', [])
         return [
-            {
-                'name': 'Number of nodes',
-                'value': len(backend_nodes),
-            },
-            {
-                'name': 'Created at',
-                'value': cluster.get('created'),
-            },
+            {'name': 'Number of nodes', 'value': len(backend_nodes),},
+            {'name': 'Created at', 'value': cluster.get('created'),},
         ]
 
 
@@ -318,18 +382,24 @@ class ClusterImportSerializer(ClusterImportableSerializer):
         backend_id = validated_data['backend_id']
 
         if models.Cluster.objects.filter(
-            service_project_link__service__settings=service_project_link.service.settings,
-            backend_id=backend_id
+            settings=service_project_link.service.settings, backend_id=backend_id
         ).exists():
-            raise serializers.ValidationError({'backend_id': _('Cluster has been imported already.')})
+            raise serializers.ValidationError(
+                {'backend_id': _('Cluster has been imported already.')}
+            )
 
         try:
             backend = service_project_link.get_backend()
-            cluster = backend.import_cluster(backend_id, service_project_link=service_project_link)
+            cluster = backend.import_cluster(
+                backend_id, service_project_link=service_project_link
+            )
         except exceptions.RancherException:
-            raise serializers.ValidationError({
-                'backend_id': _("Can't import cluster with ID %s") % validated_data['backend_id']
-            })
+            raise serializers.ValidationError(
+                {
+                    'backend_id': _("Can't import cluster with ID %s")
+                    % validated_data['backend_id']
+                }
+            )
 
         return cluster
 
@@ -339,7 +409,8 @@ class LinkOpenstackSerializer(serializers.Serializer):
         view_name='openstacktenant-instance-detail',
         queryset=openstack_tenant_models.Instance.objects.all(),
         lookup_field='uuid',
-        write_only=True)
+        write_only=True,
+    )
 
 
 class CatalogSerializer(serializers.HyperlinkedModelSerializer):
@@ -347,8 +418,20 @@ class CatalogSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.Catalog
-        fields = ('uuid', 'url', 'created', 'modified', 'name', 'description',
-                  'catalog_url', 'branch', 'commit', 'runtime_state', 'scope', 'scope_type')
+        fields = (
+            'uuid',
+            'url',
+            'created',
+            'modified',
+            'name',
+            'description',
+            'catalog_url',
+            'branch',
+            'commit',
+            'runtime_state',
+            'scope',
+            'scope_type',
+        )
         read_only_fields = ('runtime_state', 'commit')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-catalog-detail'},
@@ -363,3 +446,79 @@ class CatalogCreateSerializer(CatalogSerializer):
 class CatalogUpdateSerializer(CatalogCreateSerializer):
     class Meta(CatalogSerializer.Meta):
         read_only_fields = CatalogSerializer.Meta.read_only_fields + ('scope',)
+
+
+class ProjectSerializer(structure_serializers.BasePropertySerializer):
+    class Meta:
+        model = models.Project
+        view_name = 'rancher-project-detail'
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'description',
+            'created',
+            'modified',
+            'runtime_state',
+            'cluster',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+        }
+
+
+class NamespaceSerializer(structure_serializers.BasePropertySerializer):
+    class Meta:
+        model = models.Namespace
+        view_name = 'rancher-namespace-detail'
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'created',
+            'modified',
+            'runtime_state',
+            'project',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+        }
+
+
+class TemplateSerializer(
+    ProtectedMediaSerializerMixin, structure_serializers.BasePropertySerializer,
+):
+    class Meta:
+        model = models.Template
+        view_name = 'rancher-template-detail'
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'description',
+            'created',
+            'modified',
+            'runtime_state',
+            'catalog',
+            'cluster',
+            'project',
+            'icon',
+            'versions',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'catalog': {'lookup_field': 'uuid', 'view_name': 'rancher-catalog-detail'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+        }
+
+
+class ApplicationCreateSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    template_uuid = serializers.UUIDField()
+    version = serializers.CharField()
+    project_uuid = serializers.UUIDField()
+    namespace_uuid = serializers.UUIDField()
+    answers = serializers.DictField()

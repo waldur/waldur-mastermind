@@ -1,6 +1,7 @@
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.structure.managers import StructureManager
-from waldur_core.structure.models import NewResource as Resource, ResourceMixin
+from waldur_core.structure.models import NewResource as Resource
+from waldur_core.structure.models import ResourceMixin
 
 
 def filter_active(qs):
@@ -8,7 +9,7 @@ def filter_active(qs):
         Resource.States.CREATION_SCHEDULED,
         Resource.States.DELETION_SCHEDULED,
         Resource.States.DELETING,
-        Resource.States.ERRED
+        Resource.States.ERRED,
     )
     return qs.exclude(backend_id='', state__in=INVALID_STATES)
 

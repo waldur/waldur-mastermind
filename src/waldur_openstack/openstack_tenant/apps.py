@@ -8,6 +8,7 @@ class OpenStackTenantConfig(AppConfig):
         This application adds support for managing OpenStack tenant resources -
         instances, volumes and snapshots.
     """
+
     name = 'waldur_openstack.openstack_tenant'
     label = 'openstack_tenant'
     verbose_name = 'OpenStackTenant'
@@ -16,7 +17,12 @@ class OpenStackTenantConfig(AppConfig):
     def ready(self):
         from waldur_core.quotas.fields import QuotaField, TotalQuotaField
         from waldur_core.quotas.models import Quota
-        from waldur_core.structure.models import ServiceSettings, Project, Customer
+        from waldur_core.structure.models import (
+            ServiceSettings,
+            Project,
+            Customer,
+            SharedServiceSettings,
+        )
         from waldur_core.structure import SupportedServices
         from waldur_openstack.openstack.models import Tenant
 
@@ -32,9 +38,9 @@ class OpenStackTenantConfig(AppConfig):
                 quota_field=QuotaField(
                     is_backend=True,
                     default_limit=quota.default_limit,
-                    creation_condition=lambda service_settings:
-                        service_settings.type == OpenStackTenantConfig.service_name
-                )
+                    creation_condition=lambda service_settings: service_settings.type
+                    == OpenStackTenantConfig.service_name,
+                ),
             )
 
         signals.post_save.connect(
@@ -49,7 +55,7 @@ class OpenStackTenantConfig(AppConfig):
                 target_models=[models.Instance],
                 path_to_scope='service_project_link.project',
                 target_field='cores',
-            )
+            ),
         )
 
         Project.add_quota_field(
@@ -58,7 +64,7 @@ class OpenStackTenantConfig(AppConfig):
                 target_models=[models.Instance],
                 path_to_scope='service_project_link.project',
                 target_field='ram',
-            )
+            ),
         )
 
         Project.add_quota_field(
@@ -67,7 +73,7 @@ class OpenStackTenantConfig(AppConfig):
                 target_models=[models.Volume, models.Snapshot],
                 path_to_scope='service_project_link.project',
                 target_field='size',
-            )
+            ),
         )
 
         Customer.add_quota_field(
@@ -76,7 +82,7 @@ class OpenStackTenantConfig(AppConfig):
                 target_models=[models.Instance],
                 path_to_scope='service_project_link.project.customer',
                 target_field='cores',
-            )
+            ),
         )
 
         Customer.add_quota_field(
@@ -85,7 +91,7 @@ class OpenStackTenantConfig(AppConfig):
                 target_models=[models.Instance],
                 path_to_scope='service_project_link.project.customer',
                 target_field='ram',
-            )
+            ),
         )
 
         Customer.add_quota_field(
@@ -94,7 +100,7 @@ class OpenStackTenantConfig(AppConfig):
                 target_models=[models.Volume, models.Snapshot],
                 path_to_scope='service_project_link.project.customer',
                 target_field='size',
-            )
+            ),
         )
 
         for Resource in (models.Instance, models.Volume, models.Snapshot):
@@ -185,29 +191,31 @@ class OpenStackTenantConfig(AppConfig):
             handlers.sync_certificates_between_openstack_service_with_openstacktenant_service,
             sender=ServiceSettings.certifications.through,
             dispatch_uid='openstack_tenant.handlers.'
-                         'sync_certificates_between_openstack_service_with_openstacktenant_service',
+            'sync_certificates_between_openstack_service_with_openstacktenant_service',
         )
 
         signals.post_save.connect(
             handlers.copy_certifications_from_openstack_service_to_openstacktenant_service,
             sender=ServiceSettings,
             dispatch_uid='openstack_tenant.handlers.'
-                         'copy_certifications_from_openstack_service_to_openstacktenant_service',
+            'copy_certifications_from_openstack_service_to_openstacktenant_service',
         )
 
         signals.post_save.connect(
             handlers.copy_flavor_exclude_regex_to_openstacktenant_service_settings,
             sender=ServiceSettings,
             dispatch_uid='openstack_tenant.handlers.'
-                         'copy_flavor_exclude_regex_to_openstacktenant_service_settings',
+            'copy_flavor_exclude_regex_to_openstacktenant_service_settings',
         )
 
-        signals.post_save.connect(
-            handlers.copy_config_drive_to_openstacktenant_service_settings,
-            sender=ServiceSettings,
-            dispatch_uid='openstack_tenant.handlers.'
-                         'copy_config_drive_to_openstacktenant_service_settings',
-        )
+        for model in (SharedServiceSettings, ServiceSettings):
+            signals.post_save.connect(
+                handlers.copy_config_drive_to_openstacktenant_service_settings,
+                sender=model,
+                dispatch_uid='openstack_tenant.handlers.'
+                'copy_config_drive_to_openstacktenant_service_settings_%s'
+                % model.__class__,
+            )
 
         signals.post_save.connect(
             handlers.create_service_from_tenant,

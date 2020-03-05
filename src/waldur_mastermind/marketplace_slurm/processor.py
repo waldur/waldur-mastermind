@@ -24,7 +24,9 @@ class CreateAllocationProcessor(processors.BaseCreateResourceProcessor):
             try:
                 limit = self.order_item.limits[component_type]
             except KeyError:
-                raise serializers.ValidationError('%s component quota is not defined' % component_type)
+                raise serializers.ValidationError(
+                    '%s component quota is not defined' % component_type
+                )
             else:
                 payload[component_type + '_limit'] = limit
         return payload

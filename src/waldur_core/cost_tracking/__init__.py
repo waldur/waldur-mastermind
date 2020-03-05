@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class ConsumableItem:
-
     def __init__(self, item_type, key, name=None, units='', default_price=0):
         self.item_type = item_type
         self.key = key
@@ -35,13 +34,14 @@ class ConsumableItem:
 
     def __ne__(self, other):
         # Not strictly necessary, but to avoid having both x==y and x!=y True at the same time
-        return not(self == other)
+        return not (self == other)
 
 
 class CostTrackingStrategy:
     """ Describes all methods that should be implemented to enable cost
         tracking for particular resource.
     """
+
     resource_class = NotImplemented
 
     @classmethod
@@ -99,6 +99,7 @@ class ResourceNotRegisteredError(TypeError):
 
 class CostTrackingRegister:
     """ Register of all connected NC plugins """
+
     registered_resources = {}
     is_autodiscovered = False
 
@@ -117,8 +118,10 @@ class CostTrackingRegister:
         try:
             return cls.registered_resources[resource_class]
         except KeyError:
-            raise ResourceNotRegisteredError('Resource %s is not registered for cost tracking. Make sure that its '
-                                             'strategy is added to CostTrackingRegister' % resource_class.__name__)
+            raise ResourceNotRegisteredError(
+                'Resource %s is not registered for cost tracking. Make sure that its '
+                'strategy is added to CostTrackingRegister' % resource_class.__name__
+            )
 
     @classmethod
     def get_configuration(cls, resource):

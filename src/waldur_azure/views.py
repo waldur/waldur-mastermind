@@ -1,12 +1,13 @@
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import decorators, viewsets, \
-    response, status, serializers as rf_serializers
+from rest_framework import decorators, response
+from rest_framework import serializers as rf_serializers
+from rest_framework import status, viewsets
 
 from waldur_core.core import validators as core_validators
 from waldur_core.structure import views as structure_views
 
-from . import models, serializers, executors, filters
+from . import executors, filters, models, serializers
 
 
 class AzureServiceViewSet(structure_views.BaseServiceViewSet):
@@ -68,30 +69,42 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     def start(self, request, uuid=None):
         virtual_machine = self.get_object()
         executors.VirtualMachineStartExecutor().execute(virtual_machine)
-        return response.Response({'status': _('start was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('start was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    start_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK),
-                        core_validators.RuntimeStateValidator('stopped')]
+    start_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.RuntimeStateValidator('stopped'),
+    ]
     start_serializer_class = rf_serializers.Serializer
 
     @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         virtual_machine = self.get_object()
         executors.VirtualMachineStopExecutor().execute(virtual_machine)
-        return response.Response({'status': _('stop was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('stop was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    stop_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK),
-                       core_validators.RuntimeStateValidator('running')]
+    stop_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.RuntimeStateValidator('running'),
+    ]
     stop_serializer_class = rf_serializers.Serializer
 
     @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         virtual_machine = self.get_object()
         executors.VirtualMachineRestartExecutor().execute(virtual_machine)
-        return response.Response({'status': _('restart was scheduled')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('restart was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
 
-    restart_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK),
-                          core_validators.RuntimeStateValidator('running')]
+    restart_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.RuntimeStateValidator('running'),
+    ]
     restart_serializer_class = rf_serializers.Serializer
 
 
@@ -108,7 +121,9 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
         database = serializer.save()
 
-        transaction.on_commit(lambda: executors.SQLDatabaseCreateExecutor().execute(database))
+        transaction.on_commit(
+            lambda: executors.SQLDatabaseCreateExecutor().execute(database)
+        )
 
         payload = {
             'status': _('SQL database creation was scheduled'),
@@ -116,7 +131,9 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
         }
         return response.Response(payload, status=status.HTTP_202_ACCEPTED)
 
-    create_database_validators = [core_validators.StateValidator(models.SQLServer.States.OK)]
+    create_database_validators = [
+        core_validators.StateValidator(models.SQLServer.States.OK)
+    ]
     create_database_serializer_class = serializers.SQLDatabaseCreateSerializer
 
 

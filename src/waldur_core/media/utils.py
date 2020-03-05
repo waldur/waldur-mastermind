@@ -1,13 +1,13 @@
 import base64
-from calendar import timegm
-from datetime import datetime
 import os
 import tempfile
+from calendar import timegm
+from datetime import datetime
 
+import jwt
 from django.apps import apps
 from django.conf import settings
 from django.http import HttpResponse
-import jwt
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
 from rest_framework.reverse import reverse

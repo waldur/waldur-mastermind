@@ -21,13 +21,15 @@ class InternalIPAdmin(structure_admin.BackendModelAdmin):
 
 
 class VolumeAdmin(structure_admin.ResourceAdmin):
-
     class Pull(ExecutorAdminAction):
         executor = executors.VolumePullExecutor
         short_description = _('Pull')
 
         def validate(self, instance):
-            if instance.state not in (models.Volume.States.OK, models.Volume.States.ERRED):
+            if instance.state not in (
+                models.Volume.States.OK,
+                models.Volume.States.ERRED,
+            ):
                 raise ValidationError(_('Volume has to be in OK or ERRED state.'))
 
     pull = Pull()
@@ -41,14 +43,19 @@ class InstanceAdmin(structure_admin.VirtualMachineAdmin):
         short_description = _('Pull')
 
         def validate(self, instance):
-            if instance.state not in (models.Instance.States.OK, models.Instance.States.ERRED):
+            if instance.state not in (
+                models.Instance.States.OK,
+                models.Instance.States.ERRED,
+            ):
                 raise ValidationError(_('Instance has to be in OK or ERRED state.'))
 
     pull = Pull()
 
 
 admin.site.register(models.RijkscloudService, structure_admin.ServiceAdmin)
-admin.site.register(models.RijkscloudServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
+admin.site.register(
+    models.RijkscloudServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
+)
 admin.site.register(models.Flavor, FlavorAdmin)
 admin.site.register(models.FloatingIP, FloatingIPAdmin)
 admin.site.register(models.InternalIP, InternalIPAdmin)

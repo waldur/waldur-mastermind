@@ -1,28 +1,46 @@
 import itertools
+
 from celery import shared_task
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+
 from . import models
 
 
 def get_user_allocations(user):
-    project_permissions = structure_models.ProjectPermission.objects.filter(user=user, is_active=True)
+    project_permissions = structure_models.ProjectPermission.objects.filter(
+        user=user, is_active=True
+    )
     projects = project_permissions.values_list('project_id', flat=True)
-    project_allocations = models.Allocation.objects.filter(is_active=True, service_project_link__project__in=projects)
+    project_allocations = models.Allocation.objects.filter(
+        is_active=True, service_project_link__project__in=projects
+    )
 
-    customer_permissions = structure_models.CustomerPermission.objects.filter(user=user, is_active=True)
+    customer_permissions = structure_models.CustomerPermission.objects.filter(
+        user=user, is_active=True
+    )
     customers = customer_permissions.values_list('customer_id', flat=True)
-    customer_allocations = models.Allocation.objects.filter(is_active=True, service_project_link__project__customer__in=customers)
+    customer_allocations = models.Allocation.objects.filter(
+        is_active=True, service_project_link__project__customer__in=customers
+    )
 
     return itertools.chain(project_allocations, customer_allocations)
 
 
 def get_structure_allocations(structure):
     if isinstance(structure, structure_models.Project):
-        return list(models.Allocation.objects.filter(is_active=True, service_project_link__project=structure))
+        return list(
+            models.Allocation.objects.filter(
+                is_active=True, service_project_link__project=structure
+            )
+        )
     elif isinstance(structure, structure_models.Customer):
-        return list(models.Allocation.objects.filter(is_active=True, service_project_link__project__customer=structure))
+        return list(
+            models.Allocation.objects.filter(
+                is_active=True, service_project_link__project__customer=structure
+            )
+        )
     else:
         return []
 

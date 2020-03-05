@@ -29,6 +29,7 @@ class Command(BaseCommand):
        for at least one resource, one service, and one project.
        Otherwise it is considered invalid.
     """
+
     help = 'Delete invalid price estimates'
 
     def add_arguments(self, parser):
@@ -51,8 +52,11 @@ class Command(BaseCommand):
         invalid_estimates = self.get_all_estimates_wihout_scope_in_month()
         count = invalid_estimates.count()
         if count:
-            self.stdout.write('{} price estimates without scope in month would be deleted.'.
-                              format(count))
+            self.stdout.write(
+                '{} price estimates without scope in month would be deleted.'.format(
+                    count
+                )
+            )
             if self.confirm():
                 invalid_estimates.delete()
 
@@ -84,8 +88,10 @@ class Command(BaseCommand):
         if not estimates:
             return []
 
-        tables = {model: collections.defaultdict(list)
-                  for model in self.get_estimated_models()}
+        tables = {
+            model: collections.defaultdict(list)
+            for model in self.get_estimated_models()
+        }
 
         dates = set()
         for estimate in estimates:
@@ -110,7 +116,9 @@ class Command(BaseCommand):
         descendants_estimates = []
         customer_descendants = customer.get_descendants()
         for descendant in customer_descendants:
-            descendants_estimates += list(PriceEstimate.objects.filter(scope=descendant))
+            descendants_estimates += list(
+                PriceEstimate.objects.filter(scope=descendant)
+            )
         customer_estimates = PriceEstimate.objects.filter(scope=customer)
         return list(customer_estimates) + descendants_estimates
 
@@ -118,8 +126,11 @@ class Command(BaseCommand):
         invalid_estimates = self.get_invalid_price_estimates()
         count = invalid_estimates.count()
         if count:
-            self.stdout.write('{} price estimates without scope and details would be deleted.'.
-                              format(count))
+            self.stdout.write(
+                '{} price estimates without scope and details would be deleted.'.format(
+                    count
+                )
+            )
             if self.confirm():
                 invalid_estimates.delete()
 
@@ -141,8 +152,11 @@ class Command(BaseCommand):
         count = invalid_estimates.count()
 
         if count:
-            self.stdout.write('{} price estimates for invalid content types would be deleted: {}'.
-                              format(count, content_types_list))
+            self.stdout.write(
+                '{} price estimates for invalid content types would be deleted: {}'.format(
+                    count, content_types_list
+                )
+            )
             if self.confirm():
                 invalid_estimates.delete()
 

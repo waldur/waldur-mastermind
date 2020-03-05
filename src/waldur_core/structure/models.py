@@ -1,15 +1,19 @@
 import datetime
-from functools import reduce
 import itertools
+from functools import reduce
 
+import pyvat
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.core.validators import MaxLengthValidator
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import (
+    MaxLengthValidator,
+    MaxValueValidator,
+    MinValueValidator,
+)
 from django.db import models, transaction
 from django.db.models import Q, signals
 from django.utils import timezone
@@ -17,9 +21,8 @@ from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
-from model_utils.models import TimeStampedModel, SoftDeletableModel
 from model_utils.managers import SoftDeletableManagerMixin
-import pyvat
+from model_utils.models import SoftDeletableModel, TimeStampedModel
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
@@ -27,23 +30,30 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import AbstractFieldTracker
 from waldur_core.core.shims import TaggableManager
-from waldur_core.core.validators import validate_name, validate_cidr_list
-from waldur_core.media.validators import CertificateValidator
+from waldur_core.core.validators import validate_cidr_list, validate_name
 from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.monitoring.models import MonitoringModelMixin
-from waldur_core.quotas import models as quotas_models, fields as quotas_fields
-from waldur_core.structure import SupportedServices
 from waldur_core.media.models import ImageModelMixin
-from waldur_core.structure.managers import StructureManager, filter_queryset_for_user, \
-    ServiceSettingsManager, PrivateServiceSettingsManager, SharedServiceSettingsManager
+from waldur_core.media.validators import CertificateValidator
+from waldur_core.monitoring.models import MonitoringModelMixin
+from waldur_core.quotas import fields as quotas_fields
+from waldur_core.quotas import models as quotas_models
+from waldur_core.structure import SupportedServices
+from waldur_core.structure.managers import (
+    PrivateServiceSettingsManager,
+    ServiceSettingsManager,
+    SharedServiceSettingsManager,
+    StructureManager,
+    filter_queryset_for_user,
+)
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
 from waldur_core.structure.utils import sort_dependencies
+from waldur_geo_ip.mixins import CoordinatesMixin, IPCoordinatesMixin
 from waldur_geo_ip.utils import get_coordinates_by_ip
-from waldur_geo_ip.mixins import IPCoordinatesMixin, CoordinatesMixin
 
 
 def validate_service_type(service_type):
     from django.core.exceptions import ValidationError
+
     if not SupportedServices.has_service_type(service_type):
         raise ValidationError(_('Invalid service type.'))
 
@@ -71,11 +81,11 @@ class StructureModel(models.Model):
                     return reduce(getattr, path.split('__'), self)
 
         raise AttributeError(
-            "'%s' object has no attribute '%s'" % (self._meta.object_name, name))
+            "'%s' object has no attribute '%s'" % (self._meta.object_name, name)
+        )
 
 
 class StructureLoggableMixin(LoggableMixin):
-
     @classmethod
     def get_permitted_objects(cls, user):
         return filter_queryset_for_user(cls.objects.all(), user)
@@ -85,6 +95,7 @@ class TagMixin(models.Model):
     """
     Add tags field and manage cache for tags.
     """
+
     class Meta:
         abstract = True
 
@@ -115,16 +126,25 @@ class VATMixin(models.Model):
     Add country, VAT number fields and check results from EU VAT Information Exchange System.
     Allows to compute VAT charge rate.
     """
+
     class Meta:
         abstract = True
 
     vat_code = models.CharField(max_length=20, blank=True, help_text=_('VAT number'))
-    vat_name = models.CharField(max_length=255, blank=True,
-                                help_text=_('Optional business name retrieved for the VAT number.'))
-    vat_address = models.CharField(max_length=255, blank=True,
-                                   help_text=_('Optional business address retrieved for the VAT number.'))
+    vat_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_('Optional business name retrieved for the VAT number.'),
+    )
+    vat_address = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_('Optional business address retrieved for the VAT number.'),
+    )
 
-    is_company = models.BooleanField(default=False, help_text=_('Is company or private person'))
+    is_company = models.BooleanField(
+        default=False, help_text=_('Is company or private person')
+    )
     country = core_fields.CountryField(blank=True)
 
     def get_vat_rate(self):
@@ -136,17 +156,25 @@ class VATMixin(models.Model):
 
     def get_vat_charge(self):
         if not self.country:
-            raise VATException(_('Unable to get VAT charge because buyer country code is not specified.'))
+            raise VATException(
+                _(
+                    'Unable to get VAT charge because buyer country code is not specified.'
+                )
+            )
 
         seller_country = settings.WALDUR_CORE.get('SELLER_COUNTRY_CODE')
         if not seller_country:
-            raise VATException(_('Unable to get VAT charge because seller country code is not specified.'))
+            raise VATException(
+                _(
+                    'Unable to get VAT charge because seller country code is not specified.'
+                )
+            )
 
         return pyvat.get_sale_vat_charge(
             datetime.date.today(),
             pyvat.ItemType.generic_electronic_service,
             pyvat.Party(self.country, self.is_company and self.vat_code),
-            pyvat.Party(seller_country, True)
+            pyvat.Party(seller_country, True),
         )
 
 
@@ -154,8 +182,16 @@ class BasePermission(models.Model):
     class Meta:
         abstract = True
 
-    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True)
-    created_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+')
+    user = models.ForeignKey(
+        on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True
+    )
+    created_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
     created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.NullBooleanField(default=True, db_index=True)
@@ -200,13 +236,17 @@ class PermissionMixin:
         if timestamp is None:
             permissions = permissions.filter(expiration_time=None)
         elif timestamp:
-            permissions = permissions.filter(Q(expiration_time=None) | Q(expiration_time__gte=timestamp))
+            permissions = permissions.filter(
+                Q(expiration_time=None) | Q(expiration_time__gte=timestamp)
+            )
 
         return permissions.exists()
 
     @transaction.atomic()
     def add_user(self, user, role, created_by=None, expiration_time=None):
-        permission = self.permissions.filter(user=user, role=role, is_active=True).first()
+        permission = self.permissions.filter(
+            user=user, role=role, is_active=True
+        ).first()
         if permission:
             return permission, False
 
@@ -279,7 +319,12 @@ class CustomerPermission(BasePermission):
     class Permissions:
         customer_path = 'customer'
 
-    customer = models.ForeignKey(on_delete=models.CASCADE, to='structure.Customer', verbose_name=_('organization'), related_name='permissions')
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to='structure.Customer',
+        verbose_name=_('organization'),
+        related_name='permissions',
+    )
     role = CustomerRole(db_index=True)
     tracker = FieldTracker(fields=['expiration_time'])
 
@@ -296,14 +341,13 @@ class CustomerPermission(BasePermission):
 
 def get_next_agreement_number():
     initial_number = settings.WALDUR_CORE['INITIAL_CUSTOMER_AGREEMENT_NUMBER']
-    last_number = Customer.objects.aggregate(models.Max('agreement_number')).get('agreement_number__max')
+    last_number = Customer.objects.aggregate(models.Max('agreement_number')).get(
+        'agreement_number__max'
+    )
     return (last_number or initial_number) + 1
 
 
-class DivisionType(core_models.UuidMixin,
-                   core_models.NameMixin,
-                   models.Model):
-
+class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         verbose_name = _('division type')
         ordering = ('name',)
@@ -312,12 +356,12 @@ class DivisionType(core_models.UuidMixin,
         return self.name
 
 
-class Division(core_models.UuidMixin,
-               core_models.NameMixin,
-               models.Model):
+class Division(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
     type = models.ForeignKey(on_delete=models.CASCADE, to='DivisionType')
-    parent = models.ForeignKey(on_delete=models.CASCADE, to='Division', null=True, blank=True)
+    parent = models.ForeignKey(
+        on_delete=models.CASCADE, to='Division', null=True, blank=True
+    )
 
     class Meta:
         verbose_name = _('division')
@@ -338,17 +382,19 @@ class Division(core_models.UuidMixin,
         return ' -> '.join(full_path[::-1])
 
 
-class Customer(core_models.UuidMixin,
-               core_models.NameMixin,
-               core_models.DescendantMixin,
-               quotas_models.ExtendableQuotaModelMixin,
-               PermissionMixin,
-               VATMixin,
-               StructureLoggableMixin,
-               ImageModelMixin,
-               TimeStampedModel,
-               CoordinatesMixin,
-               StructureModel):
+class Customer(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescendantMixin,
+    quotas_models.ExtendableQuotaModelMixin,
+    PermissionMixin,
+    VATMixin,
+    StructureLoggableMixin,
+    ImageModelMixin,
+    TimeStampedModel,
+    CoordinatesMixin,
+    StructureModel,
+):
     class Permissions:
         customer_path = 'self'
         project_path = 'projects'
@@ -359,12 +405,20 @@ class Customer(core_models.UuidMixin,
     agreement_number = models.PositiveIntegerField(null=True, blank=True, unique=True)
     email = models.EmailField(_('email address'), max_length=75, blank=True)
     phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
-    access_subnets = models.TextField(validators=[validate_cidr_list], blank=True, default='',
-                                      help_text=_('Enter a comma separated list of IPv4 or IPv6 '
-                                                  'CIDR addresses from where connection to self-service is allowed.'))
-    backend_id = models.CharField(max_length=255, blank=True, help_text=_(
-        'Organization identifier in another application.'
-    ))
+    access_subnets = models.TextField(
+        validators=[validate_cidr_list],
+        blank=True,
+        default='',
+        help_text=_(
+            'Enter a comma separated list of IPv4 or IPv6 '
+            'CIDR addresses from where connection to self-service is allowed.'
+        ),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_('Organization identifier in another application.'),
+    )
     registration_code = models.CharField(max_length=160, default='', blank=True)
     homepage = models.URLField(max_length=255, blank=True)
     domain = models.CharField(max_length=255, blank=True)
@@ -374,11 +428,19 @@ class Customer(core_models.UuidMixin,
     postal = models.CharField(blank=True, max_length=20)
     bank_name = models.CharField(blank=True, max_length=150)
     bank_account = models.CharField(blank=True, max_length=50)
-    accounting_start_date = models.DateTimeField(_('Start date of accounting'), default=timezone.now)
-    default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
-                                              validators=[MinValueValidator(0), MaxValueValidator(100)])
+    accounting_start_date = models.DateTimeField(
+        _('Start date of accounting'), default=timezone.now
+    )
+    default_tax_percent = models.DecimalField(
+        default=0,
+        max_digits=4,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
     blocked = models.BooleanField(default=False)
-    division = models.ForeignKey('Division', null=True, blank=True, on_delete=models.SET_NULL)
+    division = models.ForeignKey(
+        'Division', null=True, blank=True, on_delete=models.SET_NULL
+    )
     tracker = FieldTracker()
 
     class Meta:
@@ -390,12 +452,10 @@ class Customer(core_models.UuidMixin,
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_project_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: [Project],
-            path_to_scope='customer',
+            target_models=lambda: [Project], path_to_scope='customer',
         )
         nc_service_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Service.get_all_models(),
-            path_to_scope='customer',
+            target_models=lambda: Service.get_all_models(), path_to_scope='customer',
         )
         nc_service_project_link_count = quotas_fields.CounterQuotaField(
             target_models=lambda: ServiceProjectLink.get_all_models(),
@@ -452,12 +512,18 @@ class Customer(core_models.UuidMixin,
 
     def get_users(self):
         """ Return all connected to customer users """
-        return get_user_model().objects.filter(
-            Q(customerpermission__customer=self,
-              customerpermission__is_active=True) |
-            Q(projectpermission__project__customer=self,
-              projectpermission__is_active=True)
-        ).distinct().order_by('username')
+        return (
+            get_user_model()
+            .objects.filter(
+                Q(customerpermission__customer=self, customerpermission__is_active=True)
+                | Q(
+                    projectpermission__project__customer=self,
+                    projectpermission__is_active=True,
+                )
+            )
+            .distinct()
+            .order_by('username')
+        )
 
     def can_user_update_quotas(self, user):
         return user.is_staff
@@ -471,13 +537,15 @@ class Customer(core_models.UuidMixin,
             - Datetime object - check whether user will be able to manage permissions at specific timestamp.
         """
         return user.is_staff or (
-            self.has_user(user, CustomerRole.OWNER, timestamp) and
-            settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
+            self.has_user(user, CustomerRole.OWNER, timestamp)
+            and settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
         )
 
     def get_children(self):
         return itertools.chain.from_iterable(
-            m.objects.filter(customer=self) for m in [Project] + Service.get_all_models())
+            m.objects.filter(customer=self)
+            for m in [Project] + Service.get_all_models()
+        )
 
     def is_billable(self):
         return timezone.now() >= self.accounting_start_date
@@ -490,7 +558,7 @@ class Customer(core_models.UuidMixin,
             return cls.objects.filter(
                 permissions__user=user,
                 permissions__role=CustomerRole.OWNER,
-                permissions__is_active=True
+                permissions__is_active=True,
             )
 
     def get_display_name(self):
@@ -512,7 +580,7 @@ class Customer(core_models.UuidMixin,
         if self.abbreviation:
             return '%(name)s (%(abbreviation)s)' % {
                 'name': self.name,
-                'abbreviation': self.abbreviation
+                'abbreviation': self.abbreviation,
             }
         else:
             return self.name
@@ -543,7 +611,9 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         customer_path = 'project__customer'
         project_path = 'project'
 
-    project = models.ForeignKey(on_delete=models.CASCADE, to='structure.Project', related_name='permissions')
+    project = models.ForeignKey(
+        on_delete=models.CASCADE, to='structure.Project', related_name='permissions'
+    )
     role = ProjectRole(db_index=True)
     tracker = FieldTracker(fields=['expiration_time'])
 
@@ -558,7 +628,9 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         return '%s | %s' % (self.project.name, self.get_role_display())
 
 
-class ProjectType(core_models.DescribableMixin, core_models.UuidMixin, core_models.NameMixin):
+class ProjectType(
+    core_models.DescribableMixin, core_models.UuidMixin, core_models.NameMixin
+):
     class Meta:
         verbose_name = _('Project type')
         verbose_name_plural = _('Project types')
@@ -576,16 +648,18 @@ class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
     pass
 
 
-class Project(core_models.DescribableMixin,
-              core_models.UuidMixin,
-              core_models.NameMixin,
-              core_models.DescendantMixin,
-              quotas_models.ExtendableQuotaModelMixin,
-              PermissionMixin,
-              StructureLoggableMixin,
-              TimeStampedModel,
-              StructureModel,
-              SoftDeletableModel):
+class Project(
+    core_models.DescribableMixin,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescendantMixin,
+    quotas_models.ExtendableQuotaModelMixin,
+    PermissionMixin,
+    StructureLoggableMixin,
+    TimeStampedModel,
+    StructureModel,
+    SoftDeletableModel,
+):
     class Permissions:
         customer_path = 'customer'
         project_path = 'self'
@@ -611,16 +685,13 @@ class Project(core_models.DescribableMixin,
             path_to_scope='project',
         )
         nc_storage_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Storage.get_all_models(),
-            path_to_scope='project',
+            target_models=lambda: Storage.get_all_models(), path_to_scope='project',
         )
         nc_volume_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Volume.get_all_models(),
-            path_to_scope='project',
+            target_models=lambda: Volume.get_all_models(), path_to_scope='project',
         )
         nc_snapshot_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Snapshot.get_all_models(),
-            path_to_scope='project',
+            target_models=lambda: Snapshot.get_all_models(), path_to_scope='project',
         )
         nc_service_project_link_count = quotas_fields.CounterQuotaField(
             target_models=lambda: ServiceProjectLink.get_all_models(),
@@ -637,12 +708,23 @@ class Project(core_models.DescribableMixin,
             target_field='size',
         )
 
-    certifications = models.ManyToManyField(to='ServiceCertification', related_name='projects', blank=True)
+    certifications = models.ManyToManyField(
+        to='ServiceCertification', related_name='projects', blank=True
+    )
     customer = models.ForeignKey(
-        Customer, verbose_name=_('organization'), related_name='projects', on_delete=models.PROTECT)
+        Customer,
+        verbose_name=_('organization'),
+        related_name='projects',
+        on_delete=models.PROTECT,
+    )
     tracker = FieldTracker()
     type = models.ForeignKey(
-        ProjectType, verbose_name=_('project type'), blank=True, null=True, on_delete=models.PROTECT)
+        ProjectType,
+        verbose_name=_('project type'),
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+    )
 
     objects = SoftDeletableManager()
     structure_objects = StructureManager()
@@ -652,10 +734,7 @@ class Project(core_models.DescribableMixin,
         return self.name
 
     def get_users(self, role=None):
-        query = Q(
-            projectpermission__project=self,
-            projectpermission__is_active=True,
-        )
+        query = Q(projectpermission__project=self, projectpermission__is_active=True,)
         if role:
             query = query & Q(projectpermission__role=role)
 
@@ -687,7 +766,7 @@ class Project(core_models.DescribableMixin,
     def __str__(self):
         return '%(name)s | %(customer)s' % {
             'name': self.name,
-            'customer': self.customer.name
+            'customer': self.customer.name,
         }
 
     def can_user_update_quotas(self, user):
@@ -706,7 +785,9 @@ class Project(core_models.DescribableMixin,
         if self.customer.has_user(user, CustomerRole.OWNER, timestamp):
             return True
 
-        return role == ProjectRole.ADMINISTRATOR and self.has_user(user, ProjectRole.MANAGER, timestamp)
+        return role == ProjectRole.ADMINISTRATOR and self.has_user(
+            user, ProjectRole.MANAGER, timestamp
+        )
 
     def get_log_fields(self):
         return ('uuid', 'customer', 'name')
@@ -719,7 +800,8 @@ class Project(core_models.DescribableMixin,
         Get all service project links connected to current project
         """
         return itertools.chain.from_iterable(
-            m.objects.filter(project=self) for m in ServiceProjectLink.get_all_models())
+            m.objects.filter(project=self) for m in ServiceProjectLink.get_all_models()
+        )
 
     class Meta:
         base_manager_name = 'objects'
@@ -728,7 +810,9 @@ class Project(core_models.DescribableMixin,
 class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
     link = models.URLField(max_length=255, blank=True)
     # NameMixin is not used here as name has to be unique.
-    name = models.CharField(_('name'), max_length=150, validators=[validate_name], unique=True)
+    name = models.CharField(
+        _('name'), max_length=150, validators=[validate_name], unique=True
+    )
 
     class Meta:
         verbose_name = 'Service Certification'
@@ -743,13 +827,14 @@ class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
         return 'service-certification'
 
 
-class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
-                      core_models.UuidMixin,
-                      core_models.NameMixin,
-                      core_models.StateMixin,
-                      TagMixin,
-                      StructureLoggableMixin):
-
+class ServiceSettings(
+    quotas_models.ExtendableQuotaModelMixin,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.StateMixin,
+    TagMixin,
+    StructureLoggableMixin,
+):
     class Meta:
         verbose_name = "Service settings"
         verbose_name_plural = "Service settings"
@@ -759,32 +844,47 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
         customer_path = 'customer'
         extra_query = dict(shared=True)
 
-    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer,
-                                 verbose_name=_('organization'),
-                                 related_name='service_settings',
-                                 blank=True,
-                                 null=True)
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Customer,
+        verbose_name=_('organization'),
+        related_name='service_settings',
+        blank=True,
+        null=True,
+    )
     backend_url = core_fields.BackendURLField(max_length=200, blank=True, null=True)
     username = models.CharField(max_length=100, blank=True, null=True)
     password = models.CharField(max_length=100, blank=True, null=True)
     domain = models.CharField(max_length=200, blank=True, null=True)
     token = models.CharField(max_length=255, blank=True, null=True)
-    certificate = models.FileField(upload_to='certs', blank=True, null=True,
-                                   validators=[CertificateValidator])
-    type = models.CharField(max_length=255, db_index=True, validators=[validate_service_type])
+    certificate = models.FileField(
+        upload_to='certs', blank=True, null=True, validators=[CertificateValidator]
+    )
+    type = models.CharField(
+        max_length=255, db_index=True, validators=[validate_service_type]
+    )
     options = JSONField(default=dict, help_text=_('Extra options'), blank=True)
-    geolocations = JSONField(default=list, blank=True,
-                             help_text=_('List of latitudes and longitudes. For example: '
-                                         '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
+    geolocations = JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            'List of latitudes and longitudes. For example: '
+            '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'
+        ),
+    )
     shared = models.BooleanField(default=False, help_text=_('Anybody can use it'))
     homepage = models.URLField(max_length=255, blank=True)
     terms_of_services = models.URLField(max_length=255, blank=True)
-    certifications = models.ManyToManyField(to='ServiceCertification', related_name='service_settings', blank=True)
+    certifications = models.ManyToManyField(
+        to='ServiceCertification', related_name='service_settings', blank=True
+    )
 
     tracker = FieldTracker()
 
     # service settings scope - VM that contains service
-    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
+    content_type = models.ForeignKey(
+        on_delete=models.CASCADE, to=ContentType, null=True
+    )
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
@@ -845,11 +945,13 @@ class PrivateServiceSettings(ServiceSettings):
         verbose_name_plural = _('Private provider settings')
 
 
-class Service(core_models.UuidMixin,
-              core_models.DescendantMixin,
-              quotas_models.QuotaModelMixin,
-              StructureLoggableMixin,
-              StructureModel):
+class Service(
+    core_models.UuidMixin,
+    core_models.DescendantMixin,
+    quotas_models.QuotaModelMixin,
+    StructureLoggableMixin,
+    StructureModel,
+):
     """ Base service class. """
 
     class Meta:
@@ -861,10 +963,14 @@ class Service(core_models.UuidMixin,
         project_path = 'projects'
 
     settings = models.ForeignKey(on_delete=models.CASCADE, to=ServiceSettings)
-    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer, verbose_name=_('organization'))
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE, to=Customer, verbose_name=_('organization')
+    )
     available_for_all = models.BooleanField(
         default=False,
-        help_text=_('Service will be automatically added to all customers projects if it is available for all')
+        help_text=_(
+            'Service will be automatically added to all customers projects if it is available for all'
+        ),
     )
     projects = NotImplemented
 
@@ -916,7 +1022,12 @@ class Service(core_models.UuidMixin,
             descendant.delete()
 
 
-class BaseServiceProperty(core_models.BackendModelMixin, core_models.UuidMixin, core_models.NameMixin, models.Model):
+class BaseServiceProperty(
+    core_models.BackendModelMixin,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    models.Model,
+):
     """ Base service properties like image, flavor, region,
         which are usually used for Resource provisioning.
     """
@@ -931,16 +1042,20 @@ class BaseServiceProperty(core_models.BackendModelMixin, core_models.UuidMixin, 
 
     @classmethod
     def get_backend_fields(cls):
-        return super(BaseServiceProperty, cls).get_backend_fields() + ('backend_id', 'name')
+        return super(BaseServiceProperty, cls).get_backend_fields() + (
+            'backend_id',
+            'name',
+        )
 
 
 class ServiceProperty(BaseServiceProperty):
-
     class Meta:
         abstract = True
         unique_together = ('settings', 'backend_id')
 
-    settings = models.ForeignKey(on_delete=models.CASCADE, to=ServiceSettings, related_name='+')
+    settings = models.ForeignKey(
+        on_delete=models.CASCADE, to=ServiceSettings, related_name='+'
+    )
     backend_id = models.CharField(max_length=255, db_index=True)
 
     def __str__(self):
@@ -961,10 +1076,12 @@ class GeneralServiceProperty(BaseServiceProperty):
         return self.name
 
 
-class ServiceProjectLink(quotas_models.QuotaModelMixin,
-                         core_models.DescendantMixin,
-                         LoggableMixin,
-                         StructureModel):
+class ServiceProjectLink(
+    quotas_models.QuotaModelMixin,
+    core_models.DescendantMixin,
+    LoggableMixin,
+    StructureModel,
+):
     """ Base service-project link class. See Service class for usage example. """
 
     class States:
@@ -999,23 +1116,32 @@ class ServiceProjectLink(quotas_models.QuotaModelMixin,
         return cls._meta.app_label + '-spl'
 
     def get_log_fields(self):
-        return ('project', 'service',)
+        return (
+            'project',
+            'service',
+        )
 
     def get_parents(self):
         return [self.project, self.service]
 
     def get_children(self):
-        resource_models = [m for m in ResourceMixin.get_all_models() + SubResource.get_all_models()
-                           if m.service_project_link.field.related_model == self.__class__]
+        resource_models = [
+            m
+            for m in ResourceMixin.get_all_models() + SubResource.get_all_models()
+            if m.service_project_link.field.related_model == self.__class__
+        ]
         return itertools.chain.from_iterable(
-            m.objects.filter(service_project_link=self) for m in resource_models)
+            m.objects.filter(service_project_link=self) for m in resource_models
+        )
 
     @property
     def validation_state(self):
         """
         Defines whether a  service compliant with required project certifications.
         """
-        if set(self.project.certifications.all()).issubset(set(self.service.settings.certifications.all())):
+        if set(self.project.certifications.all()).issubset(
+            set(self.service.settings.certifications.all())
+        ):
             return self.States.OK
         else:
             return self.States.ERRED
@@ -1032,8 +1158,12 @@ class ServiceProjectLink(quotas_models.QuotaModelMixin,
         if not self.is_valid:
             service_certifications = self.service.settings.certifications.all()
             project_certifications = self.project.certifications.all()
-            missing_certifications = set(project_certifications) - set(service_certifications)
-            return _('Provider does not match with project\'s security policy. Certifications are missing: "%s"') % ', '.join([c.name for c in missing_certifications])
+            missing_certifications = set(project_certifications) - set(
+                service_certifications
+            )
+            return _(
+                'Provider does not match with project\'s security policy. Certifications are missing: "%s"'
+            ) % ', '.join([c.name for c in missing_certifications])
         else:
             return ''
 
@@ -1059,7 +1189,6 @@ class CloudServiceProjectLink(ServiceProjectLink):
 
 
 class ApplicationMixin(models.Model):
-
     class Meta:
         abstract = True
 
@@ -1069,16 +1198,18 @@ class ApplicationMixin(models.Model):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
-class ResourceMixin(MonitoringModelMixin,
-                    core_models.UuidMixin,
-                    core_models.DescribableMixin,
-                    core_models.NameMixin,
-                    core_models.DescendantMixin,
-                    core_models.BackendModelMixin,
-                    StructureLoggableMixin,
-                    TagMixin,
-                    TimeStampedModel,
-                    StructureModel):
+class ResourceMixin(
+    MonitoringModelMixin,
+    core_models.UuidMixin,
+    core_models.DescribableMixin,
+    core_models.NameMixin,
+    core_models.DescendantMixin,
+    core_models.BackendModelMixin,
+    StructureLoggableMixin,
+    TagMixin,
+    TimeStampedModel,
+    StructureModel,
+):
 
     """ Base resource class. Resource is a provisioned entity of a service,
         for example: a VM in OpenStack or AWS, or a repository in Github.
@@ -1104,7 +1235,8 @@ class ResourceMixin(MonitoringModelMixin,
 
     def get_cost(self, start_date, end_date):
         raise NotImplementedError(
-            "Please refer to waldur_core.billing.tasks.debit_customers while implementing it")
+            "Please refer to waldur_core.billing.tasks.debit_customers while implementing it"
+        )
 
     def get_access_url(self):
         # default behaviour. Override in subclasses if applicable
@@ -1116,7 +1248,11 @@ class ResourceMixin(MonitoringModelMixin,
     @classmethod
     @lru_cache(maxsize=1)
     def get_all_models(cls):
-        return [model for model in apps.get_models() if issubclass(model, cls) and not issubclass(model, SubResource)]
+        return [
+            model
+            for model in apps.get_models()
+            if issubclass(model, cls) and not issubclass(model, SubResource)
+        ]
 
     @classmethod
     def get_url_name(cls):
@@ -1128,7 +1264,10 @@ class ResourceMixin(MonitoringModelMixin,
 
     @property
     def full_name(self):
-        return '%s %s' % (SupportedServices.get_name_for_model(self).replace('.', ' '), self.name)
+        return '%s %s' % (
+            SupportedServices.get_name_for_model(self).replace('.', ' '),
+            self.name,
+        )
 
     def _get_log_context(self, entity_name):
         context = super(ResourceMixin, self)._get_log_context(entity_name)
@@ -1171,22 +1310,26 @@ class ResourceMixin(MonitoringModelMixin,
 
 # TODO: rename to Resource
 class NewResource(ResourceMixin, core_models.StateMixin):
-
     class Meta:
         abstract = True
 
 
 class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResource):
-
     def __init__(self, *args, **kwargs):
         AbstractFieldTracker().finalize_class(self.__class__, 'tracker')
         super(VirtualMachine, self).__init__(*args, **kwargs)
 
-    cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
+    cores = models.PositiveSmallIntegerField(
+        default=0, help_text=_('Number of cores in a VM')
+    )
     ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
-    min_ram = models.PositiveIntegerField(default=0, help_text=_('Minimum memory size in MiB'))
-    min_disk = models.PositiveIntegerField(default=0, help_text=_('Minimum disk size in MiB'))
+    min_ram = models.PositiveIntegerField(
+        default=0, help_text=_('Minimum memory size in MiB')
+    )
+    min_disk = models.PositiveIntegerField(
+        default=0, help_text=_('Minimum disk size in MiB')
+    )
 
     image_name = models.CharField(max_length=150, blank=True)
 
@@ -1195,7 +1338,8 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResou
 
     user_data = models.TextField(
         blank=True,
-        help_text=_('Additional data that will be added to instance on provisioning'))
+        help_text=_('Additional data that will be added to instance on provisioning'),
+    )
     start_time = models.DateTimeField(blank=True, null=True)
 
     class Meta:
@@ -1240,9 +1384,13 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResou
         return []
 
 
-class PrivateCloud(quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin, NewResource):
-    extra_configuration = JSONField(default=dict,
-                                    help_text=_('Configuration details that are not represented on backend.'))
+class PrivateCloud(
+    quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin, NewResource
+):
+    extra_configuration = JSONField(
+        default=dict,
+        help_text=_('Configuration details that are not represented on backend.'),
+    )
 
     class Meta:
         abstract = True
@@ -1267,6 +1415,7 @@ class Snapshot(Storage):
 
 class SubResource(NewResource):
     """ Resource dependent object that cannot exist without resource. """
+
     class Meta:
         abstract = True
 

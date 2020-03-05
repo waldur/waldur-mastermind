@@ -1,6 +1,6 @@
-from functools import reduce
 import logging
 import operator
+from functools import reduce
 
 from django.conf import settings as django_settings
 from django.db import transaction
@@ -12,7 +12,7 @@ from waldur_slurm.client import SlurmClient
 from waldur_slurm.client_moab import MoabClient
 from waldur_slurm.structures import Quotas
 
-from . import models, base
+from . import base, models
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,12 @@ class SlurmBackend(ServiceBackend):
         if self.get_allocation_queryset().filter(project=project).count() == 0:
             self.delete_project(project)
 
-        if self.get_allocation_queryset().filter(project__customer=project.customer).count() == 0:
+        if (
+            self.get_allocation_queryset()
+            .filter(project__customer=project.customer)
+            .count()
+            == 0
+        ):
             self.delete_customer(project.customer)
 
     def add_user(self, allocation, username):
@@ -140,7 +145,10 @@ class SlurmBackend(ServiceBackend):
         for account, usage in report.items():
             allocation = waldur_allocations.get(account)
             if not allocation:
-                logger.debug('Skipping usage report for account %s because it is not managed under Waldur', account)
+                logger.debug(
+                    'Skipping usage report for account %s because it is not managed under Waldur',
+                    account,
+                )
                 continue
             self._update_quotas(allocation, usage)
 
@@ -149,7 +157,10 @@ class SlurmBackend(ServiceBackend):
         report = self.get_usage_report([account])
         usage = report.get(account)
         if not usage:
-            logger.debug('Skipping usage report for account %s because it is not managed under Waldur', account)
+            logger.debug(
+                'Skipping usage report for account %s because it is not managed under Waldur',
+                account,
+            )
             return
         self._update_quotas(allocation, usage)
 
@@ -175,7 +186,9 @@ class SlurmBackend(ServiceBackend):
         allocation.gpu_usage = quotas.gpu
         allocation.ram_usage = quotas.ram
         allocation.deposit_usage = quotas.deposit
-        allocation.save(update_fields=['cpu_usage', 'gpu_usage', 'ram_usage', 'deposit_usage'])
+        allocation.save(
+            update_fields=['cpu_usage', 'gpu_usage', 'ram_usage', 'deposit_usage']
+        )
 
         usernames = usage.keys()
         usermap = {
@@ -195,7 +208,8 @@ class SlurmBackend(ServiceBackend):
                     'ram_usage': quotas.ram,
                     'deposit_usage': quotas.deposit,
                     'user': usermap.get(username),
-                })
+                },
+            )
 
     def create_customer(self, customer):
         customer_name = self.get_customer_name(customer)
@@ -213,17 +227,29 @@ class SlurmBackend(ServiceBackend):
         self.client.delete_account(self.get_project_name(project_uuid))
 
     def get_allocation_queryset(self):
-        return models.Allocation.objects.filter(service_project_link__service__settings=self.settings)
+        return models.Allocation.objects.filter(
+            service_project_link__service__settings=self.settings
+        )
 
     def get_customer_name(self, customer):
-        return self.get_account_name(django_settings.WALDUR_SLURM['CUSTOMER_PREFIX'], customer)
+        return self.get_account_name(
+            django_settings.WALDUR_SLURM['CUSTOMER_PREFIX'], customer
+        )
 
     def get_project_name(self, project):
-        return self.get_account_name(django_settings.WALDUR_SLURM['PROJECT_PREFIX'], project)
+        return self.get_account_name(
+            django_settings.WALDUR_SLURM['PROJECT_PREFIX'], project
+        )
 
     def get_allocation_name(self, allocation):
-        return self.get_account_name(django_settings.WALDUR_SLURM['ALLOCATION_PREFIX'], allocation)
+        return self.get_account_name(
+            django_settings.WALDUR_SLURM['ALLOCATION_PREFIX'], allocation
+        )
 
     def get_account_name(self, prefix, object_or_uuid):
-        key = isinstance(object_or_uuid, str) and object_or_uuid or object_or_uuid.uuid.hex
+        key = (
+            isinstance(object_or_uuid, str)
+            and object_or_uuid
+            or object_or_uuid.uuid.hex
+        )
         return '%s%s' % (prefix, key)

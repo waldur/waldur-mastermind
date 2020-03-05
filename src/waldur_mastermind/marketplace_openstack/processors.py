@@ -30,12 +30,16 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
             template = None
 
         if not isinstance(template, package_models.PackageTemplate):
-            raise serializers.ValidationError('Plan has invalid scope. VPC package template is expected.')
+            raise serializers.ValidationError(
+                'Plan has invalid scope. VPC package template is expected.'
+            )
 
         project = order_item.order.project
 
         project_url = reverse('project-detail', kwargs={'uuid': project.uuid.hex})
-        spl_url = processors.get_spl_url(openstack_models.OpenStackServiceProjectLink, order_item)
+        spl_url = processors.get_spl_url(
+            openstack_models.OpenStackServiceProjectLink, order_item
+        )
 
         fields = (
             'name',
@@ -58,11 +62,12 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
         )
 
     def get_scope_from_response(self, response):
-        return package_models.OpenStackPackage.objects.get(uuid=response.data['uuid']).tenant
+        return package_models.OpenStackPackage.objects.get(
+            uuid=response.data['uuid']
+        ).tenant
 
 
 class TenantUpdateProcessor(processors.UpdateResourceProcessor):
-
     def get_serializer_class(self):
         return package_views.OpenStackPackageViewSet.change_serializer_class
 
@@ -74,7 +79,9 @@ class TenantUpdateProcessor(processors.UpdateResourceProcessor):
         try:
             package = package_models.OpenStackPackage.objects.get(tenant=resource)
         except ObjectDoesNotExist:
-            raise serializers.ValidationError('OpenStack package for tenant does not exist.')
+            raise serializers.ValidationError(
+                'OpenStack package for tenant does not exist.'
+            )
 
         template = self.order_item.plan.scope
 
@@ -89,7 +96,7 @@ class TenantUpdateProcessor(processors.UpdateResourceProcessor):
             signals.limit_update_failed.send(
                 sender=self.order_item.resource.__class__,
                 order_item=self.order_item,
-                message='Limit updating is available only for tenants.'
+                message='Limit updating is available only for tenants.',
             )
             return
 

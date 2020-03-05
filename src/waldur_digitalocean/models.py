@@ -8,7 +8,10 @@ from waldur_core.structure import models as structure_models
 
 class DigitalOceanService(structure_models.Service):
     projects = models.ManyToManyField(
-        structure_models.Project, related_name='digitalocean_services', through='DigitalOceanServiceProjectLink')
+        structure_models.Project,
+        related_name='digitalocean_services',
+        through='DigitalOceanServiceProjectLink',
+    )
 
     class Meta(structure_models.Service.Meta):
         verbose_name = _('DigitalOcean provider')
@@ -18,7 +21,7 @@ class DigitalOceanService(structure_models.Service):
         droplet_count = CounterQuotaField(
             default_limit=50,
             target_models=lambda: [Droplet],
-            path_to_scope='service_project_link.service'
+            path_to_scope='service_project_link.service',
         )
 
     @classmethod
@@ -48,9 +51,12 @@ class Image(structure_models.GeneralServiceProperty):
     regions = models.ManyToManyField(Region)
     distribution = models.CharField(max_length=100)
     type = models.CharField(max_length=100)
-    is_official = models.BooleanField(default=False, help_text=_('Is image provided by DigitalOcean'))
+    is_official = models.BooleanField(
+        default=False, help_text=_('Is image provided by DigitalOcean')
+    )
     min_disk_size = models.PositiveIntegerField(
-        null=True, help_text=_('Minimum disk required for a size to use this image'))
+        null=True, help_text=_('Minimum disk required for a size to use this image')
+    )
     created_at = models.DateTimeField(null=True)
 
     @property
@@ -67,8 +73,13 @@ class Image(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Image, cls).get_backend_fields() + ('type', 'distribution', 'is_official', 'min_disk_size',
-                                                         'created_at')
+        return super(Image, cls).get_backend_fields() + (
+            'type',
+            'distribution',
+            'is_official',
+            'min_disk_size',
+            'created_at',
+        )
 
 
 class Size(structure_models.GeneralServiceProperty):
@@ -77,8 +88,12 @@ class Size(structure_models.GeneralServiceProperty):
     cores = models.PositiveSmallIntegerField(help_text=_('Number of cores in a VM'))
     ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(help_text=_('Disk size in MiB'))
-    transfer = models.PositiveIntegerField(help_text=_('Amount of transfer bandwidth in MiB'))
-    price = models.DecimalField(_('Hourly price rate'), default=0, max_digits=11, decimal_places=5)
+    transfer = models.PositiveIntegerField(
+        help_text=_('Amount of transfer bandwidth in MiB')
+    )
+    price = models.DecimalField(
+        _('Hourly price rate'), default=0, max_digits=11, decimal_places=5
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -86,13 +101,24 @@ class Size(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Size, cls).get_backend_fields() + ('cores', 'ram', 'disk', 'transfer', 'price')
+        return super(Size, cls).get_backend_fields() + (
+            'cores',
+            'ram',
+            'disk',
+            'transfer',
+            'price',
+        )
 
 
 class Droplet(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
-        DigitalOceanServiceProjectLink, related_name='droplets', on_delete=models.PROTECT)
-    transfer = models.PositiveIntegerField(default=0, help_text=_('Amount of transfer bandwidth in MiB'))
+        DigitalOceanServiceProjectLink,
+        related_name='droplets',
+        on_delete=models.PROTECT,
+    )
+    transfer = models.PositiveIntegerField(
+        default=0, help_text=_('Amount of transfer bandwidth in MiB')
+    )
     ip_address = models.GenericIPAddressField(null=True, protocol='IPv4', blank=True)
     region_name = models.CharField(max_length=150, blank=True)
     size_name = models.CharField(max_length=150, blank=True)
@@ -104,9 +130,15 @@ class Droplet(structure_models.VirtualMachine):
         spl.add_quota_usage(spl.Quotas.vcpu, self.cores, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.service_project_link.add_quota_usage(self.service_project_link.Quotas.storage, -self.disk)
-        self.service_project_link.add_quota_usage(self.service_project_link.Quotas.ram, -self.ram)
-        self.service_project_link.add_quota_usage(self.service_project_link.Quotas.vcpu, -self.cores)
+        self.service_project_link.add_quota_usage(
+            self.service_project_link.Quotas.storage, -self.disk
+        )
+        self.service_project_link.add_quota_usage(
+            self.service_project_link.Quotas.ram, -self.ram
+        )
+        self.service_project_link.add_quota_usage(
+            self.service_project_link.Quotas.vcpu, -self.cores
+        )
 
     @property
     def external_ips(self):
@@ -122,4 +154,8 @@ class Droplet(structure_models.VirtualMachine):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Droplet, cls).get_backend_fields() + ('state', 'runtime_state', 'image_name')
+        return super(Droplet, cls).get_backend_fields() + (
+            'state',
+            'runtime_state',
+            'image_name',
+        )

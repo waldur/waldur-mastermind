@@ -25,6 +25,7 @@ class AnsibleCommonExtension(WaldurExtension):
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod

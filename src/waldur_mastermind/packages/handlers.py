@@ -18,7 +18,8 @@ def log_openstack_package_creation(sender, instance, created=False, **kwargs):
             'tenant': instance.tenant,
             'package_template_name': instance.template.name,
             'service_settings': instance.service_settings,
-        })
+        },
+    )
 
 
 def log_openstack_package_deletion(sender, instance, **kwargs):
@@ -29,10 +30,13 @@ def log_openstack_package_deletion(sender, instance, **kwargs):
             'tenant': instance.tenant,
             'package_template_name': instance.template.name,
             'service_settings': instance.service_settings,
-        })
+        },
+    )
 
 
-def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
+def add_new_openstack_package_details_to_invoice(
+    sender, instance, created=False, **kwargs
+):
     if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
         return
 

@@ -11,7 +11,10 @@ from waldur_geo_ip.mixins import CoordinatesMixin
 
 class AzureService(structure_models.Service):
     projects = models.ManyToManyField(
-        structure_models.Project, related_name='azure_services', through='AzureServiceProjectLink')
+        structure_models.Project,
+        related_name='azure_services',
+        through='AzureServiceProjectLink',
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -20,7 +23,7 @@ class AzureService(structure_models.Service):
     class Quotas(QuotaModelMixin.Quotas):
         vm_count = CounterQuotaField(
             target_models=lambda: [VirtualMachine],
-            path_to_scope='service_project_link.service'
+            path_to_scope='service_project_link.service',
         )
 
 
@@ -32,12 +35,11 @@ class AzureServiceProjectLink(structure_models.ServiceProjectLink):
         return 'azure-spl'
 
 
-class Location(CoordinatesMixin,
-               structure_models.ServiceProperty):
+class Location(CoordinatesMixin, structure_models.ServiceProperty):
 
     enabled = models.BooleanField(
         default=True,
-        help_text='Indicates whether location is available for resource group.'
+        help_text='Indicates whether location is available for resource group.',
     )
 
     class Meta:
@@ -77,14 +79,18 @@ class Size(structure_models.ServiceProperty):
 
 
 class BaseResource(core_models.RuntimeStateMixin, structure_models.NewResource):
-    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=AzureServiceProjectLink)
+    service_project_link = models.ForeignKey(
+        on_delete=models.CASCADE, to=AzureServiceProjectLink
+    )
 
     class Meta:
         abstract = True
 
 
 class ResourceGroup(BaseResource):
-    name = models.CharField(max_length=90, validators=[validators.ResourceGroupNameValidator])
+    name = models.CharField(
+        max_length=90, validators=[validators.ResourceGroupNameValidator]
+    )
     location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
 
     @classmethod
@@ -100,38 +106,58 @@ class BaseResourceGroupModel(BaseResource):
 
 
 class StorageAccount(BaseResourceGroupModel):
-    name = models.CharField(max_length=24, validators=[validators.StorageAccountNameValidator])
+    name = models.CharField(
+        max_length=24, validators=[validators.StorageAccountNameValidator]
+    )
 
 
 class Network(BaseResourceGroupModel):
-    name = models.CharField(max_length=64, validators=[validators.NetworkingNameValidator])
+    name = models.CharField(
+        max_length=64, validators=[validators.NetworkingNameValidator]
+    )
     cidr = models.CharField(max_length=32)
 
 
 class SubNet(BaseResourceGroupModel):
-    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    name = models.CharField(
+        max_length=80, validators=[validators.NetworkingNameValidator]
+    )
     network = models.ForeignKey(on_delete=models.CASCADE, to=Network)
     cidr = models.CharField(max_length=32)
 
 
 class SecurityGroup(BaseResourceGroupModel):
-    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    name = models.CharField(
+        max_length=80, validators=[validators.NetworkingNameValidator]
+    )
 
 
 class NetworkInterface(BaseResourceGroupModel):
-    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    name = models.CharField(
+        max_length=80, validators=[validators.NetworkingNameValidator]
+    )
     subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet)
     config_name = models.CharField(max_length=255)
-    public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
-    security_group = models.ForeignKey(SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
+    public_ip = models.ForeignKey(
+        'PublicIP', on_delete=models.SET_NULL, null=True, blank=True
+    )
+    security_group = models.ForeignKey(
+        SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True, blank=True, protocol='IPv4', default=None
+    )
     tracker = FieldTracker()
 
 
 class PublicIP(BaseResourceGroupModel):
-    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    name = models.CharField(
+        max_length=80, validators=[validators.NetworkingNameValidator]
+    )
     location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
-    ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
+    ip_address = models.GenericIPAddressField(
+        null=True, blank=True, protocol='IPv4', default=None
+    )
     tracker = FieldTracker()
 
     @classmethod
@@ -141,19 +167,31 @@ class PublicIP(BaseResourceGroupModel):
 
 class VirtualMachine(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
-        AzureServiceProjectLink, related_name='virtualmachines', on_delete=models.PROTECT)
+        AzureServiceProjectLink,
+        related_name='virtualmachines',
+        on_delete=models.PROTECT,
+    )
     resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
     size = models.ForeignKey(on_delete=models.CASCADE, to=Size)
     image = models.ForeignKey(on_delete=models.CASCADE, to=Image)
-    ssh_key = models.ForeignKey(on_delete=models.CASCADE, to=core_models.SshPublicKey, null=True, blank=True)
+    ssh_key = models.ForeignKey(
+        on_delete=models.CASCADE, to=core_models.SshPublicKey, null=True, blank=True
+    )
     network_interface = models.ForeignKey(on_delete=models.CASCADE, to=NetworkInterface)
-    name = models.CharField(max_length=15, validators=[validators.VirtualMachineNameValidator])
-    username = models.CharField(max_length=32, validators=[validators.VirtualMachineUsernameValidator])
-    password = models.CharField(max_length=72, validators=validators.VirtualMachinePasswordValidators)
+    name = models.CharField(
+        max_length=15, validators=[validators.VirtualMachineNameValidator]
+    )
+    username = models.CharField(
+        max_length=32, validators=[validators.VirtualMachineUsernameValidator]
+    )
+    password = models.CharField(
+        max_length=72, validators=validators.VirtualMachinePasswordValidators
+    )
     user_data = models.TextField(
         blank=True,
         max_length=87380,
-        help_text='Additional data that will be added to instance on provisioning')
+        help_text='Additional data that will be added to instance on provisioning',
+    )
 
     @property
     def internal_ips(self):
@@ -173,10 +211,18 @@ class VirtualMachine(structure_models.VirtualMachine):
 
 
 class SQLServer(BaseResourceGroupModel):
-    name = models.CharField(max_length=80, validators=[validators.SQLServerNameValidator])
-    username = models.CharField(max_length=50, validators=[validators.SQLServerUsernameValidator])
-    password = models.CharField(max_length=128, validators=validators.SQLServerPasswordValidators)
-    storage_mb = models.PositiveIntegerField(null=True, validators=validators.SQLServerStorageValidators)
+    name = models.CharField(
+        max_length=80, validators=[validators.SQLServerNameValidator]
+    )
+    username = models.CharField(
+        max_length=50, validators=[validators.SQLServerUsernameValidator]
+    )
+    password = models.CharField(
+        max_length=128, validators=validators.SQLServerPasswordValidators
+    )
+    storage_mb = models.PositiveIntegerField(
+        null=True, validators=validators.SQLServerStorageValidators
+    )
     fqdn = models.TextField(null=True, blank=True)
     tracker = FieldTracker()
 
@@ -188,7 +234,9 @@ class SQLServer(BaseResourceGroupModel):
 class SQLDatabase(BaseResource):
     server = models.ForeignKey(on_delete=models.CASCADE, to=SQLServer)
     charset = models.CharField(max_length=255, blank=True, null=True, default='utf8')
-    collation = models.CharField(max_length=255, blank=True, null=True, default='utf8_general_ci')
+    collation = models.CharField(
+        max_length=255, blank=True, null=True, default='utf8_general_ci'
+    )
     tracker = FieldTracker()
 
     @classmethod

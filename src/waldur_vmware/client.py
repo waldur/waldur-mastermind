@@ -37,10 +37,12 @@ class VMwareClient:
             raise VMwareError(e)
 
         status_code = response.status_code
-        if status_code in (requests.codes.ok,
-                           requests.codes.created,
-                           requests.codes.accepted,
-                           requests.codes.no_content):
+        if status_code in (
+            requests.codes.ok,
+            requests.codes.created,
+            requests.codes.accepted,
+            requests.codes.no_content,
+        ):
             if response.content:
                 data = response.json()
                 if isinstance(data, dict) and 'value' in data:
@@ -288,7 +290,9 @@ class VMwareClient:
         :param cdrom_id: Virtual CD-ROM device identifier.
         :type cdrom_id: string
         """
-        return self._post('vcenter/vm/{}/hardware/cdrom/{}/connect'.format(vm_id, cdrom_id))
+        return self._post(
+            'vcenter/vm/{}/hardware/cdrom/{}/connect'.format(vm_id, cdrom_id)
+        )
 
     def disconnect_cdrom(self, vm_id, cdrom_id):
         """
@@ -299,7 +303,9 @@ class VMwareClient:
         :param cdrom_id: Virtual CD-ROM device identifier.
         :type cdrom_id: string
         """
-        return self._post('vcenter/vm/{}/hardware/cdrom/{}/disconnect'.format(vm_id, cdrom_id))
+        return self._post(
+            'vcenter/vm/{}/hardware/cdrom/{}/disconnect'.format(vm_id, cdrom_id)
+        )
 
     def create_nic(self, vm_id, network_id):
         """
@@ -311,10 +317,7 @@ class VMwareClient:
         :type network_id: string
         """
         spec = {
-            'backing': {
-                'network': network_id,
-                'type': 'DISTRIBUTED_PORTGROUP',
-            },
+            'backing': {'network': network_id, 'type': 'DISTRIBUTED_PORTGROUP',},
             'start_connected': True,
         }
         return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
@@ -374,7 +377,9 @@ class VMwareClient:
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        return self._post('vcenter/vm/{}/hardware/ethernet/{}/connect'.format(vm_id, nic_id))
+        return self._post(
+            'vcenter/vm/{}/hardware/ethernet/{}/connect'.format(vm_id, nic_id)
+        )
 
     def disconnect_nic(self, vm_id, nic_id):
         """
@@ -385,7 +390,9 @@ class VMwareClient:
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        return self._post('vcenter/vm/{}/hardware/ethernet/{}/disconnect'.format(vm_id, nic_id))
+        return self._post(
+            'vcenter/vm/{}/hardware/ethernet/{}/disconnect'.format(vm_id, nic_id)
+        )
 
     def list_libraries(self):
         return self._get('com/vmware/content/library')
@@ -395,7 +402,9 @@ class VMwareClient:
         return self._get('com/vmware/content/library/item', params=params)
 
     def get_library_item(self, library_item_id):
-        return self._get('com/vmware/content/library/item/id:{}'.format(library_item_id))
+        return self._get(
+            'com/vmware/content/library/item/id:{}'.format(library_item_id)
+        )
 
     def get_template_library_item(self, library_item_id):
         return self._get('vcenter/vm-template/library-items/{}'.format(library_item_id))
@@ -407,10 +416,9 @@ class VMwareClient:
                 library_item = self.get_library_item(library_item_id)
                 if library_item['type'] == 'vm-template':
                     template = self.get_template_library_item(library_item_id)
-                    items.append({
-                        'library_item': library_item,
-                        'template': template,
-                    })
+                    items.append(
+                        {'library_item': library_item, 'template': template,}
+                    )
         return items
 
     def deploy_vm_from_template(self, library_item_id, spec):
@@ -423,5 +431,7 @@ class VMwareClient:
         :return: Identifier of the deployed virtual machine.
         :rtype: str
         """
-        url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(library_item_id)
+        url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(
+            library_item_id
+        )
         return self._post(url, json=spec)

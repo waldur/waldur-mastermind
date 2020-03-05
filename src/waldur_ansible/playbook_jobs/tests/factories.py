@@ -1,5 +1,6 @@
 import factory
 from rest_framework.reverse import reverse
+
 from waldur_ansible.playbook_jobs import models
 from waldur_core.core.utils import get_detail_view_name, get_list_view_name
 from waldur_core.structure.tests import factories as structure_factories
@@ -31,7 +32,9 @@ class PlaybookFactory(factory.DjangoModelFactory):
         if playbook is None:
             playbook = PlaybookFactory()
 
-        url = 'http://testserver' + reverse(get_detail_view_name(models.Playbook), kwargs={'uuid': playbook.uuid.hex})
+        url = 'http://testserver' + reverse(
+            get_detail_view_name(models.Playbook), kwargs={'uuid': playbook.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -57,7 +60,9 @@ class JobFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'job%s' % n)
     description = factory.Sequence(lambda n: 'Description %s' % n)
     playbook = factory.SubFactory(PlaybookFactory)
-    service_project_link = factory.SubFactory(openstack_factories.OpenStackTenantServiceProjectLinkFactory)
+    service_project_link = factory.SubFactory(
+        openstack_factories.OpenStackTenantServiceProjectLinkFactory
+    )
     ssh_public_key = factory.SubFactory(structure_factories.SshPublicKeyFactory)
     subnet = factory.SubFactory(openstack_factories.SubNetFactory)
     user = factory.SubFactory(structure_factories.UserFactory)
@@ -70,8 +75,12 @@ class JobFactory(factory.DjangoModelFactory):
         if extracted:
             self.arguments = extracted
         else:
-            self.arguments = {name: 'test value' for name in
-                              self.playbook.parameters.all().values_list('name', flat=True)}
+            self.arguments = {
+                name: 'test value'
+                for name in self.playbook.parameters.all().values_list(
+                    'name', flat=True
+                )
+            }
         self.save(update_fields=['arguments'])
 
     @classmethod
@@ -79,7 +88,9 @@ class JobFactory(factory.DjangoModelFactory):
         if job is None:
             job = JobFactory()
 
-        url = 'http://testserver' + reverse(get_detail_view_name(models.Job), kwargs={'uuid': job.uuid.hex})
+        url = 'http://testserver' + reverse(
+            get_detail_view_name(models.Job), kwargs={'uuid': job.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod

@@ -1,13 +1,13 @@
-import pkg_resources
 import json
 
+import pkg_resources
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 
-from waldur_paypal.helpers import override_paypal_settings
-from waldur_paypal.tests import fixtures, factories
 from waldur_paypal.backend import PaypalBackend, PayPalError
+from waldur_paypal.helpers import override_paypal_settings
+from waldur_paypal.tests import factories, fixtures
 
 
 @override_paypal_settings(ENABLED=True)
@@ -25,7 +25,11 @@ class InvoiceWebhookTest(TestCase):
         self.REFUNDED = 'INVOICING.INVOICE.REFUNDED'
         self.UPDATED = 'INVOICING.INVOICE.UPDATED'
         self.CREATED = 'INVOICING.INVOICE.CREATED'
-        request = pkg_resources.resource_stream(__name__, self.INVOICE_PAID_REQUEST_FILE_NAME).read().decode()
+        request = (
+            pkg_resources.resource_stream(__name__, self.INVOICE_PAID_REQUEST_FILE_NAME)
+            .read()
+            .decode()
+        )
         self.request_data = json.loads(request)
 
     def test_invoice_paid_event_updates_invoice_state(self):
@@ -33,7 +37,11 @@ class InvoiceWebhookTest(TestCase):
         self.request_data['resource']['id'] = self.invoice.backend_id
 
         # form data does not support 2d levels nesting
-        response = self.client.post(self.url, data=json.dumps(self.request_data), content_type='application/json')
+        response = self.client.post(
+            self.url,
+            data=json.dumps(self.request_data),
+            content_type='application/json',
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.invoice.refresh_from_db()
@@ -43,7 +51,11 @@ class InvoiceWebhookTest(TestCase):
         expected_state = self.invoice.state
         self.request_data['event_type'] = self.CREATED
 
-        response = self.client.post(self.url, data=json.dumps(self.request_data), content_type='application/json')
+        response = self.client.post(
+            self.url,
+            data=json.dumps(self.request_data),
+            content_type='application/json',
+        )
 
         self.assertEqual(response.status_code, status.HTTP_304_NOT_MODIFIED)
         self.invoice.refresh_from_db()
@@ -53,7 +65,11 @@ class InvoiceWebhookTest(TestCase):
         expected_state = self.invoice.state
         self.request_data['event_type'] = 'PAYMENT.CAPTURE.COMPLETED'
 
-        response = self.client.post(self.url, data=json.dumps(self.request_data), content_type='application/json')
+        response = self.client.post(
+            self.url,
+            data=json.dumps(self.request_data),
+            content_type='application/json',
+        )
 
         self.assertEqual(response.status_code, status.HTTP_304_NOT_MODIFIED)
         self.invoice.refresh_from_db()

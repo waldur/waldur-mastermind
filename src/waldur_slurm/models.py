@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
@@ -16,8 +16,9 @@ def get_batch_service(service_settings):
 
 
 class SlurmService(structure_models.Service):
-    projects = models.ManyToManyField(structure_models.Project,
-                                      related_name='+', through='SlurmServiceProjectLink')
+    projects = models.ManyToManyField(
+        structure_models.Project, related_name='+', through='SlurmServiceProjectLink'
+    )
 
     class Meta:
         unique_together = ('customer', 'settings')
@@ -43,7 +44,8 @@ class SlurmServiceProjectLink(structure_models.ServiceProjectLink):
 
 class Allocation(structure_models.NewResource):
     service_project_link = models.ForeignKey(
-        SlurmServiceProjectLink, related_name='allocations', on_delete=models.PROTECT)
+        SlurmServiceProjectLink, related_name='allocations', on_delete=models.PROTECT
+    )
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 
@@ -69,7 +71,10 @@ class Allocation(structure_models.NewResource):
     @classmethod
     def get_backend_fields(cls):
         return super(Allocation, cls).get_backend_fields() + (
-            'cpu_usage', 'gpu_usage', 'ram_usage', 'deposit_usage'
+            'cpu_usage',
+            'gpu_usage',
+            'ram_usage',
+            'deposit_usage',
         )
 
     @property
@@ -88,10 +93,14 @@ class AllocationUsage(models.Model):
 
     allocation = models.ForeignKey(on_delete=models.CASCADE, to=Allocation)
     username = models.CharField(max_length=32)
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE
+    )
 
     year = models.PositiveSmallIntegerField()
-    month = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
+    month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)]
+    )
 
     cpu_usage = models.BigIntegerField(default=0)
     ram_usage = models.BigIntegerField(default=0)

@@ -1,5 +1,5 @@
-from rest_framework.settings import api_settings
 from rest_framework import test
+from rest_framework.settings import api_settings
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -11,9 +11,15 @@ from .. import models
 
 class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
     def setUp(self):
-        models.PriceEstimate.objects.filter(scope=structure_factories.CustomerFactory()).update(total=200)
-        models.PriceEstimate.objects.filter(scope=structure_factories.CustomerFactory()).update(total=100)
-        models.PriceEstimate.objects.filter(scope=structure_factories.CustomerFactory()).update(total=300)
+        models.PriceEstimate.objects.filter(
+            scope=structure_factories.CustomerFactory()
+        ).update(total=200)
+        models.PriceEstimate.objects.filter(
+            scope=structure_factories.CustomerFactory()
+        ).update(total=100)
+        models.PriceEstimate.objects.filter(
+            scope=structure_factories.CustomerFactory()
+        ).update(total=300)
         structure_factories.CustomerFactory()
 
     def execute_request(self, ordering_param=None):
@@ -26,7 +32,10 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
             params[api_settings.ORDERING_PARAM] = ordering_param
         response = self.client.get(url, params)
 
-        return [int(customer['billing_price_estimate']['total']) for customer in response.data]
+        return [
+            int(customer['billing_price_estimate']['total'])
+            for customer in response.data
+        ]
 
     def test_ascending_ordering(self):
         actual = self.execute_request('estimated_cost')
@@ -51,7 +60,7 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
                 project=project,
                 unit_price=price,
                 quantity=1,
-                unit=invoice_models.InvoiceItem.Units.QUANTITY
+                unit=invoice_models.InvoiceItem.Units.QUANTITY,
             )
         structure_factories.CustomerFactory()
 
@@ -65,7 +74,10 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
             params[api_settings.ORDERING_PARAM] = ordering_param
         response = self.client.get(url, params)
 
-        return [int(customer['billing_price_estimate']['current']) for customer in response.data]
+        return [
+            int(customer['billing_price_estimate']['current'])
+            for customer in response.data
+        ]
 
     def test_ascending_ordering(self):
         actual = self.execute_request('current_cost')

@@ -70,7 +70,7 @@ class MarketplaceConfig(AppConfig):
             handlers.update_aggregate_resources_count_when_resource_is_updated,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
-                         'update_aggregate_resources_count_when_resource_is_updated',
+            'update_aggregate_resources_count_when_resource_is_updated',
         )
 
         quota_signals.recalculate_quotas.connect(
@@ -82,7 +82,7 @@ class MarketplaceConfig(AppConfig):
             handlers.close_resource_plan_period_when_resource_is_terminated,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
-                         'close_resource_plan_period_when_resource_is_terminated',
+            'close_resource_plan_period_when_resource_is_terminated',
         )
 
         marketplace_signals.limit_update_succeeded.connect(
@@ -99,6 +99,5 @@ class MarketplaceConfig(AppConfig):
 
         for resource_serializer in SupportedServices.get_resource_serializers():
             core_signals.pre_serializer_fields.connect(
-                sender=resource_serializer,
-                receiver=utils.add_marketplace_offering,
+                sender=resource_serializer, receiver=utils.add_marketplace_offering,
             )

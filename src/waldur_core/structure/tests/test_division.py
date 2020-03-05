@@ -1,5 +1,5 @@
 from ddt import data, ddt
-from rest_framework import test, status
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories, fixtures
 
@@ -30,9 +30,21 @@ class DivisionListTest(test.APITransactionTestCase):
         self.division_1.save()
         rows = [
             {'name': 'name', 'valid': self.division_1.name[2:], 'invalid': 'AAA'},
-            {'name': 'name_exact', 'valid': self.division_1.name, 'invalid': self.division_1.name[2:]},
-            {'name': 'type', 'valid': self.division_1.type.name, 'invalid': self.division_1.type.name[2:]},
-            {'name': 'parent', 'valid': division_parent.uuid.hex, 'invalid': division_parent.uuid.hex[2:]},
+            {
+                'name': 'name_exact',
+                'valid': self.division_1.name,
+                'invalid': self.division_1.name[2:],
+            },
+            {
+                'name': 'type',
+                'valid': self.division_1.type.name,
+                'invalid': self.division_1.type.name[2:],
+            },
+            {
+                'name': 'parent',
+                'valid': division_parent.uuid.hex,
+                'invalid': division_parent.uuid.hex[2:],
+            },
         ]
         self.client.force_authenticate(user=self.fixture.staff)
 

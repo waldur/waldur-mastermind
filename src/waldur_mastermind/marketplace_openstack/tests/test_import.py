@@ -6,21 +6,30 @@ from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE, \
-    PACKAGE_TYPE
+from waldur_mastermind.marketplace_openstack import (
+    CORES_TYPE,
+    INSTANCE_TYPE,
+    PACKAGE_TYPE,
+    RAM_TYPE,
+    STORAGE_TYPE,
+    VOLUME_TYPE,
+)
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
-from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
-from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
+from waldur_openstack.openstack_tenant.tests import (
+    factories as openstack_tenant_factories,
+)
+from waldur_openstack.openstack_tenant.tests import (
+    fixtures as openstack_tenant_fixtures,
+)
 
-from .utils import BaseOpenStackTest
 from .. import utils
+from .utils import BaseOpenStackTest
 
 Types = package_models.PackageComponent.Types
 
 
 class TemplateImportTest(BaseOpenStackTest):
-
     def setUp(self):
         super(TemplateImportTest, self).setUp()
         self.fixture = package_fixtures.PackageFixture()
@@ -41,9 +50,13 @@ class TemplateImportTest(BaseOpenStackTest):
         self.assertEqual(1, package_models.PackageTemplate.objects.count())
 
     def test_components_are_imported(self):
-        self.template.components.filter(type=Types.RAM).update(amount=20 * 1024, price=10.0 / 1024)
+        self.template.components.filter(type=Types.RAM).update(
+            amount=20 * 1024, price=10.0 / 1024
+        )
         self.template.components.filter(type=Types.CORES).update(amount=10, price=3)
-        self.template.components.filter(type=Types.STORAGE).update(amount=100 * 1024, price=1.0 / 1024)
+        self.template.components.filter(type=Types.STORAGE).update(
+            amount=100 * 1024, price=1.0 / 1024
+        )
 
         self.import_offering()
         plan = marketplace_models.Plan.objects.get(scope=self.template)
@@ -71,8 +84,12 @@ class TemplateImportTest(BaseOpenStackTest):
         self.import_offering()
         self.import_offering()
 
-        self.assertEqual(marketplace_models.Offering.objects.filter(
-            scope=self.template.service_settings).count(), 1)
+        self.assertEqual(
+            marketplace_models.Offering.objects.filter(
+                scope=self.template.service_settings
+            ).count(),
+            1,
+        )
 
     def test_shared_settings_flag_is_mapped(self):
         service_settings = self.fixture.openstack_service_settings
@@ -153,7 +170,9 @@ class TenantImportTest(BaseOpenStackTest):
         self.import_resource()
         self.import_resource()
 
-        self.assertEqual(marketplace_models.Resource.objects.filter(scope=self.tenant).count(), 1)
+        self.assertEqual(
+            marketplace_models.Resource.objects.filter(scope=self.tenant).count(), 1
+        )
 
 
 class TenantSettingImportTest(BaseOpenStackTest):
@@ -165,14 +184,18 @@ class TenantSettingImportTest(BaseOpenStackTest):
     def test_instance_offering_has_valid_category(self):
         utils.import_openstack_tenant_service_settings()
 
-        offerings = marketplace_models.Offering.objects.filter(scope=self.service_settings)
+        offerings = marketplace_models.Offering.objects.filter(
+            scope=self.service_settings
+        )
         instance_offering = offerings.get(type=INSTANCE_TYPE)
         self.assertTrue(instance_offering.category, self.instance_category)
 
     def test_volume_offering_has_valid_category(self):
         utils.import_openstack_tenant_service_settings()
 
-        offerings = marketplace_models.Offering.objects.filter(scope=self.service_settings)
+        offerings = marketplace_models.Offering.objects.filter(
+            scope=self.service_settings
+        )
         volume_offering = offerings.get(type=VOLUME_TYPE)
         self.assertTrue(volume_offering.category, self.volume_category)
 
@@ -183,10 +206,14 @@ class TenantSettingImportTest(BaseOpenStackTest):
         utils.import_openstack_service_settings(fixture.customer)
         utils.import_openstack_tenant_service_settings()
 
-        offerings = marketplace_models.Offering.objects.filter(scope=fixture.openstack_package.service_settings)
+        offerings = marketplace_models.Offering.objects.filter(
+            scope=fixture.openstack_package.service_settings
+        )
         volume_offering = offerings.get(type=VOLUME_TYPE)
 
-        plan = marketplace_models.Plan.objects.get(scope=template, offering=volume_offering)
+        plan = marketplace_models.Plan.objects.get(
+            scope=template, offering=volume_offering
+        )
         self.assertEqual(plan.components.all().count(), template.components.count())
 
 
@@ -220,9 +247,15 @@ class InstanceImportTest(BaseOpenStackTest):
         template = fixture.openstack_template
         service_settings = package.service_settings
 
-        service = openstack_tenant_factories.OpenStackTenantServiceFactory(settings=service_settings)
-        spl = openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(service=service)
-        self.instance = openstack_tenant_factories.InstanceFactory(service_project_link=spl)
+        service = openstack_tenant_factories.OpenStackTenantServiceFactory(
+            settings=service_settings
+        )
+        spl = openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(
+            service=service
+        )
+        self.instance = openstack_tenant_factories.InstanceFactory(
+            service_project_link=spl
+        )
 
         utils.import_openstack_service_settings(fixture.customer)
         resource = self.import_resource()
@@ -230,7 +263,6 @@ class InstanceImportTest(BaseOpenStackTest):
 
 
 class VolumeImportTest(BaseOpenStackTest):
-
     def setUp(self):
         super(VolumeImportTest, self).setUp()
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
@@ -260,8 +292,12 @@ class VolumeImportTest(BaseOpenStackTest):
         template = fixture.openstack_template
         service_settings = package.service_settings
 
-        service = openstack_tenant_factories.OpenStackTenantServiceFactory(settings=service_settings)
-        spl = openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(service=service)
+        service = openstack_tenant_factories.OpenStackTenantServiceFactory(
+            settings=service_settings
+        )
+        spl = openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(
+            service=service
+        )
         self.volume = openstack_tenant_factories.VolumeFactory(service_project_link=spl)
 
         utils.import_openstack_service_settings(fixture.customer)
@@ -283,41 +319,47 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
     def test_import_volume_as_marketplace_resource(self):
         volume = self.fixture.volume
         marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_tenant_service_settings,
-            type=VOLUME_TYPE
+            scope=self.fixture.openstack_tenant_service_settings, type=VOLUME_TYPE
         )
 
         structure_signals.resource_imported.send(
-            sender=volume.__class__,
-            instance=volume,
+            sender=volume.__class__, instance=volume,
         )
 
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=volume).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=volume).exists()
+        )
 
     def test_import_instance_as_marketplace_resource(self):
         instance = self.fixture.instance
         marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_tenant_service_settings,
-            type=INSTANCE_TYPE
+            scope=self.fixture.openstack_tenant_service_settings, type=INSTANCE_TYPE
         )
 
         structure_signals.resource_imported.send(
-            sender=instance.__class__,
-            instance=instance,
+            sender=instance.__class__, instance=instance,
         )
 
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=instance).exists()
+        )
 
     def test_import_tenant_as_marketplace_resource(self):
         tenant = self.fixture.tenant
         self.import_tenant(tenant)
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=tenant).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=tenant).exists()
+        )
 
     def test_when_tenant_is_imported_volume_and_instance_offerings_are_created(self):
         tenant = self.fixture.tenant
         self.import_tenant(tenant)
-        self.assertTrue(marketplace_models.Offering.objects.filter(type=INSTANCE_TYPE).exists())
-        self.assertTrue(marketplace_models.Offering.objects.filter(type=VOLUME_TYPE).exists())
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(type=INSTANCE_TYPE).exists()
+        )
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(type=VOLUME_TYPE).exists()
+        )
 
     def test_when_volume_is_imported_from_tenant_marketplace_resource_is_created(self):
         # Arrange
@@ -327,14 +369,17 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
 
         # Act
         structure_signals.resource_imported.send(
-            sender=volume.__class__,
-            instance=volume,
+            sender=volume.__class__, instance=volume,
         )
 
         # Assert
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=volume).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=volume).exists()
+        )
 
-    def test_when_instance_is_imported_from_tenant_marketplace_resource_is_created(self):
+    def test_when_instance_is_imported_from_tenant_marketplace_resource_is_created(
+        self,
+    ):
         # Arrange
         tenant = self.fixture.tenant
         self.import_tenant(tenant)
@@ -342,20 +387,19 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
 
         # Act
         structure_signals.resource_imported.send(
-            sender=instance.__class__,
-            instance=instance,
+            sender=instance.__class__, instance=instance,
         )
 
         # Assert
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=instance).exists()
+        )
 
     def import_tenant(self, tenant):
         marketplace_factories.OfferingFactory(
-            scope=tenant.service_settings,
-            type=PACKAGE_TYPE
+            scope=tenant.service_settings, type=PACKAGE_TYPE
         )
 
         structure_signals.resource_imported.send(
-            sender=tenant.__class__,
-            instance=tenant,
+            sender=tenant.__class__, instance=tenant,
         )

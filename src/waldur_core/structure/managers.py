@@ -15,10 +15,7 @@ def get_permission_subquery(permissions, user):
         else:
             prefix = path + '__permissions__'
 
-        kwargs = {
-            prefix + 'user': user,
-            prefix + 'is_active': True
-        }
+        kwargs = {prefix + 'user': user, prefix + 'is_active': True}
 
         subquery |= models.Q(**kwargs)
 
@@ -66,12 +63,14 @@ class StructureQueryset(models.QuerySet):
     def exclude(self, *args, **kwargs):
         return super(StructureQueryset, self).exclude(
             *[self._patch_query_argument(a) for a in args],
-            **self._filter_by_custom_fields(**kwargs))
+            **self._filter_by_custom_fields(**kwargs)
+        )
 
     def filter(self, *args, **kwargs):
         return super(StructureQueryset, self).filter(
             *[self._patch_query_argument(a) for a in args],
-            **self._filter_by_custom_fields(**kwargs))
+            **self._filter_by_custom_fields(**kwargs)
+        )
 
     def _patch_query_argument(self, arg):
         # patch Q() objects if passed and add support of custom fields
@@ -115,7 +114,9 @@ class StructureQueryset(models.QuerySet):
                 if extra:
                     return {extra: value}
                 else:
-                    return {'pk': value.pk if isinstance(value, models.Model) else value}
+                    return {
+                        'pk': value.pk if isinstance(value, models.Model) else value
+                    }
             else:
                 if extra:
                     path += '__' + extra
@@ -130,6 +131,7 @@ class ResourceSummaryQuerySet(SummaryQuerySet):
     @property
     def model(self):
         from waldur_core.structure.models import ResourceMixin
+
         return ResourceMixin
 
 
@@ -138,6 +140,7 @@ class ServiceSummaryQuerySet(SummaryQuerySet):
     @property
     def model(self):
         from waldur_core.structure.models import Service
+
         return Service
 
 
@@ -147,14 +150,21 @@ class ServiceSettingsManager(GenericKeyMixin, models.Manager):
     def get_available_models(self):
         """ Return list of models that are acceptable """
         from waldur_core.structure.models import ResourceMixin
+
         return ResourceMixin.get_all_models()
 
 
 class SharedServiceSettingsManager(ServiceSettingsManager):
     def get_queryset(self):
-        return super(SharedServiceSettingsManager, self).get_queryset().filter(shared=True)
+        return (
+            super(SharedServiceSettingsManager, self).get_queryset().filter(shared=True)
+        )
 
 
 class PrivateServiceSettingsManager(ServiceSettingsManager):
     def get_queryset(self):
-        return super(PrivateServiceSettingsManager, self).get_queryset().filter(shared=False)
+        return (
+            super(PrivateServiceSettingsManager, self)
+            .get_queryset()
+            .filter(shared=False)
+        )

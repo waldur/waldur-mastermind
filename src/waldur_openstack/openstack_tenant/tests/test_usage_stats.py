@@ -1,7 +1,7 @@
-from rest_framework import test, status
+from rest_framework import status, test
 
-from . import factories, fixtures
 from .. import models
+from . import factories, fixtures
 
 
 def pluck(fields, row):
@@ -17,41 +17,43 @@ def clean_rows(rows):
 
 
 class TestImageUsageStats(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.admin = self.fixture.staff
         factories.InstanceFactory(
             volumes__image_name='Ubuntu 16.04',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl)
+            service_project_link=self.fixture.spl,
+        )
         factories.InstanceFactory(
             volumes__image_name='Ubuntu 16.04',
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
-            service_project_link=self.fixture.spl)
+            service_project_link=self.fixture.spl,
+        )
         factories.InstanceFactory(
             volumes__image_name='Windows 10',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl)
+            service_project_link=self.fixture.spl,
+        )
         factories.ImageFactory(
-            name='Ubuntu 16.04',
-            settings=self.fixture.openstack_tenant_service_settings)
+            name='Ubuntu 16.04', settings=self.fixture.openstack_tenant_service_settings
+        )
         factories.ImageFactory(
-            name='CentOS 10.04',
-            settings=self.fixture.openstack_tenant_service_settings)
+            name='CentOS 10.04', settings=self.fixture.openstack_tenant_service_settings
+        )
         factories.ImageFactory(
-            name='Windows 10',
-            settings=self.fixture.openstack_tenant_service_settings)
+            name='Windows 10', settings=self.fixture.openstack_tenant_service_settings
+        )
         factories.ImageFactory(
-            name='Windows 10',
-            settings=self.fixture.openstack_tenant_service_settings)
+            name='Windows 10', settings=self.fixture.openstack_tenant_service_settings
+        )
 
     def test_usage_stats(self):
         expected = [
             {
                 'name': 'CentOS 10.04',
                 'running_instances_count': 0,
-                'created_instances_count': 0
+                'created_instances_count': 0,
             },
             {
                 'name': 'Windows 10',
@@ -62,7 +64,7 @@ class TestImageUsageStats(test.APITransactionTestCase):
                 'name': 'Ubuntu 16.04',
                 'running_instances_count': 1,
                 'created_instances_count': 2,
-            }
+            },
         ]
         self.client.force_authenticate(user=self.admin)
 
@@ -74,49 +76,55 @@ class TestImageUsageStats(test.APITransactionTestCase):
 
 
 class TestFlavorUsageStats(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.admin = self.fixture.staff
         factories.InstanceFactory(
             flavor_name='Small',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl)
+            service_project_link=self.fixture.spl,
+        )
         factories.InstanceFactory(
             flavor_name='Small',
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
-            service_project_link=self.fixture.spl)
+            service_project_link=self.fixture.spl,
+        )
         factories.InstanceFactory(
             flavor_name='Large',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl)
+            service_project_link=self.fixture.spl,
+        )
 
-        factories.FlavorFactory(name='Small',
-                                settings=self.fixture.openstack_tenant_service_settings)
-        factories.FlavorFactory(name='Medium',
-                                settings=self.fixture.openstack_tenant_service_settings)
-        factories.FlavorFactory(name='Large',
-                                settings=self.fixture.openstack_tenant_service_settings)
-        factories.FlavorFactory(name='Large',
-                                settings=self.fixture.openstack_tenant_service_settings)
+        factories.FlavorFactory(
+            name='Small', settings=self.fixture.openstack_tenant_service_settings
+        )
+        factories.FlavorFactory(
+            name='Medium', settings=self.fixture.openstack_tenant_service_settings
+        )
+        factories.FlavorFactory(
+            name='Large', settings=self.fixture.openstack_tenant_service_settings
+        )
+        factories.FlavorFactory(
+            name='Large', settings=self.fixture.openstack_tenant_service_settings
+        )
 
     def test_usage_stats(self):
         expected = [
             {
                 'running_instances_count': 1,
                 'created_instances_count': 1,
-                'name': 'Large'
+                'name': 'Large',
             },
             {
                 'running_instances_count': 0,
                 'created_instances_count': 0,
-                'name': 'Medium'
+                'name': 'Medium',
             },
             {
                 'running_instances_count': 1,
                 'created_instances_count': 2,
-                'name': 'Small'
-            }
+                'name': 'Small',
+            },
         ]
         self.client.force_authenticate(user=self.admin)
 

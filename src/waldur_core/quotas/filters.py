@@ -14,19 +14,21 @@ class QuotaFilter(django_filters.NumberFilter):
         self.quota_field = quota_field
 
     def filter(self, qs, value):
-        return qs.filter(**{'quotas__name': self.quota_name, 'quotas__{}'.format(self.quota_field): value})
+        return qs.filter(
+            **{
+                'quotas__name': self.quota_name,
+                'quotas__{}'.format(self.quota_field): value,
+            }
+        )
 
 
 class QuotaFilterSet(django_filters.FilterSet):
     """
     FilterSet for quotas view
     """
-    name = django_filters.CharFilter(
-        lookup_expr='icontains',
-    )
+
+    name = django_filters.CharFilter(lookup_expr='icontains',)
 
     class Meta:
         model = models.Quota
-        fields = [
-            'name'
-        ]
+        fields = ['name']
