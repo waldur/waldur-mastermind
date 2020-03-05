@@ -152,7 +152,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             user.supportcustomer
         except ObjectDoesNotExist:
             support_customer = models.SupportCustomer(
-                user=user, backend_id=backend_customer.key
+                user=user, backend_id=self.get_user_id(backend_customer)
             )
             support_customer.save()
 
