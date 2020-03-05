@@ -1,5 +1,6 @@
 from unittest import mock
 
+import responses
 from django.test import TestCase
 
 from waldur_paypal.backend import PaypalBackend, PayPalError
@@ -64,17 +65,20 @@ class DownloadInvoicePDFTest(BaseBackendTest):
 
         self.assertRaises(PayPalError, self.backend.download_invoice_pdf, self.invoice)
 
-    @mock.patch('waldur_paypal.backend.urlopen')
-    def test_pdf_is_downloaded(self, urlopen_mock):
-        response = mock.Mock()
-        response.read.return_value = 'PDF file content'
-        urlopen_mock.return_value = response
+    @responses.activate
+    def test_pdf_is_downloaded(self):
+        # Arrange
+        url = self.invoice.get_backend().get_payment_view_url(
+            self.invoice.backend_id, {'printPdfMode': 'true'}
+        )
+        responses.add(responses.GET, url, body='PDF file content')
         self.assertFalse(self.invoice.pdf)
 
+        # Act
         self.backend.download_invoice_pdf(self.invoice)
 
+        # Assert
         self.assertTrue(self.invoice.pdf)
-        urlopen_mock.assert_called_once()
 
 
 class SendInvoiceTest(BaseBackendTest):
