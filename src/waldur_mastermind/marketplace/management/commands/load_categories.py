@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 
 from django.core.files import File

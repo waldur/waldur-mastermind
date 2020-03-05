@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
