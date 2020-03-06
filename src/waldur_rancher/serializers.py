@@ -29,6 +29,7 @@ class ServiceSerializer(
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'base_image_name': _('Base image name'),
         'cloud_init_template': _('Cloud init template'),
+        'default_mtu': _('Default MTU of a cluster'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):

@@ -132,6 +132,9 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
 
 
 class ClusterCreateTest(BaseClusterCreateTest):
+    def tearDown(self):
+        mock.patch.stopall()
+
     @mock.patch('waldur_rancher.executors.core_tasks')
     def test_create_cluster(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
@@ -293,6 +296,36 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.owner)
         response = self._create_request_('new_cluster')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch('waldur_rancher.client.RancherClient._post')
+    def test_create_cluster_with_mtu(self, mock_client_post):
+        mock_token_patch = mock.patch(
+            'waldur_rancher.client.RancherClient.create_cluster_registration_token'
+        )
+        mock_token_patch.start()
+        mock_backend_patch = mock.patch(
+            'waldur_rancher.backend.RancherBackend._backend_cluster_to_cluster'
+        )
+        mock_backend_patch.start()
+        mock_command_patch = mock.patch(
+            'waldur_rancher.client.RancherClient.get_node_command'
+        )
+        mock_command = mock_command_patch.start()
+        mock_command.return_value = ''
+
+        self.fixture.settings.options['default_mtu'] = 5000
+        self.fixture.settings.save()
+        self.fixture.cluster.backend_id = ''
+        self.fixture.cluster.save()
+        backend = self.fixture.cluster.get_backend()
+        backend.create_cluster(self.fixture.cluster)
+        self.assertEqual(
+            mock_client_post.call_args_list[1][1]['json'],
+            {
+                'name': self.fixture.cluster.name,
+                'rancherKubernetesEngineConfig': {'network': {'mtu': 5000}},
+            },
+        )
 
 
 class ClusterUpdateTest(test.APITransactionTestCase):
