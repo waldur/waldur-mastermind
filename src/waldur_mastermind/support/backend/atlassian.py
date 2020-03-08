@@ -45,6 +45,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
+        self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
 
     def pull_service_properties(self):
         super(ServiceDeskBackend, self).pull_service_properties()
@@ -221,7 +222,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
             args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [
                 {
-                    "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
+                    "name": key
+                    if self.use_teenage_api
+                    else issue.caller.supportcustomer.backend_id,  # will be equal to username
                     "key": key,
                 }
             ]
