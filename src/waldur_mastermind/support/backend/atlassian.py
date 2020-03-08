@@ -46,6 +46,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
         self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
+        self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', False)
 
     def pull_service_properties(self):
         super(ServiceDeskBackend, self).pull_service_properties()
@@ -319,7 +320,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def pull_request_types(self):
         service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
-        backend_request_types = self.manager.waldur_request_types(service_desk_id)
+        backend_request_types = self.manager.waldur_request_types(
+            service_desk_id,
+            progect_key=self.project_settings['key'],
+            strange_setting=self.strange_setting,
+        )
         with transaction.atomic():
             backend_request_type_map = {
                 int(request_type.id): request_type
