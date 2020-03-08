@@ -3,7 +3,8 @@ import os
 import re
 
 from jira import JIRA, JIRAError, utils
-from jira.resources import Attachment
+from jira.resources import Attachment, RequestType
+from jira.utils import json_loads
 from requests import Request
 
 PADDING = 3
@@ -85,4 +86,53 @@ def add_attachment(manager, issue, path):
         return _upload_file(manager, issue, f, filename)
 
 
+def service_desk(manager, id_or_key):
+    """In Jira v8.7.1 / SD 4.7.1 a Service Desk ID must be an integer.
+    We use a hackish workaround to make it work till Atlassian resolves bug
+    https://jira.atlassian.com/browse/JSDSERVER-4877.
+    """
+    try:
+        return manager.service_desk(id_or_key)
+    except JIRAError as e:
+        if 'java.lang.NumberFormatException' in e.text:
+            service_desks = [
+                sd for sd in manager.service_desks() if sd.projectKey == id_or_key
+            ]
+            if len(service_desks):
+                return service_desks[0]
+            else:
+                msg = 'The Service Desk with ID {id} does not exist.'.format(
+                    id=id_or_key
+                )
+                raise JIRAError(text=msg, status_code=404)
+        else:
+            raise e
+
+
+def request_types(manager, service_desk, progect_key=None, strange_setting=None):
+    types = manager.request_types(service_desk)
+
+    if len(types) and not hasattr(types[0], 'issueTypeId'):
+        if hasattr(service_desk, 'id'):
+            service_desk = service_desk.id
+
+        url = manager._options[
+            'server'
+        ] + '/rest/servicedesk/%s/servicedesk/%s/groups/%s/request-types' % (
+            strange_setting,
+            progect_key.lower(),
+            service_desk,
+        )
+        headers = {'X-ExperimentalApi': 'opt-in'}
+        r_json = json_loads(manager._session.get(url, headers=headers))
+        types = [
+            RequestType(manager._options, manager._session, raw_type_json)
+            for raw_type_json in r_json
+        ]
+        list(map(lambda t: setattr(t, 'issueTypeId', t.issueType), types))
+        return types
+
+
 JIRA.waldur_add_attachment = add_attachment
+JIRA.waldur_service_desk = service_desk
+JIRA.waldur_request_types = request_types

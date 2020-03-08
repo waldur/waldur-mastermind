@@ -29,7 +29,9 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
         else:
             for component_type in self.get_required_component_types():
                 self.components.get_or_create(
-                    type=component_type, price=random.randint(1, 2), amount=1
+                    type=component_type,
+                    price=random.randint(1, 2),  # noqa: S311
+                    amount=1,
                 )
 
 

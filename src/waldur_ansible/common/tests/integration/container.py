@@ -36,7 +36,7 @@ class DockerContainer:
         self.stop()
 
     def get_container_host_ip(self):
-        return "0.0.0.0"
+        return "0.0.0.0"  # noqa: S104
 
     def bind_port(self, container_port, host_port):
         self.ports[container_port] = host_port

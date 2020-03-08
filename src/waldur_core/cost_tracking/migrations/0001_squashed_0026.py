@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import django.core.validators
 import django.utils.timezone
 import model_utils.fields

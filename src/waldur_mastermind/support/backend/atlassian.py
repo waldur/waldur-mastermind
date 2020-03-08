@@ -45,6 +45,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
+        self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
+        self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', 1)
 
     def pull_service_properties(self):
         super(ServiceDeskBackend, self).pull_service_properties()
@@ -90,7 +92,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             return super(ServiceDeskBackend, self).create_issue(issue)
 
         args = self._issue_to_dict(issue)
-        args['serviceDeskId'] = self.manager.service_desk(self.project_settings['key'])
+        args['serviceDeskId'] = self.manager.waldur_service_desk(
+            self.project_settings['key']
+        )
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             self.pull_request_types()
 
@@ -219,7 +223,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
             args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [
                 {
-                    "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
+                    "name": key
+                    if self.use_teenage_api
+                    else issue.caller.supportcustomer.backend_id,  # will be equal to username
                     "key": key,
                 }
             ]
@@ -313,8 +319,12 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     @reraise_exceptions
     def pull_request_types(self):
-        service_desk_id = self.manager.service_desk(self.project_settings['key'])
-        backend_request_types = self.manager.request_types(service_desk_id)
+        service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
+        backend_request_types = self.manager.waldur_request_types(
+            service_desk_id,
+            progect_key=self.project_settings['key'],
+            strange_setting=self.strange_setting,
+        )
         with transaction.atomic():
             backend_request_type_map = {
                 int(request_type.id): request_type

@@ -30,7 +30,8 @@ class RancherBackend(ServiceBackend):
         '  - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh\n'
         '  - sudo systemctl start docker\n'
         '  - sudo systemctl enable docker\n'
-        '  - [ sh, -c, "{command}" ]\n'
+        '  - [ sh, -c, "{command}" ]\n',
+        'default_mtu': 1440,
     }
 
     def __init__(self, settings):
@@ -63,7 +64,8 @@ class RancherBackend(ServiceBackend):
         return self.client.get_kubeconfig_file(cluster.backend_id)
 
     def create_cluster(self, cluster):
-        backend_cluster = self.client.create_cluster(cluster.name)
+        mtu = self.settings.get_option('default_mtu')
+        backend_cluster = self.client.create_cluster(cluster.name, mtu=mtu)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         self.client.create_cluster_registration_token(cluster.backend_id)
         cluster.node_command = self.client.get_node_command(cluster.backend_id)

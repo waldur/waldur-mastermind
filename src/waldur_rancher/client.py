@@ -94,9 +94,18 @@ class RancherClient:
     def get_cluster(self, cluster_id):
         return self._get('clusters/{0}'.format(cluster_id))
 
-    def create_cluster(self, cluster_name):
+    def create_cluster(self, cluster_name, mtu=None):
+        rancher_config = {}
+
+        if mtu:
+            rancher_config['network'] = {'mtu': mtu}
+
         return self._post(
-            'clusters', json={'name': cluster_name, 'rancherKubernetesEngineConfig': {}}
+            'clusters',
+            json={
+                'name': cluster_name,
+                'rancherKubernetesEngineConfig': rancher_config,
+            },
         )
 
     def delete_cluster(self, cluster_id):

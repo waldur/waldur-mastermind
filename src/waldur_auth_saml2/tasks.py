@@ -1,4 +1,4 @@
-import subprocess  # nosec
+import subprocess  # noqa: S404
 
 from celery import shared_task
 
@@ -7,4 +7,4 @@ from celery import shared_task
 def sync_providers():
     # It is assumed that waldur console script is installed
     command = ['waldur', 'sync_saml2_providers']
-    subprocess.check_output(command, stderr=subprocess.STDOUT)  # nosec
+    subprocess.check_output(command, stderr=subprocess.STDOUT)  # noqa: S603

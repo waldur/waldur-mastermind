@@ -67,7 +67,7 @@ class PullFloatingIPTest(BaseBackendTest):
         return dict(
             floatingips=[
                 {
-                    'floating_ip_address': '0.0.0.0',
+                    'floating_ip_address': '0.0.0.0',  # noqa: S104
                     'floating_network_id': 'new_backend_network_id',
                     'status': 'DOWN',
                     'id': 'new_backend_id',
