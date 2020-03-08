@@ -46,7 +46,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
         self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
-        self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', False)
+        self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', 1)
 
     def pull_service_properties(self):
         super(ServiceDeskBackend, self).pull_service_properties()
