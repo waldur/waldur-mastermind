@@ -3,7 +3,8 @@ import os
 import re
 
 from jira import JIRA, JIRAError, utils
-from jira.resources import Attachment
+from jira.resources import Attachment, RequestType
+from jira.utils import json_loads
 from requests import Request
 
 PADDING = 3
@@ -108,5 +109,28 @@ def service_desk(manager, id_or_key):
             raise e
 
 
+def request_types(manager, service_desk):
+    types = manager.request_types(service_desk)
+
+    if len(types) and not hasattr(types[0], 'issueTypeId'):
+        if hasattr(service_desk, 'id'):
+            service_desk = service_desk.id
+
+        url = (
+            manager._options['server']
+            + '/rest/servicedesk/1/servicedesk/wal/groups/%s/request-types'
+            % service_desk
+        )
+        headers = {'X-ExperimentalApi': 'opt-in'}
+        r_json = json_loads(manager._session.get(url, headers=headers))
+        types = [
+            RequestType(manager._options, manager._session, raw_type_json)
+            for raw_type_json in r_json
+        ]
+        list(map(lambda t: setattr(t, 'issueTypeId', t.issueType), types))
+        return types
+
+
 JIRA.waldur_add_attachment = add_attachment
 JIRA.waldur_service_desk = service_desk
+JIRA.waldur_request_types = request_types

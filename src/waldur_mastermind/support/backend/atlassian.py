@@ -319,7 +319,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def pull_request_types(self):
         service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
-        backend_request_types = self.manager.request_types(service_desk_id)
+        backend_request_types = self.manager.waldur_request_types(service_desk_id)
         with transaction.atomic():
             backend_request_type_map = {
                 int(request_type.id): request_type
