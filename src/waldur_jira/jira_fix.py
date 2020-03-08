@@ -85,20 +85,24 @@ def add_attachment(manager, issue, path):
         return _upload_file(manager, issue, f, filename)
 
 
-def service_desk(manager, id):
+def service_desk(manager, id_or_key):
     """In Jira v8.7.1 / SD 4.7.1 a Service Desk ID must be an integer.
     We use a hackish workaround to make it work till Atlassian resolves bug
     https://jira.atlassian.com/browse/JSDSERVER-4877.
     """
     try:
-        return manager.service_desk(id)
+        return manager.service_desk(id_or_key)
     except JIRAError as e:
         if 'java.lang.NumberFormatException' in e.text:
-            service_desks = [sd for sd in manager.service_desks() if sd.projectKey == 'WAL']
+            service_desks = [
+                sd for sd in manager.service_desks() if sd.projectKey == id_or_key
+            ]
             if len(service_desks):
                 return service_desks[0]
             else:
-                msg = 'The Service Desk with ID {id} does not exist.'.format(id=id)
+                msg = 'The Service Desk with ID {id} does not exist.'.format(
+                    id=id_or_key
+                )
                 raise JIRAError(text=msg, status_code=404)
         else:
             raise e
