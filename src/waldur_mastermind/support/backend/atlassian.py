@@ -90,7 +90,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             return super(ServiceDeskBackend, self).create_issue(issue)
 
         args = self._issue_to_dict(issue)
-        args['serviceDeskId'] = self.manager.waldur_service_desk(self.project_settings['key'])
+        args['serviceDeskId'] = self.manager.waldur_service_desk(
+            self.project_settings['key']
+        )
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             self.pull_request_types()
 
