@@ -1,12 +1,14 @@
 #!/usr/bin/python
 
-from ansible.module_utils.basic import *
+from ansible.module_utils.basic import AnsibleModule, text_type
 
-from waldur_client import waldur_client_from_module, WaldurClientException
+from waldur_client import WaldurClientException, waldur_client_from_module
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -29,23 +31,23 @@ options:
     description:
       - The name or UUID of the marketplace offering.
     required: true
-  plan: 
+  plan:
     description:
       - The name or UUID of the marketplace plan.
     required: true
-  cpu_hours: 
+  cpu_hours:
     description:
       - The requested number of CPU hours
     required: true
-  gpu_hours: 
+  gpu_hours:
     description:
       - The requested number of GPU hours
     required: true
-  ram_gb: 
+  ram_gb:
     description:
       - The requested number of RAM capacity (GB)
     required: true
-  name: 
+  name:
     description:
       - The name of allocation
     required: true
@@ -53,7 +55,6 @@ options:
     description:
       - The description of allocation
     required: true
-
 '''
 
 EXAMPLES = '''
@@ -104,22 +105,23 @@ def format_params(params):
 def send_request_to_waldur(client, module):
     project, offering, plan, attributes, limits = format_params(module.params)
 
-    response = client.create_marketplace_order(project, offering, plan, attributes, limits)
+    response = client.create_marketplace_order(
+        project, offering, plan, attributes, limits
+    )
     order_item = response['items'][0]
     return order_item, True
+
 
 def main():
     fields = {
         'api_url': {'required': True, 'type': 'str'},
         'access_token': {'required': True, 'type': 'str'},
-
         'project': {'required': True, 'type': 'str'},
         'offering': {'required': True, 'type': 'str'},
         'plan': {'required': True, 'type': 'str'},
         'cpu_hours': {'required': True, 'type': 'int'},
         'gpu_hours': {'required': True, 'type': 'int'},
         'ram_gb': {'required': True, 'type': 'int'},
-
         'name': {'required': True, 'type': 'str'},
         'description': {'required': True, 'type': 'str'},
     }
@@ -133,7 +135,6 @@ def main():
         module.fail_json(msg=text_type(e))
     else:
         module.exit_json(order=order_item, has_changed=has_changed)
-
 
 
 if __name__ == '__main__':

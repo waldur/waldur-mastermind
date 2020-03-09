@@ -1,14 +1,21 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
+from ansible.module_utils.basic import AnsibleModule
 
-from waldur_client import WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned, \
-    waldur_client_from_module, waldur_resource_argument_spec
+from waldur_client import (
+    MultipleObjectsReturned,
+    ObjectDoesNotExist,
+    WaldurClientException,
+    waldur_client_from_module,
+    waldur_resource_argument_spec,
+)
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -18,7 +25,7 @@ version_added: 0.8
 description:
   - "Create/Update/Delete OpenStack volume"
 requirements:
-  - "python = 2.7"
+  - "python = 3.6"
   - "requests"
   - "python-waldur-client"
 options:
@@ -89,7 +96,7 @@ EXAMPLES = '''
         offering: Volume in Tenant
         size: 40
         type: lvm
-        state: present    
+        state: present
 
 - name: remove volume
   hosts: localhost
@@ -122,7 +129,7 @@ def send_request_to_waldur(client, module):
     offering = module.params['offering']
     size = module.params['size']
     volume_type = module.params['type']
-    
+
     try:
         volume = client.get_volume_via_marketplace(name, project)
     except (ObjectDoesNotExist, MultipleObjectsReturned):
@@ -133,8 +140,8 @@ def send_request_to_waldur(client, module):
         if present:
             if volume['description'] != module.params.get('description'):
                 client.update_volume(
-                    volume,
-                    description=module.params.get('description'))
+                    volume, description=module.params.get('description')
+                )
                 has_changed = True
         else:
             client.delete_volume_via_marketplace(volume['uuid'])
@@ -150,7 +157,8 @@ def send_request_to_waldur(client, module):
             tags=module.params.get('tags'),
             wait=module.params['wait'],
             interval=module.params['interval'],
-            timeout=module.params['timeout'])
+            timeout=module.params['timeout'],
+        )
         has_changed = True
 
     return has_changed
@@ -172,9 +180,13 @@ def main():
 
     if state == 'present':
         if not project:
-            module.fail_json(msg="Parameter 'project' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'project' is required if state == 'present'"
+            )
         if not offering:
-            module.fail_json(msg="Parameter 'offering' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'offering' is required if state == 'present'"
+            )
         if not size:
             module.fail_json(msg="Parameter 'size' is required if state == 'present'")
 

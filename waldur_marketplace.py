@@ -1,14 +1,20 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
 import yaml
+from ansible.module_utils.basic import AnsibleModule, to_text
 
-from waldur_client import WaldurClientException, waldur_client_from_module, waldur_full_argument_spec
+from waldur_client import (
+    WaldurClientException,
+    waldur_client_from_module,
+    waldur_full_argument_spec,
+)
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -18,7 +24,7 @@ version_added: 0.1
 description:
   - Create marketplace order item via Waldur API.
 requirements:
-  - python = 2.7
+  - python = 3.6
   - requests
   - python-waldur-client
 options:
@@ -37,7 +43,7 @@ options:
   offering:
     required: true
     description:
-      - The name or UUID of the offering to add an order item to. 
+      - The name or UUID of the offering to add an order item to.
   plan:
     required: true
     description:
@@ -45,7 +51,7 @@ options:
   attributes:
     default: None
     description:
-      - Order item attributes or path to JSON or YAML file with order item attributes.       
+      - Order item attributes or path to JSON or YAML file with order item attributes.
   limits:
     default: None
     description:
@@ -64,7 +70,7 @@ EXAMPLES = '''
         project: Project
         offering: 7887745b83c74fc38d695ed58648ea20
         plan: 4d50f6584ed84df3b6c83075044fd284
-        
+
 - name: Create a new marketplace order item using names.
   hosts: localhost
   gather_facts: False
@@ -76,7 +82,7 @@ EXAMPLES = '''
         project: Project
         offering: Offering name
         plan: Plan name
-        
+
 - name: Create a new marketplace order item using attributes as file path.
   hosts: localhost
   gather_facts: False
@@ -89,7 +95,7 @@ EXAMPLES = '''
         offering: Offering name
         plan: Plan name
         attributes: /home/user/attributes
-        
+
 - name: Create a new marketplace order item using attributes as dictionary.
   hosts: localhost
   gather_facts: False
@@ -101,7 +107,7 @@ EXAMPLES = '''
         project: Project
         offering: Offering name
         plan: Plan name
-        attributes: 
+        attributes:
           name: my name
 '''
 
@@ -125,7 +131,9 @@ def send_request_to_waldur(client, module):
     attributes = get_file_content(attributes) or {}
     limits = get_file_content(limits) or {}
 
-    response = client.create_marketplace_order(project, offering, plan, attributes, limits)
+    response = client.create_marketplace_order(
+        project, offering, plan, attributes, limits
+    )
     order_item = response['items'][0]
     return order_item, True
 

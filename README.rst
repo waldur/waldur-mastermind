@@ -61,4 +61,20 @@ path to Python interpreter and path to module library along with path to playboo
 Contributing
 ============
 
-See also: https://docs.ansible.com/ansible/latest/dev_guide/developing_modules_general.html
+1) See general guidelines: https://docs.ansible.com/ansible/latest/dev_guide/developing_modules_general.html
+
+2) Install `pre-commit` and `tox`
+
+.. code-block:: bash
+
+    pip install tox pre-commit
+    pre-commit install
+
+3) When new module is implemented, don't forget to update `Supported functionality` section in `README.rst` and
+`py_modules` section in `setup.py` file.
+
+4) When new module is implemented, it should be covered with tests. Run tests using `tox`
+
+.. code-block:: bash
+
+    tox
