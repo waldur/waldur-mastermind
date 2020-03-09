@@ -889,6 +889,9 @@ class WaldurClient(object):
             plan_url = self._get_plan(plan)['url']
             order_item['plan'] = plan_url
 
+        # TODO: replace with checkbox data from frontend
+        order_item['accepting_terms_of_service'] = True
+
         payload = {
             'project': project_url,
             'items': [order_item],

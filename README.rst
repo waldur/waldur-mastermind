@@ -8,6 +8,7 @@ Supported functionality
 - OpenStack floating IP assignment.
 - OpenStack volume provisioning.
 - OpenStack snapshot provisioning.
+- Batch processing resources allocation.
 
 See also: http://docs.ansible.com/ansible/modules.html
 

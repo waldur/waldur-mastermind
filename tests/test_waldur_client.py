@@ -229,6 +229,7 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
         actual = self.create_instance()
         self.assertEqual(actual, {'project': 'url_project',
                                   'items': [{
+                                      'accepting_terms_of_service': True,
                                       'attributes':
                                           {'name': 'instance',
                                            'image': 'url_image',
