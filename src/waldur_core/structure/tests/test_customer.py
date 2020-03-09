@@ -515,32 +515,6 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         service.delete()
         self.assert_quota_usage('nc_service_count', 0)
 
-    def test_customer_and_project_service_project_link_quota_updated(self):
-        self.assert_quota_usage('nc_service_project_link_count', 0)
-        service = factories.TestServiceFactory(customer=self.customer)
-
-        project1 = factories.ProjectFactory(customer=self.customer)
-        factories.TestServiceProjectLinkFactory(service=service, project=project1)
-
-        project2 = factories.ProjectFactory(customer=self.customer)
-        factories.TestServiceProjectLinkFactory(service=service, project=project2)
-
-        self.assertEqual(
-            project1.quotas.get(name='nc_service_project_link_count').usage, 1
-        )
-        self.assertEqual(
-            project2.quotas.get(name='nc_service_project_link_count').usage, 1
-        )
-
-        self.assert_quota_usage('nc_service_project_link_count', 2)
-        self.assert_quota_usage('nc_service_count', 1)
-
-        project2.delete()
-        project1.delete()
-
-        self.assert_quota_usage('nc_service_count', 1)
-        self.assert_quota_usage('nc_service_project_link_count', 0)
-
     def test_customer_users_quota_increases_on_adding_owner(self):
         user = factories.UserFactory()
         self.customer.add_user(user, CustomerRole.OWNER)
