@@ -58,7 +58,6 @@ class WaldurClient(object):
         FloatingIP = 'openstacktenant-floating-ips'
         SecurityGroup = 'openstacktenant-security-groups'
         Image = 'openstacktenant-images'
-        ServiceProjectLink = 'openstacktenant-service-project-link'
         Instance = 'openstacktenant-instances'
         Snapshot = 'openstacktenant-snapshots'
         SshKey = 'keys'
@@ -222,10 +221,6 @@ class WaldurClient(object):
     def _execute_resource_action(self, endpoint, uuid, action, **kwargs):
         url = self._build_resource_url(endpoint, uuid, action)
         return self._post(url, [202], **kwargs)
-
-    def _get_service_project_link(self, provider_uuid, project_uuid):
-        query = {'project_uuid': project_uuid, 'service_uuid': provider_uuid}
-        return self._query_resource(self.Endpoints.ServiceProjectLink, query)
 
     def _get_provider(self, identifier):
         return self._get_resource(self.Endpoints.Provider, identifier)
@@ -515,9 +510,6 @@ class WaldurClient(object):
         provider = self._get_provider(provider)
         settings_uuid = provider['settings_uuid']
         project = self._get_project(project)
-        service_project_link = self._get_service_project_link(
-            provider_uuid=provider['uuid'], project_uuid=project['uuid']
-        )
         if flavor:
             flavor = self._get_flavor(flavor, settings_uuid)
         else:
@@ -530,7 +522,8 @@ class WaldurClient(object):
             'name': name,
             'flavor': flavor['url'],
             'image': image['url'],
-            'service_project_link': service_project_link['url'],
+            'service_settings': provider['settings'],
+            'project': project['url'],
             'system_volume_size': system_volume_size * 1024,
             'internal_ips_set': subnets,
             'floating_ips': floating_ips,
@@ -756,13 +749,11 @@ class WaldurClient(object):
         """
         provider = self._get_provider(provider)
         project = self._get_project(project)
-        service_project_link = self._get_service_project_link(
-            provider_uuid=provider['uuid'], project_uuid=project['uuid']
-        )
 
         payload = {
             'name': name,
-            'service_project_link': service_project_link['url'],
+            'service_settings': provider['settings'],
+            'project': project['url'],
             'size': size * 1024,
         }
         if description:
@@ -1115,6 +1106,8 @@ class WaldurClient(object):
             attributes.update({'ssh_public_key': ssh_key['url']})
         if description:
             attributes['description'] = description
+        if tags:
+            attributes.update({'tags': tags})
         if system_volume_type:
             volume_type = self._get_volume_type(system_volume_type, settings_uuid)
             attributes.update({'system_volume_type': volume_type['url']})
