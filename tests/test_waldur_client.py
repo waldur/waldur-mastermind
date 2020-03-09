@@ -122,6 +122,7 @@ class InstanceCreateTest(InstanceCreateBaseTest):
         super(InstanceCreateTest, self).setUp()
         self.params['provider'] = 'provider'
         provider = self._get_object('provider')
+        provider['settings'] = 'settings_url'
         provider['settings_uuid'] = 'settings_uuid'
         responses.add(responses.GET, self._get_url('openstacktenant'), json=[provider])
 
@@ -138,7 +139,8 @@ class InstanceCreateTest(InstanceCreateBaseTest):
                 'internal_ips_set': [{'subnet': 'url_subnet'}],
                 'name': 'instance',
                 'security_groups': [{'url': 'url_security_groups'}],
-                'service_project_link': 'url_service_project_link',
+                'service_settings': 'settings_url',
+                'project': 'url_project',
                 'ssh_public_key': 'url_ssh_key',
                 'system_volume_size': 10240,
                 'user_data': 'user_data',
