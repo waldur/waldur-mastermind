@@ -1,14 +1,19 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
+from ansible.module_utils.basic import AnsibleModule
 
-from waldur_client import WaldurClientException, waldur_client_from_module, \
-    waldur_resource_argument_spec
+from waldur_client import (
+    WaldurClientException,
+    waldur_client_from_module,
+    waldur_resource_argument_spec,
+)
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -18,7 +23,7 @@ version_added: 0.1
 description:
   - "Add/Update/Remove OpenStack tenant security group"
 requirements:
-  - "python = 2.7"
+  - "python = 3.6"
   - "requests"
   - "python-waldur-client"
 options:
@@ -176,12 +181,14 @@ def send_request_to_waldur(client, module):
     tenant = module.params['tenant']
     name = module.params['name']
     description = module.params.get('description') or ''
-    rules = module.params.get('rules') or [{
-        'from_port': module.params['from_port'],
-        'to_port': module.params['to_port'],
-        'cidr': module.params['cidr'],
-        'protocol': module.params['protocol'],
-    }]
+    rules = module.params.get('rules') or [
+        {
+            'from_port': module.params['from_port'],
+            'to_port': module.params['to_port'],
+            'cidr': module.params['cidr'],
+            'protocol': module.params['protocol'],
+        }
+    ]
 
     security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
@@ -208,7 +215,8 @@ def send_request_to_waldur(client, module):
             tags=module.params.get('tags'),
             wait=module.params['wait'],
             interval=module.params['interval'],
-            timeout=module.params['timeout'])
+            timeout=module.params['timeout'],
+        )
         has_changed = True
 
     return has_changed
@@ -225,16 +233,19 @@ def main():
         tenant=dict(type='str', required=True),
     )
     required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
-    mutually_exclusive = [['from_port', 'rules'],
-                          ['to_port', 'rules'],
-                          ['cidr', 'rules'],
-                          ['protocol', 'rules']]
+    mutually_exclusive = [
+        ['from_port', 'rules'],
+        ['to_port', 'rules'],
+        ['cidr', 'rules'],
+        ['protocol', 'rules'],
+    ]
     required_one_of = mutually_exclusive
     module = AnsibleModule(
         argument_spec=fields,
         required_together=required_together,
         required_one_of=required_one_of,
-        mutually_exclusive=mutually_exclusive)
+        mutually_exclusive=mutually_exclusive,
+    )
 
     client = waldur_client_from_module(module)
 

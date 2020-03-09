@@ -1,15 +1,20 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
+from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import (
-    WaldurClientException, ObjectDoesNotExist,
-    waldur_client_from_module, waldur_resource_argument_spec)
+    ObjectDoesNotExist,
+    WaldurClientException,
+    waldur_client_from_module,
+    waldur_resource_argument_spec,
+)
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -19,7 +24,7 @@ version_added: 0.8
 description:
   - Create, update or delete OpenStack compute instance via Waldur API.
 requirements:
-  - python = 2.7
+  - python = 3.6
   - requests
   - python-waldur-client
 options:
@@ -257,7 +262,7 @@ EXAMPLES = '''
         security_groups:
           - ssh
           - icmp
-          
+
 - name: connect the instance to multiple subnets
   hosts: localhost
   tasks:
@@ -266,10 +271,10 @@ EXAMPLES = '''
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
-        name: Warehouse instance        
+        name: Warehouse instance
         subnet:
           - vpc-1-tm-sub-net-1
-          - vpc-1-tm-sub-net-2          
+          - vpc-1-tm-sub-net-2
 '''
 
 
@@ -294,12 +299,16 @@ def send_request_to_waldur(client, module):
                     interval=module.params['interval'],
                     timeout=module.params['timeout'],
                 )
-            client.delete_instance_via_marketplace(instance['uuid'],
-                                                   delete_volumes=delete_volumes,
-                                                   release_floating_ips=release_floating_ips)
+            client.delete_instance_via_marketplace(
+                instance['uuid'],
+                delete_volumes=delete_volumes,
+                release_floating_ips=release_floating_ips,
+            )
             has_changed = True
         else:
-            actual_groups = [group['name'] for group in instance.get('security_groups') or []]
+            actual_groups = [
+                group['name'] for group in instance.get('security_groups') or []
+            ]
             requested_groups = module.params.get('security_groups') or []
             if actual_groups != requested_groups:
                 client.update_instance_security_groups(
@@ -320,8 +329,7 @@ def send_request_to_waldur(client, module):
                 needed_update_subnets = False
 
                 for s in instance_subnets:
-                    if not (s['subnet_name'] in subnet or
-                            s['subnet_uuid'] in subnet):
+                    if not (s['subnet_name'] in subnet or s['subnet_uuid'] in subnet):
                         needed_update_subnets = True
                         break
 
@@ -329,8 +337,9 @@ def send_request_to_waldur(client, module):
                     instance_subnet_names = {s['subnet_name'] for s in instance_subnets}
                     instance_subnets_ids = {s['subnet_uuid'] for s in instance_subnets}
                     for s in subnet:
-                        if not (s in instance_subnet_names or
-                                s in instance_subnets_ids):
+                        if not (
+                            s in instance_subnet_names or s in instance_subnets_ids
+                        ):
                             needed_update_subnets = True
                             break
 
@@ -340,17 +349,16 @@ def send_request_to_waldur(client, module):
                         subnet_set=subnet,
                         wait=True,
                         interval=module.params['interval'],
-                        timeout=module.params['timeout']
+                        timeout=module.params['timeout'],
                     )
                     has_changed = True
     except ObjectDoesNotExist:
         if present:
             if isinstance(subnet, list):
                 subnet = subnet[0]
-            networks = module.params.get('networks') or [{
-                'subnet': subnet,
-                'floating_ip': module.params.get('floating_ip')
-            }]
+            networks = module.params.get('networks') or [
+                {'subnet': subnet, 'floating_ip': module.params.get('floating_ip')}
+            ]
 
             instance = client.create_instance_via_marketplace(
                 name=module.params['name'],
@@ -406,7 +414,7 @@ def main():
             ['subnet', 'networks'],
             ['floating_ip', 'networks'],
             ['flavor_min_cpu', 'flavor'],
-            ['flavor_min_ram', 'flavor']
+            ['flavor_min_ram', 'flavor'],
         ],
         supports_check_mode=True,
     )
@@ -432,18 +440,28 @@ def main():
 
     if state == 'present' and not instance_exists:
         if not project:
-            module.fail_json(msg="Parameter 'project' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'project' is required if state == 'present'"
+            )
         if not offering:
-            module.fail_json(msg="Parameter 'offering' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'offering' is required if state == 'present'"
+            )
         if not image:
             module.fail_json(msg="Parameter 'image' is required if state == 'present'")
         if not (flavor or (flavor_min_cpu and flavor_min_ram)):
-            module.fail_json(msg="Parameter 'flavor' or ('flavor_min_cpu' and 'flavor_min_ram')"
-                                 " is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'flavor' or ('flavor_min_cpu' and 'flavor_min_ram')"
+                " is required if state == 'present'"
+            )
         if not system_volume_size:
-            module.fail_json(msg="Parameter 'system_volume_size' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'system_volume_size' is required if state == 'present'"
+            )
         if not networks and not subnet:
-            module.fail_json(msg="Parameter 'networks' or 'subnet' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'networks' or 'subnet' is required if state == 'present'"
+            )
     try:
         instance, has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as e:

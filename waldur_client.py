@@ -21,31 +21,35 @@ class WaldurClientException(Exception):
 
 class ObjectDoesNotExist(WaldurClientException):
     """The requested object does not exist"""
+
     pass
 
 
 class MultipleObjectsReturned(WaldurClientException):
     """The query returned multiple objects when only one was expected."""
+
     pass
 
 
 class ValidationError(WaldurClientException):
     """An error while validating data."""
+
     pass
 
 
 class TimeoutError(WaldurClientException):
     """Thrown when a command does not complete in enough time."""
+
     pass
 
 
 class InvalidStateError(WaldurClientException):
     """Thrown when a resource transitions to the error state."""
+
     pass
 
 
 class WaldurClient(object):
-
     class Endpoints(object):
         Provider = 'openstacktenant'
         Project = 'projects'
@@ -157,7 +161,10 @@ class WaldurClient(object):
 
         if len(result) > 1:
             if not get_first and not get_few:
-                message = 'Ambiguous result. Endpoint: %s. Query: %s' % (url, query_params)
+                message = 'Ambiguous result. Endpoint: %s. Query: %s' % (
+                    url,
+                    query_params,
+                )
                 raise MultipleObjectsReturned(message)
             elif get_few:
                 return result
@@ -250,7 +257,9 @@ class WaldurClient(object):
         return self._get_property(self.Endpoints.Image, identifier, settings_uuid)
 
     def _get_security_group(self, identifier, settings_uuid):
-        return self._get_property(self.Endpoints.SecurityGroup, identifier, settings_uuid)
+        return self._get_property(
+            self.Endpoints.SecurityGroup, identifier, settings_uuid
+        )
 
     def _get_floating_ip(self, address):
         return self._query_resource(self.Endpoints.FloatingIP, {'address': address})
@@ -326,7 +335,10 @@ class WaldurClient(object):
             ready = self._is_resource_ready(endpoint, uuid)
             waited += interval
             if waited >= timeout:
-                error = 'Resource "%s" with id "%s" has not changed state to stable.' % (endpoint, uuid)
+                error = (
+                    'Resource "%s" with id "%s" has not changed state to stable.'
+                    % (endpoint, uuid)
+                )
                 message = '%s. Seconds passed: %s' % (error, timeout)
                 raise TimeoutError(message)
 
@@ -346,16 +358,18 @@ class WaldurClient(object):
         resource = self._query_resource_by_uuid(self.Endpoints.Instance, uuid)
         return len(resource['external_ips']) > 0
 
-    def create_security_group(self,
-                              tenant,
-                              name,
-                              rules,
-                              project=None,
-                              description=None,
-                              tags=None,
-                              wait=True,
-                              interval=10,
-                              timeout=600):
+    def create_security_group(
+        self,
+        tenant,
+        name,
+        rules,
+        project=None,
+        description=None,
+        tags=None,
+        wait=True,
+        interval=10,
+        timeout=600,
+    ):
         """
         Creates OpenStack security group via Waldur API from passed parameters.
 
@@ -371,20 +385,22 @@ class WaldurClient(object):
         :return: security group as a dictionary.
         """
         tenant = self._get_tenant(tenant, project)
-        payload = {
-            'name': name,
-            'rules': rules
-        }
+        payload = {'name': name, 'rules': rules}
         if description:
             payload.update({'description': description})
         if tags:
             payload.update({'tags': tags})
 
-        action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, tenant['uuid'])
+        action_url = '%s/%s/create_security_group' % (
+            self.Endpoints.Tenant,
+            tenant['uuid'],
+        )
         resource = self._create_resource(action_url, payload)
 
         if wait:
-            self._wait_for_resource(self.Endpoints.TenantSecurityGroup, resource['uuid'], interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.TenantSecurityGroup, resource['uuid'], interval, timeout
+            )
 
         return resource
 
@@ -408,7 +424,9 @@ class WaldurClient(object):
         tenant = self._get_tenant(tenant)
         security_group = None
         try:
-            security_group = self._get_tenant_security_group(tenant_uuid=tenant['uuid'], name=name)
+            security_group = self._get_tenant_security_group(
+                tenant_uuid=tenant['uuid'], name=name
+            )
         except ObjectDoesNotExist:
             pass
 
@@ -420,46 +438,56 @@ class WaldurClient(object):
     def _get_instance(self, instance):
         return self._get_resource(self.Endpoints.Instance, instance)
 
-    def assign_floating_ips(self, instance, floating_ips, wait=True, interval=20, timeout=600):
+    def assign_floating_ips(
+        self, instance, floating_ips, wait=True, interval=20, timeout=600
+    ):
         instance = self._get_instance(instance)
         payload = {
             'floating_ips': [],
         }
         for ip in floating_ips:
-            payload['floating_ips'].append({
-                'url': self._get_floating_ip(ip['address'])['url'],
-                'subnet': self._get_subnet(ip['subnet'])['url'],
-            })
+            payload['floating_ips'].append(
+                {
+                    'url': self._get_floating_ip(ip['address'])['url'],
+                    'subnet': self._get_subnet(ip['subnet'])['url'],
+                }
+            )
 
-        endpoint = '%s/%s/update_floating_ips' % (self.Endpoints.Instance, instance['uuid'])
+        endpoint = '%s/%s/update_floating_ips' % (
+            self.Endpoints.Instance,
+            instance['uuid'],
+        )
         response = self._create_resource(endpoint, payload, valid_state=202)
 
         if wait:
-            self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.Instance, instance['uuid'], interval, timeout
+            )
 
         return response
 
     def create_instance(
-            self,
-            name,
-            provider,
-            project,
-            networks,
-            image,
-            system_volume_size,
-            description=None,
-            flavor=None,
-            flavor_min_cpu=None,
-            flavor_min_ram=None,
-            interval=10,
-            timeout=600,
-            wait=True,
-            ssh_key=None,
-            data_volume_size=None,
-            security_groups=None,
-            tags=None,
-            user_data=None,
-            check_mode=False):
+        self,
+        name,
+        provider,
+        project,
+        networks,
+        image,
+        system_volume_size,
+        description=None,
+        flavor=None,
+        flavor_min_cpu=None,
+        flavor_min_ram=None,
+        interval=10,
+        timeout=600,
+        wait=True,
+        ssh_key=None,
+        data_volume_size=None,
+        security_groups=None,
+        tags=None,
+        user_data=None,
+        check_mode=False,
+    ):
         """
         Creates OpenStack instance from passed parameters.
 
@@ -488,8 +516,8 @@ class WaldurClient(object):
         settings_uuid = provider['settings_uuid']
         project = self._get_project(project)
         service_project_link = self._get_service_project_link(
-            provider_uuid=provider['uuid'],
-            project_uuid=project['uuid'])
+            provider_uuid=provider['uuid'], project_uuid=project['uuid']
+        )
         if flavor:
             flavor = self._get_flavor(flavor, settings_uuid)
         else:
@@ -533,7 +561,9 @@ class WaldurClient(object):
         instance = self._create_instance(payload)
 
         if wait:
-            self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.Instance, instance['uuid'], interval, timeout
+            )
             if floating_ips:
                 self._wait_for_external_ip(instance['uuid'], interval, timeout)
 
@@ -544,7 +574,9 @@ class WaldurClient(object):
             return self._query_resource_by_uuid(endpoint, name)
         else:
             if project is None:
-                raise ValidationError("You should specify project name if name is not UUID")
+                raise ValidationError(
+                    "You should specify project name if name is not UUID"
+                )
             query = {'project_name': project, 'name_exact': name}
             return self._query_resource(endpoint, query)
 
@@ -571,7 +603,9 @@ class WaldurClient(object):
         }
 
         if is_uuid(name):
-            params['scope'] = self._build_url(self.marketplaceScopeEndpoints[offering_type] + '/' + name)
+            params['scope'] = self._build_url(
+                self.marketplaceScopeEndpoints[offering_type] + '/' + name
+            )
         else:
             params['state'] = ['Creating', 'OK', 'Erred', 'Updating', 'Terminating']
             params['name_exact'] = name
@@ -605,7 +639,9 @@ class WaldurClient(object):
             :param name: name of the instance.
             :param project: project UUID or name.
         """
-        resource, instance = self.get_marketplace_resource_scope(name, 'OpenStackTenant.Instance', project)
+        resource, instance = self.get_marketplace_resource_scope(
+            name, 'OpenStackTenant.Instance', project
+        )
         return instance
 
     def get_volume_via_marketplace(self, name, project=None):
@@ -614,7 +650,9 @@ class WaldurClient(object):
             :param name: name of the volume.
             :param project: project UUID or name.
         """
-        resource, instance = self.get_marketplace_resource_scope(name, 'OpenStackTenant.Volume', project)
+        resource, instance = self.get_marketplace_resource_scope(
+            name, 'OpenStackTenant.Volume', project
+        )
         return instance
 
     def stop_instance(self, uuid, wait=True, interval=10, timeout=600):
@@ -632,17 +670,21 @@ class WaldurClient(object):
 
     def delete_instance(self, uuid, delete_volumes=True, release_floating_ips=True):
         base_url = self._build_resource_url(self.Endpoints.Instance, uuid)
-        params = dict(delete_volumes=delete_volumes, release_floating_ips=release_floating_ips)
+        params = dict(
+            delete_volumes=delete_volumes, release_floating_ips=release_floating_ips
+        )
         url = base_url + '?' + urlencode(params)
         return self._delete_resource_by_url(url)
 
-    def update_instance_security_groups(self,
-                                        instance_uuid,
-                                        settings_uuid,
-                                        security_groups,
-                                        wait=True,
-                                        interval=10,
-                                        timeout=600):
+    def update_instance_security_groups(
+        self,
+        instance_uuid,
+        settings_uuid,
+        security_groups,
+        wait=True,
+        interval=10,
+        timeout=600,
+    ):
         """
         Update security groups for OpenStack instance and wait until operation is completed.
 
@@ -665,7 +707,9 @@ class WaldurClient(object):
             json=dict(security_groups=payload),
         )
         if wait:
-            self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.Instance, instance_uuid, interval, timeout
+            )
 
     def get_volume(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Volume, name, project)
@@ -684,16 +728,18 @@ class WaldurClient(object):
     def delete_volume(self, uuid):
         return self._delete_resource(self.Endpoints.Volume, uuid)
 
-    def create_volume(self,
-                      name,
-                      project,
-                      provider,
-                      size,
-                      description=None,
-                      tags=None,
-                      wait=True,
-                      interval=10,
-                      timeout=600):
+    def create_volume(
+        self,
+        name,
+        project,
+        provider,
+        size,
+        description=None,
+        tags=None,
+        wait=True,
+        interval=10,
+        timeout=600,
+    ):
         """
         Creates OpenStack volume via Waldur API from passed parameters.
 
@@ -711,8 +757,8 @@ class WaldurClient(object):
         provider = self._get_provider(provider)
         project = self._get_project(project)
         service_project_link = self._get_service_project_link(
-            provider_uuid=provider['uuid'],
-            project_uuid=project['uuid'])
+            provider_uuid=provider['uuid'], project_uuid=project['uuid']
+        )
 
         payload = {
             'name': name,
@@ -727,7 +773,9 @@ class WaldurClient(object):
         resource = self._create_resource(self.Endpoints.Volume, payload)
 
         if wait:
-            self._wait_for_resource(self.Endpoints.Volume, resource['uuid'], interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.Volume, resource['uuid'], interval, timeout
+            )
 
         return resource
 
@@ -744,7 +792,9 @@ class WaldurClient(object):
         if wait:
             self._wait_for_resource(self.Endpoints.Volume, uuid, interval, timeout)
 
-    def attach_volume(self, volume, instance, device, wait=True, interval=10, timeout=600):
+    def attach_volume(
+        self, volume, instance, device, wait=True, interval=10, timeout=600
+    ):
         """
         Detach OpenStack volume from instance and wait until operation is completed.
 
@@ -757,9 +807,11 @@ class WaldurClient(object):
         """
         payload = dict(
             instance=self._build_resource_url(self.Endpoints.Instance, instance),
-            device=device
+            device=device,
         )
-        self._execute_resource_action(self.Endpoints.Volume, volume, 'attach', json=payload)
+        self._execute_resource_action(
+            self.Endpoints.Volume, volume, 'attach', json=payload
+        )
         if wait:
             self._wait_for_resource(self.Endpoints.Volume, volume, interval, timeout)
 
@@ -769,15 +821,17 @@ class WaldurClient(object):
     def delete_snapshot(self, uuid):
         return self._delete_resource(self.Endpoints.Snapshot, uuid)
 
-    def create_snapshot(self,
-                        name,
-                        volume,
-                        kept_until=None,
-                        description=None,
-                        tags=None,
-                        wait=True,
-                        interval=10,
-                        timeout=600):
+    def create_snapshot(
+        self,
+        name,
+        volume,
+        kept_until=None,
+        description=None,
+        tags=None,
+        wait=True,
+        interval=10,
+        timeout=600,
+    ):
         """
         Creates OpenStack snapshot via Waldur API from passed parameters.
 
@@ -806,16 +860,15 @@ class WaldurClient(object):
         resource = self._create_resource(action_url, payload)
 
         if wait:
-            self._wait_for_resource(self.Endpoints.Snapshot, resource['uuid'], interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.Snapshot, resource['uuid'], interval, timeout
+            )
 
         return resource
 
-    def update_instance_internal_ips_set(self,
-                                    instance_uuid,
-                                    subnet_set,
-                                    wait=True,
-                                    interval=10,
-                                    timeout=600):
+    def update_instance_internal_ips_set(
+        self, instance_uuid, subnet_set, wait=True, interval=10, timeout=600
+    ):
         """
         Update internal ip for OpenStack instance and wait until operation is completed.
 
@@ -838,7 +891,9 @@ class WaldurClient(object):
             json=payload,
         )
         if wait:
-            self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
+            self._wait_for_resource(
+                self.Endpoints.Instance, instance_uuid, interval, timeout
+            )
 
     def _get_offering(self, offering, project=None):
         """
@@ -857,14 +912,20 @@ class WaldurClient(object):
                 project = self._get_resource(self.Endpoints.Project, project)
                 project_uuid = project['uuid']
 
-            return self._get_resource(self.Endpoints.MarketplaceOffering, offering, {'project_uuid': project_uuid})
+            return self._get_resource(
+                self.Endpoints.MarketplaceOffering,
+                offering,
+                {'project_uuid': project_uuid},
+            )
         else:
             return
 
     def _get_plan(self, identifier):
         return self._get_resource(self.Endpoints.MarketplacePlan, identifier)
 
-    def create_marketplace_order(self, project, offering, plan=None, attributes=None, limits=None):
+    def create_marketplace_order(
+        self, project, offering, plan=None, attributes=None, limits=None
+    ):
         """
         Create order with one item in Waldur Marketplace.
 
@@ -899,16 +960,17 @@ class WaldurClient(object):
         return self._create_resource(self.Endpoints.MarketplaceOrder, payload=payload)
 
     def _create_scope_via_marketplace(
-            self,
-            name,
-            offering,
-            project,
-            attributes,
-            scope_endpoint,
-            interval=10,
-            timeout=600,
-            wait=True,
-            check_mode=False):
+        self,
+        name,
+        offering,
+        project,
+        attributes,
+        scope_endpoint,
+        interval=10,
+        timeout=600,
+        wait=True,
+        check_mode=False,
+    ):
         """
         Create marketplace resource scope via marketplace.
 
@@ -931,26 +993,34 @@ class WaldurClient(object):
                 'attributes': attributes,
                 'project': project,
                 'offering': offering['uuid'],
-                'WALDUR_CHECK_MODE': True
+                'WALDUR_CHECK_MODE': True,
             }
 
-        order = self.create_marketplace_order(project, offering['uuid'], attributes=attributes)
+        order = self.create_marketplace_order(
+            project, offering['uuid'], attributes=attributes
+        )
         order_uuid = order['uuid']
         scope = None
         waited = 0
         while not scope:
             time.sleep(interval)
-            order = self._get_resource(WaldurClient.Endpoints.MarketplaceOrder, order_uuid)
+            order = self._get_resource(
+                WaldurClient.Endpoints.MarketplaceOrder, order_uuid
+            )
             if order['items'][0]['state'] == 'erred':
                 raise InvalidStateError(order['items'][0]['error_message'])
 
             try:
-                resource, scope = self.get_marketplace_resource_scope(name, offering_type, project)
+                resource, scope = self.get_marketplace_resource_scope(
+                    name, offering_type, project
+                )
             except ObjectDoesNotExist:
                 pass
             waited += interval
             if waited >= timeout:
-                error = 'Marketplace resource of scope with name "%s" is not found.' % name
+                error = (
+                    'Marketplace resource of scope with name "%s" is not found.' % name
+                )
                 message = '%s. Seconds passed: %s' % (error, timeout)
                 raise TimeoutError(message)
 
@@ -960,28 +1030,29 @@ class WaldurClient(object):
         return scope
 
     def create_instance_via_marketplace(
-            self,
-            name,
-            offering,
-            project,
-            networks,
-            image,
-            system_volume_size,
-            description=None,
-            flavor=None,
-            flavor_min_cpu=None,
-            flavor_min_ram=None,
-            interval=10,
-            timeout=600,
-            wait=True,
-            ssh_key=None,
-            data_volume_size=None,
-            security_groups=None,
-            tags=None,
-            user_data=None,
-            check_mode=False,
-            system_volume_type=None,
-            data_volume_type=None):
+        self,
+        name,
+        offering,
+        project,
+        networks,
+        image,
+        system_volume_size,
+        description=None,
+        flavor=None,
+        flavor_min_cpu=None,
+        flavor_min_ram=None,
+        interval=10,
+        timeout=600,
+        wait=True,
+        ssh_key=None,
+        data_volume_size=None,
+        security_groups=None,
+        tags=None,
+        user_data=None,
+        check_mode=False,
+        system_volume_type=None,
+        data_volume_type=None,
+    ):
         """
         Create OpenStack instance from passed parameters via marketplace.
 
@@ -1060,7 +1131,8 @@ class WaldurClient(object):
             interval=interval,
             timeout=timeout,
             wait=wait,
-            check_mode=check_mode)
+            check_mode=check_mode,
+        )
 
         if wait and floating_ips:
             self._wait_for_external_ip(instance['uuid'], interval, timeout)
@@ -1071,7 +1143,9 @@ class WaldurClient(object):
         if options:
             options = {'attributes': options}
         resource, scope = self.get_marketplace_resource_scope(scope_uuid, offering_type)
-        url = self._build_resource_url(self.Endpoints.MarketplaceResources, resource['uuid'], action='terminate')
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource['uuid'], action='terminate'
+        )
         order_uuid = self._post(url, valid_states=[200], json=options)['order_uuid']
         return order_uuid
 
@@ -1081,19 +1155,23 @@ class WaldurClient(object):
 
         :param instance_uuid: instance UUID.
         """
-        return self._delete_scope_via_marketplace(instance_uuid, 'OpenStackTenant.Instance', options=kwargs)
+        return self._delete_scope_via_marketplace(
+            instance_uuid, 'OpenStackTenant.Instance', options=kwargs
+        )
 
-    def create_volume_via_marketplace(self,
-                      name,
-                      project,
-                      offering,
-                      size,
-                      volume_type=None,
-                      description=None,
-                      tags=None,
-                      wait=True,
-                      interval=10,
-                      timeout=600):
+    def create_volume_via_marketplace(
+        self,
+        name,
+        project,
+        offering,
+        size,
+        volume_type=None,
+        description=None,
+        tags=None,
+        wait=True,
+        interval=10,
+        timeout=600,
+    ):
         """
         Create OpenStack volume from passed parameters via marketplace.
 
@@ -1134,7 +1212,8 @@ class WaldurClient(object):
             scope_endpoint=self.Endpoints.Volume,
             interval=interval,
             timeout=timeout,
-            wait=wait)
+            wait=wait,
+        )
 
     def delete_volume_via_marketplace(self, volume_uuid):
         """
