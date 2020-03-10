@@ -723,7 +723,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         try:
             url = backend.get_console_url(instance)
         except OpenStackBackendError as e:
-            raise exceptions.ValidationError(e.message)
+            raise exceptions.ValidationError(str(e))
 
         return response.Response({'url': url}, status=status.HTTP_200_OK)
 
@@ -756,7 +756,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         try:
             log = backend.get_console_output(instance, length)
         except OpenStackBackendError as e:
-            raise exceptions.ValidationError(e.message)
+            raise exceptions.ValidationError(str(e))
 
         return response.Response(log, status=status.HTTP_200_OK)
 
