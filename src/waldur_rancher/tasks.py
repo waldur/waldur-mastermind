@@ -155,9 +155,8 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         node.refresh_from_db()
 
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
-            # If node runtime state is ACTIVE,
-            # then it is necessary to update node state and to call signal for usages updating.
-            utils.update_cluster_nodes_states(node.cluster.id)
+            # We don't need to change the node state here as it will be done
+            # in an executor.
             return
         elif (
             node.runtime_state

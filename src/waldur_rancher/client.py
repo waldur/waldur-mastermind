@@ -106,6 +106,9 @@ class RancherClient:
             },
         )
 
+    def get_cluster_nodes(self, cluster_id):
+        return self._get('clusters/{0}/nodes'.format(cluster_id))['data']
+
     def delete_cluster(self, cluster_id):
         return self._delete('clusters/{0}'.format(cluster_id))
 

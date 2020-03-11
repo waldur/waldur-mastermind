@@ -7,7 +7,7 @@ from waldur_core.core.models import StateMixin
 from . import models, tasks
 
 
-class ClusterCreateExecutor(core_executors.BaseExecutor):
+class ClusterCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
         _tasks = [
@@ -83,6 +83,10 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
 
 
 class NodeDeleteExecutor(core_executors.BaseExecutor):
+    @classmethod
+    def get_failure_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.ErrorStateTransitionTask().s(serialized_instance)
+
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user_id):
         return tasks.DeleteNodeTask().si(serialized_instance, user_id=user_id,)
