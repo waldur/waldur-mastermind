@@ -115,6 +115,7 @@ class Node(
     structure_models.StructureModel,
     core_models.StateMixin,
     BackendMixin,
+    structure_models.StructureLoggableMixin,
     structure_models.TimeStampedModel,
 ):
     class RuntimeStates:
