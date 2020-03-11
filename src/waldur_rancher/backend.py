@@ -425,12 +425,20 @@ class RancherBackend(ServiceBackend):
             return self.client.refresh_project_catalog(catalog.backend_id)
 
     def delete_catalog(self, catalog):
-        if isinstance(catalog.scope, ServiceSettings):
-            return self.client.delete_global_catalog(catalog.backend_id)
-        elif isinstance(catalog.scope, models.Cluster):
-            return self.client.delete_cluster_catalog(catalog.backend_id)
-        else:
-            return self.client.delete_project_catalog(catalog.backend_id)
+        try:
+            if isinstance(catalog.scope, ServiceSettings):
+                return self.client.delete_global_catalog(catalog.backend_id)
+            elif isinstance(catalog.scope, models.Cluster):
+                return self.client.delete_cluster_catalog(catalog.backend_id)
+            else:
+                return self.client.delete_project_catalog(catalog.backend_id)
+        except RancherException as e:
+            if 'status' in e.args[0] and e.args[0]['status'] == 404:
+                logger.warning(
+                    'Catalog %s is not present in the backend ', catalog.backend_id
+                )
+            else:
+                raise RancherException(e.args[0])
 
     def get_catalog_spec(self, catalog):
         spec = {
