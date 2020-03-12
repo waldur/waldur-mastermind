@@ -626,3 +626,33 @@ def merge_plans(offering, example_plan):
         old_plan=new_plan
     )
     offering.plans.exclude(pk=new_plan.pk).delete()
+
+
+def import_limits_when_storage_mode_is_switched(resource):
+    tenant = resource.scope
+
+    if not tenant:
+        return
+
+    storage_mode = (
+        resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+    )
+
+    raw_limits = {quota.name: quota.limit for quota in tenant.quotas.all()}
+    raw_usages = {quota.name: quota.usage for quota in tenant.quotas.all()}
+
+    limits = {
+        CORES_TYPE: raw_limits.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: raw_limits.get(TenantQuotas.ram.name, 0),
+    }
+
+    if storage_mode == STORAGE_MODE_FIXED:
+        limits[STORAGE_TYPE] = raw_limits.get(TenantQuotas.storage.name, 0)
+    elif storage_mode == STORAGE_MODE_DYNAMIC:
+        volume_type_limits = {
+            k: v for (k, v) in raw_usages.items() if k.startswith('gigabytes_')
+        }
+        limits.update(volume_type_limits)
+
+    resource.limits = limits
+    resource.save(update_fields=['limits'])
