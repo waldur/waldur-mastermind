@@ -603,4 +603,5 @@ def synchronize_limits_when_storage_mode_is_switched(
     for resource in resources:
         utils.import_limits_when_storage_mode_is_switched(resource)
         utils.import_usage(resource)
+        registrators.RegistrationManager.terminate(resource)
         registrators.RegistrationManager.register(resource)
