@@ -283,9 +283,10 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
 
         self.resource.scope = tenant
         self.resource.save()
-        tenant.set_quota_limit('storage', 30 * 1024)
-        tenant.set_quota_limit('gigabytes_gpfs', 100 * 1024)
-        tenant.set_quota_usage('gigabytes_gpfs', 50 * 1024)
+        tenant.set_quota_limit('vcpu', 6)
+        tenant.set_quota_limit('ram', 10 * 1024)
+        tenant.set_quota_usage('storage', 30 * 1024)
+        tenant.set_quota_usage('gigabytes_gpfs', 100 * 1024)
 
     def test_when_storage_mode_is_switched_to_dynamic_limits_are_updated(self):
         # Act
@@ -295,8 +296,10 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
 
         # Assert
         self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits.get('cores'), 6)
+        self.assertEqual(self.resource.limits.get('ram'), 10 * 1024)
+        self.assertEqual(self.resource.limits.get('storage'), None)
         self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), 100 * 1024)
-        self.assertEqual(self.resource.current_usages.get('gigabytes_gpfs'), 50 * 1024)
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
             scope=self.resource
@@ -311,8 +314,10 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
 
         # Assert
         self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits.get('cores'), 6)
+        self.assertEqual(self.resource.limits.get('ram'), 10 * 1024)
+        self.assertEqual(self.resource.limits.get('storage'), 30 * 1024)
         self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), None)
-        self.assertEqual(self.resource.current_usages.get('gigabytes_gpfs'), None)
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
             scope=self.resource
