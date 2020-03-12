@@ -647,7 +647,7 @@ def import_limits_when_storage_mode_is_switched(resource):
     }
 
     if storage_mode == STORAGE_MODE_FIXED:
-        limits[STORAGE_TYPE] = raw_limits.get(TenantQuotas.storage.name, 0)
+        limits[STORAGE_TYPE] = raw_usages.get(TenantQuotas.storage.name, 0)
     elif storage_mode == STORAGE_MODE_DYNAMIC:
         volume_type_limits = {
             k: v for (k, v) in raw_usages.items() if k.startswith('gigabytes_')
