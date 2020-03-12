@@ -601,6 +601,6 @@ def synchronize_limits_when_storage_mode_is_switched(
     )
 
     for resource in resources:
-        utils.import_limits(resource, field='usage')
+        utils.import_limits(resource)
         utils.import_usage(resource)
         registrators.RegistrationManager.register(resource)
