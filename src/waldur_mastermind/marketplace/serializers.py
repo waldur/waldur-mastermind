@@ -482,9 +482,7 @@ class OfferingDetailsSerializer(
             del fields['plugin_options']
         method = self.context['view'].request.method
         if method == 'GET':
-            fields['components'] = serializers.SerializerMethodField(
-                'get_filtered_components'
-            )
+            fields['components'] = serializers.SerializerMethodField('get_components')
             fields['plans'] = serializers.SerializerMethodField('get_filtered_plans')
         return fields
 
@@ -521,8 +519,8 @@ class OfferingDetailsSerializer(
                 offering.scope.quotas, many=True, context=self.context
             ).data
 
-    def get_filtered_components(self, offering):
-        qs = plugins.manager.get_filtered_components(offering.parent or offering)
+    def get_components(self, offering):
+        qs = (offering.parent or offering).components
         return OfferingComponentSerializer(qs, many=True, context=self.context).data
 
     def get_filtered_plans(self, offering):

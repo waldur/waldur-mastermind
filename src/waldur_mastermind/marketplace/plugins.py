@@ -140,12 +140,5 @@ class PluginManager:
         """
         return self.backends.get(offering_type, {}).get(processor_type)
 
-    def get_filtered_components(self, offering):
-        hook = self.backends.get(offering.type, {}).get('get_filtered_components')
-        if hook:
-            return hook(offering)
-        else:
-            return offering.components
-
 
 manager = PluginManager()
