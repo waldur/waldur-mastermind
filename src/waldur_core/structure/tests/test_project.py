@@ -7,7 +7,8 @@ from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
 from waldur_core.quotas.tests import factories as quota_factories
-from waldur_core.structure import executors, models, signals, views
+from waldur_core.structure import executors, models, permissions, signals, views
+from waldur_core.structure.management.commands.move_project import move_project
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
@@ -720,4 +721,40 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
         self.assertFalse(
             test_models.TestNewInstance.objects.filter(id=resource.id).exists()
+        )
+
+
+class ChangeProjectCustomerTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.old_customer = self.project.customer
+        self.new_customer = factories.CustomerFactory()
+
+    def change_customer(self):
+        move_project(self.project, self.new_customer)
+        self.project.refresh_from_db()
+
+    def test_change_customer(self):
+        self.change_customer()
+        self.assertEqual(self.new_customer, self.project.customer)
+
+    def test_if_project_customer_has_been_changed_then_users_permissions_must_be_deleted(
+        self,
+    ):
+        self.fixture.admin
+        self.change_customer()
+        self.assertFalse(
+            permissions._has_admin_access(self.fixture.admin, self.project)
+        )
+
+    def test_recalculate_quotas(self):
+        self.assertEqual(
+            self.old_customer.quotas.get(name='nc_project_count').usage, 1.0
+        )
+        self.assertEqual(self.new_customer.quotas.get(name='nc_project_count').usage, 0)
+        self.change_customer()
+        self.assertEqual(self.old_customer.quotas.get(name='nc_project_count').usage, 0)
+        self.assertEqual(
+            self.new_customer.quotas.get(name='nc_project_count').usage, 1.0
         )

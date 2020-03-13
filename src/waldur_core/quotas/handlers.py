@@ -2,6 +2,7 @@ from django.db.models import F, signals
 
 from waldur_core.quotas import fields, models, utils
 from waldur_core.quotas.exceptions import CreationConditionFailedQuotaError
+from waldur_core.structure import models as structure_models
 
 
 # XXX: rewrite global quotas
@@ -71,3 +72,17 @@ def handle_aggregated_quotas(sender, instance, **kwargs):
             )
         elif signal == signals.pre_delete:
             field.pre_child_quota_delete(aggregator_quota.scope, child_quota=quota)
+
+
+def projects_customer_has_been_changed(
+    sender, project, old_customer, new_customer, created=False, **kwargs
+):
+    def recalculate_quotas(field_class):
+        for counter_field in structure_models.Customer.get_quotas_fields(
+            field_class=field_class
+        ):
+            for customer in [old_customer, new_customer]:
+                counter_field.recalculate(scope=customer)
+
+    recalculate_quotas(fields.CounterQuotaField)
+    recalculate_quotas(fields.AggregatorQuotaField)
