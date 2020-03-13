@@ -12,6 +12,8 @@ class QuotasConfig(AppConfig):
     verbose_name = 'Quotas'
 
     def ready(self):
+        from waldur_core.structure import signals as structure_signals
+        from waldur_core.structure import models as structure_models
         from waldur_core.quotas import handlers, utils
 
         Quota = self.get_model('Quota')
@@ -68,6 +70,12 @@ class QuotasConfig(AppConfig):
             handlers.handle_aggregated_quotas,
             sender=Quota,
             dispatch_uid='waldur_core.quotas.handle_aggregated_quotas_pre_delete',
+        )
+
+        structure_signals.project_moved.connect(
+            handlers.projects_customer_has_been_changed,
+            sender=structure_models.Project,
+            dispatch_uid='waldur_core.quotas.projects_customer_has_been_changed',
         )
 
     @staticmethod
