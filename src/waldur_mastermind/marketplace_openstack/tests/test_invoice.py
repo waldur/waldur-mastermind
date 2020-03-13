@@ -303,7 +303,7 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
             scope=self.resource
-        ).get()
+        ).last()
         self.assertTrue('102400 GB gpfs storage' in invoice_item.name)
 
     def test_when_storage_mode_is_switched_to_fixed_limits_are_updated(self):
@@ -321,5 +321,5 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
             scope=self.resource
-        ).get()
+        ).last()
         self.assertTrue('30 GB storage' in invoice_item.name)
