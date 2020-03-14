@@ -6,7 +6,7 @@ import pyvat
 from django.conf import settings
 from django.contrib import auth
 from django.core import exceptions as django_exceptions
-from django.core.validators import MaxLengthValidator, RegexValidator
+from django.core.validators import RegexValidator
 from django.db import models as django_models
 from django.db import transaction
 from django.db.models import Q
@@ -36,10 +36,6 @@ from waldur_core.structure.managers import filter_queryset_for_user
 
 User = auth.get_user_model()
 logger = logging.getLogger(__name__)
-
-
-class IpCountValidator(MaxLengthValidator):
-    message = _('Only %(limit_value)s ip address is supported.')
 
 
 class PermissionFieldFilteringMixin:
@@ -2020,12 +2016,6 @@ class SummaryResourceSerializer(core_serializers.BaseSummarySerializer):
     @classmethod
     def get_serializer(cls, model):
         return SupportedServices.get_resource_serializer(model)
-
-
-class SummaryServiceSerializer(core_serializers.BaseSummarySerializer):
-    @classmethod
-    def get_serializer(cls, model):
-        return SupportedServices.get_service_serializer(model)
 
 
 class BaseResourceImportSerializer(
