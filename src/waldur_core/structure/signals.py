@@ -11,3 +11,5 @@ structure_role_revoked = Signal(
 structure_role_updated = Signal(providing_args=['instance', 'user'])
 
 resource_imported = Signal(providing_args=['instance', 'plan', 'offering'])
+
+project_moved = Signal(providing_args=['project', 'old_customer', 'new_customer'])

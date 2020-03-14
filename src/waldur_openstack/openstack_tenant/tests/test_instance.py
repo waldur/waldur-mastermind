@@ -13,6 +13,7 @@ from rest_framework import status, test
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.tests.unittests import test_backend
+from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
 )
@@ -1201,6 +1202,13 @@ class InstanceConsoleTest(InstanceActionsTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_error_is_propagated_correctly(self):
+        self.mock_console.side_effect = OpenStackBackendError('Invalid request.')
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Invalid request.' in response.data)
+
 
 @ddt
 class InstanceConsoleLogTest(InstanceActionsTest):
@@ -1220,3 +1228,10 @@ class InstanceConsoleLogTest(InstanceActionsTest):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_error_is_propagated_correctly(self):
+        self.mock_console.side_effect = OpenStackBackendError('Invalid request.')
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Invalid request.' in response.data)

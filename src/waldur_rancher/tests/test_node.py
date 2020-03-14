@@ -115,22 +115,17 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def test_not_pulling_if_node_has_been_created(
         self, mock_retry, mock_client, mock_update_node_details
     ):
-        backend_cluster = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_cluster.json')
-            .read()
-            .decode()
+        backend_node = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
         )
-        backend_node = backend_cluster['appliedSpec']['rancherKubernetesEngineConfig'][
-            'nodes'
-        ][0]
-        self.fixture.node.name = backend_node['hostnameOverride']
+        self.fixture.node.name = backend_node['requestedHostname']
         self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
         self.fixture.node.save()
-        mock_client.get_cluster.return_value = backend_cluster
+        mock_client.get_cluster_nodes.return_value = [backend_node]
         tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
         self.assertEqual(mock_retry.call_count, 0)
         self.fixture.node.refresh_from_db()
-        self.assertEqual(self.fixture.node.backend_id, backend_node['nodeId'])
+        self.assertEqual(self.fixture.node.backend_id, backend_node['id'])
 
     @mock.patch('waldur_rancher.tasks.update_nodes')
     @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
@@ -211,6 +206,7 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
 
         self.patcher_client = mock.patch('waldur_rancher.backend.RancherBackend.client')
         self.mock_client = self.patcher_client.start()
+
         self.mock_client.get_node.return_value = json.loads(
             pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
         )
@@ -219,6 +215,11 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
             .read()
             .decode()
         )
+        self.mock_client.get_cluster_nodes.return_value = [
+            json.loads(
+                pkg_resources.resource_stream(__name__, 'backend_node.json').read()
+            )
+        ]
 
     def _check_node_fields(self, node):
         node.refresh_from_db()
@@ -249,12 +250,12 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
         backend = self.fixture.node.cluster.get_backend()
         backend.pull_cluster(self.fixture.node.cluster)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
-        node = self.fixture.cluster.node_set.get(name='k8s-cluster')
+        node = self.fixture.cluster.node_set.get(name='k8s-node')
         self._check_node_fields(node)
 
     def test_pull_cluster_update_node(self):
         backend = self.fixture.node.cluster.get_backend()
-        self.fixture.node.name = 'k8s-cluster'
+        self.fixture.node.name = 'k8s-node'
         self.fixture.node.backend_id = ''
         self.fixture.node.save()
         backend.pull_cluster(self.fixture.node.cluster)

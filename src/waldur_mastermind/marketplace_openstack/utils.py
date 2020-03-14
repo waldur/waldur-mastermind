@@ -518,64 +518,47 @@ def get_offering(offering_type, service_settings):
         )
 
 
+def import_quotas(offering, quotas, field):
+    source_values = {row['name']: row[field] for row in quotas.values('name', field)}
+    storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+
+    result_values = {
+        CORES_TYPE: source_values.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: source_values.get(TenantQuotas.ram.name, 0),
+    }
+
+    if storage_mode == STORAGE_MODE_FIXED:
+        result_values[STORAGE_TYPE] = source_values.get(TenantQuotas.storage.name, 0)
+    elif storage_mode == STORAGE_MODE_DYNAMIC:
+        volume_type_values = {
+            k: v for (k, v) in source_values.items() if k.startswith('gigabytes_')
+        }
+        result_values.update(volume_type_values)
+
+    return result_values
+
+
 def import_usage(resource):
     tenant = resource.scope
 
     if not tenant:
         return
 
-    usages = {
-        row['name']: row['usage'] for row in tenant.quotas.values('name', 'usage')
-    }
-    storage_mode = (
-        resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
-    )
-
-    resource.current_usages = {
-        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
-        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0),
-    }
-
-    if storage_mode == STORAGE_MODE_FIXED:
-        resource.current_usages[STORAGE_TYPE] = usages.get(TenantQuotas.storage.name, 0)
-    elif storage_mode == STORAGE_MODE_DYNAMIC:
-        volume_type_usages = {
-            k: v for (k, v) in usages.items() if k.startswith('gigabytes_')
-        }
-        resource.current_usages.update(volume_type_usages)
-
+    resource.current_usages = import_quotas(resource.offering, tenant.quotas, 'usage')
     resource.save(update_fields=['current_usages'])
 
 
-def import_limits(resource, field='limit'):
+def import_limits(resource):
     """
     Import resource quotas as marketplace limits.
     :param resource: Marketplace resource
-    :param field: either 'limit' or 'usage'
     """
     tenant = resource.scope
 
     if not tenant:
         return
 
-    limits = {row['name']: row[field] for row in tenant.quotas.values('name', field)}
-    storage_mode = (
-        resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
-    )
-
-    resource.limits = {
-        CORES_TYPE: limits.get(TenantQuotas.vcpu.name, 0),
-        RAM_TYPE: limits.get(TenantQuotas.ram.name, 0),
-    }
-
-    if storage_mode == STORAGE_MODE_FIXED:
-        resource.limits[STORAGE_TYPE] = limits.get(TenantQuotas.storage.name, 0)
-    elif storage_mode == STORAGE_MODE_DYNAMIC:
-        volume_type_limits = {
-            k: v for (k, v) in limits.items() if k.startswith('gigabytes_')
-        }
-        resource.limits.update(volume_type_limits)
-
+    resource.limits = import_quotas(resource.offering, tenant.quotas, 'limit')
     resource.save(update_fields=['limits'])
 
 
@@ -643,3 +626,33 @@ def merge_plans(offering, example_plan):
         old_plan=new_plan
     )
     offering.plans.exclude(pk=new_plan.pk).delete()
+
+
+def import_limits_when_storage_mode_is_switched(resource):
+    tenant = resource.scope
+
+    if not tenant:
+        return
+
+    storage_mode = (
+        resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+    )
+
+    raw_limits = {quota.name: quota.limit for quota in tenant.quotas.all()}
+    raw_usages = {quota.name: quota.usage for quota in tenant.quotas.all()}
+
+    limits = {
+        CORES_TYPE: raw_limits.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: raw_limits.get(TenantQuotas.ram.name, 0),
+    }
+
+    if storage_mode == STORAGE_MODE_FIXED:
+        limits[STORAGE_TYPE] = raw_usages.get(TenantQuotas.storage.name, 0)
+    elif storage_mode == STORAGE_MODE_DYNAMIC:
+        volume_type_limits = {
+            k: v for (k, v) in raw_usages.items() if k.startswith('gigabytes_')
+        }
+        limits.update(volume_type_limits)
+
+    resource.limits = limits
+    resource.save(update_fields=['limits'])

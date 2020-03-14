@@ -9,15 +9,19 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('-u', '--username', dest='username', required=True)
         parser.add_argument('-p', '--password', dest='password', required=True)
+        parser.add_argument('-e', '--email', dest='email', required=True)
 
     def handle(self, *args, **options):
         User = get_user_model()
 
         username = options['username']
         password = options['password']
+        email = options['email']
 
         user, created = User.objects.get_or_create(
-            username=username, defaults=dict(last_login=timezone.now(), is_staff=True)
+            username=username,
+            email=email,
+            defaults=dict(last_login=timezone.now(), is_staff=True),
         )
         if not created:
             raise CommandError('Username %s is already taken.' % username)

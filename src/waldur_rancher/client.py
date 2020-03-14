@@ -39,14 +39,12 @@ class RancherClient:
         except requests.RequestException as e:
             raise RancherException(e)
 
-        data = None
+        data = response.content
         content_type = response.headers['Content-Type'].lower()
-        if content_type == 'application/json':
+        if data and content_type == 'application/json':
             data = response.json()
         elif content_type == 'text/plain':
-            data = response.content.decode('utf-8')
-        else:
-            data = response.content
+            data = data.decode('utf-8')
 
         status_code = response.status_code
         if status_code in (
@@ -107,6 +105,9 @@ class RancherClient:
                 'rancherKubernetesEngineConfig': rancher_config,
             },
         )
+
+    def get_cluster_nodes(self, cluster_id):
+        return self._get('clusters/{0}/nodes'.format(cluster_id))['data']
 
     def delete_cluster(self, cluster_id):
         return self._delete('clusters/{0}'.format(cluster_id))

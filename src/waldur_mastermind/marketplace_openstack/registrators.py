@@ -73,7 +73,7 @@ class MarketplaceItemRegistrator(BaseRegistrator):
                 if k.startswith('gigabytes_') and v:
                     parts.append(
                         '{size} GB {type} storage'.format(
-                            size=int(mb_to_gb(v)), type=k.replace('gigabytes_', '')
+                            size=int(v), type=k.replace('gigabytes_', '')
                         )
                     )
             return ' - '.join(parts)
@@ -82,7 +82,7 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         return '{resource} ({offering} / VPC {cores} CPU - {ram} GB RAM - {storage})'.format(
             resource=source.name,
             offering=source.offering.name,
-            cores=source.limits.get(CORES_TYPE),
+            cores=int(source.limits.get(CORES_TYPE, 0)),
             ram=int(mb_to_gb(source.limits.get(RAM_TYPE, 0))),
             storage=self.format_storage_description(source),
         )

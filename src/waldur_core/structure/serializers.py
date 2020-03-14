@@ -905,6 +905,9 @@ class UserSerializer(
         except (KeyError, AttributeError):
             return fields
 
+        if user.is_anonymous:
+            return fields
+
         if not user.is_staff:
             protected_fields = ('is_active', 'is_staff', 'is_support', 'description')
             if user.is_support:

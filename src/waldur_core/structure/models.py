@@ -457,10 +457,6 @@ class Customer(
         nc_service_count = quotas_fields.CounterQuotaField(
             target_models=lambda: Service.get_all_models(), path_to_scope='customer',
         )
-        nc_service_project_link_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: ServiceProjectLink.get_all_models(),
-            path_to_scope='project.customer',
-        )
         nc_user_count = quotas_fields.QuotaField()
         nc_resource_count = quotas_fields.CounterQuotaField(
             target_models=lambda: ResourceMixin.get_all_models(),
@@ -692,10 +688,6 @@ class Project(
         )
         nc_snapshot_count = quotas_fields.CounterQuotaField(
             target_models=lambda: Snapshot.get_all_models(), path_to_scope='project',
-        )
-        nc_service_project_link_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: ServiceProjectLink.get_all_models(),
-            path_to_scope='project',
         )
         nc_volume_size = quotas_fields.TotalQuotaField(
             target_models=lambda: Volume.get_all_models(),

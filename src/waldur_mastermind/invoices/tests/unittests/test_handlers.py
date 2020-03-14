@@ -9,6 +9,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.management.commands.move_project import move_project
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.packages import models as packages_models
@@ -18,7 +19,7 @@ from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_mastermind.support_invoices import utils as support_utils
 
-from ... import models, utils
+from ... import models, registrators, utils
 from .. import factories, fixtures
 
 
@@ -243,3 +244,33 @@ class UpdateInvoiceCurrentCostTest(TransactionTestCase):
 
         self.invoice.refresh_from_db()
         self.assertEqual(0, self.invoice.current_cost)
+
+
+@override_plugin_settings(BILLING_ENABLED=True)
+class ChangeProjectsCustomerTest(TransactionTestCase):
+    def setUp(self):
+        self.fixture = support_fixtures.SupportFixture()
+
+    def test_delete_invoice_items_if_project_customer_has_been_changed(self):
+        offering = self.fixture.offering
+        offering.state = offering.States.OK
+        offering.save()
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        invoice = models.Invoice.objects.first()
+        self.assertTrue(invoice.generic_items.filter(scope=offering).exists())
+
+        new_customer = structure_factories.CustomerFactory()
+        today = timezone.now()
+        date = core_utils.month_start(today)
+        (
+            new_customer_invoice,
+            create,
+        ) = registrators.RegistrationManager.get_or_create_invoice(new_customer, date)
+        self.assertFalse(
+            new_customer_invoice.generic_items.filter(scope=offering).exists()
+        )
+        move_project(offering.project, new_customer)
+        self.assertFalse(invoice.generic_items.filter(scope=offering).exists())
+        self.assertTrue(
+            new_customer_invoice.generic_items.filter(scope=offering).exists()
+        )

@@ -4,13 +4,14 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import utils as core_utils
 from waldur_core.cost_tracking import signals as cost_signals
 
-from . import log, models, tasks
+from . import log, models, registrators, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -185,3 +186,29 @@ def update_invoice_pdf(sender, instance, created=False, **kwargs):
 
     serialized_invoice = core_utils.serialize_instance(invoice)
     tasks.create_invoice_pdf.delay(serialized_invoice)
+
+
+def projects_customer_has_been_changed(
+    sender, project, old_customer, new_customer, created=False, **kwargs
+):
+    try:
+        today = timezone.now()
+        date = core_utils.month_start(today)
+
+        invoice = models.Invoice.objects.get(
+            customer=old_customer,
+            state=models.Invoice.States.PENDING,
+            month=date.month,
+            year=date.year,
+        )
+    except models.Invoice.DoesNotExist:
+        return
+
+    new_invoice, create = registrators.RegistrationManager.get_or_create_invoice(
+        new_customer, date
+    )
+
+    if create:
+        invoice.generic_items.filter(project=project).delete()
+    else:
+        invoice.generic_items.filter(project=project).update(invoice=new_invoice)

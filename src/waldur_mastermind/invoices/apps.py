@@ -9,6 +9,7 @@ class InvoiceConfig(AppConfig):
     def ready(self):
         from waldur_core.core import signals as core_signals
         from waldur_core.structure import models as structure_models
+        from waldur_core.structure import signals as structure_signals
 
         from . import handlers, models
 
@@ -70,4 +71,10 @@ class InvoiceConfig(AppConfig):
             handlers.adjust_invoice_items_for_downtime,
             sender=models.ServiceDowntime,
             dispatch_uid='waldur_mastermind.invoices.adjust_invoice_items_for_downtime',
+        )
+
+        structure_signals.project_moved.connect(
+            handlers.projects_customer_has_been_changed,
+            sender=structure_models.Project,
+            dispatch_uid='waldur_mastermind.invoices.projects_customer_has_been_changed',
         )
