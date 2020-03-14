@@ -31,7 +31,7 @@ class PriceForMBinGBWidget(forms.NumberInput):
 
     def render(self, name, value, attrs=None, renderer=None):
         if self.readonly:
-            return core_admin.render_to_readonly(self._format_value(value))
+            return core_admin.render_to_readonly(self.format_value(value))
         else:
             return super(PriceForMBinGBWidget, self).render(name, value, attrs)
 
