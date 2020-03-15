@@ -19,7 +19,6 @@ from rest_framework.reverse import reverse
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.monitoring.serializers import MonitoringSerializerMixin
@@ -975,45 +974,6 @@ class UserSerializer(
 
 class UserEmailChangeSerializer(serializers.Serializer):
     email = serializers.EmailField()
-
-
-class CreationTimeStatsSerializer(serializers.Serializer):
-    MODEL_NAME_CHOICES = (
-        ('project', 'project'),
-        ('customer', 'customer'),
-    )
-    MODEL_CLASSES = {'project': models.Project, 'customer': models.Customer}
-
-    model_name = serializers.ChoiceField(choices=MODEL_NAME_CHOICES)
-    start_timestamp = serializers.IntegerField(min_value=0)
-    end_timestamp = serializers.IntegerField(min_value=0)
-    segments_count = serializers.IntegerField(min_value=0)
-
-    def get_stats(self, user):
-        start_datetime = core_utils.timestamp_to_datetime(self.data['start_timestamp'])
-        end_datetime = core_utils.timestamp_to_datetime(self.data['end_timestamp'])
-
-        model = self.MODEL_CLASSES[self.data['model_name']]
-        filtered_queryset = filter_queryset_for_user(model.objects.all(), user)
-        created_datetimes = (
-            filtered_queryset.filter(
-                created__gte=start_datetime, created__lte=end_datetime
-            )
-            .values('created')
-            .annotate(count=django_models.Count('id', distinct=True))
-        )
-
-        time_and_value_list = [
-            (core_utils.datetime_to_timestamp(dt['created']), dt['count'])
-            for dt in created_datetimes
-        ]
-
-        return core_utils.format_time_and_value_to_segment_list(
-            time_and_value_list,
-            self.data['segments_count'],
-            self.data['start_timestamp'],
-            self.data['end_timestamp'],
-        )
 
 
 class PasswordSerializer(serializers.Serializer):
@@ -2176,44 +2136,6 @@ class BasePropertySerializer(
 ):
     class Meta:
         model = NotImplemented
-
-
-class AggregateSerializer(serializers.Serializer):
-    MODEL_NAME_CHOICES = (
-        ('project', 'project'),
-        ('customer', 'customer'),
-    )
-    MODEL_CLASSES = {
-        'project': models.Project,
-        'customer': models.Customer,
-    }
-
-    aggregate = serializers.ChoiceField(choices=MODEL_NAME_CHOICES, default='customer')
-    uuid = serializers.CharField(allow_null=True, default=None)
-
-    def get_aggregates(self, user):
-        model = self.MODEL_CLASSES[self.data['aggregate']]
-        queryset = filter_queryset_for_user(model.objects.all(), user)
-
-        if 'uuid' in self.data and self.data['uuid']:
-            queryset = queryset.filter(uuid=self.data['uuid'])
-        return queryset
-
-    def get_projects(self, user):
-        queryset = self.get_aggregates(user)
-
-        if self.data['aggregate'] == 'project':
-            return queryset.all()
-        else:
-            queryset = models.Project.objects.filter(customer__in=list(queryset))
-            return filter_queryset_for_user(queryset, user)
-
-    def get_service_project_links(self, user):
-        projects = self.get_projects(user)
-        return [
-            model.objects.filter(project__in=projects)
-            for model in models.ServiceProjectLink.get_all_models()
-        ]
 
 
 class PrivateCloudSerializer(BaseResourceSerializer):

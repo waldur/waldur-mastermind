@@ -1,7 +1,5 @@
 import inspect
 import logging
-from collections import defaultdict
-from functools import reduce
 
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
@@ -295,23 +293,6 @@ class QuotaModelMixin(models.Model):
                 result[item['name']] = item['limit']
 
         return result
-
-    @classmethod
-    def get_sum_of_quotas_for_querysets(cls, querysets, quota_names=None):
-        partial_sums = [
-            qs.model.get_sum_of_quotas_as_dict(qs, quota_names) for qs in querysets
-        ]
-        return reduce(cls._sum_dicts, partial_sums, defaultdict(lambda: 0))
-
-    @classmethod
-    def _sum_dicts(cls, total, partial):
-        for key, val in partial.items():
-            if val != -1:
-                total[key] += val
-        for key in partial.keys():
-            if key not in total:
-                total[key] = -1
-        return total
 
     @classmethod
     def get_quotas_fields(cls, field_class=None):

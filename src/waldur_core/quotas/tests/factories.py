@@ -1,4 +1,3 @@
-import factory
 import factory.fuzzy
 from django.urls import reverse
 
