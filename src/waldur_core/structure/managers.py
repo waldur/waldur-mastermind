@@ -135,15 +135,6 @@ class ResourceSummaryQuerySet(SummaryQuerySet):
         return ResourceMixin
 
 
-class ServiceSummaryQuerySet(SummaryQuerySet):
-    # Hack for permissions
-    @property
-    def model(self):
-        from waldur_core.structure.models import Service
-
-        return Service
-
-
 class ServiceSettingsManager(GenericKeyMixin, models.Manager):
     """ Allows to filter and get service settings by generic key """
 

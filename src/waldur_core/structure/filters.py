@@ -821,19 +821,6 @@ class ResourceSummaryFilterBackend(core_filters.SummaryFilter):
         return BaseResourceFilter
 
 
-class ServiceSummaryFilterBackend(core_filters.SummaryFilter):
-    def get_queryset_filter(self, queryset):
-        try:
-            return SupportedServices.get_service_filter(queryset.model)
-        except KeyError:
-            return super(ServiceSummaryFilterBackend, self).get_queryset_filter(
-                queryset
-            )
-
-    def get_base_filter(self):
-        return BaseServiceFilter
-
-
 class DivisionFilter(NameFilterSet):
     type = django_filters.CharFilter(field_name='type__name', lookup_expr='iexact')
     parent = django_filters.UUIDFilter(field_name='parent__uuid')

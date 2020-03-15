@@ -188,11 +188,6 @@ class SupportedServices:
         return cls._registry[key]['serializer']
 
     @classmethod
-    def get_service_filter(cls, model):
-        key = cls.get_model_key(model)
-        return cls._registry[key]['filter']
-
-    @classmethod
     def get_resources(cls, request=None):
         """ Get a list of resources endpoints.
             {

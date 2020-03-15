@@ -31,7 +31,6 @@ def register_in(router):
     router.register(
         r'service-metadata', views.ServiceMetadataViewSet, basename='service_metadata'
     )
-    router.register(r'services', views.ServicesViewSet, basename='service_items')
     router.register(r'resources', views.ResourceSummaryViewSet, basename='resource')
     router.register(r'users', views.UserViewSet)
     router.register(r'keys', views.SshKeyViewSet)
