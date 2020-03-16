@@ -24,6 +24,9 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 erred_state='error',
             )
         ]
+        _tasks += [
+            core_tasks.BackendMethodTask().si(serialized_instance, 'pull_projects',)
+        ]
         return chain(*_tasks)
 
     @classmethod
