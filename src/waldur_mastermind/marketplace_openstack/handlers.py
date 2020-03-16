@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -16,7 +17,15 @@ from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, PACKAGE_TYPE, RAM_TYPE, STORAGE_TYPE, VOLUME_TYPE, utils
+from . import (
+    INSTANCE_TYPE,
+    PACKAGE_TYPE,
+    RAM_TYPE,
+    STORAGE_TYPE,
+    VOLUME_TYPE,
+    tasks,
+    utils,
+)
 
 logger = logging.getLogger(__name__)
 States = marketplace_models.Resource.States
@@ -605,3 +614,8 @@ def synchronize_limits_when_storage_mode_is_switched(
         utils.import_usage(resource)
         registrators.RegistrationManager.terminate(resource)
         registrators.RegistrationManager.register(resource)
+
+        serialized_resource = core_utils.serialize_instance(instance)
+        transaction.on_commit(
+            lambda: tasks.push_tenant_limits.delay(serialized_resource)
+        )
