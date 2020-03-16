@@ -506,6 +506,8 @@ class TemplateSerializer(
             'cluster',
             'project',
             'icon',
+            'project_url',
+            'default_version',
             'versions',
         )
         extra_kwargs = {
