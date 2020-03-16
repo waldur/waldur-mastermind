@@ -624,6 +624,7 @@ class RancherBackend(ServiceBackend):
     def remote_template_to_local(
         self, remote_template, local_catalog_map, local_cluster_map, local_project_map
     ):
+        catalog_id = remote_template['catalogId'] or remote_template['clusterCatalogId']
         return models.Template(
             backend_id=remote_template['id'],
             name=remote_template['name'],
@@ -634,7 +635,7 @@ class RancherBackend(ServiceBackend):
             project_url=remote_template.get('projectURL', ''),
             default_version=remote_template['defaultVersion'],
             versions=list(remote_template['versionLinks'].keys()),
-            catalog=local_catalog_map.get(remote_template['catalogId']),
+            catalog=local_catalog_map.get(catalog_id),
             cluster=local_cluster_map.get(remote_template['clusterId']),
             project=local_project_map.get(remote_template['projectId']),
             settings=self.settings,

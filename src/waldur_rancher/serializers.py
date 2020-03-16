@@ -491,6 +491,8 @@ class NamespaceSerializer(structure_serializers.BasePropertySerializer):
 class TemplateSerializer(
     ProtectedMediaSerializerMixin, structure_serializers.BasePropertySerializer,
 ):
+    catalog_name = serializers.ReadOnlyField(source='catalog.name')
+
     class Meta:
         model = models.Template
         view_name = 'rancher-template-detail'
@@ -508,6 +510,7 @@ class TemplateSerializer(
             'icon',
             'project_url',
             'default_version',
+            'catalog_name',
             'versions',
         )
         extra_kwargs = {
