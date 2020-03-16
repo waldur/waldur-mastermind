@@ -10,7 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
-from waldur_mastermind.packages import models, utils
+from waldur_mastermind.packages import models
 
 
 class PriceForMBinGBWidget(forms.NumberInput):
@@ -261,10 +261,6 @@ class PackageTemplateAdmin(admin.ModelAdmin):
                 'service_settings'
             ].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
         return form
-
-    def save_related(self, request, form, formsets, change):
-        super(PackageTemplateAdmin, self).save_related(request, form, formsets, change)
-        utils.sync_price_list_item(form.instance)
 
 
 class OpenStackPackageAdmin(admin.ModelAdmin):
