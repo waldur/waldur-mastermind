@@ -14,6 +14,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import utils
 from waldur_core.core.models import User
+from waldur_core.media import magic
 from waldur_core.structure.managers import filter_queryset_for_user
 
 
@@ -104,3 +105,14 @@ def dummy_image(filetype='gif'):
     tmp_file = tempfile.NamedTemporaryFile(suffix='.%s' % filetype)
     tmp_file.write(base64.b64decode(GIF))
     return open(tmp_file.name, 'rb')
+
+
+def guess_image_extension(content: bytes) -> str:
+    mime_type = magic.from_buffer(content[:1024], mime=True)
+    return {
+        'image/svg': 'svg',
+        'image/svg+xml': 'svg',
+        'image/png': 'png',
+        'image/jpeg': 'jpeg',
+        'image/webp': 'webp',
+    }.get(mime_type)

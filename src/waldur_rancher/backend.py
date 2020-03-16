@@ -7,7 +7,7 @@ from django.utils.functional import cached_property
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.media import magic
+from waldur_core.media.utils import guess_image_extension
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
@@ -643,13 +643,15 @@ class RancherBackend(ServiceBackend):
     def pull_template_icons(self):
         for template in models.Template.objects.filter(settings=self.settings):
             content = self.client.get_template_icon(template.backend_id)
-            mime_type = magic.from_buffer(content[:1024], mime=True)
-            extension = {
-                'image/svg+xml': 'svg',
-                'image/png': 'png',
-                'image/jpeg': 'jpeg',
-                'image/webp': 'webp',
-            }.get(mime_type)
+            # Clear icon field so that default icon would be rendered
+            if not content:
+                template.icon = None
+                template.save()
+                continue
+            extension = guess_image_extension(content)
             if not extension:
                 continue
+            # Overwrite existing file
+            if template.icon:
+                template.icon.delete()
             template.icon.save(f'{template.uuid}.{extension}', io.BytesIO(content))
