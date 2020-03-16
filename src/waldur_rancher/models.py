@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urljoin
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -103,7 +104,8 @@ class Cluster(SettingsMixin, NewResource):
         return 'rancher-cluster'
 
     def get_access_url(self):
-        return self.service_project_link.service.settings.backend_url
+        base_url = self.service_project_link.service.settings.backend_url
+        return urljoin(base_url, 'c/' + self.backend_id)
 
     def __str__(self):
         return self.name
