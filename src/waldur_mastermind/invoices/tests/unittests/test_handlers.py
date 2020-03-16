@@ -191,7 +191,7 @@ class UpdateInvoiceOnOfferingStateChange(TransactionTestCase):
 
 
 class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
-    @mock.patch('waldur_core.cost_tracking.signals.invoice_created')
+    @mock.patch('waldur_mastermind.invoices.signals.invoice_created')
     def test_invoice_created_signal_is_emitted_on_monthly_invoice_creation(
         self, invoice_created_mock
     ):

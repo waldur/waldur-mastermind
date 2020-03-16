@@ -9,7 +9,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import utils as core_utils
-from waldur_core.cost_tracking import signals as cost_signals
+from waldur_mastermind.invoices import signals as cost_signals
 
 from . import log, models, registrators, tasks
 
