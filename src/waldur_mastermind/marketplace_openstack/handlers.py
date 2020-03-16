@@ -615,7 +615,7 @@ def synchronize_limits_when_storage_mode_is_switched(
         registrators.RegistrationManager.terminate(resource)
         registrators.RegistrationManager.register(resource)
 
-        serialized_resource = core_utils.serialize_instance(instance)
+        serialized_resource = core_utils.serialize_instance(resource)
         transaction.on_commit(
             lambda: tasks.push_tenant_limits.delay(serialized_resource)
         )
