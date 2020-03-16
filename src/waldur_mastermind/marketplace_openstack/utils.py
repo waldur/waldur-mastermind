@@ -656,3 +656,14 @@ def import_limits_when_storage_mode_is_switched(resource):
 
     resource.limits = limits
     resource.save(update_fields=['limits'])
+
+
+def push_tenant_limits(resource):
+    tenant = resource.scope
+    backend = tenant.get_backend()
+    quotas = map_limits_to_quotas(resource.limits)
+    backend.push_tenant_quotas(tenant, quotas)
+    with transaction.atomic():
+        _apply_quotas(tenant, quotas)
+        for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
+            _apply_quotas(target, quotas)
