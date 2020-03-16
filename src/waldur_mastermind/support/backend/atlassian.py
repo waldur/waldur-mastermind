@@ -322,7 +322,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
         backend_request_types = self.manager.waldur_request_types(
             service_desk_id,
-            progect_key=self.project_settings['key'],
+            project_key=self.project_settings['key'],
             strange_setting=self.strange_setting,
         )
         with transaction.atomic():
