@@ -588,6 +588,9 @@ def map_limits_to_quotas(limits):
         quotas['storage'] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
         quotas.update(volume_type_quotas)
 
+    # Convert quota value from float to integer because OpenStack API fails otherwise
+    quotas = {k: int(v) for k, v in quotas.items()}
+
     return quotas
 
 
