@@ -32,7 +32,10 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         )
         read_only_fields = ('total', 'scope')
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'billing-price-estimate-detail',
+            },
         }
 
     def validate(self, attrs):

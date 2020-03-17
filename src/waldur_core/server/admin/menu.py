@@ -62,7 +62,6 @@ class CustomMenu(Menu):
 
     ACCOUNTING = (
         'waldur_mastermind.invoices.*',
-        'waldur_core.cost_tracking.*',
         'waldur_paypal.*',
     )
 

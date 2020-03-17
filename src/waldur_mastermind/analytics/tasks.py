@@ -5,7 +5,7 @@ from django.utils import timezone
 from waldur_core.quotas import models as quota_models
 from waldur_core.structure import models as structure_models
 
-from . import cost_tracking, models, openstack, slurm, utils
+from . import models, openstack, slurm, utils
 
 
 @shared_task(name='analytics.push_points')
@@ -16,7 +16,6 @@ def push_points():
     points = []
     points.extend(openstack.get_tenants())
     points.extend(openstack.get_instances())
-    points.extend(cost_tracking.get_total_cost())
     points.extend(slurm.get_usage())
     utils.write_points(client, points)
 

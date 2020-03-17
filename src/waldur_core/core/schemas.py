@@ -19,7 +19,6 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
-from waldur_core.cost_tracking.filters import ResourceTypeFilter
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import filters as structure_filters
 
@@ -226,10 +225,6 @@ def get_field_type(field):
     if isinstance(field, structure_filters.ServiceTypeFilter):
         return ' | '.join(
             ['"%s"' % f for f in SupportedServices.get_filter_mapping().keys()]
-        )
-    if isinstance(field, ResourceTypeFilter):
-        return ' | '.join(
-            ['"%s"' % f for f in SupportedServices.get_resource_models().keys()]
         )
     if isinstance(field, core_serializers.GenericRelatedField):
         links = []

@@ -1,13 +1,11 @@
-from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from waldur_core.core.models import StateMixin
-from waldur_core.cost_tracking import models as cost_tracking_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
-from ... import PriceItemTypes, apps, models
+from ... import apps, models
 from .. import factories
 
 
@@ -499,17 +497,4 @@ class CreateServiceFromTenantTest(TestCase):
         self.assertEquals(
             service_settings.options['console_type'],
             service_project_link.service.settings.options['console_type'],
-        )
-
-
-class FlavorPriceListItemTest(TestCase):
-    def setUp(self):
-        self.flavor = factories.FlavorFactory()
-        self.content_type = ContentType.objects.get_for_model(models.Instance)
-
-    def test_price_list_item_is_created_on_flavor_creation(self):
-        cost_tracking_models.DefaultPriceListItem.objects.get(
-            resource_content_type=self.content_type,
-            item_type=PriceItemTypes.FLAVOR,
-            key=self.flavor.name,
         )
