@@ -548,7 +548,6 @@ class WaldurClient(object):
             payload['description'] = description
 
         if check_mode:
-            payload['WALDUR_CHECK_MODE'] = True
             return payload
 
         instance = self._create_instance(payload)
@@ -984,7 +983,6 @@ class WaldurClient(object):
                 'attributes': attributes,
                 'project': project,
                 'offering': offering['uuid'],
-                'WALDUR_CHECK_MODE': True,
             }
 
         order = self.create_marketplace_order(
