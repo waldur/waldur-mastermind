@@ -107,6 +107,11 @@ class NodeDeleteExecutor(core_executors.BaseExecutor):
 class ClusterPullExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, cluster, serialized_cluster, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_cluster, 'pull_cluster', state_transition='begin_updating'
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_cluster, 'pull_cluster', state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_cluster, 'pull_service_properties'
+            ),
         )
