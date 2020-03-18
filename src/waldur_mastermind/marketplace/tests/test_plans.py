@@ -1,10 +1,14 @@
 from ddt import data, ddt
+from django import template
+from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.templatetags.waldur_marketplace import plan_details
 
 from . import factories
 
@@ -120,3 +124,73 @@ class PlanArchiveTest(test.APITransactionTestCase):
     def archive_plan(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         return self.client.post(self.url)
+
+
+class PlanRenderTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.offering = factories.OfferingFactory(customer=self.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.offering_component_fix = factories.OfferingComponentFactory(
+            offering=self.offering
+        )
+        self.offering_component_usage = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            type='ram',
+        )
+        self.offering_component_one = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.ONE_TIME,
+            type='one',
+        )
+        self.offering_component_one_switch = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH,
+            type='switch',
+        )
+        self.component_fix = factories.PlanComponentFactory(
+            component=self.offering_component_fix, plan=self.plan
+        )
+        self.component_usage = factories.PlanComponentFactory(
+            component=self.offering_component_usage, plan=self.plan
+        )
+        self.component_one = factories.PlanComponentFactory(
+            component=self.offering_component_one, plan=self.plan
+        )
+        self.component_one_switch = factories.PlanComponentFactory(
+            component=self.offering_component_one_switch, plan=self.plan
+        )
+
+    def test_plan_render(self):
+        rendered_plan = plan_details(self.plan)
+
+        context = {
+            'plan': self.plan,
+            'components': [
+                {
+                    'name': self.component_fix.component.name,
+                    'amount': self.component_fix.amount,
+                    'price': self.component_fix.price,
+                },
+                {
+                    'name': self.component_one.component.name,
+                    'amount': _('one-time fee'),
+                    'price': self.component_one.price,
+                },
+                {
+                    'name': self.component_one_switch.component.name,
+                    'amount': _('one-time on plan switch'),
+                    'price': self.component_one_switch.price,
+                },
+            ],
+        }
+        plan_template = template.Template(
+            settings.WALDUR_MARKETPLACE.get('PLAN_TEMPLATE')
+        )
+        rendered_plan_expected = plan_template.render(
+            template.Context(context, autoescape=False)
+        )
+
+        self.assertEqual(rendered_plan, rendered_plan_expected)
