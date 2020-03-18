@@ -285,3 +285,6 @@ class RancherClient:
 
     def get_project_applications(self, project_id):
         return self._get(f'project/{project_id}/apps', params={'limit': -1})['data']
+
+    def list_project_secrets(self, project_id):
+        return self._get(f'project/{project_id}/secrets', params={'limit': -1})['data']

@@ -67,6 +67,9 @@ class SettingsMixin(models.Model):
         null=True,
     )
 
+    def get_backend(self):
+        return self.settings.get_backend()
+
 
 class Cluster(SettingsMixin, NewResource):
     class RuntimeStates:

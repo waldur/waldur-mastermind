@@ -269,6 +269,14 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.ProjectFilter
     lookup_field = 'uuid'
 
+    @decorators.action(detail=True, methods=['get'])
+    def secrets(self, request, uuid=None):
+        project = self.get_object()
+        backend = project.get_backend()
+        secrets = backend.list_project_secrets(project)
+        data = [{'name': secret['name'], 'id': secret['id']} for secret in secrets]
+        return response.Response(data, status=status.HTTP_200_OK)
+
 
 class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Namespace.objects.all()

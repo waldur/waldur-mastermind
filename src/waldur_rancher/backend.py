@@ -656,3 +656,6 @@ class RancherBackend(ServiceBackend):
             if template.icon:
                 template.icon.delete()
             template.icon.save(f'{template.uuid}.{extension}', io.BytesIO(content))
+
+    def list_project_secrets(self, project):
+        return self.client.list_project_secrets(project.backend_id)
