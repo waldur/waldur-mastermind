@@ -98,7 +98,7 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     ]
 
 
-class NodeViewSet(core_views.ActionsViewSet):
+class NodeViewSet(structure_views.ResourceViewSet):
     queryset = models.Node.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.NodeSerializer
@@ -110,6 +110,7 @@ class NodeViewSet(core_views.ActionsViewSet):
     destroy_validators = [
         validators.related_vm_can_be_deleted,
     ]
+    pull_executor = executors.NodePullExecutor
 
     def perform_create(self, serializer):
         node = serializer.save()
