@@ -184,6 +184,9 @@ class Node(
     def service_project_link(self):
         return self.cluster.service_project_link
 
+    def get_backend(self):
+        return self.cluster.get_backend()
+
     def __str__(self):
         return self.name
 

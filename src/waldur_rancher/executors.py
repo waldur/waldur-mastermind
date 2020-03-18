@@ -115,3 +115,11 @@ class ClusterPullExecutor(core_executors.ActionExecutor):
                 serialized_cluster, 'pull_service_properties'
             ),
         )
+
+
+class NodePullExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, node, serialized_node, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_node, 'update_node_details', state_transition='begin_updating'
+        )

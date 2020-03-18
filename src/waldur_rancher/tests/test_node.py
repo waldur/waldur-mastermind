@@ -260,3 +260,11 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
         self.fixture.node.save()
         backend.pull_cluster(self.fixture.node.cluster)
         self._check_node_fields(self.fixture.node)
+
+    def test_pull_node(self):
+        backend = self.fixture.node.get_backend()
+        self.fixture.node.name = 'k8s-node'
+        self.fixture.node.backend_id = 'backend_id'
+        self.fixture.node.save()
+        backend.update_node_details(self.fixture.node)
+        self._check_node_fields(self.fixture.node)
