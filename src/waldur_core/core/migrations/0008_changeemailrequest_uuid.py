@@ -9,6 +9,8 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='changeemailrequest', name='uuid', field=models.UUIDField(),
+            model_name='changeemailrequest',
+            name='uuid',
+            field=models.UUIDField(null=True),
         ),
     ]
