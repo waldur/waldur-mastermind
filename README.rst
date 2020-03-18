@@ -9,6 +9,7 @@ Supported functionality
 - OpenStack volume provisioning.
 - OpenStack snapshot provisioning.
 - Batch processing resources allocation.
+- Batch processing offering registration.
 
 See also: http://docs.ansible.com/ansible/modules.html
 

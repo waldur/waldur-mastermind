@@ -33,6 +33,7 @@ setup(
         'waldur_os_security_group',
         'waldur_os_snapshot',
         'waldur_batch_allocation',
+        'waldur_batch_offering',
     ],
     install_requires=install_requires,
     tests_require=tests_requires,
