@@ -70,6 +70,8 @@ class WaldurClient(object):
         MarketplacePlan = 'marketplace-plans'
         MarketplaceOrder = 'marketplace-orders'
         MarketplaceResources = 'marketplace-resources'
+        MarketplaceCategories = 'marketplace-categories'
+        Customers = 'customers'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -1213,6 +1215,34 @@ class WaldurClient(object):
         :param volume_uuid: volume UUID.
         """
         return self._delete_scope_via_marketplace(volume_uuid, 'OpenStackTenant.Volume')
+
+    def create_offering(self, params, check_mode=False):
+        """
+        Create an offering with specified parameters
+
+        :param params: dict with parameters
+        :param check_mode: True for check mode.
+        :return: new offering information
+        """
+        category_url = self._get_resource(
+            self.Endpoints.MarketplaceCategories, params['category']
+        )['url']
+        params['category'] = category_url
+        if params['customer']:
+            customer_url = self._get_resource(
+                self.Endpoints.Customers, params['customer']
+            )['url']
+            params['customer'] = customer_url
+
+        if check_mode:
+            return params, False
+
+        else:
+            resource = self._create_resource(
+                self.Endpoints.MarketplaceOffering, payload=params
+            )
+
+            return resource, True
 
 
 def waldur_full_argument_spec(**kwargs):
