@@ -40,6 +40,32 @@ class OfferingGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+@ddt
+class SecretOptionsTests(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
+    @data('staff', 'owner')
+    def test_secret_options_are_visible_to_authorized_user(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('secret_options' in response.data)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_secret_options_are_not_visible_to_unauthorized_user(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse('secret_options' in response.data)
+
+
 class OfferingFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

@@ -441,6 +441,7 @@ class OfferingDetailsSerializer(
             'components',
             'geolocations',
             'plugin_options',
+            'secret_options',
             'state',
             'native_name',
             'native_description',
@@ -476,17 +477,15 @@ class OfferingDetailsSerializer(
 
     def get_fields(self):
         fields = super(OfferingDetailsSerializer, self).get_fields()
-        if not self.can_see_plugin_options() and 'plugin_options' in fields:
-            # Plugin options may contain sensitive information therefore
-            # it should be exposed to privileged user exclusively
-            del fields['plugin_options']
+        if not self.can_see_secret_options() and 'secret_options' in fields:
+            del fields['secret_options']
         method = self.context['view'].request.method
         if method == 'GET':
             fields['components'] = serializers.SerializerMethodField('get_components')
             fields['plans'] = serializers.SerializerMethodField('get_filtered_plans')
         return fields
 
-    def can_see_plugin_options(self):
+    def can_see_secret_options(self):
         user = None
         try:
             request = self.context['request']

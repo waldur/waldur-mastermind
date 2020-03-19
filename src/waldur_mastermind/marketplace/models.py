@@ -334,7 +334,16 @@ class Offering(
     plugin_options = BetterJSONField(
         blank=True,
         default=dict,
-        help_text=_('Data used by specific plugin, such as credentials and hooks.'),
+        help_text=_(
+            'Public data used by specific plugin, such as storage mode for OpenStack.'
+        ),
+    )
+    secret_options = BetterJSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            'Private data used by specific plugin, such as credentials and hooks.'
+        ),
     )
     geolocations = JSONField(
         default=list,
