@@ -37,6 +37,7 @@ class Migration(migrations.Migration):
             name='package',
             field=models.ForeignKey(
                 blank=True,
+                editable=False,
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 to='packages.OpenStackPackage',

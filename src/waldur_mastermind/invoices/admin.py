@@ -1,7 +1,6 @@
 from django.conf.urls import url
 from django.contrib import admin
-from django.core.exceptions import ValidationError
-from django.forms import ModelChoiceField, ModelForm
+from django.forms import ModelChoiceField
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -132,21 +131,6 @@ class PackageChoiceField(ModelChoiceField):
         )
 
 
-class ServiceDowntimeForm(ModelForm):
-    def clean(self):
-        cleaned_data = super(ServiceDowntimeForm, self).clean()
-        offering = self.cleaned_data['offering']
-        resource = self.cleaned_data['resource']
-
-        if offering and resource:
-            raise ValidationError('Cannot define an offering and a resource.')
-
-        if not (offering or resource):
-            raise ValidationError('You must define an offering or a resource.')
-
-        return cleaned_data
-
-
 class ServiceDowntimeAdmin(admin.ModelAdmin):
     list_display = (
         'get_customer',
@@ -158,10 +142,8 @@ class ServiceDowntimeAdmin(admin.ModelAdmin):
         'end',
     )
     list_display_links = ('get_customer',)
-    readonly_fields = ('package',)
     search_fields = ('offering__name', 'resource__name')
     date_hierarchy = 'start'
-    form = ServiceDowntimeForm
 
     def get_readonly_fields(self, request, obj=None):
         # Downtime record is protected from modifications

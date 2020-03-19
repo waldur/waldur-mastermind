@@ -343,6 +343,7 @@ class ServiceDowntime(models.Model):
         to=package_models.OpenStackPackage,
         blank=True,
         null=True,
+        editable=False,
     )
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=marketplace_models.Offering, blank=True, null=True
@@ -355,6 +356,7 @@ class ServiceDowntime(models.Model):
         self._validate_duration()
         self._validate_offset()
         self._validate_intersection()
+        self._validate_resource_and_offering()
 
     def _validate_duration(self):
         duration = self.end - self.start
@@ -380,6 +382,13 @@ class ServiceDowntime(models.Model):
                     'Please select date in the past instead.'
                 )
             )
+
+    def _validate_resource_and_offering(self):
+        if self.offering and self.resource:
+            raise ValidationError('Cannot define an offering and a resource.')
+
+        if not (self.offering or self.resource):
+            raise ValidationError('You must define an offering or a resource.')
 
     def get_intersection_subquery(self):
         left = Q(start__gte=self.start, start__lte=self.end)
