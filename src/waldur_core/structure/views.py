@@ -1,6 +1,4 @@
 import logging
-import time
-from collections import defaultdict
 from functools import partial
 
 from django.conf import settings as django_settings
@@ -17,7 +15,7 @@ from rest_framework import filters as rf_filters
 from rest_framework import mixins
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
-from rest_framework import status, views, viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import (
     APIException,
@@ -27,18 +25,15 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 from rest_framework.response import Response
-from reversion.models import Version
 
 from waldur_core.core import managers as core_managers
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
-from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.utils import datetime_to_timestamp, is_uuid_like, sort_dict
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import models as logging_models
-from waldur_core.quotas.models import Quota, QuotaModelMixin
 from waldur_core.structure import (
     ServiceBackendError,
     ServiceBackendNotImplemented,
@@ -832,54 +827,6 @@ class CustomerPermissionLogViewSet(
     filterset_class = filters.CustomerPermissionFilter
 
 
-class CreationTimeStatsView(views.APIView):
-    """
-    Historical information about creation time of projects and customers.
-    """
-
-    def get(self, request, format=None):
-        month = 60 * 60 * 24 * 30
-        data = {
-            'start_timestamp': request.query_params.get(
-                'from', int(time.time() - month)
-            ),
-            'end_timestamp': request.query_params.get('to', int(time.time())),
-            'segments_count': request.query_params.get('datapoints', 6),
-            'model_name': request.query_params.get('type', 'customer'),
-        }
-
-        serializer = serializers.CreationTimeStatsSerializer(data=data)
-        serializer.is_valid(raise_exception=True)
-
-        stats = serializer.get_stats(request.user)
-        return Response(stats, status=status.HTTP_200_OK)
-
-    def list(self, request, *args, **kwargs):
-        """
-        Available request parameters:
-
-        - ?type=type_of_statistics_objects (required. Have to be from the list: 'customer', 'project')
-        - ?from=timestamp (default: now - 30 days, for example: 1415910025)
-        - ?to=timestamp (default: now, for example: 1415912625)
-        - ?datapoints=how many data points have to be in answer (default: 6)
-
-        Answer will be list of datapoints(dictionaries).
-        Each datapoint will contain fields: 'to', 'from', 'value'.
-        'Value' - count of objects, that were created between 'from' and 'to' dates.
-
-        Example:
-
-        .. code-block:: javascript
-
-            [
-                {"to": 471970877, "from": 1, "value": 5},
-                {"to": 943941753, "from": 471970877, "value": 0},
-                {"to": 1415912629, "from": 943941753, "value": 3}
-            ]
-        """
-        return super(CreationTimeStatsView, self).list(request, *args, **kwargs)
-
-
 class SshKeyViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
@@ -1280,40 +1227,6 @@ class ResourceSummaryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
                 for qs in queryset.querysets
             }
         )
-
-
-class ServicesViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
-    """ The summary list of all user services. """
-
-    model = models.Service
-    serializer_class = serializers.SummaryServiceSerializer
-    filter_backends = (filters.GenericRoleFilter, filters.ServiceSummaryFilterBackend)
-
-    def get_queryset(self):
-        service_models = {
-            k: v['service'] for k, v in SupportedServices.get_service_models().items()
-        }
-        service_models = self._filter_by_types(service_models)
-        # TODO: filter models by service type.
-        queryset = managers.ServiceSummaryQuerySet(service_models.values())
-        return serializers.SummaryServiceSerializer.eager_load(queryset, self.request)
-
-    def _filter_by_types(self, service_models):
-        types = self.request.query_params.getlist('service_type', None)
-        if types:
-            service_models = {k: v for k, v in service_models.items() if k in types}
-        return service_models
-
-    def list(self, request, *args, **kwargs):
-        """
-        Filter services by type
-        ^^^^^^^^^^^^^^^^^^^^^^^
-
-        It is possible to filter services by their types. Example:
-
-          /api/services/?service_type=DigitalOcean&service_type=OpenStack
-        """
-        return super(ServicesViewSet, self).list(request, *args, **kwargs)
 
 
 class BaseCounterView(viewsets.GenericViewSet):
@@ -1746,194 +1659,6 @@ class ResourceViewMetaclass(type):
 
 class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.BaseServicePropertyFilter
-
-
-class AggregatedStatsView(views.APIView):
-    """
-    Quotas and quotas usage aggregated by projects/customers.
-
-    Available request parameters:
-        - ?aggregate=aggregate_model_name (default: 'customer'.
-          Have to be from list: 'customer', 'project')
-        - ?uuid=uuid_of_aggregate_model_object (not required. If this parameter will be defined -
-          result will contain only object with given uuid)
-        - ?quota_name - optional list of quota names, for example ram, vcpu, storage
-    """
-
-    def get(self, request, format=None):
-        serializer = serializers.AggregateSerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-
-        quota_names = request.query_params.getlist('quota_name')
-        if len(quota_names) == 0:
-            quota_names = None
-        querysets = serializer.get_service_project_links(request.user)
-
-        total_sum = QuotaModelMixin.get_sum_of_quotas_for_querysets(
-            querysets, quota_names
-        )
-        total_sum = sort_dict(total_sum)
-        return Response(total_sum, status=status.HTTP_200_OK)
-
-
-class QuotaTimelineStatsView(views.APIView):
-    """
-    Historical data of quotas and quotas usage aggregated by projects/customers.
-
-    Available request parameters:
-
-    - ?from=timestamp (default: now - 1 day, for example: 1415910025)
-    - ?to=timestamp (default: now, for example: 1415912625)
-    - ?interval (default: day. Has to be from list: hour, day, week, month)
-    - ?item=<quota_name>. If this parameter is not defined - endpoint will return data for all items.
-    - ?aggregate=aggregate_model_name (default: 'customer'. Have to be from list: 'customer', 'project')
-    - ?uuid=uuid_of_aggregate_model_object (not required. If this parameter is defined, result will contain only object with given uuid)
-
-    Answer will be list of dictionaries with fields, determining time frame. It's size is equal to interval parameter.
-    Values within each bucket are averaged for each project and then all projects metrics are summarized.
-
-    Value fields include:
-
-    - vcpu_limit - virtual CPUs quota
-    - vcpu_usage - virtual CPUs usage
-    - ram_limit - RAM quota limit, in MiB
-    - ram_usage - RAM usage, in MiB
-    - storage_limit - volume storage quota limit, in MiB
-    - storage_usage - volume storage quota consumption, in MiB
-    """
-
-    def get(self, request, format=None):
-        scopes = self.get_quota_scopes(request)
-        ranges = self.get_ranges(request)
-        items = request.query_params.getlist('item') or self.get_all_spls_quotas()
-
-        collector = QuotaTimelineCollector()
-        for item in items:
-            for scope in scopes:
-                values = self.get_stats_for_scope(item, scope, ranges)
-                for (end, start), (limit, usage) in zip(ranges, values):
-                    collector.add_quota(start, end, item, limit, usage)
-
-        stats = list(map(sort_dict, collector.to_dict()))[::-1]
-        return Response(stats, status=status.HTTP_200_OK)
-
-    def get_quota_scopes(self, request):
-        serializer = serializers.AggregateSerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        scopes = sum(
-            [list(qs) for qs in serializer.get_service_project_links(request.user)], []
-        )
-        # XXX: quick and dirty hack for OpenStack: use tenants instead of SPLs as quotas scope.
-        new_scopes = []
-        for index, scope in enumerate(scopes):
-            if scope.service.settings.type == 'OpenStack':
-                new_scopes += list(scope.tenants.all())
-            else:
-                new_scopes.append(scope)
-        return new_scopes
-
-    def get_all_spls_quotas(self):
-        # XXX: quick and dirty hack for OpenStack: use tenants instead of SPLs as quotas scope.
-        spl_models = [
-            m if m.__name__ != 'OpenStackServiceProjectLink' else m.tenants.field.model
-            for m in models.ServiceProjectLink.get_all_models()
-        ]
-        return sum([spl_model.get_quotas_names() for spl_model in spl_models], [])
-
-    def get_stats_for_scope(self, quota_name, scope, dates):
-        stats_data = []
-        try:
-            quota = scope.quotas.get(name=quota_name)
-        except Quota.DoesNotExist:
-            return stats_data
-        versions = (
-            Version.objects.get_for_object(quota)
-            .select_related('revision')
-            .filter(revision__date_created__lte=dates[0][0])
-            .iterator()
-        )
-        version = None
-        for end, start in dates:
-            try:
-                while version is None or version.revision.date_created > end:
-                    version = next(versions)
-                stats_data.append(
-                    (
-                        version._object_version.object.limit,
-                        version._object_version.object.usage,
-                    )
-                )
-            except StopIteration:
-                break
-
-        return stats_data
-
-    def get_ranges(self, request):
-        mapped = {
-            'start_time': request.query_params.get('from'),
-            'end_time': request.query_params.get('to'),
-            'interval': request.query_params.get('interval'),
-        }
-        data = {key: val for (key, val) in mapped.items() if val}
-
-        serializer = core_serializers.TimelineSerializer(data=data)
-        serializer.is_valid(raise_exception=True)
-
-        date_points = serializer.get_date_points()
-        reversed_dates = date_points[::-1]
-        ranges = list(zip(reversed_dates[:-1], reversed_dates[1:]))
-        return ranges
-
-
-class QuotaTimelineCollector:
-    """
-    Helper class for QuotaTimelineStatsView.
-    Aggregate quotas grouped by date range and quota name.
-    Example output rendering:
-
-    .. code-block:: javascript
-
-        [
-            {
-                "from": start,
-                "to" end,
-                "vcpu_limit": 10,
-                "vcpu_usage": 5,
-                "ram_limit": 4000,
-                "ran_usage": 1000
-            }
-        ]
-    """
-
-    def __init__(self):
-        self.ranges = set()
-        self.items = set()
-        self.limits = defaultdict(int)
-        self.usages = defaultdict(int)
-
-    def add_quota(self, start, end, item, limit, usage):
-        key = (start, end, item)
-        if limit == -1 or self.limits[key] == -1:
-            self.limits[key] = -1
-        else:
-            self.limits[key] += limit
-        self.usages[key] += usage
-        self.ranges.add((start, end))
-        self.items.add(item)
-
-    def to_dict(self):
-        table = []
-        for start, end in sorted(self.ranges):
-            row = {
-                'from': datetime_to_timestamp(start),
-                'to': datetime_to_timestamp(end),
-            }
-            for item in sorted(self.items):
-                key = (start, end, item)
-                row['%s_limit' % item] = self.limits[key]
-                row['%s_usage' % item] = self.usages[key]
-            table.append(row)
-        return table
 
 
 def check_resource_backend_id(resource):

@@ -1,4 +1,3 @@
-import factory
 import factory.fuzzy
 from rest_framework.reverse import reverse
 

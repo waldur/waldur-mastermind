@@ -7,7 +7,7 @@ from django.utils.functional import cached_property
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.media import magic
+from waldur_core.media.utils import guess_image_extension
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
@@ -624,6 +624,7 @@ class RancherBackend(ServiceBackend):
     def remote_template_to_local(
         self, remote_template, local_catalog_map, local_cluster_map, local_project_map
     ):
+        catalog_id = remote_template['catalogId'] or remote_template['clusterCatalogId']
         return models.Template(
             backend_id=remote_template['id'],
             name=remote_template['name'],
@@ -634,7 +635,7 @@ class RancherBackend(ServiceBackend):
             project_url=remote_template.get('projectURL', ''),
             default_version=remote_template['defaultVersion'],
             versions=list(remote_template['versionLinks'].keys()),
-            catalog=local_catalog_map.get(remote_template['catalogId']),
+            catalog=local_catalog_map.get(catalog_id),
             cluster=local_cluster_map.get(remote_template['clusterId']),
             project=local_project_map.get(remote_template['projectId']),
             settings=self.settings,
@@ -643,13 +644,18 @@ class RancherBackend(ServiceBackend):
     def pull_template_icons(self):
         for template in models.Template.objects.filter(settings=self.settings):
             content = self.client.get_template_icon(template.backend_id)
-            mime_type = magic.from_buffer(content[:1024], mime=True)
-            extension = {
-                'image/svg+xml': 'svg',
-                'image/png': 'png',
-                'image/jpeg': 'jpeg',
-                'image/webp': 'webp',
-            }.get(mime_type)
+            # Clear icon field so that default icon would be rendered
+            if not content:
+                template.icon = None
+                template.save()
+                continue
+            extension = guess_image_extension(content)
             if not extension:
                 continue
+            # Overwrite existing file
+            if template.icon:
+                template.icon.delete()
             template.icon.save(f'{template.uuid}.{extension}', io.BytesIO(content))
+
+    def list_project_secrets(self, project):
+        return self.client.list_project_secrets(project.backend_id)

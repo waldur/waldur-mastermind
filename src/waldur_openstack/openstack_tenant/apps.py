@@ -222,9 +222,3 @@ class OpenStackTenantConfig(AppConfig):
             sender=Tenant,
             dispatch_uid='openstack_tenant.handlers.create_service_from_tenant',
         )
-
-        signals.post_save.connect(
-            handlers.sync_price_list_item_for_flavor,
-            sender=models.Flavor,
-            dispatch_uid='openstack_tenant.handlers.sync_price_list_item_for_flavor',
-        )

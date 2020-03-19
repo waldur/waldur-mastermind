@@ -10,7 +10,7 @@ from waldur_core.structure import models as structure_models
 
 from ..openstack import apps as openstack_apps
 from ..openstack import models as openstack_models
-from . import apps, log, models, utils
+from . import apps, log, models
 
 logger = logging.getLogger(__name__)
 
@@ -571,11 +571,6 @@ def update_service_settings(sender, instance, created=False, **kwargs):
         service_settings.options['external_network_id'] = tenant.external_network_id
         service_settings.name = tenant.name
         service_settings.save()
-
-
-def sync_price_list_item_for_flavor(sender, instance, created=False, **kwargs):
-    if created:
-        utils.sync_price_list_item(instance)
 
 
 def sync_private_settings_quotas_with_tenant_quotas(

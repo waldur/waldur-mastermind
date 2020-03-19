@@ -1,6 +1,6 @@
 from django.conf.urls import url
 from django.contrib import admin
-from django.forms import ModelChoiceField, ModelForm
+from django.forms import ModelChoiceField
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -8,8 +8,6 @@ from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
-from waldur_mastermind.packages import models as package_models
 
 from . import executors, models, tasks
 
@@ -133,55 +131,52 @@ class PackageChoiceField(ModelChoiceField):
         )
 
 
-class ServiceDowntimeForm(ModelForm):
-    package = PackageChoiceField(
-        queryset=package_models.OpenStackPackage.objects.order_by(
-            'tenant__service_project_link__project__customer__name',
-            'tenant__service_project_link__project__name',
-            'tenant__name',
-        )
-    )
-
-
 class ServiceDowntimeAdmin(admin.ModelAdmin):
-    list_display = ('get_customer', 'get_project', 'get_name', 'start', 'end')
-    list_display_links = ('get_name',)
-    list_filter = (
-        (
-            'package__tenant__service_project_link__project__customer',
-            RelatedOnlyDropdownFilter,
-        ),
-        ('package__tenant__service_project_link__project', RelatedOnlyDropdownFilter),
+    list_display = (
+        'get_customer',
+        'get_project',
+        'offering',
+        'resource',
+        'get_package',
+        'start',
+        'end',
     )
-    search_fields = ('package__tenant__name',)
+    list_display_links = ('get_customer',)
+    search_fields = ('offering__name', 'resource__name')
     date_hierarchy = 'start'
-    form = ServiceDowntimeForm
 
     def get_readonly_fields(self, request, obj=None):
         # Downtime record is protected from modifications
         if obj is not None:
-            return self.readonly_fields + ('start', 'end', 'package')
+            return self.readonly_fields + ('start', 'end', 'offering', 'resource')
         return self.readonly_fields
 
     def get_customer(self, downtime):
-        return downtime.package.tenant.service_project_link.project.customer
+        if downtime.offering:
+            return downtime.offering.customer
+
+        if downtime.resource:
+            return downtime.resource.customer
+
+        if downtime.package:
+            return downtime.package.tenant.service_project_link.project.customer
 
     get_customer.short_description = _('Organization')
-    get_customer.admin_order_field = (
-        'package__tenant__service_project_link__project__customer'
-    )
 
     def get_project(self, downtime):
-        return downtime.package.tenant.service_project_link.project
+        if downtime.resource:
+            return downtime.resource.project
+
+        if downtime.package:
+            return downtime.package.tenant.service_project_link.project
 
     get_project.short_description = _('Project')
-    get_project.admin_order_field = 'package__tenant__service_project_link__project'
 
-    def get_name(self, downtime):
-        return downtime.package.tenant.name
+    def get_package(self, downtime):
+        if downtime.package:
+            return downtime.package.tenant.name
 
-    get_name.short_description = _('Resource')
-    get_name.admin_order_field = 'package__tenant__name'
+    get_package.short_description = _('Package')
 
 
 admin.site.register(models.Invoice, InvoiceAdmin)

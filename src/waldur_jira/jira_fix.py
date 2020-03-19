@@ -109,7 +109,7 @@ def service_desk(manager, id_or_key):
             raise e
 
 
-def request_types(manager, service_desk, progect_key=None, strange_setting=None):
+def request_types(manager, service_desk, project_key=None, strange_setting=None):
     types = manager.request_types(service_desk)
 
     if len(types) and not hasattr(types[0], 'issueTypeId'):
@@ -120,7 +120,7 @@ def request_types(manager, service_desk, progect_key=None, strange_setting=None)
             'server'
         ] + '/rest/servicedesk/%s/servicedesk/%s/groups/%s/request-types' % (
             strange_setting,
-            progect_key.lower(),
+            project_key.lower(),
             service_desk,
         )
         headers = {'X-ExperimentalApi': 'opt-in'}

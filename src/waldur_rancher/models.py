@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urljoin
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -60,11 +61,11 @@ class SettingsMixin(models.Model):
         abstract = True
 
     settings = models.ForeignKey(
-        to='structure.ServiceSettings',
-        on_delete=models.CASCADE,
-        related_name='+',
-        null=True,
+        to='structure.ServiceSettings', on_delete=models.CASCADE, related_name='+',
     )
+
+    def get_backend(self):
+        return self.settings.get_backend()
 
 
 class Cluster(SettingsMixin, NewResource):
@@ -103,7 +104,8 @@ class Cluster(SettingsMixin, NewResource):
         return 'rancher-cluster'
 
     def get_access_url(self):
-        return self.service_project_link.service.settings.backend_url
+        base_url = self.service_project_link.service.settings.backend_url
+        return urljoin(base_url, 'c/' + self.backend_id)
 
     def __str__(self):
         return self.name
@@ -181,6 +183,9 @@ class Node(
     @property
     def service_project_link(self):
         return self.cluster.service_project_link
+
+    def get_backend(self):
+        return self.cluster.get_backend()
 
     def __str__(self):
         return self.name

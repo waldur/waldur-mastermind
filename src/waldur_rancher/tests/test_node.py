@@ -170,7 +170,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
     def test_linking_rancher_nodes_with_openStack_instance(self):
         self.client.force_authenticate(self.fixture.staff)
-        node = factories.NodeFactory()
+        settings = factories.RancherServiceSettingsFactory()
+        cluster = factories.ClusterFactory(settings=settings)
+        node = factories.NodeFactory(cluster=cluster)
         url = factories.NodeFactory.get_url(node, 'link_openstack')
         instance = openstack_tenant_factories.InstanceFactory()
         instance_url = openstack_tenant_factories.InstanceFactory.get_url(instance)
@@ -259,4 +261,12 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
         self.fixture.node.backend_id = ''
         self.fixture.node.save()
         backend.pull_cluster(self.fixture.node.cluster)
+        self._check_node_fields(self.fixture.node)
+
+    def test_pull_node(self):
+        backend = self.fixture.node.get_backend()
+        self.fixture.node.name = 'k8s-node'
+        self.fixture.node.backend_id = 'backend_id'
+        self.fixture.node.save()
+        backend.update_node_details(self.fixture.node)
         self._check_node_fields(self.fixture.node)

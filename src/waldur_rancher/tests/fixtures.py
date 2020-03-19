@@ -47,6 +47,7 @@ class RancherFixture(ProjectFixture):
     @cached_property
     def cluster(self):
         return factories.ClusterFactory(
+            settings=self.settings,
             service_project_link=self.spl,
             state=models.Cluster.States.OK,
             tenant_settings=self.tenant_spl.service.settings,

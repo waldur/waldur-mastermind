@@ -98,7 +98,7 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     ]
 
 
-class NodeViewSet(core_views.ActionsViewSet):
+class NodeViewSet(structure_views.ResourceViewSet):
     queryset = models.Node.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.NodeSerializer
@@ -110,6 +110,7 @@ class NodeViewSet(core_views.ActionsViewSet):
     destroy_validators = [
         validators.related_vm_can_be_deleted,
     ]
+    pull_executor = executors.NodePullExecutor
 
     def perform_create(self, serializer):
         node = serializer.save()
@@ -267,6 +268,14 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ProjectFilter
     lookup_field = 'uuid'
+
+    @decorators.action(detail=True, methods=['get'])
+    def secrets(self, request, uuid=None):
+        project = self.get_object()
+        backend = project.get_backend()
+        secrets = backend.list_project_secrets(project)
+        data = [{'name': secret['name'], 'id': secret['id']} for secret in secrets]
+        return response.Response(data, status=status.HTTP_200_OK)
 
 
 class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):

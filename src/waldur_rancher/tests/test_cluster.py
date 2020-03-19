@@ -142,10 +142,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
         cluster = models.Cluster.objects.get(name='new-cluster')
-        mock_core_tasks.BackendMethodTask.return_value.si.assert_called_once_with(
-            'waldur_rancher.cluster:%s' % cluster.id,
-            'create_cluster',
-            state_transition='begin_creating',
+        mock_core_tasks.BackendMethodTask.return_value.si.assert_has_calls(
+            [
+                mock.call(
+                    'waldur_rancher.cluster:%s' % cluster.id,
+                    'create_cluster',
+                    state_transition='begin_creating',
+                )
+            ]
         )
 
     @mock.patch('waldur_rancher.executors.core_tasks')

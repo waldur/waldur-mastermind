@@ -13,6 +13,7 @@ class SupportExtension(WaldurExtension):
             'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
             'USE_OLD_API': False,
             'USE_TEENAGE_API': False,
+            'USE_AUTOMATIC_REQUEST_MAPPING': True,
             'STRANGE_SETTING': 1,
             'CREDENTIALS': {
                 'server': 'http://example.com/',

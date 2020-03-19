@@ -24,6 +24,9 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 erred_state='error',
             )
         ]
+        _tasks += [
+            core_tasks.BackendMethodTask().si(serialized_instance, 'pull_projects',)
+        ]
         return chain(*_tasks)
 
     @classmethod
@@ -104,6 +107,19 @@ class NodeDeleteExecutor(core_executors.BaseExecutor):
 class ClusterPullExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, cluster, serialized_cluster, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_cluster, 'pull_cluster', state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_cluster, 'pull_service_properties'
+            ),
+        )
+
+
+class NodePullExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, node, serialized_node, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_cluster, 'pull_cluster', state_transition='begin_updating'
+            serialized_node, 'update_node_details', state_transition='begin_updating'
         )

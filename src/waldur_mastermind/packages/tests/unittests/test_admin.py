@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from waldur_core.cost_tracking.models import DefaultPriceListItem
 from waldur_mastermind.common import mixins as common_mixins
 
 from ... import admin, models
@@ -59,11 +58,6 @@ class PackageTemplateTest(TestCase):
     def test_create_package_template(self):
         response = self.client.post(self.add_url, self.inline_post_data)
         self.assertEqual(response.status_code, 302)
-
-        package_template = models.PackageTemplate.objects.last()
-        price_list_item = DefaultPriceListItem.objects.get(item_type='PackageTemplate')
-        self.assertEqual(price_list_item.key, package_template.name)
-        self.assertAlmostEqual(price_list_item.value, package_template.price / 24)
 
 
 class TestPackageComponentForm(TestCase):

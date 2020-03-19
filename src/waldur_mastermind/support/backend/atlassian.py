@@ -46,6 +46,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
         self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
+        # In ideal world where Atlassian SD respects its spec the setting below would not be needed
+        self.use_automatic_request_mapping = settings.WALDUR_SUPPORT.get(
+            'USE_AUTOMATIC_REQUEST_MAPPING', True
+        )
         self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', 1)
 
     def pull_service_properties(self):
@@ -320,11 +324,16 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def pull_request_types(self):
         service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
-        backend_request_types = self.manager.waldur_request_types(
-            service_desk_id,
-            progect_key=self.project_settings['key'],
-            strange_setting=self.strange_setting,
-        )
+        # If we have a strange version of SD - 4.7 - that only returns mapping values using non-documented API
+        if self.use_teenage_api:
+            backend_request_types = self.manager.waldur_request_types(
+                service_desk_id,
+                project_key=self.project_settings['key'],
+                strange_setting=self.strange_setting,
+            )
+        else:
+            backend_request_types = self.manager.request_types(service_desk_id)
+
         with transaction.atomic():
             backend_request_type_map = {
                 int(request_type.id): request_type
@@ -336,21 +345,27 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 for request_type in models.RequestType.objects.all()
             }
 
-            stale_request_types = set(waldur_request_type.keys()) - set(
-                backend_request_type_map.keys()
-            )
-            models.RequestType.objects.filter(
-                backend_id__in=stale_request_types
-            ).delete()
+            # cleanup request types if automatic request mapping is done
+            if self.use_automatic_request_mapping:
+                stale_request_types = set(waldur_request_type.keys()) - set(
+                    backend_request_type_map.keys()
+                )
+                models.RequestType.objects.filter(
+                    backend_id__in=stale_request_types
+                ).delete()
 
             for backend_request_type in backend_request_types:
-                issue_type = self.manager.issue_type(backend_request_type.issueTypeId)
+                defaults = {
+                    'name': backend_request_type.name,
+                }
+                if self.use_automatic_request_mapping:
+                    issue_type = self.manager.issue_type(
+                        backend_request_type.issueTypeId
+                    )
+                    defaults['issue_type_name'] = issue_type.name
+
                 models.RequestType.objects.update_or_create(
-                    backend_id=backend_request_type.id,
-                    defaults={
-                        'name': backend_request_type.name,
-                        'issue_type_name': issue_type.name,
-                    },
+                    backend_id=backend_request_type.id, defaults=defaults,
                 )
 
     @reraise_exceptions

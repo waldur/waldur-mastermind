@@ -562,7 +562,7 @@ def import_limits(resource):
     resource.save(update_fields=['limits'])
 
 
-def map_limits_to_quotas(limits):
+def map_limits_to_quotas(limits, offering):
     quotas = {
         TenantQuotas.vcpu.name: limits.get(CORES_TYPE),
         TenantQuotas.ram.name: limits.get(RAM_TYPE),
@@ -585,8 +585,22 @@ def map_limits_to_quotas(limits):
                 'You should either specify general-purpose storage quota '
                 'or volume-type specific storage quota.'
             )
-        quotas['storage'] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
+        snapshot_size_limit_gb = offering.plugin_options.get(
+            'snapshot_size_limit_gb', 0
+        )
+        if not isinstance(snapshot_size_limit_gb, int):
+            logger.warning(
+                'Invalid snapshot_size_limit_gb value %s for offering %s',
+                (snapshot_size_limit_gb, offering.id),
+            )
+            snapshot_size_limit_gb = 0
+        quotas['storage'] = ServiceBackend.gb2mb(
+            sum(list(volume_type_quotas.values())) + snapshot_size_limit_gb
+        )
         quotas.update(volume_type_quotas)
+
+    # Convert quota value from float to integer because OpenStack API fails otherwise
+    quotas = {k: int(v) for k, v in quotas.items()}
 
     return quotas
 
@@ -594,7 +608,7 @@ def map_limits_to_quotas(limits):
 def update_limits(order_item):
     tenant = order_item.resource.scope
     backend = tenant.get_backend()
-    quotas = map_limits_to_quotas(order_item.limits)
+    quotas = map_limits_to_quotas(order_item.limits, order_item.offering)
     backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
@@ -656,3 +670,14 @@ def import_limits_when_storage_mode_is_switched(resource):
 
     resource.limits = limits
     resource.save(update_fields=['limits'])
+
+
+def push_tenant_limits(resource):
+    tenant = resource.scope
+    backend = tenant.get_backend()
+    quotas = map_limits_to_quotas(resource.limits, resource.offering)
+    backend.push_tenant_quotas(tenant, quotas)
+    with transaction.atomic():
+        _apply_quotas(tenant, quotas)
+        for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
+            _apply_quotas(target, quotas)

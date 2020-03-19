@@ -1,5 +1,6 @@
 from django import template
 from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 
 from waldur_mastermind.marketplace import plugins
 
@@ -38,10 +39,21 @@ def plan_details(plan):
         if offering_component.billing_type == offering_component.BillingTypes.USAGE:
             continue
 
+        amount = component.amount
+
+        if offering_component.billing_type == offering_component.BillingTypes.ONE_TIME:
+            amount = _('one-time fee')
+
+        if (
+            offering_component.billing_type
+            == offering_component.BillingTypes.ON_PLAN_SWITCH
+        ):
+            amount = _('one-time on plan switch')
+
         context['components'].append(
             {
                 'name': offering_component.name,
-                'amount': component.amount,
+                'amount': amount,
                 'price': component.price,
             }
         )

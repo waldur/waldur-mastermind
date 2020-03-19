@@ -46,7 +46,6 @@ INSTALLED_APPS = (
     'waldur_core.monitoring',
     'waldur_core.quotas',
     'waldur_core.structure',
-    'waldur_core.cost_tracking',
     'waldur_core.users',
     'waldur_core.media',
 
@@ -231,13 +230,6 @@ CELERY_BEAT_SCHEDULE = {
     'check-expired-permissions': {
         'task': 'waldur_core.structure.check_expired_permissions',
         'schedule': timedelta(hours=24),
-        'args': (),
-    },
-    'recalculate-price-estimates': {
-        'task': 'waldur_core.cost_tracking.recalculate_estimate',
-        # To avoid bugs and unexpected behavior - do not re-calculate estimates
-        # right in the end of the month.
-        'schedule': crontab(minute=10),
         'args': (),
     },
     'cancel-expired-invitations': {

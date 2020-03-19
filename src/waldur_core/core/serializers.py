@@ -1,7 +1,6 @@
 import base64
 import logging
 from collections import OrderedDict
-from datetime import timedelta
 
 from django.core.exceptions import (
     ImproperlyConfigured,
@@ -475,43 +474,6 @@ class HistorySerializer(serializers.Serializer):
                 self.validated_data['start'] + interval * i
                 for i in range(self.validated_data['points_count'])
             ]
-
-
-class TimelineSerializer(serializers.Serializer):
-
-    INTERVAL_CHOICES = ('hour', 'day', 'week', 'month')
-
-    start_time = TimestampField(default=lambda: core_utils.timeshift(days=-1))
-    end_time = TimestampField(default=lambda: core_utils.timeshift())
-    interval = serializers.ChoiceField(choices=INTERVAL_CHOICES, default='day')
-
-    def get_date_points(self):
-        start_time = self.validated_data['start_time']
-        end_time = self.validated_data['end_time']
-        interval = self.validated_data['interval']
-
-        if interval == 'hour':
-            start_point = start_time.replace(second=0, minute=0, microsecond=0)
-            interval = timedelta(hours=1)
-        elif interval == 'day':
-            start_point = start_time.replace(hour=0, second=0, minute=0, microsecond=0)
-            interval = timedelta(days=1)
-        elif interval == 'week':
-            start_point = start_time.replace(hour=0, second=0, minute=0, microsecond=0)
-            interval = timedelta(days=7)
-        elif interval == 'month':
-            start_point = start_time.replace(hour=0, second=0, minute=0, microsecond=0)
-            interval = timedelta(days=30)
-
-        points = [start_time]
-        current_point = start_point
-        while current_point <= end_time:
-            points.append(current_point)
-            current_point += interval
-        if points[-1] != end_time:
-            points.append(end_time)
-
-        return [p for p in points if start_time <= p <= end_time]
 
 
 class BaseSummarySerializer(serializers.Serializer):
