@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import signals as cost_signals
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import log, models, registrators, tasks
 
@@ -141,26 +142,39 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
 
 @transaction.atomic()
 def adjust_openstack_items_for_downtime(downtime):
-    items = models.InvoiceItem.objects.filter(
-        downtime.get_intersection_subquery(), scope=downtime.package,
-    )
+    scopes = []
 
-    for item in items:
-        # outside
-        if downtime.start <= item.start and item.end <= downtime.end:
-            item.create_compensation(item.name, start=item.start, end=item.end)
+    if downtime.offering:
+        scopes.extend(
+            list(marketplace_models.Resource.objects.filter(offering=downtime.offering))
+        )
 
-        # inside
-        elif item.start <= downtime.start and downtime.end <= item.end:
-            item.create_compensation(item.name, start=downtime.start, end=downtime.end)
+    if downtime.resource:
+        scopes.append(downtime.resource)
 
-        # left
-        elif downtime.end >= item.start and downtime.end <= item.end:
-            item.create_compensation(item.name, start=item.start, end=downtime.end)
+    for scope in scopes:
+        items = models.InvoiceItem.objects.filter(
+            downtime.get_intersection_subquery(), scope=scope,
+        )
 
-        # right
-        elif downtime.start >= item.start and downtime.start <= item.end:
-            item.create_compensation(item.name, start=downtime.start, end=item.end)
+        for item in items:
+            # outside
+            if downtime.start <= item.start and item.end <= downtime.end:
+                item.create_compensation(item.name, start=item.start, end=item.end)
+
+            # inside
+            elif item.start <= downtime.start and downtime.end <= item.end:
+                item.create_compensation(
+                    item.name, start=downtime.start, end=downtime.end
+                )
+
+            # left
+            elif downtime.end >= item.start and downtime.end <= item.end:
+                item.create_compensation(item.name, start=item.start, end=downtime.end)
+
+            # right
+            elif downtime.start >= item.start and downtime.start <= item.end:
+                item.create_compensation(item.name, start=downtime.start, end=item.end)
 
 
 def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs):
