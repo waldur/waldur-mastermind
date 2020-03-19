@@ -1,6 +1,4 @@
-from django.db import migrations
-
-import waldur_core.core.fields
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
@@ -13,6 +11,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='changeemailrequest',
             name='uuid',
-            field=waldur_core.core.fields.UUIDField(null=True),
+            field=models.UUIDField(null=True),
         ),
     ]
