@@ -170,7 +170,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
     def test_linking_rancher_nodes_with_openStack_instance(self):
         self.client.force_authenticate(self.fixture.staff)
-        node = factories.NodeFactory()
+        settings = factories.RancherServiceSettingsFactory()
+        cluster = factories.ClusterFactory(settings=settings)
+        node = factories.NodeFactory(cluster=cluster)
         url = factories.NodeFactory.get_url(node, 'link_openstack')
         instance = openstack_tenant_factories.InstanceFactory()
         instance_url = openstack_tenant_factories.InstanceFactory.get_url(instance)
