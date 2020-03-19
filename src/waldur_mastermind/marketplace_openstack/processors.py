@@ -51,7 +51,7 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
             'availability_zone',
         )
 
-        quotas = utils.map_limits_to_quotas(order_item.limits)
+        quotas = utils.map_limits_to_quotas(order_item.limits, order_item.offering)
 
         return dict(
             project=project_url,
