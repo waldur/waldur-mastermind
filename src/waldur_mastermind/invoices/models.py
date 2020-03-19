@@ -26,6 +26,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.utils import get_price_per_day
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.packages import models as package_models
 
 from . import managers, utils
@@ -306,16 +307,17 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             'unit_price',
             'start',
             'end',
+            'details',
         )
 
         params = {field: getattr(self, field) for field in FIELDS}
         params.update(kwargs)
         if params['unit_price'] > 0:
             params['unit_price'] *= -1
-        params['details'] = {
-            'name': _('Compensation for downtime. Resource name: %s') % name
-        }
 
+        name = _('Compensation. %s') % name
+        params['details']['name'] = name
+        params['name'] = name
         return InvoiceItem.objects.create(**params)
 
 
@@ -337,7 +339,16 @@ class ServiceDowntime(models.Model):
         default=timezone.now, help_text=_('Date and time when downtime has ended.')
     )
     package = models.ForeignKey(
-        on_delete=models.CASCADE, to=package_models.OpenStackPackage
+        on_delete=models.CASCADE,
+        to=package_models.OpenStackPackage,
+        blank=True,
+        null=True,
+    )
+    offering = models.ForeignKey(
+        on_delete=models.CASCADE, to=marketplace_models.Offering, blank=True, null=True
+    )
+    resource = models.ForeignKey(
+        on_delete=models.CASCADE, to=marketplace_models.Resource, blank=True, null=True
     )
 
     def clean(self):
