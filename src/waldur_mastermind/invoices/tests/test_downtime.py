@@ -198,3 +198,15 @@ class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
                 scope__isnull=True, details__icontains='compensation'
             ).exists()
         )
+
+    def test_delete_compensation_if_downtime_has_been_deleted(self):
+        downtime = models.ServiceDowntime.objects.create(
+            resource=self.resource,
+            start=parse_datetime('2018-10-01'),
+            end=parse_datetime('2018-10-20'),
+        )
+        compensation = models.InvoiceItem.objects.filter(
+            start=self.item.start, end=self.item.end, details__icontains='compensation'
+        ).get()
+        downtime.delete()
+        self.assertRaises(models.InvoiceItem.DoesNotExist, compensation.refresh_from_db)
