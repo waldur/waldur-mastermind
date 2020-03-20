@@ -73,6 +73,12 @@ class InvoiceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.invoices.adjust_invoice_items_for_downtime',
         )
 
+        signals.post_delete.connect(
+            handlers.downtime_has_been_deleted,
+            sender=models.ServiceDowntime,
+            dispatch_uid='waldur_mastermind.invoices.downtime_has_been_deleted',
+        )
+
         structure_signals.project_moved.connect(
             handlers.projects_customer_has_been_changed,
             sender=structure_models.Project,

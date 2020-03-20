@@ -160,21 +160,27 @@ def adjust_openstack_items_for_downtime(downtime):
         for item in items:
             # outside
             if downtime.start <= item.start and item.end <= downtime.end:
-                item.create_compensation(item.name, start=item.start, end=item.end)
+                item.create_compensation(
+                    item.name, downtime, start=item.start, end=item.end
+                )
 
             # inside
             elif item.start <= downtime.start and downtime.end <= item.end:
                 item.create_compensation(
-                    item.name, start=downtime.start, end=downtime.end
+                    item.name, downtime, start=downtime.start, end=downtime.end
                 )
 
             # left
             elif downtime.end >= item.start and downtime.end <= item.end:
-                item.create_compensation(item.name, start=item.start, end=downtime.end)
+                item.create_compensation(
+                    item.name, downtime, start=item.start, end=downtime.end
+                )
 
             # right
             elif downtime.start >= item.start and downtime.start <= item.end:
-                item.create_compensation(item.name, start=downtime.start, end=item.end)
+                item.create_compensation(
+                    item.name, downtime, start=downtime.start, end=item.end
+                )
 
 
 def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs):
@@ -187,6 +193,12 @@ def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs)
         )
 
     adjust_openstack_items_for_downtime(downtime)
+
+
+def downtime_has_been_deleted(sender, instance, **kwargs):
+    models.InvoiceItem.objects.filter(
+        invoice__state=models.Invoice.States.PENDING, details__downtime_id=instance.id
+    ).delete()
 
 
 def update_invoice_pdf(sender, instance, created=False, **kwargs):

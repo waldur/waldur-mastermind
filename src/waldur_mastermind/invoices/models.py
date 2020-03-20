@@ -295,7 +295,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     def __str__(self):
         return self.name or '<InvoiceItem %s>' % self.pk
 
-    def create_compensation(self, name, **kwargs):
+    def create_compensation(self, name, downtime, **kwargs):
         FIELDS = (
             'invoice',
             'project',
@@ -317,6 +317,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
 
         name = _('Compensation. %s') % name
         params['details']['name'] = name
+        params['details']['downtime_id'] = downtime.id
         params['name'] = name
         return InvoiceItem.objects.create(**params)
 
