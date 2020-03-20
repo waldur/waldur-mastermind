@@ -305,7 +305,7 @@ class Namespace(
     core_models.RuntimeStateMixin,
 ):
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, null=True, related_name='+'
+        Project, on_delete=models.CASCADE, null=True, related_name='namespaces'
     )
 
     def __str__(self):

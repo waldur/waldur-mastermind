@@ -66,7 +66,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
                         to='waldur_rancher.Project',
-                        related_name='+',
+                        related_name='namespaces',
                     ),
                 ),
             ],
