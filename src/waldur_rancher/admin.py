@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -23,6 +24,8 @@ class RancherUserAdmin(
     ]
 
     def get_extra_actions(self):
+        if settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+            return []
         return [
             self.sync_users,
         ]
