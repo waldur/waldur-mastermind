@@ -9,7 +9,7 @@ from waldur_openstack.openstack_tenant.tests import (
 )
 
 from .. import models, tasks
-from . import factories, fixtures, test_cluster
+from . import factories, fixtures, test_cluster, utils
 
 
 class NodeGetTest(test.APITransactionTestCase):
@@ -118,6 +118,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         backend_node = json.loads(
             pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
         )
+        self.fixture.node.backend_id = ''
         self.fixture.node.name = backend_node['requestedHostname']
         self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
         self.fixture.node.save()
@@ -168,18 +169,35 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_linking_rancher_nodes_with_openStack_instance(self):
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_create_is_disabled_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self._create_request_(name='name')
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class NodePullTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.RancherFixture()
+        self.url = factories.NodeFactory.get_url(self.fixture.node, action='pull')
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_pull_is_enabled_for_staff_in_read_only_mode(self):
         self.client.force_authenticate(self.fixture.staff)
-        settings = factories.RancherServiceSettingsFactory()
-        cluster = factories.ClusterFactory(settings=settings)
-        node = factories.NodeFactory(cluster=cluster)
-        url = factories.NodeFactory.get_url(node, 'link_openstack')
-        instance = openstack_tenant_factories.InstanceFactory()
-        instance_url = openstack_tenant_factories.InstanceFactory.get_url(instance)
-        response = self.client.post(url, {'instance': instance_url})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        node.refresh_from_db()
-        self.assertEqual(node.instance, instance)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_pull_is_disabled_for_owner_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_pull_is_enabled_for_owner_when_read_only_mode_is_disabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
 
 class NodeDeleteTest(test.APITransactionTestCase):
@@ -198,10 +216,16 @@ class NodeDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_delete_is_disabled_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-class NodeDetailsUpdateTest(test.APITransactionTestCase):
+
+class NodePullBackendTest(test.APITransactionTestCase):
     def setUp(self):
-        super(NodeDetailsUpdateTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.fixture.node.backend_id = 'backend_id'
         self.fixture.node.save()
@@ -270,3 +294,76 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
         self.fixture.node.save()
         backend.update_node_details(self.fixture.node)
         self._check_node_fields(self.fixture.node)
+
+
+class NodeLinkTest(test_cluster.BaseClusterCreateTest):
+    def setUp(self):
+        super().setUp()
+        self.settings = factories.RancherServiceSettingsFactory()
+        self.cluster = factories.ClusterFactory(settings=self.settings)
+        self.node = factories.NodeFactory(cluster=self.cluster)
+        self.url = factories.NodeFactory.get_url(self.node, 'link_openstack')
+        self.instance = openstack_tenant_factories.InstanceFactory()
+        self.instance_url = openstack_tenant_factories.InstanceFactory.get_url(
+            self.instance
+        )
+
+    def test_link_is_enabled_when_read_only_mode_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {'instance': self.instance_url})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.node.refresh_from_db()
+        self.assertEqual(self.node.instance, self.instance)
+
+    def test_link_is_disabled_when_user_is_not_staff(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {'instance': self.instance_url})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_link_is_disabled_when_node_is_already_linked(self):
+        self.node.instance = self.instance
+        self.node.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {'instance': self.instance_url})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_link_is_disabled_when_read_only_mode_is_enabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {'instance': self.instance_url})
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class NodeUnlinkTest(test_cluster.BaseClusterCreateTest):
+    def setUp(self):
+        super().setUp()
+        self.settings = factories.RancherServiceSettingsFactory()
+        self.cluster = factories.ClusterFactory(settings=self.settings)
+        self.instance = openstack_tenant_factories.InstanceFactory()
+        self.node = factories.NodeFactory(cluster=self.cluster, instance=self.instance)
+        self.url = factories.NodeFactory.get_url(self.node, 'unlink_openstack')
+
+    def test_unlink_is_enabled_when_read_only_mode_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.node.refresh_from_db()
+        self.assertEqual(self.node.instance, None)
+
+    def test_unlink_is_disabled_when_user_is_not_staff(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unlink_is_disabled_when_node_is_already_unlinked(self):
+        self.node.instance = None
+        self.node.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_unlink_is_disabled_when_read_only_mode_is_enabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)

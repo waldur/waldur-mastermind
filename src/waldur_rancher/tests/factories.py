@@ -83,6 +83,7 @@ class NodeFactory(factory.DjangoModelFactory):
         model = models.Node
 
     cluster = factory.SubFactory(ClusterFactory)
+    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
 
     @classmethod
     def get_url(cls, node=None, action=None):
@@ -103,3 +104,84 @@ class RancherUserFactory(factory.DjangoModelFactory):
 
     user = factory.SubFactory(structure_factories.UserFactory)
     settings = factory.SubFactory(RancherServiceSettingsFactory)
+
+
+class CatalogFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Catalog
+
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
+    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+
+    @classmethod
+    def get_url(cls, catalog=None, action=None):
+        catalog = catalog or CatalogFactory()
+        url = 'http://testserver' + reverse(
+            'rancher-catalog-detail', kwargs={'uuid': catalog.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('rancher-catalog-list')
+
+
+class TemplateFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Template
+
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
+    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+    versions = []
+
+    @classmethod
+    def get_url(cls, template=None, action=None):
+        template = template or TemplateFactory()
+        url = 'http://testserver' + reverse(
+            'rancher-template-detail', kwargs={'uuid': template.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('rancher-template-list')
+
+
+class ProjectFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Project
+
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
+    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+
+    @classmethod
+    def get_url(cls, project=None, action=None):
+        project = project or ProjectFactory()
+        url = 'http://testserver' + reverse(
+            'rancher-project-detail', kwargs={'uuid': project.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('rancher-project-list')
+
+
+class NamespaceFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Namespace
+
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
+    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+
+    @classmethod
+    def get_url(cls, namespace=None, action=None):
+        namespace = namespace or NamespaceFactory()
+        url = 'http://testserver' + reverse(
+            'rancher-namespace-detail', kwargs={'uuid': namespace.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('rancher-namespace-list')

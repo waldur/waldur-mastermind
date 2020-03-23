@@ -1,6 +1,7 @@
 import logging
 
 from celery import shared_task
+from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
@@ -192,4 +193,6 @@ def notify_create_user(id, password, url):
 
 @shared_task(name='waldur_rancher.sync_users')
 def sync_users():
+    if settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+        return
     SyncUser.run()
