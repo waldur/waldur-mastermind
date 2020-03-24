@@ -111,7 +111,10 @@ class WaldurClient(object):
         details = 'Status: %s. Reason: %s.' % (response.status_code, reason)
         return 'Server refuses to communicate. %s' % details
 
-    def _make_request(self, method, url, valid_states, **kwargs):
+    def _make_request(self, method, url, valid_states, retry_count=3, **kwargs):
+        if retry_count == 0:
+            raise WaldurClientException('Reached a limit of retries for the operation: %s %s' % (method, url))
+
         params = dict(headers=self.headers)
         params.update(kwargs)
 
@@ -121,6 +124,10 @@ class WaldurClient(object):
             raise WaldurClientException(six.text_type(error))
 
         if response.status_code not in valid_states:
+            # a special treatment for 409 response, which can be due to async operations
+            if response.status_code == 409:
+                time.sleep(2)  # wait for things to calm down
+                self._make_request(method, url, valid_states, retry_count - 1, kwargs)
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
