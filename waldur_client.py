@@ -127,7 +127,7 @@ class WaldurClient(object):
             # a special treatment for 409 response, which can be due to async operations
             if response.status_code == 409:
                 time.sleep(2)  # wait for things to calm down
-                self._make_request(method, url, valid_states, retry_count - 1, **kwargs)
+                return self._make_request(method, url, valid_states, retry_count - 1, **kwargs)
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
