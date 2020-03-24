@@ -15,7 +15,7 @@ tests_requires = [
 
 setup(
     name='ansible-waldur-module',
-    version='1.0.2',
+    version='1.0.3',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='https://waldur.com',
@@ -29,12 +29,11 @@ setup(
         'waldur_marketplace_os_instance',
         'waldur_marketplace_os_volume',
         'waldur_os_floating_ip',
-        'waldur_os_get_instance',
-        'waldur_os_instance',
         'waldur_os_instance_volume',
         'waldur_os_security_group',
         'waldur_os_snapshot',
-        'waldur_os_volume',
+        'waldur_batch_allocation',
+        'waldur_batch_offering',
     ],
     install_requires=install_requires,
     tests_require=tests_requires,

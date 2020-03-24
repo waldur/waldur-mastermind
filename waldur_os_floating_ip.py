@@ -1,13 +1,19 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
+from ansible.module_utils.basic import AnsibleModule
 
-from waldur_client import WaldurClientException, waldur_full_argument_spec, waldur_client_from_module
+from waldur_client import (
+    WaldurClientException,
+    waldur_client_from_module,
+    waldur_full_argument_spec,
+)
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -15,7 +21,7 @@ module: waldur_os_floating_ip
 short_description: Assign floating IPs
 version_added: 0.1
 requirements:
-  - "python = 2.7"
+  - "python = 3.6"
   - "requests"
   - "python-waldur-client"
 options:
@@ -94,20 +100,19 @@ def main():
         subnet=dict(type='str'),
     )
     required_together = [['address', 'subnet']]
-    mutually_exclusive = [['floating_ips', 'subnet'],
-                          ['floating_ips', 'address']]
+    mutually_exclusive = [['floating_ips', 'subnet'], ['floating_ips', 'address']]
     required_one_of = mutually_exclusive
     module = AnsibleModule(
         argument_spec=fields,
         required_together=required_together,
         required_one_of=required_one_of,
-        mutually_exclusive=mutually_exclusive)
+        mutually_exclusive=mutually_exclusive,
+    )
 
     client = waldur_client_from_module(module)
-    floating_ips = module.params.get('floating_ips') or [{
-        'address': module.params['address'],
-        'subnet': module.params['subnet'],
-    }]
+    floating_ips = module.params.get('floating_ips') or [
+        {'address': module.params['address'], 'subnet': module.params['subnet'],}
+    ]
     instance = module.params['instance']
 
     try:

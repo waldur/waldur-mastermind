@@ -1,13 +1,15 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
+from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import WaldurClientException, waldur_client_from_module
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -17,7 +19,7 @@ version_added: 0.1
 description:
   - Get an OpenStack instance
 requirements:
-  - python = 2.7
+  - python = 3.6
   - requests
   - python-waldur-client
 options:
@@ -64,8 +66,7 @@ def main():
     client = waldur_client_from_module(module)
     try:
         instance = client.get_instance_via_marketplace(
-            name=module.params['name'],
-            project=module.params['project'],
+            name=module.params['name'], project=module.params['project'],
         )
     except WaldurClientException as e:
         module.fail_json(msg=six.text_type(e))

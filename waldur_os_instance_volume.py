@@ -1,13 +1,19 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-from ansible.module_utils.basic import *
 import six
+from ansible.module_utils.basic import AnsibleModule
 
-from waldur_client import WaldurClientException, waldur_client_from_module, waldur_full_argument_spec
+from waldur_client import (
+    WaldurClientException,
+    waldur_client_from_module,
+    waldur_full_argument_spec,
+)
 
-ANSIBLE_METADATA = {'metadata_version': '1.1',
-                    'status': ['preview'],
-                    'supported_by': 'OpenNode'}
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'OpenNode',
+}
 
 DOCUMENTATION = '''
 ---
@@ -17,7 +23,7 @@ version_added: 0.8
 description:
   - Attach and detach Volumes from OpenStack VMs.
 requirements:
-  - "python = 2.7"
+  - "python = 3.6"
   - "requests"
   - "python-waldur-client"
 options:
@@ -101,11 +107,7 @@ def send_request_to_waldur(client, module):
     wait = module.params['wait']
     interval = module.params['interval']
     timeout = module.params['timeout']
-    params = dict(
-        wait=wait,
-        interval=interval,
-        timeout=timeout,
-    )
+    params = dict(wait=wait, interval=interval, timeout=timeout,)
 
     # Get volume by ID or name and project
     volume = client.get_volume(volume, project)
@@ -153,7 +155,9 @@ def main():
 
     if state == 'present':
         if not instance:
-            module.fail_json(msg="Parameter 'instance' is required if state == 'present'")
+            module.fail_json(
+                msg="Parameter 'instance' is required if state == 'present'"
+            )
 
         if not device:
             module.fail_json(msg="Parameter 'device' is required if state == 'present'")
