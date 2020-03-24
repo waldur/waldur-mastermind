@@ -416,6 +416,40 @@ class IssueCreateTest(IssueCreateBaseTest):
         response = self.client.post(self.url, data=self._get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_create_confirmation_comment_if_template_exists(self):
+        payload = self._get_valid_payload()
+        issue_type = payload['type']
+        factories.TemplateConfirmationCommentFactory(
+            issue_type=issue_type, template='issue_type template'
+        )
+        self._create_confirmation_comment('issue_type template')
+
+    def test_create_confirmation_comment_if_only_default_template_exists(self):
+        factories.TemplateConfirmationCommentFactory(template='default template')
+        self._create_confirmation_comment('default template')
+
+    def test_do_not_create_confirmation_comment_if_template_does_not_exist(self):
+        self._create_confirmation_comment(None)
+
+    def _create_confirmation_comment(self, expected_body):
+        user = self.fixture.staff
+        factories.SupportUserFactory(user=user)
+        mock.patch.stopall()
+        with mock.patch(
+            'waldur_mastermind.support.backend.atlassian.ServiceDeskBackend.create_issue'
+        ):
+            with mock.patch(
+                'waldur_mastermind.support.backend.atlassian.ServiceDeskBackend._add_comment'
+            ) as _add_comment:
+                self.client.force_authenticate(user)
+                self.client.post(self.url, data=self._get_valid_payload())
+                if expected_body:
+                    _add_comment.assert_called_once_with(
+                        None, expected_body, is_internal=False
+                    )
+                else:
+                    _add_comment.assert_not_called()
+
 
 @override_support_settings(USE_OLD_API=True)
 class IssueCreateOldAPITest(IssueCreateBaseTest):

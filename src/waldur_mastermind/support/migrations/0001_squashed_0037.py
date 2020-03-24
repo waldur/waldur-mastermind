@@ -730,20 +730,29 @@ class Migration(migrations.Migration):
                 (
                     'html',
                     models.TextField(
-                        validators=[waldur_core.core.validators.validate_name]
+                        validators=[
+                            waldur_core.core.validators.validate_name,
+                            waldur_core.core.validators.validate_template_syntax,
+                        ]
                     ),
                 ),
                 (
                     'text',
                     models.TextField(
-                        validators=[waldur_core.core.validators.validate_name]
+                        validators=[
+                            waldur_core.core.validators.validate_name,
+                            waldur_core.core.validators.validate_template_syntax,
+                        ]
                     ),
                 ),
                 (
                     'subject',
                     models.CharField(
                         max_length=255,
-                        validators=[waldur_core.core.validators.validate_name],
+                        validators=[
+                            waldur_core.core.validators.validate_name,
+                            waldur_core.core.validators.validate_template_syntax,
+                        ],
                     ),
                 ),
             ],
