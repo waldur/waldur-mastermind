@@ -134,16 +134,16 @@ class WaldurClient(object):
         return response.json()
 
     def _get(self, url, valid_states, **kwargs):
-        return self._make_request('get', url, valid_states, **kwargs)
+        return self._make_request('get', url, valid_states, 1, **kwargs)
 
     def _post(self, url, valid_states, **kwargs):
-        return self._make_request('post', url, valid_states, **kwargs)
+        return self._make_request('post', url, valid_states, 3, **kwargs)
 
     def _put(self, url, valid_states, **kwargs):
-        return self._make_request('put', url, valid_states, **kwargs)
+        return self._make_request('put', url, valid_states, 3, **kwargs)
 
     def _delete(self, url, valid_states, **kwargs):
-        return self._make_request('delete', url, valid_states, **kwargs)
+        return self._make_request('delete', url, valid_states, 3, **kwargs)
 
     def _make_get_query(self, url, query_params, get_first=False, get_few=False):
         """
