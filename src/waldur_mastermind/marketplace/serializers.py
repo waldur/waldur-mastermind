@@ -483,6 +483,11 @@ class OfferingDetailsSerializer(
         if method == 'GET':
             fields['components'] = serializers.SerializerMethodField('get_components')
             fields['plans'] = serializers.SerializerMethodField('get_filtered_plans')
+
+        user = self.context['view'].request.user
+        if not user.is_authenticated:
+            fields.pop('scope')
+            fields.pop('scope_uuid')
         return fields
 
     def can_see_secret_options(self):
@@ -490,6 +495,9 @@ class OfferingDetailsSerializer(
         try:
             request = self.context['request']
             user = request.user
+            if user.is_anonymous:
+                return
+
         except (KeyError, AttributeError):
             pass
 

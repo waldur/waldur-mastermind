@@ -18,6 +18,11 @@ def register_in(router):
         r'marketplace-offerings', views.OfferingViewSet, basename='marketplace-offering'
     )
     router.register(
+        r'marketplace-offerings-public',
+        views.OfferingPublicViewSet,
+        basename='marketplace-offering-public',
+    )
+    router.register(
         r'marketplace-plans', views.PlanViewSet, basename='marketplace-plan'
     )
     router.register(
