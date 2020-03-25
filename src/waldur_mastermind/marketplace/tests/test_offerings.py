@@ -17,6 +17,7 @@ from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 
 from .. import serializers
 from . import factories
+from .helpers import override_marketplace_settings
 
 
 @ddt
@@ -1210,3 +1211,57 @@ class AllowedCustomersTest(test.APITransactionTestCase):
         self.customer.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertEqual(len(self.customer.offering_set.all()), 0)
+
+
+@ddt
+class OfferingPublicGetTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offerings = [
+            factories.OfferingFactory(state=models.Offering.States.ACTIVE),
+            factories.OfferingFactory(state=models.Offering.States.DRAFT),
+            factories.OfferingFactory(
+                state=models.Offering.States.PAUSED, shared=False
+            ),
+        ]
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_anonym_cannot_view_offerings(self):
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_anonym_cannot_view_draft_offerings(self):
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+        for offering in response.data:
+            self.assertNotEqual(models.Offering.States.DRAFT, offering['state'])
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_anonym_cannot_view_offering_management(self):
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+        for offering in response.data:
+            self.assertNotIn('scope', offering)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    @data('staff', 'owner', 'user', 'customer_support', 'admin')
+    def test_authentificated_user_can_view_offering_management(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+        for offering in response.data:
+            self.assertIn('scope', offering)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager', None)
+    def test_private_offerings_are_hidden(self, user):
+        if user:
+            user = getattr(self.fixture, user)
+            self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+        for offering in response.data:
+            self.assertTrue('shared', offering)
