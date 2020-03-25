@@ -25,7 +25,9 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             )
         ]
         _tasks += [
-            core_tasks.BackendMethodTask().si(serialized_instance, 'pull_projects',)
+            core_tasks.IndependentBackendMethodTask().si(
+                serialized_instance, 'pull_projects',
+            )
         ]
         return chain(*_tasks)
 
