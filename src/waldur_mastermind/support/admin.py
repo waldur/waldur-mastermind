@@ -31,7 +31,14 @@ class SupportUserAdminForm(forms.ModelForm):
 
 
 class SupportUserAdmin(admin.ModelAdmin):
+    list_display = ('user', 'backend_id', 'is_active')
+    search_fields = ('user__full_name', 'user__email')
     form = SupportUserAdminForm
+
+
+class SupportCustomerAdmin(admin.ModelAdmin):
+    list_display = ('user', 'backend_id')
+    search_fields = ('user__full_name', 'user__email')
 
 
 class OfferingAdminForm(forms.ModelForm):
@@ -199,6 +206,7 @@ admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, CommentAdmin)
 admin.site.register(models.Attachment)
 admin.site.register(models.SupportUser, SupportUserAdmin)
+admin.site.register(models.SupportCustomer, SupportCustomerAdmin)
 admin.site.register(models.Template, TemplateAdmin)
 admin.site.register(models.OfferingTemplate, OfferingTemplateAdmin)
 admin.site.register(models.OfferingPlan)
