@@ -1444,6 +1444,9 @@ class Migration(migrations.Migration):
                     models.TextField(
                         blank=True,
                         help_text='Notification body template. Django template variables can be used.',
+                        validators=[
+                            waldur_core.core.validators.validate_template_syntax
+                        ],
                     ),
                 ),
                 (
