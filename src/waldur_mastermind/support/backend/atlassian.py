@@ -8,6 +8,7 @@ import dateutil.parser
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.template import Context, Template
 from django.utils import timezone
 from jira import Comment
 from jira.utils import json_loads
@@ -119,6 +120,27 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         backend_issue.update(**args)
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
+
+    def create_confirmation_comment(self, issue):
+        try:
+            tmpl = models.TemplateConfirmationComment.objects.get(issue_type=issue.type)
+        except models.TemplateConfirmationComment.DoesNotExist:
+            try:
+                tmpl = models.TemplateConfirmationComment.objects.get(
+                    issue_type='default'
+                )
+            except models.TemplateConfirmationComment.DoesNotExist:
+                logger.debug(
+                    'A confirmation comment hasn\'t been created, because a template does not exist.'
+                )
+                return
+
+        body = (
+            Template(tmpl.template)
+            .render(Context({'issue': issue}, autoescape=False))
+            .strip()
+        )
+        return self._add_comment(issue.backend_id, body, is_internal=False)
 
     def create_user(self, user):
         # Temporary workaround as JIRA returns 500 error if user already exists

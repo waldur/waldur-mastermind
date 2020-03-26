@@ -2,6 +2,7 @@ import functools
 import logging
 import operator
 
+from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
@@ -9,7 +10,8 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, response, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import MethodNotAllowed, ValidationError
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.views import APIView
 
 from waldur_core.core import validators as core_validators
@@ -39,7 +41,20 @@ class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     filterset_class = filters.ServiceProjectLinkFilter
 
 
-class ClusterViewSet(structure_views.ImportableResourceViewSet):
+class OptionalReadonlyViewset:
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if not django_settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+            return
+        if self.action in ('import_resource', 'pull') and request.user.is_staff:
+            return
+        if self.request.method not in SAFE_METHODS:
+            raise MethodNotAllowed(method=request.method)
+
+
+class ClusterViewSet(
+    OptionalReadonlyViewset, structure_views.ImportableResourceViewSet
+):
     queryset = models.Cluster.objects.all()
     serializer_class = serializers.ClusterSerializer
     filterset_class = filters.ClusterFilter
@@ -98,7 +113,7 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     ]
 
 
-class NodeViewSet(structure_views.ResourceViewSet):
+class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Node.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.NodeSerializer
@@ -159,7 +174,7 @@ class NodeViewSet(structure_views.ResourceViewSet):
     unlink_openstack_permissions = [structure_permissions.is_staff]
 
 
-class CatalogViewSet(core_views.ActionsViewSet):
+class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
     queryset = models.Catalog.objects.all()
     serializer_class = serializers.CatalogSerializer
     lookup_field = 'uuid'
@@ -202,14 +217,20 @@ class CatalogViewSet(core_views.ActionsViewSet):
         )
         clusters_subquery = self.get_filtered_subquery(models.Cluster.objects.all())
         projects_subquery = self.get_filtered_subquery(models.Project.objects.all())
-        visible_scopes = settings_subquery | clusters_subquery | projects_subquery
-        return self.queryset.filter(visible_scopes)
+        subqueries = [settings_subquery, clusters_subquery, projects_subquery]
+        subqueries = [query for query in subqueries if query]
+        if subqueries:
+            visible_scopes = functools.reduce(operator.or_, subqueries)
+            return self.queryset.filter(visible_scopes)
+        return self.queryset.none()
 
     def get_filtered_subquery(self, queryset):
         ids = filter_queryset_for_user(
             queryset=queryset, user=self.request.user,
         ).values_list('id', flat=True)
         content_type = ContentType.objects.get_for_model(queryset.model)
+        if not ids:
+            return
         return functools.reduce(
             operator.or_,
             [Q(content_type=content_type, object_id=object_id) for object_id in ids],
@@ -229,12 +250,15 @@ class CatalogViewSet(core_views.ActionsViewSet):
         self.check_catalog_permissions(scope)
 
         if isinstance(scope, ServiceSettings):
+            service_settings = scope
             if scope.type != RancherConfig.service_name:
-                raise ValidationError('Invalid provider detected.')
-        elif not isinstance(scope, (models.Cluster, models.Project)):
-            raise ValidationError('Invalid scope provided.')
+                raise ValidationError(_('Invalid provider detected.'))
+        elif isinstance(scope, (models.Cluster, models.Project)):
+            service_settings = scope.settings
+        else:
+            raise ValidationError(_('Invalid scope provided.'))
 
-        catalog = serializer.save()
+        catalog = serializer.save(settings=service_settings)
         backend = catalog.get_backend()
         backend.create_catalog(catalog)
 
@@ -336,7 +360,10 @@ class ApplicationViewSet(APIView):
         )
 
     def post(self, request):
-        serializer = serializers.ApplicationCreateSerializer(request.data)
+        if django_settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+            raise MethodNotAllowed(method=request.method)
+
+        serializer = serializers.ApplicationCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
@@ -352,6 +379,9 @@ class ApplicationViewSet(APIView):
                 )
             )
 
+        if namespace.project != project:
+            raise ValidationError(_('Namespace should belong to the same project.'))
+
         client = project.settings.get_backend().client
         application = client.create_application(
             template.catalog.backend_id,
@@ -362,7 +392,7 @@ class ApplicationViewSet(APIView):
             data['name'],
             data['answers'],
         )
-        return response.Response(application['data'])
+        return response.Response(application['data'], status=status.HTTP_201_CREATED)
 
     def get_object(self, request, model_class, object_uuid):
         return get_object_or_404(

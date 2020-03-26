@@ -449,7 +449,22 @@ class CatalogUpdateSerializer(CatalogCreateSerializer):
         read_only_fields = CatalogSerializer.Meta.read_only_fields + ('scope',)
 
 
+class NestedNamespaceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Namespace
+        fields = (
+            'url',
+            'uuid',
+            'name',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-namespace-detail'},
+        }
+
+
 class ProjectSerializer(structure_serializers.BasePropertySerializer):
+    namespaces = NestedNamespaceSerializer(many=True)
+
     class Meta:
         model = models.Project
         view_name = 'rancher-project-detail'
@@ -462,6 +477,7 @@ class ProjectSerializer(structure_serializers.BasePropertySerializer):
             'modified',
             'runtime_state',
             'cluster',
+            'namespaces',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -523,6 +539,7 @@ class TemplateSerializer(
 
 class ApplicationCreateSerializer(serializers.Serializer):
     name = serializers.CharField()
+    description = serializers.CharField(required=False)
     template_uuid = serializers.UUIDField()
     version = serializers.CharField()
     project_uuid = serializers.UUIDField()

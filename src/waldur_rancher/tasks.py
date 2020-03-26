@@ -1,6 +1,7 @@
 import logging
 
 from celery import shared_task
+from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
@@ -116,7 +117,7 @@ class DeleteNodeTask(core_tasks.Task):
 
 
 @shared_task
-def update_nodes(cluster_id):
+def pull_cluster_nodes(cluster_id):
     cluster = models.Cluster.objects.get(id=cluster_id)
     backend = cluster.get_backend()
 
@@ -130,14 +131,14 @@ def update_nodes(cluster_id):
                 node.save()
 
     for node in cluster.node_set.exclude(backend_id=''):
-        backend.update_node_details(node)
+        backend.pull_node(node)
         node.refresh_from_db()
 
 
-@shared_task(name='waldur_rancher.update_clusters_nodes')
-def update_clusters_nodes():
+@shared_task(name='waldur_rancher.pull_all_clusters_nodes')
+def pull_all_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
-        update_nodes(cluster.id)
+        pull_cluster_nodes(cluster.id)
         utils.update_cluster_nodes_states(cluster.id)
 
 
@@ -151,7 +152,7 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         return 'Poll node "%s"' % node.name
 
     def execute(self, node):
-        update_nodes(node.cluster_id)
+        pull_cluster_nodes(node.cluster_id)
         node.refresh_from_db()
 
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
@@ -192,4 +193,6 @@ def notify_create_user(id, password, url):
 
 @shared_task(name='waldur_rancher.sync_users')
 def sync_users():
+    if settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+        return
     SyncUser.run()

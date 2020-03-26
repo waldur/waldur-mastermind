@@ -12,7 +12,7 @@ from waldur_openstack.openstack_tenant.tests import (
 )
 
 from .. import models, tasks
-from . import factories, fixtures
+from . import factories, fixtures, utils
 
 
 class ClusterGetTest(test.APITransactionTestCase):
@@ -331,6 +331,37 @@ class ClusterCreateTest(BaseClusterCreateTest):
             },
         )
 
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_create_is_disabled_in_read_only_mode(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self._create_request_('new-cluster')
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class ClusterPullTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.RancherFixture()
+        self.url = factories.ClusterFactory.get_url(self.fixture.cluster, action='pull')
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_pull_is_enabled_for_staff_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_pull_is_disabled_for_owner_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_pull_is_enabled_for_owner_when_read_only_mode_is_disabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
 
 class ClusterUpdateTest(test.APITransactionTestCase):
     def setUp(self):
@@ -362,6 +393,12 @@ class ClusterUpdateTest(test.APITransactionTestCase):
             state_transition='begin_updating',
         )
 
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_update_is_disabled_in_read_only_mode(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, {'name': 'new-name'})
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
 
 class ClusterDeleteTest(test.APITransactionTestCase):
     def setUp(self):
@@ -375,7 +412,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.fixture.node.instance.save()
 
     @mock.patch('waldur_rancher.executors.core_tasks')
-    def test_delete_cluster_if_related_nodes_are_not_exist(self, mock_core_tasks):
+    def test_delete_cluster_if_related_nodes_do_not_exist(self, mock_core_tasks):
         self.fixture.node.delete()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
@@ -395,7 +432,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_rancher.executors.chain')
     @mock.patch('waldur_rancher.executors.tasks')
-    def test_on_cluster_deletion_node_deletion_is_requested(
+    def test_when_cluster_is_deleted_node_deletion_is_requested(
         self, mock_tasks, mock_chain
     ):
         self.client.force_authenticate(self.fixture.owner)
@@ -407,7 +444,9 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         )
 
     @mock.patch('waldur_rancher.tasks.common_utils.delete_request')
-    def test_on_node_deletion_instance_deletion_is_requested(self, mock_delete_request):
+    def test_when_cluster_is_deleted_instance_deletion_is_requested(
+        self, mock_delete_request
+    ):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         self.assertEqual(mock_delete_request.call_count, 1)
@@ -437,6 +476,14 @@ class ClusterDeleteTest(test.APITransactionTestCase):
             self.fixture.cluster.backend_id
         )
         mock_client.delete_node.assert_called_once_with(self.fixture.node.backend_id)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_delete_is_disabled_in_read_only_mode(self, mock_core_tasks):
+        self.fixture.node.delete()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 class BaseProjectImportTest(test.APITransactionTestCase):
@@ -520,3 +567,28 @@ class ClusterImportResourceTest(BaseProjectImportTest):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_import_is_disabled_in_read_only_mode_for_owner(self):
+        payload = {
+            'backend_id': 'backend_id',
+            'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(
+                self.fixture.spl
+            ),
+        }
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @utils.override_plugin_settings(READ_ONLY_MODE=True)
+    def test_import_is_enabled_in_read_only_mode_for_staff(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            'backend_id': 'backend_id',
+            'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(
+                self.fixture.spl
+            ),
+        }
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -19,13 +19,15 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         _tasks += [
             core_tasks.PollRuntimeStateTask().si(
                 serialized_instance,
-                backend_pull_method='check_cluster_creating',
+                backend_pull_method='check_cluster_nodes',
                 success_state=models.Cluster.RuntimeStates.ACTIVE,
                 erred_state='error',
             )
         ]
         _tasks += [
-            core_tasks.BackendMethodTask().si(serialized_instance, 'pull_projects',)
+            core_tasks.IndependentBackendMethodTask().si(
+                serialized_instance, 'pull_projects',
+            )
         ]
         return chain(*_tasks)
 
@@ -111,7 +113,8 @@ class ClusterPullExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_cluster, 'pull_cluster', state_transition='begin_updating'
             ),
-            core_tasks.BackendMethodTask().si(
+            # TODO: Pull cluster properties only
+            core_tasks.IndependentBackendMethodTask().si(
                 serialized_cluster, 'pull_service_properties'
             ),
         )
@@ -121,5 +124,5 @@ class NodePullExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, node, serialized_node, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_node, 'update_node_details', state_transition='begin_updating'
+            serialized_node, 'pull_node', state_transition='begin_updating'
         )

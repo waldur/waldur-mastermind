@@ -66,6 +66,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         issue = serializer.save()
         try:
             backend.get_active_backend().create_issue(issue)
+            backend.get_active_backend().create_confirmation_comment(issue)
         except exceptions.SupportUserInactive:
             raise rf_exceptions.ValidationError({'caller': _('Caller is inactive.')})
 

@@ -16,6 +16,7 @@ class RancherExtension(WaldurExtension):
             ),
             'MOUNT_POINT_MIN_SIZE': {'/var/lib/docker': 64, '/var/lib/etcd': 10,},
             'SYSTEM_VOLUME_MIN_SIZE': 64,
+            'READ_ONLY_MODE': False,
         }
 
     @staticmethod
@@ -40,7 +41,7 @@ class RancherExtension(WaldurExtension):
 
         return {
             'waldur-rancher-update-clusters-nodes': {
-                'task': 'waldur_rancher.update_clusters_nodes',
+                'task': 'waldur_rancher.pull_all_clusters_nodes',
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
@@ -58,4 +59,5 @@ class RancherExtension(WaldurExtension):
             'MOUNT_POINT_CHOICES',
             'MOUNT_POINT_MIN_SIZE',
             'SYSTEM_VOLUME_MIN_SIZE',
+            'READ_ONLY_MODE',
         ]

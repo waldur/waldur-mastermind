@@ -13,7 +13,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
-from waldur_core.core.validators import validate_name
+from waldur_core.core.validators import validate_name, validate_template_syntax
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 
@@ -502,9 +502,11 @@ class IgnoredIssueStatus(models.Model):
 
 class TemplateStatusNotification(models.Model):
     status = models.CharField(max_length=255, validators=[validate_name], unique=True)
-    html = models.TextField(validators=[validate_name])
-    text = models.TextField(validators=[validate_name])
-    subject = models.CharField(max_length=255, validators=[validate_name])
+    html = models.TextField(validators=[validate_name, validate_template_syntax])
+    text = models.TextField(validators=[validate_name, validate_template_syntax])
+    subject = models.CharField(
+        max_length=255, validators=[validate_name, validate_template_syntax]
+    )
 
     def __str__(self):
         return self.status
@@ -513,6 +515,9 @@ class TemplateStatusNotification(models.Model):
 class SupportCustomer(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     backend_id = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.user
 
 
 class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
@@ -573,3 +578,19 @@ class IssueStatus(models.Model):
     class Meta:
         verbose_name = _('Issue status')
         verbose_name_plural = _('Issue statuses')
+
+
+class TemplateConfirmationComment(models.Model):
+    """
+    This model allows to automate adding a custom announcement to the user
+    that his ticket has been received and worked on.
+
+    Default text is to be used for all requests.
+    Issue type specific text template is to be used for incident, etc.
+    """
+
+    issue_type = models.CharField(max_length=255, unique=True, default='default')
+    template = models.TextField(validators=[validate_name, validate_template_syntax])
+
+    def __str__(self):
+        return self.issue_type

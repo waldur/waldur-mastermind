@@ -27,7 +27,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
         fields = []
 
 
-class OfferingFilter(django_filters.FilterSet):
+class BaseOfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     name_exact = django_filters.CharFilter(field_name='name')
     customer = core_filters.URLFilter(
@@ -53,7 +53,6 @@ class OfferingFilter(django_filters.FilterSet):
     )
     category_uuid = django_filters.UUIDFilter(field_name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
-    shared = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     def filter_allowed_customer(self, queryset, name, value):
@@ -84,6 +83,10 @@ class OfferingFilter(django_filters.FilterSet):
             else:
                 queryset = queryset.filter(attributes__contains={k: v})
         return queryset
+
+
+class OfferingFilter(BaseOfferingFilter):
+    shared = django_filters.BooleanFilter(widget=BooleanWidget)
 
     class Meta:
         model = models.Offering

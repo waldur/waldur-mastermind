@@ -169,7 +169,7 @@ class RancherBackend(ServiceBackend):
                 node.save()
 
             # Update details in all cases.
-            self.update_node_details(node)
+            self.pull_node(node)
 
         # Update nodes states.
         utils.update_cluster_nodes_states(cluster.id)
@@ -179,7 +179,7 @@ class RancherBackend(ServiceBackend):
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
 
-    def check_cluster_creating(self, cluster):
+    def check_cluster_nodes(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
         if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
@@ -220,7 +220,7 @@ class RancherBackend(ServiceBackend):
         backend_node = self.client.get_node(backend_id)
         return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
 
-    def update_node_details(self, node):
+    def pull_node(self, node):
         if not node.backend_id:
             return
 
@@ -504,7 +504,7 @@ class RancherBackend(ServiceBackend):
             update_pulled_fields(local_project, remote_project, pulled_fields)
 
         models.Project.objects.bulk_create(new_projects)
-        local_projects.filter(id__in=stale_projects).delete()
+        local_projects.filter(backend_id__in=stale_projects).delete()
 
     def remote_project_to_local(self, remote_project, local_cluster_map):
         return models.Project(
@@ -559,7 +559,7 @@ class RancherBackend(ServiceBackend):
             update_pulled_fields(local_namespace, remote_namespace, pulled_fields)
 
         models.Namespace.objects.bulk_create(new_namespaces)
-        local_namespaces.filter(id__in=stale_namespaces).delete()
+        local_namespaces.filter(backend_id__in=stale_namespaces).delete()
 
     def remote_namespace_to_local(self, remote_namespace, local_project_map):
         return models.Namespace(
@@ -619,7 +619,7 @@ class RancherBackend(ServiceBackend):
             update_pulled_fields(local_template, remote_template, pulled_fields)
 
         models.Template.objects.bulk_create(new_templates)
-        local_templates.filter(id__in=stale_templates).delete()
+        local_templates.filter(backend_id__in=stale_templates).delete()
 
     def remote_template_to_local(
         self, remote_template, local_catalog_map, local_cluster_map, local_project_map

@@ -1,4 +1,5 @@
 from croniter import croniter
+from django import template
 from django.core.exceptions import ValidationError
 from django.core.validators import BaseValidator, URLValidator
 from django.utils import timezone
@@ -115,3 +116,10 @@ class BlacklistValidator:
     def __call__(self, value):
         if value in self.blacklist:
             raise ValidationError(self.message, code=self.code)
+
+
+def validate_template_syntax(value):
+    try:
+        template.Template(value)
+    except template.exceptions.TemplateSyntaxError as e:
+        raise ValidationError(e)

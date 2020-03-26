@@ -265,3 +265,8 @@ class SupportCustomerFactory(factory.DjangoModelFactory):
 class IssueStatusFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.IssueStatus
+
+
+class TemplateConfirmationCommentFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.TemplateConfirmationComment

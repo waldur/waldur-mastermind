@@ -62,7 +62,7 @@ class RancherFixture(ProjectFixture):
     @cached_property
     def node(self):
         content_type = ContentType.objects.get_for_model(self.instance)
-        return models.Node.objects.create(
+        return factories.NodeFactory(
             cluster=self.cluster,
             object_id=self.instance.id,
             content_type=content_type,
