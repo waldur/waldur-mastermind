@@ -132,7 +132,7 @@ class InvoiceTest(test.APITransactionTestCase):
             start=today, end=None, resource=self.resource, plan=self.plan,
         )
         invoices_tasks.create_monthly_invoices()
-        tasks.update_nodes(self.cluster.id)
+        tasks.pull_cluster_nodes(self.cluster.id)
         utils.update_cluster_nodes_states(self.cluster.id)
 
     @freeze_time('2019-01-01')
@@ -200,7 +200,7 @@ class InvoiceTest(test.APITransactionTestCase):
             {'backend_id': 'node_backend_id', 'name': 'name-rancher-node'},
             {'backend_id': 'second_node_backend_id', 'name': 'second node'},
         ]
-        tasks.update_nodes(self.cluster.id)
+        tasks.pull_cluster_nodes(self.cluster.id)
         utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
@@ -248,7 +248,7 @@ class InvoiceTest(test.APITransactionTestCase):
             {'backend_id': 'node_backend_id', 'name': 'name-rancher-node'},
             {'backend_id': 'second_node_backend_id', 'name': 'second node'},
         ]
-        tasks.update_nodes(self.cluster.id)
+        tasks.pull_cluster_nodes(self.cluster.id)
         utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
@@ -263,7 +263,7 @@ class InvoiceTest(test.APITransactionTestCase):
         return_value = copy.copy(self.mock_client.get_node.return_value)
         return_value['state'] = 'error'
         self.mock_client.get_node.return_value = return_value
-        tasks.update_nodes(self.cluster.id)
+        tasks.pull_cluster_nodes(self.cluster.id)
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
                 resource=self.resource,

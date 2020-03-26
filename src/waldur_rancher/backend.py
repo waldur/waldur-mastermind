@@ -169,7 +169,7 @@ class RancherBackend(ServiceBackend):
                 node.save()
 
             # Update details in all cases.
-            self.update_node_details(node)
+            self.pull_node(node)
 
         # Update nodes states.
         utils.update_cluster_nodes_states(cluster.id)
@@ -179,7 +179,7 @@ class RancherBackend(ServiceBackend):
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
 
-    def check_cluster_creating(self, cluster):
+    def check_cluster_nodes(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
         if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
@@ -220,7 +220,7 @@ class RancherBackend(ServiceBackend):
         backend_node = self.client.get_node(backend_id)
         return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
 
-    def update_node_details(self, node):
+    def pull_node(self, node):
         if not node.backend_id:
             return
 

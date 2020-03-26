@@ -109,11 +109,11 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1
         )
 
-    @mock.patch('waldur_rancher.backend.RancherBackend.update_node_details')
+    @mock.patch('waldur_rancher.backend.RancherBackend.pull_node')
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
     @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
     def test_not_pulling_if_node_has_been_created(
-        self, mock_retry, mock_client, mock_update_node_details
+        self, mock_retry, mock_client, mock_pull_node
     ):
         backend_node = json.loads(
             pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
@@ -128,7 +128,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.fixture.node.refresh_from_db()
         self.assertEqual(self.fixture.node.backend_id, backend_node['id'])
 
-    @mock.patch('waldur_rancher.tasks.update_nodes')
+    @mock.patch('waldur_rancher.tasks.pull_cluster_nodes')
     @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
     def test_pulling_if_node_has_not_been_created(self, mock_retry, mock_update_nodes):
         tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
@@ -259,17 +259,13 @@ class NodePullBackendTest(test.APITransactionTestCase):
         self.assertEqual(node.pods_total, 110)
         self.assertEqual(node.state, models.Node.States.OK)
 
-    def test_update_node_details(self):
-        tasks.update_nodes(self.fixture.cluster.id)
-        self._check_node_fields(self.fixture.node)
-
     def test_update_node_if_key_does_not_exists(self):
         backend_node = json.loads(
             pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
         )
         backend_node.pop('annotations')
         self.mock_client.get_node.return_value = backend_node
-        tasks.update_nodes(self.fixture.cluster.id)
+        tasks.pull_cluster_nodes(self.fixture.cluster.id)
         self._check_node_fields(self.fixture.node)
 
     def test_pull_cluster_import_new_node(self):
@@ -292,7 +288,7 @@ class NodePullBackendTest(test.APITransactionTestCase):
         self.fixture.node.name = 'k8s-node'
         self.fixture.node.backend_id = 'backend_id'
         self.fixture.node.save()
-        backend.update_node_details(self.fixture.node)
+        backend.pull_node(self.fixture.node)
         self._check_node_fields(self.fixture.node)
 
 

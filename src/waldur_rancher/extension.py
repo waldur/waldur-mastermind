@@ -41,7 +41,7 @@ class RancherExtension(WaldurExtension):
 
         return {
             'waldur-rancher-update-clusters-nodes': {
-                'task': 'waldur_rancher.update_clusters_nodes',
+                'task': 'waldur_rancher.pull_all_clusters_nodes',
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
