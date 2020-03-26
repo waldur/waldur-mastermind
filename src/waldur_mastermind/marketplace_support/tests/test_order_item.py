@@ -539,12 +539,31 @@ class NotificationTest(BaseTest):
         )
         self.assertEqual(mail.outbox[0].body, body)
 
-    def create_issue(self):
+    def test_attributes_with_display_names(self):
+        self.offering.name = 'Offering name'
+        self.offering.options = {
+            'order': ['test_option'],
+            'options': {
+                'test_option': {
+                    'type': 'string',
+                    'label': 'display name',
+                    'required': True,
+                }
+            },
+        }
+        self.offering.save()
+        self.service_provider.lead_body = '{{order_item.attributes_with_display_names}}'
+        self.service_provider.save()
+
+        self.create_issue(attributes={'test_option': 'OK'})
+        self.assertTrue('display name' in mail.outbox[0].body)
+
+    def create_issue(self, **kwargs):
         self.issue = support_factories.IssueFactory(backend_id='', key='')
         support_offering = support_factories.OfferingFactory(issue=self.issue)
         resource = marketplace_factories.ResourceFactory(scope=support_offering)
         self.order_item = marketplace_factories.OrderItemFactory(
-            resource=resource, offering=self.offering
+            resource=resource, offering=self.offering, **kwargs
         )
         self.issue.backend_id = 'TST-1'
         self.issue.save()
