@@ -113,7 +113,7 @@ class ClusterPullExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_cluster, 'pull_cluster', state_transition='begin_updating'
             ),
-            core_tasks.BackendMethodTask().si(
+            core_tasks.IndependentBackendMethodTask().si(
                 serialized_cluster, 'pull_service_properties'
             ),
         )
