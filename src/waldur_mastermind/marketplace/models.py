@@ -21,6 +21,7 @@ from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core import validators as core_validators
 from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import get_upload_path
@@ -64,6 +65,7 @@ class ServiceProvider(
         help_text=_(
             'Notification body template. ' 'Django template variables can be used.'
         ),
+        validators=[core_validators.validate_template_syntax],
     )
 
     class Permissions:
