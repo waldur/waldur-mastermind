@@ -450,6 +450,7 @@ class Offering(
 class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent, ScopeMixin):
     class Meta:
         unique_together = ('type', 'offering')
+        ordering = ('name',)
 
     class BillingTypes:
         FIXED = 'fixed'
@@ -635,6 +636,7 @@ class Plan(
 class PlanComponent(models.Model):
     class Meta:
         unique_together = ('plan', 'component')
+        ordering = ('component__name',)
 
     plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name='components'
