@@ -498,7 +498,7 @@ class VolumeExtendSerializer(serializers.Serializer):
         return disk_size
 
     @transaction.atomic
-    def update(self, instance, validated_data):
+    def update(self, instance: models.Volume, validated_data):
         new_size = validated_data.get('disk_size')
 
         settings = instance.service_project_link.service.settings
@@ -508,6 +508,10 @@ class VolumeExtendSerializer(serializers.Serializer):
             quota_holder.add_quota_usage(
                 quota_holder.Quotas.storage, new_size - instance.size, validate=True
             )
+            if instance.type:
+                key = 'gigabytes_' + instance.type.backend_id
+                delta = (new_size - instance.size) / 1024
+                quota_holder.add_quota_usage(key, delta, validate=True)
 
         instance.size = new_size
         instance.save(update_fields=['size'])
