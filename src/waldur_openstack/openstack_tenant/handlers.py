@@ -542,6 +542,12 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
         )
         service_settings.save()
 
+    if admin_settings.options.get('config_drive'):
+        service_settings.options['config_drive'] = admin_settings.options[
+            'config_drive'
+        ]
+        service_settings.save()
+
     service = models.OpenStackTenantService.objects.create(
         settings=service_settings, customer=customer,
     )
