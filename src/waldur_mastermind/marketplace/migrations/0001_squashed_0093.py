@@ -1636,4 +1636,10 @@ class Migration(migrations.Migration):
             name='aggregateresourcecount',
             unique_together=set([('category', 'content_type', 'object_id')]),
         ),
+        migrations.AlterModelOptions(
+            name='offeringcomponent', options={'ordering': ('name',)},
+        ),
+        migrations.AlterModelOptions(
+            name='plancomponent', options={'ordering': ('component__name',)},
+        ),
     ]

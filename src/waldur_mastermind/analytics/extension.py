@@ -17,6 +17,7 @@ class AnalyticsExtension(WaldurExtension):
                 'ssl': False,
                 'verify_ssl': False,
             },
+            'DAILY_QUOTA_LIFETIME': timedelta(days=31),
         }
 
     @staticmethod

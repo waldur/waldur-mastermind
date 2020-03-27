@@ -196,7 +196,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     image = models.ForeignKey(Image, blank=True, null=True, on_delete=models.SET_NULL)
     image_name = models.CharField(max_length=150, blank=True)
     image_metadata = JSONField(blank=True)
-    type = models.ForeignKey(
+    type: 'VolumeType' = models.ForeignKey(
         'VolumeType', blank=True, null=True, on_delete=models.SET_NULL
     )
     availability_zone = models.ForeignKey(
@@ -219,11 +219,14 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
         unique_together = ('service_project_link', 'backend_id')
 
     def get_quota_deltas(self):
-        return {
+        deltas = {
             TenantQuotas.volumes: 1,
             TenantQuotas.volumes_size: self.size,
             TenantQuotas.storage: self.size,
         }
+        if self.type:
+            deltas['gigabytes_' + self.type.backend_id] = self.size / 1024
+        return deltas
 
     @classmethod
     def get_url_name(cls):
@@ -256,7 +259,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
         related_name='snapshots',
         on_delete=models.PROTECT,
     )
-    source_volume = models.ForeignKey(
+    source_volume: Volume = models.ForeignKey(
         Volume, related_name='snapshots', null=True, on_delete=models.PROTECT
     )
     metadata = JSONField(blank=True)
@@ -287,11 +290,14 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
         return 'openstacktenant-snapshot'
 
     def get_quota_deltas(self):
-        return {
+        deltas = {
             TenantQuotas.snapshots: 1,
             TenantQuotas.snapshots_size: self.size,
             TenantQuotas.storage: self.size,
         }
+        if self.source_volume and self.source_volume.type:
+            deltas['gigabytes_' + self.source_volume.type.backend_id] = self.size / 1024
+        return deltas
 
     @classmethod
     def get_backend_fields(cls):

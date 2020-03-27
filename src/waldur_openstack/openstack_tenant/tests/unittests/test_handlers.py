@@ -498,3 +498,15 @@ class CreateServiceFromTenantTest(TestCase):
             service_settings.options['console_type'],
             service_project_link.service.settings.options['console_type'],
         )
+
+    def test_copy_config_drive_from_admin_settings_to_private_settings(self):
+        service_project_link = openstack_factories.OpenStackServiceProjectLinkFactory()
+        service_project_link.service.settings.options['config_drive'] = True
+        service_project_link.service.settings.save()
+        tenant = openstack_factories.TenantFactory(
+            service_project_link=service_project_link
+        )
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant, type=apps.OpenStackTenantConfig.service_name,
+        )
+        self.assertTrue(service_settings.options['config_drive'])
