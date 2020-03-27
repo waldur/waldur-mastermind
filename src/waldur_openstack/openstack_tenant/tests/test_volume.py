@@ -4,8 +4,6 @@ from ddt import data, ddt
 from django.conf import settings
 from rest_framework import status, test
 
-from waldur_core.structure.models import ProjectRole
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
 )
@@ -29,80 +27,79 @@ class VolumeDeleteTest(test.APITransactionTestCase):
 @ddt
 class VolumeExtendTestCase(test.APITransactionTestCase):
     def setUp(self):
-        self.admin = structure_factories.UserFactory()
-        self.manager = structure_factories.UserFactory()
-        self.staff = structure_factories.UserFactory(is_staff=True)
-        self.admined_volume = factories.VolumeFactory(state=models.Volume.States.OK)
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.admin = self.fixture.admin
+        self.manager = self.fixture.manager
+        self.staff = self.fixture.staff
+        self.volume = self.fixture.volume
 
-        admined_project = self.admined_volume.service_project_link.project
-        admined_project.add_user(self.admin, ProjectRole.ADMINISTRATOR)
-        admined_project.add_user(self.manager, ProjectRole.MANAGER)
+    def extend_disk(self, user, new_size):
+        url = factories.VolumeFactory.get_url(self.volume, action='extend')
+        self.client.force_authenticate(user)
+        return self.client.post(url, {'disk_size': new_size})
 
     @data('admin', 'manager')
     def test_user_can_resize_size_of_volume_he_has_access_to(self, user):
-        self.client.force_authenticate(getattr(self, user))
-        new_size = self.admined_volume.size + 1024
+        new_size = self.volume.size + 1024
 
-        url = factories.VolumeFactory.get_url(self.admined_volume, action='extend')
-        response = self.client.post(url, {'disk_size': new_size})
+        response = self.extend_disk(getattr(self, user), new_size)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
-        self.admined_volume.refresh_from_db()
-        self.assertEqual(self.admined_volume.size, new_size)
+        self.volume.refresh_from_db()
+        self.assertEqual(self.volume.size, new_size)
 
     def test_user_can_not_extend_volume_if_resulting_quota_usage_is_greater_than_limit(
         self,
     ):
-        self.client.force_authenticate(user=self.admin)
-        settings = self.admined_volume.service_project_link.service.settings
-        settings.set_quota_usage('storage', self.admined_volume.size)
-        settings.set_quota_limit('storage', self.admined_volume.size + 512)
+        service_settings = self.volume.service_project_link.service.settings
+        service_settings.set_quota_usage('storage', self.volume.size)
+        service_settings.set_quota_limit('storage', self.volume.size + 512)
 
-        self.assert_extend_request_returns_bad_request()
+        new_size = self.volume.size + 1024
+        response = self.extend_disk(self.admin, new_size)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_not_extend_volume_if_quota_usage_becomes_greater_than_limit_in_service_project_link(
         self,
     ):
-        self.client.force_authenticate(user=self.admin)
-        self.admined_volume.service_project_link.set_quota_usage(
-            'storage', self.admined_volume.size
-        )
-        self.admined_volume.service_project_link.set_quota_limit(
-            'storage', self.admined_volume.size + 512
+        self.volume.service_project_link.set_quota_usage('storage', self.volume.size)
+        self.volume.service_project_link.set_quota_limit(
+            'storage', self.volume.size + 512
         )
 
-        self.assert_extend_request_returns_bad_request()
-
-    def assert_extend_request_returns_bad_request(self, extend_by=1024):
-        new_size = self.admined_volume.size + extend_by
-        url = factories.VolumeFactory.get_url(self.admined_volume, action='extend')
-
-        response = self.client.post(url, {'disk_size': new_size})
-        self.assertEqual(
-            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
-        )
+        new_size = self.volume.size + 1024
+        response = self.extend_disk(self.admin, new_size)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_not_extend_volume_if_volume_operation_is_performed(self):
-        self.client.force_authenticate(user=self.admin)
-        self.admined_volume.state = models.Volume.States.UPDATING
-        self.admined_volume.save()
+        self.volume.state = models.Volume.States.UPDATING
+        self.volume.save()
 
-        new_size = self.admined_volume.size + 1024
-        url = factories.VolumeFactory.get_url(self.admined_volume, action='extend')
-
-        response = self.client.post(url, {'disk_size': new_size})
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+        new_size = self.volume.size + 1024
+        response = self.extend_disk(self.admin, new_size)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_user_can_not_extend_volume_if_volume_is_in_erred_state(self):
-        self.client.force_authenticate(user=self.admin)
-        self.admined_volume.state = models.Instance.States.ERRED
-        self.admined_volume.save()
+        self.volume.state = models.Instance.States.ERRED
+        self.volume.save()
 
-        new_size = self.admined_volume.size + 1024
-        url = factories.VolumeFactory.get_url(self.admined_volume, action='extend')
+        new_size = self.volume.size + 1024
+        response = self.extend_disk(self.admin, new_size)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-        response = self.client.post(url, {'disk_size': new_size})
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+    def test_when_volume_is_extended_volume_type_quota_is_updated(self):
+        # Arrange
+        scope = self.volume.service_project_link.service.settings
+        key = 'gigabytes_' + self.volume.type.backend_id
+        scope.set_quota_usage(key, self.volume.size / 1024)
+
+        # Act
+        new_size = self.volume.size + 1024
+        self.extend_disk(self.staff, new_size)
+
+        # Assert
+        new_usage = scope.quotas.get(name=key).usage
+        self.assertEqual(new_size / 1024, new_usage)
 
 
 class VolumeAttachTestCase(test.APITransactionTestCase):
@@ -199,13 +196,21 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
         self.volume.runtime_state = 'available'
         self.volume.save()
 
+    def create_snapshot(self):
         self.client.force_authenticate(self.fixture.owner)
+        payload = {'name': '%s snapshot' % self.volume.name}
+        return self.client.post(self.url, data=payload)
 
     def test_user_can_create_volume_snapshot(self):
-        payload = {'name': '%s snapshot' % self.volume.name}
-
-        response = self.client.post(self.url, data=payload)
+        response = self.create_snapshot()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_when_snapshot_is_created_volume_type_quota_is_updated(self):
+        self.create_snapshot()
+        key = 'gigabytes_' + self.fixture.volume_type.backend_id
+        scope = self.fixture.openstack_tenant_service_settings
+        usage = scope.quotas.get(name=key).usage
+        self.assertEqual(self.volume.size / 1024, usage)
 
 
 @ddt
@@ -389,7 +394,7 @@ class VolumeImportTest(BaseVolumeTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class VolumeCreateTest(test.APITransactionTestCase):
+class BaseVolumeCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.settings = self.fixture.openstack_tenant_service_settings
@@ -398,8 +403,6 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.spl_url = factories.OpenStackTenantServiceProjectLinkFactory.get_url(
             self.fixture.spl
         )
-        self.type = factories.VolumeTypeFactory(settings=self.settings)
-        self.type_url = factories.VolumeTypeFactory.get_url(self.type)
         self.client.force_authenticate(self.fixture.owner)
 
     def create_volume(self, **extra):
@@ -413,6 +416,8 @@ class VolumeCreateTest(test.APITransactionTestCase):
         url = factories.VolumeFactory.get_list_url()
         return self.client.post(url, payload)
 
+
+class VolumeNameCreateTest(BaseVolumeCreateTest):
     def test_image_name_populated_on_volume_creation(self):
         response = self.create_volume(image=self.image_url)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -439,6 +444,13 @@ class VolumeCreateTest(test.APITransactionTestCase):
         system_volume = response.data['volumes'][0]
         self.assertEqual(system_volume['image_name'], self.image.name)
 
+
+class VolumeTypeCreateTest(BaseVolumeCreateTest):
+    def setUp(self):
+        super(VolumeTypeCreateTest, self).setUp()
+        self.type = factories.VolumeTypeFactory(settings=self.settings)
+        self.type_url = factories.VolumeTypeFactory.get_url(self.type)
+
     def test_type_populated_on_volume_creation(self):
         response = self.create_volume(type=self.type_url)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -449,6 +461,15 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 
+    def test_when_volume_is_created_volume_type_quota_is_updated(self):
+        self.create_volume(type=self.type_url, size=1024 * 10)
+
+        key = 'gigabytes_' + self.type.backend_id
+        usage = self.settings.quotas.get(name=key).usage
+        self.assertEqual(usage, 10)
+
+
+class VolumeAvailabilityZoneCreateTest(BaseVolumeCreateTest):
     def test_availability_zone_should_be_related_to_the_same_service_settings(self):
         response = self.create_volume(
             availability_zone=factories.VolumeAvailabilityZoneFactory.get_url()
