@@ -51,12 +51,17 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.use_automatic_request_mapping = settings.WALDUR_SUPPORT.get(
             'USE_AUTOMATIC_REQUEST_MAPPING', True
         )
+        # In some cases list of priorities available to customers differ from the total list returned by SDK
+        self.pull_priorities_automatically = settings.WALDUR_SUPPORT.get(
+            'PULL_PRIORITIES', True
+        )
         self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', 1)
 
     def pull_service_properties(self):
         super(ServiceDeskBackend, self).pull_service_properties()
         self.pull_request_types()
-        self.pull_priorities()
+        if self.pull_priorities_automatically:
+            self.pull_priorities()
 
     @reraise_exceptions
     def create_comment(self, comment):
