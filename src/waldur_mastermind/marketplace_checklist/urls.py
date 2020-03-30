@@ -3,6 +3,14 @@ from django.conf.urls import url
 from . import views
 
 urlpatterns = [
+    url(
+        r'^api/marketplace-checklists-categories/$',
+        views.CategoriesView.as_view({'get': 'list'}),
+    ),
+    url(
+        r'^api/marketplace-checklists-categories/(?P<category_uuid>[a-f0-9]+)/checklists/$',
+        views.CategoryChecklistsView.as_view({'get': 'list'}),
+    ),
     url(r'^api/marketplace-checklists/$', views.ChecklistView.as_view({'get': 'list'})),
     url(
         r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/questions/$',
