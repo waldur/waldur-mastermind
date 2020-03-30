@@ -4,10 +4,11 @@ from . import views
 
 urlpatterns = [
     url(
-        r'^api/marketplace-categories/$', views.CategoriesView.as_view({'get': 'list'})
+        r'^api/marketplace-checklists-categories/$',
+        views.CategoriesView.as_view({'get': 'list'}),
     ),
     url(
-        r'^api/marketplace-categories/(?P<category_uuid>[a-f0-9]+)/checklists/$',
+        r'^api/marketplace-checklists-categories/(?P<category_uuid>[a-f0-9]+)/checklists/$',
         views.CategoryChecklistsView.as_view({'get': 'list'}),
     ),
     url(r'^api/marketplace-checklists/$', views.ChecklistView.as_view({'get': 'list'})),
