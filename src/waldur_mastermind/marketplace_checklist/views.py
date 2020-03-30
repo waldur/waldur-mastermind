@@ -13,6 +13,20 @@ from waldur_core.structure.permissions import is_administrator
 from . import models, serializers
 
 
+class CategoriesView(ListModelMixin, GenericViewSet):
+    queryset = models.Category.objects.all()
+    serializer_class = serializers.CategorySerializer
+
+
+class CategoryChecklistsView(ListModelMixin, GenericViewSet):
+    serializer_class = serializers.ChecklistSerializer
+
+    def get_queryset(self):
+        return models.Checklist.objects.filter(
+            category__uuid=self.kwargs['category_uuid']
+        )
+
+
 class ChecklistView(ListModelMixin, GenericViewSet):
     queryset = models.Checklist.objects.all()
     serializer_class = serializers.ChecklistSerializer
