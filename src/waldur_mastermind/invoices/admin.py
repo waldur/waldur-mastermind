@@ -1,6 +1,7 @@
 from django.conf.urls import url
 from django.contrib import admin
 from django.forms import ModelChoiceField
+from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -8,6 +9,7 @@ from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core.admin import JsonWidget
 
 from . import executors, models, tasks
 
@@ -179,5 +181,22 @@ class ServiceDowntimeAdmin(admin.ModelAdmin):
     get_package.short_description = _('Package')
 
 
+class PaymentProfileAdminForm(ModelForm):
+    class Meta:
+        widgets = {
+            'attributes': JsonWidget(),
+        }
+
+
+class PaymentProfileAdmin(admin.ModelAdmin):
+    form = PaymentProfileAdminForm
+    list_display = (
+        'organization',
+        'payment_type',
+    )
+    search_fields = ('organization__name',)
+
+
 admin.site.register(models.Invoice, InvoiceAdmin)
 admin.site.register(models.ServiceDowntime, ServiceDowntimeAdmin)
+admin.site.register(models.PaymentProfile, PaymentProfileAdmin)

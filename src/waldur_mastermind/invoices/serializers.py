@@ -301,3 +301,21 @@ class SAFReportSerializer(serializers.Serializer):
         first_day = self.get_first_day(invoice_item)
         last_day = core_utils.month_end(first_day)
         return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))
+
+
+class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
+    organization_uuid = serializers.ReadOnlyField(source='organization.uuid')
+
+    class Meta:
+        model = models.PaymentProfile
+        fields = (
+            'url',
+            'organization_uuid',
+            'organization',
+            'attributes',
+            'payment_type',
+        )
+        extra_kwargs = {
+            'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid',},
+            'organization': {'view_name': 'customer-detail', 'lookup_field': 'uuid',},
+        }

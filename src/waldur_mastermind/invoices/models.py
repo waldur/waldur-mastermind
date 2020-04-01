@@ -409,6 +409,44 @@ class ServiceDowntime(models.Model):
             )
 
 
+class PaymentType(models.CharField):
+    INVOICES = 'invoices'
+    PAY_PAL = 'pay_pal'
+    PRE_PAID = 'pre_paid'
+    ITA = 'ita'
+
+    CHOICES = (
+        (INVOICES, 'Invoices'),
+        (PAY_PAL, 'PayPal'),
+        (PRE_PAID, 'Pre-paid agreements'),
+        (ITA, 'ITA Payment gateway'),
+    )
+
+    def __init__(self, *args, **kwargs):
+        kwargs['max_length'] = 30
+        kwargs['choices'] = self.CHOICES
+        super(PaymentType, self).__init__(*args, **kwargs)
+
+
+class PaymentProfile(core_models.UuidMixin, models.Model):
+    organization = models.ForeignKey('structure.Customer', on_delete=models.PROTECT)
+    payment_type = PaymentType()
+    attributes = JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return self.organization.name
+
+    class Permissions:
+        customer_path = 'organization'
+
+    @classmethod
+    def get_url_name(cls):
+        return 'payment-profile'
+
+    class Meta:
+        unique_together = ('organization', 'payment_type')
+
+
 class InvoiceItemAdjuster:
     def __init__(self, invoice, source, start, unit_price, unit):
         self.invoice = invoice
