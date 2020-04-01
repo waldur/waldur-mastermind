@@ -34,3 +34,24 @@ class InvoiceItemFactory(factory.DjangoModelFactory):
 
     invoice = factory.SubFactory(InvoiceFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
+
+
+class PaymentProfileFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.PaymentProfile
+
+    organization = factory.SubFactory(structure_factories.CustomerFactory)
+    payment_type = models.PaymentType.INVOICES
+
+    @classmethod
+    def get_url(cls, profile=None, action=None):
+        if profile is None:
+            profile = cls()
+        url = 'http://testserver' + reverse(
+            'payment-profile-detail', kwargs={'uuid': profile.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('payment-profile-list')

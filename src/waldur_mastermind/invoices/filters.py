@@ -16,3 +16,17 @@ class InvoiceFilter(django_filters.FilterSet):
     class Meta:
         model = models.Invoice
         fields = ('year', 'month')
+
+
+class PaymentProfileFilter(django_filters.FilterSet):
+    organization = core_filters.URLFilter(
+        view_name='customer-detail', field_name='organization__uuid'
+    )
+    organization_uuid = django_filters.UUIDFilter(field_name='organization__uuid')
+    payment_type = django_filters.MultipleChoiceFilter(
+        choices=models.PaymentType.CHOICES
+    )
+
+    class Meta:
+        model = models.PaymentProfile
+        fields = []
