@@ -3,6 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from . import factories
 
@@ -26,6 +27,19 @@ class CategoryGetTest(test.APITransactionTestCase):
         url = factories.CategoryFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_anonymous_user_can_see_category_list(self):
+        url = factories.CategoryFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_anonymous_user_can_see_category_item(self):
+        url = factories.CategoryFactory.get_url(self.category)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 @ddt
