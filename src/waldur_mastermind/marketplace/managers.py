@@ -12,7 +12,7 @@ class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
 
 class OfferingQuerySet(django_models.QuerySet):
     def filter_for_user(self, user):
-        if user.is_staff or user.is_support:
+        if user.is_anonymous or user.is_staff or user.is_support:
             return self
 
         connected_customers = set(

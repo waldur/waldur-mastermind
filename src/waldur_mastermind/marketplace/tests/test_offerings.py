@@ -1226,31 +1226,37 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         ]
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
-    def test_anonym_cannot_view_offerings(self):
-        url = factories.OfferingFactory.get_public_list_url()
+    def test_anonymous_cannot_view_offerings(self):
+        url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
-    def test_anonym_cannot_view_draft_offerings(self):
-        url = factories.OfferingFactory.get_public_list_url()
+    def test_anonymous_cannot_view_draft_offerings(self):
+        url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         for offering in response.data:
             self.assertNotEqual(models.Offering.States.DRAFT, offering['state'])
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
-    def test_anonym_cannot_view_offering_management(self):
-        url = factories.OfferingFactory.get_public_list_url()
+    def test_anonymous_cannot_view_offering_scope(self):
+        url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         for offering in response.data:
             self.assertNotIn('scope', offering)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_anonymous_can_view_offering_scope(self):
+        url = factories.OfferingFactory.get_url(self.offerings[0])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     @data('staff', 'owner', 'user', 'customer_support', 'admin')
-    def test_authentificated_user_can_view_offering_management(self, user):
+    def test_authenticated_user_can_view_offering_scope(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.OfferingFactory.get_public_list_url()
+        url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         for offering in response.data:
             self.assertIn('scope', offering)
@@ -1261,7 +1267,7 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         if user:
             user = getattr(self.fixture, user)
             self.client.force_authenticate(user)
-        url = factories.OfferingFactory.get_public_list_url()
+        url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         for offering in response.data:
             self.assertTrue('shared', offering)
