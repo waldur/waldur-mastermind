@@ -88,7 +88,11 @@ class ProjectStatsView(APIView):
             )
             total = checklist.questions.count()
             positive_count = qs.filter(value=F('question__correct_answer')).count()
-            negative_count = qs.filter(value__ne=F('question__correct_answer')).count()
+            negative_count = (
+                qs.exclude(value__isnull=True)
+                .exclude(value=F('question__correct_answer'))
+                .count()
+            )
             unknown_count = total - positive_count - negative_count
             checklists.append(
                 dict(
