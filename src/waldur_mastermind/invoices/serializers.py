@@ -305,15 +305,19 @@ class SAFReportSerializer(serializers.Serializer):
 
 class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
     organization_uuid = serializers.ReadOnlyField(source='organization.uuid')
+    payment_type_display = serializers.ReadOnlyField(source='get_payment_type_display')
 
     class Meta:
         model = models.PaymentProfile
         fields = (
             'url',
+            'name',
             'organization_uuid',
             'organization',
             'attributes',
             'payment_type',
+            'payment_type_display',
+            'is_active',
         )
         extra_kwargs = {
             'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid',},

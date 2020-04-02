@@ -428,10 +428,11 @@ class PaymentType(models.CharField):
         super(PaymentType, self).__init__(*args, **kwargs)
 
 
-class PaymentProfile(core_models.UuidMixin, models.Model):
+class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model):
     organization = models.ForeignKey('structure.Customer', on_delete=models.PROTECT)
     payment_type = PaymentType()
     attributes = JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.organization.name
@@ -444,7 +445,7 @@ class PaymentProfile(core_models.UuidMixin, models.Model):
         return 'payment-profile'
 
     class Meta:
-        unique_together = ('organization', 'payment_type')
+        unique_together = ('organization', 'is_active')
 
 
 class InvoiceItemAdjuster:

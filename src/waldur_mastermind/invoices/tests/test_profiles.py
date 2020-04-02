@@ -42,6 +42,7 @@ class ProfileCreateTest(test.APITransactionTestCase):
                 customer=self.fixture.customer
             ),
             'payment_type': models.PaymentType.INVOICES,
+            'name': 'default',
         }
 
     @data('owner', 'staff')
