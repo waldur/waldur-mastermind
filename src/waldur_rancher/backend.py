@@ -389,7 +389,7 @@ class RancherBackend(ServiceBackend):
             update_pulled_fields(local_catalog, remote_catalog, pulled_fields)
 
         models.Catalog.objects.bulk_create(new_catalogs)
-        local_catalogs.filter(id__in=stale_catalogs).delete()
+        local_catalogs.filter(backend_id__in=stale_catalogs).delete()
 
     def remote_catalog_to_local(self, remote_catalog, content_type, object_id):
         return models.Catalog(
