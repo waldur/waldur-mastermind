@@ -32,6 +32,9 @@ class RancherBackend(ServiceBackend):
         '  - sudo systemctl enable docker\n'
         '  - [ sh, -c, "{command}" ]\n',
         'default_mtu': 1440,
+        'private_registry_url': None,
+        'private_registry_user': None,
+        'private_registry_password': None,
     }
 
     def __init__(self, settings):
@@ -65,7 +68,22 @@ class RancherBackend(ServiceBackend):
 
     def create_cluster(self, cluster):
         mtu = self.settings.get_option('default_mtu')
-        backend_cluster = self.client.create_cluster(cluster.name, mtu=mtu)
+        private_registry = None
+        private_registry_url = self.settings.get_option('private_registry_url')
+        private_registry_user = self.settings.get_option('private_registry_user')
+        private_registry_password = self.settings.get_option(
+            'private_registry_password'
+        )
+        if private_registry_url and private_registry_user and private_registry_password:
+            private_registry = {
+                'url': private_registry_url,
+                'user': private_registry_user,
+                'password': private_registry_password,
+            }
+
+        backend_cluster = self.client.create_cluster(
+            cluster.name, mtu=mtu, private_registry=private_registry
+        )
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         self.client.create_cluster_registration_token(cluster.backend_id)
         cluster.node_command = self.client.get_node_command(cluster.backend_id)
