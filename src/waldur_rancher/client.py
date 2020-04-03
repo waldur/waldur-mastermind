@@ -92,11 +92,20 @@ class RancherClient:
     def get_cluster(self, cluster_id):
         return self._get('clusters/{0}'.format(cluster_id))
 
-    def create_cluster(self, cluster_name, mtu=None):
+    def create_cluster(self, cluster_name, mtu=None, private_registry=None):
         rancher_config = {}
 
         if mtu:
             rancher_config['network'] = {'mtu': mtu}
+
+        if private_registry:
+            rancher_config['privateRegistries'] = [
+                {
+                    'url': private_registry['url'],
+                    'user': private_registry['user'],
+                    'password': private_registry['password'],
+                }
+            ]
 
         return self._post(
             'clusters',

@@ -30,6 +30,9 @@ class ServiceSerializer(
         'base_image_name': _('Base image name'),
         'cloud_init_template': _('Cloud init template'),
         'default_mtu': _('Default MTU of a cluster'),
+        'private_registry_url': _('URL of a private registry for a cluster'),
+        'private_registry_user': _('Username for accessing a private registry'),
+        'private_registry_password': _('Password for accessing a private registry'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
