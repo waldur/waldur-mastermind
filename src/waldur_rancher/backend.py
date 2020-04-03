@@ -141,7 +141,7 @@ class RancherBackend(ServiceBackend):
         self.pull_cluster(cluster, backend_cluster)
         return cluster
 
-    def pull_cluster(self, cluster, backend_cluster=None):
+    def pull_cluster(self, cluster: models.Cluster, backend_cluster=None):
         """
         Pull order is important because subsequent objects depend on previous ones.
         For example, namespaces and catalogs depend on projects.
@@ -158,7 +158,7 @@ class RancherBackend(ServiceBackend):
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
 
-    def pull_cluster_nodes(self, cluster):
+    def pull_cluster_nodes(self, cluster: models.Cluster):
         backend_nodes = self.get_cluster_nodes(cluster.backend_id)
 
         for backend_node in backend_nodes:
@@ -341,7 +341,7 @@ class RancherBackend(ServiceBackend):
 
         link.delete()
 
-    def pull_catalogs_for_cluster(self, cluster):
+    def pull_catalogs_for_cluster(self, cluster: models.Cluster):
         self.pull_cluster_catalogs_for_cluster(cluster)
         self.pull_project_catalogs_for_cluster(cluster)
 
@@ -495,7 +495,7 @@ class RancherBackend(ServiceBackend):
         else:
             return self.client.update_project_catalog(catalog.backend_id, spec)
 
-    def pull_projects_for_cluster(self, cluster):
+    def pull_projects_for_cluster(self, cluster: models.Cluster):
         """
         Pull projects for one cluster. It is used for cluster synchronization.
         """
@@ -571,7 +571,7 @@ class RancherBackend(ServiceBackend):
                     cluster.backend_id,
                 )
 
-    def pull_namespaces_for_cluster(self, cluster):
+    def pull_namespaces_for_cluster(self, cluster: models.Cluster):
         remote_namespaces = self.client.list_namespaces(cluster.backend_id)
         local_namespaces = models.Namespace.objects.filter(project__cluster=cluster)
         local_projects = models.Project.objects.filter(cluster=cluster)
@@ -620,10 +620,13 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
         )
 
-    def pull_templates_for_cluster(self, cluster):
+    def pull_templates_for_cluster(self, cluster: models.Cluster):
         remote_templates = self.client.list_templates(cluster.backend_id)
         local_templates = models.Template.objects.filter(cluster=cluster)
-        local_catalogs = models.Catalog.objects.filter(scope=cluster)
+        content_type = ContentType.objects.get_for_model(cluster)
+        local_catalogs = models.Catalog.objects.filter(
+            content_type=content_type, object_id=cluster.id
+        )
         local_clusters = [cluster]
         local_projects = models.Project.objects.filter(cluster=cluster)
         self._pull_templates(
