@@ -351,14 +351,7 @@ class RancherBackend(ServiceBackend):
 
     def pull_project_catalogs_for_cluster(self, cluster):
         for project in models.Project.objects.filter(cluster=cluster):
-            if project.state == models.Project.States.OK:
-                self.pull_project_catalogs_for_project(project)
-            else:
-                logger.debug(
-                    'Skipping catalogs pulling for project with backend ID %s'
-                    'because otherwise one failed project leads to cluster failure',
-                    project.backend_id,
-                )
+            self.pull_project_catalogs_for_project(project)
 
     def pull_project_catalogs_for_project(self, project):
         remote_catalogs = self.client.list_project_catalogs(project.backend_id)
