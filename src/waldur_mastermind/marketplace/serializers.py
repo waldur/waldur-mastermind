@@ -2,9 +2,17 @@ import datetime
 import logging
 
 import jwt
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Subquery
+from django.db.models import (
+    Count,
+    FileField,
+    ImageField,
+    IntegerField,
+    OuterRef,
+    Subquery,
+)
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -18,10 +26,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
-from waldur_core.media.serializers import (
-    ProtectedFileField,
-    ProtectedMediaSerializerMixin,
-)
+from waldur_core.media.serializers import ProtectedFileField, ProtectedImageField
 from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
@@ -29,6 +34,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.metadata import merge_dictionaries
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
@@ -43,6 +49,16 @@ from waldur_mastermind.support import serializers as support_serializers
 from . import attribute_types, models, permissions, plugins, tasks, utils
 
 logger = logging.getLogger(__name__)
+
+
+class MarketplaceProtectedMediaSerializerMixin(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
+            self.serializer_field_mapping = merge_dictionaries(
+                serializers.ModelSerializer.serializer_field_mapping,
+                {FileField: ProtectedFileField, ImageField: ProtectedImageField,},
+            )
 
 
 class ServiceProviderSerializer(
@@ -73,7 +89,16 @@ class ServiceProviderSerializer(
             'customer': {'lookup_field': 'uuid'},
         }
 
-    customer_image = ProtectedFileField(source='customer.image', read_only=True)
+    def get_fields(self):
+        fields = super(ServiceProviderSerializer, self).get_fields()
+        if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
+            fields['customer_image'] = FileField(
+                source='customer.image', read_only=True
+            )
+        else:
+            fields['customer_image'] = ProtectedImageField(
+                source='customer.image', read_only=True
+            )
 
     def validate(self, attrs):
         if not self.instance:
@@ -118,7 +143,7 @@ class CategoryComponentSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(
-    ProtectedMediaSerializerMixin,
+    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -276,7 +301,7 @@ class PlanUsageResponseSerializer(serializers.Serializer):
 
 
 class NestedScreenshotSerializer(
-    ProtectedMediaSerializerMixin, serializers.ModelSerializer
+    MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
 ):
     class Meta:
         model = models.Screenshot
@@ -284,7 +309,7 @@ class NestedScreenshotSerializer(
 
 
 class NestedOfferingFileSerializer(
-    ProtectedMediaSerializerMixin, serializers.ModelSerializer
+    MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
 ):
     class Meta:
         model = models.OfferingFile
@@ -296,7 +321,7 @@ class NestedOfferingFileSerializer(
 
 
 class ScreenshotSerializer(
-    ProtectedMediaSerializerMixin,
+    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -400,7 +425,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
 
 
 class OfferingDetailsSerializer(
-    ProtectedMediaSerializerMixin,
+    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1775,7 +1800,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
 
 class OfferingFileSerializer(
-    ProtectedMediaSerializerMixin,
+    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
