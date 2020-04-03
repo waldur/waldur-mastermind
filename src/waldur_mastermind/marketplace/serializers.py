@@ -89,16 +89,15 @@ class ServiceProviderSerializer(
             'customer': {'lookup_field': 'uuid'},
         }
 
+    customer_image = ProtectedImageField(source='customer.image', read_only=True)
+
     def get_fields(self):
         fields = super(ServiceProviderSerializer, self).get_fields()
         if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
-            fields['customer_image'] = FileField(
+            fields['customer_image'] = serializers.ImageField(
                 source='customer.image', read_only=True
             )
-        else:
-            fields['customer_image'] = ProtectedImageField(
-                source='customer.image', read_only=True
-            )
+        return fields
 
     def validate(self, attrs):
         if not self.instance:
