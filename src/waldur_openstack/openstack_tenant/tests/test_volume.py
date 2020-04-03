@@ -444,6 +444,36 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         system_volume = response.data['volumes'][0]
         self.assertEqual(system_volume['image_name'], self.image.name)
 
+    def test_create_instance_with_data_volumes_with_different_names(self):
+        flavor = factories.FlavorFactory(settings=self.settings)
+        flavor_url = factories.FlavorFactory.get_url(flavor)
+        subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
+        url = factories.InstanceFactory.get_list_url()
+
+        payload = {
+            'name': 'test-instance',
+            'image': self.image_url,
+            'service_project_link': self.spl_url,
+            'flavor': flavor_url,
+            'system_volume_size': 20480,
+            'internal_ips_set': [{'subnet': subnet_url}],
+            'data_volumes': [
+                {'size': 1024, 'type': factories.VolumeTypeFactory.get_url(),},
+                {'size': 1024 * 3, 'type': factories.VolumeTypeFactory.get_url(),},
+            ],
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        data_volumes_names = [
+            v['name'] for v in response.data['volumes'] if not v['bootable']
+        ]
+        self.assertEqual(
+            set(['test-instance-data-3', 'test-instance-data-2']),
+            set(data_volumes_names),
+        )
+
 
 class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def setUp(self):
