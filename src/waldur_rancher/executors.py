@@ -25,8 +25,9 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             )
         ]
         _tasks += [
-            core_tasks.IndependentBackendMethodTask().si(
-                serialized_instance, 'pull_projects',
+            # Pull default projects
+            core_tasks.BackendMethodTask().si(
+                serialized_instance, 'pull_projects_for_cluster',
             )
         ]
         return chain(*_tasks)
@@ -112,10 +113,6 @@ class ClusterPullExecutor(core_executors.ActionExecutor):
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_cluster, 'pull_cluster', state_transition='begin_updating'
-            ),
-            # TODO: Pull cluster properties only
-            core_tasks.IndependentBackendMethodTask().si(
-                serialized_cluster, 'pull_service_properties'
             ),
         )
 
