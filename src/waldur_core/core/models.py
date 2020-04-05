@@ -64,7 +64,7 @@ class UiDescribableMixin(DescribableMixin):
     class Meta:
         abstract = True
 
-    icon_url = models.URLField(_('icon url'), blank=True)
+    icon_url = models.URLField(_('icon url'), max_length=500, blank=True)
 
 
 class UuidMixin(models.Model):
