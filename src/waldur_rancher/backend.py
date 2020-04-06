@@ -32,6 +32,9 @@ class RancherBackend(ServiceBackend):
         '  - sudo systemctl enable docker\n'
         '  - [ sh, -c, "{command}" ]\n',
         'default_mtu': 1440,
+        'private_registry_url': None,
+        'private_registry_user': None,
+        'private_registry_password': None,
     }
 
     def __init__(self, settings):
@@ -54,9 +57,9 @@ class RancherBackend(ServiceBackend):
         return self.settings.backend_url.strip('/')
 
     def pull_service_properties(self):
-        self.pull_catalogs()
         self.pull_projects()
         self.pull_namespaces()
+        self.pull_catalogs()
         self.pull_templates()
         self.pull_template_icons()
 
@@ -65,7 +68,22 @@ class RancherBackend(ServiceBackend):
 
     def create_cluster(self, cluster):
         mtu = self.settings.get_option('default_mtu')
-        backend_cluster = self.client.create_cluster(cluster.name, mtu=mtu)
+        private_registry = None
+        private_registry_url = self.settings.get_option('private_registry_url')
+        private_registry_user = self.settings.get_option('private_registry_user')
+        private_registry_password = self.settings.get_option(
+            'private_registry_password'
+        )
+        if private_registry_url and private_registry_user and private_registry_password:
+            private_registry = {
+                'url': private_registry_url,
+                'user': private_registry_user,
+                'password': private_registry_password,
+            }
+
+        backend_cluster = self.client.create_cluster(
+            cluster.name, mtu=mtu, private_registry=private_registry
+        )
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         self.client.create_cluster_registration_token(cluster.backend_id)
         cluster.node_command = self.client.get_node_command(cluster.backend_id)
@@ -141,10 +159,24 @@ class RancherBackend(ServiceBackend):
         self.pull_cluster(cluster, backend_cluster)
         return cluster
 
-    def pull_cluster(self, cluster, backend_cluster=None):
+    def pull_cluster(self, cluster: models.Cluster, backend_cluster=None):
+        """
+        Pull order is important because subsequent objects depend on previous ones.
+        For example, namespaces and catalogs depend on projects.
+        """
+        self.pull_cluster_details(cluster, backend_cluster)
+        self.pull_cluster_nodes(cluster)
+        self.pull_projects_for_cluster(cluster)
+        self.pull_namespaces_for_cluster(cluster)
+        self.pull_catalogs_for_cluster(cluster)
+        self.pull_templates_for_cluster(cluster)
+
+    def pull_cluster_details(self, cluster, backend_cluster=None):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
+
+    def pull_cluster_nodes(self, cluster: models.Cluster):
         backend_nodes = self.get_cluster_nodes(cluster.backend_id)
 
         for backend_node in backend_nodes:
@@ -174,13 +206,8 @@ class RancherBackend(ServiceBackend):
         # Update nodes states.
         utils.update_cluster_nodes_states(cluster.id)
 
-    def pull_cluster_runtime_state(self, cluster):
-        backend_cluster = self.client.get_cluster(cluster.backend_id)
-        self._backend_cluster_to_cluster(backend_cluster, cluster)
-        cluster.save()
-
     def check_cluster_nodes(self, cluster):
-        self.pull_cluster_runtime_state(cluster)
+        self.pull_cluster_details(cluster)
 
         if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
             # We don't need change cluster state here, because it will make in an executor.
@@ -332,6 +359,22 @@ class RancherBackend(ServiceBackend):
 
         link.delete()
 
+    def pull_catalogs_for_cluster(self, cluster: models.Cluster):
+        self.pull_cluster_catalogs_for_cluster(cluster)
+        self.pull_project_catalogs_for_cluster(cluster)
+
+    def pull_cluster_catalogs_for_cluster(self, cluster):
+        remote_catalogs = self.client.list_cluster_catalogs(cluster.backend_id)
+        self.pull_catalogs_for_scope(remote_catalogs, cluster)
+
+    def pull_project_catalogs_for_cluster(self, cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_catalogs_for_project(project)
+
+    def pull_project_catalogs_for_project(self, project):
+        remote_catalogs = self.client.list_project_catalogs(project.backend_id)
+        self.pull_catalogs_for_scope(remote_catalogs, project)
+
     def pull_catalogs(self):
         self.pull_global_catalogs()
         self.pull_cluster_catalogs()
@@ -389,7 +432,7 @@ class RancherBackend(ServiceBackend):
             update_pulled_fields(local_catalog, remote_catalog, pulled_fields)
 
         models.Catalog.objects.bulk_create(new_catalogs)
-        local_catalogs.filter(id__in=stale_catalogs).delete()
+        local_catalogs.filter(backend_id__in=stale_catalogs).delete()
 
     def remote_catalog_to_local(self, remote_catalog, content_type, object_id):
         return models.Catalog(
@@ -470,11 +513,28 @@ class RancherBackend(ServiceBackend):
         else:
             return self.client.update_project_catalog(catalog.backend_id, spec)
 
+    def pull_projects_for_cluster(self, cluster: models.Cluster):
+        """
+        Pull projects for one cluster. It is used for cluster synchronization.
+        """
+        remote_projects = self.client.list_projects(cluster.backend_id)
+        local_projects = models.Project.objects.filter(cluster=cluster)
+        local_clusters = [cluster]
+        self._pull_projects(local_clusters, local_projects, remote_projects)
+
     def pull_projects(self):
+        """
+        Pull projects for all clusters. It is used for provider synchronization.
+        """
         remote_projects = self.client.list_projects()
         local_projects = models.Project.objects.filter(settings=self.settings)
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        self._pull_projects(local_clusters, local_projects, remote_projects)
 
+    def _pull_projects(self, local_clusters, local_projects, remote_projects):
+        """
+        This private method pulls projects for given clusters and projects.
+        """
         local_cluster_map = {cluster.backend_id: cluster for cluster in local_clusters}
         remote_project_map = {
             project['id']: self.remote_project_to_local(project, local_cluster_map)
@@ -520,9 +580,16 @@ class RancherBackend(ServiceBackend):
     def pull_namespaces(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
-            self.pull_cluster_namespaces(cluster)
+            if cluster.state == models.Cluster.States.OK:
+                self.pull_namespaces_for_cluster(cluster)
+            else:
+                logger.debug(
+                    'Skipping namespace pulling for cluster with backend ID %s'
+                    'because otherwise one failed cluster leads to provider failure',
+                    cluster.backend_id,
+                )
 
-    def pull_cluster_namespaces(self, cluster):
+    def pull_namespaces_for_cluster(self, cluster: models.Cluster):
         remote_namespaces = self.client.list_namespaces(cluster.backend_id)
         local_namespaces = models.Namespace.objects.filter(project__cluster=cluster)
         local_projects = models.Project.objects.filter(cluster=cluster)
@@ -571,13 +638,45 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
         )
 
+    def pull_templates_for_cluster(self, cluster: models.Cluster):
+        remote_templates = self.client.list_templates(cluster.backend_id)
+        local_templates = models.Template.objects.filter(cluster=cluster)
+        content_type = ContentType.objects.get_for_model(cluster)
+        local_catalogs = models.Catalog.objects.filter(
+            content_type=content_type, object_id=cluster.id
+        )
+        local_clusters = [cluster]
+        local_projects = models.Project.objects.filter(cluster=cluster)
+        self._pull_templates(
+            local_templates,
+            local_catalogs,
+            local_clusters,
+            local_projects,
+            remote_templates,
+        )
+
     def pull_templates(self):
         remote_templates = self.client.list_templates()
         local_templates = models.Template.objects.filter(settings=self.settings)
         local_catalogs = models.Catalog.objects.filter(settings=self.settings)
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
         local_projects = models.Project.objects.filter(settings=self.settings)
+        self._pull_templates(
+            local_templates,
+            local_catalogs,
+            local_clusters,
+            local_projects,
+            remote_templates,
+        )
 
+    def _pull_templates(
+        self,
+        local_templates,
+        local_catalogs,
+        local_clusters,
+        local_projects,
+        remote_templates,
+    ):
         local_catalog_map = {catalog.backend_id: catalog for catalog in local_catalogs}
         local_cluster_map = {cluster.backend_id: cluster for cluster in local_clusters}
         local_project_map = {project.backend_id: project for project in local_projects}

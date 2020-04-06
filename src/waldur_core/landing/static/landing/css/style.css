@@ -28,10 +28,6 @@ a {
   text-decoration: none;
 }
 
-body {
-  background: url(../images/cmd.png);
-}
-
 h1.title {
   font-size: 40pt;
   color: #595959;

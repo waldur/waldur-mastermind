@@ -70,73 +70,6 @@ common_sections = {
         ('description', 'Description', 'string'),
         ('terms_of_services_link', 'ToS link', 'string'),
     ],
-    'SLA_simple': [
-        ('low_sla_response', 'Response time (low priority, mins)', 'integer'),
-        ('medium_sla_response', 'Response time (medium priority, mins)', 'integer'),
-        ('high_sla_response', 'Response time (high priority, mins)', 'integer'),
-    ],
-    'SLA': [
-        (
-            'low_sla_response_wh',
-            'Response time (low priority, working hours)',
-            'integer',
-        ),
-        (
-            'low_sla_resolution_wh',
-            'Resolution time (low priority, working hours)',
-            'integer',
-        ),
-        (
-            'low_sla_response_nwh',
-            'Response time (low priority, non-working hours)',
-            'integer',
-        ),
-        (
-            'low_sla_resolution_nwh',
-            'Resolution time (low priority, non-working hours)',
-            'integer',
-        ),
-        (
-            'medium_sla_response_wh',
-            'Response time (medium priority, working hours)',
-            'integer',
-        ),
-        (
-            'medium_sla_resolution_wh',
-            'Resolution time (medium priority, working hours)',
-            'integer',
-        ),
-        (
-            'medium_sla_response_nwh',
-            'Response time (medium priority, non-working hours)',
-            'integer',
-        ),
-        (
-            'medium_sla_resolution_nwh',
-            'Resolution time (medium priority, non-working hours)',
-            'integer',
-        ),
-        (
-            'high_sla_response_wh',
-            'Response time (high priority, working hours)',
-            'integer',
-        ),
-        (
-            'high_sla_resolution_wh',
-            'Resolution time (high priority, working hours)',
-            'integer',
-        ),
-        (
-            'high_sla_response_nwh',
-            'Response time (high priority, non-working hours)',
-            'integer',
-        ),
-        (
-            'high_sla_resolution_nwh',
-            'Resolution time (high priority, non-working hours)',
-            'integer',
-        ),
-    ],
     'Security': [('certification', 'Certification', 'list'),],
     'Location': [('address', 'Address', 'string')],
 }
@@ -318,16 +251,6 @@ enums = {
         ('Ethernet_1G', 'Ethernet 1G'),
         ('Ethernet_10G', 'Ethernet 10G'),
     ],
-    'sla_response': [
-        '1',
-        '1 hour',
-        '2',
-        '2 hours',
-        '3',
-        '3 hours',
-        'eob',
-        'End of business day',
-    ],
     'virtualization': [
         ('kvm', 'KVM'),
         ('xen', 'XEN'),
@@ -488,19 +411,10 @@ class Command(BaseCommand):
         parser.add_argument(
             'category', nargs='+', type=str, help='List of categories to load'
         )
-        parser.add_argument(
-            '--basic_sla',
-            nargs='?',
-            type=bool,
-            default=False,
-            help='Use basic SLA for categories',
-        )
 
     def handle(self, *args, **options):
 
         all_categories = available_categories.keys()
-        if options['basic_sla']:
-            del common_sections['SLA']
         for category_short in options['category']:
             if category_short not in all_categories:
                 self.stdout.write(

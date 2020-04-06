@@ -28,7 +28,7 @@ class MarketplaceExtension(WaldurExtension):
             'amount: {{component.amount}}; '
             'price: {{component.price|floatformat }};'
             '{% endfor %}',
-            'OFFERING_LINK_TEMPLATE': 'https://www.example.com/#/offering/{offering_uuid}',
+            'OFFERING_LINK_TEMPLATE': 'https://www.example.com/#/marketplace-offering-public/{offering_uuid}/',
         }
 
     @staticmethod

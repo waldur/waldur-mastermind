@@ -331,6 +331,47 @@ class ClusterCreateTest(BaseClusterCreateTest):
             },
         )
 
+    @mock.patch('waldur_rancher.client.RancherClient._post')
+    def test_create_private_cluster(self, mock_client_post):
+        mock_token_patch = mock.patch(
+            'waldur_rancher.client.RancherClient.create_cluster_registration_token'
+        )
+        mock_token_patch.start()
+        mock_backend_patch = mock.patch(
+            'waldur_rancher.backend.RancherBackend._backend_cluster_to_cluster'
+        )
+        mock_backend_patch.start()
+        mock_command_patch = mock.patch(
+            'waldur_rancher.client.RancherClient.get_node_command'
+        )
+        mock_command = mock_command_patch.start()
+        mock_command.return_value = ''
+
+        self.fixture.settings.options['private_registry_url'] = 'http://example.com'
+        self.fixture.settings.options['private_registry_user'] = 'user'
+        self.fixture.settings.options['private_registry_password'] = '1234'
+        self.fixture.settings.save()
+        self.fixture.cluster.backend_id = ''
+        self.fixture.cluster.save()
+        backend = self.fixture.cluster.get_backend()
+        backend.create_cluster(self.fixture.cluster)
+        self.assertEqual(
+            mock_client_post.call_args_list[1][1]['json'],
+            {
+                'name': self.fixture.cluster.name,
+                'rancherKubernetesEngineConfig': {
+                    'network': {'mtu': 1440},
+                    'privateRegistries': [
+                        {
+                            'url': 'http://example.com',
+                            'user': 'user',
+                            'password': '1234',
+                        }
+                    ],
+                },
+            },
+        )
+
     @mock.patch('waldur_rancher.executors.core_tasks')
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_create_is_disabled_in_read_only_mode(self, mock_core_tasks):

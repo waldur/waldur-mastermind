@@ -20,7 +20,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import permissions as rf_permissions
 from rest_framework import status, views
 from rest_framework import viewsets as rf_viewsets
-from rest_framework.decorators import action, permission_classes
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -29,7 +29,6 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.utils import month_start, order_with_nulls
-from waldur_core.core.views import ReadOnlyActionsViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -47,6 +46,14 @@ class BaseMarketplaceView(core_views.ActionsViewSet):
     update_permissions = partial_update_permissions = destroy_permissions = [
         structure_permissions.is_owner
     ]
+
+
+class PublicViewsetMixin:
+    def get_permissions(self):
+        if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
+            return [rf_permissions.AllowAny()]
+        else:
+            return super(PublicViewsetMixin, self).get_permissions()
 
 
 class ServiceProviderViewSet(BaseMarketplaceView):
@@ -86,7 +93,7 @@ class ServiceProviderViewSet(BaseMarketplaceView):
     destroy_permissions = [structure_permissions.is_owner, check_related_resources]
 
 
-class CategoryViewSet(EagerLoadMixin, core_views.ActionsViewSet):
+class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.CategorySerializer
     lookup_field = 'uuid'
@@ -118,26 +125,7 @@ def validate_offering_update(offering):
         )
 
 
-@permission_classes((rf_permissions.AllowAny,))
-class OfferingPublicViewSet(ReadOnlyActionsViewSet):
-    queryset = models.Offering.objects.filter(
-        state__in=[
-            models.Offering.States.ACTIVE,
-            models.Offering.States.ARCHIVED,
-            models.Offering.States.PAUSED,
-        ],
-        shared=True,
-    )
-    serializer_class = serializers.OfferingDetailsSerializer
-
-    def list(self, request, *args, **kwargs):
-        if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
-            return super(OfferingPublicViewSet, self).list(request, *args, **kwargs)
-        else:
-            raise rf_exceptions.NotFound()
-
-
-class OfferingViewSet(BaseMarketplaceView):
+class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
@@ -151,6 +139,18 @@ class OfferingViewSet(BaseMarketplaceView):
         filters.OfferingImportableFilterBackend,
         filters.ExternalOfferingFilterBackend,
     )
+
+    def get_queryset(self):
+        queryset = super(OfferingViewSet, self).get_queryset()
+        if self.request.user.is_anonymous:
+            return queryset.filter(
+                state__in=[
+                    models.Offering.States.ACTIVE,
+                    models.Offering.States.ARCHIVED,
+                    models.Offering.States.PAUSED,
+                ],
+                shared=True,
+            )
 
     @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):

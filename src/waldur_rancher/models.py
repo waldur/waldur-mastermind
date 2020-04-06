@@ -334,7 +334,7 @@ class Template(
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, null=True, related_name='+'
     )
-    project_url = models.URLField(blank=True)
+    project_url = models.URLField(max_length=500, blank=True)
     default_version = models.CharField(max_length=255)
     versions = ArrayField(models.CharField(max_length=255))
     icon = models.FileField(upload_to='rancher_icons', blank=True, null=True)

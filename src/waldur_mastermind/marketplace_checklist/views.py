@@ -1,3 +1,4 @@
+from django.db.models import F
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -11,6 +12,20 @@ from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import is_administrator
 
 from . import models, serializers
+
+
+class CategoriesView(ListModelMixin, GenericViewSet):
+    queryset = models.Category.objects.all()
+    serializer_class = serializers.CategorySerializer
+
+
+class CategoryChecklistsView(ListModelMixin, GenericViewSet):
+    serializer_class = serializers.ChecklistSerializer
+
+    def get_queryset(self):
+        return models.Checklist.objects.filter(
+            category__uuid=self.kwargs['category_uuid']
+        )
 
 
 class ChecklistView(ListModelMixin, GenericViewSet):
@@ -37,10 +52,10 @@ class StatsView(APIView):
         points = []
         for customer in Customer.objects.all():
             projects_count = customer.projects.count()
-            positive_count = models.Answer.objects.filter(
+            correct_count = models.Answer.objects.filter(
                 project__in=customer.projects.all(),
                 question__checklist=checklist,
-                value=True,
+                value=F('question__correct_answer'),
             ).count()
             points.append(
                 dict(
@@ -49,7 +64,7 @@ class StatsView(APIView):
                     latitude=customer.latitude,
                     longitude=customer.longitude,
                     score=round(
-                        100 * positive_count / max(1, projects_count * total_questions),
+                        100 * correct_count / max(1, projects_count * total_questions),
                         2,
                     ),
                 )
@@ -72,8 +87,12 @@ class ProjectStatsView(APIView):
                 project=project, question__checklist=checklist
             )
             total = checklist.questions.count()
-            positive_count = qs.filter(value=True).count()
-            negative_count = qs.filter(value=False).count()
+            positive_count = qs.filter(value=F('question__correct_answer')).count()
+            negative_count = (
+                qs.exclude(value__isnull=True)
+                .exclude(value=F('question__correct_answer'))
+                .count()
+            )
             unknown_count = total - positive_count - negative_count
             checklists.append(
                 dict(

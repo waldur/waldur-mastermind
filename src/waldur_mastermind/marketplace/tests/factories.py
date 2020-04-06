@@ -110,10 +110,6 @@ class OfferingFactory(factory.DjangoModelFactory):
         url = 'http://testserver' + reverse('marketplace-offering-list')
         return url if action is None else url + action + '/'
 
-    @classmethod
-    def get_public_list_url(cls):
-        return 'http://testserver' + reverse('marketplace-offering-public-list')
-
 
 class SectionFactory(factory.DjangoModelFactory):
     class Meta:

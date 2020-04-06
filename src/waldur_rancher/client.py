@@ -92,11 +92,20 @@ class RancherClient:
     def get_cluster(self, cluster_id):
         return self._get('clusters/{0}'.format(cluster_id))
 
-    def create_cluster(self, cluster_name, mtu=None):
+    def create_cluster(self, cluster_name, mtu=None, private_registry=None):
         rancher_config = {}
 
         if mtu:
             rancher_config['network'] = {'mtu': mtu}
+
+        if private_registry:
+            rancher_config['privateRegistries'] = [
+                {
+                    'url': private_registry['url'],
+                    'user': private_registry['user'],
+                    'password': private_registry['password'],
+                }
+            ]
 
         return self._post(
             'clusters',
@@ -192,11 +201,17 @@ class RancherClient:
     def list_global_catalogs(self):
         return self._get('catalogs', params={'limit': -1})['data']
 
-    def list_cluster_catalogs(self):
-        return self._get('clustercatalogs', params={'limit': -1})['data']
+    def list_cluster_catalogs(self, cluster_id=None):
+        params = {'limit': -1}
+        if cluster_id:
+            params['cluster_id'] = cluster_id
+        return self._get('clustercatalogs', params=params)['data']
 
-    def list_project_catalogs(self):
-        return self._get('projectcatalogs', params={'limit': -1})['data']
+    def list_project_catalogs(self, project_id=None):
+        params = {'limit': -1}
+        if project_id:
+            params['project_id'] = project_id
+        return self._get('projectcatalogs', params=params)['data']
 
     def refresh_global_catalog(self, catalog_id):
         return self._post(
@@ -240,16 +255,22 @@ class RancherClient:
     def update_project_catalog(self, catalog_id, spec):
         return self._put('projectcatalogs/{0}'.format(catalog_id), json=spec)
 
-    def list_projects(self):
-        return self._get('projects', params={'limit': -1})['data']
+    def list_projects(self, cluster_id=None):
+        params = {'limit': -1}
+        if cluster_id:
+            params['cluster_id'] = cluster_id
+        return self._get('projects', params=params)['data']
 
     def list_namespaces(self, cluster_id):
         return self._get(f'cluster/{cluster_id}/namespaces', params={'limit': -1})[
             'data'
         ]
 
-    def list_templates(self):
-        return self._get('templates', params={'limit': -1})['data']
+    def list_templates(self, cluster_id=None):
+        params = {'limit': -1}
+        if cluster_id:
+            params['cluster_id'] = cluster_id
+        return self._get('templates', params=params)['data']
 
     def get_template_icon(self, template_id):
         return self._get(f'templates/{template_id}/icon')
