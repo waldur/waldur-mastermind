@@ -12,7 +12,6 @@ class PackageConfig(AppConfig):
         from waldur_mastermind.invoices import registrators
         from waldur_openstack.openstack import models
         from . import handlers, registrators as openstack_registrator
-        from . import cost_planning  # noqa: F401
 
         signals.post_save.connect(
             handlers.log_openstack_package_creation,
