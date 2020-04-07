@@ -73,6 +73,16 @@ class CreateNodeTask(core_tasks.Task):
             ],
             'user_data': utils.format_node_cloud_config(node),
         }
+
+        if node.cluster.settings.get_option('allocate_floating_ip_to_all_nodes'):
+            post_data['floating_ips'] = [
+                {
+                    'subnet': reverse(
+                        'openstacktenant-subnet-detail', kwargs={'uuid': subnet}
+                    )
+                }
+            ]
+
         view = InstanceViewSet.as_view({'post': 'create'})
         response = common_utils.create_request(view, user, post_data)
 
