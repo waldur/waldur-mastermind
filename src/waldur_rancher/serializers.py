@@ -33,6 +33,9 @@ class ServiceSerializer(
         'private_registry_url': _('URL of a private registry for a cluster'),
         'private_registry_user': _('Username for accessing a private registry'),
         'private_registry_password': _('Password for accessing a private registry'),
+        'allocate_floating_ip_to_all_nodes': _(
+            'If True, on provisioning a floating IP will be allocated to each of the nodes'
+        ),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
