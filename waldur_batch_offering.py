@@ -210,6 +210,7 @@ def main():
 
     try:
         offering, changed = send_request_to_waldur(client, module)
+
         module.exit_json(offering=offering, changed=changed)
     except WaldurClientException as e:
         module.fail_json(msg=text_type(e))
