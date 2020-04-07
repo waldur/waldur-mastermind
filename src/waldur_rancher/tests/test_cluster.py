@@ -11,7 +11,7 @@ from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
 
-from .. import models, tasks
+from .. import exceptions, models, tasks
 from . import factories, fixtures, utils
 
 
@@ -371,6 +371,33 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 },
             },
         )
+
+    @mock.patch('waldur_rancher.tasks.common_utils')
+    @mock.patch('waldur_rancher.tasks.reverse')
+    def test_create_cluster_with_nodes_with_floating_ips(
+        self, mock_reverse, mock_common_utils
+    ):
+        self.fixture.settings.options['allocate_floating_ip_to_all_nodes'] = True
+        self.fixture.settings.save()
+        self.fixture.node.initial_data = {
+            'flavor': '',
+            'vcpu': '',
+            'ram': '',
+            'image': '',
+            'subnet': '',
+            'tenant_service_project_link': '',
+            'group': '',
+            'system_volume_size': '',
+            'system_volume_type': '',
+            'data_volumes': [],
+        }
+        self.fixture.node.save()
+        try:
+            tasks.CreateNodeTask().execute(self.fixture.node, self.fixture.staff.id)
+        except exceptions.RancherException:
+            self.assertTrue(
+                'floating_ips' in mock_common_utils.create_request.call_args[0][2]
+            )
 
     @mock.patch('waldur_rancher.executors.core_tasks')
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
