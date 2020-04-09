@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 def execute_script(image, command, src, **kwargs):
-    with tempfile.NamedTemporaryFile(prefix='docker', mode="w+") as docker_script:
+    with tempfile.NamedTemporaryFile(
+        prefix='docker',
+        dir=settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_SCRIPT_DIR'],
+        mode="w+",
+    ) as docker_script:
         docker_script.write(src)
         docker_script.flush()
         client = docker.DockerClient(
@@ -33,12 +37,19 @@ class DockerExecutorMixin:
     hook_type = NotImplemented
 
     def send_request(self, user):
-        options = self.order_item.offering.plugin_options
+        options = self.order_item.offering.secret_options
 
         serializer = serializers.OrderItemSerializer(instance=self.order_item)
-        environment = {key.upper(): str(value) for key, value in serializer.data}
-        if isinstance(options.get('environ'), dict):
-            environment.update(options['environ'])
+        input_parameters = dict(
+            serializer.data
+        )  # drop the self-reference to serializer by converting to dict
+        environment = {
+            key.upper(): str(input_parameters[key]) for key in input_parameters.keys()
+        }
+        # update environment with offering-specific parameters
+        for opt in options.get('environ'):
+            if isinstance(opt, dict):
+                environment.update({opt['name']: opt['value']})
 
         language = options['language']
         image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)
@@ -73,7 +84,7 @@ class DockerExecutorMixin:
         )
 
     def validate_order_item(self, request):
-        options = self.order_item.offering.plugin_options
+        options = self.order_item.offering.secret_options
 
         if self.hook_type not in options:
             raise rf_serializers.ValidationError('Script is not defined.')

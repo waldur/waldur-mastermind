@@ -8,6 +8,9 @@ class MarketplaceScriptExtension(WaldurExtension):
             'DOCKER_CLIENT': {'base_url': None,},
             # See also: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run
             'DOCKER_RUN_OPTIONS': {'mem_limit': '64m',},
+            # Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location
+            # OS X users, see https://github.com/docker/for-mac/issues/1532
+            'DOCKER_SCRIPT_DIR': None,
             # Key is command to execute script, value is image name.
             'DOCKER_IMAGES': {'python': 'python:3.7-alpine', 'sh': 'alpine:3.10.0',},
         }
