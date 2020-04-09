@@ -594,8 +594,20 @@ def map_limits_to_quotas(limits, offering):
                 (snapshot_size_limit_gb, offering.id),
             )
             snapshot_size_limit_gb = 0
+
+        snapshot_size_multiplier = offering.plugin_options.get(
+            'snapshot_size_multiplier', 1
+        )
+        if not isinstance(snapshot_size_multiplier, int):
+            logger.warning(
+                'Invalid snapshot_size_multiplier value %s for offering %s',
+                (snapshot_size_multiplier, offering.id),
+            )
+            snapshot_size_multiplier = 1
+
         quotas['storage'] = ServiceBackend.gb2mb(
-            sum(list(volume_type_quotas.values())) + snapshot_size_limit_gb
+            sum(list(volume_type_quotas.values())) * snapshot_size_multiplier
+            + snapshot_size_limit_gb
         )
         quotas.update(volume_type_quotas)
 
