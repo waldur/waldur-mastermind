@@ -432,6 +432,7 @@ class OfferingDetailsSerializer(
 
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(required=False)
+    secret_options = serializers.JSONField(required=False)
     components = OfferingComponentSerializer(required=False, many=True)
     geolocations = core_serializers.GeoLocationField(required=False)
     order_item_count = serializers.SerializerMethodField()
