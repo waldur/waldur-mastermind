@@ -1,4 +1,6 @@
 import django_filters
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
@@ -50,7 +52,7 @@ class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
 
 class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
     catalog_uuid = django_filters.UUIDFilter(field_name='catalog__uuid')
-    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+    cluster_uuid = django_filters.UUIDFilter(method='filter_by_cluster')
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
 
     class Meta:
@@ -60,3 +62,17 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
             'cluster_uuid',
             'project_uuid',
         )
+
+    def filter_by_cluster(self, queryset, name, value):
+        try:
+            cluster = models.Cluster.objects.get(uuid=value)
+        except models.Cluster.DoesNotExist:
+            return queryset.none()
+        else:
+            # Include global templates
+            service_settings = cluster.service_project_link.service.settings
+            ctype = ContentType.objects.get_for_model(service_settings)
+            global_subquery = Q(
+                catalog__content_type=ctype, catalog__object_id=service_settings.id
+            )
+            return queryset.filter(Q(cluster=cluster) | global_subquery)
