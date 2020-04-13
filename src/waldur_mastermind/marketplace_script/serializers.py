@@ -2,8 +2,8 @@ from rest_framework import serializers
 
 
 class OrderItemSerializer(serializers.Serializer):
-    attributes = serializers.ReadOnlyField(source='attributes')
-    limits = serializers.ReadOnlyField(source='limits')
+    attributes = serializers.ReadOnlyField()
+    limits = serializers.ReadOnlyField()
     project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
     project_name = serializers.ReadOnlyField(source='order.project.name')
     customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
@@ -17,8 +17,8 @@ class OrderItemSerializer(serializers.Serializer):
 
 
 class ResourceSerializer(serializers.Serializer):
-    attributes = serializers.ReadOnlyField(source='attributes')
-    limits = serializers.ReadOnlyField(source='limits')
+    attributes = serializers.ReadOnlyField()
+    limits = serializers.ReadOnlyField()
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')

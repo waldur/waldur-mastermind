@@ -258,7 +258,7 @@ class RancherClient:
     def list_projects(self, cluster_id=None):
         params = {'limit': -1}
         if cluster_id:
-            params['cluster_id'] = cluster_id
+            params['clusterId'] = cluster_id
         return self._get('projects', params=params)['data']
 
     def list_namespaces(self, cluster_id):
@@ -269,7 +269,7 @@ class RancherClient:
     def list_templates(self, cluster_id=None):
         params = {'limit': -1}
         if cluster_id:
-            params['cluster_id'] = cluster_id
+            params['clusterId'] = cluster_id
         return self._get('templates', params=params)['data']
 
     def get_template_icon(self, template_id):
