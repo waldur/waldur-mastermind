@@ -390,7 +390,7 @@ class ApplicationViewSet(APIView):
             project.backend_id,
             namespace.backend_id,
             data['name'],
-            data['answers'],
+            data.get('answers'),
         )
         return response.Response(application['data'], status=status.HTTP_201_CREATED)
 
