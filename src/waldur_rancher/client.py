@@ -287,22 +287,28 @@ class RancherClient:
         )
 
     def create_application(
-        self, catalog_id, template_id, version, project_id, namespace_id, name, answers,
+        self,
+        catalog_id: str,
+        template_id: str,
+        version: str,
+        project_id: str,
+        namespace_id: str,
+        name: str,
+        answers: dict = None,
     ):
-        return self._post(
-            f'projects/f{project_id}/app',
-            json={
-                'prune': False,
-                'timeout': 300,
-                'wait': False,
-                'type': 'app',
-                'name': name,
-                'answers': answers,
-                'targetNamespace': namespace_id,
-                'externalId': f'catalog://?catalog={catalog_id}&template={template_id}&version={version}',
-                'projectId': project_id,
-            },
-        )
+        payload = {
+            'prune': False,
+            'timeout': 300,
+            'wait': False,
+            'type': 'app',
+            'name': name,
+            'targetNamespace': namespace_id,
+            'externalId': f'catalog://?catalog={catalog_id}&template={template_id}&version={version}',
+            'projectId': project_id,
+        }
+        if answers:
+            payload['answers'] = answers
+        return self._post(f'projects/f{project_id}/app', json=payload)
 
     def get_project_applications(self, project_id):
         return self._get(f'project/{project_id}/apps', params={'limit': -1})['data']

@@ -550,4 +550,4 @@ class ApplicationCreateSerializer(serializers.Serializer):
     version = serializers.CharField()
     project_uuid = serializers.UUIDField()
     namespace_uuid = serializers.UUIDField()
-    answers = serializers.DictField()
+    answers = serializers.DictField(required=False)
