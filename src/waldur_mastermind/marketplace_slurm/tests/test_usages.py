@@ -57,13 +57,28 @@ class ComponentUsageTest(BaseTest):
     def test_backend_triggers_usage_sync(self, check_output):
         account = 'waldur_allocation_' + self.allocation.uuid.hex
         VALID_REPORT = """
-        allocation1|cpu=1,mem=512,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|
-        allocation1|cpu=2,mem=512,node=2,gres/gpu=2,gres/gpu:tesla=1|00:02:00|user2|
+        allocation1|cpu=1,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|
+        allocation1|cpu=2,node=2,gres/gpu=2,gres/gpu:tesla=1|00:02:00|user2|
         """
         check_output.return_value = VALID_REPORT.replace('allocation1', account)
 
         backend = self.allocation.get_backend()
         backend.sync_usage()
+        self.allocation.refresh_from_db()
+
+        self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2 * 2)
+        self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
+
+        self.assertTrue(
+            marketplace_models.ComponentUsage.objects.filter(
+                resource=self.resource, component__type='cpu'
+            ).exists()
+        )
+        self.assertTrue(
+            marketplace_models.ComponentUsage.objects.filter(
+                resource=self.resource, component__type='gpu'
+            ).exists()
+        )
 
     def test_create_component_usage(self):
         slurm_factories.AllocationUsageFactory(
