@@ -2,6 +2,7 @@ import datetime
 from unittest import mock
 
 from django.utils import timezone
+from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.core.utils import month_start
@@ -12,6 +13,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_slurm import models as slurm_models
 from waldur_slurm.tests import factories as slurm_factories
 
 
@@ -53,6 +55,7 @@ class BaseTest(test.APITransactionTestCase):
 
 
 class ComponentUsageTest(BaseTest):
+    @freeze_time('2017-01-16')
     @mock.patch('subprocess.check_output')
     def test_backend_triggers_usage_sync(self, check_output):
         account = 'waldur_allocation_' + self.allocation.uuid.hex
@@ -69,6 +72,11 @@ class ComponentUsageTest(BaseTest):
         self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2 * 2)
         self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
 
+        self.assertTrue(
+            slurm_models.AllocationUsage.objects.filter(
+                allocation=self.allocation, year=2017, month=1
+            ).exists()
+        )
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
                 resource=self.resource, component__type='cpu'
