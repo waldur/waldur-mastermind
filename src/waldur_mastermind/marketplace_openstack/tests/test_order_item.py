@@ -17,6 +17,7 @@ from waldur_mastermind.packages.tests import factories as package_factories
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests import utils as package_utils
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.tests import (
@@ -34,6 +35,12 @@ from .. import (
     STORAGE_TYPE,
     VOLUME_TYPE,
 )
+
+
+def process_order(order, user):
+    serialized_order = core_utils.serialize_instance(order)
+    serialized_user = core_utils.serialize_instance(user)
+    marketplace_tasks.process_order(serialized_order, serialized_user)
 
 
 class TenantGetTest(test.APITransactionTestCase):
@@ -167,9 +174,7 @@ class TenantCreateTest(BaseOpenStackTest):
             order=order, offering=self.offering, attributes=attributes, plan=self.plan
         )
 
-        serialized_order = core_utils.serialize_instance(order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(order, self.fixture.staff)
 
         # Assert
         order_item.refresh_from_db()
@@ -213,17 +218,35 @@ class TenantCreateTest(BaseOpenStackTest):
         )
 
         response = self.create_order(
-            limits={'cores': 2, 'ram': 1024 * 10, 'gigabytes_llvm': 10,}
+            limits={'cores': 2, 'ram': 1024 * 10, 'gigabytes_llvm': 10}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         order = marketplace_models.Order.objects.get(uuid=response.data['uuid'])
-        serialized_order = core_utils.serialize_instance(order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(order, self.fixture.staff)
 
         tenant = order.items.get().resource.scope
         self.assertEqual(tenant.quotas.get(name='gigabytes_llvm').limit, 10)
+
+    def test_volume_type_limits_are_initialized_with_zero_by_default(self):
+        create_offering_components(self.offering)
+
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name='llvm')
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name='ssd')
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name='rbd')
+
+        response = self.create_order(
+            limits={'cores': 2, 'ram': 1024 * 10, 'gigabytes_llvm': 10}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data['uuid'])
+        process_order(order, self.fixture.staff)
+
+        tenant = order.items.get().resource.scope
+        self.assertEqual(tenant.quotas.get(name='gigabytes_llvm').limit, 10)
+        self.assertEqual(tenant.quotas.get(name='gigabytes_ssd').limit, 0)
+        self.assertEqual(tenant.quotas.get(name='gigabytes_rbd').limit, 0)
 
 
 class TenantMutateTest(test.APITransactionTestCase):
@@ -283,9 +306,7 @@ class TenantDeleteTest(TenantMutateTest):
         self.assertRaises(ObjectDoesNotExist, self.tenant.refresh_from_db)
 
     def trigger_deletion(self):
-        serialized_order = core_utils.serialize_instance(self.order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(self.order_item.order, self.fixture.staff)
 
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
@@ -370,9 +391,7 @@ class TenantUpdateTest(TenantMutateTest):
         self.assertEqual(self.resource.plan, self.new_plan)
 
     def trigger_update(self):
-        serialized_order = core_utils.serialize_instance(self.order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(self.order_item.order, self.fixture.staff)
 
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
@@ -477,9 +496,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             offering=offering, attributes=attributes, order=order,
         )
 
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.owner)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(order_item.order, self.fixture.owner)
 
         order_item.refresh_from_db()
         return order_item
@@ -551,9 +568,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.assertRaises(ObjectDoesNotExist, self.instance.refresh_from_db)
 
     def trigger_deletion(self):
-        serialized_order = core_utils.serialize_instance(self.order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(self.order_item.order, self.fixture.staff)
 
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
@@ -631,9 +646,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
             project=order_item.order.project, service=service,
         )
 
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(order_item.order, self.fixture.staff)
 
         order_item.refresh_from_db()
         return order_item
@@ -688,9 +701,7 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.assertRaises(ObjectDoesNotExist, self.volume.refresh_from_db)
 
     def trigger_deletion(self):
-        serialized_order = core_utils.serialize_instance(self.order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        process_order(self.order_item.order, self.fixture.staff)
 
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
