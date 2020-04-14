@@ -76,6 +76,13 @@ def synchronize_slurm_package(sender, instance, created=False, **kwargs):
 
 
 def create_slurm_usage(sender, instance, created=False, **kwargs):
+    # SLURM usage synchronization is scheduled to separate transaction
+    # because in SLURM backend explicit atomic transaction is used.
+    # Otherwise TransactionManagementError is raised.
+    transaction.on_commit(lambda: _create_slurm_usage(instance))
+
+
+def _create_slurm_usage(instance):
     allocation_usage = instance
     allocation = allocation_usage.allocation
 
@@ -122,6 +129,7 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
                 'Skipping AllocationUsage synchronization because this marketplace.ComponentUsage exists.'
                 'AllocationUsage ID: %s',
                 allocation_usage.id,
+                exc_info=True,
             )
 
 

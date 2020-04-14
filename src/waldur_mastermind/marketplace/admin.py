@@ -187,6 +187,7 @@ class OfferingAdminForm(ModelForm):
             'geolocations': JsonWidget(),
             'options': JsonWidget(),
             'secret_options': JsonWidget(),
+            'plugin_options': JsonWidget(),
         }
 
 
@@ -233,6 +234,7 @@ class OfferingAdmin(admin.ModelAdmin):
         'thumbnail',
         'attributes',
         'options',
+        'plugin_options',
         'secret_options',
         'geolocations',
         'shared',
