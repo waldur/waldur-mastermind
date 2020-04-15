@@ -5,7 +5,10 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.utils import quantize_price
 
 from . import models, utils
@@ -303,23 +306,53 @@ class SAFReportSerializer(serializers.Serializer):
         return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))
 
 
-class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
-    organization_uuid = serializers.ReadOnlyField(source='organization.uuid')
+class BasePaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
     payment_type_display = serializers.ReadOnlyField(source='get_payment_type_display')
 
     class Meta:
         model = models.PaymentProfile
         fields = (
-            'url',
             'name',
-            'organization_uuid',
-            'organization',
             'attributes',
             'payment_type',
             'payment_type_display',
             'is_active',
         )
+
+
+class PaymentProfileSerializer(BasePaymentProfileSerializer):
+    organization_uuid = serializers.ReadOnlyField(source='organization.uuid')
+
+    class Meta(BasePaymentProfileSerializer.Meta):
+        fields = BasePaymentProfileSerializer.Meta.fields + (
+            'url',
+            'organization_uuid',
+            'organization',
+        )
         extra_kwargs = {
             'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid',},
             'organization': {'view_name': 'customer-detail', 'lookup_field': 'uuid',},
         }
+
+
+def get_payment_profiles(serializer, customer):
+    user = serializer.context['request'].user
+    if user.is_staff or user.is_support:
+        return BasePaymentProfileSerializer(
+            customer.paymentprofile_set.all(), many=True
+        ).data
+
+    if structure_permissions._has_owner_access(user, customer):
+        return BasePaymentProfileSerializer(
+            customer.paymentprofile_set.filter(is_active=True), many=True
+        ).data
+
+
+def add_payment_profile(sender, fields, **kwargs):
+    fields['payment_profiles'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_payment_profiles', get_payment_profiles)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer, receiver=add_payment_profile,
+)
