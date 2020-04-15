@@ -9,7 +9,6 @@ from rest_framework.response import Response
 from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 
 from . import filters, models, serializers, tasks
@@ -66,23 +65,16 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+        filters.PaymentProfileFilterBackend,
+    )
     filterset_class = filters.PaymentProfileFilter
-
-    def check_create_permissions(request, view, obj=None):
-        serializer = view.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = request.user
-        organization = serializer.validated_data['organization']
-
-        if user.is_staff or (
-            organization
-            and organization.has_user(user, structure_models.CustomerRole.OWNER)
-        ):
-            return
-
-        raise exceptions.PermissionDenied()
-
-    create_permissions = [check_create_permissions]
+    create_permissions = (
+        update_permissions
+    ) = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_staff
+    ]
     queryset = models.PaymentProfile.objects.all()
     serializer_class = serializers.PaymentProfileSerializer

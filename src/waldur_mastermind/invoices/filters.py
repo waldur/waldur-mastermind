@@ -1,4 +1,5 @@
 import django_filters
+from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
 
@@ -30,3 +31,11 @@ class PaymentProfileFilter(django_filters.FilterSet):
     class Meta:
         model = models.PaymentProfile
         fields = []
+
+
+class PaymentProfileFilterBackend(filters.BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        if request.user.is_staff or request.user.is_support:
+            return queryset
+
+        return queryset.filter(is_active=True)
