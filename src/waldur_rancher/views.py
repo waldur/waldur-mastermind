@@ -385,7 +385,7 @@ class ApplicationViewSet(APIView):
         client = project.settings.get_backend().client
         application = client.create_application(
             template.catalog.backend_id,
-            template.backend_id,
+            template.name,
             data['version'],
             project.backend_id,
             namespace.backend_id,
