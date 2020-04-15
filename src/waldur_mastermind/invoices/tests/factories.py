@@ -41,7 +41,7 @@ class PaymentProfileFactory(factory.DjangoModelFactory):
         model = models.PaymentProfile
 
     organization = factory.SubFactory(structure_factories.CustomerFactory)
-    payment_type = models.PaymentType.INVOICES
+    payment_type = models.PaymentType.MONTHLY_INVOICES
 
     @classmethod
     def get_url(cls, profile=None, action=None):

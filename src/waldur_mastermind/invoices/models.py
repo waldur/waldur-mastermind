@@ -410,16 +410,14 @@ class ServiceDowntime(models.Model):
 
 
 class PaymentType(models.CharField):
-    INVOICES = 'invoices'
-    PAY_PAL = 'pay_pal'
-    PRE_PAID = 'pre_paid'
-    ITA = 'ita'
+    FIXED_PRICE = 'fixed_price'
+    MONTHLY_INVOICES = 'invoices'
+    PAYMENT_GW_MONTHLY = 'payment_gw_monthly'
 
     CHOICES = (
-        (INVOICES, 'Invoices'),
-        (PAY_PAL, 'PayPal'),
-        (PRE_PAID, 'Pre-paid agreements'),
-        (ITA, 'ITA Payment gateway'),
+        (FIXED_PRICE, 'Fixed-price contract'),
+        (MONTHLY_INVOICES, 'Monthly invoices'),
+        (PAYMENT_GW_MONTHLY, ' Payment gateways (monthly)'),
     )
 
     def __init__(self, *args, **kwargs):

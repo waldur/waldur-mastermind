@@ -41,7 +41,7 @@ class ProfileCreateTest(test.APITransactionTestCase):
             'organization': structure_factories.CustomerFactory.get_url(
                 customer=self.fixture.customer
             ),
-            'payment_type': models.PaymentType.INVOICES,
+            'payment_type': models.PaymentType.MONTHLY_INVOICES,
             'name': 'default',
         }
 
