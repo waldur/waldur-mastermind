@@ -14,7 +14,7 @@ def get_category_prefix(category):
         return category.sections.first().key.split('_')[0]
     else:
         # cleanup whitespaces from the title
-        return category.title.strip().replace(' ', '-')
+        return category.title.strip().replace(' ', '')
 
 
 class Command(BaseCommand):
