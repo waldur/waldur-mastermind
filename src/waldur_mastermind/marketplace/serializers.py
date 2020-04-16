@@ -254,6 +254,8 @@ class BasePlanSerializer(
 
 
 class PlanDetailsSerializer(BasePlanSerializer):
+    """Serializer to display the plan in the REST API."""
+
     class Meta(BasePlanSerializer.Meta):
         model = models.Plan
         fields = BasePlanSerializer.Meta.fields + ('offering',)
@@ -421,6 +423,186 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         for c in builtin_components:
             if c.type == offering_component.type:
                 return c.factor
+
+
+class ExportImportOfferingComponentSerializer(OfferingComponentSerializer):
+    offering_id = serializers.IntegerField(write_only=True, required=False)
+
+    class Meta(OfferingComponentSerializer.Meta):
+        fields = OfferingComponentSerializer.Meta.fields + ('offering_id',)
+
+
+class ExportImportPlanComponentSerializer(serializers.ModelSerializer):
+    component = ExportImportOfferingComponentSerializer(required=False)
+    component_id = serializers.IntegerField(write_only=True, required=False)
+    plan_id = serializers.IntegerField(write_only=True, required=False)
+
+    class Meta:
+        model = models.PlanComponent
+        fields = (
+            'amount',
+            'price',
+            'component',
+            'component_id',
+            'plan_id',
+        )
+
+
+class ExportImportPlanSerializer(serializers.ModelSerializer):
+    """Serializer for export and import of plan from/to an exported offering.
+    This serializer differs from PlanDetailsSerializer in methods and fields. """
+
+    components = ExportImportPlanComponentSerializer(many=True)
+    offering_id = serializers.IntegerField(write_only=True, required=False)
+
+    class Meta:
+        model = models.Plan
+        fields = (
+            'name',
+            'description',
+            'article_code',
+            'product_code',
+            'max_amount',
+            'archived',
+            'is_active',
+            'unit_price',
+            'unit',
+            'init_price',
+            'switch_price',
+            'components',
+            'offering_id',
+        )
+
+    def save(self, **kwargs):
+        validated_data = self.validated_data
+        components = validated_data.pop('components', [])
+        plan = super(ExportImportPlanSerializer, self).save(**kwargs)
+
+        offering_components = []
+
+        for component in components:
+            serialized_offering_component = component.get('component')
+
+            if serialized_offering_component:
+                offering_component = plan.offering.components.get(
+                    type=serialized_offering_component['type']
+                )
+                offering_components.append(offering_component)
+
+        plan.components.exclude(component__in=offering_components).delete()
+
+        for component in components:
+            component['plan_id'] = plan.id
+            serialized_offering_component = component.pop('component')
+
+            if serialized_offering_component:
+                offering_component = plan.offering.components.get(
+                    type=serialized_offering_component['type']
+                )
+                component['component_id'] = offering_component.id
+                offering_components.append(offering_component)
+
+                if plan.components.filter(
+                    component_id=component['component_id']
+                ).exists():
+                    existed_component = plan.components.get(
+                        component_id=component['component_id']
+                    )
+                    component_serializer = ExportImportPlanComponentSerializer(
+                        existed_component, data=component
+                    )
+                else:
+                    component_serializer = ExportImportPlanComponentSerializer(
+                        data=component
+                    )
+            else:
+                component_serializer = ExportImportPlanComponentSerializer(
+                    data=component
+                )
+
+            component_serializer.is_valid(raise_exception=True)
+            component_serializer.save()
+
+        return plan
+
+
+class ExportImportOfferingSerializer(serializers.ModelSerializer):
+    category_id = serializers.IntegerField(write_only=True, required=False)
+    customer_id = serializers.IntegerField(write_only=True, required=False)
+    components = ExportImportOfferingComponentSerializer(many=True)
+    plans = ExportImportPlanSerializer(many=True)
+
+    class Meta:
+        model = models.Offering
+        fields = (
+            'name',
+            'description',
+            'full_description',
+            'terms_of_service',
+            'rating',
+            'attributes',
+            'options',
+            'components',
+            'geolocations',
+            'plugin_options',
+            'secret_options',
+            'state',
+            'native_name',
+            'native_description',
+            'vendor_details',
+            'type',
+            'shared',
+            'billable',
+            'category_id',
+            'customer_id',
+            'plans',
+        )
+
+    def save(self, **kwargs):
+        validated_data = self.validated_data
+        components = validated_data.pop('components', [])
+        plans = validated_data.pop('plans', [])
+        offering = super(ExportImportOfferingSerializer, self).save(**kwargs)
+
+        component_types = []
+
+        for component in components:
+            component['offering_id'] = offering.id
+            component_types.append(component['type'])
+
+            if offering.components.filter(type=component['type']).exists():
+                existed_component = offering.components.get(type=component['type'])
+                component_serializer = ExportImportOfferingComponentSerializer(
+                    existed_component, data=component
+                )
+            else:
+                component_serializer = ExportImportOfferingComponentSerializer(
+                    data=component
+                )
+
+            component_serializer.is_valid(raise_exception=True)
+            component_serializer.save()
+
+        offering.components.exclude(type__in=component_types).delete()
+
+        plan_names = []
+
+        for plan in plans:
+            plan['offering_id'] = offering.id
+            plan_names.append(plan['name'])
+
+            if offering.plans.filter(name=plan['name']).exists():
+                existed_plan = offering.plans.get(name=plan['name'])
+                plan_serializer = ExportImportPlanSerializer(existed_plan, data=plan)
+            else:
+                plan_serializer = ExportImportPlanSerializer(data=plan)
+
+            plan_serializer.is_valid(raise_exception=True)
+            plan_serializer.save()
+
+        offering.plans.exclude(name__in=plan_names).delete()
+
+        return offering
 
 
 class OfferingDetailsSerializer(
