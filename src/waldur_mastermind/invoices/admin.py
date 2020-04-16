@@ -2,6 +2,7 @@ from django.conf.urls import url
 from django.contrib import admin
 from django.forms import ModelChoiceField
 from django.forms.models import ModelForm
+from django.forms.widgets import CheckboxInput
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -185,15 +186,13 @@ class PaymentProfileAdminForm(ModelForm):
     class Meta:
         widgets = {
             'attributes': JsonWidget(),
+            'is_active': CheckboxInput(),
         }
 
 
 class PaymentProfileAdmin(admin.ModelAdmin):
     form = PaymentProfileAdminForm
-    list_display = (
-        'organization',
-        'payment_type',
-    )
+    list_display = ('organization', 'payment_type', 'is_active')
     search_fields = ('organization__name',)
 
 
