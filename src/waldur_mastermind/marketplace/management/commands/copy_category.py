@@ -85,10 +85,9 @@ class Command(BaseCommand):
             # copy attributes
             for source_attribute in source_section.attributes.all():
                 attribute_target_key = (
-                    section_prefix
-                    + '_'
+                    target_prefix
                     + source_attribute.key[
-                        source_attribute.key.find(section_source_prefix) :
+                        source_attribute.key.find(source_prefix) + len(source_prefix) :
                     ]
                 )
                 attr, _ = Attribute.objects.get_or_create(
@@ -97,18 +96,17 @@ class Command(BaseCommand):
                     type=source_attribute.type,
                     section=target_section,
                 )
-                for target_option in source_attribute.options.all():
+                for source_option in source_attribute.options.all():
                     option_target_key = (
-                        section_prefix
-                        + '_'
-                        + target_option.key[
-                            source_attribute.key.find(section_source_prefix) :
+                        target_prefix
+                        + source_option.key[
+                            source_option.key.find(source_prefix) + len(source_prefix) :
                         ]
                     )
                     AttributeOption.objects.get_or_create(
                         attribute=attr,
                         key=option_target_key,
-                        title=target_option.title,
+                        title=source_option.title,
                     )
 
         self.stdout.write(
