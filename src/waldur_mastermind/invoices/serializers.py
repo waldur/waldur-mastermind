@@ -5,7 +5,10 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.utils import quantize_price
 
 from . import models, utils
@@ -323,3 +326,30 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
             'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid',},
             'organization': {'view_name': 'customer-detail', 'lookup_field': 'uuid',},
         }
+
+
+def get_payment_profiles(serializer, customer):
+    user = serializer.context['request'].user
+    if user.is_staff or user.is_support:
+        return PaymentProfileSerializer(
+            customer.paymentprofile_set.all(),
+            many=True,
+            context={'request': serializer.context['request']},
+        ).data
+
+    if structure_permissions._has_owner_access(user, customer):
+        return PaymentProfileSerializer(
+            customer.paymentprofile_set.filter(is_active=True),
+            many=True,
+            context={'request': serializer.context['request']},
+        ).data
+
+
+def add_payment_profile(sender, fields, **kwargs):
+    fields['payment_profiles'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_payment_profiles', get_payment_profiles)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer, receiver=add_payment_profile,
+)
