@@ -1,7 +1,11 @@
+import base64
 import json
+import os
+import tempfile
 import uuid
 from unittest import mock
 
+import pkg_resources
 from ddt import data, ddt
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
@@ -16,6 +20,8 @@ from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 
 from .. import serializers
+from ..management.commands.export_offering import export_offering
+from ..management.commands.import_offering import create_offering, update_offering
 from . import factories
 from .helpers import override_marketplace_settings
 
@@ -1271,3 +1277,76 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         for offering in response.data:
             self.assertTrue('shared', offering)
+
+
+class OfferingExportImportTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.temp_dir = tempfile.gettempdir()
+
+    def test_export_offering(self):
+        offering = factories.OfferingFactory(
+            description='Описание с non-ASCII символами.'
+        )
+        export_offering(offering, self.temp_dir)
+        json_path = os.path.join(self.temp_dir, offering.uuid.hex + '.json')
+        self.assertTrue(os.path.exists(json_path))
+
+    def test_export_offering_with_thumbnail(self):
+        GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+        with open(os.path.join(self.temp_dir, 'pic.gif'), 'wb') as pic:
+            pic.write(base64.b64decode(GIF))
+
+        offering = factories.OfferingFactory(thumbnail=pic.name)
+        export_offering(offering, self.temp_dir)
+        filename, file_extension = os.path.splitext(offering.thumbnail.file.name)
+        pic_path = os.path.join(self.temp_dir, offering.uuid.hex + file_extension)
+        self.assertTrue(os.path.exists(pic_path))
+
+    def test_import_offering(self):
+        export_data = self._get_data()
+        create_offering(export_data, self.fixture.customer)
+
+        self.assertTrue(
+            models.Offering.objects.filter(
+                customer=self.fixture.customer, name='offering_name'
+            ).exists()
+        )
+        offering = models.Offering.objects.filter(
+            customer=self.fixture.customer, name='offering_name'
+        ).get()
+        self.assertTrue(offering.thumbnail)
+        self.assertEqual(offering.plans.count(), 1)
+        self.assertEqual(offering.plans.first().name, 'Start')
+        self.assertEqual(offering.plans.first().components.count(), 1)
+        self.assertEqual(offering.components.count(), 1)
+        self.assertEqual(offering.components.first().type, 'node')
+
+    def test_update_offering(self):
+        export_data = self._get_data()
+        offering = create_offering(export_data, self.fixture.customer)
+        export_data['name'] = 'new_offering_name'
+        export_data['plans'][0]['name'] = 'new_plan'
+        export_data['components'][0]['type'] = 'new_type'
+        export_data['plans'][0]['components'][0]['component']['type'] = 'new_type'
+
+        update_offering(offering, export_data)
+        offering.refresh_from_db()
+        self.assertEqual(offering.name, 'new_offering_name')
+        self.assertEqual(offering.plans.first().name, 'new_plan')
+        self.assertEqual(offering.components.first().type, 'new_type')
+
+    def _get_data(self):
+        path = os.path.abspath(os.path.dirname(__file__))
+        data = json.loads(
+            pkg_resources.resource_stream(__name__, 'offering.json').read().decode()
+        )
+        category = factories.CategoryFactory()
+        data['category_id'] = category.id
+
+        thumbnail = data.get('thumbnail')
+        if thumbnail:
+            data['thumbnail'] = os.path.join(os.path.dirname(path), thumbnail)
+
+        return data
