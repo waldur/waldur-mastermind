@@ -1,4 +1,5 @@
 from ddt import data, ddt
+from django.db import IntegrityError
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -157,3 +158,22 @@ class ProfileDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ProfileModelTest(test.APITransactionTestCase):
+    def test_there_should_be_multiple_non_active_but_only_a_single_active(self):
+        customer = structure_factories.CustomerFactory()
+        factories.PaymentProfileFactory(organization=customer, is_active=True)
+        self.assertRaises(
+            IntegrityError,
+            factories.PaymentProfileFactory,
+            organization=customer,
+            is_active=True,
+        )
+
+        factories.PaymentProfileFactory(organization=customer, is_active=False)
+        profile = factories.PaymentProfileFactory(
+            organization=customer, is_active=False
+        )
+        profile.is_active = True
+        self.assertRaises(IntegrityError, profile.save)
