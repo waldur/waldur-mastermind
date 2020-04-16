@@ -306,28 +306,21 @@ class SAFReportSerializer(serializers.Serializer):
         return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))
 
 
-class BasePaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
+class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
+    organization_uuid = serializers.ReadOnlyField(source='organization.uuid')
     payment_type_display = serializers.ReadOnlyField(source='get_payment_type_display')
 
     class Meta:
         model = models.PaymentProfile
         fields = (
+            'url',
             'name',
+            'organization_uuid',
+            'organization',
             'attributes',
             'payment_type',
             'payment_type_display',
             'is_active',
-        )
-
-
-class PaymentProfileSerializer(BasePaymentProfileSerializer):
-    organization_uuid = serializers.ReadOnlyField(source='organization.uuid')
-
-    class Meta(BasePaymentProfileSerializer.Meta):
-        fields = BasePaymentProfileSerializer.Meta.fields + (
-            'url',
-            'organization_uuid',
-            'organization',
         )
         extra_kwargs = {
             'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid',},
@@ -338,13 +331,17 @@ class PaymentProfileSerializer(BasePaymentProfileSerializer):
 def get_payment_profiles(serializer, customer):
     user = serializer.context['request'].user
     if user.is_staff or user.is_support:
-        return BasePaymentProfileSerializer(
-            customer.paymentprofile_set.all(), many=True
+        return PaymentProfileSerializer(
+            customer.paymentprofile_set.all(),
+            many=True,
+            context={'request': serializer.context['request']},
         ).data
 
     if structure_permissions._has_owner_access(user, customer):
-        return BasePaymentProfileSerializer(
-            customer.paymentprofile_set.filter(is_active=True), many=True
+        return PaymentProfileSerializer(
+            customer.paymentprofile_set.filter(is_active=True),
+            many=True,
+            context={'request': serializer.context['request']},
         ).data
 
 
