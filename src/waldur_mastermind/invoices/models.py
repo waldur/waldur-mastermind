@@ -430,7 +430,7 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     organization = models.ForeignKey('structure.Customer', on_delete=models.PROTECT)
     payment_type = PaymentType()
     attributes = JSONField(default=dict, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.NullBooleanField(default=True)
 
     def __str__(self):
         return self.organization.name
@@ -441,6 +441,11 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     @classmethod
     def get_url_name(cls):
         return 'payment-profile'
+
+    def save(self, *args, **kwargs):
+        if self.is_active is False:
+            self.is_active = None
+        return super(PaymentProfile, self).save(*args, **kwargs)
 
     class Meta:
         unique_together = ('organization', 'is_active')

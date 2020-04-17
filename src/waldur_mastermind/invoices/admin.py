@@ -2,6 +2,7 @@ from django.conf.urls import url
 from django.contrib import admin
 from django.forms import ModelChoiceField
 from django.forms.models import ModelForm
+from django.forms.widgets import CheckboxInput
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -39,6 +40,25 @@ class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
     format_details.short_description = _('Details')
 
 
+class PaymentTypeFilter(admin.SimpleListFilter):
+    title = _('Payment type')
+    parameter_name = 'payment_type'
+
+    def lookups(self, request, model_admin):
+        return models.PaymentType.CHOICES
+
+    def queryset(self, request, queryset):
+        payment_type = self.value()
+
+        if payment_type:
+            customer_ids = models.PaymentProfile.objects.filter(
+                payment_type=payment_type, is_active=True
+            ).values_list('id', flat=True)
+            return queryset.filter(customer_id__in=customer_ids)
+        else:
+            return queryset
+
+
 class InvoiceAdmin(
     core_admin.ExtraActionsMixin, core_admin.UpdateOnlyModelAdmin, admin.ModelAdmin
 ):
@@ -54,11 +74,21 @@ class InvoiceAdmin(
         'pdf_file',
     ]
     readonly_fields = ('customer', 'total', 'year', 'month', 'pdf_file')
-    list_display = ('customer', 'total', 'year', 'month', 'state')
-    list_filter = ('state', 'customer')
+    list_display = ('customer', 'total', 'year', 'month', 'state', 'payment_type')
+    list_filter = ('state', 'customer', PaymentTypeFilter)
     search_fields = ('customer__name', 'uuid')
     date_hierarchy = 'invoice_date'
     actions = ('create_pdf',)
+
+    def payment_type(self, obj):
+        if obj.customer.paymentprofile_set.filter(is_active=True).exists():
+            return obj.customer.paymentprofile_set.get(
+                is_active=True
+            ).get_payment_type_display()
+
+        return ''
+
+    payment_type.short_description = _('Payment type')
 
     class CreatePDFAction(core_admin.ExecutorAdminAction):
         executor = executors.InvoicePDFCreateExecutor
@@ -185,15 +215,13 @@ class PaymentProfileAdminForm(ModelForm):
     class Meta:
         widgets = {
             'attributes': JsonWidget(),
+            'is_active': CheckboxInput(),
         }
 
 
 class PaymentProfileAdmin(admin.ModelAdmin):
     form = PaymentProfileAdminForm
-    list_display = (
-        'organization',
-        'payment_type',
-    )
+    list_display = ('organization', 'payment_type', 'is_active')
     search_fields = ('organization__name',)
 
 
