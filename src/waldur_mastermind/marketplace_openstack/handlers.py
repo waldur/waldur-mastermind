@@ -605,6 +605,27 @@ def synchronize_limits_when_storage_mode_is_switched(
     if not offering.tracker.has_changed('plugin_options'):
         return
 
+    old_mode = (offering.tracker.previous('plugin_options') or {}).get('storage_mode')
+    new_mode = (offering.plugin_options or {}).get('storage_mode')
+
+    if not new_mode:
+        logger.debug(
+            'Skipping OpenStack tenant synchronization because new storage mode is not defined'
+        )
+        return
+
+    if old_mode == new_mode:
+        logger.debug(
+            'Skipping OpenStack tenant synchronization because storage mode is not changed.'
+        )
+        return
+
+    logger.info(
+        'Synchronizing OpenStack tenant limits because storage mode is switched '
+        'from %s to %s',
+        (old_mode, new_mode),
+    )
+
     resources = marketplace_models.Resource.objects.filter(offering=offering).exclude(
         state__in=(States.TERMINATED, States.TERMINATING)
     )
