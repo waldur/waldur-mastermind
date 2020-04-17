@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest import mock
 
 from freezegun import freeze_time
 from rest_framework import test
@@ -323,3 +324,17 @@ class StorageModeTest(MarketplaceInvoiceBaseTest):
             scope=self.resource
         ).last()
         self.assertTrue('30 GB storage' in invoice_item.name)
+
+    @mock.patch(
+        'waldur_mastermind.marketplace_openstack.utils.import_limits_when_storage_mode_is_switched'
+    )
+    def test_when_storage_mode_is_not_switched_limits_are_not_updated(
+        self, mocked_utils
+    ):
+        # Act
+        with freeze_time('2019-09-20'):
+            self.offering.plugin_options['FOO'] = 'BAR'
+            self.offering.save()
+
+        # Assert
+        self.assertEqual(mocked_utils.call_count, 0)
