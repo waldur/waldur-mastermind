@@ -231,7 +231,7 @@ class SlurmBackend(ServiceBackend):
             service_project_link__service__settings=self.settings
         )
 
-    def get_customer_name(self, customer):  # TODO: make result shorter
+    def get_customer_name(self, customer):
         return self.get_account_name(
             django_settings.WALDUR_SLURM['CUSTOMER_PREFIX'], customer
         )
