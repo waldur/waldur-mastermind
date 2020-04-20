@@ -54,7 +54,7 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         with mock.patch('waldur_slurm.backend.SlurmClient') as mock_client:
             mock_client().get_association.return_value = False
             tasks.add_user(self.serialized_profile)
-            account = 'waldur_allocation_%s' % allocation.uuid.hex
+            account = allocation.backend_id
             mock_client().create_association.assert_called_once_with(
                 self.freeipa_profile.username, account, 'waldur_user'
             )
@@ -81,7 +81,7 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         with mock.patch('waldur_slurm.backend.SlurmClient') as mock_client:
             mock_client().get_association.return_value = False
             tasks.add_user(self.serialized_profile)
-            account = 'waldur_allocation_%s' % allocation.uuid.hex
+            account = allocation.backend_id
             mock_client().create_association.assert_called_once_with(
                 self.freeipa_profile.username, account, 'waldur_user'
             )
