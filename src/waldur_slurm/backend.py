@@ -81,7 +81,7 @@ class SlurmBackend(ServiceBackend):
                 self.add_user(allocation, username.lower())
 
     def delete_allocation(self, allocation):
-        account = self.get_allocation_name(allocation)
+        account = allocation.backend_id
         if self.client.get_account(account):
             self.client.delete_account(account)
 
@@ -101,7 +101,7 @@ class SlurmBackend(ServiceBackend):
         """
         Create association between user and SLURM account if it does not exist yet.
         """
-        account = self.get_allocation_name(allocation)
+        account = allocation.backend_id
         default_account = self.settings.options.get('default_account')
         if not self.client.get_association(username, account):
             self.client.create_association(username, account, default_account)
@@ -110,7 +110,7 @@ class SlurmBackend(ServiceBackend):
         """
         Delete association between user and SLURM account if it exists.
         """
-        account = self.get_allocation_name(allocation)
+        account = allocation.backend_id
         if self.client.get_association(username, account):
             self.client.delete_association(username, account)
 
@@ -122,7 +122,7 @@ class SlurmBackend(ServiceBackend):
             deposit=allocation.deposit_limit,
         )
 
-        self.client.set_resource_limits(self.get_allocation_name(allocation), quotas)
+        self.client.set_resource_limits(allocation.backend_id, quotas)
 
     def cancel_allocation(self, allocation):
         allocation.cpu_limit = allocation.cpu_usage
@@ -137,7 +137,7 @@ class SlurmBackend(ServiceBackend):
 
     def sync_usage(self):
         waldur_allocations = {
-            self.get_allocation_name(allocation): allocation
+            allocation.backend_id: allocation
             for allocation in self.get_allocation_queryset()
         }
 
@@ -153,7 +153,7 @@ class SlurmBackend(ServiceBackend):
             self._update_quotas(allocation, usage)
 
     def pull_allocation(self, allocation):
-        account = self.get_allocation_name(allocation)
+        account = allocation.backend_id
         report = self.get_usage_report([account])
         usage = report.get(account)
         if not usage:

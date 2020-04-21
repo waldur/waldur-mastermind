@@ -58,7 +58,7 @@ class ComponentUsageTest(BaseTest):
     @freeze_time('2017-01-16')
     @mock.patch('subprocess.check_output')
     def test_backend_triggers_usage_sync(self, check_output):
-        account = 'waldur_allocation_' + self.allocation.uuid.hex
+        account = self.allocation.backend_id
         VALID_REPORT = """
         allocation1|cpu=1,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|
         allocation1|cpu=2,node=2,gres/gpu=2,gres/gpu:tesla=1|00:02:00|user2|
