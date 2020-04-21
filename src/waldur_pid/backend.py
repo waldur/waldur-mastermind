@@ -31,6 +31,20 @@ class DataciteBackend(ServiceBackend):
 
         return response
 
+    def get(self, doi):
+        headers = {
+            'accept': 'application/vnd.api+json',
+        }
+
+        url = self.settings['API_URL']
+        if not url:
+            raise exceptions.DataciteException('API_URL is not defined.')
+
+        url = f"{url}/dois/{doi}"
+
+        response = requests.get(url=url, headers=headers,)
+        return response
+
     def create_doi(self, instance):
         data = {
             'data': {
@@ -60,4 +74,15 @@ class DataciteBackend(ServiceBackend):
             logger.error(
                 'Creating Datacite DOI for %s has failed. Status code: %s, message: %s.'
                 % (instance, response.status_code, response.text)
+            )
+
+    def get_datacite_data(self, doi):
+        response = self.get(doi)
+
+        if response.status_code == 200:
+            return response.json()['data']
+        else:
+            logger.error(
+                'Receiving Datacite data for %s has failed. Status code: %s, message: %s.'
+                % (doi, response.status_code, response.text)
             )

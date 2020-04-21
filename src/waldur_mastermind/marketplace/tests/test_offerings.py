@@ -1350,3 +1350,33 @@ class OfferingExportImportTest(test.APITransactionTestCase):
             data['thumbnail'] = os.path.join(os.path.dirname(path), thumbnail)
 
         return data
+
+
+class OfferingDoiTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.dc_resp = json.loads(
+            pkg_resources.resource_stream(__name__, 'datacite-resp.json')
+            .read()
+            .decode()
+        )['data']
+        self.ref_pids = [
+            x['relatedIdentifier']
+            for x in self.dc_resp['attributes']['relatedIdentifiers']
+        ]
+        self.offering = factories.OfferingFactory(
+            datacite_doi='10.15159/t9zh-k971',
+            citation_count=self.dc_resp['attributes']['citationCount'],
+            referred_pids=self.ref_pids,
+        )
+        self.fixture = fixtures.ProjectFixture()
+
+    def test_viewing_datacite_related_fields(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(url).json()
+
+        self.assertEqual(response['datacite_doi'], self.dc_resp['id'])
+        self.assertEqual(
+            response['citation_count'], self.dc_resp['attributes']['citationCount']
+        )
+        self.assertEqual(response['referred_pids'], self.ref_pids)

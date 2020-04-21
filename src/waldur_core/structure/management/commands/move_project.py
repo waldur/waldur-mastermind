@@ -24,7 +24,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-p', '--project', dest='project_uuid', required=True, help='Project UUID.'
+            '-p',
+            '--project',
+            dest='project_uuid',
+            required=True,
+            help='UUID of a project to move.',
         )
         parser.add_argument(
             '-c',

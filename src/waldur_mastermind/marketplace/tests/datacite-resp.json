@@ -1,0 +1,38 @@
+{
+   "data":{
+      "id":"10.15159/t9zh-k971",
+      "type":"dois",
+      "attributes":{
+         "doi":"10.15159/t9zh-k971",
+         "prefix":"10.15159",
+         "suffix":"t9zh-k971",
+         "creators":[
+            {
+               "name":"University of Tartu",
+               "nameType":"Organizational",
+               "givenName":null,
+               "familyName":null,
+               "affiliation":[
+
+               ],
+               "nameIdentifiers":[
+
+               ]
+            }
+         ],
+         "relatedIdentifiers":[
+           {
+             "relationType":"Cites",
+             "relatedIdentifier":"abcd",
+             "relatedIdentifierType":"bibcode"
+           },
+           {
+             "relationType":"Continues",
+             "relatedIdentifier":"abcdef",
+             "relatedIdentifierType":"bibcode"
+           }
+         ],
+         "citationCount":2
+      }
+   }
+}
