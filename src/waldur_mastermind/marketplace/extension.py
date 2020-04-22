@@ -75,4 +75,9 @@ class MarketplaceExtension(WaldurExtension):
                 'schedule': crontab(minute=0, hour=15, day_of_month='23'),
                 'args': (),
             },
+            'waldur-marketplace-update-datacite-info': {
+                'task': 'waldur_mastermind.marketplace.get_datacite_info',
+                'schedule': timedelta(days=1),
+                'args': (),
+            },
         }

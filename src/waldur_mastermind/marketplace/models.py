@@ -379,6 +379,18 @@ class Offering(
     )
     backend_id = models.CharField(max_length=255, blank=True)
 
+    # XXX: The two fields below belong to a DataciteMixin
+    # `-1` - citations have never been looked up
+    # non-negative value - the number of citations of a DOI
+    citation_count = models.IntegerField(
+        default=-1, help_text=_('Number of citations of a DOI'),
+    )
+    referred_pids = JSONField(
+        default=dict,
+        blank=True,
+        help_text=_('List of DOIs referring to the current DOI'),
+    )
+
     objects = managers.OfferingManager()
     tracker = FieldTracker()
 

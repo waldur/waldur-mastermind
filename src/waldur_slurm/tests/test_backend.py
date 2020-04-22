@@ -19,7 +19,7 @@ class BackendTest(TestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.allocation = self.fixture.allocation
-        self.account = 'waldur_allocation_' + self.allocation.uuid.hex
+        self.account = self.allocation.backend_id
 
     @mock.patch('subprocess.check_output')
     def test_usage_synchronization(self, check_output):
@@ -107,7 +107,7 @@ class BackendMOABTest(TestCase):
             test_acc|4|||500|centos|0.17|1
             test_acc|4|||2|centos|0.00|1
         """.replace(
-            'test_acc', 'waldur_allocation_' + self.fixture.allocation.uuid.hex
+            'test_acc', self.fixture.allocation.backend_id
         )
 
     def tearDown(self):
