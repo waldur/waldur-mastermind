@@ -1852,6 +1852,7 @@ class BaseResourceSerializer(
             'resource_type',
             'state',
             'created',
+            'modified',
             'service_project_link',
             'backend_id',
             'access_url',
