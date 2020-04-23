@@ -402,7 +402,7 @@ class Customer(
     native_name = models.CharField(max_length=160, default='', blank=True)
     abbreviation = models.CharField(max_length=12, blank=True)
     contact_details = models.TextField(blank=True, validators=[MaxLengthValidator(500)])
-    agreement_number = models.PositiveIntegerField(null=True, blank=True, unique=True)
+    agreement_number = models.PositiveIntegerField(null=True, blank=True)
     email = models.EmailField(_('email address'), max_length=75, blank=True)
     phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
     access_subnets = models.TextField(
