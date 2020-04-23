@@ -242,9 +242,10 @@ class SlurmBackend(ServiceBackend):
         )
 
     def get_allocation_name(self, allocation):
-        return self.get_account_name(
-            django_settings.WALDUR_SLURM['ALLOCATION_PREFIX'], allocation
-        )
+        prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
+        name = allocation.name
+        hexpart = allocation.uuid.hex[:5]
+        return "%s%s_%s" % (prefix, name, hexpart)
 
     def get_account_name(self, prefix, object_or_uuid):
         key = (
