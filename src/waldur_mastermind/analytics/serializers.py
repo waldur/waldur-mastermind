@@ -16,7 +16,7 @@ class DailyHistoryQuotaSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if 'quota_names' not in attrs:
-            attrs['quota_names'] = attrs['scope'].get_quotas_names
+            attrs['quota_names'] = attrs['scope'].get_quotas_names()
         if 'end' not in attrs:
             attrs['end'] = timezone.now().date()
         if 'start' not in attrs:
