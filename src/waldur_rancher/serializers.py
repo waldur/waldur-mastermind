@@ -549,5 +549,15 @@ class ApplicationCreateSerializer(serializers.Serializer):
     template_uuid = serializers.UUIDField()
     version = serializers.CharField()
     project_uuid = serializers.UUIDField()
-    namespace_uuid = serializers.UUIDField()
+    namespace_uuid = serializers.UUIDField(required=False)
+    namespace_name = serializers.CharField(required=False)
     answers = serializers.DictField(required=False)
+
+    def validate(self, attrs):
+        if (not attrs.get('namespace_uuid') and not attrs.get('namespace_name')) or (
+            attrs.get('namespace_uuid') and attrs.get('namespace_name')
+        ):
+            raise serializers.ValidationError(
+                'Either existing namespace UUID or new namespace name should be specified.'
+            )
+        return attrs
