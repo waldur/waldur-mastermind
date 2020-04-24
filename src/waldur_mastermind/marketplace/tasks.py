@@ -201,12 +201,36 @@ def get_datacite_info():
             datacite_data = pid_backend.DataciteBackend().get_datacite_data(doi)
             if datacite_data:
                 offering.citation_count = datacite_data['attributes']['citationCount']
-                ref_pids = [
-                    x['relatedIdentifier']
+                referrals = []
+                referrals_pids = [
+                    (
+                        x['relatedIdentifier'],
+                        x['relationType'],
+                        x['resourceTypeGeneral'],
+                    )
                     for x in datacite_data['attributes']['relatedIdentifiers']
                 ]
-                offering.referred_pids = ref_pids
-                offering.save(update_fields=['citation_count', 'referred_pids'])
+                for pid, rel_type, resource_type in referrals_pids:
+                    referral_attributes = pid_backend.DataciteBackend().get_datacite_data(
+                        pid
+                    )[
+                        'attributes'
+                    ]
+                    ref_data = {
+                        'id': pid,
+                        'relationType': rel_type,
+                        'prefix': referral_attributes['prefix'],
+                        'suffix': referral_attributes['suffix'],
+                        'resourceTypeGeneral': resource_type,
+                        'creators': referral_attributes['creators'],
+                        'publisher': referral_attributes['publisher'],
+                        'titles': referral_attributes['titles'],
+                        'dates': referral_attributes['dates'],
+                        'url': referral_attributes['url'],
+                    }
+                    referrals.append(ref_data)
+                offering.referrals = referrals
+                offering.save(update_fields=['citation_count', 'referrals'])
         except DataciteException as e:
             logger.exception(e)
         except Exception as e:
