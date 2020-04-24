@@ -1,5 +1,6 @@
 import io
 import logging
+from urllib.parse import parse_qs, urlparse
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -758,3 +759,24 @@ class RancherBackend(ServiceBackend):
 
     def list_project_secrets(self, project):
         return self.client.list_project_secrets(project.backend_id)
+
+    def list_cluster_applications(self, cluster):
+        applications = []
+        for project in models.Project.objects.filter(cluster=cluster):
+            for app in self.client.get_project_applications(project.backend_id):
+                parts = urlparse(app['externalId'])
+                params = parse_qs(parts.query)
+                applications.append(
+                    {
+                        'name': app['name'],
+                        'state': app['state'],
+                        'created': app['created'],
+                        'id': app['id'],
+                        'answers': app.get('answers'),
+                        'project': project.name,
+                        'catalog': params['catalog'][0],
+                        'template': params['template'][0],
+                        'version': params['version'][0],
+                    }
+                )
+        return applications

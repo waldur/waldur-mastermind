@@ -340,24 +340,13 @@ class TemplateVersionView(APIView):
 
 class ApplicationViewSet(APIView):
     def get(self, request):
-        project_uuid = request.query_params.get('project_uuid')
-        if not project_uuid or not is_uuid_like(project_uuid):
-            raise ValidationError('Project UUID is required.')
-        project = self.get_object(request, models.Project, project_uuid)
-        client = project.settings.get_backend().client
-        applications = client.get_project_applications(project.backend_id)
-        return response.Response(
-            [
-                {
-                    'name': app['name'],
-                    'state': app['state'],
-                    'created': app['created'],
-                    'id': app['id'],
-                    'answers': app['answers'],
-                }
-                for app in applications
-            ]
-        )
+        cluster_uuid = request.query_params.get('cluster_uuid')
+        if not cluster_uuid or not is_uuid_like(cluster_uuid):
+            raise ValidationError('Cluster UUID is required.')
+        cluster = self.get_object(request, models.Cluster, cluster_uuid)
+        backend = cluster.settings.get_backend()
+        applications = backend.list_cluster_applications(cluster)
+        return response.Response(applications)
 
     def post(self, request):
         if django_settings.WALDUR_RANCHER['READ_ONLY_MODE']:
