@@ -188,7 +188,7 @@ class OfferingAdminForm(ModelForm):
             'options': JsonWidget(),
             'secret_options': JsonWidget(),
             'plugin_options': JsonWidget(),
-            'referred_pids': JsonWidget(),
+            'referrals': JsonWidget(),
         }
 
 
@@ -247,9 +247,9 @@ class OfferingAdmin(admin.ModelAdmin):
         'paused_reason',
         'datacite_doi',
         'citation_count',
-        'referred_pids',
+        'referrals',
     )
-    readonly_fields = ('rating', 'scope_link', 'citation_count', 'referred_pids')
+    readonly_fields = ('rating', 'scope_link', 'citation_count', 'referrals')
 
     def scope_link(self, obj):
         if obj.scope:

@@ -625,7 +625,7 @@ class OfferingDetailsSerializer(
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
-    referred_pids = serializers.JSONField(read_only=True)
+    referrals = serializers.JSONField(read_only=True)
 
     class Meta:
         model = models.Offering
@@ -668,7 +668,7 @@ class OfferingDetailsSerializer(
             'paused_reason',
             'datacite_doi',
             'citation_count',
-            'referred_pids',
+            'referrals',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
