@@ -369,9 +369,33 @@ class ApplicationViewSet(APIView):
 
         template = self.get_object(request, models.Template, data['template_uuid'])
         project = self.get_object(request, models.Project, data['project_uuid'])
-        namespace = self.get_object(request, models.Namespace, data['namespace_uuid'])
+        settings = {template.settings, project.settings}
 
-        settings = {template.settings, project.settings, namespace.settings}
+        client = project.settings.get_backend().client
+
+        if 'namespace_uuid' in data:
+            namespace = self.get_object(
+                request, models.Namespace, data['namespace_uuid']
+            )
+            settings.add(namespace.settings)
+
+            if namespace.project != project:
+                raise ValidationError(_('Namespace should belong to the same project.'))
+
+        elif 'namespace_name' in data:
+            namespace_name = data['namespace_name']
+            namespace_response = client.create_namespace(
+                project.cluster.backend_id, project.backend_id, namespace_name
+            )
+            namespace = models.Namespace.objects.create(
+                name=namespace_name,
+                backend_id=namespace_response['id'],
+                settings=project.settings,
+                project=project,
+            )
+        else:
+            raise ValidationError(_('Namespace is not specified.'))
+
         if len(settings) > 1:
             raise ValidationError(
                 _(
@@ -379,10 +403,6 @@ class ApplicationViewSet(APIView):
                 )
             )
 
-        if namespace.project != project:
-            raise ValidationError(_('Namespace should belong to the same project.'))
-
-        client = project.settings.get_backend().client
         application = client.create_application(
             template.catalog.backend_id,
             template.name,

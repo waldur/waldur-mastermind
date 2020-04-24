@@ -310,6 +310,19 @@ class RancherClient:
             payload['answers'] = answers
         return self._post(f'projects/f{project_id}/app', json=payload)
 
+    def create_namespace(self, cluster_id: str, project_id: str, name: str):
+        return self._post(
+            f'clusters/f{cluster_id}/namespace',
+            json={
+                'clusterId': cluster_id,
+                'projectId': project_id,
+                'name': name,
+                'type': 'namespace',
+                'labels': {},
+                'resourceQuota': None,
+            },
+        )
+
     def get_project_applications(self, project_id):
         return self._get(f'project/{project_id}/apps', params={'limit': -1})['data']
 
