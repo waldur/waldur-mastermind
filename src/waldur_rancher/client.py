@@ -308,7 +308,7 @@ class RancherClient:
         }
         if answers:
             payload['answers'] = answers
-        return self._post(f'projects/f{project_id}/app', json=payload)
+        return self._post(f'projects/{project_id}/app', json=payload)
 
     def create_namespace(self, cluster_id: str, project_id: str, name: str):
         return self._post(
