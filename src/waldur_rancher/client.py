@@ -312,7 +312,7 @@ class RancherClient:
 
     def create_namespace(self, cluster_id: str, project_id: str, name: str):
         return self._post(
-            f'clusters/f{cluster_id}/namespace',
+            f'clusters/{cluster_id}/namespace',
             json={
                 'clusterId': cluster_id,
                 'projectId': project_id,
