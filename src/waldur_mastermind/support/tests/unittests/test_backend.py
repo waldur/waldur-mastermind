@@ -30,7 +30,7 @@ class BaseBackendTest(TestCase):
         mock_backend_users = [
             User({'server': ''}, None, raw={'key': 'user_1', 'active': True})
         ]
-        self.mocked_jira.search_users.return_value = mock_backend_users
+        self.mocked_jira.waldur_search_users.return_value = mock_backend_users
 
     def tearDown(self):
         super(BaseBackendTest, self).tearDown()
@@ -79,7 +79,7 @@ class IssueCreateTest(BaseBackendTest):
         )
 
     def test_user_for_caller_is_created(self):
-        self.mocked_jira.search_users.return_value = []
+        self.mocked_jira.waldur_search_users.return_value = []
         self.backend.create_issue(self.issue)
         self.mocked_jira.create_customer.assert_called_once_with(
             self.issue.caller.email, self.issue.caller.full_name

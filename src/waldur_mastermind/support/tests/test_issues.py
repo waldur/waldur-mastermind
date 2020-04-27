@@ -136,7 +136,7 @@ class IssueCreateBaseTest(base.BaseTest):
         mock_backend_users = [
             User({'server': ''}, None, raw={'key': 'user_1', 'active': True})
         ]
-        self.mock_jira().search_users.return_value = mock_backend_users
+        self.mock_jira().waldur_search_users.return_value = mock_backend_users
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
