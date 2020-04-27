@@ -153,7 +153,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
             existing_support_user = self.manager.search_users(user.email)
         else:
-            existing_support_user = self.manager.search_users(
+            # user GDPR-compliant version of user search
+            existing_support_user = self.manager.waldur_search_users(
                 user.email, includeInactive=True
             )
 

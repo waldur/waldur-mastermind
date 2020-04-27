@@ -3,7 +3,7 @@ import os
 import re
 
 from jira import JIRA, JIRAError, utils
-from jira.resources import Attachment, RequestType
+from jira.resources import Attachment, RequestType, User
 from jira.utils import json_loads
 from requests import Request
 
@@ -133,6 +133,21 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
         return types
 
 
+def search_users(
+    self, query, startAt=0, maxResults=50, includeActive=True, includeInactive=False
+):
+    """Get a list of user Resources that match the specified search string. Use query instead of
+    username field for lookups.
+    """
+    params = {
+        'query': query,
+        'includeActive': includeActive,
+        'includeInactive': includeInactive,
+    }
+    return self._fetch_pages(User, None, 'user/search', startAt, maxResults, params)
+
+
 JIRA.waldur_add_attachment = add_attachment
 JIRA.waldur_service_desk = service_desk
 JIRA.waldur_request_types = request_types
+JIRA.waldur_search_users = search_users
