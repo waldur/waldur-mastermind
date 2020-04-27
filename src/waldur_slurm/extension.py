@@ -9,6 +9,7 @@ class SlurmExtension(WaldurExtension):
             'PROJECT_PREFIX': 'waldur_project_',
             'ALLOCATION_PREFIX': 'waldur_allocation_',
             'PRIVATE_KEY_PATH': '/etc/waldur/id_rsa',
+            'DEFAULT_LIMITS': {'CPU': 16000, 'GPU': 400, 'RAM': 100000, 'DEPOSIT': 200},
         }
 
     @staticmethod

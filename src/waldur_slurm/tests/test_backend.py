@@ -1,6 +1,7 @@
 import decimal
 from unittest import mock
 
+from django.conf import settings as django_settings
 from django.test import TestCase
 from freezegun import freeze_time
 
@@ -56,9 +57,10 @@ class BackendTest(TestCase):
 
     @mock.patch('subprocess.check_output')
     def test_set_resource_limits(self, check_output):
-        self.allocation.cpu_limit = 1000
-        self.allocation.gpu_limit = 2000
-        self.allocation.ram_limit = 3000
+        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
+        self.allocation.cpu_limit = default_limits['CPU']
+        self.allocation.gpu_limit = default_limits['GPU']
+        self.allocation.ram_limit = default_limits['RAM']
         self.allocation.save()
 
         template = (
