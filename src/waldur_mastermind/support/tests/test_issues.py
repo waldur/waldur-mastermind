@@ -119,7 +119,7 @@ class IssueCreateBaseTest(base.BaseTest):
         self.url = factories.IssueFactory.get_list_url()
         self.caller = structure_factories.UserFactory()
 
-    def _mock_jira(self):
+    def _mock_jira(self, old_jira=False):
         mock.patch.stopall()
         mock_patch = mock.patch('waldur_jira.backend.JIRA')
         self.mock_jira = mock_patch.start()
@@ -136,7 +136,10 @@ class IssueCreateBaseTest(base.BaseTest):
         mock_backend_users = [
             User({'server': ''}, None, raw={'key': 'user_1', 'active': True})
         ]
-        self.mock_jira().waldur_search_users.return_value = mock_backend_users
+        if old_jira:
+            self.mock_jira().search_users.return_value = mock_backend_users
+        else:
+            self.mock_jira().waldur_search_users.return_value = mock_backend_users
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
@@ -455,7 +458,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 class IssueCreateOldAPITest(IssueCreateBaseTest):
     def setUp(self):
         super(IssueCreateOldAPITest, self).setUp()
-        self._mock_jira()
+        self._mock_jira(old_jira=True)
 
     def test_identification_from_email_if_caller_not_exists(self):
         user = self.fixture.staff
