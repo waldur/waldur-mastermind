@@ -34,6 +34,16 @@ class ClusterGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 1)
 
+    def test_rancher_cluster_is_exposed_for_openstack_instance(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            openstack_tenant_factories.InstanceFactory.get_url(self.fixture.instance)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data['rancher_cluster']['uuid'].hex, self.fixture.cluster.uuid.hex
+        )
+
 
 class BaseClusterCreateTest(test.APITransactionTestCase):
     def setUp(self):
