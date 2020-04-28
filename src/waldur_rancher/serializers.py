@@ -11,6 +11,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import VirtualMachine
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -569,8 +570,10 @@ class ApplicationCreateSerializer(serializers.Serializer):
 
 
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
+    user = serializer.view.context['user']
+    queryset = filter_queryset_for_user(models.Cluster.objects.all(), user)
     try:
-        cluster = models.Cluster.objects.filter(
+        cluster = queryset.filter(
             tenant_settings=scope.service_project_link.service.settings
         ).get()
     except models.Cluster.DoesNotExist:

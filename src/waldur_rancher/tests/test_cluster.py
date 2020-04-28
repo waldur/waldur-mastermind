@@ -5,6 +5,7 @@ import pkg_resources
 from rest_framework import status, test
 from rest_framework.response import Response
 
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import (
@@ -43,6 +44,17 @@ class ClusterGetTest(test.APITransactionTestCase):
         self.assertEqual(
             response.data['rancher_cluster']['uuid'].hex, self.fixture.cluster.uuid.hex
         )
+
+    def test_rancher_cluster_is_filtered_out_for_unrelated_user(self):
+        project = ProjectFactory(customer=self.fixture.customer)
+        admin = factories.UserFactory()
+        project.add_user(admin, models.ProjectRole.ADMINISTRATOR)
+        self.client.force_authenticate(admin)
+        response = self.client.get(
+            openstack_tenant_factories.InstanceFactory.get_url(self.fixture.instance)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['rancher_cluster'], None)
 
 
 class BaseClusterCreateTest(test.APITransactionTestCase):
