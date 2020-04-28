@@ -1,17 +1,22 @@
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators as django_validators
+from django.core.exceptions import MultipleObjectsReturned
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
+from waldur_openstack.openstack_tenant import (
+    serializers as openstack_tenant_serializers,
+)
 
 from . import exceptions, models, utils, validators
 
@@ -561,3 +566,29 @@ class ApplicationCreateSerializer(serializers.Serializer):
                 'Either existing namespace UUID or new namespace name should be specified.'
             )
         return attrs
+
+
+def get_rancher_cluster_for_openstack_instance(serializer, scope):
+    try:
+        cluster = models.Cluster.objects.filter(
+            tenant_settings=scope.service_project_link.service.settings
+        ).get()
+    except models.Cluster.DoesNotExist:
+        return None
+    except MultipleObjectsReturned:
+        return None
+    return {
+        'name': cluster.name,
+        'uuid': cluster.uuid,
+    }
+
+
+def add_rancher_cluster_to_openstack_instance(sender, fields, **kwargs):
+    fields['rancher_cluster'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_rancher_cluster', get_rancher_cluster_for_openstack_instance)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=openstack_tenant_serializers.InstanceSerializer,
+    receiver=add_rancher_cluster_to_openstack_instance,
+)
