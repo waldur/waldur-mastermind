@@ -306,7 +306,7 @@ class NestedScreenshotSerializer(
 ):
     class Meta:
         model = models.Screenshot
-        fields = ('name', 'description', 'image', 'thumbnail')
+        fields = ('name', 'uuid', 'description', 'image', 'thumbnail')
 
 
 class NestedOfferingFileSerializer(
