@@ -386,7 +386,7 @@ class Offering(
         default=-1, help_text=_('Number of citations of a DOI'),
     )
     referrals = JSONField(
-        default=dict, blank=True, help_text=_('Referrals list for the current DOI'),
+        default=list, blank=True, help_text=_('Referrals list for the current DOI'),
     )
 
     objects = managers.OfferingManager()
