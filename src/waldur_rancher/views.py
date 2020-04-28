@@ -24,6 +24,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
 from waldur_rancher.apps import RancherConfig
+from waldur_rancher.exceptions import RancherException
 
 from . import exceptions, executors, filters, models, serializers, validators
 
@@ -373,9 +374,14 @@ class ApplicationViewSet(APIView):
 
         elif 'namespace_name' in data:
             namespace_name = data['namespace_name']
-            namespace_response = client.create_namespace(
-                project.cluster.backend_id, project.backend_id, namespace_name
-            )
+            try:
+                namespace_response = client.create_namespace(
+                    project.cluster.backend_id, project.backend_id, namespace_name
+                )
+            except RancherException as e:
+                return response.Response(
+                    {'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST
+                )
             namespace = models.Namespace.objects.create(
                 name=namespace_name,
                 backend_id=namespace_response['id'],
@@ -392,15 +398,20 @@ class ApplicationViewSet(APIView):
                 )
             )
 
-        application = client.create_application(
-            template.catalog.backend_id,
-            template.name,
-            data['version'],
-            project.backend_id,
-            namespace.backend_id,
-            data['name'],
-            data.get('answers'),
-        )
+        try:
+            application = client.create_application(
+                template.catalog.backend_id,
+                template.name,
+                data['version'],
+                project.backend_id,
+                namespace.backend_id,
+                data['name'],
+                data.get('answers'),
+            )
+        except RancherException as e:
+            return response.Response(
+                {'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
         return response.Response(application['data'], status=status.HTTP_201_CREATED)
 
     def get_object(self, request, model_class, object_uuid):

@@ -55,7 +55,10 @@ class RancherClient:
         ):
             return data
         else:
-            raise RancherException(data)
+            if 'message' in data:
+                raise RancherException(data['message'])
+            else:
+                raise RancherException(data)
 
     def _get(self, endpoint, **kwargs):
         return self._request('get', endpoint, **kwargs)
