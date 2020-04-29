@@ -570,9 +570,8 @@ class ApplicationCreateSerializer(serializers.Serializer):
 
 
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
-    view = serializer.context['view']
-    user = view.request.user
-    queryset = filter_queryset_for_user(models.Cluster.objects.all(), user)
+    request = serializer.context['request']
+    queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
     try:
         cluster = queryset.filter(
             tenant_settings=scope.service_project_link.service.settings
