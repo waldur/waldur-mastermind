@@ -9,6 +9,7 @@ class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
         'description',
         'nodes',
         'tenant_settings',
+        'ssh_public_key',
     )
 
 
