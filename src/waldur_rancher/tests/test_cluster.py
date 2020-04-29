@@ -7,7 +7,11 @@ from rest_framework.response import Response
 
 from waldur_core.core.models import StateMixin
 from waldur_core.structure.models import ProjectRole
-from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
+from waldur_core.structure.tests.factories import (
+    ProjectFactory,
+    SshPublicKeyFactory,
+    UserFactory,
+)
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import (
@@ -435,6 +439,21 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.owner)
         response = self._create_request_('new-cluster')
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_use_ssh_public_key(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        ssh_public_key = SshPublicKeyFactory(user=self.fixture.owner)
+        payload = {
+            'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
+        }
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(
+            cluster.node_set.first().initial_data['ssh_public_key'],
+            ssh_public_key.uuid.hex,
+        )
 
 
 class ClusterPullTest(test.APITransactionTestCase):

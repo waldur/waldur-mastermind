@@ -4,6 +4,7 @@ from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
+from waldur_core.structure.tests.factories import SshPublicKeyFactory
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -174,6 +175,24 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.owner)
         response = self._create_request_(name='name')
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_use_ssh_public_key(self, mock_tasks):
+        ssh_public_key = SshPublicKeyFactory(user=self.fixture.owner)
+        self.payload = {
+            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
+            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            'system_volume_size': 1024,
+            'memory': 1,
+            'cpu': 1,
+            'roles': ['controlplane', 'etcd', 'worker'],
+            'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
+        }
+        response = self.create_node(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.fixture.cluster.node_set.count(), 2)
+        node = self.fixture.cluster.node_set.exclude(name='').get()
+        self.assertEqual(node.initial_data['ssh_public_key'], ssh_public_key.uuid.hex)
 
 
 class NodePullTest(test.APITransactionTestCase):

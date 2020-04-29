@@ -136,6 +136,24 @@ class BaseNodeSerializer(
 
     class Meta(object):
         model = models.Node
+        read_only_fields = (
+            'error_message',
+            'etcd_role',
+            'worker_role',
+            'initial_data',
+            'runtime_state',
+            'k8s_version',
+            'docker_version',
+            'cpu_allocated',
+            'cpu_total',
+            'ram_allocated',
+            'ram_total',
+            'pods_allocated',
+            'pods_total',
+            'labels',
+            'annotations',
+        )
+        exclude = ('state',)
 
     def get_filtered_field_names(self):
         return ('subnet', 'flavor', 'system_volume_type')
@@ -154,7 +172,10 @@ class NestedNodeSerializer(BaseNodeSerializer):
         exclude = ('cluster', 'object_id', 'content_type', 'name')
 
 
-class ClusterSerializer(structure_serializers.BaseResourceSerializer):
+class ClusterSerializer(
+    structure_serializers.SshPublicKeySerializerMixin,
+    structure_serializers.BaseResourceSerializer,
+):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='rancher-detail',
@@ -189,6 +210,7 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
             'nodes',
             'tenant_settings',
             'runtime_state',
+            'ssh_public_key',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -208,9 +230,10 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         if self.instance:
             return attrs
 
-        nodes = attrs.get('node_set')
-        name = attrs.get('name')
-        spl = attrs.get('service_project_link')
+        nodes = attrs['node_set']
+        name = attrs['name']
+        spl = attrs['service_project_link']
+        ssh_public_key = attrs.pop('ssh_public_key', None)
 
         attrs['settings'] = spl.service.settings
 
@@ -223,7 +246,7 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
             raise serializers.ValidationError(_('Name is not unique.'))
 
         tenant_settings = attrs.get('tenant_settings')
-        utils.expand_added_nodes(nodes, spl, tenant_settings, name)
+        utils.expand_added_nodes(name, nodes, spl, tenant_settings, ssh_public_key)
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
@@ -334,7 +357,9 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         return 'Rancher.Node'
 
 
-class CreateNodeSerializer(BaseNodeSerializer):
+class CreateNodeSerializer(
+    structure_serializers.SshPublicKeySerializerMixin, BaseNodeSerializer
+):
     class Meta:
         model = models.Node
         fields = (
@@ -347,6 +372,7 @@ class CreateNodeSerializer(BaseNodeSerializer):
             'subnet',
             'flavor',
             'data_volumes',
+            'ssh_public_key',
         )
         extra_kwargs = {
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
@@ -354,10 +380,13 @@ class CreateNodeSerializer(BaseNodeSerializer):
 
     def validate(self, attrs):
         attrs = super(CreateNodeSerializer, self).validate(attrs)
-        cluster = attrs.get('cluster')
+        cluster = attrs['cluster']
+        ssh_public_key = attrs.pop('ssh_public_key', None)
         spl = cluster.service_project_link
         node = attrs
-        utils.expand_added_nodes([node], spl, cluster.tenant_settings, cluster.name)
+        utils.expand_added_nodes(
+            cluster.name, [node], spl, cluster.tenant_settings, ssh_public_key
+        )
         return attrs
 
 

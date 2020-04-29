@@ -41,7 +41,9 @@ def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
     return new_name
 
 
-def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
+def expand_added_nodes(
+    cluster_name, nodes, rancher_spl, tenant_settings, ssh_public_key
+):
     project = rancher_spl.project
 
     try:
@@ -121,6 +123,9 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
             rancher_spl,
             existing_names=[n['name'] for n in nodes if n.get('name')],
         )
+
+        if ssh_public_key:
+            node['initial_data']['ssh_public_key'] = ssh_public_key.uuid.hex
 
     validate_quotas(nodes, tenant_spl)
 
