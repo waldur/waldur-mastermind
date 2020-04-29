@@ -517,7 +517,7 @@ class SupportCustomer(models.Model):
     backend_id = models.CharField(max_length=255, unique=True)
 
     def __str__(self):
-        return self.user
+        return self.user.full_name
 
 
 class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
