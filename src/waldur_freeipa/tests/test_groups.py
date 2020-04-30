@@ -104,12 +104,17 @@ class GroupTest(TestCase):
         customer = structure_factories.CustomerFactory()
         mock_client().group_find.return_value = {
             'result': [
-                {'cn': ['waldur_org_%s' % customer.uuid], 'member_user': ['stale_user']}
+                {
+                    'cn': ['waldur_org_%s' % customer.uuid],
+                    'member_user': ['waldur_stale_user'],
+                }
             ]
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_remove_member.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid.hex, users=['stale_user'], skip_errors=True,
+            'waldur_org_%s' % customer.uuid.hex,
+            users=['waldur_stale_user'],
+            skip_errors=True,
         )
 
     def test_stale_groups_are_removed(self, mock_client):

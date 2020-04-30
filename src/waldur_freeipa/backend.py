@@ -36,7 +36,8 @@ class GroupSynchronizer:
 
     def __init__(self, client):
         self.client = client
-        self.prefix = settings.WALDUR_FREEIPA['GROUPNAME_PREFIX']
+        self.group_prefix = settings.WALDUR_FREEIPA['GROUPNAME_PREFIX']
+        self.user_prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
 
         self.profiles = {
             profile.user_id: profile.username
@@ -54,7 +55,7 @@ class GroupSynchronizer:
         self.freeipa_names = dict()
 
     def group_name(self, key):
-        return '%s%s' % (self.prefix, key)
+        return '%s%s' % (self.group_prefix, key)
 
     def project_group_name(self, project):
         return self.group_name('project_%s' % project.uuid)
@@ -132,7 +133,7 @@ class GroupSynchronizer:
         if description:
             self.freeipa_names[groupname] = description[0]
         self.freeipa_children[groupname] = set(
-            child for child in children if child.startswith(self.prefix)
+            child for child in children if child.startswith(self.group_prefix)
         )
 
     def add_freeipa_users(self, groupname, users):
@@ -144,7 +145,7 @@ class GroupSynchronizer:
             groupname = group['cn'][0]
 
             # Ignore groups not marked by own prefix
-            if not groupname.startswith(self.prefix):
+            if not groupname.startswith(self.group_prefix):
                 continue
 
             members = group.get('member_user', [])
@@ -178,9 +179,17 @@ class GroupSynchronizer:
                 self.client.group_add_member(group, users=new_members, skip_errors=True)
 
             stale_members = list(backend_members - waldur_members)
+
+            # filter out members that have a non-expected name prefix to allow for Freeipa-managed users
+            filtered_stale_members = [
+                member
+                for member in stale_members
+                if member.startswith(self.user_prefix)
+            ]
+
             if stale_members:
                 self.client.group_remove_member(
-                    group, users=stale_members, skip_errors=True
+                    group, users=filtered_stale_members, skip_errors=True
                 )
 
     def sync_children(self):
