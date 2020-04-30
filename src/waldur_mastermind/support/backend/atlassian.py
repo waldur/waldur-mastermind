@@ -428,3 +428,22 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         for linked_issue in linked_issues:
             link_type = self.issue_settings['type_of_linked_issue']
             self.manager.create_issue_link(link_type, issue.key, linked_issue.key)
+
+    def create_feedback(self, feedback):
+        if feedback.comment:
+            support_user = models.SupportUser.objects.get(user=feedback.issue.caller)
+            comment = models.Comment.objects.create(
+                issue=feedback.issue,
+                description=feedback.comment,
+                is_public=False,
+                author=support_user,
+            )
+            self.create_comment(comment)
+
+        if feedback.evaluation:
+            field_name = self.get_field_id_by_name(
+                self.issue_settings['satisfaction_field']
+            )
+            backend_issue = self.get_backend_issue(feedback.issue.backend_id)
+            kwargs = {field_name: feedback.get_evaluation_display()}
+            backend_issue.update(**kwargs)

@@ -270,3 +270,23 @@ class IssueStatusFactory(factory.DjangoModelFactory):
 class TemplateConfirmationCommentFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.TemplateConfirmationComment
+
+
+class FeedbackFactory(factory.DjangoModelFactory):
+    issue = factory.SubFactory(IssueFactory)
+    evaluation = models.Feedback.Evaluation.POSITIVE
+
+    class Meta:
+        model = models.Feedback
+
+    @classmethod
+    def get_url(cls, feedback=None):
+        if feedback is None:
+            feedback = FeedbackFactory()
+        return 'http://testserver' + reverse(
+            'support-feedback-detail', kwargs={'uuid': feedback.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-feedback-list')
