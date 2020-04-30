@@ -32,6 +32,10 @@ def register_in(router):
         basename='support-offering-plan',
     )
 
+    router.register(
+        r'support-feedbacks', views.FeedbackViewSet, basename='support-feedback',
+    )
+
 
 urlpatterns = [
     url(

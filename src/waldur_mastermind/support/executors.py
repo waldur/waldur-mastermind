@@ -25,3 +25,9 @@ class OfferingIssueCreateExecutor(core_executors.BaseExecutor):
     def get_task_signature(cls, offering, serialized_offering, **kwargs):
         serialized_issue = core_utils.serialize_instance(offering.issue)
         return tasks.create_issue.si(serialized_issue)
+
+
+class FeedbackExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, feedback, serialized_feedback, **kwargs):
+        return tasks.sync_feedback.si(serialized_feedback)

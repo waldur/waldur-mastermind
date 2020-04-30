@@ -60,6 +60,7 @@ class SupportExtension(WaldurExtension):
                     '- Affected resource: {{issue.resource}}\n'
                     '{% endif %}'
                 ),
+                'satisfaction_field': 'Customer satisfaction',
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
             # TODO: OFFERINGS is a deprecated attribute, to be cleaned up after removal of squashed migrations
@@ -69,6 +70,10 @@ class SupportExtension(WaldurExtension):
 
         SUPPRESS_NOTIFICATION_EMAILS = False
         ISSUE_LINK_TEMPLATE = 'https://www.example.com/#/support/issue/{uuid}/'
+        ISSUE_FEEDBACK_LINK_TEMPLATE = 'https://www.example.com/#/support/feedback/?token={token}&evaluation={evaluation}'
+        ISSUE_FEEDBACK_ENABLE = True
+        # Measured in days
+        ISSUE_FEEDBACK_TOKEN_PERIOD = 7
 
     @staticmethod
     def django_app():

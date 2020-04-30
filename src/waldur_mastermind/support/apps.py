@@ -83,3 +83,9 @@ class SupportConfig(AppConfig):
             sender=Issue,
             dispatch_uid='waldur_mastermind.support.handlers.send_issue_updated_notification',
         )
+
+        signals.post_save.connect(
+            handlers.create_feedback_if_issue_has_been_resolved,
+            sender=Issue,
+            dispatch_uid='waldur_mastermind.support.handlers.create_feedback_if_issue_has_been_resolved',
+        )

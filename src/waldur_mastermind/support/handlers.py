@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
@@ -158,4 +159,25 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
 
     transaction.on_commit(
         lambda: tasks.send_issue_updated_notification.delay(serialized_issue, changed)
+    )
+
+
+def create_feedback_if_issue_has_been_resolved(
+    sender, instance, created=False, **kwargs
+):
+    if not settings.ISSUE_FEEDBACK_ENABLE:
+        return
+
+    issue = instance
+
+    if created:
+        return
+
+    if not issue.tracker.has_changed('status') or not issue.resolved:
+        return
+
+    serialized_issue = core_utils.serialize_instance(issue)
+
+    transaction.on_commit(
+        lambda: tasks.send_issue_feedback_notification.delay(serialized_issue)
     )

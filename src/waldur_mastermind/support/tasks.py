@@ -4,6 +4,7 @@ from smtplib import SMTPException
 from celery import shared_task
 from celery.task import Task as CeleryTask
 from django.conf import settings
+from django.core import signing
 from django.core.mail import send_mail
 from django.template import Context, Template
 from django.template.loader import get_template
@@ -97,7 +98,14 @@ def send_comment_updated_notification(serialized_comment, old_description):
     )
 
 
-def _send_issue_notification(issue, template, receiver=None, extra_context=None):
+def _send_email(
+    issue,
+    html_template,
+    text_template,
+    subject_template,
+    receiver=None,
+    extra_context=None,
+):
     if not settings.WALDUR_SUPPORT['ENABLED']:
         return
 
@@ -121,20 +129,6 @@ def _send_issue_notification(issue, template, receiver=None, extra_context=None)
     if extra_context:
         context.update(extra_context)
 
-    try:
-        notification_template = models.TemplateStatusNotification.objects.get(
-            status=issue.status
-        )
-        html_template = Template(notification_template.html)
-        text_template = Template(notification_template.text)
-        subject_template = Template(notification_template.subject)
-    except models.TemplateStatusNotification.DoesNotExist:
-        html_template = get_template('support/notification_%s.html' % template).template
-        text_template = get_template('support/notification_%s.txt' % template).template
-        subject_template = get_template(
-            'support/notification_%s_subject.txt' % template
-        ).template
-
     html_message = html_template.render(Context(context))
     text_message = text_template.render(Context(context, autoescape=False))
     subject = subject_template.render(Context(context, autoescape=False)).strip()
@@ -155,3 +149,58 @@ def _send_issue_notification(issue, template, receiver=None, extra_context=None)
             % (issue.uuid.hex, e.message)
         )
         logger.warning(message)
+
+
+def _send_issue_notification(issue, template, *args, **kwargs):
+    try:
+        notification_template = models.TemplateStatusNotification.objects.get(
+            status=issue.status
+        )
+        html_template = Template(notification_template.html)
+        text_template = Template(notification_template.text)
+        subject_template = Template(notification_template.subject)
+    except models.TemplateStatusNotification.DoesNotExist:
+        html_template = get_template('support/notification_%s.html' % template).template
+        text_template = get_template('support/notification_%s.txt' % template).template
+        subject_template = get_template(
+            'support/notification_%s_subject.txt' % template
+        ).template
+    _send_email(issue, html_template, text_template, subject_template, *args, **kwargs)
+
+
+def _send_issue_feedback(issue, template, *args, **kwargs):
+    html_template = get_template('support/notification_%s.html' % template).template
+    text_template = get_template('support/notification_%s.txt' % template).template
+    subject_template = get_template(
+        'support/notification_%s_subject.txt' % template
+    ).template
+    _send_email(issue, html_template, text_template, subject_template, *args, **kwargs)
+
+
+@shared_task(name='waldur_mastermind.support.send_issue_feedback_notification')
+def send_issue_feedback_notification(serialized_issue):
+    issue = core_utils.deserialize_instance(serialized_issue)
+    signer = signing.TimestampSigner()
+    token = signer.sign(issue.uuid.hex)
+    extra_context = {
+        'feedback_links': [
+            {
+                'label': value,
+                'link': settings.ISSUE_FEEDBACK_LINK_TEMPLATE.format(
+                    token=token, evaluation=key
+                ),
+            }
+            for (key, value) in models.Feedback.Evaluation.CHOICES
+        ],
+    }
+    _send_issue_feedback(
+        issue=issue, template='issue_feedback', extra_context=extra_context,
+    )
+
+
+@shared_task(name='waldur_mastermind.support.sync_feedback')
+def sync_feedback(serialized_feedback):
+    feedback = core_utils.deserialize_instance(serialized_feedback)
+    feedback.state = feedback.States.CREATING
+    feedback.save()
+    backend.get_active_backend().create_feedback(feedback)
