@@ -766,17 +766,20 @@ class RancherBackend(ServiceBackend):
             for app in self.client.get_project_applications(project.backend_id):
                 parts = urlparse(app['externalId'])
                 params = parse_qs(parts.query)
+                project_id = app['projectId']
+                app_id = app['id']
                 applications.append(
                     {
                         'name': app['name'],
                         'state': app['state'],
                         'created': app['created'],
-                        'id': app['id'],
+                        'id': app_id,
                         'answers': app.get('answers'),
                         'project': project.name,
                         'catalog': params['catalog'][0],
                         'template': params['template'][0],
                         'version': params['version'][0],
+                        'url': f'{self.host}/p/{project_id}/apps/{app_id}',
                     }
                 )
         return applications
