@@ -45,7 +45,9 @@ class InvoicesTest(TestCase):
         allocation.save()
 
         invoice_item = self.get_invoice_item()
-        self.assertEqual(invoice_item.name, allocation.name)
+        expected_name = self.get_expected_invoice_item_name(allocation)
+
+        self.assertEqual(invoice_item.name, expected_name)
         self.assertEqual(
             invoice_item.details,
             {
@@ -56,6 +58,46 @@ class InvoicesTest(TestCase):
                 'deposit_usage': '0',
             },
         )
+
+    def test_invoice_item_name_format(self):
+        self.create_package()
+        allocation = self.fixture.allocation
+        allocation.save()
+
+        invoice_item = self.get_invoice_item()
+
+        expected_name = allocation.name
+        self.assertEqual(invoice_item.name, expected_name)
+
+        allocation_after_update = self.update_usage()
+        invoice_item_after_update = self.get_invoice_item()
+
+        expected_name_after_update = self.get_expected_invoice_item_name(
+            allocation_after_update
+        )
+        self.assertEqual(invoice_item_after_update.name, expected_name_after_update)
+
+        allocation_after_update.cpu_usage = 0
+        allocation_after_update.save()
+        invoice_item_after_update = self.get_invoice_item()
+        expected_name_after_update = f'{allocation.name} (GPU: {allocation.gpu_usage} hours RAM: {allocation.ram_usage} GB)'
+        self.assertEqual(invoice_item_after_update.name, expected_name_after_update)
+
+        allocation_after_update.gpu_usage = 0
+        allocation_after_update.save()
+        invoice_item_after_update = self.get_invoice_item()
+        expected_name_after_update = (
+            f'{allocation.name} (RAM: {allocation.ram_usage} GB)'
+        )
+        self.assertEqual(invoice_item_after_update.name, expected_name_after_update)
+
+        allocation_after_update.ram_usage = 0
+        allocation_after_update.gpu_usage = 10
+        allocation_after_update.cpu_usage = 10
+        allocation_after_update.save()
+        invoice_item_after_update = self.get_invoice_item()
+        expected_name_after_update = f'{allocation.name} (CPU: {allocation.cpu_usage} hours GPU: {allocation.gpu_usage} hours )'
+        self.assertEqual(invoice_item_after_update.name, expected_name_after_update)
 
     def create_package(self):
         package = models.SlurmPackage.objects.create(
@@ -78,3 +120,6 @@ class InvoicesTest(TestCase):
 
     def get_invoice_item(self):
         return invoice_models.InvoiceItem.objects.get(scope=self.fixture.allocation)
+
+    def get_expected_invoice_item_name(self, allocation):
+        return f'{allocation.name} (CPU: {allocation.cpu_usage} hours GPU: {allocation.gpu_usage} hours RAM: {allocation.ram_usage} GB)'
