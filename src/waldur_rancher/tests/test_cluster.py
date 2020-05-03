@@ -5,6 +5,13 @@ import pkg_resources
 from rest_framework import status, test
 from rest_framework.response import Response
 
+from waldur_core.core.models import StateMixin
+from waldur_core.structure.models import ProjectRole
+from waldur_core.structure.tests.factories import (
+    ProjectFactory,
+    SshPublicKeyFactory,
+    UserFactory,
+)
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import (
@@ -33,6 +40,33 @@ class ClusterGetTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 1)
+
+    def test_rancher_cluster_is_exposed_for_openstack_instance(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            openstack_tenant_factories.InstanceFactory.get_url(self.fixture.instance)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data['rancher_cluster']['uuid'].hex, self.fixture.cluster.uuid.hex
+        )
+
+    def test_rancher_cluster_is_filtered_out_for_unrelated_user(self):
+        project = ProjectFactory(customer=self.fixture.customer)
+        admin = UserFactory()
+        project.add_user(admin, ProjectRole.ADMINISTRATOR)
+        tenant_spl = openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(
+            service=self.fixture.tenant_spl.service, project=project
+        )
+        vm = openstack_tenant_factories.InstanceFactory(
+            service_project_link=tenant_spl, state=StateMixin.States.OK,
+        )
+        self.client.force_authenticate(admin)
+        response = self.client.get(
+            openstack_tenant_factories.InstanceFactory.get_url(vm)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['rancher_cluster'], None)
 
 
 class BaseClusterCreateTest(test.APITransactionTestCase):
@@ -405,6 +439,21 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.owner)
         response = self._create_request_('new-cluster')
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_use_ssh_public_key(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        ssh_public_key = SshPublicKeyFactory(user=self.fixture.owner)
+        payload = {
+            'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
+        }
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(
+            cluster.node_set.first().initial_data['ssh_public_key'],
+            ssh_public_key.uuid.hex,
+        )
 
 
 class ClusterPullTest(test.APITransactionTestCase):

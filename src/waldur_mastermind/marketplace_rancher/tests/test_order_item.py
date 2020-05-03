@@ -1,6 +1,7 @@
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests.factories import SshPublicKeyFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -46,6 +47,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         order = marketplace_factories.OrderFactory(
             project=self.fixture.project, created_by=self.fixture.owner
         )
+        ssh_public_key = SshPublicKeyFactory(user=self.fixture.staff)
         order_item = marketplace_factories.OrderItemFactory(
             order=order,
             offering=offering,
@@ -54,6 +56,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
                 'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
                     self.fixture.spl.service.settings
                 ),
+                'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
                 'nodes': [
                     {
                         'subnet': openstack_tenant_factories.SubNetFactory.get_url(

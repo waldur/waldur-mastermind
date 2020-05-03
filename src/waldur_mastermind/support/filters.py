@@ -200,3 +200,14 @@ class AttachmentFilter(django_filters.FilterSet):
     class Meta:
         model = models.Attachment
         fields = ('issue', 'issue_uuid')
+
+
+class FeedbackFilter(django_filters.FilterSet):
+    issue = core_filters.URLFilter(
+        view_name='support-issue-detail', field_name='issue__uuid'
+    )
+    issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
+
+    class Meta:
+        model = models.Feedback
+        fields = ('issue', 'issue_uuid')

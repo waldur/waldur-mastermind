@@ -517,7 +517,7 @@ class SupportCustomer(models.Model):
     backend_id = models.CharField(max_length=255, unique=True)
 
     def __str__(self):
-        return self.user
+        return self.user.full_name
 
 
 class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
@@ -594,3 +594,29 @@ class TemplateConfirmationComment(models.Model):
 
     def __str__(self):
         return self.issue_type
+
+
+class Feedback(
+    core_models.UuidMixin, TimeStampedModel, core_models.StateMixin,
+):
+    class Evaluation:
+        NEGATIVE = 'negative'
+        NEUTRAL = 'neutral'
+        POSITIVE = 'positive'
+
+        CHOICES = (
+            (NEGATIVE, 'Negative'),
+            (NEUTRAL, 'Neutral'),
+            (POSITIVE, 'Positive'),
+        )
+
+    issue = models.OneToOneField(Issue, on_delete=models.CASCADE)
+    evaluation = models.CharField(max_length=20, choices=Evaluation.CHOICES)
+    comment = models.TextField(blank=True)
+
+    def __str__(self):
+        return '%s | %s' % (self.issue, self.evaluation)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-feedback'

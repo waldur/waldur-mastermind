@@ -24,6 +24,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
 from waldur_rancher.apps import RancherConfig
+from waldur_rancher.exceptions import RancherException
 
 from . import exceptions, executors, filters, models, serializers, validators
 
@@ -340,24 +341,13 @@ class TemplateVersionView(APIView):
 
 class ApplicationViewSet(APIView):
     def get(self, request):
-        project_uuid = request.query_params.get('project_uuid')
-        if not project_uuid or not is_uuid_like(project_uuid):
-            raise ValidationError('Project UUID is required.')
-        project = self.get_object(request, models.Project, project_uuid)
-        client = project.settings.get_backend().client
-        applications = client.get_project_applications(project.backend_id)
-        return response.Response(
-            [
-                {
-                    'name': app['name'],
-                    'state': app['state'],
-                    'created': app['created'],
-                    'id': app['id'],
-                    'answers': app['answers'],
-                }
-                for app in applications
-            ]
-        )
+        cluster_uuid = request.query_params.get('cluster_uuid')
+        if not cluster_uuid or not is_uuid_like(cluster_uuid):
+            raise ValidationError('Cluster UUID is required.')
+        cluster = self.get_object(request, models.Cluster, cluster_uuid)
+        backend = cluster.settings.get_backend()
+        applications = backend.list_cluster_applications(cluster)
+        return response.Response(applications)
 
     def post(self, request):
         if django_settings.WALDUR_RANCHER['READ_ONLY_MODE']:
@@ -369,9 +359,38 @@ class ApplicationViewSet(APIView):
 
         template = self.get_object(request, models.Template, data['template_uuid'])
         project = self.get_object(request, models.Project, data['project_uuid'])
-        namespace = self.get_object(request, models.Namespace, data['namespace_uuid'])
+        settings = {template.settings, project.settings}
 
-        settings = {template.settings, project.settings, namespace.settings}
+        client = project.settings.get_backend().client
+
+        if 'namespace_uuid' in data:
+            namespace = self.get_object(
+                request, models.Namespace, data['namespace_uuid']
+            )
+            settings.add(namespace.settings)
+
+            if namespace.project != project:
+                raise ValidationError(_('Namespace should belong to the same project.'))
+
+        elif 'namespace_name' in data:
+            namespace_name = data['namespace_name']
+            try:
+                namespace_response = client.create_namespace(
+                    project.cluster.backend_id, project.backend_id, namespace_name
+                )
+            except RancherException as e:
+                return response.Response(
+                    {'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST
+                )
+            namespace = models.Namespace.objects.create(
+                name=namespace_name,
+                backend_id=namespace_response['id'],
+                settings=project.settings,
+                project=project,
+            )
+        else:
+            raise ValidationError(_('Namespace is not specified.'))
+
         if len(settings) > 1:
             raise ValidationError(
                 _(
@@ -379,19 +398,20 @@ class ApplicationViewSet(APIView):
                 )
             )
 
-        if namespace.project != project:
-            raise ValidationError(_('Namespace should belong to the same project.'))
-
-        client = project.settings.get_backend().client
-        application = client.create_application(
-            template.catalog.backend_id,
-            template.name,
-            data['version'],
-            project.backend_id,
-            namespace.backend_id,
-            data['name'],
-            data.get('answers'),
-        )
+        try:
+            application = client.create_application(
+                template.catalog.backend_id,
+                template.name,
+                data['version'],
+                project.backend_id,
+                namespace.backend_id,
+                data['name'],
+                data.get('answers'),
+            )
+        except RancherException as e:
+            return response.Response(
+                {'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
         return response.Response(application['data'], status=status.HTTP_201_CREATED)
 
     def get_object(self, request, model_class, object_uuid):

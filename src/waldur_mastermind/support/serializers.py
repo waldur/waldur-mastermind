@@ -1,14 +1,17 @@
 import logging
 import os
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core import signing
 from django.db import transaction
 from django.template import Context, Template
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
@@ -31,6 +34,19 @@ def render_issue_template(config_name, issue):
     raw = issue_settings[config_name]
     template = Template(raw)
     return template.render(Context({'issue': issue}, autoescape=False))
+
+
+class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
+    state = serializers.ReadOnlyField(source='get_state_display')
+    evaluation = serializers.ReadOnlyField(source='get_evaluation_display')
+
+    class Meta:
+        model = models.Feedback
+        fields = (
+            'evaluation',
+            'comment',
+            'state',
+        )
 
 
 class IssueSerializer(
@@ -76,6 +92,7 @@ class IssueSerializer(
         write_only=True,
         help_text=_('Set true if issue is created by regular user via portal.'),
     )
+    feedback = NestedFeedbackSerializer(required=False)
 
     class Meta:
         model = models.Issue
@@ -114,6 +131,7 @@ class IssueSerializer(
             'is_reported_manually',
             'first_response_sla',
             'template',
+            'feedback',
         )
         read_only_fields = (
             'key',
@@ -122,6 +140,7 @@ class IssueSerializer(
             'backend_id',
             'link',
             'first_response_sla',
+            'feedback',
         )
         protected_fields = (
             'customer',
@@ -723,3 +742,49 @@ class OfferingPlanSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-plan-detail'},
         )
+
+
+class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
+    token = serializers.CharField(required=True, write_only=True)
+
+    class Meta:
+        model = models.Feedback
+        fields = (
+            'uuid',
+            'issue',
+            'comment',
+            'evaluation',
+            'token',
+        )
+
+        read_only_fields = ('issue',)
+        extra_kwargs = dict(
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+        )
+
+    def validate(self, attrs):
+        token = attrs.pop('token')
+        signer = signing.TimestampSigner()
+        try:
+            issue_uuid = signer.unsign(
+                token, max_age=timedelta(days=settings.ISSUE_FEEDBACK_TOKEN_PERIOD)
+            )
+
+            if not is_uuid_like(issue_uuid):
+                raise serializers.ValidationError(
+                    {'token': _('UUID:%s is not valid.') % issue_uuid}
+                )
+
+            issue = models.Issue.objects.get(uuid=issue_uuid)
+
+            if models.Feedback.objects.filter(issue=issue).exists():
+                raise serializers.ValidationError(
+                    _('Feedback for this issue already exists.')
+                )
+        except signing.BadSignature:
+            raise serializers.ValidationError({'token': _('Token is wrong.')})
+        except models.Issue.DoesNotExist:
+            raise serializers.ValidationError(_('An issue is not found.'))
+
+        attrs['issue'] = issue
+        return attrs

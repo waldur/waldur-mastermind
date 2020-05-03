@@ -36,6 +36,7 @@ class CreateNodeTask(core_tasks.Task):
         group = node.initial_data['group']
         tenant_spl = node.initial_data['tenant_service_project_link']
         user = auth.get_user_model().objects.get(pk=user_id)
+        ssh_public_key = node.initial_data.get('ssh_public_key')
 
         post_data = {
             'name': node.name,
@@ -82,6 +83,11 @@ class CreateNodeTask(core_tasks.Task):
                     )
                 }
             ]
+
+        if ssh_public_key:
+            post_data['ssh_public_key'] = reverse(
+                'sshpublickey-detail', kwargs={'uuid': ssh_public_key},
+            )
 
         view = InstanceViewSet.as_view({'post': 'create'})
         response = common_utils.create_request(view, user, post_data)

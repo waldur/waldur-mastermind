@@ -201,6 +201,12 @@ class CommentAdmin(structure_admin.BackendModelAdmin):
     get_issue_key.short_description = 'Issue'
 
 
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ('issue', 'evaluation', 'state')
+    list_filter = ('evaluation', 'state')
+    search_fields = ('issue__key', 'issue__summary')
+
+
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, CommentAdmin)
@@ -216,3 +222,4 @@ admin.site.register(models.RequestType, RequestTypeAdmin)
 admin.site.register(models.Priority, PriorityAdmin)
 admin.site.register(models.IssueStatus, IssueStatusAdmin)
 admin.site.register(models.TemplateConfirmationComment)
+admin.site.register(models.Feedback, FeedbackAdmin)

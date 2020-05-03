@@ -15,23 +15,18 @@ from waldur_core.core.admin import JsonWidget
 from . import executors, models, tasks
 
 
-class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
+class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.StackedInline):
     model = models.InvoiceItem
     readonly_fields = (
-        'name',
         'price',
         'unit_price',
         'unit',
-        'start',
-        'end',
         'project_name',
         'project_uuid',
-        'product_code',
-        'article_code',
-        'format_details',
+        'get_factor',
         'quantity',
     )
-    exclude = ('details', 'project', 'content_type', 'object_id')
+    exclude = ('project', 'content_type', 'object_id')
 
     def format_details(self, obj):
         return core_admin.format_json_field(obj.details)

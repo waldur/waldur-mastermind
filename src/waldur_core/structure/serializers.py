@@ -1852,6 +1852,7 @@ class BaseResourceSerializer(
             'resource_type',
             'state',
             'created',
+            'modified',
             'service_project_link',
             'backend_id',
             'access_url',
@@ -2046,20 +2047,35 @@ class BaseResourceImportSerializer(
         return super(BaseResourceImportSerializer, self).create(validated_data)
 
 
-class VirtualMachineSerializer(BaseResourceSerializer):
-    external_ips = serializers.ListField(
-        child=serializers.IPAddressField(protocol='ipv4'), read_only=True,
-    )
-    internal_ips = serializers.ListField(
-        child=serializers.IPAddressField(protocol='ipv4'), read_only=True,
-    )
-
+class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
     ssh_public_key = serializers.HyperlinkedRelatedField(
         view_name='sshpublickey-detail',
         lookup_field='uuid',
         queryset=core_models.SshPublicKey.objects.all(),
         required=False,
         write_only=True,
+    )
+
+    def get_fields(self):
+        fields = super(SshPublicKeySerializerMixin, self).get_fields()
+        if 'request' in self.context:
+            user = self.context['request'].user
+            ssh_public_key = fields.get('ssh_public_key')
+            if ssh_public_key:
+                ssh_public_key.query_params = {'user_uuid': user.uuid.hex}
+                if not user.is_staff:
+                    visible_users = list(filter_visible_users(User.objects.all(), user))
+                    subquery = Q(user__in=visible_users) | Q(is_shared=True)
+                    ssh_public_key.queryset = ssh_public_key.queryset.filter(subquery)
+        return fields
+
+
+class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializer):
+    external_ips = serializers.ListField(
+        child=serializers.IPAddressField(protocol='ipv4'), read_only=True,
+    )
+    internal_ips = serializers.ListField(
+        child=serializers.IPAddressField(protocol='ipv4'), read_only=True,
     )
 
     class Meta(BaseResourceSerializer.Meta):
@@ -2099,19 +2115,6 @@ class VirtualMachineSerializer(BaseResourceSerializer):
             'user_data',
             'ssh_public_key',
         )
-
-    def get_fields(self):
-        fields = super(VirtualMachineSerializer, self).get_fields()
-        if 'request' in self.context:
-            user = self.context['request'].user
-            ssh_public_key = fields.get('ssh_public_key')
-            if ssh_public_key:
-                ssh_public_key.query_params = {'user_uuid': user.uuid.hex}
-                if not user.is_staff:
-                    visible_users = list(filter_visible_users(User.objects.all(), user))
-                    subquery = Q(user__in=visible_users) | Q(is_shared=True)
-                    ssh_public_key.queryset = ssh_public_key.queryset.filter(subquery)
-        return fields
 
     def create(self, validated_data):
         if 'image' in validated_data:

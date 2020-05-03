@@ -7,6 +7,8 @@ from rest_framework import decorators
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import permissions, response, status, views, viewsets
 
+from waldur_core.core import mixins as core_mixins
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -16,7 +18,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
-from . import backend, exceptions, filters, models, serializers, tasks
+from . import backend, exceptions, executors, filters, models, serializers, tasks
 
 
 class CheckExtensionMixin(core_views.CheckExtensionMixin):
@@ -310,6 +312,14 @@ class OfferingPlanViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.OfferingPlan.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.OfferingPlanSerializer
+
+
+class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+    disabled_actions = ['update', 'partial_update', 'destroy', 'list', 'retrieve']
+    permission_classes = (core_permissions.ActionsPermission,)
+    create_permissions = ()
+    serializer_class = serializers.CreateFeedbackSerializer
+    create_executor = executors.FeedbackExecutor
 
 
 def get_offerings_count(scope):

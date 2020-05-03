@@ -4,7 +4,7 @@ skip-string-normalization = true
 
 [tool.poetry]
 name = "waldur-mastermind"
-version = "4.6.7"
+version = "4.6.8"
 description = "Waldur MasterMind is a hybrid cloud orchestrator."
 authors = ["OpenNode Team <info@opennodecloud.com>"]
 license = "MIT"
@@ -56,7 +56,7 @@ passlib = "1.7.1"
 paypalrestsdk = "1.13.1"
 pbr = "4.0.4"
 pdfkit = "0.6.1"
-Pillow = "6.2.0"
+Pillow = "6.2.2"
 prettytable = "0.7.2"
 psycopg2-binary = "2.8.4"
 pycountry = "1.20"

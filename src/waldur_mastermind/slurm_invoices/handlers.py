@@ -44,7 +44,8 @@ def update_invoice_item_on_allocation_usage_update(
     if package:
         invoice_item.unit_price = utils.get_deposit_usage(allocation, package)
         invoice_item.details = registrators.RegistrationManager.get_details(allocation)
-        invoice_item.save(update_fields=['unit_price', 'details'])
+        invoice_item.name = registrators.RegistrationManager.get_name(allocation)
+        invoice_item.save(update_fields=['name', 'unit_price', 'details'])
 
 
 def update_allocation_deposit(sender, instance, created=False, **kwargs):

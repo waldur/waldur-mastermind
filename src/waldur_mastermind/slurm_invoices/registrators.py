@@ -72,3 +72,24 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             }
         )
         return details
+
+    def get_name(self, source):
+        cpu_substr = ""
+        gpu_substr = ""
+        ram_substr = ""
+        if source.cpu_usage > 0:
+            cpu_substr = f"CPU: {source.cpu_usage} hours "
+        if source.gpu_usage > 0:
+            gpu_substr = f"GPU: {source.gpu_usage} hours "
+        if source.ram_usage > 0:
+            ram_substr = f"RAM: {source.ram_usage} GB"
+
+        if cpu_substr == gpu_substr == ram_substr == "":
+            return source.name
+
+        return '{name} ({cpu_substr}{gpu_substr}{ram_substr})'.format(
+            name=source.name,
+            cpu_substr=cpu_substr,
+            gpu_substr=gpu_substr,
+            ram_substr=ram_substr,
+        )

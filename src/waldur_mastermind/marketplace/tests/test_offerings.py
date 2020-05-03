@@ -1366,7 +1366,7 @@ class OfferingDoiTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             datacite_doi='10.15159/t9zh-k971',
             citation_count=self.dc_resp['attributes']['citationCount'],
-            referred_pids=self.ref_pids,
+            referrals=self.ref_pids,
         )
         self.fixture = fixtures.ProjectFixture()
 
@@ -1379,4 +1379,4 @@ class OfferingDoiTest(test.APITransactionTestCase):
         self.assertEqual(
             response['citation_count'], self.dc_resp['attributes']['citationCount']
         )
-        self.assertEqual(response['referred_pids'], self.ref_pids)
+        self.assertEqual(response['referrals'], self.ref_pids)

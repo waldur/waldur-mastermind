@@ -385,10 +385,8 @@ class Offering(
     citation_count = models.IntegerField(
         default=-1, help_text=_('Number of citations of a DOI'),
     )
-    referred_pids = JSONField(
-        default=dict,
-        blank=True,
-        help_text=_('List of DOIs referring to the current DOI'),
+    referrals = JSONField(
+        default=list, blank=True, help_text=_('Referrals list for the current DOI'),
     )
 
     objects = managers.OfferingManager()

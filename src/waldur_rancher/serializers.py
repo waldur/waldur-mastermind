@@ -1,17 +1,23 @@
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators as django_validators
+from django.core.exceptions import MultipleObjectsReturned
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import VirtualMachine
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
+from waldur_openstack.openstack_tenant import (
+    serializers as openstack_tenant_serializers,
+)
 
 from . import exceptions, models, utils, validators
 
@@ -130,6 +136,24 @@ class BaseNodeSerializer(
 
     class Meta(object):
         model = models.Node
+        read_only_fields = (
+            'error_message',
+            'etcd_role',
+            'worker_role',
+            'initial_data',
+            'runtime_state',
+            'k8s_version',
+            'docker_version',
+            'cpu_allocated',
+            'cpu_total',
+            'ram_allocated',
+            'ram_total',
+            'pods_allocated',
+            'pods_total',
+            'labels',
+            'annotations',
+        )
+        exclude = ('state',)
 
     def get_filtered_field_names(self):
         return ('subnet', 'flavor', 'system_volume_type')
@@ -148,7 +172,10 @@ class NestedNodeSerializer(BaseNodeSerializer):
         exclude = ('cluster', 'object_id', 'content_type', 'name')
 
 
-class ClusterSerializer(structure_serializers.BaseResourceSerializer):
+class ClusterSerializer(
+    structure_serializers.SshPublicKeySerializerMixin,
+    structure_serializers.BaseResourceSerializer,
+):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='rancher-detail',
@@ -183,6 +210,7 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
             'nodes',
             'tenant_settings',
             'runtime_state',
+            'ssh_public_key',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -202,9 +230,10 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         if self.instance:
             return attrs
 
-        nodes = attrs.get('node_set')
-        name = attrs.get('name')
-        spl = attrs.get('service_project_link')
+        nodes = attrs['node_set']
+        name = attrs['name']
+        spl = attrs['service_project_link']
+        ssh_public_key = attrs.pop('ssh_public_key', None)
 
         attrs['settings'] = spl.service.settings
 
@@ -217,7 +246,7 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
             raise serializers.ValidationError(_('Name is not unique.'))
 
         tenant_settings = attrs.get('tenant_settings')
-        utils.expand_added_nodes(nodes, spl, tenant_settings, name)
+        utils.expand_added_nodes(name, nodes, spl, tenant_settings, ssh_public_key)
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
@@ -328,7 +357,9 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         return 'Rancher.Node'
 
 
-class CreateNodeSerializer(BaseNodeSerializer):
+class CreateNodeSerializer(
+    structure_serializers.SshPublicKeySerializerMixin, BaseNodeSerializer
+):
     class Meta:
         model = models.Node
         fields = (
@@ -341,6 +372,7 @@ class CreateNodeSerializer(BaseNodeSerializer):
             'subnet',
             'flavor',
             'data_volumes',
+            'ssh_public_key',
         )
         extra_kwargs = {
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
@@ -348,10 +380,13 @@ class CreateNodeSerializer(BaseNodeSerializer):
 
     def validate(self, attrs):
         attrs = super(CreateNodeSerializer, self).validate(attrs)
-        cluster = attrs.get('cluster')
+        cluster = attrs['cluster']
+        ssh_public_key = attrs.pop('ssh_public_key', None)
         spl = cluster.service_project_link
         node = attrs
-        utils.expand_added_nodes([node], spl, cluster.tenant_settings, cluster.name)
+        utils.expand_added_nodes(
+            cluster.name, [node], spl, cluster.tenant_settings, ssh_public_key
+        )
         return attrs
 
 
@@ -549,5 +584,43 @@ class ApplicationCreateSerializer(serializers.Serializer):
     template_uuid = serializers.UUIDField()
     version = serializers.CharField()
     project_uuid = serializers.UUIDField()
-    namespace_uuid = serializers.UUIDField()
+    namespace_uuid = serializers.UUIDField(required=False)
+    namespace_name = serializers.CharField(required=False)
     answers = serializers.DictField(required=False)
+
+    def validate(self, attrs):
+        if (not attrs.get('namespace_uuid') and not attrs.get('namespace_name')) or (
+            attrs.get('namespace_uuid') and attrs.get('namespace_name')
+        ):
+            raise serializers.ValidationError(
+                'Either existing namespace UUID or new namespace name should be specified.'
+            )
+        return attrs
+
+
+def get_rancher_cluster_for_openstack_instance(serializer, scope):
+    request = serializer.context['request']
+    queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
+    try:
+        cluster = queryset.filter(
+            tenant_settings=scope.service_project_link.service.settings
+        ).get()
+    except models.Cluster.DoesNotExist:
+        return None
+    except MultipleObjectsReturned:
+        return None
+    return {
+        'name': cluster.name,
+        'uuid': cluster.uuid,
+    }
+
+
+def add_rancher_cluster_to_openstack_instance(sender, fields, **kwargs):
+    fields['rancher_cluster'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_rancher_cluster', get_rancher_cluster_for_openstack_instance)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=openstack_tenant_serializers.InstanceSerializer,
+    receiver=add_rancher_cluster_to_openstack_instance,
+)

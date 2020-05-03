@@ -15,7 +15,6 @@ repos:
     rev: 4.3.21-2
     hooks:
       - id: isort
-        language_version: python3.6
         files: ^src/
         exclude: src/waldur_core/server/base_settings.py
 
@@ -23,7 +22,6 @@ repos:
     rev: 19.10b0
     hooks:
       - id: black
-        language_version: python3.6
         files: ^src/
         exclude: src/waldur_core/server/base_settings.py
 
@@ -31,7 +29,6 @@ repos:
     rev: 3.7.9
     hooks:
       - id: flake8
-        language_version: python3.6
         files: ^src/
         exclude: src/waldur_core/server/base_settings.py
         additional_dependencies:

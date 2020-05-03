@@ -10,6 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import ExecutorAdminAction, JsonWidget, format_json_field
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.structure.models import (
@@ -188,7 +189,7 @@ class OfferingAdminForm(ModelForm):
             'options': JsonWidget(),
             'secret_options': JsonWidget(),
             'plugin_options': JsonWidget(),
-            'referred_pids': JsonWidget(),
+            'referrals': JsonWidget(),
         }
 
 
@@ -247,9 +248,9 @@ class OfferingAdmin(admin.ModelAdmin):
         'paused_reason',
         'datacite_doi',
         'citation_count',
-        'referred_pids',
+        'referrals',
     )
-    readonly_fields = ('rating', 'scope_link', 'citation_count', 'referred_pids')
+    readonly_fields = ('rating', 'scope_link', 'citation_count', 'referrals')
 
     def scope_link(self, obj):
         if obj.scope:
@@ -257,7 +258,7 @@ class OfferingAdmin(admin.ModelAdmin):
                 '<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope
             )
 
-    actions = ['activate', 'datacite_registration']
+    actions = ['activate', 'datacite_registration', 'offering_referrals_pull']
 
     def activate(self, request, queryset):
         valid_states = [models.Offering.States.DRAFT, models.Offering.States.PAUSED]
@@ -296,6 +297,26 @@ class OfferingAdmin(admin.ModelAdmin):
         self.message_user(request, message)
 
     datacite_registration.short_description = _('Register in Datacite')
+
+    def offering_referrals_pull(self, request, queryset):
+        queryset.exclude(datacite_doi='')
+
+        for offering in queryset.all():
+            serialized_offering = core_utils.serialize_instance(offering)
+            tasks.get_datacite_info_for_offering.delay(serialized_offering)
+
+        count = queryset.count()
+
+        message = ungettext(
+            'Offering has been scheduled for referrals pull.',
+            '%(count)d offerings have been scheduled for referrals pull.',
+            count,
+        )
+        message = message % {'count': count}
+
+        self.message_user(request, message)
+
+    offering_referrals_pull.short_description = _('Pull referrals info for offering(s)')
 
 
 class OrderItemInline(admin.TabularInline):

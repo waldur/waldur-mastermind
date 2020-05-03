@@ -49,16 +49,26 @@ class Allocation(structure_models.NewResource):
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 
-    cpu_limit = models.BigIntegerField(default=-1)
+    cpu_limit = models.BigIntegerField(
+        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['CPU']
+    )
     cpu_usage = models.BigIntegerField(default=0)
 
-    gpu_limit = models.BigIntegerField(default=-1)
+    gpu_limit = models.BigIntegerField(
+        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['GPU']
+    )
     gpu_usage = models.BigIntegerField(default=0)
 
-    ram_limit = models.BigIntegerField(default=-1)
+    ram_limit = models.BigIntegerField(
+        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['RAM']
+    )
     ram_usage = models.BigIntegerField(default=0)
 
-    deposit_limit = models.DecimalField(max_digits=6, decimal_places=0, default=-1)
+    deposit_limit = models.DecimalField(
+        max_digits=6,
+        decimal_places=0,
+        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['DEPOSIT'],
+    )
     deposit_usage = models.DecimalField(max_digits=8, decimal_places=2, default=0)
 
     @classmethod
