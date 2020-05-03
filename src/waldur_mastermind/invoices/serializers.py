@@ -313,6 +313,7 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.PaymentProfile
         fields = (
+            'uuid',
             'url',
             'name',
             'organization_uuid',
