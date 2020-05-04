@@ -165,6 +165,8 @@ class SlurmBackend(ServiceBackend):
             )
             return
         self._update_quotas(allocation, usage)
+        limits = self.get_allocation_limits(account)
+        self._update_limits(allocation, limits)
 
     def get_usage_report(self, accounts):
         report = {}
@@ -180,6 +182,18 @@ class SlurmBackend(ServiceBackend):
             usage['TOTAL_ACCOUNT_USAGE'] = total
 
         return report
+
+    def get_allocation_limits(self, account):
+        line = self.client.get_limits(account)
+        limits = Quotas(cpu=line.cpu, gpu=line.gpu, ram=line.ram)
+
+        return limits
+
+    def _update_limits(self, allocation, limits):
+        allocation.cpu_limit = limits.cpu
+        allocation.gpu_limit = limits.gpu
+        allocation.ram_limit = limits.ram
+        allocation.save(update_fields=['cpu_limit', 'gpu_limit', 'ram_limit'])
 
     @transaction.atomic()
     def _update_quotas(self, allocation, usage):

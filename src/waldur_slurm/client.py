@@ -131,6 +131,19 @@ class SlurmClient(BaseBatchClient):
         output = self._execute_command(args, 'sacct', immediate=False)
         return [SlurmReportLine(line) for line in output.splitlines() if '|' in line]
 
+    def get_limits(
+        self, account
+    ):  # |cpu=4,mem=100000M,node=2,gres/gpu=3,gres/gpu:tesla=2|
+        args = [
+            'show',
+            'association',
+            'format=account,GrpTRES',
+            'where',
+            'accounts=%s' % account,
+        ]
+        output = self._execute_command(args, immediate=False)
+        return SlurmReportLine(output)
+
     def _execute_command(self, command, command_name='sacctmgr', immediate=True):
         account_command = [command_name, '--parsable2', '--noheader']
         if immediate:
