@@ -412,7 +412,7 @@ class ApplicationViewSet(APIView):
             return response.Response(
                 {'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST
             )
-        return response.Response(application['data'], status=status.HTTP_201_CREATED)
+        return response.Response(application, status=status.HTTP_201_CREATED)
 
     def get_object(self, request, model_class, object_uuid):
         return get_object_or_404(
