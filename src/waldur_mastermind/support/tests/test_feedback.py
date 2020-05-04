@@ -1,6 +1,7 @@
 import mock
 from ddt import data, ddt
 from django.core import mail, signing
+from django.test import override_settings
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
@@ -57,6 +58,7 @@ class FeedbackNotificationTest(base.BaseTest):
     @mock.patch(
         'waldur_mastermind.support.handlers.tasks.send_issue_feedback_notification'
     )
+    @override_settings(ISSUE_FEEDBACK_ENABLE=True)
     def test_feedback_notification(self, mock_tasks):
         factories.IssueStatusFactory(
             name='resolved', type=models.IssueStatus.Types.RESOLVED
