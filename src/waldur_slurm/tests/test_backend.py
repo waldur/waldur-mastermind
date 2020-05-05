@@ -6,6 +6,8 @@ from django.test import TestCase
 from freezegun import freeze_time
 
 from waldur_freeipa import models as freeipa_models
+from waldur_slurm.client import SlurmClient
+from waldur_slurm.parser import SlurmReportLine
 
 from .. import models
 from . import fixtures
@@ -91,6 +93,25 @@ class BackendTest(TestCase):
         backend.set_resource_limits(self.allocation)
 
         check_output.assert_called_once_with(command, encoding='utf-8', stderr=-2)
+
+    @mock.patch('subprocess.check_output')
+    def test_pull_allocation(self, check_output):
+        association = f"{self.account}|cpu=400,mem=100M,gres/gpu=120"
+        check_output.return_value = association
+
+        with mock.patch.object(SlurmClient, 'get_usage_report') as ur:
+            report = VALID_REPORT.replace('allocation1', self.account)
+            ur.return_value = [
+                SlurmReportLine(line) for line in report.splitlines() if '|' in line
+            ]
+
+            backend = self.allocation.get_backend()
+            backend.pull_allocation(self.allocation)
+            self.allocation.refresh_from_db()
+
+            self.assertEqual(self.allocation.cpu_limit, 400)
+            self.assertEqual(self.allocation.gpu_limit, 120)
+            self.assertEqual(self.allocation.ram_limit, 100 * 2 ** 20)
 
 
 class BackendMOABTest(TestCase):

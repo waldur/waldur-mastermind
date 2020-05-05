@@ -2,7 +2,7 @@ import logging
 import re
 
 from waldur_slurm.base import BaseBatchClient, BatchError
-from waldur_slurm.parser import SlurmReportLine
+from waldur_slurm.parser import SlurmAssociationLine, SlurmReportLine
 from waldur_slurm.structures import Account, Association
 from waldur_slurm.utils import format_current_month
 
@@ -131,9 +131,7 @@ class SlurmClient(BaseBatchClient):
         output = self._execute_command(args, 'sacct', immediate=False)
         return [SlurmReportLine(line) for line in output.splitlines() if '|' in line]
 
-    def get_limits(
-        self, account
-    ):  # |cpu=4,mem=100000M,node=2,gres/gpu=3,gres/gpu:tesla=2|
+    def get_limits(self, account):
         args = [
             'show',
             'association',
@@ -142,7 +140,7 @@ class SlurmClient(BaseBatchClient):
             'accounts=%s' % account,
         ]
         output = self._execute_command(args, immediate=False)
-        return SlurmReportLine(output)
+        return SlurmAssociationLine(output)
 
     def _execute_command(self, command, command_name='sacctmgr', immediate=True):
         account_command = [command_name, '--parsable2', '--noheader']
