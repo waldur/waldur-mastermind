@@ -99,9 +99,9 @@ class BackendTest(TestCase):
         association = f"{self.account}|cpu=400,mem=100M,gres/gpu=120"
         check_output.return_value = association
 
-        with mock.patch.object(SlurmClient, 'get_usage_report') as ur:
+        with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
             report = VALID_REPORT.replace('allocation1', self.account)
-            ur.return_value = [
+            usage_report.return_value = [
                 SlurmReportLine(line) for line in report.splitlines() if '|' in line
             ]
 
