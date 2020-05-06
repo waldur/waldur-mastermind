@@ -148,7 +148,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('name',), },
+            options={'ordering': ('name',),},
         ),
         migrations.CreateModel(
             name='RancherService',
