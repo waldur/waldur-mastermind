@@ -432,6 +432,8 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     attributes = JSONField(default=dict, blank=True)
     is_active = models.NullBooleanField(default=True)
 
+    tracker = FieldTracker()
+
     def __str__(self):
         return self.organization.name
 
@@ -445,6 +447,12 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     def save(self, *args, **kwargs):
         if self.is_active is False:
             self.is_active = None
+
+        if not self.tracker.previous(self.is_active) and self.is_active:
+            self.__class__.objects.filter(organization=self.organization).exclude(
+                pk=self.pk
+            ).update(is_active=None)
+
         return super(PaymentProfile, self).save(*args, **kwargs)
 
     class Meta:
