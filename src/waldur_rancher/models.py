@@ -169,6 +169,7 @@ class Node(
         return self.cluster.node_command + ' ' + ' '.join(roles_command)
 
     class Meta:
+        ordering = ('name',)
         unique_together = (('content_type', 'object_id'), ('cluster', 'name'))
 
     class Permissions:
