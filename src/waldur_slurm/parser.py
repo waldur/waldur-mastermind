@@ -58,3 +58,17 @@ class SlurmReportLine(BaseReportLine):
         if field not in self._resources:
             return 0
         return core_utils.parse_int(self._resources[field])
+
+
+class SlurmAssociationLine(SlurmReportLine):
+    @cached_property
+    def user(self):
+        return None
+
+    @cached_property
+    def node(self):
+        return None
+
+    @cached_property
+    def duration(self):
+        return None

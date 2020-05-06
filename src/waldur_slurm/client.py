@@ -2,7 +2,7 @@ import logging
 import re
 
 from waldur_slurm.base import BaseBatchClient, BatchError
-from waldur_slurm.parser import SlurmReportLine
+from waldur_slurm.parser import SlurmAssociationLine, SlurmReportLine
 from waldur_slurm.structures import Account, Association
 from waldur_slurm.utils import format_current_month
 
@@ -130,6 +130,17 @@ class SlurmClient(BaseBatchClient):
         ]
         output = self._execute_command(args, 'sacct', immediate=False)
         return [SlurmReportLine(line) for line in output.splitlines() if '|' in line]
+
+    def get_limits(self, account):
+        args = [
+            'show',
+            'association',
+            'format=account,GrpTRES',
+            'where',
+            'accounts=%s' % account,
+        ]
+        output = self._execute_command(args, immediate=False)
+        return SlurmAssociationLine(output)
 
     def _execute_command(self, command, command_name='sacctmgr', immediate=True):
         account_command = [command_name, '--parsable2', '--noheader']
