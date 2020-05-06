@@ -5,13 +5,13 @@
 </head>
 <body>
 <p>
-    {{ comment.author.name }} added new comment.
+    {{ comment.author.name }} added a new comment.
 </p>
 <p>
     <a href="{{ issue_url }}">[{{ issue.key }}] {{ issue.summary }}</a>
 </p>
-<p>
+<pre>
     {{ comment.description }}
-</p>
+</pre>
 </body>
 </html>
