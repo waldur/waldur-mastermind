@@ -1,5 +1,4 @@
 from ddt import data, ddt
-from django.db import IntegrityError
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -137,6 +136,21 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_enable_action(self):
+        self.client.force_authenticate(self.fixture.staff)
+        new_profile = factories.PaymentProfileFactory(
+            organization=self.fixture.customer, is_active=False,
+        )
+        url = factories.PaymentProfileFactory.get_url(
+            profile=new_profile, action='enable'
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        new_profile.refresh_from_db()
+        self.profile.refresh_from_db()
+        self.assertIsNone(self.profile.is_active)
+        self.assertTrue(new_profile.is_active)
+
 
 @ddt
 class ProfileDeleteTest(test.APITransactionTestCase):
@@ -161,19 +175,23 @@ class ProfileDeleteTest(test.APITransactionTestCase):
 
 
 class ProfileModelTest(test.APITransactionTestCase):
-    def test_there_should_be_multiple_non_active_but_only_a_single_active(self):
-        customer = structure_factories.CustomerFactory()
-        factories.PaymentProfileFactory(organization=customer, is_active=True)
-        self.assertRaises(
-            IntegrityError,
-            factories.PaymentProfileFactory,
-            organization=customer,
-            is_active=True,
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.profile = factories.PaymentProfileFactory(
+            organization=self.customer, is_active=True
         )
 
-        factories.PaymentProfileFactory(organization=customer, is_active=False)
-        profile = factories.PaymentProfileFactory(
-            organization=customer, is_active=False
+    def test_if_enabling_payment_profile_disables_other_existing_profiles(self):
+        # creation
+        new_profile = factories.PaymentProfileFactory(
+            organization=self.customer, is_active=True
         )
-        profile.is_active = True
-        self.assertRaises(IntegrityError, profile.save)
+        self.profile.refresh_from_db()
+        self.assertIsNone(self.profile.is_active)
+
+        # update
+        self.profile.is_active = True
+        self.profile.save()
+        new_profile.refresh_from_db()
+        self.assertIsNone(new_profile.is_active)
+        self.assertTrue(self.profile.is_active)
