@@ -9,8 +9,11 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators, response, status
+from rest_framework import decorators, response
+from rest_framework import serializers as rf_serializers
+from rest_framework import status
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
+from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.views import APIView
 
@@ -339,7 +342,9 @@ class TemplateVersionView(APIView):
         )
 
 
-class ApplicationViewSet(APIView):
+class ApplicationViewSet(GenericAPIView):
+    serializer_class = rf_serializers.Serializer
+
     def get(self, request):
         cluster_uuid = request.query_params.get('cluster_uuid')
         if not cluster_uuid or not is_uuid_like(cluster_uuid):
@@ -347,7 +352,8 @@ class ApplicationViewSet(APIView):
         cluster = self.get_object(request, models.Cluster, cluster_uuid)
         backend = cluster.settings.get_backend()
         applications = backend.list_cluster_applications(cluster)
-        return response.Response(applications)
+        applications = self.paginate_queryset(applications)
+        return self.get_paginated_response(applications)
 
     def post(self, request):
         if django_settings.WALDUR_RANCHER['READ_ONLY_MODE']:
