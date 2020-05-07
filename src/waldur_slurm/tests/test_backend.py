@@ -50,24 +50,12 @@ class BackendTest(TestCase):
         backend = self.allocation.get_backend()
         backend.sync_usage()
 
-        allocation_usage = models.AllocationUsage.objects.get(
-            allocation=self.allocation, year=2017, month=10,
+        user1_allocation = models.AllocationUsage.objects.get(
+            allocation=self.allocation, user=user1, year=2017, month=10,
         )
-
-        user1_allocation_usage = models.AllocationUserUsage.objects.get(
-            allocation_usage=allocation_usage, user=user1
-        )
-
-        self.assertEqual(user1_allocation_usage.cpu_usage, 1)
-        self.assertEqual(user1_allocation_usage.gpu_usage, 1)
-        self.assertEqual(user1_allocation_usage.ram_usage, 51200 * 2 ** 20)
-
-        user2_allocation_usage = models.AllocationUserUsage.objects.get(
-            allocation_usage=allocation_usage, user=user2
-        )
-        self.assertEqual(user2_allocation_usage.cpu_usage, 2 * 2 * 2)
-        self.assertEqual(user2_allocation_usage.gpu_usage, 2 * 2 * 2)
-        self.assertEqual(user2_allocation_usage.ram_usage, 2 * 2 * 51200 * 2 ** 20)
+        self.assertEqual(user1_allocation.cpu_usage, 1)
+        self.assertEqual(user1_allocation.gpu_usage, 1)
+        self.assertEqual(user1_allocation.ram_usage, 51200 * 2 ** 20)
 
     @mock.patch('subprocess.check_output')
     def test_set_resource_limits(self, check_output):

@@ -116,20 +116,3 @@ class AllocationUsage(models.Model):
     ram_usage = models.BigIntegerField(default=0)
     gpu_usage = models.BigIntegerField(default=0)
     deposit_usage = models.DecimalField(max_digits=8, decimal_places=2, default=0)
-
-
-# Allocation usage per user
-# It is responsible for the allocation usage definition for particular user
-class AllocationUserUsage(models.Model):
-    allocation_usage = models.ForeignKey(to=AllocationUsage, on_delete=models.CASCADE)
-
-    user = models.ForeignKey(
-        to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True, null=True
-    )
-
-    username = models.CharField(max_length=32)
-
-    cpu_usage = models.BigIntegerField(default=0)
-    ram_usage = models.BigIntegerField(default=0)
-    gpu_usage = models.BigIntegerField(default=0)
-    deposit_usage = models.DecimalField(max_digits=8, decimal_places=2, default=0)

@@ -212,28 +212,18 @@ class SlurmBackend(ServiceBackend):
             for profile in freeipa_models.Profile.objects.filter(username__in=usernames)
         }
 
-        allocation_usage, _ = models.AllocationUsage.objects.update_or_create(
-            allocation=allocation,
-            year=timezone.now().year,
-            month=timezone.now().month,
-            defaults={
-                'cpu_usage': quotas.cpu,
-                'gpu_usage': quotas.gpu,
-                'ram_usage': quotas.ram,
-                'deposit_usage': quotas.deposit,
-            },
-        )
-
         for username, quotas in usage.items():
-            models.AllocationUserUsage.objects.update_or_create(
-                allocation_usage=allocation_usage,
-                user=usermap.get(username),
+            models.AllocationUsage.objects.update_or_create(
+                allocation=allocation,
                 username=username,
+                year=timezone.now().year,
+                month=timezone.now().month,
                 defaults={
                     'cpu_usage': quotas.cpu,
                     'gpu_usage': quotas.gpu,
                     'ram_usage': quotas.ram,
                     'deposit_usage': quotas.deposit,
+                    'user': usermap.get(username),
                 },
             )
 
