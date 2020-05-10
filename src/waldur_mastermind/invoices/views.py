@@ -73,8 +73,19 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     filterset_class = filters.PaymentProfileFilter
     create_permissions = (
         update_permissions
-    ) = partial_update_permissions = destroy_permissions = [
+    ) = partial_update_permissions = destroy_permissions = enable_permissions = [
         structure_permissions.is_staff
     ]
     queryset = models.PaymentProfile.objects.all()
     serializer_class = serializers.PaymentProfileSerializer
+
+    @action(detail=True, methods=['post'])
+    def enable(self, request, uuid=None):
+        profile = self.get_object()
+        profile.is_active = True
+        profile.save(update_fields=['is_active'])
+
+        return Response(
+            {'detail': _('Payment profile has been enabled.')},
+            status=status.HTTP_200_OK,
+        )

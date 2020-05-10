@@ -25,10 +25,7 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             )
         ]
         _tasks += [
-            # Pull default projects
-            core_tasks.BackendMethodTask().si(
-                serialized_instance, 'pull_projects_for_cluster',
-            )
+            core_tasks.BackendMethodTask().si(serialized_instance, 'pull_cluster',)
         ]
         return chain(*_tasks)
 
