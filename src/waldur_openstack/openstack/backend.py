@@ -1416,6 +1416,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 subnet.network.name,
                 response['subnets'][0]['id'],
                 tenant_id=subnet.network.tenant.backend_id,
+                network_id=subnet.network.backend_id,
             )
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
@@ -1626,9 +1627,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                         router['name'],
                     )
             else:
-                ports = neutron.list_ports(device_id=router['id'], tenant_id=tenant_id)[
-                    'ports'
-                ]
+                ports = neutron.list_ports(
+                    device_id=router['id'], tenant_id=tenant_id, network_id=network_id
+                )['ports']
                 if not ports:
                     neutron.add_interface_router(router['id'], {'subnet_id': subnet_id})
                     logger.info(
