@@ -7,6 +7,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_freeipa import models as freeipa_models
+from waldur_slurm import mixins as slurm_mixins
 
 from . import models
 
@@ -138,27 +139,37 @@ class AllocationSerializer(
         return attrs
 
 
-class AllocationUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
-    full_name = rf_serializers.ReadOnlyField(source='user.full_name')
-
-    class Meta:
+class AllocationUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
+    class Meta(slurm_mixins.AllocationUsageSerializerMixin.Meta):
         model = models.AllocationUsage
         fields = (
             'allocation',
             'year',
             'month',
-            'username',
-            'user',
-            'full_name',
-            'cpu_usage',
-            'ram_usage',
-            'gpu_usage',
-            'deposit_usage',
-        )
+        ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
         extra_kwargs = {
             'allocation': {
                 'lookup_field': 'uuid',
                 'view_name': 'slurm-allocation-detail',
+            },
+        }
+
+
+class AllocationUserUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
+    full_name = rf_serializers.ReadOnlyField(source='user.full_name')
+
+    class Meta(slurm_mixins.AllocationUsageSerializerMixin.Meta):
+        model = models.AllocationUserUsage
+        fields = (
+            'allocation_usage',
+            'user',
+            'username',
+            'full_name',
+        ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
+        extra_kwargs = {
+            'allocation_usage': {
+                'lookup_field': 'uuid',
+                'view_name': 'slurm-allocation-usage-detail',
             },
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail',},
         }
