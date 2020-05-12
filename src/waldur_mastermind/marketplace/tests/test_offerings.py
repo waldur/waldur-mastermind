@@ -1366,7 +1366,13 @@ class OfferingDoiTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             datacite_doi='10.15159/t9zh-k971',
             citation_count=self.dc_resp['attributes']['citationCount'],
-            referrals=self.ref_pids,
+        )
+        self.offering_referral = factories.OfferingReferralFactory(scope=self.offering)
+        self.offering2 = factories.OfferingFactory(
+            datacite_doi='10.15159/t9zh-k972', citation_count=0,
+        )
+        self.offering_referral2 = factories.OfferingReferralFactory(
+            scope=self.offering2
         )
         self.fixture = fixtures.ProjectFixture()
 
@@ -1379,4 +1385,22 @@ class OfferingDoiTest(test.APITransactionTestCase):
         self.assertEqual(
             response['citation_count'], self.dc_resp['attributes']['citationCount']
         )
-        self.assertEqual(response['referrals'], self.ref_pids)
+
+    def test_authenticated_user_can_lookup_offering_referrals(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingReferralFactory.get_list_url()
+
+        response = self.client.get(
+            url, {'scope': factories.OfferingFactory.get_url(self.offering)}
+        ).json()
+
+        self.assertTrue('pid' in response[0])
+        self.assertTrue(len(response) == 1)
+
+    def test_anonymous_user_cannot_lookup_offering_referrals(self):
+        url = factories.OfferingReferralFactory.get_list_url()
+
+        response = self.client.get(
+            url, {'scope': factories.OfferingFactory.get_url(self.offering)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

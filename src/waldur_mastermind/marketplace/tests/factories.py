@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import factory
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import signals
 from django.utils import timezone
 from rest_framework.reverse import reverse
@@ -8,6 +9,7 @@ from rest_framework.reverse import reverse
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_pid import models as pid_models
 
 from .. import models
 
@@ -109,6 +111,56 @@ class OfferingFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-offering-list')
         return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_referral_list(cls, offering):
+        return (
+            'http://testserver'
+            + reverse('marketplace-offering-referral-list')
+            + '?offering_uuid=%s' % offering.uuid.hex
+        )
+
+
+class ReferralFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = pid_models.DataciteReferral
+        exclude = ['scope']
+
+    object_id = factory.SelfAttribute('scope.id')
+    content_type = factory.LazyAttribute(
+        lambda o: ContentType.objects.get_for_model(o.scope)
+    )
+
+    pid = factory.Sequence(lambda n: 'pid-%s' % n)
+    relation_type = factory.Sequence(lambda n: 'reltype-%s' % n)
+    resource_type = factory.Sequence(lambda n: 'restypee-%s' % n)
+    creator = factory.Sequence(lambda n: 'creator-%s' % n)
+    publisher = factory.Sequence(lambda n: 'publisher-%s' % n)
+    title = factory.Sequence(lambda n: 'title-%s' % n)
+    published = factory.Sequence(lambda n: 'published-%s' % n)
+    referral_url = factory.Sequence(lambda n: 'url-%s' % n)
+
+    @classmethod
+    def get_url(cls, offering_referral=None, action=None):
+        if offering_referral is None:
+            offering_referral = OfferingReferralFactory()
+        url = 'http://testserver' + reverse(
+            'marketplace-offering-referral-detail',
+            kwargs={'uuid': offering_referral.uuid.hex},
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-offering-referral-list')
+        return url if action is None else url + action + '/'
+
+
+class OfferingReferralFactory(ReferralFactory):
+    scope = factory.SubFactory(OfferingFactory)
+
+    class Meta:
+        model = pid_models.DataciteReferral
 
 
 class SectionFactory(factory.DjangoModelFactory):

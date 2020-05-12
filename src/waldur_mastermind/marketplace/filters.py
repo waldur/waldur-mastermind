@@ -11,6 +11,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_pid import models as pid_models
 
 from . import models
 
@@ -300,6 +301,24 @@ class ComponentUsageFilter(django_filters.FilterSet):
     class Meta:
         model = models.ComponentUsage
         fields = []
+
+
+class OfferingReferralFilter(django_filters.FilterSet):
+    o = django_filters.OrderingFilter(
+        fields=('published', 'relation_type', 'resource_type')
+    )
+
+    class Meta:
+        model = pid_models.DataciteReferral
+        fields = []
+
+
+class OfferingReferralScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+    def get_related_models(self):
+        return [models.Offering]
+
+    def get_field_name(self):
+        return 'scope'
 
 
 class OfferingFileFilter(django_filters.FilterSet):

@@ -40,7 +40,7 @@ class DataciteBackend(ServiceBackend):
         if not url:
             raise exceptions.DataciteException('API_URL is not defined.')
 
-        url = f"{url}/dois/{doi}"
+        url = f"{url}/{doi}"
 
         response = requests.get(url=url, headers=headers,)
         return response
@@ -77,6 +77,7 @@ class DataciteBackend(ServiceBackend):
             )
 
     def get_datacite_data(self, doi):
+        logger.debug('Looking up DOI %s' % doi)
         response = self.get(doi)
 
         if response.status_code == 200:

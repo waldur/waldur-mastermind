@@ -45,6 +45,7 @@ from waldur_mastermind.marketplace.permissions import (
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.support import serializers as support_serializers
+from waldur_pid import models as pid_models
 
 from . import attribute_types, models, permissions, plugins, tasks, utils
 
@@ -625,7 +626,6 @@ class OfferingDetailsSerializer(
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
-    referrals = serializers.JSONField(read_only=True)
 
     class Meta:
         model = models.Offering
@@ -668,7 +668,6 @@ class OfferingDetailsSerializer(
             'paused_reason',
             'datacite_doi',
             'citation_count',
-            'referrals',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
@@ -2002,6 +2001,39 @@ class OfferingFileSerializer(
         )
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
+            offering={
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-offering-detail',
+            },
+        )
+
+
+class OfferingReferralSerializer(
+    serializers.HyperlinkedModelSerializer, core_serializers.AugmentedSerializerMixin,
+):
+    scope = GenericRelatedField(read_only=True)
+    scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
+
+    class Meta:
+        model = pid_models.DataciteReferral
+        fields = (
+            'url',
+            'uuid',
+            'scope',
+            'scope_uuid',
+            'pid',
+            'relation_type',
+            'resource_type',
+            'creator',
+            'publisher',
+            'title',
+            'referral_url',
+        )
+        extra_kwargs = dict(
+            url={
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-offering-referral-detail',
+            },
             offering={
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-offering-detail',
