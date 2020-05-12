@@ -61,6 +61,11 @@ def register_in(router):
         views.OfferingFileViewSet,
         basename='marketplace-offering-file',
     ),
+    router.register(
+        r'marketplace-offering-referrals',
+        views.OfferingReferralsViewSet,
+        basename='marketplace-offering-referral',
+    ),
 
 
 urlpatterns = [

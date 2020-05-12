@@ -36,6 +36,7 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import resource_imported
+from waldur_pid import models as pid_models
 
 from . import filters, models, permissions, plugins, serializers, tasks
 
@@ -287,6 +288,18 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         )
 
         return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class OfferingReferralsViewSet(rf_viewsets.ReadOnlyModelViewSet):
+    queryset = pid_models.DataciteReferral.objects.all()
+    serializer_class = serializers.OfferingReferralSerializer
+    lookup_field = 'uuid'
+    filter_backends = (
+        filters.OfferingReferralScopeFilterBackend,
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.OfferingReferralFilter
 
 
 class PlanUsageReporter:

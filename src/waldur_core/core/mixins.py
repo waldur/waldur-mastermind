@@ -1,6 +1,9 @@
 from functools import wraps
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from django.db import models as django_models
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import response, status
@@ -96,3 +99,18 @@ class EagerLoadMixin:
         ):
             queryset = serializer_class.eager_load(queryset, self.request)
         return queryset
+
+
+class ScopeMixin(django_models.Model):
+    class Meta:
+        abstract = True
+
+    content_type = django_models.ForeignKey(
+        to=ContentType,
+        on_delete=django_models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    object_id = django_models.PositiveIntegerField(null=True, blank=True)
+    scope = GenericForeignKey('content_type', 'object_id')
