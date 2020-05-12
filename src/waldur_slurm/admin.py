@@ -3,7 +3,13 @@ from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.structure import admin as structure_admin
 
-from .models import Allocation, SlurmService, SlurmServiceProjectLink
+from .models import (
+    Allocation,
+    AllocationUsage,
+    AllocationUserUsage,
+    SlurmService,
+    SlurmServiceProjectLink,
+)
 
 
 def get_allocation_count(self, scope):
@@ -19,3 +25,5 @@ for cls in (structure_admin.CustomerAdmin, structure_admin.ProjectAdmin):
 admin.site.register(SlurmService, structure_admin.ServiceAdmin)
 admin.site.register(SlurmServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(Allocation, structure_admin.ResourceAdmin)
+admin.site.register(AllocationUsage)
+admin.site.register(AllocationUserUsage)

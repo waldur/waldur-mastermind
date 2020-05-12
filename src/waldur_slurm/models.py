@@ -5,6 +5,7 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.structure import models as structure_models
+from waldur_slurm import mixins as slurm_mixins
 from waldur_slurm import utils
 
 
@@ -92,7 +93,7 @@ class Allocation(structure_models.NewResource):
         return get_batch_service(self.service_project_link.service.settings)
 
 
-class AllocationUsage(models.Model):
+class AllocationUsage(slurm_mixins.UsageMixin):
     class Permissions:
         customer_path = 'allocation__service_project_link__project__customer'
         project_path = 'allocation__service_project_link__project'
@@ -102,17 +103,22 @@ class AllocationUsage(models.Model):
         ordering = ['allocation']
 
     allocation = models.ForeignKey(on_delete=models.CASCADE, to=Allocation)
-    username = models.CharField(max_length=32)
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE
-    )
 
     year = models.PositiveSmallIntegerField()
     month = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
 
-    cpu_usage = models.BigIntegerField(default=0)
-    ram_usage = models.BigIntegerField(default=0)
-    gpu_usage = models.BigIntegerField(default=0)
-    deposit_usage = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+class AllocationUserUsage(slurm_mixins.UsageMixin):
+    """
+    Allocation usage per user. This model is responsible for the allocation usage definition for particular user.
+    """
+
+    allocation_usage = models.ForeignKey(to=AllocationUsage, on_delete=models.CASCADE)
+
+    user = models.ForeignKey(
+        to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True, null=True
+    )
+
+    username = models.CharField(max_length=32)

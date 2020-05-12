@@ -76,7 +76,6 @@ class AllocationUsageFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.AllocationUsage
 
-    username = factory.Sequence(lambda n: 'john%s' % n)
     allocation = factory.SubFactory(AllocationFactory)
 
     year = factory.Iterator(range(2012, 2016))

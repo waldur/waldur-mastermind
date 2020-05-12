@@ -45,10 +45,17 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
 class AllocationUsageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.AllocationUsage.objects.all()
     serializer_class = serializers.AllocationUsageSerializer
-    lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.AllocationUsageFilter
+
+
+class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.AllocationUserUsage.objects.all()
+    serializer_class = serializers.AllocationUserUsageSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.AllocationUserUsageFilter
 
 
 def get_project_allocation_count(project):
