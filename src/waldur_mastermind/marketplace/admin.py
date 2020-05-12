@@ -10,7 +10,6 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import ExecutorAdminAction, JsonWidget, format_json_field
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.structure.models import (
@@ -18,6 +17,7 @@ from waldur_core.structure.models import (
     ServiceSettings,
     SharedServiceSettings,
 )
+from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
 
 from . import executors, models, tasks
@@ -84,6 +84,7 @@ class CategoryAdmin(admin.ModelAdmin):
 class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
     fields = ('name', 'description', 'image')
+    extra = 1
 
 
 class PlansInline(admin.StackedInline):
@@ -98,6 +99,7 @@ class PlansInline(admin.StackedInline):
         'archived',
         'max_amount',
     )
+    extra = 1
 
 
 class ConnectedResourceMixin:
@@ -195,6 +197,7 @@ class OfferingAdminForm(ModelForm):
 
 class OfferingComponentInline(admin.StackedInline):
     model = models.OfferingComponent
+    extra = 1
 
 
 def get_admin_url_for_scope(scope):
@@ -248,9 +251,12 @@ class OfferingAdmin(admin.ModelAdmin):
         'paused_reason',
         'datacite_doi',
         'citation_count',
-        'referrals',
     )
-    readonly_fields = ('rating', 'scope_link', 'citation_count', 'referrals')
+    readonly_fields = (
+        'rating',
+        'scope_link',
+        'citation_count',
+    )
 
     def scope_link(self, obj):
         if obj.scope:
@@ -302,8 +308,7 @@ class OfferingAdmin(admin.ModelAdmin):
         queryset.exclude(datacite_doi='')
 
         for offering in queryset.all():
-            serialized_offering = core_utils.serialize_instance(offering)
-            tasks.get_datacite_info_for_offering.delay(serialized_offering)
+            pid_tasks.update_referrable.delay(offering.uuid)
 
         count = queryset.count()
 

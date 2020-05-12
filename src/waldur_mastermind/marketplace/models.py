@@ -4,8 +4,6 @@ from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
@@ -19,6 +17,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
 
+from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
@@ -217,21 +216,6 @@ class AttributeOption(models.Model):
         return str(self.title)
 
 
-class ScopeMixin(models.Model):
-    class Meta:
-        abstract = True
-
-    content_type = models.ForeignKey(
-        to=ContentType,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='+',
-    )
-    object_id = models.PositiveIntegerField(null=True, blank=True)
-    scope = GenericForeignKey('content_type', 'object_id')
-
-
 class BaseComponent(core_models.DescribableMixin):
     class Meta:
         abstract = True
@@ -264,7 +248,7 @@ class CategoryComponent(BaseComponent):
         return '%s, category: %s' % (self.name, self.category.title)
 
 
-class CategoryComponentUsage(ScopeMixin):
+class CategoryComponentUsage(core_mixins.ScopeMixin):
     component = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent)
     date = models.DateField()
     reported_usage = models.BigIntegerField(null=True)
@@ -282,7 +266,7 @@ class Offering(
     quotas_models.QuotaModelMixin,
     structure_models.StructureModel,
     TimeStampedModel,
-    ScopeMixin,
+    core_mixins.ScopeMixin,
     LoggableMixin,
     pid_mixins.DataciteMixin,
 ):
@@ -379,16 +363,6 @@ class Offering(
     )
     backend_id = models.CharField(max_length=255, blank=True)
 
-    # XXX: The two fields below belong to a DataciteMixin
-    # `-1` - citations have never been looked up
-    # non-negative value - the number of citations of a DOI
-    citation_count = models.IntegerField(
-        default=-1, help_text=_('Number of citations of a DOI'),
-    )
-    referrals = JSONField(
-        default=list, blank=True, help_text=_('Referrals list for the current DOI'),
-    )
-
     objects = managers.OfferingManager()
     tracker = FieldTracker()
 
@@ -457,7 +431,9 @@ class Offering(
         )
 
 
-class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent, ScopeMixin):
+class OfferingComponent(
+    common_mixins.ProductCodeMixin, BaseComponent, core_mixins.ScopeMixin
+):
     class Meta:
         unique_together = ('type', 'offering')
         ordering = ('name',)
@@ -550,7 +526,7 @@ class Plan(
     core_models.DescribableMixin,
     common_mixins.UnitPriceMixin,
     common_mixins.ProductCodeMixin,
-    ScopeMixin,
+    core_mixins.ScopeMixin,
     LoggableMixin,
 ):
     """
@@ -926,7 +902,7 @@ class Resource(
     CostEstimateMixin,
     core_models.UuidMixin,
     TimeStampedModel,
-    ScopeMixin,
+    core_mixins.ScopeMixin,
     structure_models.StructureLoggableMixin,
     core_models.NameMixin,
 ):
@@ -1247,7 +1223,7 @@ class ComponentUsage(
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
 
-class AggregateResourceCount(ScopeMixin):
+class AggregateResourceCount(core_mixins.ScopeMixin):
     """
     This model allows to count current number of project or customer resources by category.
     """

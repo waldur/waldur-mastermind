@@ -76,6 +76,7 @@ class CustomMenu(Menu):
         'waldur_mastermind.marketplace.*',
         'waldur_mastermind.marketplace_packages.*',
         'waldur_mastermind.marketplace_support.*',
+        'waldur_pid.*',
     )
 
     EXTRA_MODELS = (
