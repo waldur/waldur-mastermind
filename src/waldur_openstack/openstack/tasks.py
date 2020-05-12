@@ -27,6 +27,10 @@ class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
         self.state_transition(network, 'set_ok')
         self.state_transition(subnet, 'set_ok')
         self.state_transition(tenant, 'set_ok')
+
+        from . import executors
+
+        executors.TenantPullExecutor.execute(tenant)
         return super(TenantCreateSuccessTask, self).execute(tenant)
 
 
