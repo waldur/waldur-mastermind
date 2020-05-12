@@ -388,6 +388,9 @@ class TenantPullExecutor(core_executors.ActionExecutor):
             core_tasks.IndependentBackendMethodTask().si(
                 serialized_settings, 'pull_flavors'
             ),
+            core_tasks.IndependentBackendMethodTask().si(
+                serialized_settings, 'pull_subnets'
+            ),
         )
 
 

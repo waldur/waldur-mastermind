@@ -52,6 +52,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_resources(self):
         self.pull_tenants()
+        self.pull_quotas()
 
     def pull_subresources(self):
         self.pull_security_groups()
@@ -233,6 +234,13 @@ class OpenStackBackend(BaseOpenStackBackend):
     @log_backend_action('pull quotas for tenant')
     def pull_tenant_quotas(self, tenant):
         self._pull_tenant_quotas(tenant.backend_id, tenant)
+
+    def pull_quotas(self):
+        for tenant in models.Tenant.objects.filter(
+            state=models.Tenant.States.OK,
+            service_project_link__service__settings=self.settings,
+        ):
+            self.pull_tenant_quotas(tenant)
 
     def pull_floating_ips(self, tenants=None):
         if tenants is None:
