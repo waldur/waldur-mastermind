@@ -365,13 +365,11 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.subnet_count: len(subnets),
         }
 
-        for volume in volumes:
-            if not volume.volume_type:
-                # skip volumes in calculation that have undefined volume type
-                continue
-            key = 'gigabytes_' + volume.volume_type
-            quotas.setdefault(key, 0)
-            quotas[key] += volume.size
+        for name, value in cinder.quotas.get(
+            tenant_id=tenant_backend_id, usage=True
+        )._info.items():
+            if name.startswith('gigabytes_'):
+                quotas[name] = value['in_use']
 
         return quotas
 
