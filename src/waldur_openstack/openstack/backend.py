@@ -532,11 +532,13 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         return network
 
-    def pull_subnets(self, tenant=None):
+    def pull_subnets(self, tenant=None, network=None):
         neutron = self.neutron_client
 
         if tenant:
             networks = tenant.networks.all()
+        elif network:
+            networks = [network]
         else:
             networks = models.Network.objects.filter(
                 state=models.Network.States.OK,
@@ -549,6 +551,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             if tenant:
                 backend_subnets = neutron.list_subnets(tenant_id=tenant.backend_id)[
+                    'subnets'
+                ]
+            elif network:
+                backend_subnets = neutron.list_subnets(network_id=network.backend_id)[
                     'subnets'
                 ]
             else:
@@ -1399,6 +1405,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             update_pulled_fields(
                 network, imported_network, models.Network.get_backend_fields()
             )
+
+        self.pull_subnets(network=network)
 
     @log_backend_action()
     def create_subnet(self, subnet):

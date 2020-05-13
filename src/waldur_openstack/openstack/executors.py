@@ -373,6 +373,8 @@ class TenantPullExecutor(core_executors.ActionExecutor):
                 serialized_tenant, 'pull_tenant', state_transition='begin_updating'
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, 'pull_tenant_quotas'),
+            # Some resources are synchronized from openstack to openstack_tenant via handlers,
+            # so for pulling them needed use serialized_tenant
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, 'pull_tenant_floating_ips'
             ),
@@ -389,7 +391,7 @@ class TenantPullExecutor(core_executors.ActionExecutor):
                 serialized_settings, 'pull_flavors'
             ),
             core_tasks.IndependentBackendMethodTask().si(
-                serialized_settings, 'pull_subnets'
+                serialized_tenant, 'pull_subnets'
             ),
         )
 
