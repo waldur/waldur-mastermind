@@ -52,7 +52,6 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_resources(self):
         self.pull_tenants()
-        self.pull_quotas()
 
     def pull_subresources(self):
         self.pull_security_groups()
@@ -532,11 +531,13 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         return network
 
-    def pull_subnets(self, tenant=None):
+    def pull_subnets(self, tenant=None, network=None):
         neutron = self.neutron_client
 
         if tenant:
             networks = tenant.networks.all()
+        elif network:
+            networks = [network]
         else:
             networks = models.Network.objects.filter(
                 state=models.Network.States.OK,
@@ -549,6 +550,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             if tenant:
                 backend_subnets = neutron.list_subnets(tenant_id=tenant.backend_id)[
+                    'subnets'
+                ]
+            elif network:
+                backend_subnets = neutron.list_subnets(network_id=network.backend_id)[
                     'subnets'
                 ]
             else:
@@ -1400,6 +1405,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 network, imported_network, models.Network.get_backend_fields()
             )
 
+        self.pull_subnets(network=network)
+
     @log_backend_action()
     def create_subnet(self, subnet):
         neutron = self.neutron_admin_client
@@ -1458,6 +1465,17 @@ class OpenStackBackend(BaseOpenStackBackend):
     def delete_subnet(self, subnet):
         neutron = self.neutron_admin_client
         try:
+            # disconnect subnet
+            ports = neutron.list_ports(
+                network_id=subnet.network.backend_id,
+                device_owner='network:router_interface',
+            )['ports']
+
+            for port in ports:
+                neutron.remove_interface_router(
+                    port['device_id'], {'subnet_id': subnet.backend_id}
+                )
+
             neutron.delete_subnet(subnet.backend_id)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)

@@ -22,9 +22,6 @@ class AllocationFilter(structure_filters.BaseResourceFilter):
 
 
 class AllocationUsageFilter(django_filters.FilterSet):
-    user = core_filters.URLFilter(view_name='user-detail', field_name='user__uuid')
-    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
-
     allocation = core_filters.URLFilter(
         view_name='slurm-allocation-detail', field_name='allocation__uuid'
     )
@@ -33,3 +30,16 @@ class AllocationUsageFilter(django_filters.FilterSet):
     class Meta:
         model = models.AllocationUsage
         fields = ('year', 'month')
+
+
+class AllocationUserUsageFilter(django_filters.FilterSet):
+    allocation = core_filters.URLFilter(
+        view_name='slurm-allocation-detail',
+        field_name='allocation_usage__allocation__uuid',
+    )
+    allocation_uuid = django_filters.UUIDFilter(
+        field_name='allocation_usage__allocation__uuid'
+    )
+
+    user = core_filters.URLFilter(view_name='user-detail', field_name='user__uuid')
+    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
