@@ -10,6 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import ExecutorAdminAction, JsonWidget, format_json_field
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.structure.models import (
@@ -308,7 +309,8 @@ class OfferingAdmin(admin.ModelAdmin):
         queryset.exclude(datacite_doi='')
 
         for offering in queryset.all():
-            pid_tasks.update_referrable.delay(offering.uuid)
+            serialized_offering = core_utils.serialize_instance(offering)
+            pid_tasks.update_referrable.delay(serialized_offering)
 
         count = queryset.count()
 

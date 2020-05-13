@@ -1,6 +1,7 @@
 import logging
 
 from celery import shared_task
+from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.core import utils as core_utils
 
@@ -40,6 +41,7 @@ def update_all_referrables():
 def update_referrable(serialized_referrable):
     referrable = core_utils.deserialize_instance(serialized_referrable)
     try:
+        logger.debug('Updating referrals of a Referrable %s.' % referrable)
         get_datacite_info_helper(referrable)
     except Exception as e:
         logger.critical(e)
@@ -56,6 +58,7 @@ def get_datacite_info_helper(referrable):
         return
 
     if datacite_data:
+        content_type = ContentType.objects.get_for_model(referrable)
         referrable.citation_count = datacite_data['attributes']['citationCount']
         referrals_pids = [
             (x['relatedIdentifier'], x['relationType'], x['resourceTypeGeneral'],)
@@ -82,9 +85,10 @@ def get_datacite_info_helper(referrable):
             else:
                 creator = 'N/A'
 
-            offering_referral, _ = models.DataciteReferral.objects.update_or_create(
+            referrable_referral, _ = models.DataciteReferral.objects.update_or_create(
                 pid=pid,
-                scope=referrable,
+                content_type=content_type,
+                object_id=referrable.id,
                 defaults={
                     'relation_type': rel_type,
                     'resource_type': resource_type,
@@ -96,7 +100,7 @@ def get_datacite_info_helper(referrable):
                 },
             )
         # cleanup stale citations
-        models.DataciteReferral.objects.filter(scope=referrable).exclude(
-            pid__in=[ref[0] for ref in referrals_pids]
-        ).delete()
+        models.DataciteReferral.objects.filter(
+            content_type=content_type, object_id=referrable.id
+        ).exclude(pid__in=[ref[0] for ref in referrals_pids]).delete()
         referrable.save(update_fields=['citation_count'])

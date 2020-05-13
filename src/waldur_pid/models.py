@@ -23,4 +23,4 @@ class DataciteReferral(core_models.UuidMixin, core_mixins.ScopeMixin):
     referral_url = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
-        return '%s | %s' % (self.offering_citation_info, self.pid)
+        return '%s | %s' % (self.scope, self.pid)
