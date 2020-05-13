@@ -1458,6 +1458,17 @@ class OpenStackBackend(BaseOpenStackBackend):
     def delete_subnet(self, subnet):
         neutron = self.neutron_admin_client
         try:
+            # disconnect subnet
+            ports = neutron.list_ports(
+                network_id=subnet.network.backend_id,
+                device_owner='network:router_interface',
+            )['ports']
+
+            for port in ports:
+                neutron.remove_interface_router(
+                    port['device_id'], {'subnet_id': subnet.backend_id}
+                )
+
             neutron.delete_subnet(subnet.backend_id)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
