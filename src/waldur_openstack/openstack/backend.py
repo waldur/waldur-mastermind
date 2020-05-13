@@ -52,7 +52,6 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_resources(self):
         self.pull_tenants()
-        self.pull_quotas()
 
     def pull_subresources(self):
         self.pull_security_groups()
