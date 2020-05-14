@@ -2026,6 +2026,7 @@ class OfferingReferralSerializer(
             'resource_type',
             'creator',
             'publisher',
+            'published',
             'title',
             'referral_url',
         )
