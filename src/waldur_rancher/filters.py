@@ -54,6 +54,9 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
     catalog_uuid = django_filters.UUIDFilter(field_name='catalog__uuid')
     cluster_uuid = django_filters.UUIDFilter(method='filter_by_cluster')
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    o = django_filters.OrderingFilter(
+        fields=(('name', 'name'), ('catalog_name', 'catalog__name'))
+    )
 
     class Meta:
         model = models.Template
