@@ -780,6 +780,7 @@ class RancherBackend(ServiceBackend):
                         'template': params['template'][0],
                         'version': params['version'][0],
                         'url': f'{self.host}/p/{project_id}/apps/{app_id}',
+                        'project_uuid': project.uuid.hex,
                     }
                 )
         return applications

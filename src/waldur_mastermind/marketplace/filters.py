@@ -305,7 +305,7 @@ class ComponentUsageFilter(django_filters.FilterSet):
 
 class OfferingReferralFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
-        fields=('published', 'relation_type', 'resource_type')
+        fields=('published', 'relation_type', 'resource_type',)
     )
 
     class Meta:

@@ -355,6 +355,23 @@ class ApplicationViewSet(GenericAPIView):
         applications = self.paginate_queryset(applications)
         return self.get_paginated_response(applications)
 
+    def delete(self, request):
+        project_uuid = request.data.get('project_uuid')
+        if not project_uuid or not is_uuid_like(project_uuid):
+            raise ValidationError('Project UUID is required.')
+        project = self.get_object(request, models.Project, project_uuid)
+        app_id = request.data.get('app_id')
+        if not app_id:
+            raise ValidationError('App ID is required.')
+        backend = project.settings.get_backend()
+        try:
+            backend.client.destroy_application(project.backend_id, app_id)
+        except RancherException as e:
+            return response.Response(
+                {'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
     def post(self, request):
         if django_settings.WALDUR_RANCHER['READ_ONLY_MODE']:
             raise MethodNotAllowed(method=request.method)

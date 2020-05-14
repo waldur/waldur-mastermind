@@ -331,3 +331,6 @@ class RancherClient:
 
     def list_project_secrets(self, project_id):
         return self._get(f'project/{project_id}/secrets', params={'limit': -1})['data']
+
+    def destroy_application(self, project_id, app_id):
+        return self._delete(f'/project/{project_id}/apps/{app_id}')

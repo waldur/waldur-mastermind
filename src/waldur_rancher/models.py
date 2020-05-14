@@ -346,3 +346,6 @@ class Template(
     @classmethod
     def get_url_name(cls):
         return 'rancher-template'
+
+    class Meta:
+        ordering = ('name',)
