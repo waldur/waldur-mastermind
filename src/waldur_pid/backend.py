@@ -100,15 +100,15 @@ class DataciteBackend(ServiceBackend):
                         {
                             'relatedIdentifierType': 'DOI',
                             'relationType': 'IsPartOf',
-                            'relatedIdentifier': f'{instance.datacite_doi}',
-                            'resourceTypeGeneral': 'Service',
+                            'relatedIdentifier': f'{collection_doi}',
+                            'resourceTypeGeneral': 'Collection',
                         }
                     ]
                 }
             }
         }
 
-        response = self.put(data, f"{self.settings['API_URL']}/{collection_doi}")
+        response = self.put(data, f"{self.settings['API_URL']}/{instance.datacite_doi}")
 
         if response.status_code != 200:
             logger.error(
