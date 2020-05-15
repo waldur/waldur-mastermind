@@ -12,6 +12,7 @@ class PIDExtension(WaldurExtension):
                 'PREFIX': '',
                 'API_URL': 'https://example.com',
                 'PUBLISHER': 'Waldur',
+                'COLLECTION_DOI': '',
             }
         }
 

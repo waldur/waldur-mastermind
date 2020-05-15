@@ -265,7 +265,12 @@ class OfferingAdmin(admin.ModelAdmin):
                 '<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope
             )
 
-    actions = ['activate', 'datacite_registration', 'offering_referrals_pull']
+    actions = [
+        'activate',
+        'datacite_registration',
+        'link_doi_with_collection',
+        'offering_referrals_pull',
+    ]
 
     def activate(self, request, queryset):
         valid_states = [models.Offering.States.DRAFT, models.Offering.States.PAUSED]
@@ -304,6 +309,25 @@ class OfferingAdmin(admin.ModelAdmin):
         self.message_user(request, message)
 
     datacite_registration.short_description = _('Register in Datacite')
+
+    def link_doi_with_collection(self, request, queryset):
+        queryset = queryset.exclude(datacite_doi='')
+
+        for offering in queryset.all():
+            serialized_offering = core_utils.serialize_instance(offering)
+            pid_tasks.link_doi_with_collection.delay(serialized_offering)
+
+        count = queryset.count()
+        message = ungettext(
+            'One offering has been scheduled for linking with collection.',
+            '%(count)d offerings have been scheduled for linking with collection.',
+            count,
+        )
+        message = message % {'count': count}
+
+        self.message_user(request, message)
+
+    link_doi_with_collection.short_description = _('Link with Datacite Collection')
 
     def offering_referrals_pull(self, request, queryset):
         queryset.exclude(datacite_doi='')
