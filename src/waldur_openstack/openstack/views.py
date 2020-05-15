@@ -465,8 +465,11 @@ class NetworkViewSet(structure_views.BaseResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         subnet = serializer.save()
+        enable_default_gateway = serializer.validated_data['enable_default_gateway']
 
-        executors.SubNetCreateExecutor.execute(subnet)
+        executors.SubNetCreateExecutor.execute(
+            subnet, enable_default_gateway=enable_default_gateway
+        )
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_subnet_validators = [
@@ -484,3 +487,10 @@ class SubNetViewSet(structure_views.BaseResourceViewSet):
     update_executor = executors.SubNetUpdateExecutor
     delete_executor = executors.SubNetDeleteExecutor
     pull_executor = executors.SubNetPullExecutor
+
+    def get_update_executor_kwargs(self, serializer):
+        return {
+            'enable_default_gateway': serializer.validated_data[
+                'enable_default_gateway'
+            ]
+        }

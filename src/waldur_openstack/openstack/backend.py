@@ -1408,7 +1408,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.pull_subnets(network=network)
 
     @log_backend_action()
-    def create_subnet(self, subnet):
+    def create_subnet(self, subnet, enable_default_gateway=True):
         neutron = self.neutron_admin_client
 
         data = {
@@ -1425,26 +1425,27 @@ class OpenStackBackend(BaseOpenStackBackend):
         data.update(self._serialize_subnet_gateway(subnet))
         try:
             response = neutron.create_subnet({'subnets': [data]})
-            # Automatically create router for subnet
-            # TODO: Ideally: Create separate model for router and create it separately.
-            self.connect_router(
-                subnet.network.name,
-                response['subnets'][0]['id'],
-                tenant_id=subnet.network.tenant.backend_id,
-                network_id=subnet.network.backend_id,
-            )
-        except neutron_exceptions.NeutronException as e:
-            raise OpenStackBackendError(e)
-        else:
             backend_subnet = response['subnets'][0]
             subnet.backend_id = backend_subnet['id']
             if backend_subnet.get('gateway_ip'):
                 subnet.gateway_ip = backend_subnet['gateway_ip']
+
+            # Automatically create router for subnet
+            # TODO: Ideally: Create separate model for router and create it separately.
+            self.connect_subnet(subnet)
+        except neutron_exceptions.NeutronException as e:
+            raise OpenStackBackendError(e)
+        else:
             subnet.save()
 
     @log_backend_action()
-    def update_subnet(self, subnet):
+    def update_subnet(self, subnet, enable_default_gateway=True):
         neutron = self.neutron_admin_client
+
+        if not enable_default_gateway:
+            self.disconnect_subnet(subnet)
+        else:
+            self.connect_subnet(subnet)
 
         data = {'name': subnet.name}
         data.update(self._serialize_subnet_gateway(subnet))
@@ -1461,11 +1462,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             data['gateway_ip'] = subnet.gateway_ip
         return data
 
-    @log_backend_action()
-    def delete_subnet(self, subnet):
+    def disconnect_subnet(self, subnet):
         neutron = self.neutron_admin_client
         try:
-            # disconnect subnet
             ports = neutron.list_ports(
                 network_id=subnet.network.backend_id,
                 device_owner='network:router_interface',
@@ -1476,6 +1475,25 @@ class OpenStackBackend(BaseOpenStackBackend):
                     port['device_id'], {'subnet_id': subnet.backend_id}
                 )
 
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+    def connect_subnet(self, subnet):
+        try:
+            self.connect_router(
+                subnet.network.name,
+                subnet.backend_id,
+                tenant_id=subnet.network.tenant.backend_id,
+                network_id=subnet.network.backend_id,
+            )
+        except neutron_exceptions.NeutronException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def delete_subnet(self, subnet):
+        neutron = self.neutron_admin_client
+        try:
+            self.disconnect_subnet(subnet)
             neutron.delete_subnet(subnet.backend_id)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)

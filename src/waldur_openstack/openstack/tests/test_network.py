@@ -2,6 +2,8 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
+
 from .. import models
 from . import factories, fixtures
 
@@ -56,6 +58,22 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         executor_action_mock.assert_called_once()
 
+    @mock.patch('waldur_openstack.openstack.executors.core_tasks.BackendMethodTask')
+    def test_do_not_create_router_for_subnet_if_enable_default_gateway_is_false(
+        self, core_tasks_mock
+    ):
+        request_data = {'name': 'test_subnet_name', 'enable_default_gateway': False}
+        response = self.client.post(self.url, request_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        subnet = models.SubNet.objects.get(uuid=response.data['uuid'])
+
+        core_tasks_mock().si.assert_called_once_with(
+            core_utils.serialize_instance(subnet),
+            'create_subnet',
+            state_transition='begin_creating',
+            enable_default_gateway=False,
+        )
+
     @mock.patch('waldur_openstack.openstack.executors.SubNetCreateExecutor.execute')
     def test_create_subnet_increases_quota_usage(self, executor_action_mock):
         response = self.client.post(self.url, self.request_data)
@@ -108,6 +126,11 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
                             "type": "boolean",
                             "required": False,
                             "label": "Disable gateway",
+                        },
+                        "enable_default_gateway": {
+                            "type": "boolean",
+                            "required": False,
+                            "label": "Enable default gateway",
                         },
                     },
                     "enabled": True,
