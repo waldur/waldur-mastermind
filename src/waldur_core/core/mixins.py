@@ -40,6 +40,9 @@ class CreateExecutorMixin(AsyncExecutor):
 class UpdateExecutorMixin(AsyncExecutor):
     update_executor = NotImplemented
 
+    def get_update_executor_kwargs(self, serializer):
+        return {}
+
     @ensure_atomic_transaction
     def perform_update(self, serializer):
         instance = self.get_object()
@@ -56,8 +59,13 @@ class UpdateExecutorMixin(AsyncExecutor):
             for f, v in before_update_fields.items()
             if v != getattr(instance, f.attname)
         }
+        kwargs = self.get_update_executor_kwargs(serializer)
+
         self.update_executor.execute(
-            instance, is_async=self.async_executor, updated_fields=updated_fields
+            instance,
+            is_async=self.async_executor,
+            updated_fields=updated_fields,
+            **kwargs
         )
         serializer.instance.refresh_from_db()
 

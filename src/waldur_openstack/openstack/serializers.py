@@ -899,6 +899,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     )
     tenant_name = serializers.CharField(source='network.tenant.name', read_only=True)
     dns_nameservers = serializers.JSONField(read_only=True)
+    enable_default_gateway = serializers.BooleanField(default=True, write_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SubNet
@@ -914,6 +915,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             'ip_version',
             'enable_dhcp',
             'dns_nameservers',
+            'enable_default_gateway',
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
