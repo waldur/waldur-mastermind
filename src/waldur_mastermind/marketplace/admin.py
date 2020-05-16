@@ -219,7 +219,7 @@ def get_admin_link_for_scope(scope):
 class OfferingAdmin(admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
-    list_display = ('name', 'customer', 'state', 'category', 'billable')
+    list_display = ('name', 'uuid', 'customer', 'state', 'category', 'billable')
     list_filter = (
         'state',
         'shared',
