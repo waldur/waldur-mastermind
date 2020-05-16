@@ -179,6 +179,7 @@ class SubNetAdmin(structure_admin.ResourceAdmin):
 
 class CustomerOpenStackInline(admin.StackedInline):
     model = models.CustomerOpenStack
+    classes = ['collapse']
     extra = 1
 
 

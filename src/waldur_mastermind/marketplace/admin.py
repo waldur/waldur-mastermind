@@ -84,12 +84,14 @@ class CategoryAdmin(admin.ModelAdmin):
 
 class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
+    classes = ['collapse']
     fields = ('name', 'description', 'image')
     extra = 1
 
 
 class PlansInline(admin.StackedInline):
     model = models.Plan
+    classes = ['collapse']
     fields = (
         'name',
         'description',
@@ -143,6 +145,7 @@ class PlanComponentInline(
     ConnectedResourceMixin, ParentInlineMixin, admin.TabularInline
 ):
     model = models.PlanComponent
+    classes = ['collapse']
     protected_fields = ('component', 'amount', 'price')
 
     def has_add_permission(self, request, obj=None):
@@ -198,6 +201,7 @@ class OfferingAdminForm(ModelForm):
 
 class OfferingComponentInline(admin.StackedInline):
     model = models.OfferingComponent
+    classes = ['collapse']
     extra = 1
 
 
