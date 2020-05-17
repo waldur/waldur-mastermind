@@ -273,8 +273,24 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if issue.priority:
             args['requestFieldValues']['priority'] = {'name': issue.priority}
 
-        support_customer = issue.caller.supportcustomer
-        args['requestParticipants'] = [support_customer.backend_id]
+        # XXX (Ilja): There are issues with setting the request participants field using email
+        # Potentially if there are existing support customers with the same email as jira users
+        # experimentally the same method can be used for referring to users as when using old API
+        # this is not sustainable if we want to migrate to Request APIs, but for the moment this is known
+        # to work with both cloud version and 4.7. Approaching Atlassian to clarify this.
+
+        # support_customer = issue.caller.supportcustomer
+        # args['requestParticipants'] = [support_customer.backend_id]
+
+        # XXX (Ilja) Temporary workaround for the request participant reference.
+        try:
+            support_user = models.SupportUser.objects.get(user=issue.caller)
+            key = support_user.backend_id or issue.caller.email
+        except models.SupportUser.DoesNotExist:
+            key = issue.caller.email
+
+        args['requestParticipants'] = [key]
+
         return args
 
     def _get_first_sla_field(self, backend_issue):
