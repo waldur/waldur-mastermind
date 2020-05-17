@@ -1,5 +1,5 @@
 import json
-from unittest import mock
+from unittest import mock, skip
 
 import jira
 from django.test import TestCase
@@ -85,6 +85,9 @@ class IssueCreateTest(BaseBackendTest):
             self.issue.caller.email, self.issue.caller.full_name
         )
 
+    @skip(
+        'Skip till the correct behaviour for requestParticipant reference is assured.'
+    )
     def test_caller_is_specified_in_custom_field(self):
         self.backend.create_issue(self.issue)
 
