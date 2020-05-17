@@ -102,7 +102,13 @@ class DataciteBackend(ServiceBackend):
                             'relationType': 'IsPartOf',
                             'relatedIdentifier': f'{collection_doi}',
                             'resourceTypeGeneral': 'Collection',
-                        }
+                        },
+                        {
+                            'relatedIdentifierType': 'DOI',
+                            'relationType': 'IsCitedBy',
+                            'relatedIdentifier': f'{collection_doi}',
+                            'resourceTypeGeneral': 'Collection',
+                        },
                     ]
                 }
             }
