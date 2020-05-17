@@ -290,7 +290,7 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class OfferingReferralsViewSet(rf_viewsets.ReadOnlyModelViewSet):
+class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
     queryset = pid_models.DataciteReferral.objects.all()
     serializer_class = serializers.OfferingReferralSerializer
     lookup_field = 'uuid'

@@ -34,6 +34,9 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
     content_type_field = 'content_type'
     object_id_field = 'object_id'
 
+    def is_anonymous_allowed(self):
+        return False
+
     def get_related_models(self):
         """ Return all models that are acceptable as filter argument """
         raise NotImplementedError
@@ -54,6 +57,8 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
             )
             # Trick to set field context without serializer
             field._context = {'request': request}
+            if self.is_anonymous_allowed() and request.user.is_anonymous:
+                request.user = None
             obj = field.to_internal_value(value)
             ct = ContentType.objects.get_for_model(obj)
             return queryset.filter(
