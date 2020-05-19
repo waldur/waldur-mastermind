@@ -1,8 +1,11 @@
+import mock
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.invoices import tasks
 
 from .. import models
 from . import factories
@@ -195,3 +198,45 @@ class ProfileModelTest(test.APITransactionTestCase):
         new_profile.refresh_from_db()
         self.assertIsNone(new_profile.is_active)
         self.assertTrue(self.profile.is_active)
+
+
+class ProfileProcessingTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.profile = factories.PaymentProfileFactory(
+            payment_type=models.PaymentType.FIXED_PRICE
+        )
+
+    def create_invoice(self):
+        tasks.create_monthly_invoices()
+        invoice = models.Invoice.objects.get(
+            year='2020', month='01', customer=self.profile.organization
+        )
+        self.assertEqual(invoice.state, models.Invoice.States.PENDING)
+        return invoice
+
+    def test_if_customer_has_a_fixed_price_payment_profile_then_invoice_are_created_as_paid(
+        self,
+    ):
+        with freeze_time('2020-01-01'):
+            invoice = self.create_invoice()
+
+        with freeze_time('2020-02-01'):
+            tasks.create_monthly_invoices()
+            invoice.refresh_from_db()
+            self.assertEqual(invoice.state, models.Invoice.States.PAID)
+
+    @mock.patch('waldur_mastermind.invoices.tasks.send_invoice_notification')
+    def test_that_invoice_notifications_are_not_sent_if_customer_has_a_fixed_price_payment_profile(
+        self, mock_send_invoice_notification
+    ):
+        with freeze_time('2020-01-01'):
+            self.create_invoice()
+
+            # if fixed-price payment profile exists, so invoice notifications are not sent
+            tasks.send_new_invoices_notification()
+            mock_send_invoice_notification.delay.assert_not_called()
+
+            # if fixed-price payment profile does not exists, so invoice notifications are sent
+            self.profile.delete()
+            tasks.send_new_invoices_notification()
+            mock_send_invoice_notification.delay.assert_called_once()

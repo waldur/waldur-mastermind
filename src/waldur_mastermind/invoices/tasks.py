@@ -209,5 +209,12 @@ def create_pdf_for_new_invoices():
 def send_new_invoices_notification():
     date = timezone.now()
 
-    for invoice in models.Invoice.objects.filter(year=date.year, month=date.month):
+    # invoice notifications are not sent if customer has a fixed price payment profile
+    fixed_price_profiles = models.PaymentProfile.objects.filter(
+        is_active=True, payment_type=models.PaymentType.FIXED_PRICE
+    ).values_list('organization_id', flat=True)
+
+    for invoice in models.Invoice.objects.filter(
+        year=date.year, month=date.month
+    ).exclude(customer_id__in=fixed_price_profiles):
         send_invoice_notification.delay(invoice.uuid.hex)
