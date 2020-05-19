@@ -147,7 +147,13 @@ class Invoice(core_models.UuidMixin, models.Model):
         if self.state != self.States.PENDING:
             raise IncorrectStateException(_('Invoice must be in pending state.'))
 
-        self.state = self.States.CREATED
+        if self.customer.paymentprofile_set.filter(
+            is_active=True, payment_type=PaymentType.FIXED_PRICE
+        ).count():
+            self.state = self.States.PAID
+        else:
+            self.state = self.States.CREATED
+
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
 
