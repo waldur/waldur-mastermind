@@ -2,6 +2,7 @@ import io
 import logging
 from urllib.parse import parse_qs, urlparse
 
+import requests
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
@@ -741,11 +742,34 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
         )
 
+    def _get_external_template_icon(self, icon_url):
+        try:
+            response = requests.get(icon_url)
+        except requests.RequestException as e:
+            logger.debug(f"Failed to get {icon_url}: {e}")
+            return None
+
+        status_code = response.status_code
+        if status_code == requests.codes.ok:  # only care about the positive case
+            return response.content
+        else:
+            return None
+
     def pull_template_icons(self):
         for template in models.Template.objects.filter(settings=self.settings):
             content = self.client.get_template_icon(template.backend_id)
-            # Clear icon field so that default icon would be rendered
+            if (
+                not content
+                and template.icon_url
+                and not urlparse(template.icon_url).netloc == urlparse(self.host).netloc
+            ):
+                # try to download icon from the icon_url field
+                logger.debug(
+                    'Rancher did not return icon for a Template, trying with external URL'
+                )
+                content = self._get_external_template_icon(template.icon_url)
             if not content:
+                # Clear icon field so that default icon would be rendered
                 template.icon = None
                 template.save()
                 continue
