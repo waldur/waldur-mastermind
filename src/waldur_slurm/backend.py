@@ -1,5 +1,6 @@
 import logging
 import operator
+import re
 from functools import reduce
 
 from django.conf import settings as django_settings
@@ -267,11 +268,16 @@ class SlurmBackend(ServiceBackend):
             django_settings.WALDUR_SLURM['PROJECT_PREFIX'], project
         )
 
+    def sanitize_allocation_name(self, name):
+        incorrect_symbols_regex = r'[^%s]+' % models.SLURM_ALLOCATION_REGEX
+        return re.sub(incorrect_symbols_regex, '', name)
+
     def get_allocation_name(self, allocation):
         prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
         name = allocation.name
         hexpart = allocation.uuid.hex[:5]
-        return "%s%s_%s" % (prefix, name, hexpart)
+        result_name = "%s%s_%s" % (prefix, name, hexpart)
+        return self.sanitize_allocation_name(result_name)
 
     def get_account_name(self, prefix, object_or_uuid):
         key = (

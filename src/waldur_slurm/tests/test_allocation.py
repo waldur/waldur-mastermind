@@ -72,7 +72,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
     def get_valid_payload(self):
         return {
-            'name': 'Test allocation',
+            'name': 'Test-allocation',
             'service_project_link': factories.SlurmServiceProjectLinkFactory.get_url(
                 self.fixture.spl
             ),
