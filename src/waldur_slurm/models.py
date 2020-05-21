@@ -43,6 +43,9 @@ class SlurmServiceProjectLink(structure_models.ServiceProjectLink):
         return 'slurm-spl'
 
 
+SLURM_ALLOCATION_REGEX = 'a-zA-Z0-9-_'
+
+
 class Allocation(structure_models.NewResource):
     service_project_link = models.ForeignKey(
         SlurmServiceProjectLink, related_name='allocations', on_delete=models.PROTECT

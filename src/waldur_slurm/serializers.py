@@ -1,3 +1,5 @@
+import re
+
 from django.core.validators import MinValueValidator
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -129,6 +131,17 @@ class AllocationSerializer(
         # Skip validation on update
         if self.instance:
             return attrs
+
+        correct_name_regex = '^([%s]{1,63})$' % models.SLURM_ALLOCATION_REGEX
+        name = attrs.get('name')
+        if not re.match(correct_name_regex, name):
+            raise core_serializers.ValidationError(
+                _(
+                    "Name '%s' must be 1-63 characters long, each of "
+                    "which can only be alphanumeric or a hyphen"
+                )
+                % name
+            )
 
         spl = attrs['service_project_link']
         user = self.context['request'].user

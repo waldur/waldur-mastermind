@@ -10,7 +10,7 @@ from waldur_slurm.client import SlurmClient
 from waldur_slurm.parser import SlurmReportLine
 
 from .. import models
-from . import fixtures
+from . import factories, fixtures
 
 VALID_REPORT = """
 allocation1|cpu=1,mem=51200M,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|
@@ -124,6 +124,20 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.cpu_limit, 400)
             self.assertEqual(self.allocation.gpu_limit, 120)
             self.assertEqual(self.allocation.ram_limit, 100 * 2 ** 20)
+
+    def test_name_changing(self):
+        sample_name = 'al*lo$ca#tio#n_12~!34-5'
+        correct_name = 'allocation_1234-5'
+        prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
+
+        allocation = factories.AllocationFactory(name=sample_name)
+        hexpart = allocation.uuid.hex[:5]
+
+        final_correct_name = "%s%s_%s" % (prefix, correct_name, hexpart)
+        backend = allocation.get_backend()
+        result_name = backend.get_allocation_name(allocation)
+
+        self.assertEqual(result_name, final_correct_name)
 
 
 class BackendMOABTest(TestCase):

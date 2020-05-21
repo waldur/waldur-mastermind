@@ -28,7 +28,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
             limits={
                 component.type: 10 for component in manager.get_components(PLUGIN_NAME)
             },
-            attributes={'name': 'My first allocation'},
+            attributes={'name': 'My-first-allocation'},
         )
         for component in manager.get_components(PLUGIN_NAME):
             component = marketplace_models.OfferingComponent.objects.create(
