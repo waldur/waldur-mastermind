@@ -8,6 +8,11 @@ urlpatterns = [
         views.CategoriesView.as_view({'get': 'list'}),
     ),
     url(
+        r'^api/marketplace-checklists-categories/(?P<uuid>[a-f0-9]+)/$',
+        views.CategoriesView.as_view({'get': 'retrieve'}),
+        name='marketplace-checklists-category-detail',
+    ),
+    url(
         r'^api/marketplace-checklists-categories/(?P<category_uuid>[a-f0-9]+)/checklists/$',
         views.CategoryChecklistsView.as_view({'get': 'list'}),
     ),
