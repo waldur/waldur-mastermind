@@ -3,7 +3,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import get_object_or_404
-from rest_framework.mixins import CreateModelMixin, ListModelMixin
+from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
@@ -14,9 +14,10 @@ from waldur_core.structure.permissions import is_administrator
 from . import models, serializers
 
 
-class CategoriesView(ListModelMixin, GenericViewSet):
+class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.CategorySerializer
+    lookup_field = 'uuid'
 
 
 class CategoryChecklistsView(ListModelMixin, GenericViewSet):
