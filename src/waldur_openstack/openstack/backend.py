@@ -1272,9 +1272,12 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         connected_instances = set()
         for instance in instances:
-            for group in instance.security_groups:
-                if security_group.name == group['name']:
-                    connected_instances.add(instance.id)
+            if hasattr(
+                instance, 'security_groups'
+            ):  # can be missing if instance is being deleted
+                for group in instance.security_groups:
+                    if security_group.name == group['name']:
+                        connected_instances.add(instance.id)
         return connected_instances
 
     def detach_security_group_from_instance(self, group_id, server_id):
