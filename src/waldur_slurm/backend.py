@@ -276,8 +276,11 @@ class SlurmBackend(ServiceBackend):
         prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
         name = allocation.name
         hexpart = allocation.uuid.hex[:5]
-        result_name = "%s%s_%s" % (prefix, name, hexpart)
-        return self.sanitize_allocation_name(result_name)
+        raw_name = "%s%s_%s" % (prefix, hexpart, name)
+        result_name = self.sanitize_allocation_name(raw_name)[
+            : models.SLURM_ALLOCATION_NAME_MAX_LEN
+        ]
+        return result_name
 
     def get_account_name(self, prefix, object_or_uuid):
         key = (
