@@ -44,6 +44,7 @@ class SlurmServiceProjectLink(structure_models.ServiceProjectLink):
 
 
 SLURM_ALLOCATION_REGEX = 'a-zA-Z0-9-_'
+SLURM_ALLOCATION_NAME_MAX_LEN = 34
 
 
 class Allocation(structure_models.NewResource):
