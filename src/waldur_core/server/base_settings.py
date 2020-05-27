@@ -59,6 +59,7 @@ INSTALLED_APPS = (
     'reversion',
     'taggit',
     'jsoneditor',
+    'modeltranslation',
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 

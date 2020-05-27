@@ -1,4 +1,5 @@
 from django.contrib import admin
+from modeltranslation import admin as modeltranslation_admin
 
 from . import models
 
@@ -7,12 +8,12 @@ class CategoryAdmin(admin.ModelAdmin):
     fields = ('name', 'description')
 
 
-class QuestionInline(admin.TabularInline):
+class QuestionInline(modeltranslation_admin.TranslationStackedInline):
     model = models.Question
     fields = ('order', 'description', 'solution', 'correct_answer', 'category')
 
 
-class ChecklistAdmin(admin.ModelAdmin):
+class ChecklistAdmin(modeltranslation_admin.TranslationAdmin):
     inlines = [QuestionInline]
     list_display = ('name', 'description', 'category')
     list_filter = ('category',)
