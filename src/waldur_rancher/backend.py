@@ -151,6 +151,10 @@ class RancherBackend(ServiceBackend):
 
     def import_cluster(self, backend_id, service_project_link):
         backend_cluster = self.client.get_cluster(backend_id)
+
+        if not backend_cluster.get('state', '') == models.Cluster.RuntimeStates.ACTIVE:
+            raise RancherException('Cannot import K8s cluster in non-active state.')
+
         cluster = models.Cluster(
             backend_id=backend_id,
             service_project_link=service_project_link,
