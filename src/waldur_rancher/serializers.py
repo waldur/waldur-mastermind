@@ -401,6 +401,7 @@ class ClusterImportableSerializer(serializers.Serializer):
     backend_id = serializers.CharField(source="id", read_only=True)
     type = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
 
     def get_type(self, cluster):
         return 'Rancher.Cluster'
@@ -413,6 +414,9 @@ class ClusterImportableSerializer(serializers.Serializer):
             {'name': 'Number of nodes', 'value': len(backend_nodes),},
             {'name': 'Created at', 'value': cluster.get('created'),},
         ]
+
+    def get_is_active(self, cluster):
+        return cluster.get('state', '') == models.Cluster.RuntimeStates.ACTIVE
 
 
 class ClusterImportSerializer(ClusterImportableSerializer):
@@ -435,11 +439,11 @@ class ClusterImportSerializer(ClusterImportableSerializer):
             cluster = backend.import_cluster(
                 backend_id, service_project_link=service_project_link
             )
-        except exceptions.RancherException:
+        except exceptions.RancherException as e:
             raise serializers.ValidationError(
                 {
-                    'backend_id': _("Can't import cluster with ID %s")
-                    % validated_data['backend_id']
+                    'backend_id': _("Can't import cluster with ID %s. %s")
+                    % (validated_data['backend_id'], e)
                 }
             )
 
