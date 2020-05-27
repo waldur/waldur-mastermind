@@ -393,6 +393,7 @@ iniparse = ">=0.3.2"
 reference = "235aa6e4f3f0bd26daa452300ab3a56a89730f9e"
 type = "git"
 url = "https://github.com/pixelb/crudini"
+
 [[package]]
 category = "main"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -571,6 +572,18 @@ version = "3.2.0"
 
 [package.dependencies]
 Django = ">=1.11"
+
+[[package]]
+category = "main"
+description = "Translates Django models using a registration approach."
+name = "django-modeltranslation"
+optional = false
+python-versions = "*"
+version = "0.15"
+
+[package.dependencies]
+Django = ">=2.2"
+six = "*"
 
 [[package]]
 category = "main"
@@ -1193,15 +1206,6 @@ name = "oauthlib"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 version = "3.1.0"
-
-[package.dependencies]
-[package.dependencies.cryptography]
-optional = true
-version = "*"
-
-[package.dependencies.pyjwt]
-optional = true
-version = ">=1.0.0"
 
 [package.extras]
 rsa = ["cryptography"]
@@ -2228,7 +2232,6 @@ version = "1.12.1"
 [[package]]
 category = "main"
 description = "Backport of pathlib-compatible object wrapper for zip files"
-marker = "python_version < \"3.8\""
 name = "zipp"
 optional = false
 python-versions = ">=3.6"
@@ -2239,7 +2242,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "b482117a94b96f18c9769e1da62043521b9421bd8fffff9d23e9a978d5bbf0ef"
+content-hash = "0a8334da391ab774ba9aa865a31d84d6904b97749e39ca4458513afbc6a9ed1b"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2502,6 +2505,9 @@ django-jsoneditor = [
 django-model-utils = [
     {file = "django-model-utils-3.2.0.tar.gz", hash = "sha256:682f58c1de330cedcda58cc85d5232c5b47a9e2cb67bef4541fb43fdaeb18e96"},
     {file = "django_model_utils-3.2.0-py2.py3-none-any.whl", hash = "sha256:3f130a262e45d73e0950d2be76af4bf4ee86804dd60e5f90afc5cd948fcfe760"},
+]
+django-modeltranslation = [
+    {file = "django-modeltranslation-0.15.tar.gz", hash = "sha256:49b82d864dff18577d455252b9d3290a21809bc09a80844b161cde3448a96d36"},
 ]
 django-redis-cache = [
     {file = "django-redis-cache-2.0.0.tar.gz", hash = "sha256:77dcb9d11beef5ce77dadfb95328b7712c3d9bde8419a0ba92968712b9bff48b"},

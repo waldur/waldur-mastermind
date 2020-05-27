@@ -82,6 +82,7 @@ sentry-sdk = "0.13.1"
 sqlparse = "0.2.4"
 crudini = { git = "https://github.com/pixelb/crudini", tag = "0.9.3" }
 python-freeipa = "0.2.5"
+django-modeltranslation = "^0.15"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"
