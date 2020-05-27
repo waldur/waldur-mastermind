@@ -1,5 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators, permissions, response, status, viewsets
+from rest_framework import permissions, viewsets
 
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -27,19 +27,11 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
     create_executor = executors.AllocationCreateExecutor
     pull_executor = executors.AllocationPullExecutor
 
-    destroy_permissions = [structure_permissions.is_staff]
+    destroy_permissions = [structure_permissions.is_owner]
     delete_executor = executors.AllocationDeleteExecutor
 
     partial_update_permissions = update_permissions = [structure_permissions.is_owner]
     update_executor = executors.AllocationUpdateExecutor
-
-    @decorators.action(detail=True, methods=['post'])
-    def cancel(self, request, uuid=None):
-        allocation = self.get_object()
-        allocation.get_backend().cancel_allocation(allocation)
-        return response.Response(status=status.HTTP_200_OK)
-
-    cancel_permissions = [structure_permissions.is_owner]
 
 
 class AllocationUsageViewSet(viewsets.ReadOnlyModelViewSet):

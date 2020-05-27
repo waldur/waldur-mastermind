@@ -127,17 +127,6 @@ class SlurmBackend(ServiceBackend):
 
         self.client.set_resource_limits(allocation.backend_id, quotas)
 
-    def cancel_allocation(self, allocation):
-        allocation.cpu_limit = allocation.cpu_usage
-        allocation.gpu_limit = allocation.gpu_usage
-        allocation.ram_limit = allocation.ram_usage
-        allocation.deposit_limit = allocation.deposit_usage
-
-        self.set_resource_limits(allocation)
-
-        allocation.is_active = False
-        allocation.save()
-
     def sync_usage(self):
         waldur_allocations = {
             allocation.backend_id: allocation
