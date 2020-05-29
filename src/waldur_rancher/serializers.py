@@ -74,7 +74,8 @@ class DataVolumeSerializer(
     def get_fields(self):
         fields = super(DataVolumeSerializer, self).get_fields()
         fields['mount_point'] = serializers.ChoiceField(
-            choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES']
+            choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES'],
+            required=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICE_IS_MANDATORY'],
         )
         return fields
 
@@ -83,12 +84,15 @@ class DataVolumeSerializer(
 
     def validate(self, attrs):
         size = attrs['size']
-        mount_point = attrs['mount_point']
-        min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
-        if size < min_size * 1024:
-            raise serializers.ValidationError(
-                'Volume %s capacity should be at least %s GB' % (mount_point, min_size)
-            )
+        mount_point = attrs.get('mount_point')
+
+        if mount_point:
+            min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
+            if size < min_size * 1024:
+                raise serializers.ValidationError(
+                    'Volume %s capacity should be at least %s GB'
+                    % (mount_point, min_size)
+                )
         return attrs
 
 
