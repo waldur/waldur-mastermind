@@ -10,6 +10,7 @@ from django.contrib.admin import SimpleListFilter
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models as django_models
+from django.db import transaction
 from django.forms import (
     CharField,
     ChoiceField,
@@ -286,6 +287,13 @@ class CustomerAdmin(
         if obj and obj.is_billable():
             return fields + ('accounting_start_date',)
         return fields
+
+    @transaction.atomic
+    def delete_queryset(self, request, queryset):
+        models.Project.structure_objects.filter(
+            customer__in=queryset, is_removed=True
+        ).delete()
+        queryset.delete()
 
 
 class ProjectAdminForm(ModelForm):
