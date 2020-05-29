@@ -60,3 +60,7 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
     def test_owner_can_list_importable_resources_from_private_offering(self):
         response = self.list_resources(shared=False, user='owner')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_manager_cannot_list_importable_resources(self):
+        response = self.list_resources(shared=False, user='manager')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
