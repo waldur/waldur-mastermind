@@ -28,6 +28,9 @@ SMARTIDEE_SECRET = auth_social_settings.get('SMARTIDEE_SECRET')
 TARA_CLIENT_ID = auth_social_settings.get('TARA_CLIENT_ID')
 TARA_SECRET = auth_social_settings.get('TARA_SECRET')
 TARA_SANDBOX = auth_social_settings.get('TARA_SANDBOX')
+KEYCLOAK_CLIENT_ID = auth_social_settings.get('KEYCLOAK_CLIENT_ID')
+KEYCLOAK_SECRET = auth_social_settings.get('KEYCLOAK_SECRET')
+KEYCLOAK_TOKEN_URL = auth_social_settings.get('KEYCLOAK_TOKEN_URL')
 
 validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
 validate_local_signup = validate_authentication_method('LOCAL_SIGNUP')
@@ -87,6 +90,17 @@ class TARAException(AuthException):
         if error_description:
             self.message = '%s (%s)' % (self.message, error_description)
         super(TARAException, self).__init__(detail=self.message)
+
+    def __str__(self):
+        return self.message
+
+
+class KeycloakException(AuthException):
+    def __init__(self, error_message, error_description=None):
+        self.message = 'Keycloak error: %s' % error_message
+        if error_description:
+            self.message = '%s (%s)' % (self.message, error_description)
+        super(KeycloakException, self).__init__(detail=self.message)
 
     def __str__(self):
         return self.message
@@ -394,6 +408,64 @@ class TARAView(BaseAuthView):
             if user.details != details:
                 user.details = details
                 user.save()
+        return user, created
+
+
+class KeycloakView(BaseAuthView):
+    provider = 'keycloak'
+
+    def get_backend_user(self, validated_data):
+        data = {
+            'grant_type': 'authorization_code',
+            'redirect_uri': validated_data['redirect_uri'],
+            'code': validated_data['code'],
+            'client_id': KEYCLOAK_CLIENT_ID,
+            'client_secret': KEYCLOAK_SECRET,
+        }
+
+        try:
+            token_response = requests.post(KEYCLOAK_TOKEN_URL, data=data)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send authentication request. Error is %s', e)
+            raise KeycloakException('Unable to send authentication request.')
+        self.check_response(token_response)
+
+        try:
+            data = token_response.json()
+            id_token = data['id_token']
+            return jwt.decode(id_token, verify=False)
+        except (ValueError, TypeError):
+            raise KeycloakException('Unable to parse JSON in authentication response.')
+        except KeyError:
+            raise KeycloakException('Authentication response does not contain token.')
+        except jwt.PyJWTError as e:
+            logger.warning('Unable to decode authentication token. Error is %s', e)
+            raise KeycloakException('Unable to decode authentication token.')
+
+    def check_response(self, r, valid_response=requests.codes.ok):
+        if r.status_code != valid_response:
+            try:
+                data = r.json()
+                error_message = data['error']
+                error_description = data.get('error_description', '')
+            except Exception:
+                values = (r.reason, r.status_code)
+                error_message = 'Message: %s, status code: %s' % values
+                error_description = ''
+            raise KeycloakException(error_message, error_description)
+
+    def create_or_update_user(self, backend_user):
+        preferred_username = backend_user['preferred_username']
+        try:
+            user = User.objects.get(username=preferred_username)
+            created = False
+        except User.DoesNotExist:
+            created = True
+            user = User.objects.create_user(
+                username=preferred_username, registration_method=self.provider,
+            )
+            user.set_unusable_password()
+            user.save()
         return user, created
 
 
