@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 from django.contrib.admin.sites import AdminSite
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 
 from waldur_core.structure import admin as structure_admin
@@ -294,3 +295,26 @@ class CustomerAdminTest(TestCase):
             self.change_customer(
                 support_users=[user1.pk, user2.pk], owners=[user1.pk, user2.pk]
             )
+
+    def test_customer_deleting_is_passable_only_if_related_project_is_removed(self):
+        site = AdminSite()
+        model_admin = structure_admin.CustomerAdmin(structure_models.Customer, site)
+        project = factories.ProjectFactory(customer=self.customer)
+        request = MockRequest()
+        queryset = structure_models.Customer.objects.filter(pk=self.customer.id)
+
+        self.assertRaises(
+            ProtectedError, model_admin.delete_queryset, request, queryset
+        )
+        project_id = project.id
+        project.delete()
+
+        # A project exists in DB because we use soft-delete for projects.
+        self.assertTrue(
+            structure_models.Project.structure_objects.filter(pk=project_id).exists()
+        )
+
+        model_admin.delete_queryset(request, queryset)
+        self.assertRaises(
+            structure_models.Customer.DoesNotExist, self.customer.refresh_from_db
+        )
