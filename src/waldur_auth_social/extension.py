@@ -16,6 +16,13 @@ class AuthSocialExtension(WaldurExtension):
             'TARA_SANDBOX': True,
             'TARA_LABEL': 'Riigi Autentimisteenus',
             'USER_ACTIVATION_URL_TEMPLATE': 'http://example.com/#/activate/{user_uuid}/{token}/',
+            # https://www.keycloak.org/docs/latest/securing_apps/#client-id-and-client-secret
+            'KEYCLOAK_CLIENT_ID': '',
+            'KEYCLOAK_SECRET': '',
+            # https://www.keycloak.org/docs/latest/securing_apps/#authorization-endpoint
+            'KEYCLOAK_AUTH_URL': '',
+            # https://www.keycloak.org/docs/latest/securing_apps/#token-endpoint
+            'KEYCLOAK_TOKEN_URL': '',
         }
 
     @staticmethod
