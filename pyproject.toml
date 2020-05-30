@@ -4,7 +4,7 @@ skip-string-normalization = true
 
 [tool.poetry]
 name = "waldur-mastermind"
-version = "4.7.3"
+version = "4.7.4"
 description = "Waldur MasterMind is a hybrid cloud orchestrator."
 authors = ["OpenNode Team <info@opennodecloud.com>"]
 license = "MIT"
