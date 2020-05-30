@@ -585,25 +585,6 @@ def map_limits_to_quotas(limits, offering):
                 'You should either specify general-purpose storage quota '
                 'or volume-type specific storage quota.'
             )
-        snapshot_size_limit_gb = offering.plugin_options.get(
-            'snapshot_size_limit_gb', 0
-        )
-        if not isinstance(snapshot_size_limit_gb, int):
-            logger.warning(
-                'Invalid snapshot_size_limit_gb value %s for offering %s',
-                (snapshot_size_limit_gb, offering.id),
-            )
-            snapshot_size_limit_gb = 0
-
-        snapshot_size_multiplier = offering.plugin_options.get(
-            'snapshot_size_multiplier', 1
-        )
-        if not isinstance(snapshot_size_multiplier, int):
-            logger.warning(
-                'Invalid snapshot_size_multiplier value %s for offering %s',
-                (snapshot_size_multiplier, offering.id),
-            )
-            snapshot_size_multiplier = 1
 
         # Initialize volume type quotas as zero, otherwise they are treated as unlimited
         for volume_type in openstack_models.VolumeType.objects.filter(
@@ -611,10 +592,7 @@ def map_limits_to_quotas(limits, offering):
         ):
             volume_type_quotas.setdefault('gigabytes_' + volume_type.name, 0)
 
-        quotas['storage'] = ServiceBackend.gb2mb(
-            sum(list(volume_type_quotas.values())) * snapshot_size_multiplier
-            + snapshot_size_limit_gb
-        )
+        quotas['storage'] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
         quotas.update(volume_type_quotas)
 
     # Convert quota value from float to integer because OpenStack API fails otherwise

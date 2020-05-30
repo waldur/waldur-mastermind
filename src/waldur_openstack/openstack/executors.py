@@ -469,7 +469,10 @@ class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_subnet, 'create_subnet', state_transition='begin_creating'
+            serialized_subnet,
+            'create_subnet',
+            state_transition='begin_creating',
+            enable_default_gateway=kwargs.get('enable_default_gateway', True),
         )
 
 
@@ -477,7 +480,10 @@ class SubNetUpdateExecutor(core_executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_subnet, 'update_subnet', state_transition='begin_updating'
+            serialized_subnet,
+            'update_subnet',
+            state_transition='begin_updating',
+            enable_default_gateway=kwargs.get('enable_default_gateway', True),
         )
 
 

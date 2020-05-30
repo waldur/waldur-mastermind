@@ -139,7 +139,9 @@ def validate_data_volumes(data_volumes, tenant_settings):
                 % (volume_type.name, tenant_settings.name,)
             )
 
-    mount_points = [volume['mount_point'] for volume in data_volumes]
+    mount_points = [
+        volume['mount_point'] for volume in data_volumes if volume.get('mount_point')
+    ]
     if len(set(mount_points)) != len(mount_points):
         raise serializers.ValidationError(
             'Each mount point can be specified once at most.'
@@ -275,6 +277,7 @@ def format_node_cloud_config(node):
         conf['mounts'] = [
             [format_disk_id(index + 1), volume['mount_point']]
             for index, volume in enumerate(data_volumes)
+            if volume.get('mount_point')
         ]
 
         conf['fs_setup'] = [

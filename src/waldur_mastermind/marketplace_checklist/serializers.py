@@ -3,12 +3,18 @@ from rest_framework import serializers
 from . import models
 
 
-class CategorySerializer(serializers.ModelSerializer):
+class CategorySerializer(serializers.HyperlinkedModelSerializer):
     checklists_count = serializers.ReadOnlyField(source='checklists.count')
 
     class Meta:
         model = models.Category
-        fields = ('uuid', 'name', 'description', 'checklists_count')
+        fields = ('uuid', 'url', 'name', 'description', 'checklists_count')
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-checklists-category-detail',
+            },
+        }
 
 
 class ChecklistSerializer(serializers.ModelSerializer):

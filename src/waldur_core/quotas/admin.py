@@ -70,6 +70,7 @@ class QuotaInline(QuotaFieldTypeLimit, GenericTabularInline):
     model = models.Quota
     form = QuotaForm
     extra = 0
+    classes = ['collapse']
     can_delete = False
 
 

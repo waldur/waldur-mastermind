@@ -1,6 +1,7 @@
 import json
 
 import django_filters
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.widgets import BooleanWidget
@@ -314,6 +315,9 @@ class OfferingReferralFilter(django_filters.FilterSet):
 
 
 class OfferingReferralScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+    def is_anonymous_allowed(self):
+        return settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']
+
     def get_related_models(self):
         return [models.Offering]
 

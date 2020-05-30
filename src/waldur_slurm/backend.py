@@ -1,5 +1,6 @@
 import logging
 import operator
+import re
 from functools import reduce
 
 from django.conf import settings as django_settings
@@ -125,17 +126,6 @@ class SlurmBackend(ServiceBackend):
         )
 
         self.client.set_resource_limits(allocation.backend_id, quotas)
-
-    def cancel_allocation(self, allocation):
-        allocation.cpu_limit = allocation.cpu_usage
-        allocation.gpu_limit = allocation.gpu_usage
-        allocation.ram_limit = allocation.ram_usage
-        allocation.deposit_limit = allocation.deposit_usage
-
-        self.set_resource_limits(allocation)
-
-        allocation.is_active = False
-        allocation.save()
 
     def sync_usage(self):
         waldur_allocations = {
@@ -267,11 +257,19 @@ class SlurmBackend(ServiceBackend):
             django_settings.WALDUR_SLURM['PROJECT_PREFIX'], project
         )
 
+    def sanitize_allocation_name(self, name):
+        incorrect_symbols_regex = r'[^%s]+' % models.SLURM_ALLOCATION_REGEX
+        return re.sub(incorrect_symbols_regex, '', name)
+
     def get_allocation_name(self, allocation):
         prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
         name = allocation.name
         hexpart = allocation.uuid.hex[:5]
-        return "%s%s_%s" % (prefix, name, hexpart)
+        raw_name = "%s%s_%s" % (prefix, hexpart, name)
+        result_name = self.sanitize_allocation_name(raw_name)[
+            : models.SLURM_ALLOCATION_NAME_MAX_LEN
+        ]
+        return result_name
 
     def get_account_name(self, prefix, object_or_uuid):
         key = (

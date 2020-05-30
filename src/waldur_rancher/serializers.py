@@ -74,7 +74,8 @@ class DataVolumeSerializer(
     def get_fields(self):
         fields = super(DataVolumeSerializer, self).get_fields()
         fields['mount_point'] = serializers.ChoiceField(
-            choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES']
+            choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES'],
+            required=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICE_IS_MANDATORY'],
         )
         return fields
 
@@ -83,12 +84,15 @@ class DataVolumeSerializer(
 
     def validate(self, attrs):
         size = attrs['size']
-        mount_point = attrs['mount_point']
-        min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
-        if size < min_size * 1024:
-            raise serializers.ValidationError(
-                'Volume %s capacity should be at least %s GB' % (mount_point, min_size)
-            )
+        mount_point = attrs.get('mount_point')
+
+        if mount_point:
+            min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
+            if size < min_size * 1024:
+                raise serializers.ValidationError(
+                    'Volume %s capacity should be at least %s GB'
+                    % (mount_point, min_size)
+                )
         return attrs
 
 
@@ -401,6 +405,7 @@ class ClusterImportableSerializer(serializers.Serializer):
     backend_id = serializers.CharField(source="id", read_only=True)
     type = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
 
     def get_type(self, cluster):
         return 'Rancher.Cluster'
@@ -413,6 +418,9 @@ class ClusterImportableSerializer(serializers.Serializer):
             {'name': 'Number of nodes', 'value': len(backend_nodes),},
             {'name': 'Created at', 'value': cluster.get('created'),},
         ]
+
+    def get_is_active(self, cluster):
+        return cluster.get('state', '') == models.Cluster.RuntimeStates.ACTIVE
 
 
 class ClusterImportSerializer(ClusterImportableSerializer):
@@ -435,11 +443,11 @@ class ClusterImportSerializer(ClusterImportableSerializer):
             cluster = backend.import_cluster(
                 backend_id, service_project_link=service_project_link
             )
-        except exceptions.RancherException:
+        except exceptions.RancherException as e:
             raise serializers.ValidationError(
                 {
-                    'backend_id': _("Can't import cluster with ID %s")
-                    % validated_data['backend_id']
+                    'backend_id': _("Can't import cluster with ID %s. %s")
+                    % (validated_data['backend_id'], e)
                 }
             )
 

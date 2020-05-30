@@ -27,6 +27,16 @@ def create_doi(serialized_instance):
         logger.critical(e)
 
 
+@shared_task
+def link_doi_with_collection(serialized_instance):
+    instance = core_utils.deserialize_instance(serialized_instance)
+
+    try:
+        backend.DataciteBackend().link_doi_with_collection(instance)
+    except exceptions.DataciteException as e:
+        logger.critical(e)
+
+
 @shared_task(name='waldur_pid.update_all_referrables')
 def update_all_referrables():
     for model in mixins.DataciteMixin.get_all_models():

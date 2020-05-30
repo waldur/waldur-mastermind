@@ -255,9 +255,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
             args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [
                 {
-                    "name": key
-                    if self.use_teenage_api
-                    else issue.caller.supportcustomer.backend_id,  # will be equal to username
+                    "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
                     "key": key,
                 }
             ]
@@ -273,8 +271,25 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if issue.priority:
             args['requestFieldValues']['priority'] = {'name': issue.priority}
 
-        support_customer = issue.caller.supportcustomer
-        args['requestParticipants'] = [support_customer.backend_id]
+        if self.use_teenage_api:
+            # XXX (Ilja): There are issues with setting the request participants field using email
+            # Potentially if there are existing support customers with the same email as jira users
+            # experimentally the same method can be used for referring to users as when using old API
+            # this is not sustainable if we want to migrate to Request APIs, but for the moment this is known
+            # to work with both cloud version and 4.7. Approaching Atlassian to clarify this.
+
+            # XXX (Ilja) Temporary workaround for the request participant reference.
+            try:
+                support_user = models.SupportUser.objects.get(user=issue.caller)
+                key = support_user.backend_id or issue.caller.email
+            except models.SupportUser.DoesNotExist:
+                key = issue.caller.email
+
+            args['requestParticipants'] = [key]
+        else:
+            support_customer = issue.caller.supportcustomer
+            args['requestParticipants'] = [support_customer.backend_id]
+
         return args
 
     def _get_first_sla_field(self, backend_issue):
@@ -352,15 +367,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def pull_request_types(self):
         service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
-        # If we have a strange version of SD - 4.7 - that only returns mapping values using non-documented API
-        if self.use_teenage_api:
-            backend_request_types = self.manager.waldur_request_types(
-                service_desk_id,
-                project_key=self.project_settings['key'],
-                strange_setting=self.strange_setting,
-            )
-        else:
-            backend_request_types = self.manager.request_types(service_desk_id)
+        backend_request_types = self.manager.request_types(service_desk_id)
 
         with transaction.atomic():
             backend_request_type_map = {

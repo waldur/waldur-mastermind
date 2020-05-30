@@ -16,16 +16,6 @@ def terminate_invoice_when_allocation_deleted(sender, instance, **kwargs):
     registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
-def terminate_invoice_when_allocation_cancelled(
-    sender, instance, created=False, **kwargs
-):
-    if created:
-        return
-
-    if instance.tracker.has_changed('is_active') and not instance.is_active:
-        registrators.RegistrationManager.terminate(instance, timezone.now())
-
-
 def update_invoice_item_on_allocation_usage_update(
     sender, instance, created=False, **kwargs
 ):

@@ -83,6 +83,7 @@ class CustomerClusterInlineFormset(CustomerInlineFormset):
 class CustomerClusterInline(options.TabularInline):
     model = models.CustomerCluster
     extra = 1
+    classes = ['collapse']
     verbose_name_plural = 'Customer VMware clusters'
     formset = CustomerClusterInlineFormset
 
@@ -94,6 +95,7 @@ class CustomerNetworkInlineFormset(CustomerInlineFormset):
 class CustomerNetworkInline(options.TabularInline):
     model = models.CustomerNetwork
     extra = 1
+    classes = ['collapse']
     verbose_name_plural = 'Customer VMware networks for new VMs'
     formset = CustomerNetworkInlineFormset
 
@@ -101,12 +103,14 @@ class CustomerNetworkInline(options.TabularInline):
 class CustomerNetworkPairInline(options.TabularInline):
     model = models.CustomerNetworkPair
     extra = 1
+    classes = ['collapse']
     verbose_name_plural = 'Customer VMware networks for existing VMs'
 
 
 class CustomerDatastoreInline(options.TabularInline):
     model = models.CustomerDatastore
     extra = 1
+    classes = ['collapse']
     verbose_name_plural = 'Customer VMware datastores'
 
 
@@ -117,6 +121,7 @@ class CustomerFolderInlineInlineFormset(CustomerInlineFormset):
 class CustomerFolderInline(options.TabularInline):
     model = models.CustomerFolder
     extra = 1
+    classes = ['collapse']
     verbose_name_plural = 'Customer VMware folders'
     formset = CustomerFolderInlineInlineFormset
 

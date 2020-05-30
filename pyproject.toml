@@ -4,7 +4,7 @@ skip-string-normalization = true
 
 [tool.poetry]
 name = "waldur-mastermind"
-version = "4.7.3"
+version = "4.7.4"
 description = "Waldur MasterMind is a hybrid cloud orchestrator."
 authors = ["OpenNode Team <info@opennodecloud.com>"]
 license = "MIT"
@@ -82,6 +82,7 @@ sentry-sdk = "0.13.1"
 sqlparse = "0.2.4"
 crudini = { git = "https://github.com/pixelb/crudini", tag = "0.9.3" }
 python-freeipa = "0.2.5"
+django-modeltranslation = "^0.15"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"

@@ -1,5 +1,3 @@
-from unittest import mock
-
 from ddt import data, ddt
 from django.conf import settings as django_settings
 from rest_framework import status, test
@@ -72,7 +70,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
     def get_valid_payload(self):
         return {
-            'name': 'Test allocation',
+            'name': 'Test-allocation',
             'service_project_link': factories.SlurmServiceProjectLinkFactory.get_url(
                 self.fixture.spl
             ),
@@ -85,14 +83,14 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
 
-    @data('staff')
+    @data('staff', 'owner')
     def test_authorized_user_can_delete_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    @data('owner', 'admin', 'manager')
+    @data('admin', 'manager')
     def test_non_authorized_user_can_not_delete_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
@@ -107,22 +105,6 @@ class AllocationCancelTest(test.APITransactionTestCase):
         self.url = factories.AllocationFactory.get_url(
             self.fixture.allocation, 'cancel'
         )
-
-    @data('staff', 'owner')
-    def test_authorized_user_can_cancel_allocation(self, user):
-        self.client.force_login(getattr(self.fixture, user))
-
-        with mock.patch('subprocess.check_output'):
-            response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    @data('admin', 'manager')
-    def test_non_authorized_user_can_not_cancel_allocation(self, user):
-        self.client.force_login(getattr(self.fixture, user))
-
-        with mock.patch('subprocess.check_output'):
-            response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt

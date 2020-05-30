@@ -43,6 +43,11 @@ class CatalogAdmin(admin.ModelAdmin):
         return obj.scope.name
 
 
+class ClusterAdmin(structure_admin.ResourceAdmin):
+    list_display = structure_admin.ResourceAdmin.list_display + ('runtime_state',)
+    list_filter = structure_admin.ResourceAdmin.list_filter + ('tenant_settings',)
+
+
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'cluster', 'runtime_state')
 
@@ -59,7 +64,7 @@ admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
 admin.site.register(
     models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
 )
-admin.site.register(models.Cluster)
+admin.site.register(models.Cluster, ClusterAdmin)
 admin.site.register(models.Node)
 admin.site.register(models.RancherUser, RancherUserAdmin)
 admin.site.register(models.Catalog, CatalogAdmin)
