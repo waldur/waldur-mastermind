@@ -31,6 +31,7 @@ TARA_SANDBOX = auth_social_settings.get('TARA_SANDBOX')
 KEYCLOAK_CLIENT_ID = auth_social_settings.get('KEYCLOAK_CLIENT_ID')
 KEYCLOAK_SECRET = auth_social_settings.get('KEYCLOAK_SECRET')
 KEYCLOAK_TOKEN_URL = auth_social_settings.get('KEYCLOAK_TOKEN_URL')
+KEYCLOAK_USERINFO_URL = auth_social_settings.get('KEYCLOAK_USERINFO_URL')
 
 validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
 validate_local_signup = validate_authentication_method('LOCAL_SIGNUP')
@@ -414,7 +415,7 @@ class TARAView(BaseAuthView):
 class KeycloakView(BaseAuthView):
     provider = 'keycloak'
 
-    def get_backend_user(self, validated_data):
+    def get_access_token(self, validated_data):
         data = {
             'grant_type': 'authorization_code',
             'redirect_uri': validated_data['redirect_uri'],
@@ -424,23 +425,36 @@ class KeycloakView(BaseAuthView):
         }
 
         try:
-            token_response = requests.post(KEYCLOAK_TOKEN_URL, data=data)
+            response = requests.post(KEYCLOAK_TOKEN_URL, data=data)
         except requests.exceptions.RequestException as e:
             logger.warning('Unable to send authentication request. Error is %s', e)
             raise KeycloakException('Unable to send authentication request.')
-        self.check_response(token_response)
+        self.check_response(response)
 
         try:
-            data = token_response.json()
-            id_token = data['id_token']
-            return jwt.decode(id_token, verify=False)
+            return response.json()['access_token']
         except (ValueError, TypeError):
             raise KeycloakException('Unable to parse JSON in authentication response.')
         except KeyError:
             raise KeycloakException('Authentication response does not contain token.')
-        except jwt.PyJWTError as e:
-            logger.warning('Unable to decode authentication token. Error is %s', e)
-            raise KeycloakException('Unable to decode authentication token.')
+
+    def get_user_info(self, access_token):
+        headers = {'Authorization': f'Bearer {access_token}'}
+        try:
+            response = requests.post(KEYCLOAK_USERINFO_URL, headers=headers)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send user info request. Error is %s', e)
+            raise KeycloakException('Unable to send user info request.')
+        self.check_response(response)
+
+        try:
+            return response.json()
+        except (ValueError, TypeError):
+            raise KeycloakException('Unable to parse JSON in user info response.')
+
+    def get_backend_user(self, validated_data):
+        access_token = self.get_access_token(validated_data)
+        return self.get_user_info(access_token)
 
     def check_response(self, r, valid_response=requests.codes.ok):
         if r.status_code != valid_response:
@@ -455,14 +469,20 @@ class KeycloakView(BaseAuthView):
             raise KeycloakException(error_message, error_description)
 
     def create_or_update_user(self, backend_user):
-        preferred_username = backend_user['preferred_username']
+        # Preferred username is not unique. Sub in UUID.
+        username = f'keycloak_f{backend_user["sub"]}'
+        email = backend_user.get('email')
+        full_name = backend_user.get('name')
         try:
-            user = User.objects.get(username=preferred_username)
+            user = User.objects.get(username=username)
             created = False
         except User.DoesNotExist:
             created = True
             user = User.objects.create_user(
-                username=preferred_username, registration_method=self.provider,
+                username=username,
+                registration_method=self.provider,
+                email=email,
+                full_name=full_name,
             )
             user.set_unusable_password()
             user.save()
