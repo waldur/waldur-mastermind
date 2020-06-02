@@ -435,3 +435,51 @@ class NodeUnlinkTest(test_cluster.BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class NodeActionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.RancherFixture()
+        self.node = self.fixture.node
+
+        self.url = factories.NodeFactory.get_url(self.node, action=self.action)
+        self.mock_path = mock.patch(
+            'waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.%s'
+            % self.backend_method
+        )
+        self.mock_console = self.mock_path.start()
+        self.mock_console.return_value = self.backend_return_value
+
+        mock_path = mock.patch('waldur_rancher.utils.InstanceViewSet')
+        mock_instance_view_set = mock_path.start()
+        self.mock_check_permissions = mock.MagicMock()
+        mock_instance_view_set.console_permissions = [self.mock_check_permissions]
+        mock_instance_view_set.console_log_permissions = [self.mock_check_permissions]
+
+    def tearDown(self):
+        super(NodeActionsTest, self).tearDown()
+        mock.patch.stopall()
+
+
+class NodeConsoleTest(NodeActionsTest):
+    action = 'console'
+    backend_method = 'get_console_url'
+    backend_return_value = 'url'
+
+    def test_check_of_permissions_is_the_same_as_openstack_tenant_view(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.mock_check_permissions.called)
+
+
+class NodeConsoleLogTest(NodeActionsTest):
+    action = 'console_log'
+    backend_method = 'get_console_output'
+    backend_return_value = 'openstack-vm login: '
+
+    def test_check_of_permissions_is_the_same_as_openstack_tenant_view(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(self.mock_check_permissions.called)
