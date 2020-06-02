@@ -16,15 +16,7 @@ class BaseSecurityGroupTest(test.APITransactionTestCase):
 class SecurityGroupCreateTest(BaseSecurityGroupTest):
     def setUp(self):
         super(SecurityGroupCreateTest, self).setUp()
-        self.url = factories.TenantFactory.get_url(
-            self.fixture.tenant, 'create_security_group'
-        )
-
-    @data('staff', 'owner', 'admin', 'manager')
-    def test_user_with_access_can_create_security_group(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-
-        data = {
+        self.valid_data = {
             'name': 'https',
             'rules': [
                 {
@@ -35,11 +27,77 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
                 }
             ],
         }
-        response = self.client.post(self.url, data=data)
+        self.url = factories.TenantFactory.get_url(
+            self.fixture.tenant, 'create_security_group'
+        )
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_user_with_access_can_create_security_group(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        response = self.client.post(self.url, data=self.valid_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
+
+    def test_security_group_name_should_be_unique(self):
+        self.client.force_authenticate(self.fixture.admin)
+        payload = self.valid_data
+        payload['name'] = self.fixture.security_group.name
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_security_group_can_not_be_created_if_quota_is_over_limit(self):
+        self.fixture.tenant.set_quota_limit('security_group_count', 0)
+
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(self.url, self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.SecurityGroup.objects.filter(name=self.valid_data['name']).exists()
+        )
+
+    def test_security_group_quota_increases_on_security_group_creation(self):
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(self.url, self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            self.fixture.tenant.quotas.get(name='security_group_count').usage, 1
+        )
+        self.assertEqual(
+            self.fixture.tenant.quotas.get(name='security_group_rule_count').usage, 1
+        )
+
+    def test_security_group_can_not_be_created_if_rules_quota_is_over_limit(self):
+        self.fixture.tenant.set_quota_limit('security_group_rule_count', 0)
+
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(self.url, self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.SecurityGroup.objects.filter(name=self.valid_data['name']).exists()
+        )
+
+    def test_security_group_creation_starts_sync_task(self):
+        self.client.force_authenticate(self.fixture.admin)
+
+        with patch(
+            'waldur_openstack.openstack.executors.SecurityGroupCreateExecutor.execute'
+        ) as mocked_execute:
+            response = self.client.post(self.url, data=self.valid_data)
+
+            self.assertEqual(
+                response.status_code, status.HTTP_201_CREATED, response.data
+            )
+            security_group = models.SecurityGroup.objects.get(
+                name=self.valid_data['name']
+            )
+
+            mocked_execute.assert_called_once_with(security_group)
 
     def test_user_can_create_security_group_rule_for_any_protocol(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -235,6 +293,17 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('name' in response.data)
+
+    def test_security_group_name_should_be_unique(self):
+        existing_group = factories.SecurityGroupFactory(
+            service_project_link=self.fixture.openstack_spl,
+            tenant=self.fixture.tenant,
+            state=models.SecurityGroup.States.OK,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, data={'name': existing_group.name})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
