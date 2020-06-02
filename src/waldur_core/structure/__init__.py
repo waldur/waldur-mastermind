@@ -538,3 +538,7 @@ class ServiceBackend:
     @staticmethod
     def mb2tb(val):
         return int(val / 1024 / 1024) if val else 0
+
+    @staticmethod
+    def b2gb(val):
+        return int(val / 1024 / 1024 / 1024) if val else 0
