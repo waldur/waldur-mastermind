@@ -606,6 +606,10 @@ class ApplicationCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class ConsoleLogSerializer(serializers.Serializer):
+    length = serializers.IntegerField(required=False)
+
+
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context['request']
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
