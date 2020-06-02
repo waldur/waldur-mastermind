@@ -421,7 +421,7 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
         for rule in value:
             if rule.id is not None:
                 raise serializers.ValidationError(
-                    _('Cannot add existed rule with id %s to new security group')
+                    _('Cannot add existing rule with id %s to new security group')
                     % rule.id
                 )
             rule.full_clean(exclude=['security_group'])
@@ -435,11 +435,15 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
         return value
 
     def validate(self, attrs):
-        # Skip validation on update
-        if self.instance:
-            return attrs
+        tenant = self.context['view'].get_object()
+        name = attrs['name']
 
-        attrs['tenant'] = tenant = self.context['view'].get_object()
+        if tenant.security_groups.filter(name=name):
+            raise serializers.ValidationError(
+                _('Security group name should be unique.')
+            )
+
+        attrs['tenant'] = tenant
         attrs['service_project_link'] = tenant.service_project_link
         return super(SecurityGroupSerializer, self).validate(attrs)
 
@@ -456,6 +460,27 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
             validate_duplicate_security_group_rules(security_group.rules)
             security_group.increase_backend_quotas_usage()
         return security_group
+
+
+class SecurityGroupUpdateSerializer(serializers.ModelSerializer):
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        model = models.SecurityGroup
+        fields = ('name', 'description')
+
+    def validate_name(self, name):
+        if name:
+            if name == 'default':
+                raise serializers.ValidationError(
+                    _('Default security group is managed by OpenStack itself.')
+                )
+
+            if self.instance.tenant.security_groups.filter(name=name).exclude(
+                pk=self.instance.pk
+            ):
+                raise serializers.ValidationError(
+                    _('Security group name should be unique.')
+                )
+        return name
 
 
 class TenantImportableSerializer(serializers.Serializer):
