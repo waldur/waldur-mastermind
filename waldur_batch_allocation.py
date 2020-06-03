@@ -81,23 +81,15 @@ def format_params(params):
     project = params['project']
     offering = params['offering']
 
-    plan = None
-    if 'plan' in params:
-        plan = params['plan']
+    # 'module.params' contains each fields key
+    # regardless if it is mentioned in a playbook or not
 
-    limits = {}
-    if 'cpu_hours' in params:
-        limits['cpu'] = params['cpu_hours']
-    if 'gpu_hours' in params:
-        limits['gpu'] = params['gpu_hours']
-    if 'ram_gb' in params:
-        limits['ram'] = params['ram_gb']
+    plan = params['plan']
 
-    attributes = {}
-    if 'name' in params:
-        attributes['name'] = params['name']
-    if 'description' in params:
-        attributes['description'] = params['description']
+    limits = {'cpu': params['cpu_hours'], 'gpu': params['gpu_hours'],
+              'ram': params['ram_gb']}
+
+    attributes = {'name': params['name'], 'description': params['description']}
 
     return project, offering, plan, attributes, limits
 
