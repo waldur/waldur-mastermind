@@ -49,6 +49,17 @@ class SlurmBackend(ServiceBackend):
         else:
             return True
 
+    def add_new_users(self, allocation):
+        freeipa_profiles = {
+            profile.user: profile.username
+            for profile in freeipa_models.Profile.objects.all()
+        }
+
+        for user in allocation.service_project_link.project.customer.get_users():
+            username = freeipa_profiles.get(user)
+            if username:
+                self.add_user(allocation, username.lower())
+
     def create_allocation(self, allocation):
         project = allocation.service_project_link.project
         customer_account = self.get_customer_name(project.customer)
@@ -70,16 +81,7 @@ class SlurmBackend(ServiceBackend):
         allocation.save()
 
         self.set_resource_limits(allocation)
-
-        freeipa_profiles = {
-            profile.user: profile.username
-            for profile in freeipa_models.Profile.objects.all()
-        }
-
-        for user in allocation.service_project_link.project.customer.get_users():
-            username = freeipa_profiles.get(user)
-            if username:
-                self.add_user(allocation, username.lower())
+        self.add_new_users(allocation)
 
     def delete_allocation(self, allocation):
         account = allocation.backend_id
