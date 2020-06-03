@@ -172,6 +172,18 @@ EXAMPLES = '''
             cidr: 0.0.0.0/0
             from_port: 5432
             protocol: tcp
+
+- name: add security group with empty rules
+  hosts: localhost
+  tasks:
+    - name: create security group
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: VPC
+        description: empty group
+        state: present
+        name: empty
 '''
 
 
@@ -188,7 +200,7 @@ def send_request_to_waldur(client, module):
             'cidr': module.params['cidr'],
             'protocol': module.params['protocol'],
         }
-    ]
+    ] if module.params['cidr'] else []
 
     security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
@@ -224,7 +236,7 @@ def send_request_to_waldur(client, module):
 
 def main():
     fields = waldur_resource_argument_spec(
-        rules=dict(type='list'),
+        rules=dict(type='list', required=False),
         from_port=dict(type='str'),
         to_port=dict(type='str'),
         cidr=dict(type='str'),
@@ -239,7 +251,7 @@ def main():
         ['cidr', 'rules'],
         ['protocol', 'rules'],
     ]
-    required_one_of = mutually_exclusive
+    required_one_of = []
     module = AnsibleModule(
         argument_spec=fields,
         required_together=required_together,
