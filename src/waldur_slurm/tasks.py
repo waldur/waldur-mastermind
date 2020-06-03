@@ -79,3 +79,10 @@ def process_role_revoked(serialized_profile, serialized_structure):
 
     for allocation in allocations:
         allocation.get_backend().delete_user(allocation, profile.username)
+
+
+@shared_task(name='waldur_slurm.add_allocation_users')
+def add_allocation_users(serialized_allocation):
+    allocation = core_utils.deserialize_instance(serialized_allocation)
+    backend = allocation.get_backend()
+    backend.add_new_users(allocation)
