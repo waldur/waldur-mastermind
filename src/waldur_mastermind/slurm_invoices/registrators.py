@@ -82,9 +82,9 @@ class AllocationRegistrator(registrators.BaseRegistrator):
         if source.gpu_usage > 0:
             gpu_substr = f"GPU: {source.gpu_usage} hours"
         if source.ram_usage > 0:
-            ram_gb = source.get_backend().b2gb(
+            ram_gb = source.get_backend().mb2gb(
                 source.ram_usage
-            )  # Converting from Bytes to GB
+            )  # Convert from MB to GB
             ram_substr = f"RAM: {ram_gb} GB"
 
         if cpu_substr == gpu_substr == ram_substr == "":
