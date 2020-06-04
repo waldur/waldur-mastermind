@@ -1,11 +1,13 @@
 import collections
+import json
 import os
 import re
 
 from jira import JIRA, JIRAError, utils
-from jira.resources import Attachment, RequestType, User
+from jira.resources import Attachment, Issue, RequestType, ServiceDesk, User
 from jira.utils import json_loads
 from requests import Request
+from rest_framework import status
 
 PADDING = 3
 CHARS_LIMIT = 255
@@ -110,6 +112,7 @@ def service_desk(manager, id_or_key):
 
 
 def request_types(manager, service_desk, project_key=None, strange_setting=None):
+    """We need to use this function because in the old Jira version issueTypeId field does not exist."""
     types = manager.request_types(service_desk)
 
     if len(types) and not hasattr(types[0], 'issueTypeId'):
@@ -130,7 +133,8 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
             for raw_type_json in r_json
         ]
         list(map(lambda t: setattr(t, 'issueTypeId', t.issueType), types))
-        return types
+
+    return types
 
 
 def search_users(
@@ -144,10 +148,79 @@ def search_users(
         'includeActive': includeActive,
         'includeInactive': includeInactive,
     }
-    return self._fetch_pages(User, None, 'user/search', startAt, maxResults, params)
+    try:
+        return self._fetch_pages(User, None, 'user/search', startAt, maxResults, params)
+    except JIRAError as e:
+        if e.text == 'The username query parameter was not provided':
+            params = {
+                'username': query,
+                'includeActive': includeActive,
+                'includeInactive': includeInactive,
+            }
+            return self._fetch_pages(
+                User, None, 'user/search', startAt, maxResults, params
+            )
+        raise e
+
+
+def create_customer_request(
+    self, fields=None, prefetch=True, use_old_api=False, **fieldargs
+):
+    """The code for this function is almost completely copied from
+    function create_customer_request of the JIRA library"""
+    data = fields
+
+    p = data['serviceDeskId']
+    service_desk = None
+
+    if isinstance(p, str) or isinstance(p, int):
+        service_desk = self.service_desk(p)
+    elif isinstance(p, ServiceDesk):
+        service_desk = p
+
+    data['serviceDeskId'] = service_desk.id
+
+    p = data['requestTypeId']
+    if isinstance(p, int):
+        data['requestTypeId'] = p
+    elif isinstance(p, str):
+        data['requestTypeId'] = self.request_type_by_name(service_desk, p).id
+
+    requestParticipants = data.pop('requestParticipants', None)
+
+    url = self._options['server'] + '/rest/servicedeskapi/request'
+    headers = {'X-ExperimentalApi': 'opt-in'}
+    r = self._session.post(url, headers=headers, data=json.dumps(data))
+
+    raw_issue_json = json_loads(r)
+    if 'issueKey' not in raw_issue_json:
+        raise JIRAError(r.status_code, request=r)
+
+    if requestParticipants:
+        url = (
+            self._options['server']
+            + '/rest/servicedeskapi/request/%s/participant' % raw_issue_json['issueKey']
+        )
+        headers = {'X-ExperimentalApi': 'opt-in'}
+
+        if use_old_api:
+            data = {'usernames': requestParticipants}
+        else:
+            data = {'accountIds': requestParticipants}
+
+        r = self._session.post(url, headers=headers, json=data)
+
+    if r.status_code != status.HTTP_200_OK:
+        raise JIRAError(r.status_code, request=r)
+
+    if prefetch:
+        return self.issue(raw_issue_json['issueKey'])
+    else:
+        return Issue(self._options, self._session, raw=raw_issue_json)
 
 
 JIRA.waldur_add_attachment = add_attachment
 JIRA.waldur_service_desk = service_desk
 JIRA.waldur_request_types = request_types
 JIRA.waldur_search_users = search_users
+JIRA.waldur_create_customer_request = create_customer_request

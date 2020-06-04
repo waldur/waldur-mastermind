@@ -10,7 +10,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.template import Context, Template
 from django.utils import timezone
-from jira import Comment
+from jira import Comment, JIRAError
 from jira.utils import json_loads
 
 from waldur_core.structure import ServiceBackendError
@@ -21,7 +21,6 @@ from waldur_mastermind.support.exceptions import SupportUserInactive
 from . import SupportBackend
 
 logger = logging.getLogger(__name__)
-
 
 Settings = collections.namedtuple(
     'Settings', ['backend_url', 'username', 'password', 'email', 'token']
@@ -98,9 +97,6 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
         self.create_user(issue.caller)
 
-        if self.use_old_api:
-            return super(ServiceDeskBackend, self).create_issue(issue)
-
         args = self._issue_to_dict(issue)
         args['serviceDeskId'] = self.manager.waldur_service_desk(
             self.project_settings['key']
@@ -118,11 +114,17 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             .first()
             .backend_id
         )
-        backend_issue = self.manager.create_customer_request(args)
+        backend_issue = self.manager.waldur_create_customer_request(
+            args, use_old_api=self.use_old_api
+        )
         args = self._get_custom_fields(issue)
 
-        # Update an issue, because create_customer_request doesn't allow setting custom fields.
-        backend_issue.update(**args)
+        try:
+            # Update an issue, because create_customer_request doesn't allow setting custom fields.
+            backend_issue.update(**args)
+        except JIRAError as e:
+            logger.error('Error when setting custom field via JIRA API: %s' % e)
+
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
 
@@ -149,7 +151,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def create_user(self, user):
         # Temporary workaround as JIRA returns 500 error if user already exists
-        if self.use_old_api:
+        if self.use_old_api or self.use_teenage_api:
             # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
             existing_support_user = self.manager.search_users(user.email)
         else:
@@ -237,30 +239,6 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def _issue_to_dict(self, issue):
         parser = HTMLParser()
 
-        if self.use_old_api:
-            parser = HTMLParser()
-            args = {
-                'project': self.project_settings['key'],
-                'summary': parser.unescape(issue.summary),
-                'description': parser.unescape(issue.description),
-                'issuetype': {'name': issue.type},
-            }
-            args.update(self._get_custom_fields(issue))
-
-            try:
-                support_user = models.SupportUser.objects.get(user=issue.caller)
-                key = support_user.backend_id or issue.caller.email
-            except models.SupportUser.DoesNotExist:
-                key = issue.caller.email
-
-            args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [
-                {
-                    "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
-                    "key": key,
-                }
-            ]
-            return args
-
         args = {
             'requestFieldValues': {
                 'summary': parser.unescape(issue.summary),
@@ -271,23 +249,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if issue.priority:
             args['requestFieldValues']['priority'] = {'name': issue.priority}
 
-        if self.use_teenage_api:
-            # XXX (Ilja): There are issues with setting the request participants field using email
-            # Potentially if there are existing support customers with the same email as jira users
-            # experimentally the same method can be used for referring to users as when using old API
-            # this is not sustainable if we want to migrate to Request APIs, but for the moment this is known
-            # to work with both cloud version and 4.7. Approaching Atlassian to clarify this.
-
-            # XXX (Ilja) Temporary workaround for the request participant reference.
-            try:
-                support_user = models.SupportUser.objects.get(user=issue.caller)
-                key = support_user.backend_id or issue.caller.email
-            except models.SupportUser.DoesNotExist:
-                key = issue.caller.email
-
-            args['requestParticipants'] = [key]
+        support_customer = issue.caller.supportcustomer
+        if self.use_old_api:
+            args['requestParticipants'] = [support_customer.user.email]
         else:
-            support_customer = issue.caller.supportcustomer
             args['requestParticipants'] = [support_customer.backend_id]
 
         return args
@@ -367,7 +332,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def pull_request_types(self):
         service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
-        backend_request_types = self.manager.request_types(service_desk_id)
+        # backend_request_types = self.manager.request_types(service_desk_id)
+        backend_request_types = self.manager.waldur_request_types(
+            service_desk_id, self.project_settings['key'], self.strange_setting
+        )
 
         with transaction.atomic():
             backend_request_type_map = {
