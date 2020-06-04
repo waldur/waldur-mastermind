@@ -14,12 +14,16 @@ class Command(BaseCommand):
         backend.pull_request_types()
 
         for support_customer in models.SupportCustomer.objects.all():
-            exists_user = backend.manager.search_users(support_customer.user.email)
+            exists_user = backend.manager.waldur_search_users(
+                support_customer.user.email
+            )
 
             if exists_user:
                 backend_user = exists_user[0]
             else:
                 backend_user = backend.create_user(support_customer.user)
 
-            support_customer.backend_id = backend_user.key
+            support_customer.backend_id = getattr(backend_user, 'key', None) or getattr(
+                backend_user, 'accountId', None
+            )
             support_customer.save()

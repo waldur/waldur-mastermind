@@ -130,6 +130,9 @@ class IssueCreateBaseTest(base.BaseTest):
         mock_backend_issue = Issue({'server': ''}, None, raw=issue_raw)
         mock_backend_issue.update = mock.MagicMock()
         self.mock_jira().create_customer_request.return_value = mock_backend_issue
+        self.mock_jira().waldur_create_customer_request.return_value = (
+            mock_backend_issue
+        )
 
         self.mock_jira().create_issue.return_value = mock_backend_issue
 
@@ -466,10 +469,10 @@ class IssueCreateOldAPITest(IssueCreateBaseTest):
         self.client.post(
             self.url, data=self._get_valid_payload(is_reported_manually=True)
         )
-        kwargs = self.mock_jira().create_issue.call_args[1]
-        self.assertEqual(user.email, kwargs['field101'][0]['key'])
+        kwargs = self.mock_jira().waldur_create_customer_request.call_args[0][0]
+        self.assertEqual(user.email, kwargs['requestParticipants'][0])
 
-    def test_identification_from_backend_id_if_caller_exists(self):
+    def test_identification_from_email_if_caller_exists(self):
         user = self.fixture.staff
         backend_id = 'admin'
         factories.SupportUserFactory(user=user, backend_id=backend_id)
@@ -480,8 +483,8 @@ class IssueCreateOldAPITest(IssueCreateBaseTest):
                 caller=structure_factories.UserFactory.get_url(user=user),
             ),
         )
-        kwargs = self.mock_jira().create_issue.call_args[1]
-        self.assertEqual(backend_id, kwargs['field101'][0]['key'])
+        kwargs = self.mock_jira().waldur_create_customer_request.call_args[0][0]
+        self.assertEqual(user.email, kwargs['requestParticipants'][0])
 
 
 @ddt

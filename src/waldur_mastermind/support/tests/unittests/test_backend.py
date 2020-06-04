@@ -47,7 +47,7 @@ class IssueCreateTest(BaseBackendTest):
         self.issue = issue
         factories.RequestTypeFactory(issue_type_name=issue.type)
 
-        self.mocked_jira.create_customer_request.return_value = mock.Mock(
+        self.mocked_jira.waldur_create_customer_request.return_value = mock.Mock(
             **{
                 'key': 'TST-101',
                 'fields.assignee.key': '',
@@ -74,7 +74,7 @@ class IssueCreateTest(BaseBackendTest):
                 'permalink()': '',
             }
         )
-        self.mocked_jira.create_customer_request.return_value.permalink.return_value = (
+        self.mocked_jira.waldur_create_customer_request.return_value.permalink.return_value = (
             'http://example.com/TST-101'
         )
 
@@ -99,9 +99,7 @@ class IssueCreateTest(BaseBackendTest):
 
     def test_original_reporter_is_specified_in_custom_field(self):
         self.backend.create_issue(self.issue)
-        kwargs = self.mocked_jira.create_customer_request.return_value.update.call_args[
-            1
-        ]
+        kwargs = self.mocked_jira.waldur_create_customer_request().update.call_args[1]
         self.assertEqual(kwargs['field102'], self.issue.reporter.name)
 
 
