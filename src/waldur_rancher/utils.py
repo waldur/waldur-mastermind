@@ -11,6 +11,7 @@ from waldur_core.core.models import User
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure.models import ProjectRole, ServiceSettings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
+from waldur_openstack.openstack_tenant.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
 
 from . import exceptions, models, signals
@@ -528,3 +529,27 @@ def update_cluster_nodes_states(cluster_id):
         signals.node_states_have_been_updated.send(
             sender=models.Cluster, instance=cluster,
         )
+
+
+def _check_permissions(action):
+    def func(request, view, instance=None):
+        node = instance
+
+        if not node:
+            return
+
+        validators = getattr(InstanceViewSet, action + '_permissions')
+
+        for validator in validators:
+            if node.instance:
+                validator(request, view, node.instance)
+
+    return func
+
+
+def check_permissions_for_console():
+    return _check_permissions('console')
+
+
+def check_permissions_for_console_log():
+    return _check_permissions('console_log')

@@ -89,6 +89,13 @@ class SafReportFormatterTest(BaseReportFormatterTest):
         )
         self.assertEqual(lines[1], expected_data)
 
+    def test_partner_number_is_overriden_if_customer_sponsor_number_is_set(self):
+        self.invoice.customer.sponsor_number = 99999999
+        self.invoice.customer.save()
+
+        report = format_invoice_csv(self.invoice)
+        self.assertTrue('99999999' in report)
+
     def test_usage_based_item_is_skipped_if_quantity_is_zero(self):
         item = self.invoice.items.first()
         item.unit = models.InvoiceItem.Units.QUANTITY

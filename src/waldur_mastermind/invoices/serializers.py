@@ -224,7 +224,7 @@ class SAFReportSerializer(serializers.Serializer):
     VORMKUUP = serializers.SerializerMethodField(method_name='get_invoice_date')
     MAKSEAEG = serializers.SerializerMethodField(method_name='get_due_date')
     YKSUS = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
-    PARTNER = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
+    PARTNER = serializers.SerializerMethodField(method_name='get_partner')
     ARTIKKEL = serializers.ReadOnlyField(source='article_code')
     KOGUS = serializers.SerializerMethodField(method_name='get_quantity')
     SUMMA = serializers.SerializerMethodField(method_name='get_total')
@@ -260,6 +260,13 @@ class SAFReportSerializer(serializers.Serializer):
         if date:
             return date.strftime('%d.%m.%Y')
         return ''
+
+    def get_partner(self, invoice_item):
+        customer = invoice_item.invoice.customer
+        if customer.sponsor_number:
+            return customer.sponsor_number
+        else:
+            return customer.agreement_number
 
     def get_first_day(self, invoice_item):
         year = invoice_item.invoice.year

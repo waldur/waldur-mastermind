@@ -34,7 +34,7 @@ class BackendTest(TestCase):
 
         self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2 * 2)
         self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
-        self.assertEqual(self.allocation.ram_usage, (1 + 2 * 2) * 51200 * 2 ** 20)
+        self.assertEqual(self.allocation.ram_usage, (1 + 2 * 2) * 51200)
 
     @freeze_time('2017-10-16')
     @mock.patch('subprocess.check_output')
@@ -60,14 +60,14 @@ class BackendTest(TestCase):
 
         self.assertEqual(user1_allocation_usage.cpu_usage, 1)
         self.assertEqual(user1_allocation_usage.gpu_usage, 1)
-        self.assertEqual(user1_allocation_usage.ram_usage, 51200 * 2 ** 20)
+        self.assertEqual(user1_allocation_usage.ram_usage, 51200)
 
         user2_allocation_usage = models.AllocationUserUsage.objects.get(
             allocation_usage=allocation_usage, user=user2
         )
         self.assertEqual(user2_allocation_usage.cpu_usage, 2 * 2 * 2)
         self.assertEqual(user2_allocation_usage.gpu_usage, 2 * 2 * 2)
-        self.assertEqual(user2_allocation_usage.ram_usage, 2 * 2 * 51200 * 2 ** 20)
+        self.assertEqual(user2_allocation_usage.ram_usage, 2 * 2 * 51200)
 
     @mock.patch('subprocess.check_output')
     def test_set_resource_limits(self, check_output):
@@ -123,7 +123,7 @@ class BackendTest(TestCase):
 
             self.assertEqual(self.allocation.cpu_limit, 400)
             self.assertEqual(self.allocation.gpu_limit, 120)
-            self.assertEqual(self.allocation.ram_limit, 100 * 2 ** 20)
+            self.assertEqual(self.allocation.ram_limit, 100)
 
     def test_name_changing(self):
         sample_name = 'al*lo$ca#tio#n_12~!34-5'

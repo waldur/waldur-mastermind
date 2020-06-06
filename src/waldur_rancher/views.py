@@ -20,6 +20,7 @@ from rest_framework.views import APIView
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
@@ -29,7 +30,7 @@ from waldur_core.structure.permissions import is_administrator
 from waldur_rancher.apps import RancherConfig
 from waldur_rancher.exceptions import RancherException
 
-from . import exceptions, executors, filters, models, serializers, validators
+from . import exceptions, executors, filters, models, serializers, utils, validators
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,55 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     unlink_openstack_permissions = [structure_permissions.is_staff]
+
+    @decorators.action(detail=True, methods=['get'])
+    def console(self, request, uuid=None):
+        node = self.get_object()
+
+        if not node.instance:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+        backend = node.instance.get_backend()
+        backend_method = getattr(backend, 'get_console_url')
+
+        if backend_method:
+            try:
+                url = backend_method(node.instance)
+            except structure_exceptions.SerializableBackendError as e:
+                raise ValidationError(str(e))
+
+            return response.Response({'url': url}, status=status.HTTP_200_OK)
+        else:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+    console_validators = [validators.console_validator]
+    console_permissions = [utils.check_permissions_for_console()]
+
+    @decorators.action(detail=True, methods=['get'])
+    def console_log(self, request, uuid=None):
+        node = self.get_object()
+
+        if not node.instance:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+        backend = node.instance.get_backend()
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        length = serializer.validated_data.get('length')
+        backend_method = getattr(backend, 'get_console_output')
+
+        if backend_method:
+            try:
+                log = backend_method(node.instance, length)
+            except structure_exceptions.SerializableBackendError as e:
+                raise ValidationError(str(e))
+
+            return response.Response(log, status=status.HTTP_200_OK)
+        else:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+    console_log_serializer_class = serializers.ConsoleLogSerializer
+    console_log_permissions = [utils.check_permissions_for_console_log()]
 
 
 class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
