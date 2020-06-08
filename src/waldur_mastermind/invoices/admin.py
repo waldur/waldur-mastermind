@@ -18,6 +18,7 @@ from . import executors, models, tasks
 class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.StackedInline):
     model = models.InvoiceItem
     readonly_fields = (
+        'pk',
         'price',
         'unit_price',
         'unit',

@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -316,7 +316,12 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             'details',
         )
 
-        params = {field: getattr(self, field) for field in FIELDS}
+        params = {}
+        for field in FIELDS:
+            try:
+                params[field] = getattr(self, field)
+            except ObjectDoesNotExist:
+                pass  # if a reference was deleted
         params.update(kwargs)
         if params['unit_price'] > 0:
             params['unit_price'] *= -1
