@@ -141,6 +141,32 @@ class BackendTest(TestCase):
 
         self.assertEqual(result_name, final_correct_name)
 
+    @freeze_time('2020-02-01')
+    @mock.patch('subprocess.check_output')
+    def test_allocation_zero_usage_created(self, check_output):
+        association = f"{self.account}|cpu=400,mem=100M,gres/gpu=120"
+        check_output.return_value = association
+
+        with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
+            usage_report.return_value = []
+
+            backend = self.allocation.get_backend()
+            backend.pull_allocation(self.allocation)
+            self.allocation.refresh_from_db()
+
+            self.assertEqual(self.allocation.cpu_usage, 0)
+            self.assertEqual(self.allocation.gpu_usage, 0)
+            self.assertEqual(self.allocation.ram_usage, 0)
+
+            year = 2020
+            month = 2
+            allocation_usage = models.AllocationUsage.objects.get(
+                allocation=self.allocation, year=year, month=month
+            )
+            self.assertEqual(allocation_usage.cpu_usage, 0)
+            self.assertEqual(allocation_usage.gpu_usage, 0)
+            self.assertEqual(allocation_usage.ram_usage, 0)
+
 
 class BackendMOABTest(TestCase):
     def setUp(self):

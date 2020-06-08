@@ -1,8 +1,13 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
+
+from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.plugins import manager
+from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
 
 from . import models, utils
@@ -19,24 +24,59 @@ class AllocationRegistrator(registrators.BaseRegistrator):
     def get_customer(self, source):
         return source.service_project_link.project.customer
 
+    def _find_item(self, source, now):
+        """
+        Find a list of items by source and date.
+        :param source: object that was bought by customer.
+        :param now: date of invoice with invoice items.
+        :return: list of invoice items related to allocation (source)
+        """
+        model_type = ContentType.objects.get_for_model(source)
+        result = invoice_models.InvoiceItem.objects.filter(
+            content_type=model_type,
+            object_id=source.id,
+            invoice__customer=self.get_customer(source),
+            invoice__state=invoice_models.Invoice.States.PENDING,
+            invoice__year=now.year,
+            invoice__month=now.month,
+            end=core_utils.month_end(now),
+        )
+        return result
+
     def _create_item(self, source, invoice, start, end):
         allocation = source
         package = self.get_package(allocation)
         if package:
-            item = invoice_models.InvoiceItem.objects.create(
-                scope=allocation,
-                project=source.service_project_link.project,
-                unit_price=utils.get_deposit_usage(allocation, package),
-                unit=invoice_models.InvoiceItem.Units.QUANTITY,
-                quantity=1,
-                product_code=package.product_code,
-                article_code=package.article_code,
-                invoice=invoice,
-                start=start,
-                end=end,
-            )
-            self.init_details(item)
-            return item
+            allocation_usage = slurm_models.AllocationUsage.objects.filter(
+                allocation=allocation, month=start.month, year=start.year
+            ).first()
+
+            if not allocation_usage:
+                return
+
+            for component in manager.get_components(PLUGIN_NAME):
+                component_type = component.type
+                component_usage = getattr(allocation_usage, component_type + '_usage')
+                if component_usage > 0:
+                    item = invoice_models.InvoiceItem.objects.create(
+                        scope=allocation,
+                        project=source.service_project_link.project,
+                        unit_price=utils.get_unit_deposit_usage(
+                            allocation_usage, package, component_type
+                        ),
+                        unit=invoice_models.InvoiceItem.Units.QUANTITY,
+                        quantity=component_usage,
+                        product_code=package.product_code,
+                        article_code=package.article_code,
+                        invoice=invoice,
+                        start=start,
+                        end=end,
+                    )
+                    item.name = '%s (%s)' % (self.get_name(item.scope), component.name)
+                    details = self.get_details(source)
+                    details.update({'type': component_type})
+                    item.details.update(details)
+                    item.save(update_fields=['name', 'details'])
 
     def get_package(self, allocation):
         service_settings = allocation.service_project_link.service.settings
@@ -51,10 +91,6 @@ class AllocationRegistrator(registrators.BaseRegistrator):
 
     def get_details(self, source):
         details = {
-            'cpu_usage': source.cpu_usage,
-            'gpu_usage': source.gpu_usage,
-            'ram_usage': source.ram_usage,
-            'deposit_usage': str(source.deposit_usage),
             'scope_uuid': source.uuid.hex,
         }
         service_provider_info = marketplace_utils.get_service_provider_info(source)
@@ -72,28 +108,3 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             }
         )
         return details
-
-    def get_name(self, source):
-        cpu_substr = ""
-        gpu_substr = ""
-        ram_substr = ""
-        if source.cpu_usage > 0:
-            cpu_substr = f"CPU: {source.cpu_usage} hours"
-        if source.gpu_usage > 0:
-            gpu_substr = f"GPU: {source.gpu_usage} hours"
-        if source.ram_usage > 0:
-            ram_gb = source.get_backend().mb2gb(
-                source.ram_usage
-            )  # Convert from MB to GB
-            ram_substr = f"RAM: {ram_gb} GB"
-
-        if cpu_substr == gpu_substr == ram_substr == "":
-            return source.name
-
-        final_substr = ", ".join(
-            [x for x in [cpu_substr, gpu_substr, ram_substr] if x != ""]
-        )
-
-        return '{name} ({final_substr})'.format(
-            name=source.name, final_substr=final_substr,
-        )

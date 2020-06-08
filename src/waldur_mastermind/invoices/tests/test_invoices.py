@@ -197,27 +197,32 @@ class InvoiceItemTest(test.APITransactionTestCase):
         )
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.scope = self.fixture.allocation
-        self.item = models.InvoiceItem.objects.filter(scope=self.scope).get()
-        self.item.unit = models.InvoiceItem.Units.QUANTITY
-        self.item.quantity = 10
-        self.item.unit_price = 10
-        self.item.save()
+        self.usage = self.fixture.allocation_usage
+        self.items = models.InvoiceItem.objects.filter(scope=self.scope)
+        for item in self.items:
+            item.unit = models.InvoiceItem.Units.QUANTITY
+            item.quantity = 10
+            item.unit_price = 10
+            item.save()
 
     def check_output(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
-
-        item = response.data['items'][0]
-        self.assertEqual(item['scope_type'], 'SLURM.Allocation')
-        self.assertEqual(item['scope_uuid'], self.scope.uuid.hex)
-        self.assertEqual(item['name'], self.scope.name)
+        invoice = self.items[0].invoice
+        response = self.client.get(factories.InvoiceFactory.get_url(invoice))
+        response_items = response.data['items']
+        self.assertNotEqual(len(response_items), 0)
+        for response_item in response_items:
+            self.assertEqual(response_item['scope_type'], 'SLURM.Allocation')
+            self.assertEqual(response_item['scope_uuid'], self.scope.uuid.hex)
+            self.assertTrue(self.scope.name in response_item['name'])
 
     def test_details_are_rendered_if_scope_exists(self):
         self.check_output()
 
     def test_details_are_rendered_if_scope_has_been_deleted(self):
         self.scope.delete()
-        self.item.refresh_from_db()
+        for item in self.items:
+            item.refresh_from_db()
         self.check_output()
 
     def test_scope_type_is_rendered_for_support_request(self):
