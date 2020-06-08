@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.utils.functional import cached_property
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
@@ -22,4 +23,7 @@ class SlurmFixture(ProjectFixture):
 
     @cached_property
     def allocation_usage(self):
-        return factories.AllocationUsageFactory(allocation=self.allocation)
+        now = timezone.now()
+        return factories.AllocationUsageFactory(
+            allocation=self.allocation, month=now.month, year=now.year
+        )

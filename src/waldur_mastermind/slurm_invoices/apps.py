@@ -35,6 +35,6 @@ class SlurmInvoicesConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.update_invoice_item_on_allocation_usage_update,
-            sender=slurm_models.Allocation,
+            sender=slurm_models.AllocationUsage,
             dispatch_uid='waldur_slurm.handlers.update_invoice_item_on_allocation_usage_update',
         )

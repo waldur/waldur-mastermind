@@ -151,11 +151,7 @@ class SlurmBackend(ServiceBackend):
         report = self.get_usage_report([account])
         usage = report.get(account)
         if not usage:
-            logger.debug(
-                'Skipping usage report for account %s because it is not managed under Waldur',
-                account,
-            )
-            return
+            usage = {'TOTAL_ACCOUNT_USAGE': Quotas()}
         self._update_quotas(allocation, usage)
         limits = self.get_allocation_limits(account)
         self._update_limits(allocation, limits)

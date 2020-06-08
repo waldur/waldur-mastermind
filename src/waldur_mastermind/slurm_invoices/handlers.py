@@ -19,23 +19,24 @@ def terminate_invoice_when_allocation_deleted(sender, instance, **kwargs):
 def update_invoice_item_on_allocation_usage_update(
     sender, instance, created=False, **kwargs
 ):
+    allocation_usage = instance
+    allocation = allocation_usage.allocation
+
     if created:
+        registrators.RegistrationManager.register(allocation)
         return
 
-    allocation = instance
-    if not allocation.usage_changed():
-        return
-
-    invoice_item = registrators.RegistrationManager.get_item(allocation)
-    if not invoice_item:
-        return
+    invoice_items = registrators.RegistrationManager.get_item(allocation)
 
     package = utils.get_package(allocation)
     if package:
-        invoice_item.unit_price = utils.get_deposit_usage(allocation, package)
-        invoice_item.details = registrators.RegistrationManager.get_details(allocation)
-        invoice_item.name = registrators.RegistrationManager.get_name(allocation)
-        invoice_item.save(update_fields=['name', 'unit_price', 'details'])
+        for invoice_item in invoice_items:
+            item_type = invoice_item.details['type']
+            invoice_item.unit_price = utils.get_unit_deposit_usage(
+                allocation_usage, package, item_type
+            )
+            invoice_item.quantity = getattr(allocation_usage, item_type + '_usage')
+            invoice_item.save(update_fields=['unit_price', 'quantity'])
 
 
 def update_allocation_deposit(sender, instance, created=False, **kwargs):
