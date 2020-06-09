@@ -2,6 +2,7 @@ from unittest import mock
 
 from django.test import TestCase
 
+from waldur_slurm.parser import parse_duration
 from waldur_slurm.tests import fixtures
 
 VALID_ALLOCATION = 'allocation1'
@@ -60,3 +61,19 @@ class ParserTest(TestCase):
         report = self.get_report(REPORT_WITHOUT_GPU)
         total = report[VALID_ALLOCATION]['TOTAL_ACCOUNT_USAGE']
         self.assertEqual(total.gpu, 0)
+
+    def test_days_and_microseconds_support_for_duration(self):
+        duration_line = "01-00:01:00"
+        duration = parse_duration(duration_line)
+        expected_duration = 24 * 60 + 1
+        self.assertEqual(duration, expected_duration)
+
+        duration_line = "01-00:01:00.000001"
+        duration = parse_duration(duration_line)
+        expected_duration = 24 * 60 + 1
+        self.assertEqual(duration, expected_duration)
+
+        duration_line = "00:01:00.000001"
+        duration = parse_duration(duration_line)
+        expected_duration = 1
+        self.assertEqual(duration, expected_duration)

@@ -166,6 +166,8 @@ class RancherClient:
                 'mustChangePassword': mustChangePassword,
                 'password': password,
                 'username': username,
+                'type': 'user',
+                'enabled': True,
             },
         )
 
@@ -193,6 +195,17 @@ class RancherClient:
         return self._post(
             'projectroletemplatebindings',
             json={'roleTemplateId': role, 'projectId': project_id, 'userId': user_id,},
+        )
+
+    def create_project(self, cluster_id, project_name):
+        return self._post(
+            'project',
+            json={
+                'name': project_name,
+                'clusterId': cluster_id,
+                'type': 'project',
+                'enableProjectMonitoring': False,
+            },
         )
 
     def delete_user(self, user_id):
