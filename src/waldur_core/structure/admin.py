@@ -246,6 +246,7 @@ class CustomerAdmin(
         'backend_id',
         'domain',
         'agreement_number',
+        'sponsor_number',
         'email',
         'phone_number',
         'access_subnets',
