@@ -1,4 +1,5 @@
 import datetime
+import logging
 
 from django.utils.functional import cached_property
 
@@ -6,14 +7,51 @@ from waldur_core.core import utils as core_utils
 
 from .base import BaseReportLine
 
+logger = logging.getLogger(__name__)
+
 
 def parse_duration(value):
     """
     Returns duration in minutes as an integer number.
     For example 00:01:00 is equal to 1
     """
-    dt = datetime.datetime.strptime(value, '%H:%M:%S')
-    delta = datetime.timedelta(hours=dt.hour, minutes=dt.minute, seconds=dt.second)
+    days_sep = '-'
+    us_sep = '.'
+    simple_fmt = '%H:%M:%S'
+    days_fmt = '%d-%H:%M:%S'
+    us_fmt = '%H:%M:%S.%f'
+    days_us_fmt = '%d-%H:%M:%S.%f'
+
+    if days_sep not in value:
+        if us_sep in value:  # Simple time with microseconds
+            dt = datetime.datetime.strptime(value, us_fmt)
+            delta = datetime.timedelta(
+                hours=dt.hour,
+                minutes=dt.minute,
+                seconds=dt.second,
+                microseconds=dt.microsecond,
+            )
+        else:  # Simple time
+            dt = datetime.datetime.strptime(value, simple_fmt)
+            delta = datetime.timedelta(
+                hours=dt.hour, minutes=dt.minute, seconds=dt.second
+            )
+    else:
+        if us_sep in value:  # Simple time with microseconds and days
+            dt = datetime.datetime.strptime(value, days_us_fmt)
+            delta = datetime.timedelta(
+                days=dt.day,
+                hours=dt.hour,
+                minutes=dt.minute,
+                seconds=dt.second,
+                microseconds=dt.microsecond,
+            )
+        else:  # Simple time with days
+            dt = datetime.datetime.strptime(value, days_fmt)
+            delta = datetime.timedelta(
+                days=dt.day, hours=dt.hour, minutes=dt.minute, seconds=dt.second
+            )
+
     return int(delta.total_seconds()) // 60
 
 
