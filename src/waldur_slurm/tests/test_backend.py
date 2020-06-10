@@ -17,6 +17,17 @@ allocation1|cpu=1,mem=51200M,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|
 allocation1|cpu=2,mem=51200M,node=2,gres/gpu=2,gres/gpu:tesla=1|00:02:00|user2|
 """
 
+INVALID_ASSOCIATIONS = """
+allocation1|
+allocation1|
+"""
+
+VALID_ASSOCIATIONS = """
+allocation1|
+allocation1|cpu=400,mem=100M,gres/gpu=120
+allocation1|
+"""
+
 
 class BackendTest(TestCase):
     def setUp(self):
@@ -108,8 +119,8 @@ class BackendTest(TestCase):
 
     @mock.patch('subprocess.check_output')
     def test_pull_allocation(self, check_output):
-        association = f"{self.account}|cpu=400,mem=100M,gres/gpu=120"
-        check_output.return_value = association
+        association_line = VALID_ASSOCIATIONS.replace('allocation1', self.account)
+        check_output.return_value = association_line
 
         with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
             report = VALID_REPORT.replace('allocation1', self.account)
@@ -166,6 +177,30 @@ class BackendTest(TestCase):
             self.assertEqual(allocation_usage.cpu_usage, 0)
             self.assertEqual(allocation_usage.gpu_usage, 0)
             self.assertEqual(allocation_usage.ram_usage, 0)
+
+    @mock.patch('subprocess.check_output')
+    def test_allocation_limits_are_not_changed_after_if_association_lines_are_invalid(
+        self, check_output
+    ):
+        invalid_association = INVALID_ASSOCIATIONS.replace('allocation1', self.account)
+        check_output.return_value = invalid_association
+        cpu_limit_old = self.allocation.cpu_limit
+        gpu_limit_old = self.allocation.gpu_limit
+        ram_limit_old = self.allocation.ram_limit
+
+        with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
+            report = VALID_REPORT.replace('allocation1', self.account)
+            usage_report.return_value = [
+                SlurmReportLine(line) for line in report.splitlines() if '|' in line
+            ]
+
+            backend = self.allocation.get_backend()
+            backend.pull_allocation(self.allocation)
+            self.allocation.refresh_from_db()
+
+            self.assertEqual(self.allocation.cpu_limit, cpu_limit_old)
+            self.assertEqual(self.allocation.gpu_limit, gpu_limit_old)
+            self.assertEqual(self.allocation.ram_limit, ram_limit_old)
 
 
 class BackendMOABTest(TestCase):

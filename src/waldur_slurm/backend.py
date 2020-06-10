@@ -172,12 +172,18 @@ class SlurmBackend(ServiceBackend):
         return report
 
     def get_allocation_limits(self, account):
-        output = self.client.get_limits(account)
-        limits = Quotas(cpu=output.cpu, gpu=output.gpu, ram=output.ram)
-
-        return limits
+        lines = self.client.get_resource_limits(account)
+        correct_lines = [
+            association for association in lines if association.resource_limits
+        ]
+        if len(correct_lines) > 0:
+            line = correct_lines[0]
+            limits = Quotas(cpu=line.cpu, gpu=line.gpu, ram=line.ram)
+            return limits
 
     def _update_limits(self, allocation, limits):
+        if not limits:
+            return
         allocation.cpu_limit = limits.cpu
         allocation.gpu_limit = limits.gpu
         allocation.ram_limit = limits.ram
