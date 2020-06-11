@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.forms import ModelForm
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
 
@@ -61,15 +62,38 @@ class AllocationAdmin(structure_admin.ResourceAdmin):
     actions = ['sync_allocations', 'sync_users']
 
 
+class AllocationUsageAdminForm(ModelForm):
+    class Meta:
+        labels = {'ram_usage': 'RAM usage (MB)'}
+
+
 class AllocationUsageAdmin(admin.ModelAdmin):
+    form = AllocationUsageAdminForm
     list_display = admin.ModelAdmin.list_display + (
         'allocation',
         'cpu_usage',
         'gpu_usage',
-        'ram_usage',
+        'ram_usage_mb',
         'deposit_usage',
         'year',
         'month',
+    )
+
+    search_fields = ('allocation__name',)
+
+    list_filter = ('allocation', 'year', 'month')
+
+    def ram_usage_mb(self, obj):
+        return obj.ram_usage
+
+    ram_usage_mb.short_description = 'RAM usage (MB)'
+
+
+class AllocationUserUsageAdmin(admin.ModelAdmin):
+    list_display = admin.ModelAdmin.list_display + (
+        'allocation_usage',
+        'user',
+        'username',
     )
 
 
@@ -77,4 +101,4 @@ admin.site.register(SlurmService, structure_admin.ServiceAdmin)
 admin.site.register(SlurmServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(Allocation, AllocationAdmin)
 admin.site.register(AllocationUsage, AllocationUsageAdmin)
-admin.site.register(AllocationUserUsage)
+admin.site.register(AllocationUserUsage, AllocationUserUsageAdmin)
