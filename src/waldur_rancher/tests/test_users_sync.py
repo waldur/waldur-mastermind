@@ -5,7 +5,7 @@ from rest_framework import test
 
 from waldur_core.structure.models import ProjectRole
 
-from .. import models, tasks, utils
+from .. import enums, models, tasks, utils
 from . import factories, fixtures
 
 
@@ -55,3 +55,28 @@ class UserSyncTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [rancher_user.user.email])
         self.assertTrue(url in mail.outbox[0].body)
+
+    @mock.patch('waldur_rancher.utils.RancherBackend')
+    def test_create_project_role(self, mock_backend_class):
+        project = factories.ProjectFactory()
+        utils.SyncUser.run()
+        rancher_user = models.RancherUser.objects.first()
+        rancher_user.backend_id = 'backend_id'
+        rancher_user.save()
+
+        mock_backend_class().client.get_projects_roles.return_value = [
+            {
+                'projectId': project.backend_id,
+                'roleTemplateId': enums.ProjectRoleId.project_owner,
+                'id': 'project_role_id',
+                'userId': 'backend_id',
+            }
+        ]
+        utils.SyncUser.run()
+
+        rancher_user.refresh_from_db()
+        self.assertEqual(rancher_user.rancheruserprojectlink_set.count(), 1)
+        self.assertEqual(
+            rancher_user.rancheruserprojectlink_set.first().backend_id,
+            'project_role_id',
+        )
