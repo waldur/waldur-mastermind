@@ -119,7 +119,7 @@ class IssueCreateBaseTest(base.BaseTest):
         self.url = factories.IssueFactory.get_list_url()
         self.caller = structure_factories.UserFactory()
 
-    def _mock_jira(self, old_jira=False):
+    def _mock_jira(self, old_jira=False, user=None):
         mock.patch.stopall()
         mock_patch = mock.patch('waldur_jira.backend.JIRA')
         self.mock_jira = mock_patch.start()
@@ -137,7 +137,15 @@ class IssueCreateBaseTest(base.BaseTest):
         self.mock_jira().create_issue.return_value = mock_backend_issue
 
         mock_backend_users = [
-            User({'server': ''}, None, raw={'key': 'user_1', 'active': True})
+            User(
+                {'server': ''},
+                None,
+                raw={
+                    'key': 'user_1',
+                    'active': True,
+                    'name': user.email if user else 'user_1@example.com',
+                },
+            )
         ]
         if old_jira:
             self.mock_jira().search_users.return_value = mock_backend_users
@@ -461,27 +469,13 @@ class IssueCreateTest(IssueCreateBaseTest):
 class IssueCreateOldAPITest(IssueCreateBaseTest):
     def setUp(self):
         super(IssueCreateOldAPITest, self).setUp()
-        self._mock_jira(old_jira=True)
+        self._mock_jira(old_jira=True, user=self.fixture.staff)
 
-    def test_identification_from_email_if_caller_not_exists(self):
+    def test_identification_from_email_if_caller_does_not_exist(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
         self.client.post(
             self.url, data=self._get_valid_payload(is_reported_manually=True)
-        )
-        kwargs = self.mock_jira().waldur_create_customer_request.call_args[0][0]
-        self.assertEqual(user.email, kwargs['requestParticipants'][0])
-
-    def test_identification_from_email_if_caller_exists(self):
-        user = self.fixture.staff
-        backend_id = 'admin'
-        factories.SupportUserFactory(user=user, backend_id=backend_id)
-        self.client.force_authenticate(user)
-        self.client.post(
-            self.url,
-            data=self._get_valid_payload(
-                caller=structure_factories.UserFactory.get_url(user=user),
-            ),
         )
         kwargs = self.mock_jira().waldur_create_customer_request.call_args[0][0]
         self.assertEqual(user.email, kwargs['requestParticipants'][0])

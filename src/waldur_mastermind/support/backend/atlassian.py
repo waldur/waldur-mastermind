@@ -173,19 +173,13 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             backend_customer = active_user[0]
         else:
             if self.use_old_api:
-                # add_user method returns boolean value therefore we need to fetch user object to find its key
-                self.manager.add_user(
-                    user.email,
-                    user.email,
-                    fullname=user.full_name,
-                    ignore_existing=True,
+                backend_customer = self.manager.waldur_create_customer(
+                    user.email, user.full_name
                 )
-                backend_customer = self.manager.search_users(user.email)[0]
             else:
                 backend_customer = self.manager.create_customer(
                     user.email, user.full_name
                 )
-
         try:
             user.supportcustomer
         except ObjectDoesNotExist:
@@ -250,10 +244,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             args['requestFieldValues']['priority'] = {'name': issue.priority}
 
         support_customer = issue.caller.supportcustomer
-        if self.use_old_api:
-            args['requestParticipants'] = [support_customer.user.email]
-        else:
-            args['requestParticipants'] = [support_customer.backend_id]
+        args['requestParticipants'] = [support_customer.backend_id]
 
         return args
 
@@ -309,7 +300,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def get_user_id(self, user):
         try:
-            return user.key
+            if self.use_old_api:
+                return user.name  # alias for username
+            else:
+                return user.key
         except AttributeError:
             return user.accountId
         except TypeError:

@@ -4,7 +4,7 @@ import os
 import re
 
 from jira import JIRA, JIRAError, utils
-from jira.resources import Attachment, Issue, RequestType, ServiceDesk, User
+from jira.resources import Attachment, Customer, Issue, RequestType, ServiceDesk, User
 from jira.utils import json_loads
 from requests import Request
 from rest_framework import status
@@ -219,8 +219,31 @@ def create_customer_request(
         return Issue(self._options, self._session, raw=raw_issue_json)
 
 
+def create_customer(self, email, displayName):
+    """Create a new customer and return an issue Resource for it."""
+    url = self._options['server'] + '/rest/servicedeskapi/customer'
+    headers = {'X-ExperimentalApi': 'opt-in'}
+    r = self._session.post(
+        url,
+        headers=headers,
+        data=json.dumps(
+            {
+                'email': email,
+                'fullName': displayName,  # different property for the server one
+            }
+        ),
+    )
+
+    raw_customer_json = json_loads(r)
+
+    if r.status_code != 201:
+        raise JIRAError(r.status_code, request=r)
+    return Customer(self._options, self._session, raw=raw_customer_json)
+
+
 JIRA.waldur_add_attachment = add_attachment
 JIRA.waldur_service_desk = service_desk
 JIRA.waldur_request_types = request_types
 JIRA.waldur_search_users = search_users
 JIRA.waldur_create_customer_request = create_customer_request
+JIRA.waldur_create_customer = create_customer
