@@ -45,10 +45,20 @@ def get_unit_price(quota, package, unit_type):
         return price
 
 
-def get_unit_deposit_usage(allocation_usage, package, unit_type):
+def get_component_price(allocation_usage, package, unit_type):
     allocation = allocation_usage.allocation
     if allocation.batch_service == 'MOAB':
         return allocation.deposit_usage
     else:
         quota = getattr(allocation_usage, unit_type + '_usage')
         return get_unit_price(quota, package, unit_type)
+
+
+def get_usage_quantity(usage, component_type):
+    if component_type == 'ram':
+        mb_in_gb = 1024
+        quantity = int(math.ceil(1.0 * usage / mb_in_gb))
+    else:
+        minutes_in_hour = 60
+        quantity = int(math.ceil(1.0 * usage / minutes_in_hour))
+    return quantity

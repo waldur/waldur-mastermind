@@ -10,6 +10,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_slurm import models as slurm_models
 from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
@@ -19,6 +20,14 @@ from .. import models
 class InvoicesTest(TestCase):
     def setUp(self):
         self.fixture = slurm_fixtures.SlurmFixture()
+
+    def get_expected_quantity(self, usage, component_type):
+        usage = getattr(usage, component_type + '_usage')
+        if component_type == 'ram':
+            expected_quantity = int(math.ceil(1.0 * usage / 1024))
+        else:
+            expected_quantity = int(math.ceil(1.0 * usage / 60))
+        return expected_quantity
 
     def test_invoice_item_is_not_created_if_package_does_not_exist(self):
         with self.assertRaises(ObjectDoesNotExist):
@@ -50,7 +59,7 @@ class InvoicesTest(TestCase):
                 expected_price = int(
                     math.ceil(1.0 * getattr(allocation_usage, usage) / 60)
                 ) * getattr(package, price)
-            self.assertEqual(invoice_item.unit_price, expected_price)
+            self.assertEqual(invoice_item.price, expected_price)
 
     def test_when_allocation_is_cancelled_invoice_item_is_terminated(self):
         self.create_package()
@@ -71,7 +80,8 @@ class InvoicesTest(TestCase):
 
             self.assertEqual(invoice_item.name, expected_name)
             self.assertEqual(
-                invoice_item.quantity, getattr(allocation_usage, item_type + '_usage')
+                invoice_item.quantity,
+                self.get_expected_quantity(allocation_usage, item_type),
             )
 
     def test_invoice_item_name_format(self):
@@ -102,9 +112,10 @@ class InvoicesTest(TestCase):
 
         for invoice_item in invoice_items_after_update:
             item_type = invoice_item.details['type']
+
             self.assertEqual(
                 invoice_item.quantity,
-                getattr(allocation_usage_after_update, item_type + '_usage'),
+                self.get_expected_quantity(allocation_usage_after_update, item_type),
             )
 
     def test_invoice_items_partial_creation(self):
@@ -120,7 +131,22 @@ class InvoicesTest(TestCase):
             item_type = invoice_item.details['type']
             self.assertTrue(item_type in used_components)
             self.assertEqual(
-                invoice_item.quantity, getattr(allocation_usage, item_type + '_usage'),
+                invoice_item.quantity,
+                self.get_expected_quantity(allocation_usage, item_type),
+            )
+
+        allocation_usage_after_update = self.update_usage(
+            cpu_usage=allocation_usage.cpu_usage + 100,
+            ram_usage=allocation_usage.ram_usage + 1024,
+        )
+        invoice_items_after_update = self.get_invoice_items()
+        self.assertEqual(len(invoice_items_after_update), self.get_component_number())
+
+        for invoice_item in invoice_items_after_update:
+            item_type = invoice_item.details['type']
+            self.assertEqual(
+                invoice_item.quantity,
+                self.get_expected_quantity(allocation_usage_after_update, item_type),
             )
 
     def test_invoice_item_usages_reset_for_new_month(self):
@@ -155,6 +181,17 @@ class InvoicesTest(TestCase):
         allocation.ram_usage = ram_usage  # in MB
         allocation.save()
         now = timezone.now()
+        existing_usage = slurm_models.AllocationUsage.objects.filter(
+            allocation=allocation, month=now.month, year=now.year,
+        ).first()
+
+        if existing_usage:
+            existing_usage.cpu_usage = allocation.cpu_usage
+            existing_usage.gpu_usage = allocation.gpu_usage
+            existing_usage.ram_usage = allocation.ram_usage
+            existing_usage.save()
+            return existing_usage
+
         allocation_usage = slurm_factories.AllocationUsageFactory(
             allocation=allocation,
             cpu_usage=allocation.cpu_usage,
@@ -163,7 +200,6 @@ class InvoicesTest(TestCase):
             month=now.month,
             year=now.year,
         )
-        allocation_usage.save()
         return allocation_usage
 
     def get_invoice_items(self):

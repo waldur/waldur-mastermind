@@ -1,6 +1,9 @@
 from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
+from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.slurm_invoices import registrators as slurm_registrators
 
 from . import utils
 
@@ -22,21 +25,19 @@ def update_invoice_item_on_allocation_usage_update(
     allocation_usage = instance
     allocation = allocation_usage.allocation
 
-    if created:
-        registrators.RegistrationManager.register(allocation)
-        return
-
-    invoice_items = registrators.RegistrationManager.get_item(allocation)
-
     package = utils.get_package(allocation)
     if package:
-        for invoice_item in invoice_items:
-            item_type = invoice_item.details['type']
-            invoice_item.unit_price = utils.get_unit_deposit_usage(
-                allocation_usage, package, item_type
-            )
-            invoice_item.quantity = getattr(allocation_usage, item_type + '_usage')
-            invoice_item.save(update_fields=['unit_price', 'quantity'])
+        start = timezone.now()
+        end = core_utils.month_end(start)
+        registrator = slurm_registrators.AllocationRegistrator()
+        customer = registrator.get_customer(allocation)
+        invoice = invoice_models.Invoice.objects.get(
+            customer=customer, month=start.month, year=start.year,
+        )
+
+        registrator.create_or_update_items(
+            allocation, allocation_usage, package, invoice, start, end
+        )
 
 
 def update_allocation_deposit(sender, instance, created=False, **kwargs):
