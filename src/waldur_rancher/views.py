@@ -492,3 +492,11 @@ class ApplicationViewSet(GenericAPIView):
             filter_queryset_for_user(model_class.objects.all(), request.user),
             uuid=object_uuid,
         )
+
+
+class UserViewSet(core_views.ReadOnlyActionsViewSet):
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    queryset = models.RancherUser.objects.all()
+    serializer_class = serializers.RancherUserSerializer
+    filterset_class = filters.UserFilter
+    lookup_field = 'uuid'

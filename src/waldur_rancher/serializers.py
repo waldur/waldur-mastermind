@@ -610,6 +610,60 @@ class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 
 
+class RancherUserClusterLinkSerializer(serializers.HyperlinkedModelSerializer):
+    cluster_name = serializers.ReadOnlyField(source='cluster.name')
+    cluster_uuid = serializers.ReadOnlyField(source='cluster.uuid')
+
+    class Meta:
+        model = models.RancherUserClusterLink
+        fields = ('cluster', 'role', 'cluster_name', 'cluster_uuid')
+        extra_kwargs = {
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+        }
+
+
+class RancherUserProjectLinkSerializer(serializers.HyperlinkedModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+
+    class Meta:
+        model = models.RancherUserProjectLink
+        fields = ('project', 'role', 'project_name', 'project_uuid')
+        extra_kwargs = {
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+        }
+
+
+class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
+    cluster_roles = RancherUserClusterLinkSerializer(
+        many=True, read_only=True, source='rancheruserclusterlink_set'
+    )
+
+    project_roles = RancherUserProjectLinkSerializer(
+        many=True, read_only=True, source='rancheruserprojectlink_set'
+    )
+
+    user_name = serializers.ReadOnlyField(source='user.username')
+
+    class Meta:
+        model = models.RancherUser
+        fields = (
+            'url',
+            'uuid',
+            'user',
+            'cluster_roles',
+            'project_roles',
+            'settings',
+            'is_active',
+            'user_name',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-user-detail'},
+            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'settings': {'lookup_field': 'uuid'},
+        }
+
+
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context['request']
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
