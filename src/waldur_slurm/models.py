@@ -131,3 +131,6 @@ class AllocationUserUsage(slurm_mixins.UsageMixin):
     )
 
     username = models.CharField(max_length=32)
+
+    def __str__(self):
+        return "%s: %s" % (self.username, self.allocation_usage.allocation.name)
