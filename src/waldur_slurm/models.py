@@ -113,6 +113,8 @@ class AllocationUsage(slurm_mixins.UsageMixin):
         validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
 
+    tracker = FieldTracker()
+
     def __str__(self):
         return "%s [%s-%s]" % (self.allocation.name, self.month, self.year)
 
