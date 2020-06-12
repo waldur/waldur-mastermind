@@ -113,3 +113,6 @@ class MoabClient(BaseBatchClient):
                     report_lines.append(MoabReportLine(line))
 
         return report_lines
+
+    def get_resource_limits(self, account):
+        return []
