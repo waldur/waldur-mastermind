@@ -36,8 +36,8 @@ class AllocationAdmin(structure_admin.ResourceAdmin):
         short_description = _('Sync selected allocations')
 
         def validate(self, allocation):
-            if allocation.state != StateMixin.States.OK:
-                raise ValidationError(_('Allocation has to be in OK state.'))
+            if allocation.state not in [StateMixin.States.OK, StateMixin.States.ERRED]:
+                raise ValidationError(_('Allocation has to be in OK or ERRED state.'))
 
     sync_allocations = SyncAllocations()
 
