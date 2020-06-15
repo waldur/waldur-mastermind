@@ -304,7 +304,7 @@ class SyncUser:
 
             result[user][service_settings].append([cluster, role])
 
-        for cluster in models.Cluster.objects.all():
+        for cluster in models.Cluster.objects.filter(state=models.Cluster.States.OK):
             service_settings = cluster.service_project_link.service.settings
             project = cluster.service_project_link.project
             users = project.get_users()
@@ -443,8 +443,73 @@ class SyncUser:
 
         return count
 
+    @staticmethod
+    def update_users_project_roles(users):
+        count_deleted = 0
+        count_created = 0
+        roles_cache = {}
+
+        def get_roles(service_settings):
+            if service_settings not in roles_cache.keys():
+                backend = RancherBackend(service_settings)
+                roles_cache[service_settings] = backend.client.get_projects_roles()
+
+            return roles_cache[service_settings]
+
+        for user in users:
+            for service_settings in users[user]:
+                rancher_user = models.RancherUser.objects.get(
+                    user=user, settings=service_settings
+                )
+
+                if not rancher_user.backend_id:
+                    continue
+
+                roles = get_roles(service_settings)
+                roles_ids = [role['id'] for role in roles]
+                deleted, _ = (
+                    models.RancherUserProjectLink.objects.filter(user=rancher_user)
+                    .exclude(backend_id__in=roles_ids)
+                    .delete()
+                )
+                count_deleted += deleted
+                actual_roles = [
+                    {
+                        'project_id': role['projectId'],
+                        'id': role['id'],
+                        'role_template_id': role['roleTemplateId'],
+                    }
+                    for role in roles
+                    if role['userId'] == rancher_user.backend_id
+                ]
+
+                for role in actual_roles:
+                    try:
+                        project = models.Project.objects.get(
+                            backend_id=role['project_id']
+                        )
+                        (
+                            _,
+                            created,
+                        ) = models.RancherUserProjectLink.objects.update_or_create(
+                            backend_id=role['id'],
+                            user=rancher_user,
+                            project=project,
+                            defaults={'role': role['role_template_id']},
+                        )
+                        count_created += created
+                    except models.Project.DoesNotExist:
+                        logger.warning(
+                            'Project with backend ID %s is not found.'
+                            % role['project_id']
+                        )
+
+        return count_deleted, count_created
+
     @classmethod
     def run(cls):
+        if settings.WALDUR_RANCHER['DISABLE_AUTOMANAGEMENT_OF_USERS']:
+            return {}
         result = {}
         actual_users = cls.get_users()
         current_users = models.RancherUser.objects.filter(is_active=True)
@@ -496,6 +561,12 @@ class SyncUser:
 
         # Update user's roles
         result['updated'] = cls.update_users_roles(actual_users)
+
+        # Update user's project roles
+        (
+            result['project roles deleted'],
+            result['project roles created'],
+        ) = cls.update_users_project_roles(actual_users)
 
         return result
 

@@ -4,7 +4,7 @@ from django.urls import reverse
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 
-from .. import models
+from .. import enums, models
 
 
 class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
@@ -104,6 +104,30 @@ class RancherUserFactory(factory.DjangoModelFactory):
 
     user = factory.SubFactory(structure_factories.UserFactory)
     settings = factory.SubFactory(RancherServiceSettingsFactory)
+    backend_id = factory.Sequence(lambda n: 'rancher-user-%s' % n)
+    is_active = True
+
+    @classmethod
+    def get_url(cls, user=None, action=None):
+        user = user or RancherUserFactory()
+        url = 'http://testserver' + reverse(
+            'rancher-user-detail', kwargs={'uuid': user.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('rancher-user-list')
+
+
+class RancherUserClusterLinkFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.RancherUserClusterLink
+
+    user = factory.SubFactory(RancherUserFactory)
+    cluster = factory.SubFactory(ClusterFactory)
+    role = models.ClusterRole.CLUSTER_OWNER
+    backend_id = factory.Sequence(lambda n: 'rancher-user-cluster-link-%s' % n)
 
 
 class CatalogFactory(factory.DjangoModelFactory):
@@ -111,7 +135,7 @@ class CatalogFactory(factory.DjangoModelFactory):
         model = models.Catalog
 
     settings = factory.SubFactory(RancherServiceSettingsFactory)
-    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'catalog-%s' % n)
 
     @classmethod
     def get_url(cls, catalog=None, action=None):
@@ -131,7 +155,7 @@ class TemplateFactory(factory.DjangoModelFactory):
         model = models.Template
 
     settings = factory.SubFactory(RancherServiceSettingsFactory)
-    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'template-%s' % n)
     versions = []
 
     @classmethod
@@ -152,7 +176,7 @@ class ProjectFactory(factory.DjangoModelFactory):
         model = models.Project
 
     settings = factory.SubFactory(RancherServiceSettingsFactory)
-    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'project-%s' % n)
 
     @classmethod
     def get_url(cls, project=None, action=None):
@@ -172,7 +196,7 @@ class NamespaceFactory(factory.DjangoModelFactory):
         model = models.Namespace
 
     settings = factory.SubFactory(RancherServiceSettingsFactory)
-    backend_id = factory.Sequence(lambda n: 'node-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'namespace-%s' % n)
 
     @classmethod
     def get_url(cls, namespace=None, action=None):
@@ -185,3 +209,13 @@ class NamespaceFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('rancher-namespace-list')
+
+
+class RancherUserProjectLinkFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.RancherUserProjectLink
+
+    user = factory.SubFactory(RancherUserFactory)
+    project = factory.SubFactory(ProjectFactory)
+    role = enums.ProjectRoleId.project_owner
+    backend_id = factory.Sequence(lambda n: 'rancher-user-project-link-%s' % n)

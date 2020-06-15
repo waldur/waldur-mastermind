@@ -131,7 +131,7 @@ class SlurmClient(BaseBatchClient):
         output = self._execute_command(args, 'sacct', immediate=False)
         return [SlurmReportLine(line) for line in output.splitlines() if '|' in line]
 
-    def get_limits(self, account):
+    def get_resource_limits(self, account):
         args = [
             'show',
             'association',
@@ -140,7 +140,9 @@ class SlurmClient(BaseBatchClient):
             'accounts=%s' % account,
         ]
         output = self._execute_command(args, immediate=False)
-        return SlurmAssociationLine(output)
+        return [
+            SlurmAssociationLine(line) for line in output.splitlines() if '|' in line
+        ]
 
     def _execute_command(self, command, command_name='sacctmgr', immediate=True):
         account_command = [command_name, '--parsable2', '--noheader']

@@ -113,6 +113,8 @@ class AllocationUsage(slurm_mixins.UsageMixin):
         validators=[MinValueValidator(1), MaxValueValidator(12)]
     )
 
+    tracker = FieldTracker()
+
     def __str__(self):
         return "%s [%s-%s]" % (self.allocation.name, self.month, self.year)
 
@@ -129,3 +131,6 @@ class AllocationUserUsage(slurm_mixins.UsageMixin):
     )
 
     username = models.CharField(max_length=32)
+
+    def __str__(self):
+        return "%s: %s" % (self.username, self.allocation_usage.allocation.name)

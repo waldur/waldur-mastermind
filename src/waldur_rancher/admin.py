@@ -14,6 +14,10 @@ class RancherUserClusterLinkInline(admin.TabularInline):
     model = models.RancherUserClusterLink
 
 
+class RancherUserProjectLinkInline(admin.TabularInline):
+    model = models.RancherUserProjectLink
+
+
 class RancherUserAdmin(
     core_admin.ExtraActionsMixin, core_admin.ReadOnlyAdminMixin, admin.ModelAdmin
 ):
@@ -21,6 +25,7 @@ class RancherUserAdmin(
 
     inlines = [
         RancherUserClusterLinkInline,
+        RancherUserProjectLinkInline,
     ]
 
     def get_extra_actions(self):

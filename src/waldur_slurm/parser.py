@@ -110,3 +110,13 @@ class SlurmAssociationLine(SlurmReportLine):
     @cached_property
     def duration(self):
         return None
+
+    @cached_property
+    def _resources(self):
+        if self._parts[1] != '':
+            pairs = self._parts[1].split(',')
+            return dict(pair.split('=') for pair in pairs)
+
+    @cached_property
+    def resource_limits(self):
+        return self._resources

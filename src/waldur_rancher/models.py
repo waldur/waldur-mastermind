@@ -192,7 +192,12 @@ class Node(
         return self.name
 
 
-class RancherUser(BackendMixin):
+class RancherUser(
+    core_models.UuidMixin,
+    BackendMixin,
+    structure_models.StructureLoggableMixin,
+    structure_models.StructureModel,
+):
     user = models.ForeignKey(core_models.User, on_delete=models.PROTECT)
     clusters = models.ManyToManyField(Cluster, through='RancherUserClusterLink')
     settings = models.ForeignKey('structure.ServiceSettings', on_delete=models.PROTECT)
@@ -204,6 +209,14 @@ class RancherUser(BackendMixin):
 
     class Meta:
         unique_together = (('user', 'settings'),)
+        ordering = ('user__username',)
+
+    class Permissions:
+        customer_path = 'settings__customer'
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-user'
 
     def __str__(self):
         return self.user.username
@@ -231,6 +244,15 @@ class RancherUserClusterLink(BackendMixin):
 
     class Meta:
         unique_together = (('user', 'cluster', 'role'),)
+
+
+class RancherUserProjectLink(BackendMixin):
+    user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
+    project = models.ForeignKey('Project', on_delete=models.CASCADE)
+    role = models.CharField(max_length=255, blank=False)
+
+    class Meta:
+        unique_together = (('user', 'project', 'role'),)
 
 
 class Catalog(
@@ -349,3 +371,38 @@ class Template(
 
     class Meta:
         ordering = ('name',)
+
+
+class Workload(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.RuntimeStateMixin,
+    structure_models.TimeStampedModel,
+    BackendMixin,
+    SettingsMixin,
+):
+    cluster = models.ForeignKey(
+        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    namespace = models.ForeignKey(
+        Namespace, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    scale = models.PositiveSmallIntegerField()
+
+    def __str__(self):
+        return self.name
+
+    class Permissions:
+        customer_path = 'cluster__service_project_link__project__customer'
+        project_path = 'cluster__service_project_link__project'
+        service_path = 'cluster__service_project_link__service'
+
+    class Meta:
+        ordering = ('name',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-workload'
