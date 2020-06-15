@@ -24,7 +24,7 @@ class Command(BaseCommand):
         result = SyncUser.run()
 
         for action in ['blocked', 'created', 'activated', 'updated']:
-            print_message(result[action], action)
+            print_message(result.get(action, 0), action)
 
-        print_message(result['project roles deleted'], 'deleted', 'project role')
-        print_message(result['project roles created'], 'created', 'project role')
+        print_message(result.get('project roles deleted', 0), 'deleted', 'project role')
+        print_message(result('project roles created', 0), 'created', 'project role')

@@ -18,6 +18,7 @@ class RancherExtension(WaldurExtension):
             'SYSTEM_VOLUME_MIN_SIZE': 64,
             'READ_ONLY_MODE': False,
             'MOUNT_POINT_CHOICE_IS_MANDATORY': False,
+            'DISABLE_AUTOMANAGEMENT_OF_USERS': False,
         }
 
     @staticmethod

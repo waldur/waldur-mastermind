@@ -508,6 +508,8 @@ class SyncUser:
 
     @classmethod
     def run(cls):
+        if settings.WALDUR_RANCHER['DISABLE_AUTOMANAGEMENT_OF_USERS']:
+            return {}
         result = {}
         actual_users = cls.get_users()
         current_users = models.RancherUser.objects.filter(is_active=True)

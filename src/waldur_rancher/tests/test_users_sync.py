@@ -4,6 +4,7 @@ from django.core import mail
 from rest_framework import test
 
 from waldur_core.structure.models import ProjectRole
+from waldur_rancher.tests.base import override_rancher_settings
 
 from .. import enums, models, tasks, utils
 from . import factories, fixtures
@@ -22,6 +23,13 @@ class UserSyncTest(test.APITransactionTestCase):
         utils.SyncUser.run()
         self.assertEqual(mock_backend_class().create_user.call_count, 3)
         self.assertEqual(models.RancherUser.objects.all().count(), 3)
+
+    @mock.patch('waldur_rancher.utils.RancherBackend')
+    @override_rancher_settings(DISABLE_AUTOMANAGEMENT_OF_USERS=True)
+    def test_disable_users_automanagement(self, mock_backend_class):
+        utils.SyncUser.run()
+        self.assertEqual(mock_backend_class().create_user.call_count, 0)
+        self.assertEqual(models.RancherUser.objects.all().count(), 0)
 
     @mock.patch('waldur_rancher.utils.RancherBackend')
     def test_delete_user(self, mock_backend_class):
