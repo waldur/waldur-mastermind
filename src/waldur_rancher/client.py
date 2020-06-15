@@ -350,3 +350,8 @@ class RancherClient:
 
     def destroy_application(self, project_id, app_id):
         return self._delete(f'/project/{project_id}/apps/{app_id}')
+
+    def list_workloads(self, project_id: str):
+        return self._get(f'project/{project_id}/workloads', params={'limit': -1})[
+            'data'
+        ]

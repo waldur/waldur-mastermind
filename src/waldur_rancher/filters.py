@@ -105,3 +105,17 @@ class UserFilter(django_filters.FilterSet):
                 cluster=cluster
             ).values_list('user_id', flat=True)
             return queryset.filter(id__in=user_ids)
+
+
+class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    namespace_uuid = django_filters.UUIDFilter(field_name='namespace__uuid')
+
+    class Meta:
+        model = models.Workload
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            'cluster_uuid',
+            'project_uuid',
+            'namespace_uuid',
+        )

@@ -64,6 +64,7 @@ class RancherBackend(ServiceBackend):
         self.pull_catalogs()
         self.pull_templates()
         self.pull_template_icons()
+        self.pull_workloads()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -397,8 +398,8 @@ class RancherBackend(ServiceBackend):
 
     def pull_project_catalogs(self):
         remote_catalogs = self.client.list_project_catalogs()
-        for cluster in models.Project.objects.filter(settings=self.settings):
-            self.pull_catalogs_for_scope(remote_catalogs, cluster)
+        for project in models.Project.objects.filter(settings=self.settings):
+            self.pull_catalogs_for_scope(remote_catalogs, project)
 
     def pull_catalogs_for_scope(self, remote_catalogs, scope):
         content_type = ContentType.objects.get_for_model(scope)
@@ -812,3 +813,61 @@ class RancherBackend(ServiceBackend):
                     }
                 )
         return applications
+
+    def pull_workloads(self):
+        for project in models.Project.objects.filter(settings=self.settings):
+            self.pull_project_workloads(project)
+
+    def pull_project_workloads(self, project):
+        remote_workloads = self.client.list_workloads(project.backend_id)
+        local_workloads = models.Workload.objects.filter(project=project)
+        local_namespaces = models.Namespace.objects.filter(project=project)
+
+        local_namespaces_map = {
+            namespace.backend_id: namespace for namespace in local_namespaces
+        }
+        remote_workload_map = {
+            workload['id']: self.remote_workload_to_local(
+                workload, project, local_namespaces_map
+            )
+            for workload in remote_workloads
+        }
+        local_workload_map = {
+            workload.backend_id: workload for workload in local_workloads
+        }
+        remote_workload_ids = set(remote_workload_map.keys())
+        local_workload_ids = set(local_workload_map.keys())
+
+        stale_workloads = local_workload_ids - remote_workload_ids
+
+        new_workloads = [
+            remote_workload_map[workload_id]
+            for workload_id in remote_workload_ids - local_workload_ids
+        ]
+
+        existing_workloads = remote_workload_ids & local_workload_ids
+        pulled_fields = {
+            'name',
+            'runtime_state',
+            'scale',
+        }
+        for workload_id in existing_workloads:
+            local_workload = local_workload_map[workload_id]
+            remote_workload = remote_workload_map[workload_id]
+            update_pulled_fields(local_workload, remote_workload, pulled_fields)
+
+        models.Workload.objects.bulk_create(new_workloads)
+        local_workloads.filter(backend_id__in=stale_workloads).delete()
+
+    def remote_workload_to_local(self, remote_workload, project, local_namespaces_map):
+        return models.Workload(
+            backend_id=remote_workload['id'],
+            name=remote_workload['name'],
+            created=parse_datetime(remote_workload['created']),
+            runtime_state=remote_workload['state'],
+            project=project,
+            cluster=project.cluster,
+            settings=self.settings,
+            namespace=local_namespaces_map.get(remote_workload['namespaceId']),
+            scale=remote_workload.get('scale', 0),
+        )

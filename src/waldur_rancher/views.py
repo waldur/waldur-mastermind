@@ -500,3 +500,11 @@ class UserViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.RancherUserSerializer
     filterset_class = filters.UserFilter
     lookup_field = 'uuid'
+
+
+class WorkloadViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Workload.objects.all()
+    serializer_class = serializers.WorkloadSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.WorkloadFilter
+    lookup_field = 'uuid'
