@@ -606,6 +606,45 @@ class ApplicationCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
+    cluster_uuid = serializers.ReadOnlyField(source='cluster.uuid')
+    cluster_name = serializers.ReadOnlyField(source='cluster.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    namespace_uuid = serializers.ReadOnlyField(source='namespace.uuid')
+    namespace_name = serializers.ReadOnlyField(source='namespace.name')
+
+    class Meta:
+        model = models.Workload
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'created',
+            'modified',
+            'runtime_state',
+            'cluster',
+            'cluster_uuid',
+            'cluster_name',
+            'project',
+            'project_uuid',
+            'project_name',
+            'namespace',
+            'namespace_uuid',
+            'namespace_name',
+            'scale',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+            'namespace': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-namespace-detail',
+            },
+        }
+
+
 class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 

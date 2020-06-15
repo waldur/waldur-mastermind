@@ -371,3 +371,38 @@ class Template(
 
     class Meta:
         ordering = ('name',)
+
+
+class Workload(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.RuntimeStateMixin,
+    structure_models.TimeStampedModel,
+    BackendMixin,
+    SettingsMixin,
+):
+    cluster = models.ForeignKey(
+        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    namespace = models.ForeignKey(
+        Namespace, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    scale = models.PositiveSmallIntegerField()
+
+    def __str__(self):
+        return self.name
+
+    class Permissions:
+        customer_path = 'cluster__service_project_link__project__customer'
+        project_path = 'cluster__service_project_link__project'
+        service_path = 'cluster__service_project_link__service'
+
+    class Meta:
+        ordering = ('name',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-workload'

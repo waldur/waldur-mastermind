@@ -25,6 +25,9 @@ def register_in(router):
         r'rancher-templates', views.TemplateViewSet, basename='rancher-template'
     )
     router.register(r'rancher-users', views.UserViewSet, basename='rancher-user')
+    router.register(
+        r'rancher-workloads', views.WorkloadViewSet, basename='rancher-workload'
+    )
 
 
 urlpatterns = [
