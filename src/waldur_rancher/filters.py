@@ -84,6 +84,12 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 class UserFilter(django_filters.FilterSet):
     cluster_uuid = django_filters.UUIDFilter(method='filter_by_cluster')
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    user_username = django_filters.CharFilter(
+        field_name='user__username', lookup_expr='icontains'
+    )
+    user_full_name = django_filters.CharFilter(
+        field_name='user__full_name', lookup_expr='icontains'
+    )
     settings_uuid = django_filters.UUIDFilter(field_name='settings__uuid')
 
     class Meta:
