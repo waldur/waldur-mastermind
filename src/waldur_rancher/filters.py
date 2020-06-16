@@ -125,3 +125,19 @@ class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):
             'project_uuid',
             'namespace_uuid',
         )
+
+
+class HPAFilter(structure_filters.ServicePropertySettingsFilter):
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    namespace_uuid = django_filters.UUIDFilter(field_name='namespace__uuid')
+    workload_uuid = django_filters.UUIDFilter(field_name='workload__uuid')
+
+    class Meta:
+        model = models.HPA
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            'cluster_uuid',
+            'project_uuid',
+            'namespace_uuid',
+            'workload_uuid',
+        )

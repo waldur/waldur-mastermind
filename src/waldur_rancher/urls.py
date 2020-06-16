@@ -28,6 +28,7 @@ def register_in(router):
     router.register(
         r'rancher-workloads', views.WorkloadViewSet, basename='rancher-workload'
     )
+    router.register(r'rancher-hpas', views.HPAViewSet, basename='rancher-hpa')
 
 
 urlpatterns = [
