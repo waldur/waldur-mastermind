@@ -18,9 +18,7 @@ class RancherUserProjectLinkInline(admin.TabularInline):
     model = models.RancherUserProjectLink
 
 
-class RancherUserAdmin(
-    core_admin.ExtraActionsMixin, core_admin.ReadOnlyAdminMixin, admin.ModelAdmin
-):
+class RancherUserAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('__str__', 'settings', 'is_active')
 
     inlines = [
