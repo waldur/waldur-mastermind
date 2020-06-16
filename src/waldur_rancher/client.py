@@ -355,3 +355,11 @@ class RancherClient:
         return self._get(f'project/{project_id}/workloads', params={'limit': -1})[
             'data'
         ]
+
+    def list_hpas(self, project_id: str):
+        """
+        List all horizontal pod autoscalers in project.
+        """
+        return self._get(
+            f'project/{project_id}/horizontalpodautoscalers', params={'limit': -1}
+        )['data']

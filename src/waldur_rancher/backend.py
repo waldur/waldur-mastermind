@@ -65,6 +65,7 @@ class RancherBackend(ServiceBackend):
         self.pull_templates()
         self.pull_template_icons()
         self.pull_workloads()
+        self.pull_hpas()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -177,6 +178,8 @@ class RancherBackend(ServiceBackend):
         self.pull_namespaces_for_cluster(cluster)
         self.pull_catalogs_for_cluster(cluster)
         self.pull_templates_for_cluster(cluster)
+        self.pull_cluster_workloads(cluster)
+        self.pull_cluster_hpas(cluster)
 
     def pull_cluster_details(self, cluster, backend_cluster=None):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
@@ -814,6 +817,10 @@ class RancherBackend(ServiceBackend):
                 )
         return applications
 
+    def pull_cluster_workloads(self, cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_workloads(project)
+
     def pull_workloads(self):
         for project in models.Project.objects.filter(settings=self.settings):
             self.pull_project_workloads(project)
@@ -870,4 +877,70 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
             namespace=local_namespaces_map.get(remote_workload['namespaceId']),
             scale=remote_workload.get('scale', 0),
+        )
+
+    def pull_cluster_hpas(self, cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_hpas(project)
+
+    def pull_hpas(self):
+        for project in models.Project.objects.filter(settings=self.settings):
+            self.pull_project_hpas(project)
+
+    def pull_project_hpas(self, project):
+        local_workloads = models.Workload.objects.filter(project=project)
+        local_workloads_map = {
+            workload.backend_id: workload for workload in local_workloads
+        }
+
+        local_hpas = models.HPA.objects.filter(project=project)
+        local_hpa_map = {hpa.backend_id: hpa for hpa in local_hpas}
+
+        remote_hpas = self.client.list_hpas(project.backend_id)
+        remote_hpa_map = {
+            hpa['id']: self.remote_hpa_to_local(hpa, local_workloads_map)
+            for hpa in remote_hpas
+        }
+
+        remote_hpa_ids = set(remote_hpa_map.keys())
+        local_hpa_ids = set(local_hpa_map.keys())
+
+        stale_hpas = local_hpa_ids - remote_hpa_ids
+
+        new_hpas = [remote_hpa_map[hpa_id] for hpa_id in remote_hpa_ids - local_hpa_ids]
+
+        existing_hpas = remote_hpa_ids & local_hpa_ids
+        pulled_fields = {
+            'name',
+            'runtime_state',
+            'current_replicas',
+            'desired_replicas',
+            'min_replicas',
+            'max_replicas',
+            'metrics',
+        }
+        for hpa_id in existing_hpas:
+            local_hpa = local_hpa_map[hpa_id]
+            remote_hpa = remote_hpa_map[hpa_id]
+            update_pulled_fields(local_hpa, remote_hpa, pulled_fields)
+
+        models.HPA.objects.bulk_create(new_hpas)
+        local_hpas.filter(backend_id__in=stale_hpas).delete()
+
+    def remote_hpa_to_local(self, remote_hpa, local_workloads_map):
+        workload = local_workloads_map[remote_hpa['workloadId']]
+        return models.HPA(
+            backend_id=remote_hpa['id'],
+            name=remote_hpa['name'],
+            created=parse_datetime(remote_hpa['created']),
+            runtime_state=remote_hpa['state'],
+            project=workload.project,
+            cluster=workload.cluster,
+            settings=self.settings,
+            namespace=workload.namespace,
+            current_replicas=remote_hpa['currentReplicas'],
+            desired_replicas=remote_hpa['desiredReplicas'],
+            min_replicas=remote_hpa['minReplicas'],
+            max_replicas=remote_hpa['maxReplicas'],
+            metrics=remote_hpa['metrics'],
         )

@@ -645,6 +645,58 @@ class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class HPASerializer(serializers.HyperlinkedModelSerializer):
+    cluster_uuid = serializers.ReadOnlyField(source='cluster.uuid')
+    cluster_name = serializers.ReadOnlyField(source='cluster.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    namespace_uuid = serializers.ReadOnlyField(source='namespace.uuid')
+    namespace_name = serializers.ReadOnlyField(source='namespace.name')
+    workload_uuid = serializers.ReadOnlyField(source='workload.uuid')
+    workload_name = serializers.ReadOnlyField(source='workload.name')
+
+    class Meta:
+        model = models.HPA
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'created',
+            'modified',
+            'runtime_state',
+            'cluster',
+            'cluster_uuid',
+            'cluster_name',
+            'project',
+            'project_uuid',
+            'project_name',
+            'namespace',
+            'namespace_uuid',
+            'namespace_name',
+            'workload',
+            'workload_uuid',
+            'workload_name',
+            'min_replicas',
+            'max_replicas',
+            'current_replicas',
+            'desired_replicas',
+            'metrics',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+            'namespace': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-namespace-detail',
+            },
+            'workload': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-workload-detail',
+            },
+        }
+
+
 class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 

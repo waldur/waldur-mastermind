@@ -406,3 +406,49 @@ class Workload(
     @classmethod
     def get_url_name(cls):
         return 'rancher-workload'
+
+
+class HPA(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.RuntimeStateMixin,
+    structure_models.TimeStampedModel,
+    BackendMixin,
+    SettingsMixin,
+):
+    """
+    HPA stands for Horizontal Pod Autoscaler.
+    """
+
+    cluster = models.ForeignKey(
+        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    namespace = models.ForeignKey(
+        Namespace, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    workload = models.ForeignKey(
+        Workload, on_delete=models.CASCADE, null=True, related_name='+'
+    )
+    current_replicas = models.PositiveSmallIntegerField(default=0)
+    desired_replicas = models.PositiveSmallIntegerField(default=0)
+    min_replicas = models.PositiveSmallIntegerField(default=0)
+    max_replicas = models.PositiveSmallIntegerField(default=0)
+    metrics = JSONField()
+
+    def __str__(self):
+        return self.name
+
+    class Permissions:
+        customer_path = 'cluster__service_project_link__project__customer'
+        project_path = 'cluster__service_project_link__project'
+        service_path = 'cluster__service_project_link__service'
+
+    class Meta:
+        ordering = ('name',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-hpa'
