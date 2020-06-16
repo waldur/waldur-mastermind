@@ -356,7 +356,7 @@ class OfferingAdmin(admin.ModelAdmin):
 
 class OrderItemInline(admin.TabularInline):
     model = models.OrderItem
-    fields = ('offering', 'state', 'attributes', 'cost', 'plan')
+    fields = ('offering', 'state', 'attributes', 'cost', 'plan', 'resource')
     readonly_fields = fields
 
 
@@ -460,7 +460,7 @@ class SharedOfferingFilter(admin.SimpleListFilter):
 
 class ResourceAdmin(admin.ModelAdmin):
     form = ResourceForm
-    list_display = ('name', 'project', 'state', 'category', 'created')
+    list_display = ('uuid', 'name', 'project', 'state', 'category', 'created')
     list_filter = (
         'state',
         ('project', RelatedOnlyDropdownFilter),
@@ -473,6 +473,7 @@ class ResourceAdmin(admin.ModelAdmin):
         'project_link',
         'offering_link',
         'plan_link',
+        'order_item_link',
         'formatted_attributes',
         'formatted_limits',
     )
@@ -502,6 +503,17 @@ class ResourceAdmin(admin.ModelAdmin):
         return get_admin_link_for_scope(obj.plan)
 
     plan_link.short_description = 'Plan'
+
+    def order_item_link(self, obj):
+        order_item = obj.orderitem_set.filter(
+            type=models.OrderItem.Types.CREATE
+        ).first()
+        if order_item:
+            return get_admin_link_for_scope(order_item.order)
+        else:
+            return ''
+
+    order_item_link.short_description = 'Creation order item'
 
     def formatted_attributes(self, obj):
         return format_json_field(obj.attributes)
