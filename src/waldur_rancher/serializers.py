@@ -683,6 +683,7 @@ class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
     )
 
     user_name = serializers.ReadOnlyField(source='user.username')
+    full_name = serializers.ReadOnlyField(source='user.full_name')
 
     class Meta:
         model = models.RancherUser
@@ -695,6 +696,7 @@ class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
             'settings',
             'is_active',
             'user_name',
+            'full_name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-user-detail'},
