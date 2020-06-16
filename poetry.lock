@@ -464,7 +464,7 @@ description = "A high-level Python Web framework that encourages rapid developme
 name = "django"
 optional = false
 python-versions = ">=3.5"
-version = "2.2.10"
+version = "2.2.13"
 
 [package.dependencies]
 pytz = "*"
@@ -1424,11 +1424,6 @@ optional = false
 python-versions = "*"
 version = "1.13.1"
 
-[package.dependencies]
-pyopenssl = ">=0.15"
-requests = ">=1.0.0"
-six = ">=1.0.0"
-
 [[package]]
 category = "main"
 description = "Python Build Reasonableness"
@@ -2242,7 +2237,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "0a8334da391ab774ba9aa865a31d84d6904b97749e39ca4458513afbc6a9ed1b"
+content-hash = "6d2514255b195ebb2f67bb658cdfb2327e05ef5ad6619b74e4fdd58240749f44"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2468,8 +2463,8 @@ distlib = [
     {file = "distlib-0.3.0.zip", hash = "sha256:2e166e231a26b36d6dfe35a48c4464346620f8645ed0ace01ee31822b288de21"},
 ]
 django = [
-    {file = "Django-2.2.10-py3-none-any.whl", hash = "sha256:9a4635813e2d498a3c01b10c701fe4a515d76dd290aaa792ccb65ca4ccb6b038"},
-    {file = "Django-2.2.10.tar.gz", hash = "sha256:1226168be1b1c7efd0e66ee79b0e0b58b2caa7ed87717909cd8a57bb13a7079a"},
+    {file = "Django-2.2.13-py3-none-any.whl", hash = "sha256:e8fe3c2b2212dce6126becab7a693157f1a441a07b62ec994c046c76af5bb66d"},
+    {file = "Django-2.2.13.tar.gz", hash = "sha256:84f370f6acedbe1f3c41e1a02de44ac206efda3355e427139ecb785b5f596d80"},
 ]
 django-admin-tools = [
     {file = "django-admin-tools-0.9.0.tar.gz", hash = "sha256:428d1b6a572ee364c35086d7bec34344cc43105839e5637dbb900b9cabd6adf8"},
