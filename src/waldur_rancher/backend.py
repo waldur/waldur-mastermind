@@ -943,7 +943,11 @@ class RancherBackend(ServiceBackend):
             min_replicas=remote_hpa['minReplicas'],
             max_replicas=remote_hpa['maxReplicas'],
             metrics=remote_hpa['metrics'],
+            state=models.HPA.States.OK,
         )
+
+    def delete_hpa(self, hpa):
+        self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
 
     def install_longhorn_to_cluster(self, cluster):
         longhorn_name = 'longhorn'

@@ -363,3 +363,9 @@ class RancherClient:
         return self._get(
             f'project/{project_id}/horizontalpodautoscalers', params={'limit': -1}
         )['data']
+
+    def delete_hpa(self, project_id: str, hpa_id: str):
+        """
+        Delete horizontal pod autoscaler.
+        """
+        return self._delete(f'/project/{project_id}/horizontalpodautoscalers/{hpa_id}')
