@@ -112,7 +112,9 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.fixture.settings.options['base_subnet_name'] = self.subnet.name
         self.fixture.settings.save()
 
-    def _create_request_(self, name, disk=1024, memory=1, cpu=2, add_payload=None):
+    def _create_request_(
+        self, name, disk=1024, memory=1, cpu=2, add_payload=None, install_longhorn=False
+    ):
         add_payload = add_payload or {}
         payload = {
             'name': name,
@@ -160,6 +162,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
                     'roles': ['worker'],
                 },
             ],
+            'install_longhorn': install_longhorn,
         }
         payload.update(add_payload)
         return self.client.post(self.url, payload)
@@ -453,6 +456,79 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(
             cluster.node_set.first().initial_data['ssh_public_key'],
             ssh_public_key.uuid.hex,
+        )
+
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_create_cluster_with_longhorn_using_rest(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self._create_request_('new-cluster', install_longhorn=True)
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
+        mock_core_tasks.BackendMethodTask.return_value.si.assert_has_calls(
+            [
+                mock.call(
+                    'waldur_rancher.cluster:%s' % cluster.id,
+                    'install_longhorn_to_cluster',
+                )
+            ]
+        )
+
+    @mock.patch('waldur_rancher.client.RancherClient._post')
+    def test_create_cluster_with_longhorn(self, mock_client_post):
+        mock_token_patch = mock.patch(
+            'waldur_rancher.client.RancherClient.create_cluster_registration_token'
+        )
+        mock_token_patch.start()
+
+        mock_backend_patch = mock.patch(
+            'waldur_rancher.backend.RancherBackend._backend_cluster_to_cluster'
+        )
+        mock_backend_patch.start()
+
+        mock_command_patch = mock.patch(
+            'waldur_rancher.client.RancherClient.get_node_command'
+        )
+        mock_command = mock_command_patch.start()
+        mock_command.return_value = ''
+
+        mock_namespace_create = mock.patch(
+            'waldur_rancher.client.RancherClient.create_namespace'
+        )
+        mock_namespace = mock_namespace_create.start()
+        mock_namespace.return_value = {'id': '1'}
+
+        catalog = factories.CatalogFactory(settings=self.fixture.settings)
+        system_project = factories.ProjectFactory(
+            settings=self.fixture.settings, cluster=self.fixture.cluster, name='System'
+        )
+        template = factories.TemplateFactory(
+            settings=self.fixture.settings,
+            project=system_project,
+            name='longhorn',
+            catalog=catalog,
+            cluster=self.fixture.cluster,
+            default_version='1.1',
+            versions=['1.0', '1.1'],
+        )
+
+        self.fixture.cluster.backend_id = ''
+        self.fixture.cluster.save()
+        backend = self.fixture.cluster.get_backend()
+        backend.create_cluster(self.fixture.cluster)
+        backend.install_longhorn_to_cluster(self.fixture.cluster)
+        self.assertEqual(
+            mock_client_post.call_args_list[2][1]['json'],
+            {
+                'prune': False,
+                'timeout': 300,
+                'wait': False,
+                'type': 'app',
+                'name': 'longhorn',
+                'targetNamespace': '1',
+                'externalId': f'catalog://?catalog={template.catalog.backend_id}&template={template.backend_id}&version=1.1',
+                'projectId': system_project.backend_id,
+            },
         )
 
 

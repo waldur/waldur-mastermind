@@ -207,6 +207,13 @@ class ClusterSerializer(
     )
     nodes = NestedNodeSerializer(many=True, source='node_set')
 
+    install_longhorn = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Longhorn is a distributed block storage deployed on top of Kubernetes cluster"
+        ),
+    )
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -215,6 +222,7 @@ class ClusterSerializer(
             'tenant_settings',
             'runtime_state',
             'ssh_public_key',
+            'install_longhorn',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
