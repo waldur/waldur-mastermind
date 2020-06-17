@@ -514,9 +514,10 @@ class WorkloadViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
 
 
-class HPAViewSet(structure_views.BaseServicePropertyViewSet):
+class HPAViewSet(structure_views.ResourceViewSet):
     queryset = models.HPA.objects.all()
     serializer_class = serializers.HPASerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.HPAFilter
     lookup_field = 'uuid'
+    delete_executor = executors.HPADeleteExecutor
