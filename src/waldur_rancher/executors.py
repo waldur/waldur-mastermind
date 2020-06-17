@@ -9,7 +9,7 @@ from . import models, tasks
 
 class ClusterCreateExecutor(core_executors.CreateExecutor):
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, user):
+    def get_task_signature(cls, instance, serialized_instance, user, install_longhorn):
         _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance, 'create_cluster', state_transition='begin_creating'
@@ -27,6 +27,12 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         _tasks += [
             core_tasks.BackendMethodTask().si(serialized_instance, 'pull_cluster',)
         ]
+        if install_longhorn:
+            _tasks += [
+                core_tasks.BackendMethodTask().si(
+                    serialized_instance, 'install_longhorn_to_cluster',
+                )
+            ]
         return chain(*_tasks)
 
     @classmethod

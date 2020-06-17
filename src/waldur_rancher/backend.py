@@ -944,3 +944,45 @@ class RancherBackend(ServiceBackend):
             max_replicas=remote_hpa['maxReplicas'],
             metrics=remote_hpa['metrics'],
         )
+
+    def install_longhorn_to_cluster(self, cluster):
+        longhorn_name = 'longhorn'
+        longhorn_namespace = 'longhorn-system'
+        system_project = models.Project.objects.filter(
+            cluster=cluster, name='System'
+        ).first()
+        if not system_project:
+            raise RancherException(
+                "There is no system project in cluster %s" % cluster.backend_id
+            )
+        available_templates = models.Template.objects.filter(
+            cluster=cluster, name=longhorn_name, project=system_project
+        )
+        if len(available_templates) == 0:
+            raise RancherException(
+                "There are no templates with name=%s, cluster_id=%s, project_id=%s"
+                % (longhorn_name, cluster.backend_id, system_project.backend_id)
+            )
+        if len(available_templates) > 1:
+            raise RancherException(
+                "There are more than one template for name=%s, cluster_id=%s, project_id=%s"
+                % (longhorn_name, cluster.backend_id, system_project.backend_id)
+            )
+        template = available_templates.first()
+        namespace_response = self.client.create_namespace(
+            cluster.backend_id, system_project.backend_id, longhorn_namespace
+        )
+        namespace = models.Namespace.objects.create(
+            name=longhorn_namespace,
+            backend_id=namespace_response['id'],
+            settings=system_project.settings,
+            project=system_project,
+        )
+        return self.client.create_application(
+            template.catalog.backend_id,
+            template.backend_id,
+            template.default_version,
+            system_project.backend_id,
+            namespace.backend_id,
+            longhorn_name,
+        )

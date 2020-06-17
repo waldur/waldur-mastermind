@@ -69,6 +69,7 @@ class ClusterViewSet(
         cluster = serializer.save()
         user = self.request.user
         nodes = serializer.validated_data.get('node_set')
+        install_longhorn = serializer.validated_data['install_longhorn']
 
         for node_data in nodes:
             node_data['cluster'] = cluster
@@ -76,7 +77,10 @@ class ClusterViewSet(
 
         transaction.on_commit(
             lambda: executors.ClusterCreateExecutor.execute(
-                cluster, user=user, is_heavy_task=True,
+                cluster,
+                user=user,
+                install_longhorn=install_longhorn,
+                is_heavy_task=True,
             )
         )
 

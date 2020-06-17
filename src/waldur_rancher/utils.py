@@ -271,7 +271,7 @@ def format_node_cloud_config(node):
 
     if data_volumes:
         data_volumes = sorted(data_volumes)
-        conf = yaml.parse(user_data)
+        conf = yaml.safe_load(user_data)
 
         # First volume is reserved for system volume, other volumes are data volumes
 
