@@ -18,7 +18,7 @@ description = "Low-level AMQP client for Python (fork of amqplib)."
 name = "amqp"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
-version = "2.6.0"
+version = "2.5.2"
 
 [package.dependencies]
 vine = ">=1.1.3,<5.0.0a1"
@@ -200,28 +200,27 @@ category = "main"
 description = "Distributed Task Queue."
 name = "celery"
 optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
-version = "4.4.5"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+version = "4.3.0"
 
 [package.dependencies]
-billiard = ">=3.6.3.0,<4.0"
-future = ">=0.18.0"
-kombu = ">=4.6.10,<4.7"
+billiard = ">=3.6.0,<4.0"
+kombu = ">=4.4.0,<5.0"
 pytz = ">0.0-dev"
-vine = "1.3.0"
+vine = ">=1.3.0"
 
 [package.extras]
 arangodb = ["pyArango (>=1.3.2)"]
 auth = ["cryptography"]
 azureblockblob = ["azure-storage (0.36.0)", "azure-common (1.1.5)", "azure-storage-common (1.1.0)"]
 brotli = ["brotli (>=1.0.0)", "brotlipy (>=0.7.0)"]
-cassandra = ["cassandra-driver (<3.21.0)"]
+cassandra = ["cassandra-driver"]
 consul = ["python-consul"]
 cosmosdbsql = ["pydocumentdb (2.3.2)"]
-couchbase = ["couchbase-cffi (<3.0.0)", "couchbase (<3.0.0)"]
+couchbase = ["couchbase", "couchbase-cffi"]
 couchdb = ["pycouchdb"]
-django = ["Django (>=1.11)"]
-dynamodb = ["boto3 (>=1.9.178)"]
+django = ["Django (>=1.8)"]
+dynamodb = ["boto3 (>=1.4.6)"]
 elasticsearch = ["elasticsearch"]
 eventlet = ["eventlet (>=0.24.1)"]
 gevent = ["gevent"]
@@ -234,12 +233,12 @@ pymemcache = ["python-memcached"]
 pyro = ["pyro4"]
 redis = ["redis (>=3.2.0)"]
 riak = ["riak (>=2.0)"]
-s3 = ["boto3 (>=1.9.125)"]
+s3 = ["boto3 (>=1.4.6)"]
 slmq = ["softlayer-messaging (>=1.0.3)"]
 solar = ["ephem"]
 sqlalchemy = ["sqlalchemy"]
-sqs = ["boto3 (>=1.9.125)", "pycurl (7.43.0.5)"]
-tblib = ["tblib (>=1.3.0)", "tblib (>=1.5.0)"]
+sqs = ["boto3 (>=1.4.6)", "pycurl"]
+tblib = ["tblib (>=1.3.0)"]
 yaml = ["PyYAML (>=3.10)"]
 zookeeper = ["kazoo (>=1.3.1)"]
 zstd = ["zstandard"]
@@ -1043,10 +1042,10 @@ description = "Messaging library for Python."
 name = "kombu"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
-version = "4.6.10"
+version = "4.6.8"
 
 [package.dependencies]
-amqp = ">=2.6.0,<2.7"
+amqp = ">=2.5.2,<2.6"
 
 [package.dependencies.importlib-metadata]
 python = "<3.8"
@@ -2238,7 +2237,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "5dfc74be3e93d517acec1459cc063adf6fd0c959998804301c6fe653a8a52169"
+content-hash = "6d2514255b195ebb2f67bb658cdfb2327e05ef5ad6619b74e4fdd58240749f44"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2247,8 +2246,8 @@ adal = [
     {file = "adal-1.2.2.tar.gz", hash = "sha256:5a7f1e037c6290c6d7609cab33a9e5e988c2fbec5c51d1c4c649ee3faff37eaf"},
 ]
 amqp = [
-    {file = "amqp-2.6.0-py2.py3-none-any.whl", hash = "sha256:bb68f8d2bced8f93ccfd07d96c689b716b3227720add971be980accfc2952139"},
-    {file = "amqp-2.6.0.tar.gz", hash = "sha256:24dbaff8ce4f30566bb88976b398e8c4e77637171af3af6f1b9650f48890e60b"},
+    {file = "amqp-2.5.2-py2.py3-none-any.whl", hash = "sha256:6e649ca13a7df3faacdc8bbb280aa9a6602d22fd9d545336077e573a1f4ff3b8"},
+    {file = "amqp-2.5.2.tar.gz", hash = "sha256:77f1aef9410698d20eaeac5b73a87817365f457a507d82edf292e12cbb83b08d"},
 ]
 apache-libcloud = [
     {file = "apache-libcloud-2.2.1.tar.gz", hash = "sha256:d065d9da8ba192badad3a98c2f6c3ef9dabba45d1318638b9c1bac83f6c3e7a9"},
@@ -2317,8 +2316,8 @@ billiard = [
     {file = "billiard-3.6.3.0.tar.gz", hash = "sha256:d91725ce6425f33a97dfa72fb6bfef0e47d4652acd98a032bd1a7fbf06d5fa6a"},
 ]
 celery = [
-    {file = "celery-4.4.5-py2.py3-none-any.whl", hash = "sha256:d1762d6065522879f341c3d67c2b9fe4615eb79756d59acb1434601d4aca474b"},
-    {file = "celery-4.4.5.tar.gz", hash = "sha256:c3f4173f83ceb5a5c986c5fdaefb9456de3b0729a72a5776e46bd405fda7b647"},
+    {file = "celery-4.3.0-py2.py3-none-any.whl", hash = "sha256:528e56767ae7e43a16cfef24ee1062491f5754368d38fcfffa861cdb9ef219be"},
+    {file = "celery-4.3.0.tar.gz", hash = "sha256:4c4532aa683f170f40bd76f928b70bc06ff171a959e06e71bf35f2f9d6031ef9"},
 ]
 certifi = [
     {file = "certifi-2020.4.5.1-py2.py3-none-any.whl", hash = "sha256:1d987a998c75633c40847cc966fcf5904906c920a7f17ef374f5aa4282abd304"},
@@ -2655,8 +2654,8 @@ keystoneauth1 = [
     {file = "keystoneauth1-4.0.0.tar.gz", hash = "sha256:02b283a662552cba65c1e6b5e89c06acfa242ff96355f59ab7def861e765a695"},
 ]
 kombu = [
-    {file = "kombu-4.6.10-py2.py3-none-any.whl", hash = "sha256:dc282bb277197d723bccda1a9ba30a27a28c9672d0ab93e9e51bb05a37bd29c3"},
-    {file = "kombu-4.6.10.tar.gz", hash = "sha256:437b9cdea193cc2ed0b8044c85fd0f126bb3615ca2f4d4a35b39de7cacfa3c1a"},
+    {file = "kombu-4.6.8-py2.py3-none-any.whl", hash = "sha256:598e7e749d6ab54f646b74b2d2df67755dee13894f73ab02a2a9feb8870c7cb2"},
+    {file = "kombu-4.6.8.tar.gz", hash = "sha256:2d1cda774126a044d91a7ff5fa6d09edf99f46924ab332a810760fe6740e9b76"},
 ]
 lxml = [
     {file = "lxml-4.2.1-cp27-cp27m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl", hash = "sha256:65a272821d5d8194358d6b46f3ca727fa56a6b63981606eac737c86d27309cdd"},
