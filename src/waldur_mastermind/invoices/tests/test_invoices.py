@@ -330,3 +330,33 @@ class InvoicePDFTest(test.APITransactionTestCase):
             factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             invoice.update_current_cost()
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 2)
+
+
+@ddt
+class InvoicePaidTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.invoice = self.fixture.invoice
+        self.invoice.state = models.Invoice.States.CREATED
+        self.invoice.save()
+        self.url = factories.InvoiceFactory.get_url(self.invoice, 'paid')
+
+    def test_staff_can_mark_invoice_as_paid(self):
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.state, models.Invoice.States.PAID)
+
+    @data('owner', 'manager', 'admin', 'user')
+    def test_other_users_cannot_mark_invoice_as_paid(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_cannot_mark_invoice_as_paid_if_current_state_is_not_created(self):
+        self.invoice.state = models.Invoice.States.PENDING
+        self.invoice.save()
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)

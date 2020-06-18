@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -61,6 +62,16 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             'Content-Disposition'
         ] = 'attachment; filename="{filename}"'.format(filename=filename)
         return file_response
+
+    @action(detail=True, methods=['post'])
+    def paid(self, request, uuid=None):
+        invoice = self.get_object()
+        invoice.state = models.Invoice.States.PAID
+        invoice.save(update_fields=['state'])
+        return Response(status=status.HTTP_200_OK)
+
+    paid_permissions = [structure_permissions.is_staff]
+    paid_validators = [core_validators.StateValidator(models.Invoice.States.CREATED)]
 
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
