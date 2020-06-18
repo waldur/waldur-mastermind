@@ -734,16 +734,35 @@ class RancherUserProjectLinkSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
-    cluster_roles = RancherUserClusterLinkSerializer(
-        many=True, read_only=True, source='rancheruserclusterlink_set'
-    )
+    cluster_roles = RancherUserClusterLinkSerializer(many=True, read_only=True)
 
-    project_roles = RancherUserProjectLinkSerializer(
-        many=True, read_only=True, source='rancheruserprojectlink_set'
-    )
+    project_roles = RancherUserProjectLinkSerializer(many=True, read_only=True)
 
     user_name = serializers.ReadOnlyField(source='user.username')
     full_name = serializers.ReadOnlyField(source='user.full_name')
+
+    def __init__(self, instance=None, *args, **kwargs):
+        if instance:
+            if isinstance(instance, list):
+                request = kwargs.get('context', {}).get('request')
+                if request:
+                    cluster_uuid = request.GET.get('cluster_uuid')
+                    for user in instance:
+                        if cluster_uuid:
+                            user.cluster_roles = user.rancheruserclusterlink_set.filter(
+                                cluster__uuid=cluster_uuid
+                            )
+                            user.project_roles = user.rancheruserprojectlink_set.filter(
+                                project__cluster__uuid=cluster_uuid
+                            )
+                        else:
+                            user.cluster_roles = user.rancheruserclusterlink_set.all()
+                            user.project_roles = user.rancheruserprojectlink_set.all()
+            else:
+                instance.cluster_roles = instance.rancheruserclusterlink_set.all()
+                instance.project_roles = instance.rancheruserprojectlink_set.all()
+
+        super().__init__(instance=instance, *args, **kwargs)
 
     class Meta:
         model = models.RancherUser

@@ -63,6 +63,7 @@ class ClusterFactory(factory.DjangoModelFactory):
     service_project_link = factory.SubFactory(RancherServiceProjectLinkFactory)
     name = factory.Sequence(lambda n: 'cluster-%s' % n)
     backend_id = factory.Sequence(lambda n: 'cluster-%s' % n)
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
 
     @classmethod
     def get_url(cls, cluster=None, action=None):
