@@ -128,6 +128,14 @@ class NodePullExecutor(core_executors.ActionExecutor):
         )
 
 
+class HPACreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance, 'create_hpa', state_transition='begin_creating'
+        )
+
+
 class HPADeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):

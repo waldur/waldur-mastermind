@@ -520,4 +520,5 @@ class HPAViewSet(structure_views.ResourceViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.HPAFilter
     lookup_field = 'uuid'
+    create_executor = executors.HPACreateExecutor
     delete_executor = executors.HPADeleteExecutor

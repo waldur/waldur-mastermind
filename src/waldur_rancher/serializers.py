@@ -690,6 +690,12 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
             'desired_replicas',
             'metrics',
         )
+        read_only_fields = (
+            'state',
+            'runtime_state',
+            'current_replicas',
+            'desired_replicas',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
