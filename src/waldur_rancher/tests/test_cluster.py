@@ -524,7 +524,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 'type': 'app',
                 'name': 'longhorn',
                 'targetNamespace': '1',
-                'externalId': f'catalog://?catalog={template.catalog.backend_id}&template={template.backend_id}&version=1.1',
+                'externalId': f'catalog://?catalog={template.catalog.backend_id}&template={template.name}&version=1.1',
                 'projectId': system_project.backend_id,
             },
         )
