@@ -966,6 +966,7 @@ class RancherBackend(ServiceBackend):
     def install_longhorn_to_cluster(self, cluster):
         longhorn_name = 'longhorn'
         longhorn_namespace = 'longhorn-system'
+
         system_project = models.Project.objects.filter(
             cluster=cluster, name='System'
         ).first()
@@ -973,20 +974,40 @@ class RancherBackend(ServiceBackend):
             raise RancherException(
                 "There is no system project in cluster %s" % cluster.backend_id
             )
+
         available_templates = models.Template.objects.filter(
             cluster=cluster, name=longhorn_name, project=system_project
         )
-        if len(available_templates) == 0:
-            raise RancherException(
-                "There are no templates with name=%s, cluster_id=%s, project_id=%s"
-                % (longhorn_name, cluster.backend_id, system_project.backend_id)
-            )
-        if len(available_templates) > 1:
-            raise RancherException(
-                "There are more than one template for name=%s, cluster_id=%s, project_id=%s"
-                % (longhorn_name, cluster.backend_id, system_project.backend_id)
-            )
+        available_templates_count = len(available_templates)
+        if available_templates_count != 1:
+            if available_templates_count == 0:
+                message = (
+                    "There are no templates with name=%s, cluster_id=%s, project_id=%s"
+                    % (longhorn_name, cluster.backend_id, system_project.backend_id)
+                )
+            else:
+                message = (
+                    "There are more than one template for name=%s, cluster_id=%s, project_id=%s"
+                    % (longhorn_name, cluster.backend_id, system_project.backend_id)
+                )
+            logger.info(message)
+            raise RancherException(message)
+
+        logger.info(
+            'Starting longhorn installation for cluster %s (name=%s, backend_id=%s)',
+            cluster,
+            cluster.name,
+            cluster.backend_id,
+        )
         template = available_templates.first()
+
+        logger.info(
+            'Creating namespace %s for cluster %s (name=%s, backend_id=%s)',
+            longhorn_namespace,
+            cluster,
+            cluster.name,
+            cluster.backend_id,
+        )
         namespace_response = self.client.create_namespace(
             cluster.backend_id, system_project.backend_id, longhorn_namespace
         )
@@ -996,11 +1017,29 @@ class RancherBackend(ServiceBackend):
             settings=system_project.settings,
             project=system_project,
         )
-        return self.client.create_application(
+
+        logger.info(
+            'Creating application %s for cluster %s (name=%s, backend_id=%s) in namespace %s (backend_id=%s)',
+            longhorn_namespace,
+            cluster,
+            cluster.name,
+            cluster.backend_id,
+            namespace.name,
+            namespace.backend_id,
+        )
+        application = self.client.create_application(
             template.catalog.backend_id,
             template.backend_id,
             template.default_version,
             system_project.backend_id,
             namespace.backend_id,
             longhorn_name,
+        )
+
+        logger.info(
+            'Application %s for cluster %s (name=%s, backend_id=%s) was created',
+            application,
+            cluster,
+            cluster.name,
+            cluster.backend_id,
         )
