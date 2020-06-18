@@ -966,6 +966,7 @@ class RancherBackend(ServiceBackend):
     def install_longhorn_to_cluster(self, cluster):
         longhorn_name = 'longhorn'
         longhorn_namespace = 'longhorn-system'
+        catalog_name = 'library'
 
         system_project = models.Project.objects.filter(
             cluster=cluster, name='System'
@@ -976,19 +977,19 @@ class RancherBackend(ServiceBackend):
             )
 
         available_templates = models.Template.objects.filter(
-            cluster=cluster, name=longhorn_name, project=system_project
+            name=longhorn_name, catalog__name=catalog_name
         )
         available_templates_count = len(available_templates)
         if available_templates_count != 1:
             if available_templates_count == 0:
-                message = (
-                    "There are no templates with name=%s, cluster_id=%s, project_id=%s"
-                    % (longhorn_name, cluster.backend_id, system_project.backend_id)
+                message = "There are no templates with name=%s, catalog.name=%s" % (
+                    longhorn_name,
+                    catalog_name,
                 )
             else:
                 message = (
-                    "There are more than one template for name=%s, cluster_id=%s, project_id=%s"
-                    % (longhorn_name, cluster.backend_id, system_project.backend_id)
+                    "There are more than one template for name=%s, catalog.name=%s"
+                    % (longhorn_name, catalog_name)
                 )
             logger.info(message)
             raise RancherException(message)

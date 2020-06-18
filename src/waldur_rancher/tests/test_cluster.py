@@ -498,16 +498,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
         mock_namespace = mock_namespace_create.start()
         mock_namespace.return_value = {'id': '1'}
 
-        catalog = factories.CatalogFactory(settings=self.fixture.settings)
+        catalog = factories.CatalogFactory(name='library')
         system_project = factories.ProjectFactory(
             settings=self.fixture.settings, cluster=self.fixture.cluster, name='System'
         )
         template = factories.TemplateFactory(
             settings=self.fixture.settings,
-            project=system_project,
             name='longhorn',
             catalog=catalog,
-            cluster=self.fixture.cluster,
             default_version='1.1',
             versions=['1.0', '1.1'],
         )
