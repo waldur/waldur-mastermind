@@ -390,6 +390,32 @@ class RancherClient:
             },
         )
 
+    def update_hpa(
+        self,
+        project_id: str,
+        hpa_id: str,
+        namespace_id: str,
+        workload_id: str,
+        name: str,
+        min_replicas: int,
+        max_replicas: int,
+        metrics: List[dict],
+    ):
+        """
+        Update horizontal pod autoscaler.
+        """
+        return self._put(
+            f'/project/{project_id}/horizontalpodautoscalers/{hpa_id}',
+            json={
+                'name': name,
+                'namespaceId': namespace_id,
+                'workloadId': workload_id,
+                'minReplicas': min_replicas,
+                'maxReplicas': max_replicas,
+                'metrics': metrics,
+            },
+        )
+
     def delete_hpa(self, project_id: str, hpa_id: str):
         """
         Delete horizontal pod autoscaler.

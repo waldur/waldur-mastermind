@@ -521,4 +521,5 @@ class HPAViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.HPAFilter
     lookup_field = 'uuid'
     create_executor = executors.HPACreateExecutor
+    update_executor = executors.HPAUpdateExecutor
     delete_executor = executors.HPADeleteExecutor
