@@ -1002,22 +1002,27 @@ class RancherBackend(ServiceBackend):
         )
         template = available_templates.first()
 
-        logger.info(
-            'Creating namespace %s for cluster %s (name=%s, backend_id=%s)',
-            longhorn_namespace,
-            cluster,
-            cluster.name,
-            cluster.backend_id,
-        )
-        namespace_response = self.client.create_namespace(
-            cluster.backend_id, system_project.backend_id, longhorn_namespace
-        )
-        namespace = models.Namespace.objects.create(
-            name=longhorn_namespace,
-            backend_id=namespace_response['id'],
-            settings=system_project.settings,
-            project=system_project,
-        )
+        try:
+            namespace = models.Namespace.objects.get(
+                name=longhorn_namespace, project=system_project
+            )
+        except models.Namespace.DoesNotExist:
+            logger.info(
+                'Creating namespace %s for cluster %s (name=%s, backend_id=%s)',
+                longhorn_namespace,
+                cluster,
+                cluster.name,
+                cluster.backend_id,
+            )
+            namespace_response = self.client.create_namespace(
+                cluster.backend_id, system_project.backend_id, longhorn_namespace
+            )
+            namespace = models.Namespace.objects.create(
+                name=longhorn_namespace,
+                backend_id=namespace_response['id'],
+                settings=system_project.settings,
+                project=system_project,
+            )
 
         logger.info(
             'Creating application %s for cluster %s (name=%s, backend_id=%s) in namespace %s (backend_id=%s)',
@@ -1029,12 +1034,12 @@ class RancherBackend(ServiceBackend):
             namespace.backend_id,
         )
         application = self.client.create_application(
-            template.catalog.backend_id,
-            template.backend_id,
-            template.default_version,
-            system_project.backend_id,
-            namespace.backend_id,
-            longhorn_name,
+            catalog_id=template.catalog.backend_id,
+            template_id=template.name,
+            version=template.default_version,
+            project_id=system_project.backend_id,
+            namespace_id=namespace.backend_id,
+            name=longhorn_name,
         )
 
         logger.info(
