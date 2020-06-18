@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 import requests
 
@@ -363,6 +364,31 @@ class RancherClient:
         return self._get(
             f'project/{project_id}/horizontalpodautoscalers', params={'limit': -1}
         )['data']
+
+    def create_hpa(
+        self,
+        project_id: str,
+        namespace_id: str,
+        workload_id: str,
+        name: str,
+        min_replicas: int,
+        max_replicas: int,
+        metrics: List[dict],
+    ):
+        """
+        Create horizontal pod autoscaler.
+        """
+        return self._post(
+            f'project/{project_id}/horizontalpodautoscalers',
+            json={
+                'name': name,
+                'namespaceId': namespace_id,
+                'workloadId': workload_id,
+                'minReplicas': min_replicas,
+                'maxReplicas': max_replicas,
+                'metrics': metrics,
+            },
+        )
 
     def delete_hpa(self, project_id: str, hpa_id: str):
         """

@@ -946,6 +946,20 @@ class RancherBackend(ServiceBackend):
             state=models.HPA.States.OK,
         )
 
+    def create_hpa(self, hpa):
+        remote_hpa = self.client.create_hpa(
+            hpa.project.backend_id,
+            hpa.namespace.backend_id,
+            hpa.workload.backend_id,
+            hpa.name,
+            hpa.min_replicas,
+            hpa.max_replicas,
+            hpa.metrics,
+        )
+        hpa.backend_id = remote_hpa['id']
+        hpa.runtime_state = remote_hpa['state']
+        hpa.save(update_fields=['backend_id', 'runtime_state'])
+
     def delete_hpa(self, hpa):
         self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
 
