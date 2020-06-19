@@ -470,6 +470,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 mock.call(
                     'waldur_rancher.cluster:%s' % cluster.id,
                     'install_longhorn_to_cluster',
+                    countdown=30,
                 )
             ]
         )
