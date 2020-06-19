@@ -411,6 +411,7 @@ class Workload(
 class HPA(
     core_models.UuidMixin,
     core_models.NameMixin,
+    core_models.DescribableMixin,
     core_models.StateMixin,
     core_models.RuntimeStateMixin,
     structure_models.TimeStampedModel,

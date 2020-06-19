@@ -669,6 +669,7 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
             'url',
             'uuid',
             'name',
+            'description',
             'created',
             'modified',
             'runtime_state',
@@ -695,6 +696,9 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
             'runtime_state',
             'current_replicas',
             'desired_replicas',
+            'cluster',
+            'project',
+            'namespace',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
@@ -709,6 +713,14 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
                 'view_name': 'rancher-workload-detail',
             },
         }
+
+    def create(self, validated_data):
+        workload = validated_data['workload']
+        validated_data['settings'] = workload.settings
+        validated_data['cluster'] = workload.cluster
+        validated_data['project'] = workload.project
+        validated_data['namespace'] = workload.namespace
+        return super(HPASerializer, self).create(validated_data)
 
 
 class ConsoleLogSerializer(serializers.Serializer):

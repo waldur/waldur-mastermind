@@ -371,6 +371,7 @@ class RancherClient:
         namespace_id: str,
         workload_id: str,
         name: str,
+        description: str,
         min_replicas: int,
         max_replicas: int,
         metrics: List[dict],
@@ -382,6 +383,7 @@ class RancherClient:
             f'project/{project_id}/horizontalpodautoscalers',
             json={
                 'name': name,
+                'description': description,
                 'namespaceId': namespace_id,
                 'workloadId': workload_id,
                 'minReplicas': min_replicas,
@@ -397,6 +399,7 @@ class RancherClient:
         namespace_id: str,
         workload_id: str,
         name: str,
+        description: str,
         min_replicas: int,
         max_replicas: int,
         metrics: List[dict],
@@ -408,6 +411,7 @@ class RancherClient:
             f'/project/{project_id}/horizontalpodautoscalers/{hpa_id}',
             json={
                 'name': name,
+                'description': description,
                 'namespaceId': namespace_id,
                 'workloadId': workload_id,
                 'minReplicas': min_replicas,
