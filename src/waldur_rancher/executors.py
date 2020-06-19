@@ -28,9 +28,10 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             core_tasks.BackendMethodTask().si(serialized_instance, 'pull_cluster',)
         ]
         if install_longhorn:
+            # NB: countdown is needed for synchronization: wait until cluster will get ready for apps installation
             _tasks += [
                 core_tasks.BackendMethodTask().si(
-                    serialized_instance, 'install_longhorn_to_cluster',
+                    serialized_instance, 'install_longhorn_to_cluster', countdown=30
                 )
             ]
         return chain(*_tasks)
