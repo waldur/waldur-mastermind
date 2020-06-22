@@ -380,7 +380,7 @@ class RancherClient:
         Create horizontal pod autoscaler.
         """
         return self._post(
-            f'project/{project_id}/horizontalpodautoscalers',
+            f'projects/{project_id}/horizontalpodautoscalers',
             json={
                 'name': name,
                 'description': description,
@@ -408,7 +408,7 @@ class RancherClient:
         Update horizontal pod autoscaler.
         """
         return self._put(
-            f'/project/{project_id}/horizontalpodautoscalers/{hpa_id}',
+            f'/projects/{project_id}/horizontalpodautoscalers/{hpa_id}',
             json={
                 'name': name,
                 'description': description,
@@ -424,4 +424,4 @@ class RancherClient:
         """
         Delete horizontal pod autoscaler.
         """
-        return self._delete(f'/project/{project_id}/horizontalpodautoscalers/{hpa_id}')
+        return self._delete(f'/projects/{project_id}/horizontalpodautoscalers/{hpa_id}')
