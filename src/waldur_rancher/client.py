@@ -56,7 +56,7 @@ class RancherClient:
         ):
             return data
         else:
-            if 'message' in data:
+            if isinstance(data, dict) and 'message' in data:
                 raise RancherException(data['message'])
             else:
                 raise RancherException(data)
