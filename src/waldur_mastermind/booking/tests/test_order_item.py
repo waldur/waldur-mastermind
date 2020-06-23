@@ -154,6 +154,30 @@ class OrderCreateTest(test.APITransactionTestCase):
             '["Key \'start\' or \'end\' does not exist in schedules item."]',
         )
 
+    def test_do_not_create_order_if_end_is_none(self):
+        add_payload = {
+            'items': [
+                {
+                    'offering': marketplace_factories.OfferingFactory.get_url(
+                        self.offering
+                    ),
+                    'attributes': {
+                        'schedules': [
+                            {'start': '2019-01-05T23:59:59.000000Z', 'end': None},
+                        ]
+                    },
+                },
+            ]
+        }
+        response = self.create_order(
+            self.user, offering=self.offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            str(response.content, 'utf-8'),
+            '["Value \'start\' or \'end\' does not exist in schedules item."]',
+        )
+
     def test_do_not_create_order_if_schedule_item_does_not_match_format(self):
         add_payload = {
             'items': [
