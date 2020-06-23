@@ -42,6 +42,13 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
             try:
                 start = period['start']
                 end = period['end']
+
+                if not start or not end:
+                    raise ValidationError(
+                        _(
+                            'Value \'start\' or \'end\' does not exist in schedules item.'
+                        )
+                    )
             except KeyError:
                 raise ValidationError(
                     _('Key \'start\' or \'end\' does not exist in schedules item.')
