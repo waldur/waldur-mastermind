@@ -446,7 +446,7 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     tracker = FieldTracker()
 
     def __str__(self):
-        return self.organization.name
+        return '%s (%s)' % (self.organization.name, self.payment_type)
 
     class Permissions:
         customer_path = 'organization'
@@ -468,6 +468,25 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
 
     class Meta:
         unique_together = ('organization', 'is_active')
+
+
+class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
+    profile = models.ForeignKey(
+        PaymentProfile, on_delete=models.PROTECT, null=False, blank=False
+    )
+    sum = models.DecimalField(
+        default=0, max_digits=10, decimal_places=2, null=False, blank=False
+    )
+    date_of_payment = models.DateField(null=False, blank=False,)
+
+    proof = models.FileField(upload_to='proof_of_payment', null=True, blank=True)
+
+    class Permissions:
+        customer_path = 'profile__organization'
+
+    @classmethod
+    def get_url_name(cls):
+        return 'payment'
 
 
 class InvoiceItemAdjuster:

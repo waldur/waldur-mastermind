@@ -221,6 +221,11 @@ class PaymentProfileAdmin(admin.ModelAdmin):
     search_fields = ('organization__name',)
 
 
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ('profile', 'date_of_payment', 'sum')
+
+
 admin.site.register(models.Invoice, InvoiceAdmin)
 admin.site.register(models.ServiceDowntime, ServiceDowntimeAdmin)
 admin.site.register(models.PaymentProfile, PaymentProfileAdmin)
+admin.site.register(models.Payment, PaymentAdmin)

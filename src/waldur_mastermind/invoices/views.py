@@ -100,3 +100,19 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
             {'detail': _('Payment profile has been enabled.')},
             status=status.HTTP_200_OK,
         )
+
+
+class PaymentViewSet(core_views.ActionsViewSet):
+    lookup_field = 'uuid'
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.PaymentFilter
+    create_permissions = (
+        update_permissions
+    ) = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_staff
+    ]
+    queryset = models.Payment.objects.all()
+    serializer_class = serializers.PaymentSerializer
