@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.structure.models import Customer, Project
-from waldur_core.structure.permissions import is_administrator
+from waldur_core.structure.permissions import is_administrator, is_owner
 
 from . import models, serializers
 
@@ -108,6 +108,34 @@ class ProjectStatsView(APIView):
                 )
             )
         return Response(checklists)
+
+
+class CustomerStatsView(APIView):
+    def get(self, request, customer_uuid, checklist_uuid, format=None):
+        try:
+            customer = Customer.objects.get(uuid=customer_uuid)
+        except Customer.DoesNotExist:
+            raise ValidationError(_('Customer does not exist.'))
+
+        is_owner(request, self, customer)
+
+        checklist = get_object_or_404(models.Checklist, uuid=checklist_uuid)
+        total_questions = max(1, checklist.questions.count())
+        points = []
+        for project in Project.objects.filter(customer=customer).order_by('name'):
+            correct_count = models.Answer.objects.filter(
+                project=project,
+                question__checklist=checklist,
+                value=F('question__correct_answer'),
+            ).count()
+            points.append(
+                dict(
+                    name=project.name,
+                    uuid=project.uuid.hex,
+                    score=round(100 * correct_count / total_questions, 2,),
+                )
+            )
+        return Response(points)
 
 
 class AnswersListView(ListModelMixin, GenericViewSet):
