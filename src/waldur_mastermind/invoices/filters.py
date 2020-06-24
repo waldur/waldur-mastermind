@@ -39,3 +39,14 @@ class PaymentProfileFilterBackend(filters.BaseFilterBackend):
             return queryset
 
         return queryset.filter(is_active=True)
+
+
+class PaymentFilter(django_filters.FilterSet):
+    profile = core_filters.URLFilter(
+        view_name='payment-profile-detail', field_name='profile__uuid'
+    )
+    profile_uuid = django_filters.UUIDFilter(field_name='profile__uuid')
+
+    class Meta:
+        model = models.Payment
+        fields = ['date_of_payment']

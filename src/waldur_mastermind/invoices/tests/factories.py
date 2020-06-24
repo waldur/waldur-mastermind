@@ -55,3 +55,25 @@ class PaymentProfileFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('payment-profile-list')
+
+
+class PaymentFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Payment
+
+    profile = factory.SubFactory(PaymentProfileFactory)
+    sum = 100
+    date_of_payment = factory.fuzzy.FuzzyDateTime(start_dt=timezone.now())
+
+    @classmethod
+    def get_url(cls, payment=None, action=None):
+        if payment is None:
+            payment = cls()
+        url = 'http://testserver' + reverse(
+            'payment-detail', kwargs={'uuid': payment.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('payment-list')

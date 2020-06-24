@@ -336,6 +336,31 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class PaymentSerializer(
+    structure_serializers.ProtectedMediaSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    profile = serializers.HyperlinkedRelatedField(
+        view_name='payment-profile-detail',
+        lookup_field='uuid',
+        queryset=models.PaymentProfile.objects.filter(is_active=True),
+    )
+
+    class Meta:
+        model = models.Payment
+        fields = (
+            'uuid',
+            'url',
+            'profile',
+            'date_of_payment',
+            'sum',
+            'proof',
+        )
+        extra_kwargs = {
+            'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid'},
+        }
+
+
 def get_payment_profiles(serializer, customer):
     user = serializer.context['request'].user
     if user.is_staff or user.is_support:
