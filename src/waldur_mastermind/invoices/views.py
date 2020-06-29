@@ -1,4 +1,5 @@
 from celery import chain
+from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -63,9 +64,32 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         ] = 'attachment; filename="{filename}"'.format(filename=filename)
         return file_response
 
+    @transaction.atomic
     @action(detail=True, methods=['post'])
     def paid(self, request, uuid=None):
         invoice = self.get_object()
+
+        if request.data:
+            serializer = serializers.PaidSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            try:
+                profile = models.PaymentProfile.objects.get(
+                    is_active=True, organization=invoice.customer
+                )
+            except models.PaymentProfile.DoesNotExist:
+                raise exceptions.ValidationError(
+                    _('The active profile for this customer does not exist.')
+                )
+
+            payment = models.Payment.objects.create(
+                date_of_payment=serializer.validated_data['date'],
+                sum=invoice.total_current,
+                profile=profile,
+            )
+
+            payment.proof = serializer.validated_data['proof']
+            payment.save()
+
         invoice.state = models.Invoice.States.PAID
         invoice.save(update_fields=['state'])
         return Response(status=status.HTTP_200_OK)

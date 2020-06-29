@@ -361,6 +361,11 @@ class PaymentSerializer(
         }
 
 
+class PaidSerializer(serializers.Serializer):
+    date = serializers.DateField(required=True)
+    proof = serializers.FileField(required=False)
+
+
 def get_payment_profiles(serializer, customer):
     user = serializer.context['request'].user
     if user.is_staff or user.is_support:
