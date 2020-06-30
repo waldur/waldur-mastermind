@@ -246,6 +246,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
             'instance',
             'availability_zone',
             'image',
+            'image_metadata',
         )
 
 
