@@ -8,6 +8,7 @@ from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
 from django.template import Context, Template
 from django.test import override_settings
+from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -206,6 +207,19 @@ class RequestCreateTest(BaseTest):
         order_item = marketplace_models.OrderItem.objects.get(resource=resource)
         issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
         self.assertEqual(issue.caller, order_item.order.created_by)
+
+    def test_order_item_serializer_includes_issue_link(self):
+        order_item = self.submit_order_item()
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        issue.key = 'SUP-123'
+        issue.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.OrderItemFactory.get_url(order_item=order_item)
+        resource = self.client.get(url)
+        self.assertEqual(
+            resource.data['issue'],
+            {'SUP-123': reverse('support-issue-detail', args=[issue.uuid.hex])},
+        )
 
 
 @freeze_time('2019-01-01')
