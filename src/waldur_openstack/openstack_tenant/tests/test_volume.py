@@ -18,10 +18,34 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.volume = self.fixture.volume
         self.spl = self.fixture.spl
 
+    def destroy_volume(self):
+        url = factories.VolumeFactory.get_url(self.volume)
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.delete(url)
+
     def test_spl_quota_updated_by_signal_handler_when_volume_is_removed(self):
         self.volume.delete()
         Quotas = models.OpenStackTenantServiceProjectLink.Quotas
         self.assertEqual(self.spl.quotas.get(name=Quotas.storage).usage, 0)
+
+    def test_erred_volume_can_be_destroyed(self):
+        self.volume.state = models.Volume.States.ERRED
+        self.volume.save()
+        response = self.destroy_volume()
+        self.assertEqual(response.status_code, 202)
+
+    def test_attached_volume_can_not_be_destroyed(self):
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'in-use'
+        self.volume.save()
+        response = self.destroy_volume()
+        self.assertEqual(response.status_code, 409)
+
+    def test_pending_volume_can_not_be_destroyed(self):
+        self.volume.state = models.Volume.States.CREATING
+        self.volume.save()
+        response = self.destroy_volume()
+        self.assertEqual(response.status_code, 409)
 
 
 @ddt
