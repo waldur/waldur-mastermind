@@ -36,3 +36,25 @@ class DataciteTest(test.APITransactionTestCase):
         self.backend.create_doi(self.offering)
         self.assertFalse(self.offering.datacite_doi)
         self.mock_logger.error.assert_called_once()
+
+    def test_update_doi_succeeded(self):
+        response = requests.Response()
+        response.status_code = 200
+        self.mock_requests.put.return_value = response
+        self.offering.datacite_doi = '10.15159/tf3a-r005'
+        self.offering.save()
+
+        self.backend.update_doi(self.offering)
+        self.mock_requests.put.assert_called_once()
+        self.assertEqual(
+            self.mock_requests.put.call_args[0][0],
+            'https://example.com/10.15159/tf3a-r005',
+        )
+
+    def test_update_doi_failed(self):
+        response = requests.Response()
+        response.status_code = 400
+        self.mock_requests.post.return_value = response
+
+        self.backend.update_doi(self.offering)
+        self.mock_logger.error.assert_called_once()

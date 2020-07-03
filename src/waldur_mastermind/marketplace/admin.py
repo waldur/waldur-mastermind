@@ -272,6 +272,7 @@ class OfferingAdmin(admin.ModelAdmin):
     actions = [
         'activate',
         'datacite_registration',
+        'datacite_update',
         'link_doi_with_collection',
         'offering_referrals_pull',
     ]
@@ -313,6 +314,24 @@ class OfferingAdmin(admin.ModelAdmin):
         self.message_user(request, message)
 
     datacite_registration.short_description = _('Register in Datacite')
+
+    def datacite_update(self, request, queryset):
+        queryset = queryset.exclude(datacite_doi='')
+
+        for offering in queryset.all():
+            pid_utils.update_doi(offering)
+
+        count = queryset.count()
+        message = ungettext(
+            'One offering has been scheduled for updating Datacite registration data.',
+            '%(count)d offerings have been scheduled for updating Datacite registration data.',
+            count,
+        )
+        message = message % {'count': count}
+
+        self.message_user(request, message)
+
+    datacite_update.short_description = _('Update data of Datacite registration')
 
     def link_doi_with_collection(self, request, queryset):
         queryset = queryset.exclude(datacite_doi='')
