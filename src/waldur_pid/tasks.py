@@ -114,3 +114,17 @@ def get_datacite_info_helper(referrable):
             content_type=content_type, object_id=referrable.id
         ).exclude(pid__in=[ref[0] for ref in referrals_pids]).delete()
         referrable.save(update_fields=['citation_count'])
+
+
+@shared_task
+def update_pid(serialized_referrable):
+    referrable = core_utils.deserialize_instance(serialized_referrable)
+    backend.DataciteBackend().update_doi(referrable)
+
+
+@shared_task
+def update_all_pid():
+    for model in mixins.DataciteMixin.get_all_models():
+        for referrable in model.objects.exclude(datacite_doi=''):
+            serialized_referrable = core_utils.serialize_instance(referrable)
+            update_pid.delay(serialized_referrable)

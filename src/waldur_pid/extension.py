@@ -29,4 +29,9 @@ class PIDExtension(WaldurExtension):
                 'schedule': timedelta(days=1),
                 'args': (),
             },
+            'waldur-update-all-pid': {
+                'task': 'waldur_pid.update_all_pid',
+                'schedule': timedelta(days=1),
+                'args': (),
+            },
         }
