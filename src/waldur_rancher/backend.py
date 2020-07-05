@@ -116,7 +116,11 @@ class RancherBackend(ServiceBackend):
             try:
                 self.client.delete_node(node.backend_id)
             except RancherException as e:
-                if 'status' in e.args[0] and e.args[0]['status'] == 404:
+                if (
+                    isinstance(e.args[0], dict)
+                    and 'status' in e.args[0]
+                    and e.args[0]['status'] == 404
+                ):
                     logger.warning(
                         'Node %s is not present in the backend ' % node.backend_id
                     )
