@@ -41,5 +41,12 @@ class AllocationUserUsageFilter(django_filters.FilterSet):
         field_name='allocation_usage__allocation__uuid'
     )
 
+    allocation_usage = core_filters.URLFilter(
+        view_name='slurm-allocation-usage-detail', field_name='allocation_usage__uuid',
+    )
+    allocation_usage_uuid = django_filters.UUIDFilter(
+        field_name='allocation_usage__uuid'
+    )
+
     user = core_filters.URLFilter(view_name='user-detail', field_name='user__uuid')
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
