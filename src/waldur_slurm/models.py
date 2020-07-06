@@ -4,6 +4,7 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
+from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 from waldur_slurm import mixins as slurm_mixins
 from waldur_slurm import utils
@@ -97,7 +98,7 @@ class Allocation(structure_models.NewResource):
         return get_batch_service(self.service_project_link.service.settings)
 
 
-class AllocationUsage(slurm_mixins.UsageMixin):
+class AllocationUsage(slurm_mixins.UsageMixin, core_models.UuidMixin):
     class Permissions:
         customer_path = 'allocation__service_project_link__project__customer'
         project_path = 'allocation__service_project_link__project'

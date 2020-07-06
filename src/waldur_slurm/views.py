@@ -35,6 +35,7 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
 
 
 class AllocationUsageViewSet(viewsets.ReadOnlyModelViewSet):
+    lookup_field = 'uuid'
     queryset = models.AllocationUsage.objects.all()
     serializer_class = serializers.AllocationUsageSerializer
     permission_classes = (permissions.IsAuthenticated,)

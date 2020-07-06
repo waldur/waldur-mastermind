@@ -155,12 +155,17 @@ class AllocationSerializer(
 class AllocationUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
     class Meta(slurm_mixins.AllocationUsageSerializerMixin.Meta):
         model = models.AllocationUsage
+        lookup_field = 'uuid'
         fields = (
+            'url',
+            'uuid',
             'allocation',
-            'year',
-            'month',
         ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
         extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'slurm-allocation-usage-detail',
+            },
             'allocation': {
                 'lookup_field': 'uuid',
                 'view_name': 'slurm-allocation-detail',
@@ -170,6 +175,8 @@ class AllocationUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
 
 class AllocationUserUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
     full_name = rf_serializers.ReadOnlyField(source='user.full_name')
+    month = rf_serializers.ReadOnlyField(source='allocation_usage.month')
+    year = rf_serializers.ReadOnlyField(source='allocation_usage.year')
 
     class Meta(slurm_mixins.AllocationUsageSerializerMixin.Meta):
         model = models.AllocationUserUsage
@@ -180,6 +187,9 @@ class AllocationUserUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin)
             'full_name',
         ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
         extra_kwargs = {
-            'allocation_usage': {'view_name': 'slurm-allocation-usage-detail',},
+            'allocation_usage': {
+                'lookup_field': 'uuid',
+                'view_name': 'slurm-allocation-usage-detail',
+            },
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail',},
         }

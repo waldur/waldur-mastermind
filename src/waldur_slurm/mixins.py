@@ -20,4 +20,6 @@ class AllocationUsageSerializerMixin(rf_serializers.HyperlinkedModelSerializer):
             'ram_usage',
             'gpu_usage',
             'deposit_usage',
+            'month',
+            'year',
         )
