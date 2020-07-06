@@ -180,9 +180,6 @@ class AllocationUserUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin)
             'full_name',
         ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
         extra_kwargs = {
-            'allocation_usage': {
-                'lookup_field': 'uuid',
-                'view_name': 'slurm-allocation-usage-detail',
-            },
+            'allocation_usage': {'view_name': 'slurm-allocation-usage-detail',},
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail',},
         }
