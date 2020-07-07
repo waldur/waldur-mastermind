@@ -478,8 +478,10 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
         default=0, max_digits=10, decimal_places=2, null=False, blank=False
     )
     date_of_payment = models.DateField(null=False, blank=False,)
-
     proof = models.FileField(upload_to='proof_of_payment', null=True, blank=True)
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.SET_NULL, null=True, blank=True
+    )
 
     class Permissions:
         customer_path = 'profile__organization'

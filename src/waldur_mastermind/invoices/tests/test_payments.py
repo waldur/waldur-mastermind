@@ -3,6 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
+from .. import models
 from . import factories
 
 
@@ -106,3 +107,41 @@ class PaymentDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PaymentActionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.profile = factories.PaymentProfileFactory(
+            organization=self.fixture.customer
+        )
+        self.payment = factories.PaymentFactory(profile=self.profile)
+        self.invoice = factories.InvoiceFactory(
+            customer=self.fixture.customer, state=models.Invoice.States.PAID
+        )
+        self.url = factories.PaymentFactory.get_url(
+            payment=self.payment, action='link_to_invoice'
+        )
+
+    def test_link_payment_to_invoice(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {'invoice': factories.InvoiceFactory.get_url(invoice=self.invoice)}
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.invoice, self.invoice)
+
+    def test_do_not_link_payment_to_invoice_if_customers_are_different(self):
+        self.client.force_authenticate(self.fixture.staff)
+        invoice = factories.InvoiceFactory(state=models.Invoice.States.PAID)
+        payload = {'invoice': factories.InvoiceFactory.get_url(invoice=invoice)}
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_do_not_link_payment_to_invoice_if_invoice_is_not_paid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self.invoice.state = models.Invoice.States.PENDING
+        self.invoice.save()
+        payload = {'invoice': factories.InvoiceFactory.get_url(self.invoice)}
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -13,7 +13,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 
-from . import filters, models, serializers, tasks
+from . import filters, log, models, serializers, tasks
 
 
 class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
@@ -85,10 +85,21 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 date_of_payment=serializer.validated_data['date'],
                 sum=invoice.total_current,
                 profile=profile,
+                invoice=invoice,
             )
 
             payment.proof = serializer.validated_data['proof']
             payment.save()
+
+            log.event_logger.invoice.info(
+                'Payment for invoice ({month}/{year}) has been added."',
+                event_type='payment_created',
+                event_context={
+                    'month': invoice.month,
+                    'year': invoice.year,
+                    'customer': invoice.customer,
+                },
+            )
 
         invoice.state = models.Invoice.States.PAID
         invoice.save(update_fields=['state'])
@@ -135,8 +146,47 @@ class PaymentViewSet(core_views.ActionsViewSet):
     filterset_class = filters.PaymentFilter
     create_permissions = (
         update_permissions
-    ) = partial_update_permissions = destroy_permissions = [
+    ) = (
+        partial_update_permissions
+    ) = destroy_permissions = link_to_invoice_permissions = [
         structure_permissions.is_staff
     ]
     queryset = models.Payment.objects.all()
     serializer_class = serializers.PaymentSerializer
+
+    @action(detail=True, methods=['post'])
+    def link_to_invoice(self, request, uuid=None):
+        payment = self.get_object()
+        serializer = self.get_serializer_class()(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        invoice = serializer.validated_data['invoice']
+
+        if invoice.customer != payment.profile.organization:
+            raise exceptions.ValidationError(
+                _('The passed invoice does not belong to the selected customer.')
+            )
+
+        payment.invoice = invoice
+        payment.save(update_fields=['invoice'])
+
+        log.event_logger.invoice.info(
+            'Payment for invoice ({month}/{year}) has been added."',
+            event_type='payment_created',
+            event_context={
+                'month': invoice.month,
+                'year': invoice.year,
+                'customer': invoice.customer,
+            },
+        )
+
+        return Response(
+            {'detail': _('An invoice has been linked to payment.')},
+            status=status.HTTP_200_OK,
+        )
+
+    def _link_to_invoice_does_not_exist(payment):
+        if payment.invoice:
+            raise exceptions.ValidationError(_('Link to an invoice exists.'))
+
+    link_to_invoice_validators = [_link_to_invoice_does_not_exist]
+    link_to_invoice_serializer_class = serializers.LinkToInvoiceSerializer

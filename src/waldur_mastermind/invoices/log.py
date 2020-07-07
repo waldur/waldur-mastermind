@@ -7,7 +7,12 @@ class InvoiceLogger(EventLogger):
     customer = 'structure.Customer'
 
     class Meta:
-        event_types = ('invoice_created', 'invoice_paid', 'invoice_canceled')
+        event_types = (
+            'invoice_created',
+            'invoice_paid',
+            'invoice_canceled',
+            'payment_created',
+        )
         event_groups = {
             'customers': event_types,
             'invoices': event_types,

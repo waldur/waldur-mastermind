@@ -366,6 +366,14 @@ class PaidSerializer(serializers.Serializer):
     proof = serializers.FileField(required=False)
 
 
+class LinkToInvoiceSerializer(serializers.Serializer):
+    invoice = serializers.HyperlinkedRelatedField(
+        view_name='invoice-detail',
+        lookup_field='uuid',
+        queryset=models.Invoice.objects.filter(state=models.Invoice.States.PAID),
+    )
+
+
 def get_payment_profiles(serializer, customer):
     user = serializer.context['request'].user
     if user.is_staff or user.is_support:
