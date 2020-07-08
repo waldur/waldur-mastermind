@@ -11,7 +11,7 @@ class ProtectedFileMixin:
         if not value:
             return None
 
-        if settings.DEBUG:
+        if not settings.USE_PROTECTED_URL:
             return super(ProtectedFileMixin, self).to_representation(value)
 
         return encode_protected_url(
