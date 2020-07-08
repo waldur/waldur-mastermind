@@ -63,6 +63,15 @@ class TemplateAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'catalog', 'runtime_state')
 
 
+class ClusterTemplateNodeInline(admin.TabularInline):
+    model = models.ClusterTemplateNode
+
+
+class ClusterTemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description')
+    inlines = [ClusterTemplateNodeInline]
+
+
 admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
 admin.site.register(
     models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
@@ -74,3 +83,4 @@ admin.site.register(models.Catalog, CatalogAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.Namespace, NamespaceAdmin)
 admin.site.register(models.Template, TemplateAdmin)
+admin.site.register(models.ClusterTemplate, ClusterTemplateAdmin)

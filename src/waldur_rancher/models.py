@@ -111,12 +111,22 @@ class Cluster(SettingsMixin, NewResource):
         return self.name
 
 
+class RoleMixin(models.Model):
+    controlplane_role = models.BooleanField(default=False)
+    etcd_role = models.BooleanField(default=False)
+    worker_role = models.BooleanField(default=False)
+
+    class Meta:
+        abstract = True
+
+
 class Node(
     core_models.UuidMixin,
     core_models.NameMixin,
     structure_models.StructureModel,
     core_models.StateMixin,
     BackendMixin,
+    RoleMixin,
     structure_models.StructureLoggableMixin,
     structure_models.TimeStampedModel,
 ):
@@ -133,9 +143,6 @@ class Node(
         'content_type', 'object_id'
     )  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    controlplane_role = models.BooleanField(default=False)
-    etcd_role = models.BooleanField(default=False)
-    worker_role = models.BooleanField(default=False)
     initial_data = JSONField(
         blank=True, default=dict, help_text=_('Initial data for instance creating.')
     )
@@ -339,6 +346,7 @@ class Namespace(
         return 'rancher-namespace'
 
 
+# Rancher template used for application provisioning
 class Template(
     core_models.UuidMixin,
     core_models.NameMixin,
@@ -454,3 +462,28 @@ class HPA(
     @classmethod
     def get_url_name(cls):
         return 'rancher-hpa'
+
+
+# Waldur template is used for cluster provisioning, it doesn't have counterpart is Rancher
+class ClusterTemplate(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
+    structure_models.TimeStampedModel,
+):
+    class Meta:
+        ordering = ('name',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-cluster-template'
+
+
+class ClusterTemplateNode(RoleMixin):
+    template = models.ForeignKey(
+        ClusterTemplate, on_delete=models.CASCADE, related_name='nodes'
+    )
+    min_vcpu = models.PositiveSmallIntegerField()
+    min_ram = models.PositiveIntegerField()
+    system_volume_size = models.PositiveIntegerField()
+    preferred_volume_type = models.CharField(max_length=150, blank=True)

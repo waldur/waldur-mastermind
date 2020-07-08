@@ -523,3 +523,9 @@ class HPAViewSet(structure_views.ResourceViewSet):
     create_executor = executors.HPACreateExecutor
     update_executor = executors.HPAUpdateExecutor
     delete_executor = executors.HPADeleteExecutor
+
+
+class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.ClusterTemplate.objects.all()
+    serializer_class = serializers.ClusterTemplateSerializer
+    lookup_field = 'uuid'
