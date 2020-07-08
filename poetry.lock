@@ -623,6 +623,25 @@ django = ">=1.8"
 
 [[package]]
 category = "main"
+description = "Support for many storage backends in Django"
+name = "django-storages"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+version = "1.9.1"
+
+[package.dependencies]
+Django = ">=1.11"
+
+[package.extras]
+azure = ["azure-storage-blob (>=1.3.1,<12.0.0)"]
+boto3 = ["boto3 (>=1.4.4)"]
+dropbox = ["dropbox (>=7.2.1)"]
+google = ["google-cloud-storage (>=1.15.0)"]
+libcloud = ["apache-libcloud"]
+sftp = ["paramiko"]
+
+[[package]]
+category = "main"
 description = "django-taggit is a reusable Django application for simple tagging."
 name = "django-taggit"
 optional = false
@@ -1423,6 +1442,11 @@ name = "paypalrestsdk"
 optional = false
 python-versions = "*"
 version = "1.13.1"
+
+[package.dependencies]
+pyopenssl = ">=0.15"
+requests = ">=1.0.0"
+six = ">=1.0.0"
 
 [[package]]
 category = "main"
@@ -2237,7 +2261,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "6d2514255b195ebb2f67bb658cdfb2327e05ef5ad6619b74e4fdd58240749f44"
+content-hash = "998a8198539205a36156f8e33789190926111809d20d204cc747ded61656cb17"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2514,6 +2538,10 @@ django-rest-swagger = [
 django-reversion = [
     {file = "django-reversion-2.0.8.tar.gz", hash = "sha256:1be24171a37848fbfdc7f330003d74c5cfb8da70fc1bca05298035638c024944"},
     {file = "django_reversion-2.0.8-py2.py3-none-any.whl", hash = "sha256:74c13545453a36b6fd04ff6a1b4776f053636223b7a7d3ae5c4af1c19ef4d596"},
+]
+django-storages = [
+    {file = "django-storages-1.9.1.tar.gz", hash = "sha256:a59e9923cbce7068792f75344ed7727021ee4ac20f227cf17297d0d03d141e91"},
+    {file = "django_storages-1.9.1-py2.py3-none-any.whl", hash = "sha256:3103991c2ee8cef8a2ff096709973ffe7106183d211a79f22cf855f33533d924"},
 ]
 django-taggit = [
     {file = "django-taggit-1.1.0.tar.gz", hash = "sha256:01bf163f66f385de3777378f43338aba93aae8673891d8ba9a20695b2ffb8e10"},
