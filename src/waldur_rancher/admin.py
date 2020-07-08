@@ -61,6 +61,12 @@ class NamespaceAdmin(admin.ModelAdmin):
 
 class TemplateAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'catalog', 'runtime_state')
+    list_filter = (
+        'cluster',
+        'catalog',
+    )
+
+    search_fields = ('name', 'description')
 
 
 class ClusterTemplateNodeInline(admin.TabularInline):
