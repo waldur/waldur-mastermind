@@ -802,6 +802,44 @@ class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class ClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.ClusterTemplateNode
+        fields = (
+            'min_vcpu',
+            'min_ram',
+            'system_volume_size',
+            'preferred_volume_type',
+            'roles',
+        )
+
+    roles = serializers.SerializerMethodField()
+
+    def get_roles(self, node):
+        roles = []
+        if node.controlplane_role:
+            roles.append('controlplane')
+        if node.etcd_role:
+            roles.append('etcd')
+        if node.worker_role:
+            roles.append('worker')
+
+
+class ClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
+    nodes = ClusterTemplateNodeSerializer(many=True)
+
+    class Meta:
+        model = models.ClusterTemplate
+        fields = (
+            'uuid',
+            'name',
+            'description',
+            'created',
+            'modified',
+            'nodes',
+        )
+
+
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context['request']
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
