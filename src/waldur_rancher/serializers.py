@@ -823,6 +823,7 @@ class ClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
             roles.append('etcd')
         if node.worker_role:
             roles.append('worker')
+        return roles
 
 
 class ClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
