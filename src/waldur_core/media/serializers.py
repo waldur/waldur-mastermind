@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 from rest_framework import serializers
 
-from waldur_core.media.utils import encode_protected_url
+from waldur_core.media.utils import encode_protected_url, s3_to_waldur_media_url
 from waldur_core.structure.metadata import merge_dictionaries
 
 
@@ -12,7 +12,12 @@ class ProtectedFileMixin:
             return None
 
         if not settings.USE_PROTECTED_URL:
-            return super(ProtectedFileMixin, self).to_representation(value)
+            url = super(ProtectedFileMixin, self).to_representation(value)
+            if (
+                settings.CONVERT_MEDIA_URLS_TO_MATERMIND_NETLOC
+            ):  # If using s3-compatible storage
+                url = s3_to_waldur_media_url(url, self.context['request'])
+            return url
 
         return encode_protected_url(
             value.instance, field=self.source_attrs[-1], request=self.context['request']
