@@ -345,6 +345,15 @@ class PaymentSerializer(
         lookup_field='uuid',
         queryset=models.PaymentProfile.objects.filter(is_active=True),
     )
+    invoice = serializers.HyperlinkedRelatedField(
+        view_name='invoice-detail', lookup_field='uuid', read_only=True,
+    )
+    invoice_uuid = serializers.ReadOnlyField(source='invoice.uuid')
+    invoice_period = serializers.SerializerMethodField(method_name='get_invoice_period')
+
+    def get_invoice_period(self, payment):
+        if payment.invoice:
+            return '%02d-%s' % (payment.invoice.month, payment.invoice.year)
 
     class Meta:
         model = models.Payment
@@ -355,9 +364,12 @@ class PaymentSerializer(
             'date_of_payment',
             'sum',
             'proof',
+            'invoice',
+            'invoice_uuid',
+            'invoice_period',
         )
         extra_kwargs = {
-            'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid'},
+            'url': {'view_name': 'payment-detail', 'lookup_field': 'uuid'},
         }
 
 
