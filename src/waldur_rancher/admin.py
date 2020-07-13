@@ -73,7 +73,7 @@ class ClusterTemplateNodeInline(admin.TabularInline):
     model = models.ClusterTemplateNode
 
 
-class ClusterTemplateAdmin(admin.ModelAdmin):
+class ClusterTemplateAdmin(core_admin.HideAdminOriginalMixin):
     list_display = ('name', 'description')
     inlines = [ClusterTemplateNodeInline]
 
