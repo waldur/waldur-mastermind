@@ -183,6 +183,9 @@ def send_issue_feedback_notification(serialized_issue):
     signer = signing.TimestampSigner()
     token = signer.sign(issue.uuid.hex)
     extra_context = {
+        'feedback_link': settings.ISSUE_FEEDBACK_LINK_TEMPLATE.format(
+            token=token, evaluation=''
+        ),
         'feedback_links': [
             {
                 'label': value,

@@ -1,6 +1,6 @@
-Hello!
+Hello, {{issue.caller.full_name}}!
 
-Please share your feedback regarding your recent experience with support for {{issue_url}}.
+We would like to hear your feedback regarding your recent experience with support for {{issue_url}}.
 
 Click on the evaluations below to provide the feedback.
 

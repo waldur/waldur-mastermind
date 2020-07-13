@@ -2,23 +2,43 @@
 <head lang="en">
     <meta charset="UTF-8">
     <title>The issue you have has been updated</title>
+
+    <style>
+        * {
+          font-family: sans-serif;
+        }
+        .rating {
+          unicode-bidi: bidi-override;
+          direction: rtl;
+          width: 200px;
+        }
+        .rating > a {
+          display: inline-block;
+          position: relative;
+          width: 1.1em;
+          text-decoration: none;
+          font-size: xx-large;
+          color: rgba(180, 179, 178, 1);
+        }
+        .rating > a:hover:before,
+        .rating > a:hover ~ a:before {
+           content: "\2605";
+           position: absolute;
+           color: rgba(224, 194, 75, 1);
+        }
+    </style>
+
 </head>
 <body>
-<p>
-    Hello!
+<p>Hello, {{issue.caller.full_name}}!</p>
+<p>We would like to hear your feedback regarding your recent experience with support for
+    <a href='{{issue_url}}'>{{ issue.summary }}</a>.
 </p>
-
-<p>
-    Please share your feedback regarding your recent experience with support for {{issue_url}}.
-</p>
-
-<p>
-    Click on the evaluations below to provide the feedback. <br />
-    <ul>
-    {% for link in feedback_links%}
-        <li><a href="{{link.link}}">{{link.label}}</a></li>
+<p>Click the stars below to provide your feedback:</p>
+<div class="rating">
+    {% for link in feedback_links reversed %}
+        <a href='{{link.link}}'>☆</a>
     {% endfor %}
-    </ul>
-</p>
+</div>
 </body>
 </html>

@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -320,6 +320,34 @@ class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     create_permissions = ()
     serializer_class = serializers.CreateFeedbackSerializer
     create_executor = executors.FeedbackExecutor
+
+
+class FeedbackReportViewSet(views.APIView):
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+
+    def get(self, request, format=None):
+        result = {
+            dict(models.Feedback.Evaluation.CHOICES).get(count['evaluation']): count[
+                'id__count'
+            ]
+            for count in models.Feedback.objects.values('evaluation').annotate(
+                Count('id')
+            )
+        }
+        return response.Response(result, status=status.HTTP_200_OK)
+
+
+class FeedbackAverageReportViewSet(views.APIView):
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+
+    def get(self, request, format=None):
+        avg = models.Feedback.objects.aggregate(Avg('evaluation'))['evaluation__avg']
+
+        if avg:
+            result = round(avg, 2)
+        else:
+            result = None
+        return response.Response(result, status=status.HTTP_200_OK)
 
 
 def get_offerings_count(scope):
