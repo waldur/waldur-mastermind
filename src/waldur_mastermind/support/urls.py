@@ -43,4 +43,14 @@ urlpatterns = [
         views.WebHookReceiverView.as_view(),
         name='web-hook-receiver',
     ),
+    url(
+        r'^api/support-feedback-report/$',
+        views.FeedbackReportViewSet.as_view(),
+        name='support-feedback-report',
+    ),
+    url(
+        r'^api/support-feedback-average-report/$',
+        views.FeedbackAverageReportViewSet.as_view(),
+        name='support-feedback-average-report',
+    ),
 ]
