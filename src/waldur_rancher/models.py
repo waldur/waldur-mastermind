@@ -483,7 +483,9 @@ class ClusterTemplateNode(RoleMixin):
     template = models.ForeignKey(
         ClusterTemplate, on_delete=models.CASCADE, related_name='nodes'
     )
-    min_vcpu = models.PositiveSmallIntegerField()
-    min_ram = models.PositiveIntegerField()
-    system_volume_size = models.PositiveIntegerField()
+    min_vcpu = models.PositiveSmallIntegerField(verbose_name='Min vCPU (cores)')
+    min_ram = models.PositiveIntegerField(verbose_name='Min RAM (GB)')
+    system_volume_size = models.PositiveIntegerField(
+        verbose_name='System volume size (GB)'
+    )
     preferred_volume_type = models.CharField(max_length=150, blank=True)

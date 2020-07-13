@@ -629,3 +629,10 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
     def render(self, name, value, attrs=None, renderer=None):
         result = super(GBtoMBWidget, self).render(name, value, attrs)
         return '<label>%s GB</label>' % result
+
+
+class HideAdminOriginalMixin(admin.ModelAdmin):
+    class Media:
+        css = {
+            'all': (settings.STATIC_URL + "waldur_core/css/hide_admin_original.css",)
+        }
