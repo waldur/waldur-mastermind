@@ -1055,6 +1055,8 @@ class RancherBackend(ServiceBackend):
             namespace.name,
             namespace.backend_id,
         )
+        worker_node_count = cluster.node_set.filter(worker_role=True).count()
+        replica_count = min(3, worker_node_count)
         application = self.client.create_application(
             catalog_id=template.catalog.backend_id,
             template_id=template.name,
@@ -1062,6 +1064,7 @@ class RancherBackend(ServiceBackend):
             project_id=system_project.backend_id,
             namespace_id=namespace.backend_id,
             name=longhorn_name,
+            answers={'persistence.defaultClassReplicaCount': replica_count,},
         )
 
         logger.info(

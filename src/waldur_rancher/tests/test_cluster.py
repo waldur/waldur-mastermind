@@ -512,6 +512,8 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
         self.fixture.cluster.backend_id = ''
         self.fixture.cluster.save()
+        self.fixture.node.worker_role = True
+        self.fixture.node.save()
         backend = self.fixture.cluster.get_backend()
         backend.create_cluster(self.fixture.cluster)
         backend.install_longhorn_to_cluster(self.fixture.cluster)
@@ -526,6 +528,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 'targetNamespace': '1',
                 'externalId': f'catalog://?catalog={template.catalog.backend_id}&template={template.name}&version=1.1',
                 'projectId': system_project.backend_id,
+                'answers': {'persistence.defaultClassReplicaCount': 1,},
             },
         )
 
