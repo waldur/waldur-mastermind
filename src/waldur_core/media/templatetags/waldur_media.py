@@ -13,7 +13,7 @@ def protected_url(value, field):
     if settings.USE_PROTECTED_URL:
         url = value.url
         if (
-            settings.CONVERT_MEDIA_URLS_TO_MATERMIND_NETLOC
+            settings.CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC
         ):  # If using s3-compatible storage
             url = s3_to_waldur_media_url(url, context['request'])
         return url
