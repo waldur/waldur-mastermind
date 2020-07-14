@@ -123,6 +123,10 @@ class PaymentActionsTest(test.APITransactionTestCase):
             payment=self.payment, action='link_to_invoice'
         )
 
+        self.url_unlink = factories.PaymentFactory.get_url(
+            payment=self.payment, action='unlink_from_invoice'
+        )
+
     def test_link_payment_to_invoice(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = {'invoice': factories.InvoiceFactory.get_url(invoice=self.invoice)}
@@ -145,3 +149,18 @@ class PaymentActionsTest(test.APITransactionTestCase):
         payload = {'invoice': factories.InvoiceFactory.get_url(self.invoice)}
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unlink_payment_from_invoice(self):
+        self.payment.invoice = self.invoice
+        self.payment.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url_unlink)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.invoice, None)
+
+    def test_do_not_unlink_payment_from_invoice_if_invoice_does_not_exist(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url_unlink)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.payment.invoice, None)

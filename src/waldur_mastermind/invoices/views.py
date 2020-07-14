@@ -148,7 +148,9 @@ class PaymentViewSet(core_views.ActionsViewSet):
         update_permissions
     ) = (
         partial_update_permissions
-    ) = destroy_permissions = link_to_invoice_permissions = [
+    ) = (
+        destroy_permissions
+    ) = link_to_invoice_permissions = unlink_from_invoice_permissions = [
         structure_permissions.is_staff
     ]
     queryset = models.Payment.objects.all()
@@ -184,9 +186,37 @@ class PaymentViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def _link_to_invoice_does_not_exist(payment):
+    def _link_to_invoice_exists(payment):
         if payment.invoice:
             raise exceptions.ValidationError(_('Link to an invoice exists.'))
 
-    link_to_invoice_validators = [_link_to_invoice_does_not_exist]
+    link_to_invoice_validators = [_link_to_invoice_exists]
     link_to_invoice_serializer_class = serializers.LinkToInvoiceSerializer
+
+    def _link_to_invoice_does_not_exist(payment):
+        if not payment.invoice:
+            raise exceptions.ValidationError(_('Link to an invoice does not exist.'))
+
+    @action(detail=True, methods=['post'])
+    def unlink_from_invoice(self, request, uuid=None):
+        payment = self.get_object()
+        invoice = payment.invoice
+        payment.invoice = None
+        payment.save(update_fields=['invoice'])
+
+        log.event_logger.invoice.info(
+            'Payment for invoice ({month}/{year}) has been removed.',
+            event_type='payment_removed',
+            event_context={
+                'month': invoice.month,
+                'year': invoice.year,
+                'customer': invoice.customer,
+            },
+        )
+
+        return Response(
+            {'detail': _('An invoice has been unlinked from payment.')},
+            status=status.HTTP_200_OK,
+        )
+
+    unlink_from_invoice_validators = [_link_to_invoice_does_not_exist]

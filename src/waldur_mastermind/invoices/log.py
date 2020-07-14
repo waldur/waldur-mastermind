@@ -12,6 +12,7 @@ class InvoiceLogger(EventLogger):
             'invoice_paid',
             'invoice_canceled',
             'payment_created',
+            'payment_removed',
         )
         event_groups = {
             'customers': event_types,
