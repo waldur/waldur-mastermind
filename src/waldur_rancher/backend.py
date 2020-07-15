@@ -1,5 +1,6 @@
 import io
 import logging
+import time
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -89,6 +90,8 @@ class RancherBackend(ServiceBackend):
             cluster.name, mtu=mtu, private_registry=private_registry
         )
         self._backend_cluster_to_cluster(backend_cluster, cluster)
+        # as rancher API is not transactional, give it 2s to write cluster state to etcd
+        time.sleep(2)
         self.client.create_cluster_registration_token(cluster.backend_id)
         cluster.node_command = self.client.get_node_command(cluster.backend_id)
         cluster.save()
