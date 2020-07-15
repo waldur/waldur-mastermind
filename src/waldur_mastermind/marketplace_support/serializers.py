@@ -1,7 +1,6 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
-from django.urls import reverse
 from rest_framework import serializers
 
 from waldur_core.core import signals as core_signals
@@ -36,25 +35,20 @@ def get_issue(serializer, scope):
         resource_object_id=scope.id,
         resource_content_type_id=ContentType.objects.get_for_model(scope).id,
     )
-    urls = [
-        {issue.key: reverse('support-issue-detail', args=[issue.uuid.hex])}
-        for issue in issues
-        if issue.key
-    ]
-    urls_count = len(urls)
-
-    if urls_count == 1:
-        return urls[0]
-
-    elif urls_count > 1:
+    connected_issue_count = issues.count()
+    if connected_issue_count == 0:
+        return
+    if connected_issue_count > 1:
         logger.error(
-            'Order item has %s instead of 1. Unable to select. Order item UUID: %s',
-            urls_count,
+            'Order item has %s instead of 1 issues connected. Unable to select. Order item UUID: %s',
+            connected_issue_count,
             scope.uuid.hex,
         )
-        return urls
-    else:
-        return
+
+    issue = issues[0]
+
+    issue_map = {'key': issue.key, 'uuid': issue.uuid.hex}
+    return issue_map
 
 
 def add_issue(sender, fields, **kwargs):

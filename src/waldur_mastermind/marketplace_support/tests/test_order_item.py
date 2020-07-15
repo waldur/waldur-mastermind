@@ -8,7 +8,6 @@ from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
 from django.template import Context, Template
 from django.test import override_settings
-from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -217,8 +216,7 @@ class RequestCreateTest(BaseTest):
         url = marketplace_factories.OrderItemFactory.get_url(order_item=order_item)
         resource = self.client.get(url)
         self.assertEqual(
-            resource.data['issue'],
-            {'SUP-123': reverse('support-issue-detail', args=[issue.uuid.hex])},
+            resource.data['issue'], {'key': 'SUP-123', 'uuid': issue.uuid.hex},
         )
 
 
