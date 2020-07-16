@@ -172,7 +172,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
         payment.save(update_fields=['invoice'])
 
         log.event_logger.invoice.info(
-            'Payment for invoice ({month}/{year}) has been added."',
+            'Payment for invoice ({month}/{year}) has been added.',
             event_type='payment_created',
             event_context={
                 'month': invoice.month,
@@ -220,3 +220,26 @@ class PaymentViewSet(core_views.ActionsViewSet):
         )
 
     unlink_from_invoice_validators = [_link_to_invoice_does_not_exist]
+
+    def perform_create(self, serializer):
+        super(PaymentViewSet, self).perform_create(serializer)
+        payment = serializer.instance
+        log.event_logger.payment.info(
+            'Payment for {customer_name} in the amount of {amount} has been added.',
+            event_type='payment_added',
+            event_context={
+                'amount': payment.sum,
+                'customer': payment.profile.organization,
+            },
+        )
+
+    def perform_destroy(self, instance):
+        customer = instance.profile.organization
+        amount = instance.sum
+        super(PaymentViewSet, self).perform_destroy(instance)
+
+        log.event_logger.payment.info(
+            'Payment for {customer_name} in the amount of {amount} has been removed.',
+            event_type='payment_removed',
+            event_context={'amount': amount, 'customer': customer,},
+        )
