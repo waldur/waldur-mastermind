@@ -15,6 +15,7 @@ class Category(
 
     class Meta:
         ordering = ('name',)
+        verbose_name_plural = "Categories"
 
 
 class Checklist(

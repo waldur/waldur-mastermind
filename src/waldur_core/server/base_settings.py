@@ -60,6 +60,7 @@ INSTALLED_APPS = (
     'taggit',
     'jsoneditor',
     'modeltranslation',
+    'import_export',
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
@@ -358,3 +359,5 @@ IPSTACK_ACCESS_KEY = ''
 
 USE_PROTECTED_URL = False
 CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC = False
+
+IMPORT_EXPORT_USE_TRANSACTIONS = True

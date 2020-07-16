@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
             ],
-            options={'ordering': ('name',),},
+            options={'ordering': ('name',), 'verbose_name_plural': 'Categories'},
         ),
         migrations.AlterModelOptions(
             name='checklist', options={'ordering': ('name',)},
