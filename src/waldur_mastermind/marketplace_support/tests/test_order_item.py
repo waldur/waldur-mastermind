@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 
+import mock
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -220,6 +221,15 @@ class RequestCreateTest(BaseTest):
             resource.data['issue'],
             {'SUP-123': reverse('support-issue-detail', args=[issue.uuid.hex])},
         )
+
+    @mock.patch(
+        'waldur_mastermind.marketplace_support.views.support_executors.IssueCreateExecutor'
+    )
+    def test_if_order_item_has_been_processed_then_executor_must_be_called(
+        self, mock_executor
+    ):
+        self.submit_order_item()
+        mock_executor.execute.assert_called_once()
 
 
 @freeze_time('2019-01-01')
