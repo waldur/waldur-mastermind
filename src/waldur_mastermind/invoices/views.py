@@ -88,7 +88,11 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 invoice=invoice,
             )
 
-            payment.proof = serializer.validated_data['proof']
+            proof = serializer.validated_data.get('proof')
+
+            if proof:
+                payment.proof = proof
+
             payment.save()
 
             log.event_logger.invoice.info(
