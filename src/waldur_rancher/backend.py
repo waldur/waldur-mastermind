@@ -16,7 +16,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_rancher.enums import ClusterRoles, GlobalRoles
-from waldur_rancher.exceptions import RancherException
+from waldur_rancher.exceptions import NotFound, RancherException
 
 from . import client, models, signals, utils
 
@@ -100,17 +100,10 @@ class RancherBackend(ServiceBackend):
         if cluster.backend_id:
             try:
                 self.client.delete_cluster(cluster.backend_id)
-            except RancherException as e:
-                if (
-                    isinstance(e.args[0], dict)
-                    and 'status' in e.args[0]
-                    and e.args[0]['status'] == 404
-                ):
-                    logger.warning(
-                        'Cluster %s is not present in the backend ' % cluster.backend_id
-                    )
-                else:
-                    raise RancherException(e.args[0])
+            except NotFound:
+                logger.debug(
+                    'Cluster %s is not present in the backend ' % cluster.backend_id
+                )
 
         cluster.delete()
 
@@ -118,17 +111,8 @@ class RancherBackend(ServiceBackend):
         if node.backend_id:
             try:
                 self.client.delete_node(node.backend_id)
-            except RancherException as e:
-                if (
-                    isinstance(e.args[0], dict)
-                    and 'status' in e.args[0]
-                    and e.args[0]['status'] == 404
-                ):
-                    logger.warning(
-                        'Node %s is not present in the backend ' % node.backend_id
-                    )
-                else:
-                    raise RancherException(e.args[0])
+            except NotFound:
+                logger.debug('Node %s is not present in the backend ' % node.backend_id)
         node.delete()
 
     def update_cluster(self, cluster):
@@ -376,7 +360,12 @@ class RancherBackend(ServiceBackend):
 
     def delete_cluster_role(self, link):
         if link.backend_id:
-            self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+            try:
+                self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+            except NotFound:
+                logger.debug(
+                    'Cluster role %s is not present in the backend ' % link.backend_id
+                )
 
         link.delete()
 
@@ -488,13 +477,10 @@ class RancherBackend(ServiceBackend):
                 return self.client.delete_cluster_catalog(catalog.backend_id)
             else:
                 return self.client.delete_project_catalog(catalog.backend_id)
-        except RancherException as e:
-            if 'status' in e.args[0] and e.args[0]['status'] == 404:
-                logger.warning(
-                    'Catalog %s is not present in the backend ', catalog.backend_id
-                )
-            else:
-                raise RancherException(e.args[0])
+        except NotFound:
+            logger.debug(
+                'Catalog %s is not present in the backend ', catalog.backend_id
+            )
 
     def get_catalog_spec(self, catalog):
         spec = {
@@ -986,7 +972,10 @@ class RancherBackend(ServiceBackend):
         )
 
     def delete_hpa(self, hpa):
-        self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
+        try:
+            self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
+        except NotFound:
+            logger.debug('HPA %s is not present in the backend ' % hpa.backend_id)
 
     def install_longhorn_to_cluster(self, cluster):
         longhorn_name = 'longhorn'
