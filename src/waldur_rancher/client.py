@@ -5,7 +5,7 @@ import requests
 
 from waldur_core.core.utils import QuietSession
 
-from .exceptions import RancherException
+from .exceptions import NotFound, RancherException
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,8 @@ class RancherClient:
             requests.codes.no_content,
         ):
             return data
+        elif status_code == requests.codes.not_found:
+            raise NotFound(data)
         else:
             raise RancherException(data)
 
