@@ -390,3 +390,13 @@ class InvoicePaidTest(test.APITransactionTestCase):
             self.url, data={'date': date, 'proof': dummy_image()}, format='multipart'
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_proof_is_not_required_for_payment_of_invoice(self):
+        factories.PaymentProfileFactory(
+            organization=self.invoice.customer, is_active=True
+        )
+
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        date = datetime.date.today()
+        response = self.client.post(self.url, data={'date': date}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
