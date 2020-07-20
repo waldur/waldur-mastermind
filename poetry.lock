@@ -431,6 +431,7 @@ iniparse = ">=0.3.2"
 reference = "235aa6e4f3f0bd26daa452300ab3a56a89730f9e"
 type = "git"
 url = "https://github.com/pixelb/crudini"
+
 [[package]]
 category = "main"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -609,7 +610,7 @@ Django = ">=2.0"
 diff-match-patch = "*"
 
 [package.dependencies.tablib]
-extras = ["yaml", "ods", "xlsx", "html", "xls"]
+extras = ["ods", "xls", "xlsx", "yaml", "html"]
 version = ">=0.14.0"
 
 [[package]]
@@ -1320,15 +1321,6 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 version = "3.1.0"
 
-[package.dependencies]
-[package.dependencies.cryptography]
-optional = true
-version = "*"
-
-[package.dependencies.pyjwt]
-optional = true
-version = ">=1.0.0"
-
 [package.extras]
 rsa = ["cryptography"]
 signals = ["blinker"]
@@ -1965,7 +1957,7 @@ description = "CLI and Client Library for OpenStack Networking"
 name = "python-neutronclient"
 optional = false
 python-versions = "*"
-version = "6.9.0"
+version = "6.12.0"
 
 [package.dependencies]
 Babel = ">=2.3.4,<2.4.0 || >2.4.0"
@@ -2438,7 +2430,6 @@ version = "1.3.0"
 [[package]]
 category = "main"
 description = "Backport of pathlib-compatible object wrapper for zip files"
-marker = "python_version < \"3.8\""
 name = "zipp"
 optional = false
 python-versions = ">=3.6"
@@ -2449,7 +2440,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "bf36d8263e6aba5f728734c5b504824db32d376b6116db1255093c488b0f95c3"
+content-hash = "b0ed51853304e910276cbd6215e9f50885004fd3cb53125fbf5b80c4fbc9e261"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -3327,8 +3318,8 @@ python-ldap = [
     {file = "python-ldap-3.1.0.tar.gz", hash = "sha256:41975e79406502c092732c57ef0c2c2eb318d91e8e765f81f5d4ab6c1db727c5"},
 ]
 python-neutronclient = [
-    {file = "python-neutronclient-6.9.0.tar.gz", hash = "sha256:2e9ce009832ca91752ad76f7c18a2d9e8babf8c9c4a92b476195c422a4647321"},
-    {file = "python_neutronclient-6.9.0-py2.py3-none-any.whl", hash = "sha256:390999861563b918cfe0aad2a22f69ce8f13722c3dce9af05161fa8150ddd6e2"},
+    {file = "python-neutronclient-6.12.0.tar.gz", hash = "sha256:450156ff761fef1a2214f38438b3abf44e6b1eb216876a107ec80ff712a3c44d"},
+    {file = "python_neutronclient-6.12.0-py2.py3-none-any.whl", hash = "sha256:274de8a36be4b56adc41dcb12d9c29680c278ea9f96e21067c5649880eb07c91"},
 ]
 python-novaclient = [
     {file = "python-novaclient-10.3.0.tar.gz", hash = "sha256:221c9a8c406146ebc51f78fe22c0eb0c36780eaef56b05ed0c04ec883bf8f90b"},
