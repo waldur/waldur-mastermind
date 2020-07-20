@@ -407,7 +407,7 @@ class RancherClient:
         Update horizontal pod autoscaler.
         """
         return self._put(
-            f'/projects/{project_id}/horizontalpodautoscalers/{hpa_id}',
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}',
             json={
                 'name': name,
                 'description': description,
@@ -423,4 +423,4 @@ class RancherClient:
         """
         Delete horizontal pod autoscaler.
         """
-        return self._delete(f'/projects/{project_id}/horizontalpodautoscalers/{hpa_id}')
+        return self._delete(f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}')
