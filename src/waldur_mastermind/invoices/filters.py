@@ -12,7 +12,7 @@ class InvoiceFilter(django_filters.FilterSet):
     )
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
     state = django_filters.MultipleChoiceFilter(choices=models.Invoice.States.CHOICES)
-    o = django_filters.OrderingFilter(fields=(('year', 'month'),))
+    o = django_filters.OrderingFilter(fields=('year', 'month'))
 
     class Meta:
         model = models.Invoice
@@ -27,7 +27,7 @@ class PaymentProfileFilter(django_filters.FilterSet):
     payment_type = django_filters.MultipleChoiceFilter(
         choices=models.PaymentType.CHOICES
     )
-    o = django_filters.OrderingFilter(fields=(('name', 'payment_type', 'is_active'),))
+    o = django_filters.OrderingFilter(fields=('name', 'payment_type', 'is_active'))
 
     class Meta:
         model = models.PaymentProfile
