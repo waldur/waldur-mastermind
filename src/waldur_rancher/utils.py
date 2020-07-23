@@ -43,7 +43,12 @@ def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
 
 
 def expand_added_nodes(
-    cluster_name, nodes, rancher_spl, tenant_settings, ssh_public_key
+    cluster_name,
+    nodes,
+    rancher_spl,
+    tenant_settings,
+    ssh_public_key,
+    security_groups=None,
 ):
     project = rancher_spl.project
 
@@ -53,7 +58,7 @@ def expand_added_nodes(
         )
     except ObjectDoesNotExist:
         raise serializers.ValidationError(
-            'Service project link for service %s and project %s is not found.'
+            _('Service project link for service %s and project %s is not found.')
             % (tenant_settings.name, project.name)
         )
 
@@ -63,14 +68,16 @@ def expand_added_nodes(
             name=base_image_name, settings=tenant_settings
         )
     except ObjectDoesNotExist:
-        raise serializers.ValidationError('No matching image found.')
+        raise serializers.ValidationError(_('No matching image found.'))
 
-    try:
-        group = openstack_tenant_models.SecurityGroup.objects.get(
-            name='default', settings=tenant_settings
-        )
-    except ObjectDoesNotExist:
-        raise serializers.ValidationError('Default security group is not found.')
+    if not security_groups:
+        try:
+            default_security_group = openstack_tenant_models.SecurityGroup.objects.get(
+                name='default', settings=tenant_settings
+            )
+            security_groups = [default_security_group]
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError(_('Default security group is not found.'))
 
     for node in nodes:
         memory = node.pop('memory', None)
@@ -84,7 +91,7 @@ def expand_added_nodes(
 
         if subnet.settings != tenant_settings:
             raise serializers.ValidationError(
-                'Subnet %s should belong to the service settings %s.'
+                _('Subnet %s should belong to the service settings %s.')
                 % (subnet.name, tenant_settings.name,)
             )
 
@@ -98,7 +105,7 @@ def expand_added_nodes(
             'image': image.uuid.hex,
             'subnet': subnet.uuid.hex,
             'tenant_service_project_link': tenant_spl.id,
-            'group': group.uuid.hex,
+            'security_groups': [group.uuid.hex for group in security_groups],
             'system_volume_size': system_volume_size,
             'system_volume_type': system_volume_type and system_volume_type.uuid.hex,
             'data_volumes': [
@@ -136,7 +143,7 @@ def validate_data_volumes(data_volumes, tenant_settings):
         volume_type = volume.get('volume_type')
         if volume_type and volume_type.settings != tenant_settings:
             raise serializers.ValidationError(
-                'Volume type %s should belong to the service settings %s.'
+                _('Volume type %s should belong to the service settings %s.')
                 % (volume_type.name, tenant_settings.name,)
             )
 
@@ -145,7 +152,7 @@ def validate_data_volumes(data_volumes, tenant_settings):
     ]
     if len(set(mount_points)) != len(mount_points):
         raise serializers.ValidationError(
-            'Each mount point can be specified once at most.'
+            _('Each mount point can be specified once at most.')
         )
 
 
@@ -153,12 +160,12 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
     if flavor:
         if cpu or memory:
             raise serializers.ValidationError(
-                'Either flavor or cpu and memory should be specified.'
+                _('Either flavor or cpu and memory should be specified.')
             )
     else:
         if not cpu or not memory:
             raise serializers.ValidationError(
-                'Either flavor or cpu and memory should be specified.'
+                _('Either flavor or cpu and memory should be specified.')
             )
 
     if not flavor:
@@ -171,11 +178,11 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
         )
 
     if not flavor:
-        raise serializers.ValidationError('No matching flavor found.')
+        raise serializers.ValidationError(_('No matching flavor found.'))
 
     if flavor.settings != tenant_settings:
         raise serializers.ValidationError(
-            'Flavor %s should belong to the service settings %s.'
+            _('Flavor %s should belong to the service settings %s.')
             % (flavor.name, tenant_settings.name,)
         )
 
@@ -190,7 +197,7 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
         ram_requirements = max([t[1]['RAM'] for t in requirements])
         if flavor.cores < cpu_requirements:
             raise serializers.ValidationError(
-                'Flavor %s does not meet requirements. CPU requirement is %s'
+                _('Flavor %s does not meet requirements. CPU requirement is %s')
                 % (flavor, cpu_requirements)
             )
         if flavor.ram < ram_requirements:
