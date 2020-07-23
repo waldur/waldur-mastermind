@@ -18,6 +18,9 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant import (
     serializers as openstack_tenant_serializers,
 )
+from waldur_openstack.openstack_tenant.serializers import (
+    _validate_instance_security_groups,
+)
 
 from . import exceptions, models, utils, validators
 
@@ -176,6 +179,17 @@ class NestedNodeSerializer(BaseNodeSerializer):
         exclude = ('cluster', 'object_id', 'content_type', 'name')
 
 
+class NestedSecurityGroupSerializer(
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    class Meta:
+        model = openstack_tenant_models.SecurityGroup
+        fields = ('url',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'openstacktenant-sgp-detail'}
+        }
+
+
 class ClusterSerializer(
     structure_serializers.SshPublicKeySerializerMixin,
     structure_serializers.BaseResourceSerializer,
@@ -214,6 +228,13 @@ class ClusterSerializer(
         ),
     )
 
+    security_groups = NestedSecurityGroupSerializer(
+        queryset=openstack_tenant_models.SecurityGroup.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+    )
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -223,6 +244,7 @@ class ClusterSerializer(
             'runtime_state',
             'ssh_public_key',
             'install_longhorn',
+            'security_groups',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -258,22 +280,29 @@ class ClusterSerializer(
             raise serializers.ValidationError(_('Name is not unique.'))
 
         tenant_settings = attrs.get('tenant_settings')
-        utils.expand_added_nodes(name, nodes, spl, tenant_settings, ssh_public_key)
+        security_groups = attrs.pop('security_groups', [])
+        if tenant_settings and security_groups:
+            _validate_instance_security_groups(security_groups, tenant_settings)
+        utils.expand_added_nodes(
+            name, nodes, spl, tenant_settings, ssh_public_key, security_groups
+        )
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
         if len([node for node in nodes if 'etcd' in node['roles']]) not in [1, 3, 5]:
             raise serializers.ValidationError(
-                'Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.'
+                _('Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.')
                 % len(nodes)
             )
 
         if not len([node for node in nodes if 'worker' in node['roles']]):
-            raise serializers.ValidationError('Count of workers roles must be min 1.')
+            raise serializers.ValidationError(
+                _('Count of workers roles must be min 1.')
+            )
 
         if not len([node for node in nodes if 'controlplane' in node['roles']]):
             raise serializers.ValidationError(
-                'Count of controlplane nodes must be min 1.'
+                _('Count of controlplane nodes must be min 1.')
             )
 
         return nodes
