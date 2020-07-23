@@ -27,6 +27,7 @@ class PaymentProfileFilter(django_filters.FilterSet):
     payment_type = django_filters.MultipleChoiceFilter(
         choices=models.PaymentType.CHOICES
     )
+    o = django_filters.OrderingFilter(fields=(('name', 'payment_type', 'is_active'),))
 
     class Meta:
         model = models.PaymentProfile
