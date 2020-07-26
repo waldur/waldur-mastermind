@@ -11,6 +11,7 @@ class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
         'tenant_settings',
         'ssh_public_key',
         'install_longhorn',
+        'security_groups',
     )
 
 
