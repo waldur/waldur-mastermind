@@ -165,6 +165,15 @@ class BaseNodeSerializer(
     def get_filtered_field_names(self):
         return ('subnet', 'flavor', 'system_volume_type')
 
+    def get_fields(self):
+        fields = super(BaseNodeSerializer, self).get_fields()
+        if (
+            settings.WALDUR_RANCHER['DISABLE_DATA_VOLUME_CREATION']
+            and 'data_volumes' in fields
+        ):
+            del fields['data_volumes']
+        return fields
+
 
 class NestedNodeSerializer(BaseNodeSerializer):
     instance = core_serializers.GenericRelatedField(
@@ -258,6 +267,15 @@ class ClusterSerializer(
             cluster={'view_name': 'rancher-cluster-detail', 'lookup_field': 'uuid',},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
+
+    def get_fields(self):
+        fields = super(ClusterSerializer, self).get_fields()
+        if (
+            settings.WALDUR_RANCHER['DISABLE_SSH_KEY_INJECTION']
+            and 'ssh_public_key' in fields
+        ):
+            del fields['ssh_public_key']
+        return fields
 
     def validate(self, attrs):
         # Skip validation on update

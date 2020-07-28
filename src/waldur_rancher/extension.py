@@ -19,6 +19,8 @@ class RancherExtension(WaldurExtension):
             'READ_ONLY_MODE': False,
             'MOUNT_POINT_CHOICE_IS_MANDATORY': False,
             'DISABLE_AUTOMANAGEMENT_OF_USERS': False,
+            'DISABLE_SSH_KEY_INJECTION': False,
+            'DISABLE_DATA_VOLUME_CREATION': False,
         }
 
     @staticmethod
@@ -63,4 +65,6 @@ class RancherExtension(WaldurExtension):
             'SYSTEM_VOLUME_MIN_SIZE',
             'READ_ONLY_MODE',
             'MOUNT_POINT_CHOICE_IS_MANDATORY',
+            'DISABLE_SSH_KEY_INJECTION',
+            'DISABLE_DATA_VOLUME_CREATION',
         ]

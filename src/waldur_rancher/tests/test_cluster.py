@@ -593,6 +593,54 @@ class ClusterCreateTest(BaseClusterCreateTest):
             [security_group1.uuid.hex, security_group2.uuid.hex],
         )
 
+    @utils.override_plugin_settings(DISABLE_SSH_KEY_INJECTION=True)
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_disable_ssh_public_key(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        ssh_public_key = SshPublicKeyFactory(user=self.fixture.owner)
+        payload = {
+            'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
+        }
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertTrue('ssh_public_key' not in cluster.node_set.first().initial_data)
+
+    @utils.override_plugin_settings(DISABLE_DATA_VOLUME_CREATION=True)
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_disable_data_volumes(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        volume_type = openstack_tenant_factories.VolumeTypeFactory(
+            settings=self.fixture.tenant_spl.service.settings
+        )
+        payload = {
+            'nodes': [
+                {
+                    'subnet': openstack_tenant_factories.SubNetFactory.get_url(
+                        self.subnet
+                    ),
+                    'system_volume_size': 1024,
+                    'memory': 1,
+                    'cpu': 1,
+                    'roles': ['controlplane', 'etcd', 'worker'],
+                    'data_volumes': [
+                        {
+                            'size': 12 * 1024,
+                            'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(
+                                volume_type
+                            ),
+                            'mount_point': '/var/lib/etcd',
+                        }
+                    ],
+                }
+            ]
+        }
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(len(cluster.node_set.first().initial_data['data_volumes']), 0)
+
 
 class ClusterPullTest(test.APITransactionTestCase):
     def setUp(self):
