@@ -122,7 +122,7 @@ def update_pid(serialized_referrable):
     backend.DataciteBackend().update_doi(referrable)
 
 
-@shared_task
+@shared_task(name='waldur_pid.update_all_pid')
 def update_all_pid():
     for model in mixins.DataciteMixin.get_all_models():
         for referrable in model.objects.exclude(datacite_doi=''):
