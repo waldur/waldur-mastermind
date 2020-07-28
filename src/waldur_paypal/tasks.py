@@ -1,12 +1,11 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
 
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core.tasks import ExtensionTaskMixin
-from waldur_core.structure import SupportedServices
 
 from . import executors, models
 
@@ -16,42 +15,6 @@ logger = logging.getLogger(__name__)
 class PaypalTaskMixin(ExtensionTaskMixin):
     def is_extension_disabled(self):
         return not settings.WALDUR_PAYPAL['ENABLED']
-
-
-class DebitCustomers(PaypalTaskMixin, core_tasks.BackgroundTask):
-    """ Fetch a list of shared services (services based on shared settings).
-        Calculate the amount of consumed resources "yesterday" (make sure this task executed only once a day)
-        Reduce customer's balance accordingly
-        Stop online resource if needed
-    """
-
-    name = 'waldur_paypal.DebitCustomers'
-
-    def is_equal(self, other_task, *args, **kwargs):
-        return self.name == other_task.get('name')
-
-    def run(self):
-        date = datetime.now() - timedelta(days=1)
-        start_date = date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = start_date + timedelta(days=1, microseconds=-1)
-
-        # XXX: it's just a placeholder, it doesn't work properly now nor implemented anyhow
-        #      perhaps it should merely use price estimates..
-
-        models = SupportedServices.get_resource_models().values()
-
-        for model in models:
-            resources = model.objects.filter(
-                service_project_link__service__settings__shared=True
-            )
-
-            for resource in resources:
-                try:
-                    data = resource.get_cost(start_date, end_date)
-                except NotImplementedError:
-                    continue
-                else:
-                    resource.customer.debit_account(data['total_amount'])
 
 
 class PaymentsCleanUp(PaypalTaskMixin, core_tasks.BackgroundTask):
