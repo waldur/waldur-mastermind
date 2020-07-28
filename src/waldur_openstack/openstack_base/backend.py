@@ -310,64 +310,54 @@ class BaseOpenStackBackend(ServiceBackend):
         nova = self.nova_client
         neutron = self.neutron_client
         cinder = self.cinder_client
+
         try:
+            nova_quotas = nova.quotas.get(
+                tenant_id=tenant_backend_id, detail=True
+            )._info
+            neutron_quotas = neutron.show_quota_details(tenant_backend_id)['quota']
             volumes = cinder.volumes.list()
             snapshots = cinder.volume_snapshots.list()
-            instances = nova.servers.list()
-            security_groups = neutron.list_security_groups(tenant_id=tenant_backend_id)[
-                'security_groups'
-            ]
-            floating_ips = neutron.list_floatingips(tenant_id=tenant_backend_id)[
-                'floatingips'
-            ]
-            networks = neutron.list_networks(tenant_id=tenant_backend_id)['networks']
-            subnets = neutron.list_subnets(tenant_id=tenant_backend_id)['subnets']
-
-            flavors = {flavor.id: flavor for flavor in nova.flavors.list()}
-
-            ram, vcpu = 0, 0
-            for flavor_id in (instance.flavor['id'] for instance in instances):
-                try:
-                    flavor = flavors.get(flavor_id, nova.flavors.get(flavor_id))
-                except nova_exceptions.NotFound:
-                    logger.warning('Cannot find flavor with id %s', flavor_id)
-                    continue
-
-                ram += getattr(flavor, 'ram', 0)
-                vcpu += getattr(flavor, 'vcpus', 0)
-
+            cinder_quotas = cinder.quotas.get(
+                tenant_id=tenant_backend_id, usage=True
+            )._info
         except (
             nova_exceptions.ClientException,
-            cinder_exceptions.ClientException,
             neutron_exceptions.NeutronClientException,
+            cinder_exceptions.ClientException,
         ) as e:
             raise OpenStackBackendError(e)
 
+        # Cinder quotas for volumes and snapshots size are not available in REST API
+        # therefore we need to calculate them manually
         volumes_size = sum(self.gb2mb(v.size) for v in volumes)
         snapshots_size = sum(self.gb2mb(v.size) for v in snapshots)
         storage = volumes_size + snapshots_size
 
         quotas = {
-            Tenant.Quotas.ram: ram,
-            Tenant.Quotas.vcpu: vcpu,
+            # Nova quotas
+            Tenant.Quotas.ram: nova_quotas['ram']['in_use'],
+            Tenant.Quotas.vcpu: nova_quotas['cores']['in_use'],
+            Tenant.Quotas.instances: nova_quotas['instances']['in_use'],
+            # Neutron quotas
+            Tenant.Quotas.security_group_count: neutron_quotas['security_group'][
+                'used'
+            ],
+            Tenant.Quotas.security_group_rule_count: neutron_quotas[
+                'security_group_rule'
+            ]['used'],
+            Tenant.Quotas.floating_ip_count: neutron_quotas['floatingip']['used'],
+            Tenant.Quotas.network_count: neutron_quotas['network']['used'],
+            Tenant.Quotas.subnet_count: neutron_quotas['subnet']['used'],
+            # Cinder quotas
             Tenant.Quotas.storage: storage,
             Tenant.Quotas.volumes: len(volumes),
             Tenant.Quotas.volumes_size: volumes_size,
             Tenant.Quotas.snapshots: len(snapshots),
             Tenant.Quotas.snapshots_size: snapshots_size,
-            Tenant.Quotas.instances: len(instances),
-            Tenant.Quotas.security_group_count: len(security_groups),
-            Tenant.Quotas.security_group_rule_count: len(
-                sum([sg['security_group_rules'] for sg in security_groups], [])
-            ),
-            Tenant.Quotas.floating_ip_count: len(floating_ips),
-            Tenant.Quotas.network_count: len(networks),
-            Tenant.Quotas.subnet_count: len(subnets),
         }
 
-        for name, value in cinder.quotas.get(
-            tenant_id=tenant_backend_id, usage=True
-        )._info.items():
+        for name, value in cinder_quotas.items():
             if name.startswith('gigabytes_'):
                 quotas[name] = value['in_use']
 

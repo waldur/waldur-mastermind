@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 
+import mock
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -206,6 +207,27 @@ class RequestCreateTest(BaseTest):
         order_item = marketplace_models.OrderItem.objects.get(resource=resource)
         issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
         self.assertEqual(issue.caller, order_item.order.created_by)
+
+    def test_order_item_serializer_includes_issue_link(self):
+        order_item = self.submit_order_item()
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        issue.key = 'SUP-123'
+        issue.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.OrderItemFactory.get_url(order_item=order_item)
+        resource = self.client.get(url)
+        self.assertEqual(
+            resource.data['issue'], {'key': 'SUP-123', 'uuid': issue.uuid.hex},
+        )
+
+    @mock.patch(
+        'waldur_mastermind.marketplace_support.views.support_executors.IssueCreateExecutor'
+    )
+    def test_if_order_item_has_been_processed_then_executor_must_be_called(
+        self, mock_executor
+    ):
+        self.submit_order_item()
+        mock_executor.execute.assert_called_once()
 
 
 @freeze_time('2019-01-01')

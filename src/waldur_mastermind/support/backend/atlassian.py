@@ -43,6 +43,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         )
         self.verify = settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('verify_ssl')
         self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
+        # allow to define reference by ID as older SD cannot properly resolve
+        # TODO drop once transition to request API is complete
+        self.service_desk_reference = self.project_settings.get(
+            'key_id', self.project_settings['key']
+        )
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
         self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
@@ -99,7 +104,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
         args = self._issue_to_dict(issue)
         args['serviceDeskId'] = self.manager.waldur_service_desk(
-            self.project_settings['key']
+            self.service_desk_reference
         )
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             self.pull_request_types()
@@ -325,7 +330,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     @reraise_exceptions
     def pull_request_types(self):
-        service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
+        service_desk_id = self.manager.waldur_service_desk(self.service_desk_reference)
         # backend_request_types = self.manager.request_types(service_desk_id)
         backend_request_types = self.manager.waldur_request_types(
             service_desk_id, self.project_settings['key'], self.strange_setting

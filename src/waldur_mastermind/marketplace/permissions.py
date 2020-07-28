@@ -98,6 +98,26 @@ def user_can_list_importable_resources(request, view, offering=None):
             'Import is limited to staff for shared offerings.'
         )
 
+    # Import private offerings must be available for admins and managers
+    if (
+        offering.scope
+        and offering.scope.scope
+        and offering.scope.scope.service_project_link
+    ):
+        project = offering.scope.scope.service_project_link.project
+        if (
+            project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
+            .filter(pk=user.pk)
+            .exists()
+        ):
+            return
+        if (
+            project.get_users(structure_models.ProjectRole.MANAGER)
+            .filter(pk=user.pk)
+            .exists()
+        ):
+            return
+
     owned_customers = set(
         structure_models.Customer.objects.all()
         .filter(

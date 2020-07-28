@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from jira import JIRAError
 from rest_framework import exceptions as rf_exceptions
@@ -16,6 +17,7 @@ from waldur_mastermind.marketplace_support.utils import (
 )
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
+from waldur_mastermind.support import executors as support_executors
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_mastermind.support import views as support_views
@@ -108,3 +110,11 @@ class IssueViewSet(core_views.ActionsViewSet):
 
 class OfferingViewSet(support_views.OfferingViewSet):
     create_serializer_class = serializers.OfferingCreateSerializer
+
+    @transaction.atomic()
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering = serializer.save()
+        support_executors.IssueCreateExecutor.execute(offering.issue)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

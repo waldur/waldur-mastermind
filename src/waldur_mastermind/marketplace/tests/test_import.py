@@ -29,8 +29,20 @@ class ImportableOfferingsListTest(test.APITransactionTestCase):
         offerings = self.list_offerings(shared=True, user=user)
         self.assertEqual(0, len(offerings))
 
-    @data('staff', 'owner')
+    @data(
+        'staff', 'owner',
+    )
     def test_staff_and_owner_can_list_importable_private_offerings(self, user):
+        offerings = self.list_offerings(shared=False, user=user)
+        self.assertEqual(1, len(offerings))
+
+    @data('staff', 'owner', 'manager', 'admin')
+    def test_project_users_can_list_importable_private_offerings_if_they_have_relation_with_project(
+        self, user
+    ):
+        self.fixture.manager
+        self.fixture.service_settings.scope = self.fixture.resource
+        self.fixture.service_settings.save()
         offerings = self.list_offerings(shared=False, user=user)
         self.assertEqual(1, len(offerings))
 

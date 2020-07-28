@@ -69,6 +69,7 @@ class ClusterViewSet(
         cluster = serializer.save()
         user = self.request.user
         nodes = serializer.validated_data.get('node_set')
+        install_longhorn = serializer.validated_data['install_longhorn']
 
         for node_data in nodes:
             node_data['cluster'] = cluster
@@ -76,7 +77,10 @@ class ClusterViewSet(
 
         transaction.on_commit(
             lambda: executors.ClusterCreateExecutor.execute(
-                cluster, user=user, is_heavy_task=True,
+                cluster,
+                user=user,
+                install_longhorn=install_longhorn,
+                is_heavy_task=True,
             )
         )
 
@@ -507,4 +511,21 @@ class WorkloadViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.WorkloadSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.WorkloadFilter
+    lookup_field = 'uuid'
+
+
+class HPAViewSet(structure_views.ResourceViewSet):
+    queryset = models.HPA.objects.all()
+    serializer_class = serializers.HPASerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.HPAFilter
+    lookup_field = 'uuid'
+    create_executor = executors.HPACreateExecutor
+    update_executor = executors.HPAUpdateExecutor
+    delete_executor = executors.HPADeleteExecutor
+
+
+class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.ClusterTemplate.objects.all()
+    serializer_class = serializers.ClusterTemplateSerializer
     lookup_field = 'uuid'

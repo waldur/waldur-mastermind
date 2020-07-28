@@ -59,7 +59,7 @@ RUN yum clean all && \
     uwsgi-plugin-python36 \
     gettext \
     which \
-    https://downloads.wkhtmltopdf.org/0.12/0.12.5/wkhtmltox-0.12.5-1.centos7.x86_64.rpm \
+    https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.centos7.x86_64.rpm \
     freetype \
     liberation-serif-fonts \
     liberation-sans-fonts \

@@ -33,7 +33,7 @@ class CreateNodeTask(core_tasks.Task):
         data_volumes = node.initial_data.get('data_volumes', [])
         image = node.initial_data['image']
         subnet = node.initial_data['subnet']
-        group = node.initial_data['group']
+        security_groups = node.initial_data['security_groups']
         tenant_spl = node.initial_data['tenant_service_project_link']
         user = auth.get_user_model().objects.get(pk=user_id)
         ssh_public_key = node.initial_data.get('ssh_public_key')
@@ -64,6 +64,7 @@ class CreateNodeTask(core_tasks.Task):
             ],
             'security_groups': [
                 {'url': reverse('openstacktenant-sgp-detail', kwargs={'uuid': group})}
+                for group in security_groups
             ],
             'internal_ips_set': [
                 {

@@ -18,9 +18,7 @@ class RancherUserProjectLinkInline(admin.TabularInline):
     model = models.RancherUserProjectLink
 
 
-class RancherUserAdmin(
-    core_admin.ExtraActionsMixin, core_admin.ReadOnlyAdminMixin, admin.ModelAdmin
-):
+class RancherUserAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('__str__', 'settings', 'is_active')
 
     inlines = [
@@ -63,6 +61,21 @@ class NamespaceAdmin(admin.ModelAdmin):
 
 class TemplateAdmin(admin.ModelAdmin):
     list_display = ('name', 'description', 'catalog', 'runtime_state')
+    list_filter = (
+        'cluster',
+        'catalog',
+    )
+
+    search_fields = ('name', 'description')
+
+
+class ClusterTemplateNodeInline(admin.TabularInline):
+    model = models.ClusterTemplateNode
+
+
+class ClusterTemplateAdmin(core_admin.HideAdminOriginalMixin):
+    list_display = ('name', 'description')
+    inlines = [ClusterTemplateNodeInline]
 
 
 admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
@@ -76,3 +89,4 @@ admin.site.register(models.Catalog, CatalogAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.Namespace, NamespaceAdmin)
 admin.site.register(models.Template, TemplateAdmin)
+admin.site.register(models.ClusterTemplate, ClusterTemplateAdmin)

@@ -472,7 +472,7 @@ class KeycloakView(BaseAuthView):
         # Preferred username is not unique. Sub in UUID.
         username = f'keycloak_f{backend_user["sub"]}'
         email = backend_user.get('email')
-        full_name = backend_user.get('name')
+        full_name = backend_user.get('name', '')
         try:
             user = User.objects.get(username=username)
             created = False

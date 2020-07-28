@@ -1,3 +1,4 @@
+import datetime
 from decimal import Decimal
 from unittest import mock
 
@@ -8,6 +9,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
@@ -330,3 +332,71 @@ class InvoicePDFTest(test.APITransactionTestCase):
             factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             invoice.update_current_cost()
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 2)
+
+
+@ddt
+class InvoicePaidTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.invoice = self.fixture.invoice
+        self.invoice.state = models.Invoice.States.CREATED
+        self.invoice.save()
+        self.url = factories.InvoiceFactory.get_url(self.invoice, 'paid')
+
+    def test_staff_can_mark_invoice_as_paid(self):
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.state, models.Invoice.States.PAID)
+
+    @data('owner', 'manager', 'admin', 'user')
+    def test_other_users_cannot_mark_invoice_as_paid(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_cannot_mark_invoice_as_paid_if_current_state_is_not_created(self):
+        self.invoice.state = models.Invoice.States.PENDING
+        self.invoice.save()
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_create_payment_if_payment_data_has_been_passed(self):
+        profile = factories.PaymentProfileFactory(
+            organization=self.invoice.customer, is_active=True
+        )
+
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        date = datetime.date.today()
+        response = self.client.post(
+            self.url, data={'date': date, 'proof': dummy_image()}, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.state, models.Invoice.States.PAID)
+        self.assertEqual(
+            models.Payment.objects.filter(
+                date_of_payment=date, profile=profile
+            ).count(),
+            1,
+        )
+
+    def test_do_not_create_payment_if_profile_does_not_exist(self):
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        date = datetime.date.today()
+        response = self.client.post(
+            self.url, data={'date': date, 'proof': dummy_image()}, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_proof_is_not_required_for_payment_of_invoice(self):
+        factories.PaymentProfileFactory(
+            organization=self.invoice.customer, is_active=True
+        )
+
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        date = datetime.date.today()
+        response = self.client.post(self.url, data={'date': date}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

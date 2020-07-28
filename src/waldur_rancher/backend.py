@@ -1,5 +1,6 @@
 import io
 import logging
+import time
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -15,7 +16,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_rancher.enums import ClusterRoles, GlobalRoles
-from waldur_rancher.exceptions import RancherException
+from waldur_rancher.exceptions import NotFound, RancherException
 
 from . import client, models, signals, utils
 
@@ -65,6 +66,7 @@ class RancherBackend(ServiceBackend):
         self.pull_templates()
         self.pull_template_icons()
         self.pull_workloads()
+        self.pull_hpas()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -88,6 +90,8 @@ class RancherBackend(ServiceBackend):
             cluster.name, mtu=mtu, private_registry=private_registry
         )
         self._backend_cluster_to_cluster(backend_cluster, cluster)
+        # as rancher API is not transactional, give it 2s to write cluster state to etcd
+        time.sleep(2)
         self.client.create_cluster_registration_token(cluster.backend_id)
         cluster.node_command = self.client.get_node_command(cluster.backend_id)
         cluster.save()
@@ -96,13 +100,10 @@ class RancherBackend(ServiceBackend):
         if cluster.backend_id:
             try:
                 self.client.delete_cluster(cluster.backend_id)
-            except RancherException as e:
-                if 'status' in e.args[0] and e.args[0]['status'] == 404:
-                    logger.warning(
-                        'Cluster %s is not present in the backend ' % cluster.backend_id
-                    )
-                else:
-                    raise RancherException(e.args[0])
+            except NotFound:
+                logger.debug(
+                    'Cluster %s is not present in the backend ' % cluster.backend_id
+                )
 
         cluster.delete()
 
@@ -110,13 +111,8 @@ class RancherBackend(ServiceBackend):
         if node.backend_id:
             try:
                 self.client.delete_node(node.backend_id)
-            except RancherException as e:
-                if 'status' in e.args[0] and e.args[0]['status'] == 404:
-                    logger.warning(
-                        'Node %s is not present in the backend ' % node.backend_id
-                    )
-                else:
-                    raise RancherException(e.args[0])
+            except NotFound:
+                logger.debug('Node %s is not present in the backend ' % node.backend_id)
         node.delete()
 
     def update_cluster(self, cluster):
@@ -177,6 +173,8 @@ class RancherBackend(ServiceBackend):
         self.pull_namespaces_for_cluster(cluster)
         self.pull_catalogs_for_cluster(cluster)
         self.pull_templates_for_cluster(cluster)
+        self.pull_cluster_workloads(cluster)
+        self.pull_cluster_hpas(cluster)
 
     def pull_cluster_details(self, cluster, backend_cluster=None):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
@@ -362,7 +360,12 @@ class RancherBackend(ServiceBackend):
 
     def delete_cluster_role(self, link):
         if link.backend_id:
-            self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+            try:
+                self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+            except NotFound:
+                logger.debug(
+                    'Cluster role %s is not present in the backend ' % link.backend_id
+                )
 
         link.delete()
 
@@ -474,13 +477,10 @@ class RancherBackend(ServiceBackend):
                 return self.client.delete_cluster_catalog(catalog.backend_id)
             else:
                 return self.client.delete_project_catalog(catalog.backend_id)
-        except RancherException as e:
-            if 'status' in e.args[0] and e.args[0]['status'] == 404:
-                logger.warning(
-                    'Catalog %s is not present in the backend ', catalog.backend_id
-                )
-            else:
-                raise RancherException(e.args[0])
+        except NotFound:
+            logger.debug(
+                'Catalog %s is not present in the backend ', catalog.backend_id
+            )
 
     def get_catalog_spec(self, catalog):
         spec = {
@@ -814,6 +814,10 @@ class RancherBackend(ServiceBackend):
                 )
         return applications
 
+    def pull_cluster_workloads(self, cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_workloads(project)
+
     def pull_workloads(self):
         for project in models.Project.objects.filter(settings=self.settings):
             self.pull_project_workloads(project)
@@ -870,4 +874,195 @@ class RancherBackend(ServiceBackend):
             settings=self.settings,
             namespace=local_namespaces_map.get(remote_workload['namespaceId']),
             scale=remote_workload.get('scale', 0),
+        )
+
+    def pull_cluster_hpas(self, cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_hpas(project)
+
+    def pull_hpas(self):
+        for project in models.Project.objects.filter(settings=self.settings):
+            self.pull_project_hpas(project)
+
+    def pull_project_hpas(self, project):
+        local_workloads = models.Workload.objects.filter(project=project)
+        local_workloads_map = {
+            workload.backend_id: workload for workload in local_workloads
+        }
+
+        local_hpas = models.HPA.objects.filter(project=project)
+        local_hpa_map = {hpa.backend_id: hpa for hpa in local_hpas}
+
+        remote_hpas = self.client.list_hpas(project.backend_id)
+        remote_hpa_map = {
+            hpa['id']: self.remote_hpa_to_local(hpa, local_workloads_map)
+            for hpa in remote_hpas
+        }
+
+        remote_hpa_ids = set(remote_hpa_map.keys())
+        local_hpa_ids = set(local_hpa_map.keys())
+
+        stale_hpas = local_hpa_ids - remote_hpa_ids
+
+        new_hpas = [remote_hpa_map[hpa_id] for hpa_id in remote_hpa_ids - local_hpa_ids]
+
+        existing_hpas = remote_hpa_ids & local_hpa_ids
+        pulled_fields = {
+            'name',
+            'runtime_state',
+            'current_replicas',
+            'desired_replicas',
+            'min_replicas',
+            'max_replicas',
+            'metrics',
+        }
+        for hpa_id in existing_hpas:
+            local_hpa = local_hpa_map[hpa_id]
+            remote_hpa = remote_hpa_map[hpa_id]
+            update_pulled_fields(local_hpa, remote_hpa, pulled_fields)
+
+        models.HPA.objects.bulk_create(new_hpas)
+        local_hpas.filter(backend_id__in=stale_hpas).delete()
+
+    def remote_hpa_to_local(self, remote_hpa, local_workloads_map):
+        workload = local_workloads_map[remote_hpa['workloadId']]
+        return models.HPA(
+            backend_id=remote_hpa['id'],
+            name=remote_hpa['name'],
+            created=parse_datetime(remote_hpa['created']),
+            runtime_state=remote_hpa['state'],
+            project=workload.project,
+            cluster=workload.cluster,
+            settings=self.settings,
+            namespace=workload.namespace,
+            current_replicas=remote_hpa['currentReplicas'],
+            desired_replicas=remote_hpa['desiredReplicas'],
+            min_replicas=remote_hpa['minReplicas'],
+            max_replicas=remote_hpa['maxReplicas'],
+            metrics=remote_hpa['metrics'],
+            state=models.HPA.States.OK,
+        )
+
+    def create_hpa(self, hpa):
+        remote_hpa = self.client.create_hpa(
+            hpa.project.backend_id,
+            hpa.namespace.backend_id,
+            hpa.workload.backend_id,
+            hpa.name,
+            hpa.description,
+            hpa.min_replicas,
+            hpa.max_replicas,
+            hpa.metrics,
+        )
+        hpa.backend_id = remote_hpa['id']
+        hpa.runtime_state = remote_hpa['state']
+        hpa.save(update_fields=['backend_id', 'runtime_state'])
+
+    def update_hpa(self, hpa):
+        self.client.update_hpa(
+            hpa.project.backend_id,
+            hpa.backend_id,
+            hpa.namespace.backend_id,
+            hpa.workload.backend_id,
+            hpa.name,
+            hpa.description,
+            hpa.min_replicas,
+            hpa.max_replicas,
+            hpa.metrics,
+        )
+
+    def delete_hpa(self, hpa):
+        try:
+            self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
+        except NotFound:
+            logger.debug('HPA %s is not present in the backend ' % hpa.backend_id)
+
+    def install_longhorn_to_cluster(self, cluster):
+        longhorn_name = 'longhorn'
+        longhorn_namespace = 'longhorn-system'
+        catalog_name = 'library'
+
+        system_project = models.Project.objects.filter(
+            cluster=cluster, name='System'
+        ).first()
+        if not system_project:
+            raise RancherException(
+                "There is no system project in cluster %s" % cluster.backend_id
+            )
+
+        available_templates = models.Template.objects.filter(
+            name=longhorn_name, catalog__name=catalog_name
+        )
+        available_templates_count = len(available_templates)
+        if available_templates_count != 1:
+            if available_templates_count == 0:
+                message = "There are no templates with name=%s, catalog.name=%s" % (
+                    longhorn_name,
+                    catalog_name,
+                )
+            else:
+                message = (
+                    "There are more than one template for name=%s, catalog.name=%s"
+                    % (longhorn_name, catalog_name)
+                )
+            logger.info(message)
+            raise RancherException(message)
+
+        logger.info(
+            'Starting longhorn installation for cluster %s (name=%s, backend_id=%s)',
+            cluster,
+            cluster.name,
+            cluster.backend_id,
+        )
+        template = available_templates.first()
+
+        try:
+            namespace = models.Namespace.objects.get(
+                name=longhorn_namespace, project=system_project
+            )
+        except models.Namespace.DoesNotExist:
+            logger.info(
+                'Creating namespace %s for cluster %s (name=%s, backend_id=%s)',
+                longhorn_namespace,
+                cluster,
+                cluster.name,
+                cluster.backend_id,
+            )
+            namespace_response = self.client.create_namespace(
+                cluster.backend_id, system_project.backend_id, longhorn_namespace
+            )
+            namespace = models.Namespace.objects.create(
+                name=longhorn_namespace,
+                backend_id=namespace_response['id'],
+                settings=system_project.settings,
+                project=system_project,
+            )
+
+        logger.info(
+            'Creating application %s for cluster %s (name=%s, backend_id=%s) in namespace %s (backend_id=%s)',
+            longhorn_namespace,
+            cluster,
+            cluster.name,
+            cluster.backend_id,
+            namespace.name,
+            namespace.backend_id,
+        )
+        worker_node_count = cluster.node_set.filter(worker_role=True).count()
+        replica_count = min(3, worker_node_count)
+        application = self.client.create_application(
+            catalog_id=template.catalog.backend_id,
+            template_id=template.name,
+            version=template.default_version,
+            project_id=system_project.backend_id,
+            namespace_id=namespace.backend_id,
+            name=longhorn_name,
+            answers={'persistence.defaultClassReplicaCount': replica_count,},
+        )
+
+        logger.info(
+            'Application %s for cluster %s (name=%s, backend_id=%s) was created',
+            application,
+            cluster,
+            cluster.name,
+            cluster.backend_id,
         )

@@ -197,6 +197,17 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
     update_executor = executors.VolumeUpdateExecutor
     pull_executor = executors.VolumePullExecutor
 
+    def _can_destroy_volume(volume):
+        if volume.state == models.Volume.States.ERRED:
+            return
+        if volume.state != models.Volume.States.OK:
+            raise core_exceptions.IncorrectStateException(
+                _('Volume should be in OK state.')
+            )
+        core_validators.RuntimeStateValidator(
+            'available', 'error', 'error_restoring', 'error_extending', ''
+        )(volume)
+
     def _volume_snapshots_exist(volume):
         if volume.snapshots.exists():
             raise core_exceptions.IncorrectStateException(
@@ -205,13 +216,8 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 
     delete_executor = executors.VolumeDeleteExecutor
     destroy_validators = [
+        _can_destroy_volume,
         _volume_snapshots_exist,
-        core_validators.StateValidator(
-            models.Volume.States.OK, models.Volume.States.ERRED
-        ),
-        core_validators.RuntimeStateValidator(
-            'available', 'error', 'error_restoring', 'error_extending', ''
-        ),
     ]
 
     def _is_volume_bootable(volume):

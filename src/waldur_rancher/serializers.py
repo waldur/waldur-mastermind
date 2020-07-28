@@ -18,6 +18,9 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant import (
     serializers as openstack_tenant_serializers,
 )
+from waldur_openstack.openstack_tenant.serializers import (
+    _validate_instance_security_groups,
+)
 
 from . import exceptions, models, utils, validators
 
@@ -176,6 +179,17 @@ class NestedNodeSerializer(BaseNodeSerializer):
         exclude = ('cluster', 'object_id', 'content_type', 'name')
 
 
+class NestedSecurityGroupSerializer(
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    class Meta:
+        model = openstack_tenant_models.SecurityGroup
+        fields = ('url',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'openstacktenant-sgp-detail'}
+        }
+
+
 class ClusterSerializer(
     structure_serializers.SshPublicKeySerializerMixin,
     structure_serializers.BaseResourceSerializer,
@@ -207,6 +221,20 @@ class ClusterSerializer(
     )
     nodes = NestedNodeSerializer(many=True, source='node_set')
 
+    install_longhorn = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Longhorn is a distributed block storage deployed on top of Kubernetes cluster"
+        ),
+    )
+
+    security_groups = NestedSecurityGroupSerializer(
+        queryset=openstack_tenant_models.SecurityGroup.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+    )
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -215,6 +243,8 @@ class ClusterSerializer(
             'tenant_settings',
             'runtime_state',
             'ssh_public_key',
+            'install_longhorn',
+            'security_groups',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -250,22 +280,29 @@ class ClusterSerializer(
             raise serializers.ValidationError(_('Name is not unique.'))
 
         tenant_settings = attrs.get('tenant_settings')
-        utils.expand_added_nodes(name, nodes, spl, tenant_settings, ssh_public_key)
+        security_groups = attrs.pop('security_groups', [])
+        if tenant_settings and security_groups:
+            _validate_instance_security_groups(security_groups, tenant_settings)
+        utils.expand_added_nodes(
+            name, nodes, spl, tenant_settings, ssh_public_key, security_groups
+        )
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
         if len([node for node in nodes if 'etcd' in node['roles']]) not in [1, 3, 5]:
             raise serializers.ValidationError(
-                'Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.'
+                _('Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.')
                 % len(nodes)
             )
 
         if not len([node for node in nodes if 'worker' in node['roles']]):
-            raise serializers.ValidationError('Count of workers roles must be min 1.')
+            raise serializers.ValidationError(
+                _('Count of workers roles must be min 1.')
+            )
 
         if not len([node for node in nodes if 'controlplane' in node['roles']]):
             raise serializers.ValidationError(
-                'Count of controlplane nodes must be min 1.'
+                _('Count of controlplane nodes must be min 1.')
             )
 
         return nodes
@@ -645,6 +682,76 @@ class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class HPASerializer(serializers.HyperlinkedModelSerializer):
+    cluster_uuid = serializers.ReadOnlyField(source='cluster.uuid')
+    cluster_name = serializers.ReadOnlyField(source='cluster.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    namespace_uuid = serializers.ReadOnlyField(source='namespace.uuid')
+    namespace_name = serializers.ReadOnlyField(source='namespace.name')
+    workload_uuid = serializers.ReadOnlyField(source='workload.uuid')
+    workload_name = serializers.ReadOnlyField(source='workload.name')
+
+    class Meta:
+        model = models.HPA
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'description',
+            'created',
+            'modified',
+            'runtime_state',
+            'cluster',
+            'cluster_uuid',
+            'cluster_name',
+            'project',
+            'project_uuid',
+            'project_name',
+            'namespace',
+            'namespace_uuid',
+            'namespace_name',
+            'workload',
+            'workload_uuid',
+            'workload_name',
+            'min_replicas',
+            'max_replicas',
+            'current_replicas',
+            'desired_replicas',
+            'metrics',
+        )
+        read_only_fields = (
+            'state',
+            'runtime_state',
+            'current_replicas',
+            'desired_replicas',
+            'cluster',
+            'project',
+            'namespace',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+            'namespace': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-namespace-detail',
+            },
+            'workload': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-workload-detail',
+            },
+        }
+
+    def create(self, validated_data):
+        workload = validated_data['workload']
+        validated_data['settings'] = workload.settings
+        validated_data['cluster'] = workload.cluster
+        validated_data['project'] = workload.project
+        validated_data['namespace'] = workload.namespace
+        return super(HPASerializer, self).create(validated_data)
+
+
 class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 
@@ -674,15 +781,35 @@ class RancherUserProjectLinkSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
-    cluster_roles = RancherUserClusterLinkSerializer(
-        many=True, read_only=True, source='rancheruserclusterlink_set'
-    )
+    cluster_roles = RancherUserClusterLinkSerializer(many=True, read_only=True)
 
-    project_roles = RancherUserProjectLinkSerializer(
-        many=True, read_only=True, source='rancheruserprojectlink_set'
-    )
+    project_roles = RancherUserProjectLinkSerializer(many=True, read_only=True)
 
     user_name = serializers.ReadOnlyField(source='user.username')
+    full_name = serializers.ReadOnlyField(source='user.full_name')
+
+    def __init__(self, instance=None, *args, **kwargs):
+        if instance:
+            if isinstance(instance, list):
+                request = kwargs.get('context', {}).get('request')
+                if request:
+                    cluster_uuid = request.GET.get('cluster_uuid')
+                    for user in instance:
+                        if cluster_uuid:
+                            user.cluster_roles = user.rancheruserclusterlink_set.filter(
+                                cluster__uuid=cluster_uuid
+                            )
+                            user.project_roles = user.rancheruserprojectlink_set.filter(
+                                project__cluster__uuid=cluster_uuid
+                            )
+                        else:
+                            user.cluster_roles = user.rancheruserclusterlink_set.all()
+                            user.project_roles = user.rancheruserprojectlink_set.all()
+            else:
+                instance.cluster_roles = instance.rancheruserclusterlink_set.all()
+                instance.project_roles = instance.rancheruserprojectlink_set.all()
+
+        super().__init__(instance=instance, *args, **kwargs)
 
     class Meta:
         model = models.RancherUser
@@ -695,12 +822,52 @@ class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
             'settings',
             'is_active',
             'user_name',
+            'full_name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-user-detail'},
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
             'settings': {'lookup_field': 'uuid'},
         }
+
+
+class ClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.ClusterTemplateNode
+        fields = (
+            'min_vcpu',
+            'min_ram',
+            'system_volume_size',
+            'preferred_volume_type',
+            'roles',
+        )
+
+    roles = serializers.SerializerMethodField()
+
+    def get_roles(self, node):
+        roles = []
+        if node.controlplane_role:
+            roles.append('controlplane')
+        if node.etcd_role:
+            roles.append('etcd')
+        if node.worker_role:
+            roles.append('worker')
+        return roles
+
+
+class ClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
+    nodes = ClusterTemplateNodeSerializer(many=True)
+
+    class Meta:
+        model = models.ClusterTemplate
+        fields = (
+            'uuid',
+            'name',
+            'description',
+            'created',
+            'modified',
+            'nodes',
+        )
 
 
 def get_rancher_cluster_for_openstack_instance(serializer, scope):

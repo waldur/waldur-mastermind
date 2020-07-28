@@ -51,8 +51,8 @@ class DataciteBackend(ServiceBackend):
         response = requests.get(url=url, headers=headers,)
         return response
 
-    def create_doi(self, instance):
-        data = {
+    def _get_request_data(self, instance):
+        return {
             'data': {
                 'type': 'dois',
                 'attributes': {
@@ -71,6 +71,9 @@ class DataciteBackend(ServiceBackend):
                 },
             }
         }
+
+    def create_doi(self, instance):
+        data = self._get_request_data(instance)
         response = self.post(data)
 
         if response.status_code == 201:
@@ -133,3 +136,19 @@ class DataciteBackend(ServiceBackend):
                 'Receiving Datacite data for %s has failed. Status code: %s, message: %s.'
                 % (doi, response.status_code, response.text)
             )
+
+    def update_doi(self, instance):
+        data = self._get_request_data(instance)
+        data.pop('event', None)
+        response = self.put(
+            data, url=self.settings['API_URL'] + '/' + instance.datacite_doi
+        )
+
+        if response.status_code != 200:
+            msg = (
+                'Updating Datacite DOI for %s has failed. Status code: %s, message: %s.'
+                % (instance, response.status_code, response.text)
+            )
+            logger.error(msg)
+            instance.error_message = msg
+            instance.save()

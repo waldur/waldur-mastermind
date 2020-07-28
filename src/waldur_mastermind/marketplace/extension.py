@@ -46,6 +46,7 @@ class MarketplaceExtension(WaldurExtension):
             'MANAGER_CAN_APPROVE_ORDER',
             'ADMIN_CAN_APPROVE_ORDER',
             'OWNER_CAN_REGISTER_SERVICE_PROVIDER',
+            'ANONYMOUS_USER_CAN_VIEW_OFFERINGS',
         ]
 
     @staticmethod

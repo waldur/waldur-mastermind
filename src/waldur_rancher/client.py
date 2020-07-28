@@ -1,10 +1,11 @@
 import logging
+from typing import List
 
 import requests
 
 from waldur_core.core.utils import QuietSession
 
-from .exceptions import RancherException
+from .exceptions import NotFound, RancherException
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +55,10 @@ class RancherClient:
             requests.codes.no_content,
         ):
             return data
+        elif status_code == requests.codes.not_found:
+            raise NotFound(data)
         else:
-            if 'message' in data:
-                raise RancherException(data['message'])
-            else:
-                raise RancherException(data)
+            raise RancherException(data)
 
     def _get(self, endpoint, **kwargs):
         return self._request('get', endpoint, **kwargs)
@@ -355,3 +355,72 @@ class RancherClient:
         return self._get(f'project/{project_id}/workloads', params={'limit': -1})[
             'data'
         ]
+
+    def list_hpas(self, project_id: str):
+        """
+        List all horizontal pod autoscalers in project.
+        """
+        return self._get(
+            f'project/{project_id}/horizontalpodautoscalers', params={'limit': -1}
+        )['data']
+
+    def create_hpa(
+        self,
+        project_id: str,
+        namespace_id: str,
+        workload_id: str,
+        name: str,
+        description: str,
+        min_replicas: int,
+        max_replicas: int,
+        metrics: List[dict],
+    ):
+        """
+        Create horizontal pod autoscaler.
+        """
+        return self._post(
+            f'projects/{project_id}/horizontalpodautoscalers',
+            json={
+                'name': name,
+                'description': description,
+                'namespaceId': namespace_id,
+                'workloadId': workload_id,
+                'minReplicas': min_replicas,
+                'maxReplicas': max_replicas,
+                'metrics': metrics,
+            },
+        )
+
+    def update_hpa(
+        self,
+        project_id: str,
+        hpa_id: str,
+        namespace_id: str,
+        workload_id: str,
+        name: str,
+        description: str,
+        min_replicas: int,
+        max_replicas: int,
+        metrics: List[dict],
+    ):
+        """
+        Update horizontal pod autoscaler.
+        """
+        return self._put(
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}',
+            json={
+                'name': name,
+                'description': description,
+                'namespaceId': namespace_id,
+                'workloadId': workload_id,
+                'minReplicas': min_replicas,
+                'maxReplicas': max_replicas,
+                'metrics': metrics,
+            },
+        )
+
+    def delete_hpa(self, project_id: str, hpa_id: str):
+        """
+        Delete horizontal pod autoscaler.
+        """
+        return self._delete(f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}')

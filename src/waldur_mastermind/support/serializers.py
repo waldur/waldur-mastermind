@@ -39,11 +39,13 @@ def render_issue_template(config_name, issue):
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
     evaluation = serializers.ReadOnlyField(source='get_evaluation_display')
+    evaluation_number = serializers.ReadOnlyField(source='evaluation')
 
     class Meta:
         model = models.Feedback
         fields = (
             'evaluation',
+            'evaluation_number',
             'comment',
             'state',
         )

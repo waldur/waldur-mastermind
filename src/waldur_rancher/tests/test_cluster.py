@@ -93,17 +93,17 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         image = openstack_tenant_factories.ImageFactory(
             settings=instance_spl.service.settings
         )
-        openstack_tenant_factories.SecurityGroupFactory(
+        self.default_security_group = openstack_tenant_factories.SecurityGroupFactory(
             name='default', settings=instance_spl.service.settings
         )
         self.fixture.settings.options['base_image_name'] = image.name
         self.fixture.settings.save()
 
-        network = openstack_tenant_factories.NetworkFactory(
+        self.network = openstack_tenant_factories.NetworkFactory(
             settings=instance_spl.service.settings
         )
         self.subnet = openstack_tenant_factories.SubNetFactory(
-            network=network, settings=instance_spl.service.settings
+            network=self.network, settings=instance_spl.service.settings
         )
         self.flavor = Flavor.objects.get(settings=instance_spl.service.settings)
         self.flavor.ram = 1024 * 8
@@ -112,7 +112,9 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.fixture.settings.options['base_subnet_name'] = self.subnet.name
         self.fixture.settings.save()
 
-    def _create_request_(self, name, disk=1024, memory=1, cpu=2, add_payload=None):
+    def _create_request_(
+        self, name, disk=1024, memory=1, cpu=2, add_payload=None, install_longhorn=False
+    ):
         add_payload = add_payload or {}
         payload = {
             'name': name,
@@ -160,6 +162,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
                     'roles': ['worker'],
                 },
             ],
+            'install_longhorn': install_longhorn,
         }
         payload.update(add_payload)
         return self.client.post(self.url, payload)
@@ -337,19 +340,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
 
     @mock.patch('waldur_rancher.client.RancherClient._post')
     def test_create_cluster_with_mtu(self, mock_client_post):
-        mock_token_patch = mock.patch(
-            'waldur_rancher.client.RancherClient.create_cluster_registration_token'
-        )
-        mock_token_patch.start()
-        mock_backend_patch = mock.patch(
-            'waldur_rancher.backend.RancherBackend._backend_cluster_to_cluster'
-        )
-        mock_backend_patch.start()
-        mock_command_patch = mock.patch(
-            'waldur_rancher.client.RancherClient.get_node_command'
-        )
-        mock_command = mock_command_patch.start()
-        mock_command.return_value = ''
+        self.mock_backend()
 
         self.fixture.settings.options['default_mtu'] = 5000
         self.fixture.settings.save()
@@ -365,8 +356,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
             },
         )
 
-    @mock.patch('waldur_rancher.client.RancherClient._post')
-    def test_create_private_cluster(self, mock_client_post):
+    def mock_backend(self):
         mock_token_patch = mock.patch(
             'waldur_rancher.client.RancherClient.create_cluster_registration_token'
         )
@@ -380,6 +370,10 @@ class ClusterCreateTest(BaseClusterCreateTest):
         )
         mock_command = mock_command_patch.start()
         mock_command.return_value = ''
+
+    @mock.patch('waldur_rancher.client.RancherClient._post')
+    def test_create_private_cluster(self, mock_client_post):
+        self.mock_backend()
 
         self.fixture.settings.options['private_registry_url'] = 'http://example.com'
         self.fixture.settings.options['private_registry_user'] = 'user'
@@ -420,10 +414,10 @@ class ClusterCreateTest(BaseClusterCreateTest):
             'image': '',
             'subnet': '',
             'tenant_service_project_link': '',
-            'group': '',
             'system_volume_size': '',
             'system_volume_type': '',
             'data_volumes': [],
+            'security_groups': [],
         }
         self.fixture.node.save()
         try:
@@ -453,6 +447,150 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(
             cluster.node_set.first().initial_data['ssh_public_key'],
             ssh_public_key.uuid.hex,
+        )
+
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_create_cluster_with_longhorn_using_rest(self, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self._create_request_('new-cluster', install_longhorn=True)
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
+        mock_core_tasks.BackendMethodTask.return_value.si.assert_has_calls(
+            [
+                mock.call(
+                    'waldur_rancher.cluster:%s' % cluster.id,
+                    'install_longhorn_to_cluster',
+                )
+            ]
+        )
+
+    @mock.patch('waldur_rancher.client.RancherClient._post')
+    def test_create_cluster_with_longhorn(self, mock_client_post):
+        self.mock_backend()
+
+        mock_namespace_create = mock.patch(
+            'waldur_rancher.client.RancherClient.create_namespace'
+        )
+        mock_namespace = mock_namespace_create.start()
+        mock_namespace.return_value = {'id': '1'}
+
+        catalog = factories.CatalogFactory(name='library')
+        system_project = factories.ProjectFactory(
+            settings=self.fixture.settings, cluster=self.fixture.cluster, name='System'
+        )
+        template = factories.TemplateFactory(
+            settings=self.fixture.settings,
+            name='longhorn',
+            catalog=catalog,
+            default_version='1.1',
+            versions=['1.0', '1.1'],
+        )
+
+        self.fixture.cluster.backend_id = ''
+        self.fixture.cluster.save()
+        self.fixture.node.worker_role = True
+        self.fixture.node.save()
+        backend = self.fixture.cluster.get_backend()
+        backend.create_cluster(self.fixture.cluster)
+        backend.install_longhorn_to_cluster(self.fixture.cluster)
+        self.assertEqual(
+            mock_client_post.call_args_list[2][1]['json'],
+            {
+                'prune': False,
+                'timeout': 300,
+                'wait': False,
+                'type': 'app',
+                'name': 'longhorn',
+                'targetNamespace': '1',
+                'externalId': f'catalog://?catalog={template.catalog.backend_id}&template={template.name}&version=1.1',
+                'projectId': system_project.backend_id,
+                'answers': {'persistence.defaultClassReplicaCount': 1,},
+            },
+        )
+
+    def test_validate_security_groups_positive(self):
+        security_group1 = openstack_tenant_factories.SecurityGroupFactory(
+            settings=self.fixture.tenant_spl.service.settings,
+        )
+        security_group2 = openstack_tenant_factories.SecurityGroupFactory(
+            settings=self.fixture.tenant_spl.service.settings,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            'security_groups': [
+                {
+                    'url': openstack_tenant_factories.SecurityGroupFactory.get_url(
+                        security_group1
+                    )
+                },
+                {
+                    'url': openstack_tenant_factories.SecurityGroupFactory.get_url(
+                        security_group2
+                    )
+                },
+            ]
+        }
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_validate_security_groups_negative(self):
+        security_group1 = openstack_tenant_factories.SecurityGroupFactory()
+        security_group2 = openstack_tenant_factories.SecurityGroupFactory()
+        self.client.force_authenticate(self.fixture.owner)
+        payload = {
+            'security_groups': [
+                {
+                    'url': openstack_tenant_factories.SecurityGroupFactory.get_url(
+                        security_group1
+                    )
+                },
+                {
+                    'url': openstack_tenant_factories.SecurityGroupFactory.get_url(
+                        security_group2
+                    )
+                },
+            ]
+        }
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_default_security_groups_is_used_if_custom_is_not_provided(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self._create_request_('new-cluster')
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(
+            cluster.node_set.first().initial_data['security_groups'],
+            [self.default_security_group.uuid.hex],
+        )
+
+    def test_custom_security_groups_are_propagated_to_initial_data(self):
+        security_group1 = openstack_tenant_factories.SecurityGroupFactory(
+            settings=self.fixture.tenant_spl.service.settings,
+        )
+        security_group2 = openstack_tenant_factories.SecurityGroupFactory(
+            settings=self.fixture.tenant_spl.service.settings,
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        payload = {
+            'security_groups': [
+                {
+                    'url': openstack_tenant_factories.SecurityGroupFactory.get_url(
+                        security_group1
+                    )
+                },
+                {
+                    'url': openstack_tenant_factories.SecurityGroupFactory.get_url(
+                        security_group2
+                    )
+                },
+            ]
+        }
+        self._create_request_('new-cluster', add_payload=payload)
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertEqual(
+            cluster.node_set.first().initial_data['security_groups'],
+            [security_group1.uuid.hex, security_group2.uuid.hex],
         )
 
 

@@ -2,6 +2,7 @@ import json
 
 import django_filters
 from django.conf import settings
+from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.widgets import BooleanWidget
@@ -103,7 +104,58 @@ class OfferingCustomersFilterBackend(DjangoFilterBackend):
 class OfferingImportableFilterBackend(DjangoFilterBackend):
     def filter_queryset(self, request, queryset, view):
         if 'importable' in request.query_params:
-            return queryset.filter_importable(request.user)
+            user = request.user
+
+            if user.is_staff:
+                return queryset
+
+            owned_offerings_ids = []
+            used_offerings_ids = []
+
+            queryset = queryset.filter(shared=False)
+
+            owned_customers = set(
+                structure_models.Customer.objects.all()
+                .filter(
+                    permissions__user=user,
+                    permissions__is_active=True,
+                    permissions__role=structure_models.CustomerRole.OWNER,
+                )
+                .distinct()
+            )
+
+            owned_offerings_ids = list(
+                queryset.filter(
+                    Q(allowed_customers__in=owned_customers)
+                    | Q(customer__in=owned_customers)
+                ).values_list('id', flat=True)
+            )
+
+            # Import private offerings must be available for admins and managers
+            projects_ids = list(
+                structure_models.ProjectPermission.objects.filter(
+                    is_active=True,
+                    user_id=user.id,
+                    role__in=(
+                        structure_models.ProjectRole.ADMINISTRATOR,
+                        structure_models.ProjectRole.MANAGER,
+                    ),
+                ).values_list('project_id', flat=True)
+            )
+
+            for offering in queryset.all():
+                if (
+                    offering.scope
+                    and offering.scope.scope
+                    and offering.scope.scope.service_project_link
+                    and offering.scope.scope.service_project_link.project.id
+                    in projects_ids
+                ):
+                    used_offerings_ids.append(offering.id)
+
+            return queryset.filter(
+                id__in=list(owned_offerings_ids + used_offerings_ids)
+            )
         return queryset
 
 

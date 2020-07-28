@@ -30,6 +30,11 @@ urlpatterns = [
         views.ProjectStatsView.as_view(),
     ),
     url(
+        r'^api/customers/(?P<customer_uuid>[a-f0-9]+)/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/$',
+        views.CustomerStatsView.as_view(),
+        name='marketplace-checklists-customer-stats',
+    ),
+    url(
         r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/(?P<project_uuid>[a-z0-9]+)/$',
         views.AnswersListView.as_view({'get': 'list'}),
     ),

@@ -84,6 +84,12 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 class UserFilter(django_filters.FilterSet):
     cluster_uuid = django_filters.UUIDFilter(method='filter_by_cluster')
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    user_username = django_filters.CharFilter(
+        field_name='user__username', lookup_expr='icontains'
+    )
+    user_full_name = django_filters.CharFilter(
+        field_name='user__full_name', lookup_expr='icontains'
+    )
     settings_uuid = django_filters.UUIDFilter(field_name='settings__uuid')
 
     class Meta:
@@ -118,4 +124,20 @@ class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):
             'cluster_uuid',
             'project_uuid',
             'namespace_uuid',
+        )
+
+
+class HPAFilter(structure_filters.ServicePropertySettingsFilter):
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    namespace_uuid = django_filters.UUIDFilter(field_name='namespace__uuid')
+    workload_uuid = django_filters.UUIDFilter(field_name='workload__uuid')
+
+    class Meta:
+        model = models.HPA
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            'cluster_uuid',
+            'project_uuid',
+            'namespace_uuid',
+            'workload_uuid',
         )

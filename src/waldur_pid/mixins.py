@@ -22,6 +22,8 @@ class DataciteMixin(models.Model):
         default=-1, help_text=_('Number of citations of a DOI'),
     )
 
+    error_message = models.TextField(blank=True)
+
     @classmethod
     @lru_cache(maxsize=1)
     def get_all_models(cls):

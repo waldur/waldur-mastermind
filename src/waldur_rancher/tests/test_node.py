@@ -8,6 +8,7 @@ from waldur_core.structure.tests.factories import SshPublicKeyFactory
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
+from waldur_rancher import utils as rancher_utils
 
 from .. import models, tasks
 from . import factories, fixtures, test_cluster, utils
@@ -246,6 +247,49 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.exclude(name='').get()
         self.assertEqual(node.initial_data['ssh_public_key'], ssh_public_key.uuid.hex)
+
+    def test_node_config_formatting(self):
+        template = '''
+                #cloud-config
+                  packages:
+                    - curl
+                  runcmd:
+                    - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh
+                    - sudo systemctl start docker
+                    - sudo systemctl enable docker
+                    - [ sh, -c, "{command}" ]
+                '''
+        service_settings = factories.RancherServiceSettingsFactory(
+            options={'cloud_init_template': template}
+        )
+        service = factories.RancherServiceFactory(settings=service_settings)
+        spl = factories.RancherServiceProjectLinkFactory(service=service)
+        cluster = factories.ClusterFactory(
+            settings=self.fixture.settings, service_project_link=spl
+        )
+        node = factories.NodeFactory(
+            cluster=cluster, initial_data={'data_volumes': [{'mount_point': 'path'}]}
+        )
+        result = rancher_utils.format_node_cloud_config(node)
+        expected_config = """
+            fs_setup:
+                - device: /dev/vdb
+                filesystem: ext4
+                mounts:
+                    - /dev/vdb
+                    - path
+                packages:
+                    - curl
+                runcmd:
+                    - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh
+                    - sudo systemctl start docker
+                    - sudo systemctl enable docker
+                    - - sh
+                      - -c
+                      - ' '
+        """
+
+        self.assertTrue(expected_config, result)
 
 
 class NodePullTest(test.APITransactionTestCase):
