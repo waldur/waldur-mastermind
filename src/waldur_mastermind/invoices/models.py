@@ -111,7 +111,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def price(self):
-        return sum((item.price for item in self.items))
+        return quantize_price(decimal.Decimal(sum((item.price for item in self.items))))
 
     @property
     def tax_current(self):
@@ -232,7 +232,9 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         return self.price + self.tax
 
     def _price(self, current=False):
-        return self.unit_price * decimal.Decimal(self.get_factor(current))
+        return quantize_price(
+            self.unit_price * decimal.Decimal(self.get_factor(current))
+        )
 
     def get_factor(self, current=False):
         month_days = monthrange(self.start.year, self.start.month)[1]
