@@ -71,7 +71,9 @@ RUN yum clean all && \
 RUN mkdir -p /usr/src/waldur
 
 COPY . /usr/src/waldur/
-RUN cd /usr/src/waldur && bash docker_build.sh
+
+# Delete all test directories
+RUN cd /usr/src/waldur && find . -name "tests" -exec rm -r {} + && bash docker_build.sh
 
 COPY docker/rootfs /
 
