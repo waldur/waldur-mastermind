@@ -42,11 +42,13 @@ class ProjectFilter(structure_filters.ServicePropertySettingsFilter):
 
 class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    cluster_uuid = django_filters.UUIDFilter(field_name='project__cluster__uuid')
 
     class Meta:
         model = models.Namespace
         fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
             'project_uuid',
+            'cluster_uuid',
         )
 
 
