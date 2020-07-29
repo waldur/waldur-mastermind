@@ -43,6 +43,13 @@ class ProjectFilter(structure_filters.ServicePropertySettingsFilter):
 class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     cluster_uuid = django_filters.UUIDFilter(field_name='project__cluster__uuid')
+    o = django_filters.OrderingFilter(
+        fields=(
+            ('name', 'name'),
+            ('project__cluster__name', 'cluster_name'),
+            ('project__name', 'project_name'),
+        )
+    )
 
     class Meta:
         model = models.Namespace
@@ -119,6 +126,14 @@ class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):
     cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     namespace_uuid = django_filters.UUIDFilter(field_name='namespace__uuid')
+    o = django_filters.OrderingFilter(
+        fields=(
+            ('name', 'name'),
+            ('project__name', 'project_name'),
+            ('cluster__name', 'cluster_name'),
+            ('namespace__name', 'namespace_name'),
+        )
+    )
 
     class Meta:
         model = models.Workload
