@@ -388,7 +388,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
             {
                 'name': self.fixture.cluster.name,
                 'rancherKubernetesEngineConfig': {
-                    'network': {'mtu': 1440},
+                    'network': {'mtu': 1400},
                     'privateRegistries': [
                         {
                             'url': 'http://example.com',

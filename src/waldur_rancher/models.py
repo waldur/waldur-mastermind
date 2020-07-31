@@ -489,3 +489,26 @@ class ClusterTemplateNode(RoleMixin):
         verbose_name='System volume size (GB)'
     )
     preferred_volume_type = models.CharField(max_length=150, blank=True)
+
+
+class Application(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
+    service_project_link = models.ForeignKey(
+        RancherServiceProjectLink, related_name='+', on_delete=models.PROTECT
+    )
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
+    template = models.ForeignKey(Template, on_delete=models.CASCADE)
+    rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
+    version = models.CharField(max_length=100)
+    answers = JSONField(blank=True, default=dict)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-app'
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def external_url(self):
+        return f'{self.settings.backend_url.strip("/")}/p/{self.project.backend_id}/apps/{self.backend_id}'

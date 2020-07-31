@@ -34,6 +34,7 @@ def register_in(router):
         views.ClusterTemplateViewSet,
         basename='rancher-cluster-template',
     )
+    router.register(r'rancher-apps', views.ApplicationViewSet, basename='rancher-app')
 
 
 urlpatterns = [
@@ -41,5 +42,4 @@ urlpatterns = [
         r'^api/rancher-template-versions/(?P<template_uuid>[a-f0-9]+)/(?P<version>[0-9.]+)/$',
         views.TemplateVersionView.as_view(),
     ),
-    url(r'^api/rancher-apps/$', views.ApplicationViewSet.as_view()),
 ]
