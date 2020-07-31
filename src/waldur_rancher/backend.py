@@ -67,6 +67,7 @@ class RancherBackend(ServiceBackend):
         self.pull_template_icons()
         self.pull_workloads()
         self.pull_hpas()
+        self.pull_apps()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -175,6 +176,7 @@ class RancherBackend(ServiceBackend):
         self.pull_templates_for_cluster(cluster)
         self.pull_cluster_workloads(cluster)
         self.pull_cluster_hpas(cluster)
+        self.pull_cluster_apps(cluster)
 
     def pull_cluster_details(self, cluster, backend_cluster=None):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
@@ -789,31 +791,6 @@ class RancherBackend(ServiceBackend):
     def list_project_secrets(self, project):
         return self.client.list_project_secrets(project.backend_id)
 
-    def list_cluster_applications(self, cluster):
-        applications = []
-        for project in models.Project.objects.filter(cluster=cluster):
-            for app in self.client.get_project_applications(project.backend_id):
-                parts = urlparse(app['externalId'])
-                params = parse_qs(parts.query)
-                project_id = app['projectId']
-                app_id = app['id']
-                applications.append(
-                    {
-                        'name': app['name'],
-                        'state': app['state'],
-                        'created': app['created'],
-                        'id': app_id,
-                        'answers': app.get('answers'),
-                        'project': project.name,
-                        'catalog': params['catalog'][0],
-                        'template': params['template'][0],
-                        'version': params['version'][0],
-                        'url': f'{self.host}/p/{project_id}/apps/{app_id}',
-                        'project_uuid': project.uuid.hex,
-                    }
-                )
-        return applications
-
     def pull_cluster_workloads(self, cluster):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_workloads(project)
@@ -975,7 +952,114 @@ class RancherBackend(ServiceBackend):
         try:
             self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
         except NotFound:
-            logger.debug('HPA %s is not present in the backend ' % hpa.backend_id)
+            logger.debug('HPA %s is not present in the backend.' % hpa.backend_id)
+
+    def pull_apps(self):
+        for cluster in models.Cluster.objects.filter(settings=self.settings):
+            self.pull_cluster_apps(cluster)
+
+    def pull_cluster_apps(self, cluster: models.Cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_apps(project)
+
+    def pull_project_apps(self, project: models.Project):
+        local_namespaces = models.Namespace.objects.filter(project=project)
+        local_namespaces_map = {
+            namespace.backend_id: namespace for namespace in local_namespaces
+        }
+
+        local_apps = models.Application.objects.filter(rancher_project=project)
+        local_app_map = {app.backend_id: app for app in local_apps}
+
+        remote_apps = self.client.get_project_applications(project.backend_id)
+        remote_app_map = {
+            app['id']: self.remote_app_to_local(app, project, local_namespaces_map)
+            for app in remote_apps
+        }
+
+        remote_app_ids = set(remote_app_map.keys())
+        local_app_ids = set(local_app_map.keys())
+
+        stale_apps = local_app_ids - remote_app_ids
+
+        new_apps = [remote_app_map[app_id] for app_id in remote_app_ids - local_app_ids]
+
+        existing_apps = remote_app_ids & local_app_ids
+        pulled_fields = {
+            'name',
+            'runtime_state',
+            'answers',
+        }
+        for app_id in existing_apps:
+            local_app = local_app_map[app_id]
+            remote_app = remote_app_map[app_id]
+            update_pulled_fields(local_app, remote_app, pulled_fields)
+
+        models.Application.objects.bulk_create(new_apps)
+        local_apps.filter(backend_id__in=stale_apps).delete()
+
+    def remote_app_to_local(self, remote_app, rancher_project, local_namespaces_map):
+        parts = urlparse(remote_app['externalId'])
+        params = parse_qs(parts.query)
+
+        template = models.Template.objects.get(
+            settings=self.settings,
+            name=params['template'][0],
+            catalog__name=params['catalog'][0],
+        )
+
+        return models.Application(
+            settings=self.settings,
+            service_project_link=rancher_project.cluster.service_project_link,
+            rancher_project=rancher_project,
+            cluster=rancher_project.cluster,
+            namespace=local_namespaces_map.get(remote_app['targetNamespace']),
+            template=template,
+            name=remote_app['name'],
+            runtime_state=remote_app['state'],
+            created=remote_app['created'],
+            backend_id=remote_app['id'],
+            answers=remote_app.get('answers'),
+            version=params['version'][0],
+        )
+
+    def create_app(self, app: models.Application):
+        if not app.namespace.backend_id:
+            remote_response = self.client.create_namespace(
+                app.rancher_project.cluster.backend_id,
+                app.rancher_project.backend_id,
+                app.namespace.name,
+            )
+            app.namespace.backend_id = remote_response['id']
+            app.namespace.save()
+
+        remote_app = self.client.create_application(
+            app.template.catalog.backend_id,
+            app.template.name,
+            app.version,
+            app.rancher_project.backend_id,
+            app.namespace.backend_id,
+            app.name,
+            app.answers,
+        )
+        app.backend_id = remote_app['id']
+        app.runtime_state = remote_app['state']
+        app.save()
+
+    def check_application_state(self, app):
+        remote_app = self.client.get_application(
+            app.rancher_project.backend_id, app.backend_id
+        )
+        app.runtime_state = remote_app['state']
+        app.save()
+
+    def delete_app(self, app):
+        try:
+            self.client.destroy_application(
+                app.rancher_project.backend_id, app.backend_id
+            )
+        except NotFound:
+            logger.debug('App %s is not present in the backend.' % app.backend_id)
 
     def install_longhorn_to_cluster(self, cluster):
         longhorn_name = 'longhorn'
