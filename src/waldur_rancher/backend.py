@@ -34,7 +34,7 @@ class RancherBackend(ServiceBackend):
         '  - sudo systemctl start docker\n'
         '  - sudo systemctl enable docker\n'
         '  - [ sh, -c, "{command}" ]\n',
-        'default_mtu': 1440,
+        'default_mtu': 1400,
         'private_registry_url': None,
         'private_registry_user': None,
         'private_registry_password': None,
