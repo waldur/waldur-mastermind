@@ -751,7 +751,7 @@ class RancherBackend(ServiceBackend):
 
     def _get_external_template_icon(self, icon_url):
         try:
-            response = requests.get(icon_url)
+            response = requests.get(icon_url, timeout=3)
         except requests.RequestException as e:
             logger.debug(f"Failed to get {icon_url}: {e}")
             return None
