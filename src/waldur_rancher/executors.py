@@ -35,7 +35,11 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             _tasks += [
                 core_tasks.BackendMethodTask().si(
                     serialized_instance, 'install_longhorn_to_cluster'
-                )
+                ),
+                tasks.PollLonghornApplicationTask().si(serialized_instance),
+                core_tasks.BackendMethodTask().si(
+                    serialized_instance, 'pull_cluster_workloads',
+                ),
             ]
         return chain(*_tasks)
 

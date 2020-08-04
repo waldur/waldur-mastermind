@@ -15,7 +15,12 @@ from waldur_core.structure import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
-from waldur_rancher.enums import ClusterRoles, GlobalRoles
+from waldur_rancher.enums import (
+    LONGHORN_NAME,
+    LONGHORN_NAMESPACE,
+    ClusterRoles,
+    GlobalRoles,
+)
 from waldur_rancher.exceptions import NotFound, RancherException
 
 from . import client, models, signals, utils
@@ -1109,8 +1114,6 @@ class RancherBackend(ServiceBackend):
             logger.debug('App %s is not present in the backend.' % app.backend_id)
 
     def install_longhorn_to_cluster(self, cluster):
-        longhorn_name = 'longhorn'
-        longhorn_namespace = 'longhorn-system'
         catalog_name = 'library'
 
         system_project = models.Project.objects.filter(
@@ -1122,19 +1125,19 @@ class RancherBackend(ServiceBackend):
             )
 
         available_templates = models.Template.objects.filter(
-            name=longhorn_name, catalog__name=catalog_name
+            name=LONGHORN_NAME, catalog__name=catalog_name
         )
         available_templates_count = len(available_templates)
         if available_templates_count != 1:
             if available_templates_count == 0:
                 message = "There are no templates with name=%s, catalog.name=%s" % (
-                    longhorn_name,
+                    LONGHORN_NAME,
                     catalog_name,
                 )
             else:
                 message = (
                     "There are more than one template for name=%s, catalog.name=%s"
-                    % (longhorn_name, catalog_name)
+                    % (LONGHORN_NAME, catalog_name)
                 )
             logger.info(message)
             raise RancherException(message)
@@ -1149,21 +1152,21 @@ class RancherBackend(ServiceBackend):
 
         try:
             namespace = models.Namespace.objects.get(
-                name=longhorn_namespace, project=system_project
+                name=LONGHORN_NAMESPACE, project=system_project
             )
         except models.Namespace.DoesNotExist:
             logger.info(
                 'Creating namespace %s for cluster %s (name=%s, backend_id=%s)',
-                longhorn_namespace,
+                LONGHORN_NAMESPACE,
                 cluster,
                 cluster.name,
                 cluster.backend_id,
             )
             namespace_response = self.client.create_namespace(
-                cluster.backend_id, system_project.backend_id, longhorn_namespace
+                cluster.backend_id, system_project.backend_id, LONGHORN_NAMESPACE
             )
             namespace = models.Namespace.objects.create(
-                name=longhorn_namespace,
+                name=LONGHORN_NAMESPACE,
                 backend_id=namespace_response['id'],
                 settings=system_project.settings,
                 project=system_project,
@@ -1171,7 +1174,7 @@ class RancherBackend(ServiceBackend):
 
         logger.info(
             'Creating application %s for cluster %s (name=%s, backend_id=%s) in namespace %s (backend_id=%s)',
-            longhorn_namespace,
+            LONGHORN_NAMESPACE,
             cluster,
             cluster.name,
             cluster.backend_id,
@@ -1186,8 +1189,24 @@ class RancherBackend(ServiceBackend):
             version=template.default_version,
             project_id=system_project.backend_id,
             namespace_id=namespace.backend_id,
-            name=longhorn_name,
-            answers={'persistence.defaultClassReplicaCount': replica_count,},
+            name=LONGHORN_NAME,
+            answers={'persistence.defaultClassReplicaCount': replica_count},
+        )
+
+        models.Application.objects.create(
+            settings=self.settings,
+            service_project_link=cluster.service_project_link,
+            rancher_project=system_project,
+            cluster=cluster,
+            namespace=namespace,
+            template=template,
+            name=LONGHORN_NAME,
+            state=models.Application.States.CREATING,
+            runtime_state=application['state'],
+            created=application['created'],
+            backend_id=application['id'],
+            answers=application.get('answers'),
+            version=template.default_version,
         )
 
         logger.info(
