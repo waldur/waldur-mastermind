@@ -475,6 +475,13 @@ class ClusterCreateTest(BaseClusterCreateTest):
         mock_namespace = mock_namespace_create.start()
         mock_namespace.return_value = {'id': '1'}
 
+        mock_client_post.return_value = {
+            'id': 1,
+            'state': 'installing',
+            'created': '2020-08-04',
+            'answers': {},
+        }
+
         catalog = factories.CatalogFactory(name='library')
         system_project = factories.ProjectFactory(
             settings=self.fixture.settings, cluster=self.fixture.cluster, name='System'
