@@ -1,0 +1,4 @@
+#!/bin/bash
+
+echo "INFO: Creating db-cache table"
+gosu waldur sh -c "waldur createcachetable"
