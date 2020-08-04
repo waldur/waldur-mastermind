@@ -60,6 +60,7 @@ class RancherBackend(ServiceBackend):
         return self.settings.backend_url.strip('/')
 
     def pull_service_properties(self):
+        self.pull_clusters()
         self.pull_projects()
         self.pull_namespaces()
         self.pull_catalogs()
@@ -68,6 +69,28 @@ class RancherBackend(ServiceBackend):
         self.pull_workloads()
         self.pull_hpas()
         self.pull_apps()
+
+    def pull_clusters(self):
+        """
+        Mark stale clusters as erred.
+        """
+        remote_clusters = self.client.list_clusters()
+        remote_clusters_map = {item['id']: item for item in remote_clusters}
+
+        local_clusters_map = {
+            cluster.backend_id: cluster
+            for cluster in models.Cluster.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(local_clusters_map.keys()) - set(remote_clusters_map.keys())
+
+        # exclude not yet created clusters
+        stale_clusters = models.Cluster.objects.filter(
+            settings=self.settings, backend_id__in=stale_ids
+        ).exclude(backend_id='')
+        stale_clusters.update(
+            state=models.Cluster.States.ERRED, error_message='Resource is gone.'
+        )
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -796,8 +819,16 @@ class RancherBackend(ServiceBackend):
             self.pull_project_workloads(project)
 
     def pull_workloads(self):
-        for project in models.Project.objects.filter(settings=self.settings):
-            self.pull_project_workloads(project)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        for cluster in local_clusters:
+            if cluster.state == models.Cluster.States.OK:
+                self.pull_cluster_workloads(cluster)
+            else:
+                logger.debug(
+                    'Skipping workload pulling for cluster with backend ID %s'
+                    'because otherwise one failed cluster leads to provider failure',
+                    cluster.backend_id,
+                )
 
     def pull_project_workloads(self, project):
         remote_workloads = self.client.list_workloads(project.backend_id)
@@ -858,8 +889,16 @@ class RancherBackend(ServiceBackend):
             self.pull_project_hpas(project)
 
     def pull_hpas(self):
-        for project in models.Project.objects.filter(settings=self.settings):
-            self.pull_project_hpas(project)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        for cluster in local_clusters:
+            if cluster.state == models.Cluster.States.OK:
+                self.pull_cluster_hpas(cluster)
+            else:
+                logger.debug(
+                    'Skipping HPA pulling for cluster with backend ID %s'
+                    'because otherwise one failed cluster leads to provider failure',
+                    cluster.backend_id,
+                )
 
     def pull_project_hpas(self, project):
         local_workloads = models.Workload.objects.filter(project=project)
@@ -955,8 +994,16 @@ class RancherBackend(ServiceBackend):
             logger.debug('HPA %s is not present in the backend.' % hpa.backend_id)
 
     def pull_apps(self):
-        for cluster in models.Cluster.objects.filter(settings=self.settings):
-            self.pull_cluster_apps(cluster)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        for cluster in local_clusters:
+            if cluster.state == models.Cluster.States.OK:
+                self.pull_cluster_apps(cluster)
+            else:
+                logger.debug(
+                    'Skipping apps pulling for cluster with backend ID %s'
+                    'because otherwise one failed cluster leads to provider failure',
+                    cluster.backend_id,
+                )
 
     def pull_cluster_apps(self, cluster: models.Cluster):
         for project in models.Project.objects.filter(cluster=cluster):
