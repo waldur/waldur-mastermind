@@ -889,6 +889,12 @@ class RancherBackend(ServiceBackend):
             scale=remote_workload.get('scale', 0),
         )
 
+    def redeploy_workload(self, workload):
+        self.client.redeploy_workload(workload.project.backend_id, workload.backend_id)
+
+    def delete_workload(self, workload):
+        self.client.delete_workload(workload.project.backend_id, workload.backend_id)
+
     def pull_cluster_hpas(self, cluster):
         for project in models.Project.objects.filter(cluster=cluster):
             self.pull_project_hpas(project)

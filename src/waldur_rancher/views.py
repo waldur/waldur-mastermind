@@ -409,12 +409,26 @@ class UserViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
 
 
-class WorkloadViewSet(structure_views.BaseServicePropertyViewSet):
+class WorkloadViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
     queryset = models.Workload.objects.all()
     serializer_class = serializers.WorkloadSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.WorkloadFilter
     lookup_field = 'uuid'
+
+    @decorators.action(detail=True, methods=['post'])
+    def redeploy(self, request, *args, **kwargs):
+        workload = self.get_object()
+        backend = workload.get_backend()
+        backend.redeploy_workload(workload)
+        return response.Response(status=status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        workload = self.get_object()
+        backend = workload.get_backend()
+        backend.delete_workload(workload)
+        workload.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class HPAViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):

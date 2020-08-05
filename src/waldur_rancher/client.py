@@ -41,11 +41,12 @@ class RancherClient:
             raise RancherException(e)
 
         data = response.content
-        content_type = response.headers['Content-Type'].lower()
-        if data and content_type == 'application/json':
-            data = response.json()
-        elif content_type == 'text/plain':
-            data = data.decode('utf-8')
+        if data:
+            content_type = response.headers['Content-Type'].lower()
+            if content_type == 'application/json':
+                data = response.json()
+            elif content_type == 'text/plain':
+                data = data.decode('utf-8')
 
         status_code = response.status_code
         if status_code in (
@@ -358,6 +359,15 @@ class RancherClient:
         return self._get(f'project/{project_id}/workloads', params={'limit': -1})[
             'data'
         ]
+
+    def redeploy_workload(self, project_id: str, workload_id: str):
+        return self._post(
+            f'project/{project_id}/workloads/{workload_id}',
+            params={'action': 'redeploy'},
+        )
+
+    def delete_workload(self, project_id: str, workload_id: str):
+        return self._delete(f'project/{project_id}/workloads/{workload_id}')
 
     def list_hpas(self, project_id: str):
         """
