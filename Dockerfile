@@ -72,10 +72,10 @@ RUN mkdir -p /usr/src/waldur
 
 COPY . /usr/src/waldur/
 
+COPY docker/rootfs /
+
 # Delete all test directories
 RUN cd /usr/src/waldur && find . -name "tests" -exec rm -r {} + && bash docker_build.sh
-
-COPY docker/rootfs /
 
 ENTRYPOINT ["/app-entrypoint.sh"]
 CMD ["/bin/bash"]

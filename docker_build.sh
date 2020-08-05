@@ -1,3 +1,5 @@
+set -e
+
 # Installing Python package manager
 pip3 install poetry
 poetry config virtualenvs.create false
