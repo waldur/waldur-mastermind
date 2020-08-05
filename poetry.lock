@@ -530,17 +530,6 @@ version = "0.9.0"
 
 [[package]]
 category = "main"
-description = "A helper class for handling configuration defaults of packaged apps gracefully."
-name = "django-appconf"
-optional = false
-python-versions = "*"
-version = "1.0.4"
-
-[package.dependencies]
-django = "*"
-
-[[package]]
-category = "main"
 description = "Django LDAP authentication backend"
 name = "django-auth-ldap"
 optional = false
@@ -552,19 +541,6 @@ Django = ">=1.11"
 python-ldap = ">=3.1"
 
 [[package]]
-category = "main"
-description = "Keep track of failed login attempts in Django-powered sites."
-name = "django-axes"
-optional = false
-python-versions = "~=3.6"
-version = "5.4.2"
-
-[package.dependencies]
-django = ">=2.0"
-django-appconf = ">=1.0.3"
-django-ipware = ">=3,<4"
-
-[[package]]
 category = "dev"
 description = "django-cors-headers is a Django application for handling the server headers required for Cross-Origin Resource Sharing (CORS)."
 name = "django-cors-headers"
@@ -574,6 +550,18 @@ version = "3.4.0"
 
 [package.dependencies]
 Django = ">=2.0"
+
+[[package]]
+category = "main"
+description = "redis based Django app that locks out users after too many failed login attempts."
+name = "django-defender"
+optional = false
+python-versions = "*"
+version = "0.6.2"
+
+[package.dependencies]
+Django = ">=1.8,<2.3"
+redis = ">=2.10.3,<3.3"
 
 [[package]]
 category = "main"
@@ -622,16 +610,8 @@ Django = ">=2.0"
 diff-match-patch = "*"
 
 [package.dependencies.tablib]
-extras = ["xls", "ods", "yaml", "html", "xlsx"]
+extras = ["yaml", "xlsx", "html", "xls", "ods"]
 version = ">=0.14.0"
-
-[[package]]
-category = "main"
-description = "A Django utility application that returns client's real IP address"
-name = "django-ipware"
-optional = false
-python-versions = "*"
-version = "3.0.0"
 
 [[package]]
 category = "main"
@@ -2465,7 +2445,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "98e164234fcaaafaa3e30ad6edd83b2708b1161bb1958073ba6ab43e6c39c189"
+content-hash = "189731c58ee3f6072f19e7d593f3948fd18934448d7dfaa3b215d1bdef5bc181"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2714,21 +2694,16 @@ django-admin-tools = [
     {file = "django-admin-tools-0.9.0.tar.gz", hash = "sha256:428d1b6a572ee364c35086d7bec34344cc43105839e5637dbb900b9cabd6adf8"},
     {file = "django_admin_tools-0.9.0-py2.py3-none-any.whl", hash = "sha256:d1ecc7664b17110c4c1a38e9709de932b7f711521951720b95705205983218a2"},
 ]
-django-appconf = [
-    {file = "django-appconf-1.0.4.tar.gz", hash = "sha256:be58deb54a43d77d2e1621fe59f787681376d3cd0b8bd8e4758ef6c3a6453380"},
-    {file = "django_appconf-1.0.4-py2.py3-none-any.whl", hash = "sha256:1b1d0e1069c843ebe8ae5aa48ec52403b1440402b320c3e3a206a0907e97bb06"},
-]
 django-auth-ldap = [
     {file = "django-auth-ldap-2.0.0.tar.gz", hash = "sha256:7100086a858a5ee13d8da7d9a92c44f4248dc60a833f0a185186458a5ccf55e9"},
     {file = "django_auth_ldap-2.0.0-py3-none-any.whl", hash = "sha256:5e2cdcdb0883e12eabf4b0c7662fbbae34b59333eee11916aaa00b63cc462ad8"},
 ]
-django-axes = [
-    {file = "django-axes-5.4.2.tar.gz", hash = "sha256:061969fb2e71ad060d8b694c2219f3d50b5c35838b2485b79f7045a2a56a7449"},
-    {file = "django_axes-5.4.2-py3-none-any.whl", hash = "sha256:41eedff63a03c3e2a21ca818ecb6d8c2fd7a4b18c8f7615320c5a235b4899271"},
-]
 django-cors-headers = [
     {file = "django-cors-headers-3.4.0.tar.gz", hash = "sha256:f5218f2f0bb1210563ff87687afbf10786e080d8494a248e705507ebd92d7153"},
     {file = "django_cors_headers-3.4.0-py3-none-any.whl", hash = "sha256:5240062ef0b16668ce8a5f43324c388d65f5439e1a30e22c38684d5ddaff0d15"},
+]
+django-defender = [
+    {file = "django-defender-0.6.2.tar.gz", hash = "sha256:1c2b5f93beb730502206142bab84f1bf6acba026fa361424e9d636a0a3db05a8"},
 ]
 django-filter = [
     {file = "django-filter-2.2.0.tar.gz", hash = "sha256:c3deb57f0dd7ff94d7dce52a047516822013e2b441bed472b722a317658cfd14"},
@@ -2745,9 +2720,6 @@ django-fsm = [
 django-import-export = [
     {file = "django-import-export-2.3.0.tar.gz", hash = "sha256:21464304cb64e57809f3d6f5ad45108d5b02c556ab115b493a547304d2dddc70"},
     {file = "django_import_export-2.3.0-py3-none-any.whl", hash = "sha256:8ffddb1f39f2768a747df90c8b55c46c7198e41e9f78bc83427a5b7fc0e78bac"},
-]
-django-ipware = [
-    {file = "django-ipware-3.0.0.tar.gz", hash = "sha256:161605eb011439550dd3ee496d0e999720b13f01952be25ea9e88982fbe48e83"},
 ]
 django-jsoneditor = [
     {file = "django-jsoneditor-0.0.12.tar.gz", hash = "sha256:5f38e808cf6148fb38309551e8c76a19c6bff2403aff8456e798fd4944a97127"},
