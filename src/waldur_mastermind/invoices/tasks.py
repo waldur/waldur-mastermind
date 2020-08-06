@@ -218,3 +218,19 @@ def send_new_invoices_notification():
         year=date.year, month=date.month
     ).exclude(customer_id__in=fixed_price_profiles):
         send_invoice_notification.delay(invoice.uuid.hex)
+
+
+@shared_task
+def send_notifications_about_upcoming_ends():
+    upcoming_ends = utils.get_upcoming_ends_of_fixed_payment_profiles()
+
+    for profile in upcoming_ends:
+        context = {
+            'organization_name': profile.organization.name,
+            'end': utils.get_end_date_for_profile(profile),
+            'contract_number': profile.attributes.get('contract_number', ''),
+        }
+        emails = [owner.email for owner in profile.organization.get_owners()]
+        core_utils.broadcast_mail(
+            'invoices', 'upcoming_ends_notification', context, emails,
+        )

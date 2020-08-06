@@ -1,5 +1,6 @@
 import base64
 import datetime
+import logging
 from calendar import monthrange
 from decimal import Decimal
 
@@ -10,6 +11,10 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common.mixins import UnitPriceMixin
+
+from . import models
+
+logger = logging.getLogger(__name__)
 
 
 def get_current_month():
@@ -124,3 +129,30 @@ def get_price_per_day(price, unit):
         return price * 24
     else:
         return price
+
+
+def get_end_date_for_profile(profile):
+    end = profile.attributes.get('end')
+    if end:
+        try:
+            return datetime.datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            logger.error(
+                'The field \'end\' for profile %s is not correct. Value: %s'
+                % (profile, end)
+            )
+
+
+def get_upcoming_ends_of_fixed_payment_profiles():
+    today = datetime.date.today()
+    upcoming_ends = []
+
+    for profile in models.PaymentProfile.objects.filter(
+        is_active=True, payment_type=models.PaymentType.FIXED_PRICE
+    ):
+        end = get_end_date_for_profile(profile)
+
+        if end and (end - today).days in [60, 30, 14, 1]:
+            upcoming_ends.append(profile)
+
+    return upcoming_ends

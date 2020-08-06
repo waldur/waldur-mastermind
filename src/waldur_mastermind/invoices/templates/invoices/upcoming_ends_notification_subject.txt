@@ -1,0 +1,1 @@
+{{ organization_name }}'s fixed price contract {{ contract_number }} is coming to an end
