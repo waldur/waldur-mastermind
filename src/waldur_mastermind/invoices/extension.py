@@ -69,4 +69,9 @@ class InvoicesExtension(WaldurExtension):
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
+            'send-notifications-about-upcoming-ends': {
+                'task': 'invoices.send_notifications_about_upcoming_ends',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
         }

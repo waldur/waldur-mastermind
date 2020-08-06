@@ -7,7 +7,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import tasks
 
-from .. import models
+from .. import models, utils
 from . import factories
 
 
@@ -240,3 +240,23 @@ class ProfileProcessingTest(test.APITransactionTestCase):
             self.profile.delete()
             tasks.send_new_invoices_notification()
             mock_send_invoice_notification.delay.assert_called_once()
+
+
+class ProfileNotificationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.profile = factories.PaymentProfileFactory(
+            payment_type=models.PaymentType.FIXED_PRICE,
+            attributes={'end': '2020-01-31'},
+        )
+
+        factories.PaymentProfileFactory(
+            payment_type=models.PaymentType.FIXED_PRICE,
+            attributes={'end': '2020-02-15'},
+        )
+
+        factories.PaymentProfileFactory(payment_type=models.PaymentType.FIXED_PRICE,)
+
+    def test_notification_only_if_end_exists_and_contact_will_end_in_30_days(self):
+        with freeze_time('2020-01-01'):
+            result = utils.get_upcoming_ends_of_fixed_payment_profiles()
+            self.assertEqual(len(result), 1)

@@ -1,0 +1,3 @@
+Hello,
+
+this is a reminder that {{ organization_name }}'s fixed price contract {{ contract_number }} is ending on {{ end }}.
