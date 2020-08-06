@@ -200,6 +200,7 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
 
         try:
             user = auth.authenticate(
+                request=request,  # AxesBackend requires request for authentication
                 session_info=session_info,
                 attribute_mapping=attribute_mapping,
                 create_unknown_user=create_unknown_user,
