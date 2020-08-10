@@ -320,11 +320,6 @@ SESSION_COOKIE_AGE = config.getint('auth', 'session_lifetime')
 CELERY_BROKER_URL = redis_url
 CELERY_RESULT_BACKEND = redis_url
 
-# Defender
-# See also:
-#  - https://github.com/kencochrane/django-defender/blob/master/README.md#customizing-defender
-DEFENDER_REDIS_URL = "%s/0" % redis_url
-
 for app in INSTALLED_APPS:
     if app.startswith('waldur_') and not app.startswith('waldur_core'):
         LOGGING['loggers'][app] = LOGGING['loggers']['waldur_core']

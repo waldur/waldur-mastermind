@@ -87,6 +87,19 @@ class OfferingEventLogger(EventLogger):
         return {offering, project, project.customer}
 
 
+class OfferingBackendIDEventLogger(EventLogger):
+    full_name = str
+    old_backend_id = str
+    new_backend_id = str
+
+    class Meta:
+        event_types = ('offering_backend_id_changed',)
+        event_groups = {
+            'support': event_types,
+        }
+
+
 event_logger.register('waldur_issue', IssueEventLogger)
 event_logger.register('waldur_attachment', AttachmentEventLogger)
 event_logger.register('waldur_offering', OfferingEventLogger)
+event_logger.register('waldur_offering_backend_id', OfferingBackendIDEventLogger)

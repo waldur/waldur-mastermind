@@ -457,6 +457,7 @@ class OfferingSerializer(
             'article_code',
             'report',
             'error_message',
+            'backend_id',
         )
         read_only_fields = (
             'type_label',
@@ -466,6 +467,7 @@ class OfferingSerializer(
             'state',
             'product_code',
             'article_code',
+            'backend_id',
         )
         protected_fields = ('project', 'type', 'template', 'plan')
         extra_kwargs = dict(
@@ -641,6 +643,10 @@ class OfferingCompleteSerializer(serializers.Serializer):
         instance.state = models.Offering.States.OK
         instance.save(update_fields=['state', 'unit_price', 'unit'])
         return instance
+
+
+class OfferingSetBackendIDSerializer(serializers.Serializer):
+    backend_id = serializers.CharField()
 
 
 class AttachmentSerializer(

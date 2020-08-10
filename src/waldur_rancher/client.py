@@ -41,11 +41,12 @@ class RancherClient:
             raise RancherException(e)
 
         data = response.content
-        content_type = response.headers['Content-Type'].lower()
-        if data and content_type == 'application/json':
-            data = response.json()
-        elif content_type == 'text/plain':
-            data = data.decode('utf-8')
+        if data:
+            content_type = response.headers['Content-Type'].lower()
+            if content_type == 'application/json':
+                data = response.json()
+            elif content_type == 'text/plain':
+                data = data.decode('utf-8')
 
         status_code = response.status_code
         if status_code in (
@@ -348,6 +349,9 @@ class RancherClient:
     def list_project_secrets(self, project_id):
         return self._get(f'project/{project_id}/secrets', params={'limit': -1})['data']
 
+    def get_application(self, project_id, app_id):
+        return self._get(f'/project/{project_id}/apps/{app_id}')
+
     def destroy_application(self, project_id, app_id):
         return self._delete(f'/project/{project_id}/apps/{app_id}')
 
@@ -355,6 +359,26 @@ class RancherClient:
         return self._get(f'project/{project_id}/workloads', params={'limit': -1})[
             'data'
         ]
+
+    def redeploy_workload(self, project_id: str, workload_id: str):
+        return self._post(
+            f'project/{project_id}/workloads/{workload_id}',
+            params={'action': 'redeploy'},
+        )
+
+    def delete_workload(self, project_id: str, workload_id: str):
+        return self._delete(f'project/{project_id}/workloads/{workload_id}')
+
+    def get_workload_yaml(self, project_id: str, workload_id: str):
+        return self._get(
+            f'project/{project_id}/workloads/{workload_id}/yaml',
+            headers={'accept': 'application/yaml'},
+        )
+
+    def put_workload_yaml(self, project_id: str, workload_id: str, yaml: str):
+        return self._put(
+            f'project/{project_id}/workloads/{workload_id}/yaml', data=yaml
+        )
 
     def list_hpas(self, project_id: str):
         """
@@ -424,3 +448,14 @@ class RancherClient:
         Delete horizontal pod autoscaler.
         """
         return self._delete(f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}')
+
+    def get_hpa_yaml(self, project_id: str, hpa_id: str):
+        return self._get(
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml',
+            headers={'accept': 'application/yaml'},
+        )
+
+    def put_hpa_yaml(self, project_id: str, hpa_id: str, yaml: str):
+        return self._put(
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml', data=yaml
+        )

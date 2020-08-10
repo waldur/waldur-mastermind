@@ -34,14 +34,7 @@ class PayPalExtension(WaldurExtension):
 
     @staticmethod
     def celery_tasks():
-        from celery.schedules import crontab
-
         return {
-            'debit-customers': {
-                'task': 'waldur_paypal.DebitCustomers',
-                'schedule': crontab(hour=0, minute=30),
-                'args': (),
-            },
             'payments-cleanup': {
                 'task': 'waldur_paypal.PaymentsCleanUp',
                 'schedule': timedelta(hours=24),

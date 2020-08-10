@@ -1232,11 +1232,6 @@ class ResourceMixin(
     def get_backend(self, **kwargs):
         return self.service_project_link.get_backend(**kwargs)
 
-    def get_cost(self, start_date, end_date):
-        raise NotImplementedError(
-            "Please refer to waldur_core.billing.tasks.debit_customers while implementing it"
-        )
-
     def get_access_url(self):
         # default behaviour. Override in subclasses if applicable
         return None

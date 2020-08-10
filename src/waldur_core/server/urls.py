@@ -24,7 +24,6 @@ users_urls.register_in(router)
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^admintools/', include('admin_tools.urls')),
-    url(r'^admin/defender/', include('defender.urls')),
 ]
 
 if settings.WALDUR_CORE.get('EXTENSIONS_AUTOREGISTER'):

@@ -96,3 +96,9 @@ class ProjectRoleId:
     view = 'view'
     workloads_manage = 'workloads-manage'
     workloads_view = 'workloads-view'
+
+
+LONGHORN_NAME = 'longhorn'
+
+
+LONGHORN_NAMESPACE = 'longhorn-system'

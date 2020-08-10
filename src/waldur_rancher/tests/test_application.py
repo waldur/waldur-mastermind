@@ -18,7 +18,7 @@ class ApplicationCreateTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
     def test_create_is_enabled_for_owner(self, mock_client):
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
 
         catalog = factories.CatalogFactory(settings=self.fixture.settings)
         project = factories.ProjectFactory(
@@ -36,10 +36,13 @@ class ApplicationCreateTest(test.APITransactionTestCase):
         response = self.client.post(
             '/api/rancher-apps/',
             {
+                'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(
+                    self.fixture.spl
+                ),
                 'name': 'Test Catalog',
-                'template_uuid': template.uuid,
-                'project_uuid': project.uuid,
-                'namespace_uuid': namespace.uuid,
+                'template': factories.TemplateFactory.get_url(template),
+                'rancher_project': factories.ProjectFactory.get_url(project),
+                'namespace': factories.NamespaceFactory.get_url(namespace),
                 'version': '1.0',
                 'answers': {},
             },

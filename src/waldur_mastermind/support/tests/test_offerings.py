@@ -335,6 +335,15 @@ class OfferingUpdateTest(BaseOfferingTest):
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_set_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+        request = {'backend_id': 'offering_backend_id'}
+        url = factories.OfferingFactory.get_url(self.offering, 'set_backend_id')
+        response = self.client.post(url, request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.backend_id, 'offering_backend_id')
+
 
 class OfferingCompleteTest(BaseOfferingTest):
     def test_offering_is_in_ok_state_when_complete_is_called(self):

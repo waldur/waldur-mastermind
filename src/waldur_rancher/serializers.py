@@ -165,6 +165,15 @@ class BaseNodeSerializer(
     def get_filtered_field_names(self):
         return ('subnet', 'flavor', 'system_volume_type')
 
+    def get_fields(self):
+        fields = super(BaseNodeSerializer, self).get_fields()
+        if (
+            settings.WALDUR_RANCHER['DISABLE_DATA_VOLUME_CREATION']
+            and 'data_volumes' in fields
+        ):
+            del fields['data_volumes']
+        return fields
+
 
 class NestedNodeSerializer(BaseNodeSerializer):
     instance = core_serializers.GenericRelatedField(
@@ -258,6 +267,15 @@ class ClusterSerializer(
             cluster={'view_name': 'rancher-cluster-detail', 'lookup_field': 'uuid',},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
+
+    def get_fields(self):
+        fields = super(ClusterSerializer, self).get_fields()
+        if (
+            settings.WALDUR_RANCHER['DISABLE_SSH_KEY_INJECTION']
+            and 'ssh_public_key' in fields
+        ):
+            del fields['ssh_public_key']
+        return fields
 
     def validate(self, attrs):
         # Skip validation on update
@@ -623,24 +641,108 @@ class TemplateSerializer(
         }
 
 
-class ApplicationCreateSerializer(serializers.Serializer):
-    name = serializers.CharField()
-    description = serializers.CharField(required=False)
-    template_uuid = serializers.UUIDField()
+class ApplicationSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='rancher-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='rancher-spl-detail',
+        queryset=models.RancherServiceProjectLink.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
     version = serializers.CharField()
-    project_uuid = serializers.UUIDField()
-    namespace_uuid = serializers.UUIDField(required=False)
-    namespace_name = serializers.CharField(required=False)
+    namespace_name = serializers.CharField(required=False, write_only=True)
     answers = serializers.DictField(required=False)
+    rancher_project_name = serializers.ReadOnlyField(source='rancher_project.name')
+    catalog_name = serializers.ReadOnlyField(source='template.catalog.name')
+    template_name = serializers.ReadOnlyField(source='template.name')
+
+    class Meta:
+        model = models.Application
+        view_name = 'rancher-app-detail'
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'runtime_state',
+            'template',
+            'rancher_project',
+            'namespace',
+            'namespace_name',
+            'version',
+            'answers',
+            'rancher_project_name',
+            'catalog_name',
+            'template_name',
+            'external_url',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'template': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-template-detail',
+            },
+            'namespace': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-namespace-detail',
+                'required': False,
+            },
+            'rancher_project': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-project-detail',
+            },
+        }
 
     def validate(self, attrs):
-        if (not attrs.get('namespace_uuid') and not attrs.get('namespace_name')) or (
-            attrs.get('namespace_uuid') and attrs.get('namespace_name')
+        attrs = super(ApplicationSerializer, self).validate(attrs)
+        if (not attrs.get('namespace') and not attrs.get('namespace_name')) or (
+            attrs.get('namespace') and attrs.get('namespace_name')
         ):
             raise serializers.ValidationError(
-                'Either existing namespace UUID or new namespace name should be specified.'
+                _(
+                    'Either existing namespace UUID or new namespace name should be specified.'
+                )
             )
+
+        template = attrs['template']
+        rancher_project = attrs['rancher_project']
+        settings_set = {template.settings, rancher_project.settings}
+
+        namespace = attrs.get('namespace')
+        namespace_name = attrs.pop('namespace_name', None)
+        if namespace:
+            settings_set.add(namespace.settings)
+
+            if namespace.project != rancher_project:
+                raise serializers.ValidationError(
+                    _('Namespace should belong to the same project.')
+                )
+        elif namespace_name:
+            attrs['namespace'] = models.Namespace.objects.create(
+                name=namespace_name,
+                settings=rancher_project.settings,
+                project=rancher_project,
+            )
+        else:
+            raise serializers.ValidationError(_('Namespace is not specified.'))
+
+        if len(settings_set) > 1:
+            raise serializers.ValidationError(
+                _(
+                    'The same settings should be used for template, project and namespace.'
+                )
+            )
+
         return attrs
+
+    def create(self, validated_data):
+        rancher_project = validated_data['rancher_project']
+        validated_data['settings'] = rancher_project.settings
+        validated_data['cluster'] = rancher_project.cluster
+        return super(ApplicationSerializer, self).create(validated_data)
 
 
 class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
@@ -730,7 +832,7 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
             'namespace',
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-hpa-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
             'namespace': {

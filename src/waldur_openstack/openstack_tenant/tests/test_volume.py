@@ -502,7 +502,9 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
 class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def setUp(self):
         super(VolumeTypeCreateTest, self).setUp()
-        self.type = factories.VolumeTypeFactory(settings=self.settings)
+        self.type = factories.VolumeTypeFactory(
+            settings=self.settings, backend_id='ssd'
+        )
         self.type_url = factories.VolumeTypeFactory.get_url(self.type)
 
     def test_type_populated_on_volume_creation(self):
@@ -521,6 +523,15 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
         key = 'gigabytes_' + self.type.backend_id
         usage = self.settings.quotas.get(name=key).usage
         self.assertEqual(usage, 10)
+
+    def test_user_can_not_create_volume_if_resulting_quota_usage_is_greater_than_limit(
+        self,
+    ):
+        self.settings.set_quota_usage('gigabytes_ssd', 0)
+        self.settings.set_quota_limit('gigabytes_ssd', 0)
+
+        response = self.create_volume(type=self.type_url, size=1024)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class VolumeAvailabilityZoneCreateTest(BaseVolumeCreateTest):

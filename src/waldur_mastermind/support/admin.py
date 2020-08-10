@@ -72,6 +72,7 @@ class OfferingAdmin(admin.ModelAdmin):
         'product_code',
         'article_code',
         'report',
+        'backend_id',
     )
     form = OfferingAdminForm
     actions = ('create_issue',)

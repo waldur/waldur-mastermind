@@ -1,3 +1,5 @@
+set -e
+
 # Installing Python package manager
 pip3 install poetry
 poetry config virtualenvs.create false
@@ -6,7 +8,7 @@ poetry config virtualenvs.create false
 poetry install --no-dev
 
 # Compile i18n messages
-cp packaging/settings.py src/waldur_core/server/settings.py
+cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 django-admin compilemessages
 
 # Build static assets
@@ -57,15 +59,3 @@ TEMPLATES = [
 ]
 EOF
 PYTHONPATH="${PYTHONPATH}:/usr/src/waldur" django-admin collectstatic --noinput --settings=tmp_settings
-
-# Copy template files to in-docker storage
-
-# Copy configuration files
-mkdir -p /etc/waldur-templates/
-cp packaging/etc/waldur/celery.conf /etc/waldur-templates/celery.conf
-cp packaging/etc/waldur/core.ini /etc/waldur-templates/core.ini
-cp packaging/etc/waldur/uwsgi.ini /etc/waldur-templates/uwsgi.ini
-
-# Copy default SAML2 configuration
-mkdir -p /etc/waldur-templates/saml2/
-cp packaging/etc/waldur/saml2.conf.py.example /etc/waldur-templates/saml2/
