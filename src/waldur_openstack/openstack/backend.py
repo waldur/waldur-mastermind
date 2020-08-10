@@ -1473,6 +1473,12 @@ class OpenStackBackend(BaseOpenStackBackend):
                 device_owner='network:router_interface',
             )['ports']
 
+            # in newer versions of openstack with HA routers owner is different
+            ports += neutron.list_ports(
+                network_id=subnet.network.backend_id,
+                device_owner='network:ha_router_replicated_interface',
+            )['ports']
+
             for port in ports:
                 neutron.remove_interface_router(
                     port['device_id'], {'subnet_id': subnet.backend_id}
