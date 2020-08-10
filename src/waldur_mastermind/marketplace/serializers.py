@@ -1677,6 +1677,7 @@ class ResourceSerializer(BaseItemSerializer):
             'scope',
             'state',
             'resource_uuid',
+            'backend_id',
             'resource_type',
             'project',
             'project_uuid',
@@ -1691,7 +1692,7 @@ class ResourceSerializer(BaseItemSerializer):
             'current_usages',
             'can_terminate',
         )
-        read_only_fields = ('backend_metadata', 'scope', 'current_usages')
+        read_only_fields = ('backend_metadata', 'scope', 'current_usages', 'backend_id')
 
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = core_serializers.GenericRelatedField()

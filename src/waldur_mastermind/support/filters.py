@@ -140,6 +140,7 @@ class SupportUserFilter(django_filters.FilterSet):
 
 
 class OfferingFilter(django_filters.FilterSet):
+    uuid = django_filters.UUIDFilter(field_name='uuid')
     name = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
     type = django_filters.ModelMultipleChoiceFilter(
@@ -155,6 +156,7 @@ class OfferingFilter(django_filters.FilterSet):
     )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
     issue_key = django_filters.CharFilter(field_name='issue__key')
+    backend_id = django_filters.CharFilter(field_name='backend_id')
     project = core_filters.URLFilter(
         view_name='project-detail', field_name='project__uuid'
     )

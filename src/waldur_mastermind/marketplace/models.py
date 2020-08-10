@@ -988,6 +988,11 @@ class Resource(
         if self.scope:
             return self.scope.get_scope_type()
 
+    @property
+    def backend_id(self):
+        if self.scope:
+            return self.scope.backend_id
+
     def init_quotas(self):
         if self.limits:
             components_map = self.offering.get_usage_components()
