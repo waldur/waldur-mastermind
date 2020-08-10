@@ -889,11 +889,21 @@ class RancherBackend(ServiceBackend):
             scale=remote_workload.get('scale', 0),
         )
 
-    def redeploy_workload(self, workload):
+    def redeploy_workload(self, workload: models.Workload):
         self.client.redeploy_workload(workload.project.backend_id, workload.backend_id)
 
-    def delete_workload(self, workload):
+    def delete_workload(self, workload: models.Workload):
         self.client.delete_workload(workload.project.backend_id, workload.backend_id)
+
+    def get_workload_yaml(self, workload: models.Workload):
+        return self.client.get_workload_yaml(
+            workload.project.backend_id, workload.backend_id
+        )
+
+    def put_workload_yaml(self, workload: models.Workload, yaml: str):
+        return self.client.put_workload_yaml(
+            workload.project.backend_id, workload.backend_id, yaml
+        )
 
     def pull_cluster_hpas(self, cluster):
         for project in models.Project.objects.filter(cluster=cluster):
@@ -1003,6 +1013,12 @@ class RancherBackend(ServiceBackend):
             self.client.delete_hpa(hpa.project.backend_id, hpa.backend_id)
         except NotFound:
             logger.debug('HPA %s is not present in the backend.' % hpa.backend_id)
+
+    def get_hpa_yaml(self, hpa: models.HPA):
+        return self.client.get_hpa_yaml(hpa.project.backend_id, hpa.backend_id)
+
+    def put_hpa_yaml(self, hpa: models.HPA, yaml: str):
+        return self.client.put_hpa_yaml(hpa.project.backend_id, hpa.backend_id, yaml)
 
     def pull_apps(self):
         local_clusters = models.Cluster.objects.filter(settings=self.settings)
