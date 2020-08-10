@@ -832,7 +832,7 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
             'namespace',
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-workload-detail'},
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-hpa-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
             'namespace': {

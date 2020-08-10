@@ -430,6 +430,18 @@ class WorkloadViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         workload.delete()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
+    @decorators.action(detail=True, methods=['get', 'put'])
+    def yaml(self, request, *args, **kwargs):
+        workload = self.get_object()
+        backend = workload.get_backend()
+        if request.method == 'GET':
+            yaml = backend.get_workload_yaml(workload)
+            return response.Response({'yaml': yaml}, status=status.HTTP_200_OK)
+        else:
+            yaml = request.data['yaml']
+            backend.put_workload_yaml(workload, yaml)
+            return response.Response(status=status.HTTP_200_OK)
+
 
 class HPAViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.HPA.objects.all()
@@ -440,6 +452,18 @@ class HPAViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     create_executor = executors.HPACreateExecutor
     update_executor = executors.HPAUpdateExecutor
     delete_executor = executors.HPADeleteExecutor
+
+    @decorators.action(detail=True, methods=['get', 'put'])
+    def yaml(self, request, *args, **kwargs):
+        hpa = self.get_object()
+        backend = hpa.get_backend()
+        if request.method == 'GET':
+            yaml = backend.get_hpa_yaml(hpa)
+            return response.Response({'yaml': yaml}, status=status.HTTP_200_OK)
+        else:
+            yaml = request.data['yaml']
+            backend.put_hpa_yaml(hpa, yaml)
+            return response.Response(status=status.HTTP_200_OK)
 
 
 class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
