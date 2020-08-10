@@ -56,6 +56,8 @@ class SupportExtension(WaldurExtension):
                     '{% if issue.resource.service_project_link.service.type %}'
                     '- Service type: {{issue.resource.service_project_link.service.type}}\n'
                     '{% endif %}'
+                    '- Offering name: {{ issue.resource.service_project_link.service.settings.name }}\n'
+                    '- Offering provided by: {{ issue.resource.service_project_link.service.settings.customer.name }}\n'
                     '{% endif %}'
                     '- Affected resource: {{issue.resource}}\n'
                     '{% endif %}'
