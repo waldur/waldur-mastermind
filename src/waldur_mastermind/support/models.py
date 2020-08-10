@@ -336,6 +336,10 @@ class Offering(
     report = core_fields.JSONField(blank=True)
     terminated_at = models.DateTimeField(editable=False, blank=True, null=True)
 
+    # For storing unique reference to the resource provided through request-based item.
+    # E.g. ecs s3 namespace name.
+    backend_id = models.CharField(max_length=255, blank=True)
+
     tracker = FieldTracker()
 
     def get_backend(self):

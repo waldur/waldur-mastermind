@@ -69,6 +69,7 @@ class MarketplaceSupportConfig(AppConfig):
             update_resource_processor=processor.UpdateRequestProcessor,
             delete_resource_processor=processor.DeleteRequestProcessor,
             can_terminate_order_item=True,
+            resource_model=support_models.Offering,
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(support_models.Offering)
