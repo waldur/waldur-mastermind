@@ -21,3 +21,21 @@ class VolumeTypeTest(test.APITransactionTestCase):
     def test_unauthorized_users_cannot_get_volume_type_list(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_quota_for_volume_type_is_propagated_from_tenant_to_private_settings(self):
+        self.fixture.tenant.set_quota_limit('gigabytes_ssd', 100)
+        self.assertEqual(
+            self.fixture.openstack_tenant_service_settings.quotas.get(
+                name='gigabytes_ssd'
+            ).limit,
+            100,
+        )
+
+    def test_quota_for_volume_type_is_deleted_from_private_settings(self):
+        self.fixture.tenant.set_quota_limit('gigabytes_ssd', 100)
+        self.fixture.tenant.quotas.get(name='gigabytes_ssd').delete()
+        self.assertFalse(
+            self.fixture.openstack_tenant_service_settings.quotas.filter(
+                name='gigabytes_ssd'
+            ).exists()
+        )
