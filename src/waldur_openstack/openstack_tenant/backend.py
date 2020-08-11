@@ -584,35 +584,38 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         tenant = volume.service_project_link.service.settings.scope
 
-        if volume.type:
-            kwargs['volume_type'] = volume.type.backend_id
-        else:
-            volume_type_name = tenant and tenant.default_volume_type_name
-            if volume_type_name:
-                try:
-                    volume_type = models.VolumeType.objects.get(
-                        name=volume_type_name,
-                        settings=volume.service_project_link.service.settings,
-                    )
-                    volume.type = volume_type
-                    kwargs['volume_type'] = volume_type.backend_id
-                except models.VolumeType.DoesNotExist:
-                    logger.error(
-                        'Volume type is not set as volume type with name %s is not found. Settings UUID: %s'
-                        % (
-                            volume_type_name,
-                            volume.service_project_link.service.settings.uuid.hex,
+        # there is an issue in RHOS13 that doesn't allow to restore a snapshot to a volume if also a volume type ID is provided
+        # a workaround is to avoid setting volume type in this case at all
+        if not volume.source_snapshot:
+            if volume.type:
+                kwargs['volume_type'] = volume.type.backend_id
+            else:
+                volume_type_name = tenant and tenant.default_volume_type_name
+                if volume_type_name:
+                    try:
+                        volume_type = models.VolumeType.objects.get(
+                            name=volume_type_name,
+                            settings=volume.service_project_link.service.settings,
                         )
-                    )
-                except models.VolumeType.MultipleObjectsReturned:
-                    logger.error(
-                        'Volume type is not set as multiple volume types with name %s are found.'
-                        'Service settings UUID: %s'
-                        % (
-                            volume_type_name,
-                            volume.service_project_link.service.settings.uuid.hex,
+                        volume.type = volume_type
+                        kwargs['volume_type'] = volume_type.backend_id
+                    except models.VolumeType.DoesNotExist:
+                        logger.error(
+                            'Volume type is not set as volume type with name %s is not found. Settings UUID: %s'
+                            % (
+                                volume_type_name,
+                                volume.service_project_link.service.settings.uuid.hex,
+                            )
                         )
-                    )
+                    except models.VolumeType.MultipleObjectsReturned:
+                        logger.error(
+                            'Volume type is not set as multiple volume types with name %s are found.'
+                            'Service settings UUID: %s'
+                            % (
+                                volume_type_name,
+                                volume.service_project_link.service.settings.uuid.hex,
+                            )
+                        )
 
         if volume.availability_zone:
             kwargs['availability_zone'] = volume.availability_zone.name
