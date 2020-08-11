@@ -595,3 +595,42 @@ def sync_private_settings_quotas_with_tenant_quotas(
     Quota.objects.filter(scope__in=private_settings, name=quota.name).update(
         limit=quota.limit, usage=quota.usage
     )
+
+
+def propagate_volume_type_quotas_from_tenant_to_private_service_settings(
+    sender, instance, created=False, **kwargs
+):
+    quota = instance
+
+    if not created:
+        return
+
+    if not quota.name.startswith('gigabytes_'):
+        return
+
+    if not isinstance(quota.scope, openstack_models.Tenant):
+        return
+
+    tenant = quota.scope
+    private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
+    for service_settings in private_settings:
+        Quota.objects.update_or_create(
+            content_type=ContentType.objects.get_for_model(service_settings),
+            object_id=service_settings.id,
+            name=quota.name,
+            defaults=dict(limit=quota.limit, usage=quota.usage,),
+        )
+
+
+def delete_volume_type_quotas_from_private_service_settings(sender, instance, **kwargs):
+    quota = instance
+
+    if not quota.name.startswith('gigabytes_'):
+        return
+
+    if not isinstance(quota.scope, openstack_models.Tenant):
+        return
+
+    tenant = quota.scope
+    private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
+    Quota.objects.filter(scope__in=private_settings, name=quota.name).delete()

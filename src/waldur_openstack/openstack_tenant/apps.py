@@ -49,6 +49,18 @@ class OpenStackTenantConfig(AppConfig):
             dispatch_uid='openstack_tenant.handlers.sync_private_settings_quotas_with_tenant_quotas',
         )
 
+        signals.post_save.connect(
+            handlers.propagate_volume_type_quotas_from_tenant_to_private_service_settings,
+            sender=Quota,
+            dispatch_uid='openstack_tenant.handlers.propagate_volume_type_quotas_from_tenant_to_private_service_settings',
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_volume_type_quotas_from_private_service_settings,
+            sender=Quota,
+            dispatch_uid='openstack_tenant.handlers.delete_volume_type_quotas_from_private_service_settings',
+        )
+
         Project.add_quota_field(
             name='os_cpu_count',
             quota_field=TotalQuotaField(
