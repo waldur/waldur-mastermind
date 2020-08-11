@@ -16,7 +16,7 @@ class InvoiceFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Invoice
-        fields = ('year', 'month')
+        fields = {'year': ['exact', 'gt', 'lt'], 'month': ['exact', 'gt', 'lt']}
 
 
 class PaymentProfileFilter(django_filters.FilterSet):
