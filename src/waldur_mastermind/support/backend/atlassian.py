@@ -405,7 +405,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def create_feedback(self, feedback):
         if feedback.comment:
-            support_user = models.SupportUser.objects.get(user=feedback.issue.caller)
+            support_user, _ = models.SupportUser.objects.get_or_create_from_user(
+                feedback.issue.caller
+            )
             comment = models.Comment.objects.create(
                 issue=feedback.issue,
                 description=feedback.comment,
