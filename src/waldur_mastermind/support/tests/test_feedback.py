@@ -8,6 +8,7 @@ from rest_framework import status
 from waldur_core.core import utils as core_utils
 
 from .. import models, tasks
+from ..backend.atlassian import ServiceDeskBackend
 from . import base, factories
 
 
@@ -30,6 +31,15 @@ class FeedbackCreateTest(base.BaseTest):
             data={'evaluation': models.Feedback.Evaluation.POSITIVE, 'token': token},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_comment_has_been_created_if_feedback_has_been_synchronized(self):
+        with mock.patch.object(ServiceDeskBackend, 'create_comment'):
+            backend = ServiceDeskBackend()
+            feedback = factories.FeedbackFactory(comment='Test Feedback', evaluation=0)
+            backend.create_feedback(feedback)
+            self.assertTrue(
+                models.Feedback.objects.filter(issue=feedback.issue).exists()
+            )
 
     def test_user_cannot_create_feedback_if_token_is_wrong(self):
         url = factories.FeedbackFactory.get_list_url()
