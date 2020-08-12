@@ -12,11 +12,14 @@ class InvoiceFilter(django_filters.FilterSet):
     )
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
     state = django_filters.MultipleChoiceFilter(choices=models.Invoice.States.CHOICES)
-    o = django_filters.OrderingFilter(fields=('year', 'month'))
+    created_date = django_filters.DateFilter(field_name='created', lookup_expr='exact')
+    start_date = django_filters.DateFilter(field_name='created', lookup_expr='gt')
+    end_date = django_filters.DateFilter(field_name='created', lookup_expr='lt')
+    o = django_filters.OrderingFilter(fields=('created',))
 
     class Meta:
         model = models.Invoice
-        fields = {'year': ['exact', 'gt', 'lt'], 'month': ['exact', 'gt', 'lt']}
+        fields = []
 
 
 class PaymentProfileFilter(django_filters.FilterSet):
