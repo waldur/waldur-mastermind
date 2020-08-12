@@ -1022,7 +1022,12 @@ class Resource(
         )
 
     def __str__(self):
-        return str(self.name)
+        if self.name:
+            return f'{self.name} ({self.offering.name})'
+        if self.scope:
+            return f'{self.name} ({self.content_type} / {self.object_id})'
+
+        return f'{self.uuid} ({self.offering.name})'
 
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):

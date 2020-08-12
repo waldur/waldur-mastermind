@@ -131,7 +131,12 @@ class FlavorAdmin(structure_admin.BackendModelAdmin):
 
 
 class ImageAdmin(structure_admin.BackendModelAdmin):
-    list_display = ('name', 'min_disk', 'min_ram')
+    list_display = (
+        'name',
+        'settings',
+        'min_disk',
+        'min_ram',
+    )
 
 
 class TenantResourceAdmin(structure_admin.ResourceAdmin):
