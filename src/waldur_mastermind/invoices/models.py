@@ -366,10 +366,18 @@ class ServiceDowntime(models.Model):
         editable=False,
     )
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=marketplace_models.Offering, blank=True, null=True
+        on_delete=models.CASCADE,
+        to=marketplace_models.Offering,
+        blank=True,
+        null=True,
+        limit_choices_to={'billable': True},
     )
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=marketplace_models.Resource, blank=True, null=True
+        on_delete=models.CASCADE,
+        to=marketplace_models.Resource,
+        blank=True,
+        null=True,
+        limit_choices_to={'offering__billable': True},
     )
 
     def clean(self):

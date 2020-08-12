@@ -392,6 +392,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     class Meta:
         unique_together = ('service_project_link', 'backend_id')
+        ordering = ['name', 'created']
 
     @property
     def external_ips(self):

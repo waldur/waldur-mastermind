@@ -112,6 +112,7 @@ class ImageUsageReporter(UsageReporter):
             self.apply_filters(volumes)
             .values('image_name')
             .annotate(count=Count('image_name'))
+            .order_by()  # remove the extra group by arguments caused by default ordering
         )
         return {row['image_name']: row['count'] for row in rows}
 
@@ -128,6 +129,7 @@ class FlavorUsageReporter(UsageReporter):
             self.apply_filters(instances)
             .values('flavor_name')
             .annotate(count=Count('flavor_name'))
+            .order_by()  # remove the extra group by arguments caused by default ordering
         )
         return {row['flavor_name']: row['count'] for row in rows}
 
