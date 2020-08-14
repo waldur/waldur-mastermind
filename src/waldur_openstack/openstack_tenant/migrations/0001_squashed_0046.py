@@ -514,6 +514,7 @@ class Migration(migrations.Migration):
                 ('action', models.CharField(blank=True, max_length=50)),
                 ('action_details', waldur_core.core.fields.JSONField(default=dict)),
             ],
+            options={'ordering': ['name', 'created']},
             bases=(
                 waldur_openstack.openstack_tenant.models.TenantQuotaMixin,
                 waldur_core.core.models.DescendantMixin,

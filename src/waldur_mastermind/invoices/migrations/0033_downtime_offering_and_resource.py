@@ -17,6 +17,7 @@ class Migration(migrations.Migration):
             name='offering',
             field=models.ForeignKey(
                 blank=True,
+                limit_choices_to={'billable': True},
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 to='marketplace.Offering',
@@ -27,6 +28,7 @@ class Migration(migrations.Migration):
             name='resource',
             field=models.ForeignKey(
                 blank=True,
+                limit_choices_to={'offering__billable': True},
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 to='marketplace.Resource',

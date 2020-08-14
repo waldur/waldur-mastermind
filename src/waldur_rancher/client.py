@@ -377,7 +377,9 @@ class RancherClient:
 
     def put_workload_yaml(self, project_id: str, workload_id: str, yaml: str):
         return self._put(
-            f'project/{project_id}/workloads/{workload_id}/yaml', data=yaml
+            f'project/{project_id}/workloads/{workload_id}/yaml',
+            data=yaml,
+            headers={'content-type': 'application/yaml'},
         )
 
     def list_hpas(self, project_id: str):
@@ -457,5 +459,7 @@ class RancherClient:
 
     def put_hpa_yaml(self, project_id: str, hpa_id: str, yaml: str):
         return self._put(
-            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml', data=yaml
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml',
+            data=yaml,
+            headers={'content-type': 'application/yaml'},
         )

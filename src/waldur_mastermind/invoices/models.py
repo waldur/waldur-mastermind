@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 Units = common_mixins.UnitPriceMixin.Units
 
 
+def get_created_date():
+    now = timezone.now()
+    return datetime.date(now.year, now.month, 1)
+
+
 class Invoice(core_models.UuidMixin, models.Model):
     """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
@@ -63,6 +68,7 @@ class Invoice(core_models.UuidMixin, models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(12)],
     )
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
+    created = models.DateField(null=True, blank=True, default=get_created_date)
     state = models.CharField(
         max_length=30, choices=States.CHOICES, default=States.PENDING
     )
@@ -360,10 +366,18 @@ class ServiceDowntime(models.Model):
         editable=False,
     )
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=marketplace_models.Offering, blank=True, null=True
+        on_delete=models.CASCADE,
+        to=marketplace_models.Offering,
+        blank=True,
+        null=True,
+        limit_choices_to={'billable': True},
     )
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=marketplace_models.Resource, blank=True, null=True
+        on_delete=models.CASCADE,
+        to=marketplace_models.Resource,
+        blank=True,
+        null=True,
+        limit_choices_to={'offering__billable': True},
     )
 
     def clean(self):
