@@ -1213,6 +1213,8 @@ class RancherBackend(ServiceBackend):
             namespace_id=namespace.backend_id,
             name=LONGHORN_NAME,
             answers={'persistence.defaultClassReplicaCount': replica_count},
+            wait=True,
+            timeout=1200,
         )
 
         models.Application.objects.create(
