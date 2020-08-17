@@ -654,6 +654,9 @@ class SnapshotRestorationSerializer(
             size=snapshot.size,
         )
 
+        if snapshot.source_volume:
+            volume.type = snapshot.source_volume.type
+
         volume.save()
         volume.increase_backend_quotas_usage()
         validated_data['volume'] = volume
@@ -1542,10 +1545,6 @@ class InstanceFlavorChangeSerializer(
                     _('New flavor is not within the same service settings')
                 )
 
-            if value.disk < self.instance.flavor_disk:
-                raise serializers.ValidationError(
-                    _('New flavor disk should be greater than the previous value')
-                )
         return value
 
     @transaction.atomic

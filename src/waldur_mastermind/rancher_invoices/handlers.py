@@ -4,10 +4,8 @@ from . import utils
 
 
 def update_node_usage(sender, instance, created=False, **kwargs):
-    if created:
-        return
-
-    utils.create_usage(instance)
+    if instance.tracker.has_changed('state'):
+        utils.create_usage(instance.cluster)
 
 
 def create_invoice_item_if_component_usage_has_been_created(

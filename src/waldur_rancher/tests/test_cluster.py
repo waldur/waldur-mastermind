@@ -505,8 +505,8 @@ class ClusterCreateTest(BaseClusterCreateTest):
             mock_client_post.call_args_list[2][1]['json'],
             {
                 'prune': False,
-                'timeout': 300,
-                'wait': False,
+                'timeout': 1200,
+                'wait': True,
                 'type': 'app',
                 'name': 'longhorn',
                 'targetNamespace': '1',

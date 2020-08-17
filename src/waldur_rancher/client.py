@@ -315,11 +315,13 @@ class RancherClient:
         namespace_id: str,
         name: str,
         answers: dict = None,
+        wait: bool = False,
+        timeout: int = 300,
     ):
         payload = {
             'prune': False,
-            'timeout': 300,
-            'wait': False,
+            'timeout': timeout,
+            'wait': wait,
             'type': 'app',
             'name': name,
             'targetNamespace': namespace_id,

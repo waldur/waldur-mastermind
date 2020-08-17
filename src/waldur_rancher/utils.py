@@ -14,7 +14,7 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
 
-from . import exceptions, models, signals
+from . import exceptions, models
 
 logger = logging.getLogger(__name__)
 
@@ -580,7 +580,6 @@ class SyncUser:
 
 def update_cluster_nodes_states(cluster_id):
     cluster = models.Cluster.objects.get(id=cluster_id)
-    has_changes = False
 
     for node in cluster.node_set.exclude(backend_id=''):
         old_state = node.state
@@ -601,12 +600,6 @@ def update_cluster_nodes_states(cluster_id):
 
         if old_state != node.state:
             node.save(update_fields=['state'])
-            has_changes = True
-
-    if has_changes:
-        signals.node_states_have_been_updated.send(
-            sender=models.Cluster, instance=cluster,
-        )
 
 
 def _check_permissions(action):

@@ -7,13 +7,13 @@ class RancherInvoicesConfig(AppConfig):
     verbose_name = 'Rancher'
 
     def ready(self):
-        from waldur_rancher import models as rancher_models, signals as rancher_signals
+        from waldur_rancher import models as rancher_models
         from waldur_mastermind.marketplace import models as marketplace_models
         from . import handlers
 
-        rancher_signals.node_states_have_been_updated.connect(
+        signals.post_save.connect(
             handlers.update_node_usage,
-            sender=rancher_models.Cluster,
+            sender=rancher_models.Node,
             dispatch_uid='support_invoices.handlers.update_node_usage',
         )
 
