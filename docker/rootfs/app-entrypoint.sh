@@ -73,4 +73,4 @@ chmod 750 /var/lib/waldur/
 chown -R waldur:waldur /var/lib/waldur/
 
 echo "INFO: Spawning $@"
-exec /usr/local/bin/tini -- "$@"
+exec /tini -- "$@"
