@@ -654,6 +654,9 @@ class SnapshotRestorationSerializer(
             size=snapshot.size,
         )
 
+        if snapshot.source_volume:
+            volume.type = snapshot.source_volume.type
+
         volume.save()
         volume.increase_backend_quotas_usage()
         validated_data['volume'] = volume
