@@ -246,12 +246,12 @@ class ProfileNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(
             payment_type=models.PaymentType.FIXED_PRICE,
-            attributes={'end': '2020-01-31'},
+            attributes={'end_date': '2020-01-31'},
         )
 
         factories.PaymentProfileFactory(
             payment_type=models.PaymentType.FIXED_PRICE,
-            attributes={'end': '2020-02-15'},
+            attributes={'end_date': '2020-02-15'},
         )
 
         factories.PaymentProfileFactory(payment_type=models.PaymentType.FIXED_PRICE,)

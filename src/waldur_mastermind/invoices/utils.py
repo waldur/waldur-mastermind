@@ -1,11 +1,13 @@
 import base64
 import datetime
 import logging
+import re
 from calendar import monthrange
 from decimal import Decimal
 
 import pdfkit
 from django.conf import settings
+from django.db.models import Sum
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -132,13 +134,22 @@ def get_price_per_day(price, unit):
 
 
 def get_end_date_for_profile(profile):
-    end = profile.attributes.get('end')
+    end = profile.attributes.get('end_date')
     if end:
+        result = re.match(r'\d{4}-\d{2}-\d{2}', end)
+        if result:
+            end = result.group(0)
+        else:
+            logger.error(
+                'The field \'end_date\' for profile %s is not correct. Value: %s'
+                % (profile, end)
+            )
+            return
         try:
             return datetime.datetime.strptime(end, '%Y-%m-%d').date()
         except ValueError:
             logger.error(
-                'The field \'end\' for profile %s is not correct. Value: %s'
+                'The field \'end_date\' for profile %s is not correct. Value: %s'
                 % (profile, end)
             )
 
@@ -156,3 +167,56 @@ def get_upcoming_ends_of_fixed_payment_profiles():
             upcoming_ends.append(profile)
 
     return upcoming_ends
+
+
+def get_monthly_invoicing_reports_context():
+    ids_fixed = []
+    today = datetime.date.today()
+    context = {
+        'contracts': [],
+        'invoices': [],
+        'month': today.month,
+        'year': today.year,
+    }
+
+    for profile in models.PaymentProfile.objects.filter(
+        payment_type=models.PaymentType.FIXED_PRICE, is_active=True
+    ).order_by('organization__abbreviation', 'organization__name'):
+        ids_fixed.append(profile.organization.id)
+        name = profile.organization.abbreviation or profile.organization.name
+        end = get_end_date_for_profile(profile)
+
+        if end and (end - today).days < 60:
+            alarm = True
+        else:
+            alarm = False
+
+        payments_sum = profile.payment_set.aggregate(sum=Sum('sum'))['sum']
+        contract_sum = profile.attributes.get('contract_sum')
+
+        context['contracts'].append(
+            {
+                'name': name,
+                'end': end,
+                'end_date_alarm': alarm,
+                'till_end': end and (end - today).days,
+                'profile': profile,
+                'payments_sum': payments_sum,
+                'contract_sum': contract_sum,
+                'payments_alarm': contract_sum and payments_sum != contract_sum,
+            }
+        )
+
+    context['invoices'] = (
+        models.Invoice.objects.exclude(customer_id__in=ids_fixed)
+        .filter(month=today.month, year=today.year)
+        .order_by('customer__abbreviation', 'customer__name')
+    )
+
+    return context
+
+
+def get_monthly_invoicing_reports():
+    context = get_monthly_invoicing_reports_context()
+    html = render_to_string('invoices/monthly_invoicing_reports.html', context)
+    return html

@@ -64,6 +64,11 @@ class InvoicesExtension(WaldurExtension):
                 'schedule': crontab(minute=0, hour=0, day_of_month='1'),
                 'args': (),
             },
+            'send-monthly-invoicing-reports-about-customers': {
+                'task': 'invoices.send_monthly_invoicing_reports_about_customers',
+                'schedule': crontab(minute=0, hour=0, day_of_month='2'),
+                'args': (),
+            },
             'update-invoices-current-cost': {
                 'task': 'invoices.update_invoices_current_cost',
                 'schedule': timedelta(hours=24),
