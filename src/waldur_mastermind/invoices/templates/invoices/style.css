@@ -55,3 +55,7 @@ h1 {
     text-align: right;
     width: 15%;
 }
+
+.text-danger {
+    color: red
+}

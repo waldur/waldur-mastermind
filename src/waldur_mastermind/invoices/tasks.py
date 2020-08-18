@@ -3,6 +3,7 @@ import logging
 from csv import DictWriter
 from io import StringIO
 
+import pdfkit
 from celery import chain, shared_task
 from django.conf import settings
 from django.db.models import Q
@@ -233,4 +234,27 @@ def send_notifications_about_upcoming_ends():
         emails = [owner.email for owner in profile.organization.get_owners()]
         core_utils.broadcast_mail(
             'invoices', 'upcoming_ends_notification', context, emails,
+        )
+
+
+@shared_task(name='invoices.send_monthly_invoicing_reports_about_customers')
+def send_monthly_invoicing_reports_about_customers():
+    if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
+        report = utils.get_monthly_invoicing_reports()
+        pdf = pdfkit.from_string(report, False)
+        today = timezone.datetime.today()
+        filename = '%02d_%04d_invoice_report.pdf' % (today.month, today.year)
+        subject = 'Financial report for %02d-%04d' % (today.month, today.year,)
+        body = 'Financial report for %02d-%04d is attached.' % (
+            today.month,
+            today.year,
+        )
+        emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
+        core_utils.send_mail_with_attachment(
+            subject=subject,
+            body=body,
+            to=emails,
+            attachment=pdf,
+            filename=filename,
+            content_type='application/pdf',
         )

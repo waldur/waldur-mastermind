@@ -11,7 +11,8 @@ from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support.tests import factories as support_factories
 
 from .. import models, tasks
-from . import fixtures, utils
+from .. import utils as invoices_utils
+from . import factories, fixtures, utils
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
@@ -241,3 +242,46 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(3, len(lines))
+
+
+@freeze_time('2017-11-01')
+class MontlyReportTaskTest(TransactionTestCase):
+    @utils.override_invoices_settings(INVOICE_REPORTING=True)
+    def test_report_context(self):
+        invoice_1 = factories.InvoiceFactory()
+        invoice_2 = factories.InvoiceFactory()
+        invoice_3 = factories.InvoiceFactory()
+        factories.PaymentProfileFactory(
+            organization=invoice_1.customer,
+            payment_type=models.PaymentType.FIXED_PRICE,
+            is_active=True,
+            attributes={'end_date': '2017-10-01', 'contract_sum': 100},
+        )
+        factories.PaymentProfileFactory(
+            organization=invoice_2.customer,
+            payment_type=models.PaymentType.FIXED_PRICE,
+            is_active=True,
+        )
+        factories.PaymentProfileFactory(
+            organization=invoice_2.customer,
+            payment_type=models.PaymentType.FIXED_PRICE,
+            is_active=False,
+        )
+        context = invoices_utils.get_monthly_invoicing_reports_context()
+        self.assertEqual(len(context['invoices']), 1)
+        self.assertEqual(context['invoices'][0], invoice_3)
+        self.assertEqual(len(context['contracts']), 2)
+        customer_1_context = [
+            c
+            for c in context['contracts']
+            if c['name'] == invoice_1.customer.abbreviation
+        ][0]
+        self.assertEqual(customer_1_context['end_date_alarm'], True)
+        self.assertEqual(customer_1_context['payments_alarm'], True)
+        customer_2_context = [
+            c
+            for c in context['contracts']
+            if c['name'] == invoice_2.customer.abbreviation
+        ][0]
+        self.assertEqual(customer_2_context['end_date_alarm'], False)
+        self.assertEqual(customer_2_context['payments_alarm'], None)
