@@ -288,7 +288,7 @@ WALDUR_CORE = {
     'LOGOUT_FAILED_URL': 'https://example.com/#/logout_failed/',
     'NOTIFICATIONS_PROFILE_CHANGES': {'ENABLED': True, 'FIELDS': ('email', 'phone_number', 'job_title')},
     # 'COUNTRIES': ['EE', 'LV', 'LT'],
-    'ENABLE_ACCOUNTING_START_DATE': False,
+    'ENABLE_ACCOUNTING_START_DATE': True,
     'USE_ATOMIC_TRANSACTION': True,
     'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
     'LOGGING_REPORT_DIRECTORY': '/var/log/waldur',
