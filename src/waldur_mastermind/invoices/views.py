@@ -20,7 +20,11 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.order_by('-year', '-month')
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        structure_filters.CustomerAccountingStartDateFilter,
+        DjangoFilterBackend,
+    )
     filterset_class = filters.InvoiceFilter
 
     def _is_invoice_created(invoice):
