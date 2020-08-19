@@ -24,6 +24,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
 from waldur_rancher.apps import RancherConfig
+from waldur_rancher.exceptions import RancherException
 
 from . import exceptions, executors, filters, models, serializers, utils, validators
 
@@ -409,12 +410,38 @@ class UserViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
 
 
-class WorkloadViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
+class YamlMixin:
+    get_yaml_method = NotImplemented
+    put_yaml_method = NotImplemented
+
+    @decorators.action(detail=True, methods=['get', 'put'])
+    def yaml(self, request, *args, **kwargs):
+        workload = self.get_object()
+        backend = workload.get_backend()
+        if request.method == 'GET':
+            yaml = getattr(backend, self.get_yaml_method)(workload)
+            return response.Response({'yaml': yaml}, status=status.HTTP_200_OK)
+        else:
+            yaml = request.data['yaml']
+            try:
+                getattr(backend, self.put_yaml_method)(workload, yaml)
+            except RancherException as e:
+                message = e.args[0].get('message', 'Server error')
+                return response.Response(
+                    {'details': message}, status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return response.Response(status=status.HTTP_200_OK)
+
+
+class WorkloadViewSet(OptionalReadonlyViewset, YamlMixin, core_views.ActionsViewSet):
     queryset = models.Workload.objects.all()
     serializer_class = serializers.WorkloadSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.WorkloadFilter
     lookup_field = 'uuid'
+    get_yaml_method = 'get_workload_yaml'
+    put_yaml_method = 'put_workload_yaml'
 
     @decorators.action(detail=True, methods=['post'])
     def redeploy(self, request, *args, **kwargs):
@@ -430,20 +457,8 @@ class WorkloadViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         workload.delete()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
-    @decorators.action(detail=True, methods=['get', 'put'])
-    def yaml(self, request, *args, **kwargs):
-        workload = self.get_object()
-        backend = workload.get_backend()
-        if request.method == 'GET':
-            yaml = backend.get_workload_yaml(workload)
-            return response.Response({'yaml': yaml}, status=status.HTTP_200_OK)
-        else:
-            yaml = request.data['yaml']
-            backend.put_workload_yaml(workload, yaml)
-            return response.Response(status=status.HTTP_200_OK)
 
-
-class HPAViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
+class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet):
     queryset = models.HPA.objects.all()
     serializer_class = serializers.HPASerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -452,18 +467,8 @@ class HPAViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     create_executor = executors.HPACreateExecutor
     update_executor = executors.HPAUpdateExecutor
     delete_executor = executors.HPADeleteExecutor
-
-    @decorators.action(detail=True, methods=['get', 'put'])
-    def yaml(self, request, *args, **kwargs):
-        hpa = self.get_object()
-        backend = hpa.get_backend()
-        if request.method == 'GET':
-            yaml = backend.get_hpa_yaml(hpa)
-            return response.Response({'yaml': yaml}, status=status.HTTP_200_OK)
-        else:
-            yaml = request.data['yaml']
-            backend.put_hpa_yaml(hpa, yaml)
-            return response.Response(status=status.HTTP_200_OK)
+    get_yaml_method = 'get_hpa_yaml'
+    put_yaml_method = 'put_hpa_yaml'
 
 
 class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
