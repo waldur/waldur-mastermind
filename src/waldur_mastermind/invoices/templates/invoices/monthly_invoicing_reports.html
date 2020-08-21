@@ -1,0 +1,75 @@
+{% load i18n %}
+{% load static %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style type="text/css">
+        {% include "./style.css" %}
+    </style>
+</head>
+<body>
+<h2>{% trans 'Fixed price contracts:' %}</h2>
+{% if contracts %}
+    <table class="invoice-table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>{% trans 'Organization' %}</th>
+                <th>{% trans 'Contract end date' %}</th>
+                <th>{% trans 'Till the end of contract. [days]' %}</th>
+                <th>{% trans 'Contract sum' %}</th>
+                <th>{% trans 'Payment sum' %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contract in contracts %}
+                <tr>
+                    <th>{{ forloop.counter }}</th>
+                    <td>{{ contract.name }}</td>
+                    <td>{{ contract.end|date:"Y-m-d"|default_if_none:"" }}</td>
+                    <td {% if contract.end_date_alarm %} class="text-danger" {% endif %}>{{ contract.till_end|default_if_none:"" }}</td>
+                    <td {% if contract.payments_alarm %} class="text-danger" {% endif %}>
+                        {{ contract.contract_sum|default_if_none:0|floatformat:"2"|intcomma }}
+                    </td>
+                    <td {% if contract.payments_alarm %} class="text-danger" {% endif %}>
+                        {{ contract.payments_sum|default_if_none:0|floatformat:"2"|intcomma }}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>{% trans 'Contracts do not exist.' %}</p>
+{% endif %}
+
+<h2>{% blocktrans %}Invoices for month {{ month }}-{{ year }}:{% endblocktrans %}</h2>
+
+<table class="invoice-table">
+    <thead>
+        <tr>
+            <th></th>
+            <th>{% trans 'Organization' %}</th>
+            <th>{% trans 'Invoice date' %}</th>
+            <th>{% trans 'Invoice sum' %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for invoice in invoices %}
+            <tr>
+                <th>{{ forloop.counter }}</th>
+                <td>{% if invoice.customer.abbreviation %}
+                        {{ invoice.customer.abbreviation }}
+                    {% else %}
+                        {{ invoice.customer.name }}
+                    {% endif %}</td>
+                <td>{{ invoice.invoice_date|date:"Y-m-d" }}</td>
+                <td>{{ invoice.total|floatformat:"2"|intcomma }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>
