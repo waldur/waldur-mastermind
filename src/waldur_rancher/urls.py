@@ -35,6 +35,9 @@ def register_in(router):
         basename='rancher-cluster-template',
     )
     router.register(r'rancher-apps', views.ApplicationViewSet, basename='rancher-app')
+    router.register(
+        r'rancher-ingresses', views.IngressViewSet, basename='rancher-ingress'
+    )
 
 
 urlpatterns = [

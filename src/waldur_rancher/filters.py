@@ -168,3 +168,12 @@ class ApplicationFilter(structure_filters.BaseResourceFilter):
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Application
+
+
+class IngressFilter(structure_filters.BaseResourceFilter):
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+    rancher_project_uuid = django_filters.UUIDFilter(field_name='rancher_project__uuid')
+    namespace_uuid = django_filters.UUIDFilter(field_name='namespace__uuid')
+
+    class Meta(structure_filters.BaseResourceFilter.Meta):
+        model = models.Ingress

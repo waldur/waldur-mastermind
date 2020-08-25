@@ -512,3 +512,20 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
     @property
     def external_url(self):
         return f'{self.settings.backend_url.strip("/")}/p/{self.project.backend_id}/apps/{self.backend_id}'
+
+
+class Ingress(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
+    service_project_link = models.ForeignKey(
+        RancherServiceProjectLink, related_name='+', on_delete=models.PROTECT
+    )
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
+    namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
+    rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    rules = JSONField(blank=True, default=list)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-ingress'
+
+    def __str__(self):
+        return self.name
