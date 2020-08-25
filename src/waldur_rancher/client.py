@@ -465,3 +465,8 @@ class RancherClient:
             data=yaml,
             headers={'content-type': 'application/yaml'},
         )
+
+    def list_ingresses(self, project_id: str):
+        return self._get(f'project/{project_id}/ingresses', params={'limit': -1})[
+            'data'
+        ]

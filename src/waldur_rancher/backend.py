@@ -74,6 +74,7 @@ class RancherBackend(ServiceBackend):
         self.pull_workloads()
         self.pull_hpas()
         self.pull_apps()
+        self.pull_ingresses()
 
     def pull_clusters(self):
         """
@@ -205,6 +206,7 @@ class RancherBackend(ServiceBackend):
         self.pull_cluster_workloads(cluster)
         self.pull_cluster_hpas(cluster)
         self.pull_cluster_apps(cluster)
+        self.pull_cluster_ingresses(cluster)
 
     def pull_cluster_details(self, cluster, backend_cluster=None):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
@@ -1239,4 +1241,75 @@ class RancherBackend(ServiceBackend):
             cluster,
             cluster.name,
             cluster.backend_id,
+        )
+
+    def pull_ingresses(self):
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        for cluster in local_clusters:
+            if cluster.state == models.Cluster.States.OK:
+                self.pull_cluster_ingresses(cluster)
+            else:
+                logger.debug(
+                    'Skipping ingresses pulling for cluster with backend ID %s'
+                    'because otherwise one failed cluster leads to provider failure',
+                    cluster.backend_id,
+                )
+
+    def pull_cluster_ingresses(self, cluster: models.Cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_ingresses(project)
+
+    def pull_project_ingresses(self, project):
+        remote_ingresses = self.client.list_ingresses(project.backend_id)
+        local_ingresses = models.Ingress.objects.filter(rancher_project=project)
+        local_namespaces = models.Namespace.objects.filter(project=project)
+
+        local_namespaces_map = {
+            namespace.backend_id: namespace for namespace in local_namespaces
+        }
+        remote_ingress_map = {
+            ingress['id']: self.remote_ingress_to_local(
+                ingress, project, local_namespaces_map
+            )
+            for ingress in remote_ingresses
+        }
+        local_ingress_map = {ingress.backend_id: ingress for ingress in local_ingresses}
+        remote_ingress_ids = set(remote_ingress_map.keys())
+        local_ingress_ids = set(local_ingress_map.keys())
+
+        stale_ingresses = local_ingress_ids - remote_ingress_ids
+
+        new_ingresses = [
+            remote_ingress_map[ingress_id]
+            for ingress_id in remote_ingress_ids - local_ingress_ids
+        ]
+
+        existing_ingresses = remote_ingress_ids & local_ingress_ids
+        pulled_fields = {
+            'name',
+            'runtime_state',
+            'rules',
+        }
+        for ingress_id in existing_ingresses:
+            local_ingress = local_ingress_map[ingress_id]
+            remote_ingress = remote_ingress_map[ingress_id]
+            update_pulled_fields(local_ingress, remote_ingress, pulled_fields)
+
+        models.Ingress.objects.bulk_create(new_ingresses)
+        local_ingresses.filter(backend_id__in=stale_ingresses).delete()
+
+    def remote_ingress_to_local(self, remote_ingress, project, local_namespaces_map):
+        namespace = local_namespaces_map.get(remote_ingress['namespaceId'])
+        return models.Ingress(
+            backend_id=remote_ingress['id'],
+            name=remote_ingress['name'],
+            created=parse_datetime(remote_ingress['created']),
+            runtime_state=remote_ingress['state'],
+            settings=self.settings,
+            service_project_link=namespace.project.cluster.service_project_link,
+            namespace=namespace,
+            cluster=namespace.project.cluster,
+            rancher_project=namespace.project,
+            rules=remote_ingress['rules'],
+            state=models.Ingress.States.OK,
         )
