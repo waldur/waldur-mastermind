@@ -12,6 +12,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import filters, log, models, serializers, tasks
 
@@ -115,6 +116,34 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     paid_permissions = [structure_permissions.is_staff]
     paid_validators = [core_validators.StateValidator(models.Invoice.States.CREATED)]
+
+    @action(detail=True)
+    def stats(self, request, uuid=None):
+        invoice = self.get_object()
+        offerings = {}
+
+        for item in invoice.items.all():
+            if not item.scope or not isinstance(
+                item.scope, marketplace_models.Resource
+            ):
+                continue
+
+            resource = item.scope
+            offering = resource.offering
+            customer = offering.customer
+
+            if offering.uuid.hex not in offerings.keys():
+                offerings[offering.uuid.hex] = {
+                    'offering_name': offering.name,
+                    'aggregated_cost': float(item.total),
+                    'service_category_title': offering.category.title,
+                    'service_provider_name': customer.name,
+                    'service_provider_uuid': customer.serviceprovider.uuid.hex,
+                }
+            else:
+                offerings[offering.uuid.hex]['aggregated_cost'] += float(item.total)
+
+        return Response(offerings, status=status.HTTP_200_OK)
 
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
