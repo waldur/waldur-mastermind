@@ -1313,3 +1313,13 @@ class RancherBackend(ServiceBackend):
             rules=remote_ingress['rules'],
             state=models.Ingress.States.OK,
         )
+
+    def get_ingress_yaml(self, ingress: models.Ingress):
+        return self.client.get_ingress_yaml(
+            ingress.project.backend_id, ingress.backend_id
+        )
+
+    def put_ingress_yaml(self, ingress: models.HPA, yaml: str):
+        return self.client.put_ingress_yaml(
+            ingress.project.backend_id, ingress.backend_id, yaml
+        )
