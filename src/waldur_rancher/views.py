@@ -477,9 +477,13 @@ class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
 
 
-class IngressViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
+class IngressViewSet(
+    OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet
+):
     queryset = models.Ingress.objects.all()
     serializer_class = serializers.IngressSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.IngressFilter
     lookup_field = 'uuid'
+    get_yaml_method = 'get_ingress_yaml'
+    put_yaml_method = 'put_ingress_yaml'
