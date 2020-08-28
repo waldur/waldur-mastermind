@@ -1323,3 +1323,17 @@ class RancherBackend(ServiceBackend):
         return self.client.put_ingress_yaml(
             ingress.project.backend_id, ingress.backend_id, yaml
         )
+
+    def import_yaml(
+        self,
+        cluster: models.Cluster,
+        yaml: str,
+        default_namespace: models.Namespace = None,
+        namespace: models.Namespace = None,
+    ):
+        return self.client.import_yaml(
+            cluster.backend_id,
+            yaml,
+            default_namespace and default_namespace.backend_id,
+            namespace and namespace.backend_id,
+        )

@@ -117,6 +117,32 @@ class ClusterViewSet(
         core_validators.StateValidator(models.Cluster.States.OK)
     ]
 
+    @decorators.action(detail=True, methods=['post'])
+    def import_yaml(self, request, uuid=None):
+        cluster = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        yaml = serializer.validated_data['yaml']
+        default_namespace = serializer.validated_data.get('default_namespace')
+        namespace = serializer.validated_data.get('namespace')
+
+        backend = cluster.get_backend()
+        try:
+            backend.import_yaml(
+                cluster, yaml, default_namespace=default_namespace, namespace=namespace
+            )
+        except exceptions.RancherException as e:
+            message = e.args[0].get('message', 'Server error')
+            return response.Response(
+                {'details': message}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        executors.ClusterPullExecutor.execute(cluster)
+
+        return response.Response(status.HTTP_200_OK)
+
+    import_yaml_serializer_class = serializers.ImportYamlSerializer
+
 
 class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Node.objects.all()

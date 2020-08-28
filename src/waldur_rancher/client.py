@@ -478,3 +478,17 @@ class RancherClient:
         return self._put_yaml(
             f'project/{project_id}/ingresses/{ingress_id}/yaml', yaml,
         )
+
+    def import_yaml(
+        self,
+        cluster_id: str,
+        yaml: str,
+        default_namespace_id: str = None,
+        namespace_id: str = None,
+    ):
+        payload = {'yaml': yaml}
+        if default_namespace_id:
+            payload['defaultNamespace'] = default_namespace_id
+        if namespace_id:
+            payload['namespace'] = namespace_id
+        return self._post(f'clusters/{cluster_id}?action=importYaml', json=payload)
