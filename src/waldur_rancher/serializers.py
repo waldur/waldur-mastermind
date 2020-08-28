@@ -1033,6 +1033,48 @@ class IngressSerializer(structure_serializers.BaseResourceSerializer):
         return super(IngressSerializer, self).create(validated_data)
 
 
+class ImportYamlSerializer(serializers.Serializer):
+    yaml = serializers.CharField()
+    default_namespace = serializers.HyperlinkedRelatedField(
+        view_name='rancher-namespace-detail',
+        lookup_field='uuid',
+        queryset=models.Namespace.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    namespace = serializers.HyperlinkedRelatedField(
+        view_name='rancher-namespace-detail',
+        lookup_field='uuid',
+        queryset=models.Namespace.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        fields = (
+            'yaml',
+            'default_namespace',
+            'namespace',
+        )
+
+    def validate(self, attrs):
+        cluster = self.context['view'].get_object()
+        namespace = attrs.get('namespace')
+        default_namespace = attrs.get('default_namespace')
+
+        if namespace and namespace.project.cluster != cluster:
+            raise serializers.ValidationError(
+                _('Namespace should be related to the same cluster.')
+            )
+
+        if default_namespace and default_namespace.project.cluster != cluster:
+            raise serializers.ValidationError(
+                _('Default namespace should be related to the same cluster.')
+            )
+
+        return attrs
+
+
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context['request']
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
