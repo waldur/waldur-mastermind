@@ -148,10 +148,9 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             else:
                 offerings[offering.uuid.hex]['aggregated_cost'] += item.total
 
-        return Response(
-            [dict(uuid=key, **details) for (key, details) in offerings.items()],
-            status=status.HTTP_200_OK,
-        )
+        queryset = [dict(uuid=key, **details) for (key, details) in offerings.items()]
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(page)
 
     @action(detail=False)
     def growth(self, request):
