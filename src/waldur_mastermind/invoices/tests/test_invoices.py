@@ -316,8 +316,9 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         result = self.client.get(url)
         self.assertEqual(
             result.data,
-            {
-                self.offering.uuid.hex: {
+            [
+                {
+                    'uuid': self.offering.uuid.hex,
                     'offering_name': self.offering.name,
                     'aggregated_cost': float(
                         sum(
@@ -337,7 +338,8 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                     'service_provider_name': self.offering.customer.name,
                     'service_provider_uuid': self.provider.uuid.hex,
                 },
-                self.offering_2.uuid.hex: {
+                {
+                    'uuid': self.offering_2.uuid.hex,
                     'offering_name': self.offering_2.name,
                     'aggregated_cost': float(
                         sum(
@@ -353,7 +355,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                     'service_provider_name': self.offering_2.customer.name,
                     'service_provider_uuid': self.provider_2.uuid.hex,
                 },
-            },
+            ],
         )
 
 

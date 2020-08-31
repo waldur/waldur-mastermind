@@ -140,15 +140,18 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             if offering.uuid.hex not in offerings.keys():
                 offerings[offering.uuid.hex] = {
                     'offering_name': offering.name,
-                    'aggregated_cost': float(item.total),
+                    'aggregated_cost': item.total,
                     'service_category_title': offering.category.title,
                     'service_provider_name': customer.name,
                     'service_provider_uuid': customer.serviceprovider.uuid.hex,
                 }
             else:
-                offerings[offering.uuid.hex]['aggregated_cost'] += float(item.total)
+                offerings[offering.uuid.hex]['aggregated_cost'] += item.total
 
-        return Response(offerings, status=status.HTTP_200_OK)
+        return Response(
+            [dict(uuid=key, **details) for (key, details) in offerings.items()],
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False)
     def growth(self, request):
