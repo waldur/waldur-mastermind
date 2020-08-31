@@ -76,6 +76,14 @@ class RancherClient:
     def _put(self, endpoint, **kwargs):
         return self._request('put', endpoint, **kwargs)
 
+    def _get_yaml(self, endpoint: str):
+        return self._get(endpoint, headers={'accept': 'application/yaml'},)
+
+    def _put_yaml(self, endpoint: str, yaml: str):
+        return self._put(
+            endpoint, data=yaml, headers={'content-type': 'application/yaml'},
+        )
+
     def login(self, access_key, secret_key):
         """
         Login to Rancher server using access_key and secret_key.
@@ -372,16 +380,11 @@ class RancherClient:
         return self._delete(f'project/{project_id}/workloads/{workload_id}')
 
     def get_workload_yaml(self, project_id: str, workload_id: str):
-        return self._get(
-            f'project/{project_id}/workloads/{workload_id}/yaml',
-            headers={'accept': 'application/yaml'},
-        )
+        return self._get_yaml(f'project/{project_id}/workloads/{workload_id}/yaml',)
 
     def put_workload_yaml(self, project_id: str, workload_id: str, yaml: str):
-        return self._put(
-            f'project/{project_id}/workloads/{workload_id}/yaml',
-            data=yaml,
-            headers={'content-type': 'application/yaml'},
+        return self._put_yaml(
+            f'project/{project_id}/workloads/{workload_id}/yaml', yaml,
         )
 
     def list_hpas(self, project_id: str):
@@ -454,14 +457,41 @@ class RancherClient:
         return self._delete(f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}')
 
     def get_hpa_yaml(self, project_id: str, hpa_id: str):
-        return self._get(
+        return self._get_yaml(
             f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml',
-            headers={'accept': 'application/yaml'},
         )
 
     def put_hpa_yaml(self, project_id: str, hpa_id: str, yaml: str):
-        return self._put(
-            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml',
-            data=yaml,
-            headers={'content-type': 'application/yaml'},
+        return self._put_yaml(
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml', yaml,
         )
+
+    def list_ingresses(self, project_id: str):
+        return self._get(f'project/{project_id}/ingresses', params={'limit': -1})[
+            'data'
+        ]
+
+    def get_ingress_yaml(self, project_id: str, ingress_id: str):
+        return self._get_yaml(f'project/{project_id}/ingresses/{ingress_id}/yaml',)
+
+    def put_ingress_yaml(self, project_id: str, ingress_id: str, yaml: str):
+        return self._put_yaml(
+            f'project/{project_id}/ingresses/{ingress_id}/yaml', yaml,
+        )
+
+    def delete_ingress(self, project_id: str, ingress_id: str):
+        return self._delete(f'project/{project_id}/ingresses/{ingress_id}')
+
+    def import_yaml(
+        self,
+        cluster_id: str,
+        yaml: str,
+        default_namespace_id: str = None,
+        namespace_id: str = None,
+    ):
+        payload = {'yaml': yaml}
+        if default_namespace_id:
+            payload['defaultNamespace'] = default_namespace_id
+        if namespace_id:
+            payload['namespace'] = namespace_id
+        return self._post(f'clusters/{cluster_id}?action=importYaml', json=payload)

@@ -1,5 +1,9 @@
+import datetime
+
 from celery import chain
+from dateutil.relativedelta import relativedelta
 from django.db import transaction
+from django.db.models import Sum
 from django.http import Http404, HttpResponse
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,7 +15,9 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import filters, log, models, serializers, tasks
 
@@ -115,6 +121,111 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     paid_permissions = [structure_permissions.is_staff]
     paid_validators = [core_validators.StateValidator(models.Invoice.States.CREATED)]
+
+    @action(detail=True)
+    def stats(self, request, uuid=None):
+        invoice = self.get_object()
+        offerings = {}
+
+        for item in invoice.items.all():
+            if not item.scope or not isinstance(
+                item.scope, marketplace_models.Resource
+            ):
+                continue
+
+            resource = item.scope
+            offering = resource.offering
+            customer = offering.customer
+
+            if offering.uuid.hex not in offerings.keys():
+                offerings[offering.uuid.hex] = {
+                    'offering_name': offering.name,
+                    'aggregated_cost': item.total,
+                    'service_category_title': offering.category.title,
+                    'service_provider_name': customer.name,
+                    'service_provider_uuid': customer.serviceprovider.uuid.hex,
+                }
+            else:
+                offerings[offering.uuid.hex]['aggregated_cost'] += item.total
+
+        queryset = [dict(uuid=key, **details) for (key, details) in offerings.items()]
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(page)
+
+    @action(detail=False)
+    def growth(self, request):
+        if not self.request.user.is_staff and not request.user.is_support:
+            raise exceptions.PermissionDenied()
+
+        customers = structure_models.Customer.objects.all()
+        customers = structure_filters.AccountingStartDateFilter().filter_queryset(
+            request, customers, self
+        )
+
+        customers_count = 4
+        if 'customers_count' in request.query_params:
+            try:
+                customers_count = int(request.query_params['customers_count'])
+            except ValueError:
+                raise exceptions.ValidationError('customers_count is not a number')
+
+        if customers_count > 20:
+            raise exceptions.ValidationError(
+                'customers_count should not be greater than 20'
+            )
+
+        today = datetime.date.today()
+        current_month = today - relativedelta(months=12)
+
+        majors = list(
+            models.Invoice.objects.filter(
+                customer__in=customers, created__gte=current_month
+            )
+            .values('customer_id')
+            .annotate(total=Sum('current_cost'))
+            .order_by('-total')
+            .values_list('customer_id', flat=True)[:customers_count]
+        )
+
+        minors = customers.exclude(id__in=majors)
+
+        customer_periods = {}
+        total_periods = {}
+        other_periods = {}
+
+        for i in range(13):
+            invoices = models.Invoice.objects.filter(
+                year=current_month.year, month=current_month.month,
+            )
+            key = f'{current_month.year}-{current_month.month}'
+            row = customer_periods[key] = {}
+            subtotal = 0
+            for invoice in invoices.filter(customer_id__in=majors):
+                subtotal += invoice.total
+                row[invoice.customer.uuid.hex] = invoice.total
+            other_periods[key] = sum(
+                invoice.total for invoice in invoices.filter(customer_id__in=minors)
+            )
+            total_periods[key] = subtotal + other_periods[key]
+            current_month += relativedelta(months=1)
+
+        result = {
+            'periods': total_periods.keys(),
+            'total_periods': total_periods.values(),
+            'other_periods': other_periods.values(),
+            'customer_periods': [
+                {
+                    'name': customer.name,
+                    'periods': [
+                        customer_periods[period].get(customer.uuid.hex, 0)
+                        for period in total_periods.keys()
+                    ],
+                }
+                for customer in structure_models.Customer.objects.filter(id__in=majors)
+            ],
+        }
+
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):

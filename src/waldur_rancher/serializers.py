@@ -972,6 +972,109 @@ class ClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
         )
 
 
+class IngressSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='rancher-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='rancher-spl-detail',
+        queryset=models.RancherServiceProjectLink.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
+    rancher_project_name = serializers.ReadOnlyField(source='rancher_project.name')
+    namespace_name = serializers.ReadOnlyField(source='namespace.name')
+
+    class Meta:
+        model = models.Ingress
+        view_name = 'rancher-ingress-detail'
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'runtime_state',
+            'rancher_project',
+            'rancher_project_name',
+            'namespace',
+            'namespace_name',
+            'rules',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'namespace': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-namespace-detail',
+                'required': False,
+            },
+            'rancher_project': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-project-detail',
+            },
+        }
+
+    def validate(self, attrs):
+        attrs = super(IngressSerializer, self).validate(attrs)
+        rancher_project = attrs['rancher_project']
+        namespace = attrs['namespace']
+
+        if namespace.project != rancher_project:
+            raise serializers.ValidationError(
+                _('Namespace should belong to the same project.')
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        rancher_project = validated_data['rancher_project']
+        validated_data['settings'] = rancher_project.settings
+        validated_data['cluster'] = rancher_project.cluster
+        return super(IngressSerializer, self).create(validated_data)
+
+
+class ImportYamlSerializer(serializers.Serializer):
+    yaml = serializers.CharField()
+    default_namespace = serializers.HyperlinkedRelatedField(
+        view_name='rancher-namespace-detail',
+        lookup_field='uuid',
+        queryset=models.Namespace.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    namespace = serializers.HyperlinkedRelatedField(
+        view_name='rancher-namespace-detail',
+        lookup_field='uuid',
+        queryset=models.Namespace.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        fields = (
+            'yaml',
+            'default_namespace',
+            'namespace',
+        )
+
+    def validate(self, attrs):
+        cluster = self.context['view'].get_object()
+        namespace = attrs.get('namespace')
+        default_namespace = attrs.get('default_namespace')
+
+        if namespace and namespace.project.cluster != cluster:
+            raise serializers.ValidationError(
+                _('Namespace should be related to the same cluster.')
+            )
+
+        if default_namespace and default_namespace.project.cluster != cluster:
+            raise serializers.ValidationError(
+                _('Default namespace should be related to the same cluster.')
+            )
+
+        return attrs
+
+
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context['request']
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)

@@ -11,13 +11,17 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
-from .. import models, utils
+from .. import models, tasks, utils
 from . import factories, fixtures
 from . import utils as test_utils
 
@@ -243,6 +247,116 @@ class InvoiceItemTest(test.APITransactionTestCase):
         response = self.client.get(url)
         item = response.data['items'][0]
         self.assertEqual(item['scope_type'], 'Support.Offering')
+
+
+class InvoiceStatsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.provider = marketplace_factories.ServiceProviderFactory()
+        self.provider_2 = marketplace_factories.ServiceProviderFactory()
+
+        self.offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE, customer=self.provider.customer
+        )
+
+        self.offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering
+        )
+        self.plan = marketplace_factories.PlanFactory(
+            offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
+        )
+        self.component = marketplace_factories.PlanComponentFactory(
+            component=self.offering_component, price=Decimal(5), plan=self.plan
+        )
+
+        self.offering_2 = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE, customer=self.provider_2.customer
+        )
+
+        self.offering_component_2 = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering_2
+        )
+        self.plan_2 = marketplace_factories.PlanFactory(
+            offering=self.offering_2, unit=UnitPriceMixin.Units.PER_DAY,
+        )
+        self.component_2 = marketplace_factories.PlanComponentFactory(
+            component=self.offering_component_2, price=Decimal(7), plan=self.plan_2
+        )
+
+        self.resource_1 = marketplace_factories.ResourceFactory(
+            state=marketplace_models.Resource.States.OK,
+            offering=self.offering,
+            plan=self.plan,
+            limits={'cpu': 1},
+        )
+
+        self.resource_2 = marketplace_factories.ResourceFactory(
+            state=marketplace_models.Resource.States.OK,
+            offering=self.offering,
+            project=self.resource_1.project,
+            plan=self.plan,
+            limits={'cpu': 1},
+        )
+
+        self.resource_3 = marketplace_factories.ResourceFactory(
+            state=marketplace_models.Resource.States.OK,
+            offering=self.offering_2,
+            project=self.resource_1.project,
+            plan=self.plan_2,
+            limits={'cpu': 1},
+        )
+
+        self.customer = self.resource_1.project.customer
+
+    @freeze_time('2019-01-01')
+    def test_invoice_stats(self):
+        tasks.create_monthly_invoices()
+        invoice = models.Invoice.objects.get(customer=self.customer)
+        url = factories.InvoiceFactory.get_url(invoice=invoice, action='stats')
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        result = self.client.get(url)
+        self.assertEqual(
+            result.data,
+            [
+                {
+                    'uuid': self.offering.uuid.hex,
+                    'offering_name': self.offering.name,
+                    'aggregated_cost': float(
+                        sum(
+                            [
+                                item.total
+                                for item in models.InvoiceItem.objects.filter(
+                                    invoice=invoice,
+                                    object_id__in=[
+                                        self.resource_1.id,
+                                        self.resource_2.id,
+                                    ],
+                                )
+                            ]
+                        )
+                    ),
+                    'service_category_title': self.offering.category.title,
+                    'service_provider_name': self.offering.customer.name,
+                    'service_provider_uuid': self.provider.uuid.hex,
+                },
+                {
+                    'uuid': self.offering_2.uuid.hex,
+                    'offering_name': self.offering_2.name,
+                    'aggregated_cost': float(
+                        sum(
+                            [
+                                item.total
+                                for item in models.InvoiceItem.objects.filter(
+                                    invoice=invoice, object_id__in=[self.resource_3.id]
+                                )
+                            ]
+                        )
+                    ),
+                    'service_category_title': self.offering_2.category.title,
+                    'service_provider_name': self.offering_2.customer.name,
+                    'service_provider_uuid': self.provider_2.uuid.hex,
+                },
+            ],
+        )
 
 
 class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):

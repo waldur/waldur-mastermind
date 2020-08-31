@@ -117,6 +117,32 @@ class ClusterViewSet(
         core_validators.StateValidator(models.Cluster.States.OK)
     ]
 
+    @decorators.action(detail=True, methods=['post'])
+    def import_yaml(self, request, uuid=None):
+        cluster = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        yaml = serializer.validated_data['yaml']
+        default_namespace = serializer.validated_data.get('default_namespace')
+        namespace = serializer.validated_data.get('namespace')
+
+        backend = cluster.get_backend()
+        try:
+            backend.import_yaml(
+                cluster, yaml, default_namespace=default_namespace, namespace=namespace
+            )
+        except exceptions.RancherException as e:
+            message = e.args[0].get('message', 'Server error')
+            return response.Response(
+                {'details': message}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        executors.ClusterPullExecutor.execute(cluster)
+
+        return response.Response(status.HTTP_200_OK)
+
+    import_yaml_serializer_class = serializers.ImportYamlSerializer
+
 
 class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Node.objects.all()
@@ -475,3 +501,22 @@ class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ClusterTemplate.objects.all()
     serializer_class = serializers.ClusterTemplateSerializer
     lookup_field = 'uuid'
+
+
+class IngressViewSet(
+    OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet
+):
+    queryset = models.Ingress.objects.all()
+    serializer_class = serializers.IngressSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.IngressFilter
+    lookup_field = 'uuid'
+    get_yaml_method = 'get_ingress_yaml'
+    put_yaml_method = 'put_ingress_yaml'
+
+    def destroy(self, request, *args, **kwargs):
+        ingress = self.get_object()
+        backend = ingress.get_backend()
+        backend.delete_ingress(ingress)
+        ingress.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
