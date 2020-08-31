@@ -1324,6 +1324,11 @@ class RancherBackend(ServiceBackend):
             ingress.project.backend_id, ingress.backend_id, yaml
         )
 
+    def delete_ingress(self, ingress: models.HPA):
+        return self.client.delete_ingress(
+            ingress.project.backend_id, ingress.backend_id
+        )
+
     def import_yaml(
         self,
         cluster: models.Cluster,

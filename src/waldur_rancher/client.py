@@ -479,6 +479,9 @@ class RancherClient:
             f'project/{project_id}/ingresses/{ingress_id}/yaml', yaml,
         )
 
+    def delete_ingress(self, project_id: str, ingress_id: str):
+        return self._delete(f'project/{project_id}/ingresses/{ingress_id}')
+
     def import_yaml(
         self,
         cluster_id: str,
