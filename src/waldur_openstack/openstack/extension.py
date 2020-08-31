@@ -110,7 +110,7 @@ class OpenStackExtension(WaldurExtension):
         return {
             'openstack-tenant-pull-quotas': {
                 'task': 'openstack.TenantPullQuotas',
-                'schedule': timedelta(hours=24),
+                'schedule': timedelta(hours=12),
                 'args': (),
             },
         }
