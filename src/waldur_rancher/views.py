@@ -513,3 +513,10 @@ class IngressViewSet(
     lookup_field = 'uuid'
     get_yaml_method = 'get_ingress_yaml'
     put_yaml_method = 'put_ingress_yaml'
+
+    def destroy(self, request, *args, **kwargs):
+        ingress = self.get_object()
+        backend = ingress.get_backend()
+        backend.delete_ingress(ingress)
+        ingress.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
