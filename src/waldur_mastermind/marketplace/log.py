@@ -96,8 +96,26 @@ class MarketplaceResourceLogger(EventLogger):
         return {resource, project, project.customer}
 
 
+class MarketplaceComponentUsageLogger(EventLogger):
+    usage = models.ComponentUsage
+
+    class Meta:
+        event_types = (
+            'marketplace_component_usage_created',
+            'marketplace_component_usage_updated',
+        )
+
+    @staticmethod
+    def get_scopes(event_context):
+        usage = event_context['usage']
+        resource = usage.resource
+        project = Project.all_objects.get(id=resource.project_id)
+        return {resource, project, project.customer}
+
+
 event_logger.register('marketplace_order', MarketplaceOrderLogger)
 event_logger.register('marketplace_resource', MarketplaceResourceLogger)
+event_logger.register('marketplace_component_usage', MarketplaceComponentUsageLogger)
 
 
 def log_order_created(order):
@@ -233,4 +251,20 @@ def log_resource_limit_update_failed(resource):
         'Update limits of resource {resource_name} is failed.',
         event_type='marketplace_resource_update_limits_failed',
         event_context={'resource': resource},
+    )
+
+
+def log_component_usage_creation_succeeded(usage):
+    event_logger.marketplace_component_usage.info(
+        'Marketplace component usage {usage_uuid} has been created.',
+        event_type='marketplace_component_usage_created',
+        event_context={'usage': usage},
+    )
+
+
+def log_component_usage_updation_succeeded(usage):
+    event_logger.marketplace_component_usage.info(
+        'Marketplace component usage {usage_uuid} has been updated.',
+        event_type='marketplace_component_usage_updated',
+        event_context={'usage': usage},
     )

@@ -1201,7 +1201,7 @@ class ComponentQuota(models.Model):
 
 
 class ComponentUsage(
-    TimeStampedModel, core_models.DescribableMixin, core_models.UuidMixin
+    TimeStampedModel, core_models.DescribableMixin, core_models.UuidMixin, LoggableMixin
 ):
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='usages'
@@ -1231,6 +1231,9 @@ class ComponentUsage(
 
     def __str__(self):
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
+
+    def get_log_fields(self):
+        return ('uuid', 'description', 'usage', 'date', 'resource', 'component')
 
 
 class AggregateResourceCount(core_mixins.ScopeMixin):

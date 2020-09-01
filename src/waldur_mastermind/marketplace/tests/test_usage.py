@@ -1,11 +1,13 @@
 import datetime
 
+import mock
 from ddt import data, ddt
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
@@ -178,6 +180,41 @@ class SubmitUsageTest(test.APITransactionTestCase):
                 date=date,
                 billing_period=billing_period,
             ).exists()
+        )
+
+    @mock.patch('waldur_mastermind.marketplace.views.logger')
+    def test_event_log_creates_if_component_usage_has_been_created(self, mock_logger):
+        self.client.force_authenticate(self.fixture.staff)
+        usage_data = self.get_usage_data()
+        response = self.client.post(
+            '/api/marketplace-component-usages/set_usage/', usage_data
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_logger.info.assert_called_once_with(
+            'Usage has been created. Data: {\'plan_period\': \'%s\','
+            ' \'usages\': [{\'type\': \'cpu\', \'amount\': 5, \'description\': \'\'}]}.'
+            % self.plan_period.uuid.hex
+        )
+
+        date = timezone.now()
+        billing_period = core_utils.month_start(date)
+        component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.offering_component,
+            date=date,
+            billing_period=billing_period,
+        )
+
+        logging_models.Event.objects.get(
+            message='Marketplace component usage %s has been created.'
+            % component_usage.uuid
+        )
+        usage_data['usages'][0]['amount'] = 8
+        self.client.post('/api/marketplace-component-usages/set_usage/', usage_data)
+
+        logging_models.Event.objects.get(
+            message='Marketplace component usage %s has been updated.'
+            % component_usage.uuid
         )
 
     @data('admin', 'manager', 'user')
