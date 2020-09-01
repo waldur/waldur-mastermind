@@ -1971,7 +1971,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 resource=resource, component=component, billing_period=billing_period,
             ).update(recurring=False)
 
-            models.ComponentUsage.objects.update_or_create(
+            return models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 plan_period=plan_period,

@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import (
@@ -38,7 +40,9 @@ from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import resource_imported
 from waldur_pid import models as pid_models
 
-from . import filters, models, permissions, plugins, serializers, tasks
+from . import filters, log, models, permissions, plugins, serializers, tasks
+
+logger = logging.getLogger(__name__)
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -762,7 +766,17 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
                     'to submit usage data for marketplace resource.'
                 )
             )
-        serializer.save()
+        usage, created = serializer.save()
+
+        if created:
+            message = 'Usage has been created. ' 'Data: %s.' % serializer.initial_data
+            logger.info(message)
+            log.log_component_usage_creation_succeeded(usage)
+        else:
+            message = 'Usage has been updated. ' 'Data: %s.' % serializer.initial_data
+            logger.info(message)
+            log.log_component_usage_updation_succeeded(usage)
+
         return Response(status=status.HTTP_201_CREATED)
 
     set_usage_serializer_class = serializers.ComponentUsageCreateSerializer
