@@ -501,10 +501,9 @@ class VolumeExtendSerializer(serializers.Serializer):
     def update(self, instance: models.Volume, validated_data):
         new_size = validated_data.get('disk_size')
 
-        settings = instance.service_project_link.service.settings
-        spl = instance.service_project_link
-
-        for quota_holder in [settings, spl]:
+        for quota_holder in instance.get_quota_scopes():
+            if not quota_holder:
+                continue
             quota_holder.add_quota_usage(
                 quota_holder.Quotas.storage, new_size - instance.size, validate=True
             )
@@ -601,6 +600,25 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
         if type == volume.type:
             raise serializers.ValidationError(_('Volume already has requested type.'))
         return type
+
+    @transaction.atomic
+    def update(self, instance: models.Volume, validated_data):
+        old_type = instance.type
+        new_type = validated_data.get('type')
+
+        for quota_holder in instance.get_quota_scopes():
+            if not quota_holder:
+                continue
+            quota_holder.add_quota_usage(
+                'gigabytes_' + old_type.backend_id,
+                -1 * instance.size / 1024,
+                validate=True,
+            )
+            quota_holder.add_quota_usage(
+                'gigabytes_' + new_type.backend_id, instance.size / 1024, validate=True
+            )
+
+        return super(VolumeRetypeSerializer, self).update(instance, validated_data)
 
 
 class SnapshotRestorationSerializer(
