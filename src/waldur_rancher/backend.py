@@ -1316,17 +1316,17 @@ class RancherBackend(ServiceBackend):
 
     def get_ingress_yaml(self, ingress: models.Ingress):
         return self.client.get_ingress_yaml(
-            ingress.project.backend_id, ingress.backend_id
+            ingress.rancher_project.backend_id, ingress.backend_id
         )
 
-    def put_ingress_yaml(self, ingress: models.HPA, yaml: str):
+    def put_ingress_yaml(self, ingress: models.Ingress, yaml: str):
         return self.client.put_ingress_yaml(
-            ingress.project.backend_id, ingress.backend_id, yaml
+            ingress.rancher_project.backend_id, ingress.backend_id, yaml
         )
 
-    def delete_ingress(self, ingress: models.HPA):
+    def delete_ingress(self, ingress: models.Ingress):
         return self.client.delete_ingress(
-            ingress.project.backend_id, ingress.backend_id
+            ingress.rancher_project.backend_id, ingress.backend_id
         )
 
     def import_yaml(
