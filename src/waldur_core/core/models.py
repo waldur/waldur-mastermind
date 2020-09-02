@@ -42,7 +42,7 @@ class DescribableMixin(models.Model):
     class Meta:
         abstract = True
 
-    description = models.CharField(_('description'), max_length=500, blank=True)
+    description = models.CharField(_('description'), max_length=2000, blank=True)
 
 
 class NameMixin(models.Model):
