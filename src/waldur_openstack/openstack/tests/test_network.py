@@ -114,7 +114,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
                             "type": "string",
                             "required": False,
                             "label": "Description",
-                            "max_length": 500,
+                            "max_length": 2000,
                         },
                         "cidr": {"type": "string", "required": False, "label": "CIDR"},
                         "gateway_ip": {
@@ -171,7 +171,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
                             "type": "string",
                             "required": False,
                             "label": "Description",
-                            "max_length": 500,
+                            "max_length": 2000,
                         },
                     },
                     "enabled": True,
