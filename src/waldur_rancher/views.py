@@ -31,9 +31,9 @@ from . import exceptions, executors, filters, models, serializers, utils, valida
 logger = logging.getLogger(__name__)
 
 
-class ServiceViewSet(structure_views.BaseServiceViewSet):
+class RancherServiceViewSet(structure_views.BaseServiceViewSet):
     queryset = models.RancherService.objects.all()
-    serializer_class = serializers.ServiceSerializer
+    serializer_class = serializers.RancherServiceSerializer
 
 
 class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
@@ -460,7 +460,21 @@ class YamlMixin:
                 return response.Response(status=status.HTTP_200_OK)
 
 
-class WorkloadViewSet(OptionalReadonlyViewset, YamlMixin, core_views.ActionsViewSet):
+class SyncDestroyMixin:
+    delete_scope_method = NotImplemented
+
+    def destroy(self, request, *args, **kwargs):
+        scope = self.get_object()
+        backend = scope.get_backend()
+        method = getattr(backend, self.delete_scope_method)
+        method(scope)
+        scope.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WorkloadViewSet(
+    OptionalReadonlyViewset, YamlMixin, SyncDestroyMixin, core_views.ActionsViewSet
+):
     queryset = models.Workload.objects.all()
     serializer_class = serializers.WorkloadSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -468,6 +482,7 @@ class WorkloadViewSet(OptionalReadonlyViewset, YamlMixin, core_views.ActionsView
     lookup_field = 'uuid'
     get_yaml_method = 'get_workload_yaml'
     put_yaml_method = 'put_workload_yaml'
+    delete_scope_method = 'delete_workload'
 
     @decorators.action(detail=True, methods=['post'])
     def redeploy(self, request, *args, **kwargs):
@@ -475,13 +490,6 @@ class WorkloadViewSet(OptionalReadonlyViewset, YamlMixin, core_views.ActionsView
         backend = workload.get_backend()
         backend.redeploy_workload(workload)
         return response.Response(status=status.HTTP_200_OK)
-
-    def destroy(self, request, *args, **kwargs):
-        workload = self.get_object()
-        backend = workload.get_backend()
-        backend.delete_workload(workload)
-        workload.delete()
-        return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet):
@@ -504,7 +512,10 @@ class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class IngressViewSet(
-    OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet
+    OptionalReadonlyViewset,
+    YamlMixin,
+    SyncDestroyMixin,
+    structure_views.ResourceViewSet,
 ):
     queryset = models.Ingress.objects.all()
     serializer_class = serializers.IngressSerializer
@@ -513,10 +524,20 @@ class IngressViewSet(
     lookup_field = 'uuid'
     get_yaml_method = 'get_ingress_yaml'
     put_yaml_method = 'put_ingress_yaml'
+    delete_scope_method = 'delete_ingress'
 
-    def destroy(self, request, *args, **kwargs):
-        ingress = self.get_object()
-        backend = ingress.get_backend()
-        backend.delete_ingress(ingress)
-        ingress.delete()
-        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+class ServiceViewSet(
+    OptionalReadonlyViewset,
+    YamlMixin,
+    SyncDestroyMixin,
+    structure_views.ResourceViewSet,
+):
+    queryset = models.Service.objects.all()
+    serializer_class = serializers.ServiceSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.ServiceFilter
+    lookup_field = 'uuid'
+    get_yaml_method = 'get_service_yaml'
+    put_yaml_method = 'put_service_yaml'
+    delete_scope_method = 'delete_service'

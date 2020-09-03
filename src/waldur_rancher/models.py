@@ -529,3 +529,20 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
 
     def __str__(self):
         return self.name
+
+
+class Service(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
+    service_project_link = models.ForeignKey(
+        RancherServiceProjectLink, related_name='+', on_delete=models.PROTECT
+    )
+    namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
+    cluster_ip = models.GenericIPAddressField(protocol='IPv4', blank=True, null=True)
+    target_workloads = models.ManyToManyField(Workload)
+    selector = JSONField(blank=True, null=True)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-service'
+
+    def __str__(self):
+        return self.name
