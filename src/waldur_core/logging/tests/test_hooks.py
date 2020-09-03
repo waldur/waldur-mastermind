@@ -20,7 +20,7 @@ class BaseHookApiTest(test.APITransactionTestCase):
         self.other_user = structure_factories.UserFactory()
 
         self.valid_event_types = loggers.get_valid_events()[:3]
-        self.valid_event_groups = loggers.get_event_groups_keys()
+        self.valid_event_groups = loggers.get_event_groups_keys()[:3]
 
 
 class HookCreationViewTest(BaseHookApiTest):
