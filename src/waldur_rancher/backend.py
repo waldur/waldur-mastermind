@@ -1329,6 +1329,131 @@ class RancherBackend(ServiceBackend):
             ingress.rancher_project.backend_id, ingress.backend_id
         )
 
+    def pull_services(self):
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        for cluster in local_clusters:
+            if cluster.state == models.Cluster.States.OK:
+                self.pull_cluster_services(cluster)
+            else:
+                logger.debug(
+                    'Skipping services pulling for cluster with backend ID %s'
+                    'because otherwise one failed cluster leads to provider failure',
+                    cluster.backend_id,
+                )
+
+    def pull_cluster_services(self, cluster: models.Cluster):
+        for project in models.Project.objects.filter(cluster=cluster):
+            self.pull_project_services(project)
+
+    def pull_project_services(self, project):
+        remote_services = self.client.list_services(project.backend_id)
+        local_services = models.Service.objects.filter(namespace__project=project)
+        local_namespaces = models.Namespace.objects.filter(project=project)
+        local_workloads = models.Workload.objects.filter(project=project)
+
+        local_namespaces_map = {
+            namespace.backend_id: namespace for namespace in local_namespaces
+        }
+        local_workloads_map = {
+            workload.backend_id: workload for workload in local_workloads
+        }
+        remote_service_map = {service['id']: service for service in remote_services}
+        local_service_map = {service.backend_id: service for service in local_services}
+        remote_service_ids = set(remote_service_map.keys())
+        local_service_ids = set(local_service_map.keys())
+
+        stale_services = local_service_ids - remote_service_ids
+
+        new_services = [
+            remote_service_map[service_id]
+            for service_id in remote_service_ids - local_service_ids
+        ]
+
+        existing_services = remote_service_ids & local_service_ids
+        for service_id in existing_services:
+            local_service = local_service_map[service_id]
+            remote_service = remote_service_map[service_id]
+            update_fields = set()
+            if remote_service['name'] != local_service.name:
+                local_service.name = remote_service['name']
+                update_fields.add('name')
+            if remote_service['state'] != local_service.runtime_state:
+                local_service.runtime_state = remote_service['state']
+                update_fields.add('runtime_state')
+            if remote_service.get('selector') != local_service.selector:
+                local_service.selector = remote_service.get('selector')
+                update_fields.add('selector')
+            if remote_service['clusterIp'] != local_service.cluster_ip:
+                local_service.cluster_ip = remote_service['clusterIp']
+                update_fields.add('cluster_ip')
+            if update_fields:
+                local_service.save(update_fields=update_fields)
+
+            local_service_workload_map = {
+                workload.backend_id: workload
+                for workload in local_service.target_workloads.all()
+            }
+
+            remote_service_workload_map = {
+                workload_id: local_workloads_map[workload_id]
+                for workload_id in remote_service.get('targetWorkloadIds', [])
+            }
+
+            local_service_workload_ids = set(local_service_workload_map.keys())
+            remote_service_workload_ids = set(remote_service_workload_map.keys())
+
+            stale_service_workload_ids = (
+                local_service_workload_ids - remote_service_workload_ids
+            )
+            for workload_id in stale_service_workload_ids:
+                workload = local_workloads_map[workload_id]
+                local_service.target_workloads.remove(workload)
+
+            new_service_workload_ids = (
+                remote_service_workload_ids - local_service_workload_ids
+            )
+            for workload_id in new_service_workload_ids:
+                workload = local_workloads_map[workload_id]
+                local_service.target_workloads.add(workload)
+
+        for remote_service in new_services:
+            namespace = local_namespaces_map.get(remote_service['namespaceId'])
+            local_service = models.Service(
+                backend_id=remote_service['id'],
+                name=remote_service['name'],
+                created=parse_datetime(remote_service['created']),
+                runtime_state=remote_service['state'],
+                settings=self.settings,
+                service_project_link=namespace.project.cluster.service_project_link,
+                namespace=namespace,
+                cluster_ip=remote_service['clusterIp'],
+                selector=remote_service.get('selector'),
+                state=models.Service.States.OK,
+            )
+            local_service.save()
+            workloads = [
+                local_workloads_map[workload_id]
+                for workload_id in remote_service.get('targetWorkloadIds', [])
+            ]
+            local_service.target_workloads.set(workloads)
+
+        local_services.filter(backend_id__in=stale_services).delete()
+
+    def get_service_yaml(self, service: models.Service):
+        return self.client.get_service_yaml(
+            service.namespace.project.backend_id, service.backend_id
+        )
+
+    def put_service_yaml(self, service: models.Service, yaml: str):
+        return self.client.put_service_yaml(
+            service.namespace.project.backend_id, service.backend_id, yaml
+        )
+
+    def delete_service(self, service: models.Service):
+        return self.client.delete_service(
+            service.namespace.project.backend_id, service.backend_id
+        )
+
     def import_yaml(
         self,
         cluster: models.Cluster,
