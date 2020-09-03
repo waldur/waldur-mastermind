@@ -150,7 +150,7 @@ def main():
     except WaldurClientException as e:
         module.fail_json(msg=six.text_type(e))
     else:
-        module.exit_json(has_changed=has_changed)
+        module.exit_json(changed=has_changed)
 
 
 if __name__ == '__main__':
