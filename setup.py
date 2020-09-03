@@ -15,7 +15,7 @@ tests_requires = [
 
 setup(
     name='ansible-waldur-module',
-    version='1.0.4',
+    version='1.0.5',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='https://waldur.com',
