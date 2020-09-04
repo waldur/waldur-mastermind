@@ -3,7 +3,9 @@ import os
 from io import BytesIO
 
 import pdfkit
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
@@ -15,6 +17,8 @@ from rest_framework import serializers
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices import models as invoice_models
 
 from . import models, plugins
 
@@ -368,3 +372,55 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['is_usage_based'] = serializers.SerializerMethodField()
     setattr(sender, 'get_is_usage_based', get_is_usage_based)
+
+
+def get_offering_costs(offering, active_customers, start, end):
+    costs = []
+
+    resources = models.Resource.objects.filter(
+        offering=offering,
+        state=models.Resource.States.OK,
+        project__customer__in=active_customers,
+    )
+    resources_ids = resources.values_list('id', flat=True)
+    date = start
+
+    while date <= end:
+        year = date.year
+        month = date.month
+
+        invoice_items = invoice_models.InvoiceItem.objects.filter(
+            content_type_id=ContentType.objects.get_for_model(models.Resource).id,
+            object_id__in=resources_ids,
+            invoice__year=year,
+            invoice__month=month,
+        )
+
+        stats = {
+            'tax': 0,
+            'total': 0,
+            'price': 0,
+            'price_current': 0,
+            'period': '%s-%02d' % (year, month),
+        }
+        for item in invoice_items:
+            stats['tax'] += item.tax
+            stats['total'] += item.total
+            stats['price'] += item.price
+            stats['price_current'] += item.price_current
+
+        costs.append(stats)
+
+        date += relativedelta(months=1)
+
+    return costs
+
+
+def get_offering_customers(offering, active_customers):
+    resources = models.Resource.objects.filter(
+        offering=offering,
+        state=models.Resource.States.OK,
+        project__customer__in=active_customers,
+    )
+    customers_ids = resources.values_list('project__customer_id', flat=True)
+    return structure_models.Customer.objects.filter(id__in=customers_ids)
