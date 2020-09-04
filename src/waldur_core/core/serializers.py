@@ -17,6 +17,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import TimestampField
 from waldur_core.core.signals import pre_serializer_fields
 
+from . import fields
+
 logger = logging.getLogger(__name__)
 
 
@@ -534,3 +536,13 @@ class UnicodeIntegerField(serializers.IntegerField):
         if isinstance(data, str):
             data = core_utils.normalize_unicode(data)
         return super(UnicodeIntegerField, self).to_internal_value(data)
+
+
+class DateRangeFilterSerializer(serializers.Serializer):
+    start = fields.YearMonthField(required=False)
+    end = fields.YearMonthField(required=False)
+
+    def validate(self, data):
+        if 'start' in data and 'end' in data and data['start'] >= data['end']:
+            raise serializers.ValidationError(_('Start has to be earlier than end.'))
+        return data

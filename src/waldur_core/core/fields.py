@@ -237,3 +237,18 @@ class JSONField(models.TextField):
             return copy.deepcopy(self.default)
         # If the field doesn't have a default, then we punt to models.Field.
         return super(JSONField, self).get_default()
+
+
+class YearMonthField(serializers.CharField):
+    """ Field that support yearmonth representation in format YYYY-MM """
+
+    def to_internal_value(self, value):
+        try:
+            year, month = [int(el) for el in value.split('-')]
+        except ValueError:
+            raise serializers.ValidationError(
+                _('Value "%s" should be valid be in format YYYY-MM') % value
+            )
+        if not 0 < month < 13:
+            raise serializers.ValidationError(_('Month has to be from 1 to 12.'))
+        return year, month
