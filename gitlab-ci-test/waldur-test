@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+set -e
+
+echo "[+] Install dependencies in case of absence"
+poetry install
+
+echo "[+] Setup test settings"
+cat > src/waldur_mastermind/test_settings.py <<-EOF
+from waldur_core.server.test_settings import *
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+
+# Data written to unlogged tables is not written to the write-ahead log,
+# which makes them considerably faster than ordinary tables.
+BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
+
+DATABASES = {
+'default': {
+  'ENGINE': 'django.db.backends.postgresql',
+  'NAME': 'test_waldur',
+  'USER': 'runner',
+  'HOST': 'postgres',
+  'PORT': 5432,
+  'PASSWORD': 'waldur',
+  }
+}
+EOF
+
+echo "[+] Running unit tests for $WALDUR_TEST_MODULE app"
+pytest \
+    --numprocesses=$NUM_PROCESSES \
+    --reuse-db \
+    --ds=waldur_mastermind.test_settings \
+    --junitxml=/mnt/test_report.xml \
+    --cov=src/$WALDUR_TEST_MODULE \
+    --cov-report xml:/mnt/coverage.xml \
+    src/$WALDUR_TEST_MODULE
