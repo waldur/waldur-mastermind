@@ -25,12 +25,10 @@ DATABASES = {
 }
 EOF
 
-echo "[+] Running unit tests for $WALDUR_TEST_MODULE app"
+echo "[+] Running unit tests"
 pytest \
-    --numprocesses=$NUM_PROCESSES \
+    --test-group-count $CI_NODE_TOTAL \
+    --test-group=$CI_NODE_INDEX \
     --reuse-db \
     --ds=waldur_mastermind.test_settings \
-    --junitxml=/mnt/test_report.xml \
-    --cov=src/$WALDUR_TEST_MODULE \
-    --cov-report xml:/mnt/coverage.xml \
-    src/$WALDUR_TEST_MODULE
+    src

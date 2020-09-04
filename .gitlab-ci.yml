@@ -41,55 +41,7 @@ Run unit tests:
     POSTGRES_PASSWORD: waldur
   script:
     - gitlab-ci-test/waldur-test
-  parallel:
-    matrix:
-      - WALDUR_TEST_MODULE:
-          [
-            waldur_auth_bcc,
-            waldur_auth_saml2,
-            waldur_auth_social,
-            waldur_aws,
-            waldur_azure,
-            waldur_core/core,
-            waldur_core/logging,
-            waldur_core/media,
-            waldur_core/monitoring,
-            waldur_core/quotas,
-            waldur_core/structure,
-            waldur_core/users,
-            waldur_digitalocean,
-            waldur_freeipa,
-            waldur_geo_ip,
-            waldur_jira,
-            waldur_mastermind/analytics,
-            waldur_mastermind/billing,
-            waldur_mastermind/booking,
-            waldur_mastermind/invoices,
-            waldur_mastermind/marketplace,
-            waldur_mastermind/marketplace_azure,
-            waldur_mastermind/marketplace_checklist,
-            waldur_mastermind/marketplace_openstack,
-            waldur_mastermind/marketplace_rancher,
-            waldur_mastermind/marketplace_slurm,
-            waldur_mastermind/marketplace_support,
-            waldur_mastermind/marketplace_vmware,
-            waldur_mastermind/packages,
-            waldur_mastermind/rancher_invoices,
-            waldur_mastermind/slurm_invoices,
-            waldur_mastermind/support,
-            waldur_mastermind/support_invoices,
-            waldur_mastermind/zabbix_openstack,
-            waldur_openstack/openstack,
-            waldur_openstack/openstack_base,
-            waldur_openstack/openstack_tenant,
-            waldur_paypal,
-            waldur_pid,
-            waldur_rancher,
-            waldur_slurm,
-            waldur_vmware,
-            waldur_zabbix
-          ]
-        NUM_PROCESSES: 2
+  parallel: 10
 
 Build docker image for tests:
   stage: build

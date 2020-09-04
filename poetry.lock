@@ -35,14 +35,6 @@ version = "2.2.1"
 requests = "*"
 
 [[package]]
-category = "dev"
-description = "apipkg: namespace control and lazy-import mechanism"
-name = "apipkg"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-version = "1.5"
-
-[[package]]
 category = "main"
 description = "A small Python module for determining appropriate platform-specific dirs, e.g. a \"user data dir\"."
 name = "appdirs"
@@ -622,7 +614,7 @@ Django = ">=2.0"
 diff-match-patch = "*"
 
 [package.dependencies.tablib]
-extras = ["xls", "html", "xlsx", "yaml", "ods"]
+extras = ["ods", "html", "xls", "yaml", "xlsx"]
 version = ">=0.14.0"
 
 [[package]]
@@ -812,20 +804,6 @@ name = "et-xmlfile"
 optional = false
 python-versions = "*"
 version = "1.0.1"
-
-[[package]]
-category = "dev"
-description = "execnet: rapid multi-Python deployment"
-name = "execnet"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-version = "1.7.1"
-
-[package.dependencies]
-apipkg = ">=1.4"
-
-[package.extras]
-testing = ["pre-commit"]
 
 [[package]]
 category = "dev"
@@ -1847,27 +1825,14 @@ docs = ["sphinx", "flask-sphinx-themes"]
 
 [[package]]
 category = "dev"
-description = "run tests in isolated forked subprocesses"
-name = "pytest-forked"
+description = "A Pytest plugin for running a subset of your tests by splitting them in to equally sized groups. Forked from Mark Adams' original project pytest-test-groups."
+name = "pytest-split-tests"
 optional = false
 python-versions = "*"
-version = "0.2"
+version = "1.0.9"
 
 [package.dependencies]
-pytest = ">=2.6.0"
-
-[[package]]
-category = "dev"
-description = "py.test xdist plugin for distributed testing and loop-on-failing modes"
-name = "pytest-xdist"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-version = "1.22.2"
-
-[package.dependencies]
-execnet = ">=1.1"
-pytest = ">=3.0.0"
-pytest-forked = "*"
+pytest = ">=2.5"
 
 [[package]]
 category = "main"
@@ -2465,7 +2430,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "bf77f0bbc3e956c173ac5658d0810b1561c45ba62abbdf5d4807cad005372fc3"
+content-hash = "7a40b8d6b6e13bd3a51d2a830ebb60d70f08a8be5e78e47874e5c9a1ca426c8e"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2480,10 +2445,6 @@ amqp = [
 apache-libcloud = [
     {file = "apache-libcloud-2.2.1.tar.gz", hash = "sha256:d065d9da8ba192badad3a98c2f6c3ef9dabba45d1318638b9c1bac83f6c3e7a9"},
     {file = "apache_libcloud-2.2.1-py2.py3-none-any.whl", hash = "sha256:e3f4907e84c2e20dbfefd965848e8eb812f3c4ed96218d61706d575efee337ba"},
-]
-apipkg = [
-    {file = "apipkg-1.5-py2.py3-none-any.whl", hash = "sha256:58587dd4dc3daefad0487f6d9ae32b4542b185e1c36db6993290e7c41ca2b47c"},
-    {file = "apipkg-1.5.tar.gz", hash = "sha256:37228cda29411948b422fae072f57e31d3396d2ee1c9783775980ee9c9990af6"},
 ]
 appdirs = [
     {file = "appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128"},
@@ -2806,10 +2767,6 @@ enum34 = [
 ]
 et-xmlfile = [
     {file = "et_xmlfile-1.0.1.tar.gz", hash = "sha256:614d9722d572f6246302c4491846d2c393c199cfa4edc9af593437691683335b"},
-]
-execnet = [
-    {file = "execnet-1.7.1-py2.py3-none-any.whl", hash = "sha256:d4efd397930c46415f62f8a31388d6be4f27a91d7550eb79bc64a756e0056547"},
-    {file = "execnet-1.7.1.tar.gz", hash = "sha256:cacb9df31c9680ec5f95553976c4da484d407e85e41c83cb812aa014f0eddc50"},
 ]
 factory-boy = [
     {file = "factory_boy-2.4.1.tar.gz", hash = "sha256:d7012499e52de5a4413e22aed51df8948533685452dfe16b41001f28f9ce5b1c"},
@@ -3311,13 +3268,8 @@ pytest-django = [
     {file = "pytest-django-3.3.2.tar.gz", hash = "sha256:3fea4d0a84bf3af1f1e82448b9a91b3ddb22b659d802e026ae843040da0c3220"},
     {file = "pytest_django-3.3.2-py2.py3-none-any.whl", hash = "sha256:088b66211c57972e7bd072ba73ccec1c3b6f6185f894b3b8eb966d2f3b7d46cb"},
 ]
-pytest-forked = [
-    {file = "pytest-forked-0.2.tar.gz", hash = "sha256:e4500cd0509ec4a26535f7d4112a8cc0f17d3a41c29ffd4eab479d2a55b30805"},
-    {file = "pytest_forked-0.2-py2.py3-none-any.whl", hash = "sha256:f275cb48a73fc61a6710726348e1da6d68a978f0ec0c54ece5a5fae5977e5a08"},
-]
-pytest-xdist = [
-    {file = "pytest-xdist-1.22.2.tar.gz", hash = "sha256:e8f5744acc270b3e7d915bdb4d5f471670f049b6fbd163d4cbd52203b075d30f"},
-    {file = "pytest_xdist-1.22.2-py2.py3-none-any.whl", hash = "sha256:be2662264b035920ba740ed6efb1c816a83c8a22253df7766d129f6a7bfdbd35"},
+pytest-split-tests = [
+    {file = "pytest_split_tests-1.0.9-py2.py3-none-any.whl", hash = "sha256:1ae77aa4f572766fe95e4cde751b15f7109cf5aa778ad0ed4518efba45dbe21a"},
 ]
 python-cinderclient = [
     {file = "python-cinderclient-3.6.0.tar.gz", hash = "sha256:731774221c3414f6ef8e85f2116c41e726b4df67720e1d07d4060ce03513ce85"},
