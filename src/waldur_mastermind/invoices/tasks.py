@@ -129,8 +129,8 @@ def send_invoice_report():
             customer__accounting_start_date__lte=core_utils.month_end(date)
         )
 
-    # Report should not include customers with 0 invoice sum.
-    invoices = [invoice for invoice in invoices if invoice.total > 0]
+    # Report should not include customers with 0 invoice items.
+    invoices = [invoice for invoice in invoices if invoice.items.count() > 0]
     text_message = format_invoice_csv(invoices)
 
     # Please note that email body could be empty if there are no valid invoices

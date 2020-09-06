@@ -25,7 +25,7 @@ from waldur_openstack.openstack_tenant.serializers import (
 from . import exceptions, models, utils, validators
 
 
-class ServiceSerializer(
+class RancherServiceSerializer(
     core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
 ):
 
@@ -1031,6 +1031,64 @@ class IngressSerializer(structure_serializers.BaseResourceSerializer):
         validated_data['settings'] = rancher_project.settings
         validated_data['cluster'] = rancher_project.cluster
         return super(IngressSerializer, self).create(validated_data)
+
+
+class NestedWorkloadSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    class Meta:
+        model = models.Workload
+        fields = ('uuid', 'url', 'name')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
+class ServiceSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='rancher-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='rancher-spl-detail',
+        queryset=models.RancherServiceProjectLink.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
+    namespace_name = serializers.ReadOnlyField(source='namespace.name')
+    target_workloads = NestedWorkloadSerializer(
+        queryset=models.Workload.objects.all(), many=True, required=False
+    )
+
+    class Meta:
+        model = models.Service
+        view_name = 'rancher-service-detail'
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'runtime_state',
+            'namespace',
+            'namespace_name',
+            'cluster_ip',
+            'selector',
+            'target_workloads',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'namespace': {
+                'lookup_field': 'uuid',
+                'view_name': 'rancher-namespace-detail',
+                'required': False,
+            },
+        }
+
+    def create(self, validated_data):
+        namespace = validated_data['namespace']
+        validated_data['settings'] = namespace.settings
+        return super(ServiceSerializer, self).create(validated_data)
 
 
 class ImportYamlSerializer(serializers.Serializer):

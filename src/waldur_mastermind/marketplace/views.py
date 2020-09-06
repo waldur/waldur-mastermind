@@ -1,3 +1,6 @@
+import datetime
+import logging
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import (
@@ -25,6 +28,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
+from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
@@ -32,13 +36,16 @@ from waldur_core.core.utils import month_start, order_with_nulls
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import resource_imported
 from waldur_pid import models as pid_models
 
-from . import filters, models, permissions, plugins, serializers, tasks
+from . import filters, log, models, permissions, plugins, serializers, tasks, utils
+
+logger = logging.getLogger(__name__)
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -288,6 +295,54 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         )
 
         return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True)
+    def customers(self, request, uuid):
+        offering = self.get_object()
+
+        customers = structure_models.Customer.objects.all()
+        active_customers = structure_filters.AccountingStartDateFilter().filter_queryset(
+            request, customers, self
+        )
+        customer_queryset = utils.get_offering_customers(offering, active_customers)
+        serializer_class = structure_serializers.CustomerSerializer
+        serializer = serializer_class(
+            instance=customer_queryset, many=True, context=self.get_serializer_context()
+        )
+        page = self.paginate_queryset(serializer.data)
+        return self.get_paginated_response(page)
+
+    customers_permissions = [structure_permissions.is_owner]
+
+    @action(detail=True)
+    def costs(self, request, uuid):
+        offering = self.get_object()
+
+        customers = structure_models.Customer.objects.all()
+        active_customers = structure_filters.AccountingStartDateFilter().filter_queryset(
+            request, customers, self
+        )
+
+        if self.request.query_params:
+            serializer = core_serializers.DateRangeFilterSerializer(
+                data=self.request.query_params
+            )
+            serializer.is_valid(raise_exception=True)
+            start_year, start_month = serializer.validated_data['start']
+            end_year, end_month = serializer.validated_data['end']
+
+            end = datetime.date(year=end_year, month=end_month, day=1)
+            start = datetime.date(year=start_year, month=start_month, day=1)
+        else:
+            today = datetime.date.today()
+            end = datetime.date(year=today.year, month=today.month, day=1)
+            start = datetime.date(year=today.year - 1, month=today.month, day=1)
+
+        costs = utils.get_offering_costs(offering, active_customers, start, end)
+        page = self.paginate_queryset(costs)
+        return self.get_paginated_response(page)
+
+    costs_permissions = [structure_permissions.is_owner]
 
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
@@ -762,7 +817,17 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
                     'to submit usage data for marketplace resource.'
                 )
             )
-        serializer.save()
+        usage, created = serializer.save()
+
+        if created:
+            message = 'Usage has been created. ' 'Data: %s.' % serializer.initial_data
+            logger.info(message)
+            log.log_component_usage_creation_succeeded(usage)
+        else:
+            message = 'Usage has been updated. ' 'Data: %s.' % serializer.initial_data
+            logger.info(message)
+            log.log_component_usage_updation_succeeded(usage)
+
         return Response(status=status.HTTP_201_CREATED)
 
     set_usage_serializer_class = serializers.ComponentUsageCreateSerializer

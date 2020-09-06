@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
                 (
                     'description',
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name='description'
                     ),
                 ),
                 (
@@ -243,7 +243,7 @@ class Migration(migrations.Migration):
                 (
                     'description',
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name='description'
                     ),
                 ),
                 (
@@ -338,7 +338,7 @@ class Migration(migrations.Migration):
                 (
                     'description',
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name='description'
                     ),
                 ),
                 (
@@ -426,7 +426,7 @@ class Migration(migrations.Migration):
                 (
                     'description',
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name='description'
                     ),
                 ),
                 (

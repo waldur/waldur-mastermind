@@ -393,13 +393,19 @@ class InstanceCreateTest(test.APITransactionTestCase):
             service_project_link=instance.service_project_link,
             instance=instance,
             type=volume_type,
+            name='test-volume',
         )
         url = factories.InstanceFactory.get_url(instance)
         staff = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=staff)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['volumes'][0]['type_name'], volume_type.name)
+        serialized_volume = [
+            volume
+            for volume in response.data['volumes']
+            if volume['name'] == 'test-volume'
+        ][0]
+        self.assertEqual(serialized_volume['type_name'], volume_type.name)
 
     def test_user_can_define_instance_availability_zone(self):
         zone = self.openstack_tenant_fixture.instance_availability_zone

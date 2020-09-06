@@ -4,7 +4,7 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'rancher', views.ServiceViewSet, basename='rancher')
+    router.register(r'rancher', views.RancherServiceViewSet, basename='rancher')
     router.register(
         r'rancher-spl', views.ServiceProjectLinkViewSet, basename='rancher-spl'
     )
@@ -37,6 +37,9 @@ def register_in(router):
     router.register(r'rancher-apps', views.ApplicationViewSet, basename='rancher-app')
     router.register(
         r'rancher-ingresses', views.IngressViewSet, basename='rancher-ingress'
+    )
+    router.register(
+        r'rancher-services', views.ServiceViewSet, basename='rancher-service'
     )
 
 

@@ -174,6 +174,8 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 'customers_count should not be greater than 20'
             )
 
+        is_accounting_mode = request.query_params.get('accounting_mode') == 'accounting'
+
         today = datetime.date.today()
         current_month = today - relativedelta(months=12)
 
@@ -201,10 +203,12 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             row = customer_periods[key] = {}
             subtotal = 0
             for invoice in invoices.filter(customer_id__in=majors):
-                subtotal += invoice.total
-                row[invoice.customer.uuid.hex] = invoice.total
+                value = is_accounting_mode and invoice.price or invoice.total
+                subtotal += value
+                row[invoice.customer.uuid.hex] = value
             other_periods[key] = sum(
-                invoice.total for invoice in invoices.filter(customer_id__in=minors)
+                is_accounting_mode and invoice.price or invoice.total
+                for invoice in invoices.filter(customer_id__in=minors)
             )
             total_periods[key] = subtotal + other_periods[key]
             current_month += relativedelta(months=1)

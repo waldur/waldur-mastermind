@@ -1,0 +1,79 @@
+stages:
+  - test
+  - build
+  - release
+
+Run linters:
+  image: "python:3.6"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  interruptible: true
+  stage: test
+  script:
+    - pre-commit run --all
+  before_script:
+    - pip install pre-commit
+
+Run unit tests:
+  image: $WALDUR_MASTERMIND_TEST_IMAGE
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  interruptible: true
+  stage: test
+  services:
+    - name: "postgres:12-alpine"
+      command:
+        [
+          "postgres",
+          "-cfsync=off",
+          "-cfull_page_writes=off",
+          "-cmax_connections=1000",
+          "-cshared_buffers=1GB",
+          "-ceffective_cache_size=4GB",
+          "-cwork_mem=32MB",
+          "-cmaintenance_work_mem=32MB",
+          "-ctemp_buffers=16MB",
+          "-cwal_buffers=48MB",
+        ]
+  variables:
+    POSTGRES_DB: test_waldur
+    POSTGRES_USER: runner
+    POSTGRES_PASSWORD: waldur
+  script:
+    - gitlab-ci-test/waldur-test
+  parallel: 10
+
+Build docker image for tests:
+  stage: build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  interruptible: true
+  services:
+    - "docker:dind"
+  script:
+    - docker pull $WALDUR_MASTERMIND_TEST_IMAGE
+    - |
+      docker build
+      -f gitlab-ci-test/Dockerfile
+      -t waldurtest/gitlab-ci:waldur-mastermind-latest
+      --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
+      .
+    - docker push waldurtest/gitlab-ci:waldur-mastermind-latest
+  before_script:
+    - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
+
+Build docker image for production:
+  stage: release
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
+  interruptible: true
+  services:
+    - docker:dind
+  script:
+    - |
+      docker build
+      -t waldurtest/production:waldur-mastermind-latest
+      .
+    - docker push waldurtest/production:waldur-mastermind-latest
+  before_script:
+    - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD

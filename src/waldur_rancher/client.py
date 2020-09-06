@@ -482,6 +482,18 @@ class RancherClient:
     def delete_ingress(self, project_id: str, ingress_id: str):
         return self._delete(f'project/{project_id}/ingresses/{ingress_id}')
 
+    def list_services(self, project_id: str):
+        return self._get(f'project/{project_id}/services', params={'limit': -1})['data']
+
+    def get_service_yaml(self, project_id: str, service_id: str):
+        return self._get_yaml(f'project/{project_id}/services/{service_id}/yaml',)
+
+    def put_service_yaml(self, project_id: str, service_id: str, yaml: str):
+        return self._put_yaml(f'project/{project_id}/services/{service_id}/yaml', yaml,)
+
+    def delete_service(self, project_id: str, service_id: str):
+        return self._delete(f'project/{project_id}/services/{service_id}')
+
     def import_yaml(
         self,
         cluster_id: str,
