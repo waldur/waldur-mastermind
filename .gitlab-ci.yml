@@ -3,9 +3,25 @@ stages:
   - build
   - release
 
+Check merge compatibility:
+  image:
+    name: "alpine/git:v2.26.2"
+    entrypoint: [""]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  interruptible: true
+  stage: test
+  script:
+    - echo "[+] Source branch $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+    - echo "[+] Target branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+
 Run linters:
   image: "python:3.6"
   rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   interruptible: true
   stage: test
@@ -17,6 +33,7 @@ Run linters:
 Run unit tests:
   image: $WALDUR_MASTERMIND_TEST_IMAGE
   rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   interruptible: true
   stage: test
@@ -40,6 +57,8 @@ Run unit tests:
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
   script:
+    - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - gitlab-ci-test/waldur-test
   parallel: 10
 
@@ -52,12 +71,7 @@ Build docker image for tests:
     - "docker:dind"
   script:
     - docker pull $WALDUR_MASTERMIND_TEST_IMAGE
-    - |
-      docker build
-      -f gitlab-ci-test/Dockerfile
-      -t waldurtest/gitlab-ci:waldur-mastermind-latest
-      --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
-      .
+    - docker build . -f gitlab-ci-test/Dockerfile -t waldurtest/gitlab-ci:waldur-mastermind-latest --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
     - docker push waldurtest/gitlab-ci:waldur-mastermind-latest
   before_script:
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
@@ -70,10 +84,7 @@ Build docker image for production:
   services:
     - docker:dind
   script:
-    - |
-      docker build
-      -t waldurtest/production:waldur-mastermind-latest
-      .
+    - docker build . -t waldurtest/production:waldur-mastermind-latest
     - docker push waldurtest/production:waldur-mastermind-latest
   before_script:
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
