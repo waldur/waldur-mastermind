@@ -422,6 +422,9 @@ class CustomerSerializer(
             if 'domain' in fields:
                 fields['domain'].read_only = True
 
+            if 'division' in fields:
+                fields['division'].read_only = True
+
         return fields
 
     def create(self, validated_data):

@@ -59,3 +59,30 @@ class DivisionListTest(test.APITransactionTestCase):
             else:
                 self.assertEqual(status.HTTP_200_OK, response.status_code)
                 self.assertEqual(len(response.data), 0)
+
+
+@ddt
+class DivisionChangeTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+        self.division_1 = factories.DivisionFactory()
+        self.division_2 = factories.DivisionFactory()
+        self.fixture.customer.division = self.division_1
+        self.fixture.customer.save()
+        self.url = factories.CustomerFactory.get_url(self.fixture.customer)
+
+    @data('staff',)
+    def test_staff_can_change_customer_division(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        new_division_url = factories.DivisionFactory.get_url(self.division_2)
+        response = self.client.patch(self.url, {'division': new_division_url})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.division, self.division_2)
+
+    @data('owner',)
+    def test_other_can_not_change_customer_division(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        new_division_url = factories.DivisionFactory.get_url(self.division_2)
+        response = self.client.patch(self.url, {'division': new_division_url})
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
