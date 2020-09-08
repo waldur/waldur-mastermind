@@ -8,7 +8,7 @@ Check merge compatibility:
     name: "alpine/git:v2.26.2"
     entrypoint: [""]
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME'
+    - if: "$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   interruptible: true
   stage: test
@@ -20,23 +20,26 @@ Check merge compatibility:
     - echo "[+] Target branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+  before_script:
+    - export
 
 Run linters:
   image: "python:3.6"
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME'
+    - if: "$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   interruptible: true
   stage: test
   script:
     - pre-commit run --all
   before_script:
+    - export
     - pip install pre-commit
 
 Run unit tests:
   image: $WALDUR_MASTERMIND_TEST_IMAGE
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME'
+    - if: "$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   interruptible: true
   stage: test
@@ -66,6 +69,8 @@ Run unit tests:
     - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - gitlab-ci-test/waldur-test
+  before_script:
+    - export
   parallel: 10
 
 Build docker image for tests:
@@ -80,9 +85,10 @@ Build docker image for tests:
     - docker build . -f gitlab-ci-test/Dockerfile -t waldurtest/gitlab-ci:waldur-mastermind-latest --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
     - docker push waldurtest/gitlab-ci:waldur-mastermind-latest
   before_script:
+    - export
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
 
-Build latest docker image:
+Publish latest docker image:
   stage: release
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
@@ -91,12 +97,16 @@ Build latest docker image:
     - docker:dind
   script:
     - sh docker_push.sh
+  before_script:
+    - export
 
-Build docker image with specific version:
+Publish docker image with specific version:
   stage: release
   rules:
-   - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
   services:
     - docker:dind
   script:
     - sh docker_push.sh $CI_COMMIT_TAG
+  before_script:
+    - export
