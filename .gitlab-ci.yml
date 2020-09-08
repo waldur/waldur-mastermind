@@ -13,6 +13,9 @@ Check merge compatibility:
   interruptible: true
   stage: test
   script:
+    - echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
+    - git config user.name $GIT_USER_NAME
+    - git config user.email $GIT_USER_EMAIL
     - echo "[+] Source branch $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
     - echo "[+] Target branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
@@ -57,6 +60,9 @@ Run unit tests:
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
   script:
+    - echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
+    - git config user.name $GIT_USER_NAME
+    - git config user.email $GIT_USER_EMAIL
     - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - gitlab-ci-test/waldur-test
