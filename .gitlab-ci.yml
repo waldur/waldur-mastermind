@@ -76,7 +76,7 @@ Build docker image for tests:
   before_script:
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
 
-Build docker image for production:
+Build latest docker image:
   stage: release
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
@@ -84,7 +84,13 @@ Build docker image for production:
   services:
     - docker:dind
   script:
-    - docker build . -t waldurtest/production:waldur-mastermind-latest
-    - docker push waldurtest/production:waldur-mastermind-latest
-  before_script:
-    - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
+    - sh docker_push.sh
+
+Build docker image with specific version:
+  stage: release
+  rules:
+   - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  services:
+    - docker:dind
+  script:
+    - sh docker_push.sh $CI_COMMIT_TAG
