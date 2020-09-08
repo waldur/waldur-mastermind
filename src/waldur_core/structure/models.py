@@ -430,7 +430,6 @@ class Customer(
     homepage = models.URLField(max_length=255, blank=True)
     domain = models.CharField(max_length=255, blank=True)
 
-    type = models.CharField(blank=True, max_length=150)
     address = models.CharField(blank=True, max_length=300)
     postal = models.CharField(blank=True, max_length=20)
     bank_name = models.CharField(blank=True, max_length=150)

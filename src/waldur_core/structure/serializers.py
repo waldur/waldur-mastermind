@@ -389,7 +389,6 @@ class CustomerSerializer(
             'country_name',
             'vat_code',
             'is_company',
-            'type',
             'postal',
             'address',
             'bank_name',
