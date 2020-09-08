@@ -75,6 +75,7 @@ class RancherBackend(ServiceBackend):
         self.pull_hpas()
         self.pull_apps()
         self.pull_ingresses()
+        self.pull_services()
 
     def pull_clusters(self):
         """
