@@ -9,10 +9,9 @@ else
   version=${1#v}
 fi
 
-DOCKER_PASSWORD=${DOCKER_PASSWORD:-$WALDUR_DOCKER_HUB_PASSWORD}
-DOCKER_USERNAME=${DOCKER_USERNAME:-$WALDUR_DOCKER_HUB_USER}
+echo "$WALDUR_DOCKER_HUB_PASSWORD" | docker login -u "$WALDUR_DOCKER_HUB_USER" --password-stdin
+sed -i "s/version = \"0.0.0\"/version = \"$version\"/" pyproject.toml
 
-echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 docker build -t opennode/waldur-mastermind:$version .
 docker push "opennode/waldur-mastermind:$version"
 docker images
