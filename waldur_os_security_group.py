@@ -200,7 +200,7 @@ def send_request_to_waldur(client, module):
             'cidr': module.params['cidr'],
             'protocol': module.params['protocol'],
         }
-    ] if module.params['cidr'] else []
+    ] if module.params.get('rules') or module.params['cidr'] else []
 
     security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
