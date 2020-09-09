@@ -48,10 +48,13 @@ Run unit tests:
   stage: test
   interruptible: true
   rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == "master"'
-    # If tagged release and tests are not skipped
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/ && $SKIP_TESTS == "false"'
+    # If tagged release
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
     # If there are unpulled changes in a target branch
     - if: "$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     # If event is related to a created merge request
