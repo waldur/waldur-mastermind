@@ -1,3 +1,7 @@
+include:
+  - project: "waldur/waldur-pipelines"
+    file: "/release/publish.yml"
+
 stages:
   - test
   - build
@@ -107,24 +111,3 @@ Build docker image for tests:
     - docker pull $WALDUR_MASTERMIND_TEST_IMAGE || true
     - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
     - docker push $WALDUR_MASTERMIND_TEST_IMAGE
-
-Publish latest docker image:
-  stage: release
-  interruptible: true
-  rules:
-    # If new changes are pushed into 'develop' branch
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
-  services:
-    - docker:dind
-  script:
-    - sh docker_push.sh
-
-Publish docker image with specific version:
-  stage: release
-  rules:
-    # If tagged release
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-  services:
-    - docker:dind
-  script:
-    - sh docker_push.sh $CI_COMMIT_TAG
