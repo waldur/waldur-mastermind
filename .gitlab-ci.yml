@@ -98,9 +98,9 @@ Build docker image for tests:
     - "docker:dind"
   script:
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
-    - docker pull $WALDUR_MASTERMIND_TEST_IMAGE
-    - docker build . -f gitlab-ci-test/Dockerfile -t waldurtest/gitlab-ci:waldur-mastermind-latest --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
-    - docker push waldurtest/gitlab-ci:waldur-mastermind-latest
+    - docker pull $WALDUR_MASTERMIND_TEST_IMAGE || true
+    - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
+    - docker push $WALDUR_MASTERMIND_TEST_IMAGE
 
 Publish latest docker image:
   stage: release
