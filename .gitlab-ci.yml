@@ -3,15 +3,20 @@ stages:
   - build
   - release
 
+before_script:
+  - export
+
 Check merge compatibility:
   image:
     name: "alpine/git:v2.26.2"
     entrypoint: [""]
-  rules:
-    - if: "$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  interruptible: true
   stage: test
+  interruptible: true
+  rules:
+    # If there are unpulled changes in a target branch
+    - if: "$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    # If event is related to a created merge request
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
     - git config user.name $GIT_USER_NAME
@@ -20,29 +25,37 @@ Check merge compatibility:
     - echo "[+] Target branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
-  before_script:
-    - export
 
 Run linters:
   image: "python:3.6"
-  rules:
-    - if: "$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  interruptible: true
   stage: test
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    # If tagged release and tests are not skipped
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/ && $SKIP_TESTS == "false"'
+    # If there are unpulled changes in a target branch
+    - if: "$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    # If event is related to a created merge request
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
-    - pre-commit run --all
-  before_script:
-    - export
     - pip install pre-commit
+    - pre-commit run --all
 
 Run unit tests:
   image: $WALDUR_MASTERMIND_TEST_IMAGE
-  rules:
-    - if: "$CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  interruptible: true
   stage: test
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    # If tagged release and tests are not skipped
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/ && $SKIP_TESTS == "false"'
+    # If there are unpulled changes in a target branch
+    - if: "$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    # If event is related to a created merge request
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   services:
     - name: "postgres:12-alpine"
       command:
@@ -63,50 +76,49 @@ Run unit tests:
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
   script:
-    - echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
-    - git config user.name $GIT_USER_NAME
-    - git config user.email $GIT_USER_EMAIL
-    - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - |
+      # Check merge compatibility only it is not a tagged release
+      if [ -z "$CI_COMMIT_TAG" ]; then
+        echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
+        git config user.name $GIT_USER_NAME
+        git config user.email $GIT_USER_EMAIL
+        echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+      fi
     - gitlab-ci-test/waldur-test
-  before_script:
-    - export
   parallel: 10
 
 Build docker image for tests:
   stage: build
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   interruptible: true
+  rules:
+    # If scheduled pipeline for 'develop' branch is set up
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
     - "docker:dind"
   script:
+    - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
     - docker pull $WALDUR_MASTERMIND_TEST_IMAGE
     - docker build . -f gitlab-ci-test/Dockerfile -t waldurtest/gitlab-ci:waldur-mastermind-latest --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
     - docker push waldurtest/gitlab-ci:waldur-mastermind-latest
-  before_script:
-    - export
-    - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
 
 Publish latest docker image:
   stage: release
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
   interruptible: true
+  rules:
+    # If new changes are pushed into 'develop' branch
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule"'
   services:
     - docker:dind
   script:
     - sh docker_push.sh
-  before_script:
-    - export
 
 Publish docker image with specific version:
   stage: release
   rules:
+    # If tagged release
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
   services:
     - docker:dind
   script:
     - sh docker_push.sh $CI_COMMIT_TAG
-  before_script:
-    - export
