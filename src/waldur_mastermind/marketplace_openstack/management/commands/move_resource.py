@@ -60,8 +60,12 @@ def move_resource(resource, project):
             )
 
         invoice_item.project = project
+        invoice_item.project_uuid = project.uuid.hex
+        invoice_item.project_name = project.name
         invoice_item.invoice = target_invoice
-        invoice_item.save(update_fields=['project', 'invoice'])
+        invoice_item.save(
+            update_fields=['project', 'project_uuid', 'project_name', 'invoice']
+        )
 
         start_invoice.update_current_cost()
         target_invoice.update_current_cost()
