@@ -176,6 +176,8 @@ class BaseOpenStackBackend(ServiceBackend):
         self.tenant_id = tenant_id
 
     def _get_cached_session_key(self, admin):
+        if not admin and not self.tenant_id:
+            raise OpenStackBackendError('Either admin or tenant_id should be defined.')
         key = (
             'OPENSTACK_ADMIN_SESSION'
             if admin

@@ -510,3 +510,16 @@ class CreateServiceFromTenantTest(TestCase):
             scope=tenant, type=apps.OpenStackTenantConfig.service_name,
         )
         self.assertTrue(service_settings.options['config_drive'])
+
+    def test_copy_tenant_id_from_tenant_to_private_settings(self):
+        service_project_link = openstack_factories.OpenStackServiceProjectLinkFactory()
+        tenant = openstack_factories.TenantFactory(
+            service_project_link=service_project_link, backend_id=None
+        )
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant, type=apps.OpenStackTenantConfig.service_name,
+        )
+        tenant.backend_id = 'VALID_BACKEND_ID'
+        tenant.save()
+        service_settings.refresh_from_db()
+        self.assertTrue(service_settings.options['tenant_id'], tenant.backend_id)
