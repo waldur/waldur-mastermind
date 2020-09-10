@@ -352,6 +352,10 @@ class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
         verbose_name = _('division type')
         ordering = ('name',)
 
+    @classmethod
+    def get_url_name(cls):
+        return 'division-type'
+
     def __str__(self):
         return self.name
 

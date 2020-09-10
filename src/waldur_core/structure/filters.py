@@ -823,10 +823,22 @@ class ResourceSummaryFilterBackend(core_filters.SummaryFilter):
 
 class DivisionFilter(NameFilterSet):
     type = django_filters.CharFilter(field_name='type__name', lookup_expr='iexact')
+    type_uuid = django_filters.UUIDFilter(field_name='type__uuid')
+    type_url = core_filters.URLFilter(
+        view_name='division-type-detail', field_name='type__uuid',
+    )
     parent = django_filters.UUIDFilter(field_name='parent__uuid')
 
     class Meta:
         model = models.Division
+        fields = [
+            'name',
+        ]
+
+
+class DivisionTypesFilter(NameFilterSet):
+    class Meta:
+        model = models.DivisionType
         fields = [
             'name',
         ]

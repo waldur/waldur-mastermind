@@ -357,6 +357,8 @@ class CustomerSerializer(
     display_name = serializers.ReadOnlyField(source='get_display_name')
     division_name = serializers.ReadOnlyField(source='division.name')
     division_uuid = serializers.ReadOnlyField(source='division.uuid')
+    division_type_name = serializers.ReadOnlyField(source='division.type.name')
+    division_type_uuid = serializers.ReadOnlyField(source='division.type.uuid')
 
     class Meta:
         model = models.Customer
@@ -370,6 +372,8 @@ class CustomerSerializer(
             'division',
             'division_name',
             'division_uuid',
+            'division_type_name',
+            'division_type_uuid',
             'contact_details',
             'domain',
             'display_name',
@@ -2160,4 +2164,17 @@ class DivisionSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'parent': {'lookup_field': 'uuid'},
+        }
+
+
+class DivisionTypesSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.DivisionType
+        fields = (
+            'uuid',
+            'url',
+            'name',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'division-type-detail'},
         }
