@@ -33,6 +33,9 @@ def create_usage(cluster):
     date = datetime.date.today()
     usage = cluster.node_set.filter(state=core_models.StateMixin.States.OK).count()
 
+    resource.current_usages = {'nodes': usage}
+    resource.save(update_fields=['current_usages'])
+
     for component in manager.get_components(PLUGIN_NAME):
         try:
             offering_component = marketplace_models.OfferingComponent.objects.get(
