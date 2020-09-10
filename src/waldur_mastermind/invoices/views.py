@@ -1,4 +1,5 @@
 import datetime
+import decimal
 
 from celery import chain
 from dateutil.relativedelta import relativedelta
@@ -17,7 +18,9 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.support import models as support_models
 
 from . import filters, log, models, serializers, tasks
 
@@ -128,27 +131,42 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         offerings = {}
 
         for item in invoice.items.all():
-            if not item.scope or not isinstance(
-                item.scope, marketplace_models.Resource
-            ):
+            if not item.scope:
                 continue
 
-            resource = item.scope
-            offering = resource.offering
-            customer = offering.customer
+            if isinstance(item.scope, marketplace_models.Resource):
+                resource = item.scope
+                offering = resource.offering
+                customer = offering.customer
+                service_category_title = offering.category.title
+                service_provider_name = customer.name
+                service_provider_uuid = customer.serviceprovider.uuid.hex
+            elif isinstance(item.scope, support_models.Offering):
+                offering = item.scope.template
+                service_category_title = 'Request'
+                service_provider_name = ''
+                service_provider_uuid = ''
+            else:
+                continue
 
             if offering.uuid.hex not in offerings.keys():
                 offerings[offering.uuid.hex] = {
                     'offering_name': offering.name,
                     'aggregated_cost': item.total,
-                    'service_category_title': offering.category.title,
-                    'service_provider_name': customer.name,
-                    'service_provider_uuid': customer.serviceprovider.uuid.hex,
+                    'service_category_title': service_category_title,
+                    'service_provider_name': service_provider_name,
+                    'service_provider_uuid': service_provider_uuid,
                 }
             else:
                 offerings[offering.uuid.hex]['aggregated_cost'] += item.total
 
         queryset = [dict(uuid=key, **details) for (key, details) in offerings.items()]
+
+        for item in queryset:
+            item['aggregated_cost'] = quantize_price(
+                decimal.Decimal(item['aggregated_cost'])
+            )
+
         page = self.paginate_queryset(queryset)
         return self.get_paginated_response(page)
 
