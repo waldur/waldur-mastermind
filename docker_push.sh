@@ -4,7 +4,7 @@ set -e
 if [ -z "$1" ]
 then
   image_version='latest'
-  package_version="0.0.0-$CI_COMMIT_SHORT_SHA"
+  package_version="0.0.0"
 else
   # Strip prefix from tag name so that v3.7.5 becomes 3.7.5
   image_version=${1#v}
