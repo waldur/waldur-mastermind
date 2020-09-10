@@ -2,7 +2,10 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/publish.yml"
   - project: "waldur/waldur-pipelines"
+    file: "/templates/release/sync-to-github.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/test/docker-compose-trigger.yml"
+
 
 stages:
   - test
