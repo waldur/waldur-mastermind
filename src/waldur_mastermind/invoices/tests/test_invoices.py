@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest import mock
 
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
 from freezegun import freeze_time
@@ -323,55 +324,88 @@ class InvoiceStatsTest(test.APITransactionTestCase):
     @freeze_time('2019-01-01')
     def test_invoice_stats(self):
         tasks.create_monthly_invoices()
-        invoice = models.Invoice.objects.get(customer=self.customer)
+        invoice = models.Invoice.objects.get(customer=self.customer, year=2019, month=1)
         url = factories.InvoiceFactory.get_url(invoice=invoice, action='stats')
         self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
         result = self.client.get(url)
+        self.assertEqual(len(result.data), 3)
         self.assertEqual(
-            result.data,
-            [
-                {
-                    'uuid': self.support_template.uuid.hex,
-                    'offering_name': self.support_template.name,
-                    'aggregated_cost': models.InvoiceItem.objects.get(
-                        invoice=invoice, object_id=self.support_offering.id
-                    ).price,
-                    'service_category_title': 'Request',
-                    'service_provider_name': '',
-                    'service_provider_uuid': '',
-                },
-                {
-                    'uuid': self.offering.uuid.hex,
-                    'offering_name': self.offering.name,
-                    'aggregated_cost': sum(
-                        [
-                            item.total
-                            for item in models.InvoiceItem.objects.filter(
-                                invoice=invoice,
-                                object_id__in=[self.resource_1.id, self.resource_2.id,],
-                            )
-                        ]
-                    ),
-                    'service_category_title': self.offering.category.title,
-                    'service_provider_name': self.offering.customer.name,
-                    'service_provider_uuid': self.provider.uuid.hex,
-                },
-                {
-                    'uuid': self.offering_2.uuid.hex,
-                    'offering_name': self.offering_2.name,
-                    'aggregated_cost': sum(
-                        [
-                            item.total
-                            for item in models.InvoiceItem.objects.filter(
-                                invoice=invoice, object_id__in=[self.resource_3.id]
-                            )
-                        ]
-                    ),
-                    'service_category_title': self.offering_2.category.title,
-                    'service_provider_name': self.offering_2.customer.name,
-                    'service_provider_uuid': self.provider_2.uuid.hex,
-                },
+            {d['uuid'] for d in result.data},
+            {
+                self.offering.uuid.hex,
+                self.support_template.uuid.hex,
+                self.offering_2.uuid.hex,
+            },
+        )
+
+        self.assertEqual(
+            list(filter(lambda x: x['uuid'] == self.offering.uuid.hex, result.data))[0],
+            {
+                'uuid': self.offering.uuid.hex,
+                'offering_name': self.offering.name,
+                'aggregated_cost': sum(
+                    [
+                        item.total
+                        for item in models.InvoiceItem.objects.filter(
+                            invoice=invoice,
+                            object_id__in=[self.resource_1.id, self.resource_2.id],
+                            content_type=ContentType.objects.get_for_model(
+                                marketplace_models.Resource
+                            ),
+                        )
+                    ]
+                ),
+                'service_category_title': self.offering.category.title,
+                'service_provider_name': self.offering.customer.name,
+                'service_provider_uuid': self.provider.uuid.hex,
+            },
+        )
+
+        self.assertEqual(
+            list(filter(lambda x: x['uuid'] == self.offering_2.uuid.hex, result.data))[
+                0
             ],
+            {
+                'uuid': self.offering_2.uuid.hex,
+                'offering_name': self.offering_2.name,
+                'aggregated_cost': sum(
+                    [
+                        item.total
+                        for item in models.InvoiceItem.objects.filter(
+                            invoice=invoice,
+                            object_id__in=[self.resource_3.id],
+                            content_type=ContentType.objects.get_for_model(
+                                marketplace_models.Resource
+                            ),
+                        )
+                    ]
+                ),
+                'service_category_title': self.offering_2.category.title,
+                'service_provider_name': self.offering_2.customer.name,
+                'service_provider_uuid': self.provider_2.uuid.hex,
+            },
+        )
+
+        self.assertEqual(
+            list(
+                filter(
+                    lambda x: x['uuid'] == self.support_template.uuid.hex, result.data
+                )
+            )[0],
+            {
+                'uuid': self.support_template.uuid.hex,
+                'offering_name': self.support_template.name,
+                'aggregated_cost': models.InvoiceItem.objects.get(
+                    invoice=invoice,
+                    object_id=self.support_offering.id,
+                    content_type=ContentType.objects.get_for_model(
+                        support_models.Offering
+                    ),
+                ).price,
+                'service_category_title': 'Request',
+                'service_provider_name': '',
+                'service_provider_uuid': '',
+            },
         )
 
 
