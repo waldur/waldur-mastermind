@@ -1778,8 +1778,18 @@ class ServiceCertificationViewSet(core_views.ActionsViewSet):
 
 
 class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
+    permission_classes = ()
     queryset = models.Division.objects.all().order_by('name')
     serializer_class = serializers.DivisionSerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.DivisionFilter
+
+
+class DivisionTypesViewSet(core_views.ReadOnlyActionsViewSet):
+    permission_classes = ()
+    queryset = models.DivisionType.objects.all().order_by('name')
+    serializer_class = serializers.DivisionTypesSerializer
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.DivisionTypesFilter

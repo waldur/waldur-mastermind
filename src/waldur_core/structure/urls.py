@@ -40,6 +40,9 @@ def register_in(router):
         basename='service-certification',
     )
     router.register(r'divisions', views.DivisionViewSet, basename='division')
+    router.register(
+        r'division-types', views.DivisionTypesViewSet, basename='division-type'
+    )
 
 
 urlpatterns = [
