@@ -561,7 +561,8 @@ def update_service_settings(sender, instance, created=False, **kwargs):
     tenant = instance
 
     if created or not (
-        set(['external_network_id', 'name']) & set(tenant.tracker.changed())
+        set(['external_network_id', 'name', 'backend_id'])
+        & set(tenant.tracker.changed())
     ):
         return
 
@@ -575,6 +576,7 @@ def update_service_settings(sender, instance, created=False, **kwargs):
         return
     else:
         service_settings.options['external_network_id'] = tenant.external_network_id
+        service_settings.options['tenant_id'] = tenant.backend_id
         service_settings.name = tenant.name
         service_settings.save()
 
