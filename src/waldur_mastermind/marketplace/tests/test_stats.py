@@ -11,12 +11,9 @@ from .. import models, tasks
 from . import factories
 
 
-@freeze_time('2019-01-22')
-class StatsTest(test.APITransactionTestCase):
+class StatsBaseTest(test.APITransactionTestCase):
     def setUp(self):
-        self.date = parse_date('2019-01-01')
         self.fixture = structure_fixtures.ProjectFixture()
-
         self.customer = self.fixture.customer
         self.project = self.fixture.project
 
@@ -31,6 +28,14 @@ class StatsTest(test.APITransactionTestCase):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering, parent=self.category_component
         )
+
+
+@freeze_time('2019-01-22')
+class StatsTest(StatsBaseTest):
+    def setUp(self):
+        super(StatsTest, self).setUp()
+
+        self.date = parse_date('2019-01-01')
 
         self.plan = factories.PlanFactory(offering=self.offering)
         self.plan_component = factories.PlanComponentFactory(
@@ -137,47 +142,59 @@ class StatsTest(test.APITransactionTestCase):
         self.assertEqual(len(result.data), 1)
         self.assertEqual(result.data[0]['uuid'], resource.project.customer.uuid.hex)
 
+
+@freeze_time('2020-01-01')
+class CostsStatsTest(StatsBaseTest):
+    def setUp(self):
+        super(CostsStatsTest, self).setUp()
+        self.url = factories.OfferingFactory.get_url(self.offering, action='costs')
+
+        self.plan = factories.PlanFactory(
+            offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
+        )
+        self.plan_component = factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component, amount=10
+        )
+
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            state=models.Resource.States.OK,
+            plan=self.plan,
+            limits={'cpu': 1},
+        )
+        invoices_tasks.create_monthly_invoices()
+
     def test_offering_costs_stats(self):
-        with freeze_time('2020-01-01'):
-            url = factories.OfferingFactory.get_url(self.offering, action='costs')
-
-            plan = factories.PlanFactory(
-                offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
-            )
-            plan_component = factories.PlanComponentFactory(
-                plan=plan, component=self.offering_component, amount=10
-            )
-
-            factories.ResourceFactory(
-                offering=self.offering,
-                state=models.Resource.States.OK,
-                plan=plan,
-                limits={'cpu': 1},
-            )
-            invoices_tasks.create_monthly_invoices()
-
         with freeze_time('2020-03-01'):
-            self.client.force_authenticate(self.fixture.staff)
-            result = self.client.get(url, {'start': '2020-01', 'end': '2020-02'})
-            self.assertEqual(result.status_code, status.HTTP_200_OK)
-            self.assertEqual(len(result.data), 2)
-            self.assertEqual(
-                result.data[0],
-                {
-                    'tax': 0,
-                    'total': plan_component.price * 31,
-                    'price': plan_component.price * 31,
-                    'price_current': plan_component.price * 31,
-                    'period': '2020-01',
-                },
-            )
+            self._check_stats()
 
     def test_period_filter(self):
-        url = factories.OfferingFactory.get_url(self.offering, action='costs')
         self.client.force_authenticate(self.fixture.staff)
 
-        result = self.client.get(url, {'other_param': ''})
+        result = self.client.get(self.url, {'other_param': ''})
         self.assertEqual(result.status_code, status.HTTP_200_OK)
 
-        result = self.client.get(url, {'start': '2020-01'})
+        result = self.client.get(self.url, {'start': '2020-01'})
         self.assertEqual(result.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_offering_costs_stats_if_resource_has_been_failed(self):
+        with freeze_time('2020-03-01'):
+            self.resource.state = models.Resource.States.ERRED
+            self.resource.save()
+            self._check_stats()
+
+    def _check_stats(self):
+        self.client.force_authenticate(self.fixture.staff)
+        result = self.client.get(self.url, {'start': '2020-01', 'end': '2020-02'})
+        self.assertEqual(result.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(result.data), 2)
+        self.assertEqual(
+            result.data[0],
+            {
+                'tax': 0,
+                'total': self.plan_component.price * 31,
+                'price': self.plan_component.price * 31,
+                'price_current': self.plan_component.price * 31,
+                'period': '2020-01',
+            },
+        )

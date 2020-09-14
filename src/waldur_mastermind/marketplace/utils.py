@@ -380,9 +380,7 @@ def get_offering_costs(offering, active_customers, start, end):
     costs = []
 
     resources = models.Resource.objects.filter(
-        offering=offering,
-        state=models.Resource.States.OK,
-        project__customer__in=active_customers,
+        offering=offering, project__customer__in=active_customers,
     )
     resources_ids = resources.values_list('id', flat=True)
     date = start
