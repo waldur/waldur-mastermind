@@ -545,4 +545,7 @@ class DateRangeFilterSerializer(serializers.Serializer):
     def validate(self, data):
         if 'start' in data and 'end' in data and data['start'] >= data['end']:
             raise serializers.ValidationError(_('Start has to be earlier than end.'))
+
+        if ('start' in data) ^ ('end' in data):
+            raise serializers.ValidationError(_('Both parameters must be specified.'))
         return data

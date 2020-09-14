@@ -1,4 +1,5 @@
 import base64
+import datetime
 import os
 from io import BytesIO
 
@@ -16,6 +17,7 @@ from PIL import Image
 from rest_framework import serializers
 
 from waldur_core.core import models as core_models
+from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
@@ -424,3 +426,19 @@ def get_offering_customers(offering, active_customers):
     )
     customers_ids = resources.values_list('project__customer_id', flat=True)
     return structure_models.Customer.objects.filter(id__in=customers_ids)
+
+
+def get_start_and_end_dates_from_request(request):
+    serializer = core_serializers.DateRangeFilterSerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    today = datetime.date.today()
+    default_start = datetime.date(year=today.year - 1, month=today.month, day=1)
+    start_year, start_month = serializer.validated_data.get(
+        'start', (default_start.year, default_start.month)
+    )
+    end_year, end_month = serializer.validated_data.get(
+        'end', (today.year, today.month)
+    )
+    end = datetime.date(year=end_year, month=end_month, day=1)
+    start = datetime.date(year=start_year, month=start_month, day=1)
+    return start, end

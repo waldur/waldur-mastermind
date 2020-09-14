@@ -171,3 +171,13 @@ class StatsTest(test.APITransactionTestCase):
                     'period': '2020-01',
                 },
             )
+
+    def test_period_filter(self):
+        url = factories.OfferingFactory.get_url(self.offering, action='costs')
+        self.client.force_authenticate(self.fixture.staff)
+
+        result = self.client.get(url, {'other_param': ''})
+        self.assertEqual(result.status_code, status.HTTP_200_OK)
+
+        result = self.client.get(url, {'start': '2020-01'})
+        self.assertEqual(result.status_code, status.HTTP_400_BAD_REQUEST)
