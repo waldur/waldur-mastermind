@@ -1,4 +1,3 @@
-import datetime
 import logging
 
 from django.conf import settings
@@ -28,7 +27,6 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
-from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
@@ -323,20 +321,7 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
             request, customers, self
         )
 
-        if self.request.query_params:
-            serializer = core_serializers.DateRangeFilterSerializer(
-                data=self.request.query_params
-            )
-            serializer.is_valid(raise_exception=True)
-            start_year, start_month = serializer.validated_data['start']
-            end_year, end_month = serializer.validated_data['end']
-
-            end = datetime.date(year=end_year, month=end_month, day=1)
-            start = datetime.date(year=start_year, month=start_month, day=1)
-        else:
-            today = datetime.date.today()
-            end = datetime.date(year=today.year, month=today.month, day=1)
-            start = datetime.date(year=today.year - 1, month=today.month, day=1)
+        start, end = utils.get_start_and_end_dates_from_request(request)
 
         costs = utils.get_offering_costs(offering, active_customers, start, end)
         page = self.paginate_queryset(costs)
