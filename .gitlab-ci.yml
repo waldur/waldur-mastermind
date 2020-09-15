@@ -2,6 +2,8 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/stages.yml"
   - project: "waldur/waldur-pipelines"
+    file: "/templates/test/check-merge-compatibility.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/release/publish.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/sync-to-github.yml"
@@ -14,26 +16,6 @@ variables:
 
 before_script:
   - export
-
-Check merge compatibility:
-  image:
-    name: "alpine/git:v2.26.2"
-    entrypoint: [""]
-  stage: test
-  interruptible: true
-  rules:
-    # If there are unpulled changes in a target branch
-    - if: "$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH == $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    # If event is related to a created merge request
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  script:
-    - echo "[+] Add dummy user $GIT_USER_NAME ($GIT_USER_EMAIL)"
-    - git config user.name $GIT_USER_NAME
-    - git config user.email $GIT_USER_EMAIL
-    - echo "[+] Source branch $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
-    - echo "[+] Target branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - echo "[+] Merging branches $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME and origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
 
 Run linters:
   image: "python:3.6"
@@ -106,7 +88,7 @@ Build docker image for tests:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
-    - "docker:dind"
+    - "docker:19.03.12-dind"
   script:
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
     - docker pull $WALDUR_MASTERMIND_TEST_IMAGE || true
