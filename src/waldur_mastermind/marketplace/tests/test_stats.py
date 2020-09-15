@@ -8,7 +8,7 @@ from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 
 from .. import models, tasks
-from . import factories
+from . import factories, helpers
 
 
 class StatsBaseTest(test.APITransactionTestCase):
@@ -23,7 +23,9 @@ class StatsBaseTest(test.APITransactionTestCase):
         )
 
         self.offering = factories.OfferingFactory(
-            category=self.category, type=PACKAGE_TYPE,
+            category=self.category,
+            type=PACKAGE_TYPE,
+            state=models.Offering.States.ACTIVE,
         )
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering, parent=self.category_component
@@ -198,3 +200,23 @@ class CostsStatsTest(StatsBaseTest):
                 'period': '2020-01',
             },
         )
+
+    @helpers.override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_stat_methods_are_not_available_for_anonymous_users(self):
+        offering_url = factories.OfferingFactory.get_url(self.offering)
+
+        result = self.client.get(offering_url)
+        self.assertEqual(result.status_code, status.HTTP_200_OK)
+
+        offering_list_url = factories.OfferingFactory.get_list_url()
+        result = self.client.get(offering_list_url)
+        self.assertEqual(result.status_code, status.HTTP_200_OK)
+
+        result = self.client.get(self.url)
+        self.assertEqual(result.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        customers_url = factories.OfferingFactory.get_url(
+            self.offering, action='customers'
+        )
+        result = self.client.get(customers_url)
+        self.assertEqual(result.status_code, status.HTTP_401_UNAUTHORIZED)
