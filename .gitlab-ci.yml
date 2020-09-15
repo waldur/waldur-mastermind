@@ -9,7 +9,8 @@ include:
     file: "/templates/validate/docker-compose-trigger.yml"
 
 variables:
-  GITHUB_REPO_URL: "git@github.com:opennode/waldur-mastermind.git"
+  GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/waldur-mastermind.git"
+  GITHUB_WALDUR_REPO_URL: "git@github.com:waldur/waldur-mastermind.git"
 
 before_script:
   - export
