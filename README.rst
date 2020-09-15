@@ -80,5 +80,5 @@ Contributing
 
     tox
 
-5) Name module should consist of three parts separated by underscore: `waldur`, plugin name, entity name.
+5) Module name should consist of three parts separated by underscore: `waldur`, plugin name, entity name.
 For example, `waldur_os_snapshot` refers to OpenStack (OS) as plugin name and snapshot as entity name.
