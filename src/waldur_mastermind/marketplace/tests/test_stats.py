@@ -135,14 +135,13 @@ class StatsTest(StatsBaseTest):
 
     def test_offering_customers_stats(self):
         url = factories.OfferingFactory.get_url(self.offering, action='customers')
-        resource = factories.ResourceFactory(
-            offering=self.offering, state=models.Resource.States.OK
-        )
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(url)
         self.assertEqual(result.status_code, status.HTTP_200_OK)
         self.assertEqual(len(result.data), 1)
-        self.assertEqual(result.data[0]['uuid'], resource.project.customer.uuid.hex)
+        self.assertEqual(
+            result.data[0]['uuid'], self.resource.project.customer.uuid.hex
+        )
 
 
 @freeze_time('2020-01-01')
