@@ -56,7 +56,9 @@ class BaseMarketplaceView(core_views.ActionsViewSet):
 
 class PublicViewsetMixin:
     def get_permissions(self):
-        if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
+        if settings.WALDUR_MARKETPLACE[
+            'ANONYMOUS_USER_CAN_VIEW_OFFERINGS'
+        ] and self.action in ['list', 'retrieve']:
             return [rf_permissions.AllowAny()]
         else:
             return super(PublicViewsetMixin, self).get_permissions()
