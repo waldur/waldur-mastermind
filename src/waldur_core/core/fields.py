@@ -247,7 +247,7 @@ class YearMonthField(serializers.CharField):
             year, month = [int(el) for el in value.split('-')]
         except ValueError:
             raise serializers.ValidationError(
-                _('Value "%s" should be valid be in format YYYY-MM') % value
+                _('Value "%s" should be in valid format YYYY-MM') % value
             )
         if not 0 < month < 13:
             raise serializers.ValidationError(_('Month has to be from 1 to 12.'))
