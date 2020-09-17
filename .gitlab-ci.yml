@@ -5,12 +5,14 @@ include:
     file: "/templates/test/check-merge-compatibility.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/sync-to-github.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/release/python-module-release.yml"
+
+image: "themattrix/tox:latest"
 
 variables:
   GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/ansible-waldur-module.git"
   GITHUB_WALDUR_REPO_URL: "git@github.com:waldur/ansible-waldur-module.git"
-
-image: "themattrix/tox:latest"
 
 Test current configuration:
   stage: test
@@ -21,52 +23,3 @@ Test current configuration:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - tox
-
-Publish tagged release:
-  stage: release
-  interruptible: true
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: never
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-  script:
-    - |
-      if git ls-remote | grep "release/$CI_COMMIT_TAG"; then
-        echo "[+] Using existing release/$CI_COMMIT_TAG branch"
-        git fetch
-        git checkout "release/$release"
-        git pull origin "release/$release"
-      else
-        echo "[+] Creating new release/$CI_COMMIT_TAG branch"
-        git checkout develop && git pull origin develop
-        git checkout -b "release/$CI_COMMIT_TAG"
-        if [ -f setup.py ]; then
-          echo "[+] Changing 'setup.py' file"
-          sed -i "s/^    version='.*',$/    version='$CI_COMMIT_TAG',/" setup.py
-          git add setup.py
-        fi
-        if [ -f pyproject.toml ]; then
-          echo "[+] Changing 'pyproject.toml' file"
-          sed -i "s/^version = \".*\"$/version = \"$CI_COMMIT_TAG\"/" pyproject.toml
-          git add pyproject.toml
-        fi
-        git commit -m "Preparing new release: $CI_COMMIT_TAG"
-        git show -p
-        git --no-pager log -10 --decorate --graph --oneline --all
-        echo "[+] Pushing changes to origin/release/$CI_COMMIT_TAG branch"
-        git push --set-upstream origin "release/$CI_COMMIT_TAG"
-      fi
-    - |
-      echo "[+] Running unit tests with tox"
-      tox
-    - echo "[+] Pushing tag and cleanup"
-    - git checkout master && git pull origin master
-    - git merge --no-ff "release/$CI_COMMIT_TAG"
-    - git tag "v$CI_COMMIT_TAG"
-    - git checkout develop && git pull origin develop
-    - git merge --no-ff "release/$CI_COMMIT_TAG"
-    - git branch -d "release/$CI_COMMIT_TAG"
-    - git --no-pager log -10 --decorate --graph --oneline --all
-    - git push origin --all
-    - git push origin --tags
-    - git push origin --delete "release/$CI_COMMIT_TAG"
