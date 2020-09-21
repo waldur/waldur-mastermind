@@ -506,7 +506,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @method_decorator(create_batch_fetcher)
     def list_networks(self, tenants):
-        neutron = self.neutron_client
+        neutron = self.neutron_admin_client
         try:
             return neutron.list_networks(tenant_id=tenants)['networks']
         except neutron_exceptions.NeutronClientException as e:
@@ -532,7 +532,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return network
 
     def pull_subnets(self, tenant=None, network=None):
-        neutron = self.neutron_client
+        neutron = self.neutron_admin_client
 
         if tenant:
             networks = tenant.networks.all()
