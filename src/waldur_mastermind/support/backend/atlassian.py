@@ -317,10 +317,17 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def _backend_comment_to_comment(self, backend_comment, comment):
         comment.update_message(backend_comment.body)
         comment.author = self.get_or_create_support_user(backend_comment.author)
-        internal = self._get_property(
-            'comment', backend_comment.id, 'sd.public.comment'
-        )
-        comment.is_public = not internal.get('value', {}).get('internal', False)
+        try:
+            internal = self._get_property(
+                'comment', backend_comment.id, 'sd.public.comment'
+            )
+            comment.is_public = not internal.get('value', {}).get('internal', False)
+        except JIRAError:
+            # workaround for backbone-issue-sync-for-jira plugin
+            external = self._get_property(
+                'comment', backend_comment.id, 'sd.allow.public.comment'
+            )
+            comment.is_public = not external.get('value', {}).get('allow', False)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
         attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
