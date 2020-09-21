@@ -35,11 +35,11 @@ urlpatterns = [
         name='marketplace-checklists-customer-stats',
     ),
     url(
-        r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/(?P<project_uuid>[a-z0-9]+)/$',
+        r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/$',
         views.AnswersListView.as_view({'get': 'list'}),
     ),
     url(
-        r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/(?P<project_uuid>[a-z0-9]+)/submit/$',
+        r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/submit/$',
         views.AnswersSubmitView.as_view({'post': 'create'}),
     ),
 ]
