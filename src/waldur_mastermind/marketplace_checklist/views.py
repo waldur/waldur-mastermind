@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
+from waldur_core.core.models import User
+from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import is_administrator, is_owner
 
@@ -150,6 +152,17 @@ class AnswersListView(ListModelMixin, GenericViewSet):
         return models.Answer.objects.filter(
             question__checklist__uuid=self.kwargs['checklist_uuid'],
             user=self.request.user,
+        )
+
+
+class UserAnswersListView(ListModelMixin, GenericViewSet):
+    serializer_class = serializers.AnswerListSerializer
+
+    def get_queryset(self):
+        visible_users = filter_visible_users(User.objects.all(), self.request.user)
+        user = get_object_or_404(visible_users, uuid=self.kwargs['user_uuid'])
+        return models.Answer.objects.filter(
+            question__checklist__uuid=self.kwargs['checklist_uuid'], user=user,
         )
 
 

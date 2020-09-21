@@ -42,4 +42,8 @@ urlpatterns = [
         r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/submit/$',
         views.AnswersSubmitView.as_view({'post': 'create'}),
     ),
+    url(
+        r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/user/(?P<user_uuid>[a-f0-9]+)/answers/$',
+        views.UserAnswersListView.as_view({'get': 'list'}),
+    ),
 ]
