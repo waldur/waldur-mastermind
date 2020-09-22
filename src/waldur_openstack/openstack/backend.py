@@ -158,11 +158,13 @@ class OpenStackBackend(BaseOpenStackBackend):
             models.Flavor.objects.filter(backend_id__in=cur_flavors.keys()).delete()
 
     def pull_images(self):
-        self._pull_images(models.Image, lambda image: image['visibility'] == 'public')
+        self._pull_images(
+            models.Image, lambda image: image['visibility'] == 'public', admin=True
+        )
 
     def pull_volume_types(self):
         try:
-            volume_types = self.cinder_client.volume_types.list(is_public=True)
+            volume_types = self.cinder_admin_client.volume_types.list(is_public=True)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
@@ -232,7 +234,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action('pull quotas for tenant')
     def pull_tenant_quotas(self, tenant):
-        self._pull_tenant_quotas(tenant.backend_id, tenant)
+        self._pull_tenant_quotas(tenant.backend_id, tenant, admin=True)
 
     def pull_quotas(self):
         for tenant in models.Tenant.objects.filter(

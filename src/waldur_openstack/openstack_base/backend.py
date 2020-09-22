@@ -264,16 +264,20 @@ class BaseOpenStackBackend(ServiceBackend):
         else:
             return True
 
-    def _pull_tenant_quotas(self, backend_id, scope):
-        for quota_name, limit in self.get_tenant_quotas_limits(backend_id).items():
+    def _pull_tenant_quotas(self, backend_id, scope, admin=False):
+        for quota_name, limit in self.get_tenant_quotas_limits(
+            backend_id, admin
+        ).items():
             scope.set_quota_limit(quota_name, limit)
-        for quota_name, usage in self.get_tenant_quotas_usage(backend_id).items():
+        for quota_name, usage in self.get_tenant_quotas_usage(
+            backend_id, admin
+        ).items():
             scope.set_quota_usage(quota_name, usage)
 
-    def get_tenant_quotas_limits(self, tenant_backend_id):
-        nova = self.nova_client
-        neutron = self.neutron_client
-        cinder = self.cinder_client
+    def get_tenant_quotas_limits(self, tenant_backend_id, admin=False):
+        nova = self.get_client('nova', admin)
+        neutron = self.get_client('neutron', admin)
+        cinder = self.get_client('cinder', admin)
 
         try:
             nova_quotas = nova.quotas.get(tenant_id=tenant_backend_id)
@@ -308,10 +312,10 @@ class BaseOpenStackBackend(ServiceBackend):
 
         return quotas
 
-    def get_tenant_quotas_usage(self, tenant_backend_id):
-        nova = self.nova_client
-        neutron = self.neutron_client
-        cinder = self.cinder_client
+    def get_tenant_quotas_usage(self, tenant_backend_id, admin=False):
+        nova = self.get_client('nova', admin)
+        neutron = self.get_client('neutron', admin)
+        cinder = self.get_client('cinder', admin)
 
         try:
             nova_quotas = nova.quotas.get(
@@ -403,8 +407,8 @@ class BaseOpenStackBackend(ServiceBackend):
     def _get_current_properties(self, model):
         return {p.backend_id: p for p in model.objects.filter(settings=self.settings)}
 
-    def _pull_images(self, model_class, filter_function=None):
-        glance = self.glance_client
+    def _pull_images(self, model_class, filter_function=None, admin=False):
+        glance = self.get_client('glance', admin)
         try:
             images = glance.images.list()
         except glance_exceptions.ClientException as e:
