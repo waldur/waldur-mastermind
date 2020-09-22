@@ -42,6 +42,8 @@ def update_invoice_item_on_allocation_usage_update(
 
 def update_allocation_deposit(sender, instance, created=False, **kwargs):
     allocation = instance
+    if allocation.batch_service != 'MOAB':
+        return
 
     package = utils.get_package(allocation)
     if not package:

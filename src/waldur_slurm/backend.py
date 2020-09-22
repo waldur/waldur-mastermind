@@ -85,6 +85,12 @@ class SlurmBackend(ServiceBackend):
 
     def delete_allocation(self, allocation):
         account = allocation.backend_id
+
+        if not account.strip():
+            raise ServiceBackendError(
+                'Empty backend_id for allocation: %s' % allocation
+            )
+
         if self.client.get_account(account):
             self.client.delete_account(account)
 
@@ -105,6 +111,12 @@ class SlurmBackend(ServiceBackend):
         Create association between user and SLURM account if it does not exist yet.
         """
         account = allocation.backend_id
+
+        if not account.strip():
+            raise ServiceBackendError(
+                'Empty backend_id for allocation: %s' % allocation
+            )
+
         default_account = self.settings.options.get('default_account')
         if not self.client.get_association(username, account):
             self.client.create_association(username, account, default_account)
@@ -114,6 +126,12 @@ class SlurmBackend(ServiceBackend):
         Delete association between user and SLURM account if it exists.
         """
         account = allocation.backend_id
+
+        if not account.strip():
+            raise ServiceBackendError(
+                'Empty backend_id for allocation: %s' % allocation
+            )
+
         if self.client.get_association(username, account):
             self.client.delete_association(username, account)
 
@@ -133,6 +151,7 @@ class SlurmBackend(ServiceBackend):
         waldur_allocations = {
             allocation.backend_id: allocation
             for allocation in self.get_allocation_queryset()
+            if allocation.backend_id
         }
 
         report = self.get_usage_report(waldur_allocations.keys())
@@ -148,6 +167,12 @@ class SlurmBackend(ServiceBackend):
 
     def pull_allocation(self, allocation):
         account = allocation.backend_id
+
+        if not account.strip():
+            raise ServiceBackendError(
+                'Empty backend_id for allocation: %s' % allocation
+            )
+
         report = self.get_usage_report([account])
         usage = report.get(account)
         if not usage:
@@ -273,7 +298,7 @@ class SlurmBackend(ServiceBackend):
         result_name = self.sanitize_allocation_name(raw_name)[
             : models.SLURM_ALLOCATION_NAME_MAX_LEN
         ]
-        return result_name
+        return result_name.lower()
 
     def get_account_name(self, prefix, object_or_uuid):
         key = (

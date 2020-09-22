@@ -187,3 +187,18 @@ class BaseReportLine(metaclass=abc.ABCMeta):
             self.ram * self.duration * self.node,
             self.charge,
         )
+
+    def __str__(self):
+        return (
+            "ReportLine: User=%s, Account=%s, CPU=%s, GPU=%s, RAM=%s, Duration=%s, Charge=%s, Node=%s"
+            % (
+                self.user,
+                self.account,
+                self.cpu,
+                self.gpu,
+                self.ram,
+                self.duration,
+                self.charge,
+                self.node,
+            )
+        )
