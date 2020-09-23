@@ -16,6 +16,10 @@ from waldur_core.structure.permissions import is_administrator, is_owner
 from . import models, serializers
 
 
+def get_score(num, den):
+    return round(100 * num / max(1, den), 2)
+
+
 class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.CategorySerializer
@@ -66,11 +70,8 @@ class StatsView(APIView):
                     uuid=customer.uuid,
                     latitude=customer.latitude,
                     longitude=customer.longitude,
-                    score=round(
-                        100
-                        * correct_count
-                        / max(1, customer_users.count() * total_questions),
-                        2,
+                    score=get_score(
+                        correct_count, customer_users.count() * total_questions
                     ),
                 )
             )
@@ -107,7 +108,7 @@ class ProjectStatsView(APIView):
                     positive_count=positive_count,
                     negative_count=negative_count,
                     unknown_count=unknown_count,
-                    score=round(100 * positive_count / total, 2)
+                    score=get_score(positive_count, total * users.count())
                     if total > 0
                     else 100,  # consider empty lists as fully compliant
                 )
@@ -121,11 +122,12 @@ class CustomerStatsView(APIView):
         is_owner(request, self, customer)
 
         checklist = get_object_or_404(models.Checklist, uuid=checklist_uuid)
-        total_questions = max(1, checklist.questions.count())
+        total_questions = checklist.questions.count()
         points = []
         for project in Project.objects.filter(customer=customer).order_by('name'):
             project_users = project.get_users()
             customer_users = customer.get_owners()
+            users_count = project_users.count() + customer_users.count()
             correct_count = (
                 models.Answer.objects.filter(
                     Q(user__in=project_users) | Q(user__in=customer_users)
@@ -139,7 +141,7 @@ class CustomerStatsView(APIView):
                 dict(
                     name=project.name,
                     uuid=project.uuid.hex,
-                    score=round(100 * correct_count / total_questions, 2,),
+                    score=get_score(correct_count, total_questions * users_count),
                 )
             )
         return Response(points)
