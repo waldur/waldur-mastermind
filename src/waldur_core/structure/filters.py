@@ -290,11 +290,7 @@ def filter_visible_users(queryset, user, extra=None):
         projectpermission__is_active=True,
     )
 
-    queryset = (
-        queryset.filter(is_staff=False)
-        .filter(subquery | Q(uuid=user.uuid) | (extra or Q()))
-        .distinct()
-    )
+    queryset = queryset.filter(subquery | Q(uuid=user.uuid) | (extra or Q())).distinct()
 
     if not (user.is_staff or user.is_support):
         queryset = queryset.filter(is_active=True, is_staff=False)
