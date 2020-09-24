@@ -5,11 +5,6 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-def delete_answers_if_user_is_none(apps, schema_editor):
-    Answer = apps.get_model('marketplace_checklist', 'Answer')
-    Answer.objects.filter(user__isnull=True).delete()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -17,7 +12,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(delete_answers_if_user_is_none),
         migrations.RemoveField(model_name='answer', name='project',),
         migrations.AlterField(
             model_name='answer',

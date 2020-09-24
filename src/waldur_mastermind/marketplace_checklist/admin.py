@@ -23,5 +23,11 @@ class ChecklistAdmin(
     fields = ('name', 'description', 'category')
 
 
+class AnswerAdmin(admin.ModelAdmin):
+    list_display = ('user', 'question')
+    list_filter = ('question',)
+
+
 admin.site.register(models.Checklist, ChecklistAdmin)
 admin.site.register(models.Category, CategoryAdmin)
+admin.site.register(models.Answer, AnswerAdmin)
