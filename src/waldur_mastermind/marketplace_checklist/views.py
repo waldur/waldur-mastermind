@@ -93,7 +93,7 @@ class ProjectStatsView(APIView):
             qs = models.Answer.objects.filter(
                 user__in=users, question__checklist=checklist
             )
-            total = checklist.questions.count()
+            total = checklist.questions.count() * users.count()
             positive_count = qs.filter(value=F('question__correct_answer')).count()
             negative_count = (
                 qs.exclude(value__isnull=True)
@@ -108,7 +108,7 @@ class ProjectStatsView(APIView):
                     positive_count=positive_count,
                     negative_count=negative_count,
                     unknown_count=unknown_count,
-                    score=get_score(positive_count, total * users.count())
+                    score=get_score(positive_count, total)
                     if total > 0
                     else 100,  # consider empty lists as fully compliant
                 )
