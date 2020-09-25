@@ -1404,3 +1404,28 @@ class OfferingDoiTest(test.APITransactionTestCase):
             url, {'scope': factories.OfferingFactory.get_url(self.offering)}
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class OfferingGeoCodeTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.url = factories.OfferingFactory.get_list_url(action='geocode')
+        self.fixture = fixtures.UserFixture()
+
+        mock_patch = mock.patch('waldur_core.core.utils.Nominatim')
+        mock_nominatim = mock_patch.start()
+
+        class Location(object):
+            latitude = 10.0
+            longitude = 10.0
+
+        mock_nominatim().geocode.return_value = Location()
+
+    def tearDown(self):
+        super(OfferingGeoCodeTest, self).tearDown()
+        mock.patch.stopall()
+
+    def test_get_lat_lon_from_address(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'address': 'Address'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {'latitude': 10.0, 'longitude': 10.0})
