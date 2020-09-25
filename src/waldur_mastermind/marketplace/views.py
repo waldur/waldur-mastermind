@@ -30,7 +30,11 @@ from rest_framework.reverse import reverse
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
-from waldur_core.core.utils import month_start, order_with_nulls
+from waldur_core.core.utils import (
+    get_lat_lon_from_address,
+    month_start,
+    order_with_nulls,
+)
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -330,6 +334,21 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         return self.get_paginated_response(page)
 
     costs_permissions = [structure_permissions.is_owner]
+
+    @action(detail=False)
+    def geocode(self, request):
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        address = serializer.validated_data['address']
+        lat_lon = get_lat_lon_from_address(address)
+        if lat_lon:
+            return Response(
+                {'latitude': lat_lon[0], 'longitude': lat_lon[1]},
+                status=status.HTTP_200_OK,
+            )
+        return Response(None, status=status.HTTP_200_OK)
+
+    geocode_serializer_class = serializers.GeoCodeSerializer
 
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):

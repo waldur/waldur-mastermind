@@ -2070,6 +2070,10 @@ class ResourceTerminateSerializer(serializers.Serializer):
     )
 
 
+class GeoCodeSerializer(serializers.Serializer):
+    address = serializers.CharField(required=True)
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer, receiver=add_service_provider,
 )

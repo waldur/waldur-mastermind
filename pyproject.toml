@@ -86,6 +86,7 @@ django-modeltranslation = "^0.15"
 django-storages = "^1.9.1"
 boto3 = "^1.14.18"
 django-axes = "^5.4.3"
+geopy = "^2.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"

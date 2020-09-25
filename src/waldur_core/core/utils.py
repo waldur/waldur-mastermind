@@ -30,6 +30,7 @@ from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.encoding import force_text
+from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
@@ -429,3 +430,11 @@ class QuietSession(requests.Session):
                 return super(QuietSession, self).request(*args, **kwargs)
         else:
             return super(QuietSession, self).request(*args, **kwargs)
+
+
+def get_lat_lon_from_address(address):
+    geo_locator = Nominatim(user_agent='waldur')
+    location = geo_locator.geocode(address)
+
+    if location:
+        return location.latitude, location.longitude
