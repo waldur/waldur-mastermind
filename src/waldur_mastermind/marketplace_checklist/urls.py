@@ -16,7 +16,16 @@ urlpatterns = [
         r'^api/marketplace-checklists-categories/(?P<category_uuid>[a-f0-9]+)/checklists/$',
         views.CategoryChecklistsView.as_view({'get': 'list'}),
     ),
-    url(r'^api/marketplace-checklists/$', views.ChecklistView.as_view({'get': 'list'})),
+    url(
+        r'^api/marketplace-checklists/$',
+        views.ChecklistListView.as_view({'get': 'list'}),
+        name='marketplace-checklist-list',
+    ),
+    url(
+        r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/$',
+        views.ChecklistDetailView.as_view({'get': 'retrieve'}),
+        name='marketplace-checklist-detail',
+    ),
     url(
         r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/questions/$',
         views.QuestionsView.as_view({'get': 'list'}),
@@ -33,6 +42,11 @@ urlpatterns = [
         r'^api/customers/(?P<customer_uuid>[a-f0-9]+)/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/$',
         views.CustomerStatsView.as_view(),
         name='marketplace-checklists-customer-stats',
+    ),
+    url(
+        r'^api/customers/(?P<customer_uuid>[a-f0-9]+)/marketplace-checklists/$',
+        views.CustomerChecklistUpdateView.as_view(),
+        name='marketplace-checklists-customer',
     ),
     url(
         r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/answers/$',

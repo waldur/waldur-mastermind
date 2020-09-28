@@ -35,7 +35,12 @@ class CategoryChecklistsView(ListModelMixin, GenericViewSet):
         )
 
 
-class ChecklistView(ListModelMixin, GenericViewSet):
+class ChecklistListView(ListModelMixin, GenericViewSet):
+    queryset = models.Checklist.objects.all()
+    serializer_class = serializers.ChecklistSerializer
+
+
+class ChecklistDetailView(RetrieveModelMixin, GenericViewSet):
     queryset = models.Checklist.objects.all()
     serializer_class = serializers.ChecklistSerializer
 
@@ -145,6 +150,45 @@ class CustomerStatsView(APIView):
                 )
             )
         return Response(points)
+
+
+class CustomerChecklistUpdateView(APIView):
+    def get(self, request, customer_uuid, format=None):
+        customer = get_object_or_404(Customer, uuid=customer_uuid)
+        is_owner(request, self, customer)
+
+        ChecklistCustomers = models.Checklist.customers.through
+        current_checklists = ChecklistCustomers.objects.filter(customer=customer)
+        serializer = serializers.CustomerChecklistUpdateSerializer(
+            [cc.checklist for cc in current_checklists], context={'request': request}
+        )
+        return Response(serializer.data)
+
+    def post(self, request, customer_uuid, format=None):
+        customer = get_object_or_404(Customer, uuid=customer_uuid)
+        is_owner(request, self, customer)
+
+        serializer = serializers.CustomerChecklistUpdateSerializer(
+            data=request.data, context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        target_ids = set([checklist.id for checklist in serializer.validated_data])
+
+        ChecklistCustomers = models.Checklist.customers.through
+        current_checklists = ChecklistCustomers.objects.filter(customer=customer)
+        current_ids = set([checklist.id for checklist in current_checklists])
+
+        stale_ids = current_ids - target_ids
+        new_ids = target_ids - current_ids
+
+        current_checklists.filter(id__in=stale_ids).delete()
+        for checklist_id in new_ids:
+            ChecklistCustomers.objects.create(
+                customer=customer, checklist_id=checklist_id
+            )
+
+        return Response({'detail': _('Customer checklist have been updated.')})
 
 
 class AnswersListView(ListModelMixin, GenericViewSet):
