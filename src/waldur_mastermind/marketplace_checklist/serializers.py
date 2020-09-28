@@ -53,3 +53,9 @@ class AnswerListSerializer(serializers.ModelSerializer):
 class AnswerSubmitSerializer(serializers.Serializer):
     question_uuid = serializers.UUIDField()
     value = serializers.NullBooleanField()
+
+
+class CustomerChecklistUpdateSerializer(serializers.ListSerializer):
+    child = serializers.SlugRelatedField(
+        slug_field='uuid', write_only=True, queryset=models.Checklist.objects.all(),
+    )
