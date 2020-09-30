@@ -1365,6 +1365,8 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'old_cost_estimate',
             'new_cost_estimate',
             'can_terminate',
+            'fixed_price',
+            'activation_price',
         )
 
     order_uuid = serializers.ReadOnlyField(source='order.uuid')
