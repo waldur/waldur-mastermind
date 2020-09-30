@@ -8,6 +8,7 @@ from django.urls import resolve, reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
+from modeltranslation import admin as modeltranslation_admin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core import utils as core_utils
@@ -74,7 +75,7 @@ class CategoryComponentInline(admin.TabularInline):
     model = models.CategoryComponent
 
 
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(modeltranslation_admin.TranslationAdmin):
     list_display = (
         'title',
         'uuid',
