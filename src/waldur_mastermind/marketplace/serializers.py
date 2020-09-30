@@ -1428,6 +1428,8 @@ class CartItemSerializer(BaseRequestSerializer):
             'project',
             'project_name',
             'project_uuid',
+            'fixed_price',
+            'activation_price',
         )
         protected_fields = BaseRequestSerializer.Meta.protected_fields + ('project',)
 
