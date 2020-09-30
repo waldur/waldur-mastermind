@@ -592,6 +592,10 @@ class Plan(
         return str(self.name)
 
     @property
+    def fixed_price(self):
+        return self.sum_components(OfferingComponent.BillingTypes.FIXED)
+
+    @property
     def init_price(self):
         return self.sum_components(OfferingComponent.BillingTypes.ONE_TIME)
 
@@ -1179,6 +1183,20 @@ class OrderItem(
             self.get_type_display(),
             self.order.created_by,
         )
+
+    @property
+    def fixed_price(self):
+        if self.type == RequestTypeMixin.Types.CREATE:
+            return self.plan.fixed_price
+        return 0
+
+    @property
+    def activation_price(self):
+        if self.type == RequestTypeMixin.Types.CREATE:
+            return self.plan.init_price
+        elif self.type == RequestTypeMixin.Types.UPDATE:
+            return self.plan.switch_price
+        return 0
 
 
 class ComponentQuota(models.Model):
