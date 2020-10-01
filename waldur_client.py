@@ -1267,7 +1267,7 @@ def waldur_full_argument_spec(**kwargs):
 def waldur_resource_argument_spec(**kwargs):
     spec = dict(
         name=dict(required=True, type='str'),
-        description=dict(type='str', default=None),
+        description=dict(type='str', default=''),
         state=dict(default='present', choices=['absent', 'present']),
         tags=dict(type='list', default=None),
     )
