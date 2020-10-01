@@ -4,13 +4,13 @@ set -e
 echo "INFO: Initializing database..."
 gosu waldur sh -c "waldur migrate --noinput"
 
-echo "INFO: Recalculating quotas..."
-gosu waldur sh -c "waldur recalculatequotas"
-
 echo "INFO: Adding new languages for i18n models..."
 gosu waldur sh -c "waldur sync_translation_fields --noinput"
 
 echo "INFO: Update i18n fields..."
 gosu waldur sh -c "waldur update_translation_fields"
+
+echo "INFO: Recalculating quotas..."
+gosu waldur sh -c "waldur recalculatequotas"
 
 exit 0
