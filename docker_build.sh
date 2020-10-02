@@ -1,7 +1,7 @@
 set -e
 
 # Installing Python package manager
-pip3 install poetry
+pip3 install poetry==1.0.9
 poetry config virtualenvs.create false
 
 # Install Python dependencies for Waldur MasterMind from PyPI
