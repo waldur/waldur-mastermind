@@ -234,7 +234,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action('pull quotas for tenant')
     def pull_tenant_quotas(self, tenant):
-        self._pull_tenant_quotas(tenant.backend_id, tenant, admin=True)
+        self._pull_tenant_quotas(tenant.backend_id, tenant)
 
     def pull_quotas(self):
         for tenant in models.Tenant.objects.filter(
