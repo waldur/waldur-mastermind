@@ -310,7 +310,7 @@ class ComponentStatsTest(StatsBaseTest):
         self.assertEqual(item.details, details)
 
         migration = __import__(
-            'waldur_mastermind.marketplace.migrations.0023_init_invoice_items_details_from_order_item',
+            'waldur_mastermind.marketplace.migrations.0024_init_invoice_items_details_from_order_item',
             fromlist=['init_invoice_items_details_from_order_item'],
         )
         func = migration.init_invoice_items_details_from_order_item
