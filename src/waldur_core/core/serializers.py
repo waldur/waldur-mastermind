@@ -543,8 +543,10 @@ class DateRangeFilterSerializer(serializers.Serializer):
     end = fields.YearMonthField(required=False)
 
     def validate(self, data):
-        if 'start' in data and 'end' in data and data['start'] >= data['end']:
-            raise serializers.ValidationError(_('Start has to be earlier than end.'))
+        if 'start' in data and 'end' in data and data['start'] > data['end']:
+            raise serializers.ValidationError(
+                _('Start date must be earlier or equal to end date.')
+            )
 
         if ('start' in data) ^ ('end' in data):
             raise serializers.ValidationError(_('Both parameters must be specified.'))

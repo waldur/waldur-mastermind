@@ -8,6 +8,7 @@ from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer, Project
+from waldur_mastermind.invoices import models as invoices_models
 
 from . import callbacks, log, models, tasks, utils
 
@@ -332,3 +333,26 @@ def limit_update_failed(sender, order_item, error_message, **kwargs):
         error_message,
     )
     log.log_resource_limit_update_failed(resource)
+
+
+def add_component_usage(sender, instance, created=False, **kwargs):
+    component_usage = instance
+
+    if not created and not component_usage.tracker.has_changed('usage'):
+        return
+
+    if not isinstance(component_usage.resource, models.Resource):
+        return
+
+    try:
+        item = invoices_models.InvoiceItem.objects.get(
+            invoice__year=component_usage.billing_period.year,
+            invoice__month=component_usage.billing_period.month,
+            scope=component_usage.resource,
+        )
+        usages = item.details.get('usages', {})
+        usages[component_usage.component.type] = component_usage.usage
+        item.details['usages'] = usages
+        item.save()
+    except invoices_models.InvoiceItem.DoesNotExist:
+        pass

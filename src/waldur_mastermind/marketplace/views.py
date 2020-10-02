@@ -303,11 +303,7 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
     @action(detail=True)
     def customers(self, request, uuid):
         offering = self.get_object()
-
-        customers = structure_models.Customer.objects.all()
-        active_customers = structure_filters.AccountingStartDateFilter().filter_queryset(
-            request, customers, self
-        )
+        active_customers = utils.get_active_customers(request, self)
         customer_queryset = utils.get_offering_customers(offering, active_customers)
         serializer_class = structure_serializers.CustomerSerializer
         serializer = serializer_class(
@@ -321,14 +317,8 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
     @action(detail=True)
     def costs(self, request, uuid):
         offering = self.get_object()
-
-        customers = structure_models.Customer.objects.all()
-        active_customers = structure_filters.AccountingStartDateFilter().filter_queryset(
-            request, customers, self
-        )
-
+        active_customers = utils.get_active_customers(request, self)
         start, end = utils.get_start_and_end_dates_from_request(request)
-
         costs = utils.get_offering_costs(offering, active_customers, start, end)
         page = self.paginate_queryset(costs)
         return self.get_paginated_response(page)
@@ -349,6 +339,17 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         return Response(None, status=status.HTTP_200_OK)
 
     geocode_serializer_class = serializers.GeoCodeSerializer
+
+    @action(detail=True)
+    def component_stats(self, request, uuid):
+        offering = self.get_object()
+        active_customers = utils.get_active_customers(request, self)
+        start, end = utils.get_start_and_end_dates_from_request(request)
+        stats = utils.get_offering_component_stats(
+            offering, active_customers, start, end
+        )
+        page = self.paginate_queryset(stats)
+        return self.get_paginated_response(page)
 
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):

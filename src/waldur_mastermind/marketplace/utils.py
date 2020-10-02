@@ -19,6 +19,7 @@ from rest_framework import serializers
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 
@@ -153,6 +154,14 @@ def get_service_provider_info(source):
         }
     except models.Resource.DoesNotExist:
         return {}
+
+
+def get_offering_details(offering):
+    return {
+        'offering_type': offering.type,
+        'offering_name': offering.name,
+        'offering_uuid': offering.uuid.hex,
+    }
 
 
 def format_list(resources):
@@ -438,3 +447,54 @@ def get_start_and_end_dates_from_request(request):
     end = datetime.date(year=end_year, month=end_month, day=1)
     start = datetime.date(year=start_year, month=start_month, day=1)
     return start, end
+
+
+def get_active_customers(request, view):
+    customers = structure_models.Customer.objects.all()
+    return structure_filters.AccountingStartDateFilter().filter_queryset(
+        request, customers, view
+    )
+
+
+def get_offering_component_stats(offering, active_customers, start, end):
+    component_stats = []
+
+    resources = models.Resource.objects.filter(
+        offering=offering, project__customer__in=active_customers,
+    )
+    resources_ids = resources.values_list('id', flat=True)
+    date = start
+
+    while date <= end:
+        year = date.year
+        month = date.month
+
+        invoice_items = invoice_models.InvoiceItem.objects.filter(
+            content_type_id=ContentType.objects.get_for_model(models.Resource).id,
+            object_id__in=resources_ids,
+            invoice__year=year,
+            invoice__month=month,
+        )
+
+        stats = {}
+        for item in invoice_items:
+            limits = item.details.get('limits', {})
+
+            '''If a resource will be deleted then usages will be deleted too.
+            Then statistics will be not available.
+            Therefore we use invoice item details.'''
+            usages = item.details.get('usages', {})
+            limits.update(usages)
+
+            for limit, usage in limits.items():
+                if limit in stats.keys():
+                    stats[limit] += usage
+                else:
+                    stats[limit] = usage
+        component_stats.append(
+            {'period': '%s-%02d' % (year, month), 'components': stats}
+        )
+
+        date += relativedelta(months=1)
+
+    return component_stats
