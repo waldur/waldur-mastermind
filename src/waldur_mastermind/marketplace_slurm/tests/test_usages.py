@@ -5,10 +5,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_core.core.utils import month_start
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -125,22 +123,6 @@ class ComponentUsageTest(BaseTest):
                 resource=self.resource, component__type='ram'
             ).exists()
         )
-
-    def test_invoice_price_includes_usage_components(self):
-        invoice = invoices_models.Invoice.objects.get(
-            customer=self.allocation.service_project_link.project.customer
-        )
-        self.assertEqual(invoice.price, 0)
-        marketplace_models.ComponentUsage.objects.create(
-            resource=self.resource,
-            component=self.resource.plan.components.first().component,
-            usage=1,
-            date=datetime.date.today(),
-            billing_period=month_start(datetime.date.today()),
-            plan_period=self.plan_period,
-        )
-        invoice.refresh_from_db()
-        self.assertEqual(invoice.price, 3)
 
 
 class ComponentQuotaTest(BaseTest):

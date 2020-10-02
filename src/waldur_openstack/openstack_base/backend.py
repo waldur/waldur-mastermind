@@ -264,14 +264,13 @@ class BaseOpenStackBackend(ServiceBackend):
         else:
             return True
 
-    def _pull_tenant_quotas(self, backend_id, scope, admin=False):
-        for quota_name, limit in self.get_tenant_quotas_limits(
-            backend_id, admin
-        ).items():
+    def _pull_tenant_quotas(self, backend_id, scope):
+        # Cinder volumes and snapshots manager does not implement filtering by tenant_id.
+        # Therefore we need to assume that tenant_id field is set up in backend settings.
+        backend = BaseOpenStackBackend(self.settings, backend_id)
+        for quota_name, limit in backend.get_tenant_quotas_limits(backend_id).items():
             scope.set_quota_limit(quota_name, limit)
-        for quota_name, usage in self.get_tenant_quotas_usage(
-            backend_id, admin
-        ).items():
+        for quota_name, usage in backend.get_tenant_quotas_usage(backend_id).items():
             scope.set_quota_usage(quota_name, usage)
 
     def get_tenant_quotas_limits(self, tenant_backend_id, admin=False):
@@ -322,6 +321,10 @@ class BaseOpenStackBackend(ServiceBackend):
                 tenant_id=tenant_backend_id, detail=True
             )._info
             neutron_quotas = neutron.show_quota_details(tenant_backend_id)['quota']
+            # There are no cinder quotas for total volumes and snapshots size.
+            # Therefore we need to compute them manually by fetching list of volumes and snapshots in the tenant.
+            # Also `list` method in volume and snapshots does not implement filtering by tenant ID.
+            # That's why we need to assume that tenant_id field is set up in backend settings.
             volumes = cinder.volumes.list()
             snapshots = cinder.volume_snapshots.list()
             cinder_quotas = cinder.quotas.get(
