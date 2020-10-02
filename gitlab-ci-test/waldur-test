@@ -29,7 +29,7 @@ echo "[+] Running unit tests"
 pytest \
     --test-group-count $CI_NODE_TOTAL \
     --test-group=$CI_NODE_INDEX \
-    --test-group-random-seed=12345
+    --test-group-random-seed=12345 \
     --reuse-db \
     --ds=waldur_mastermind.test_settings \
     src
