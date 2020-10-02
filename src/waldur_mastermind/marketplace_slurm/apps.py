@@ -34,12 +34,6 @@ class MarketplaceSlurmConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_slurm.update_component_quota',
         )
 
-        signals.post_save.connect(
-            handlers.add_component_usage,
-            sender=marketplace_models.ComponentUsage,
-            dispatch_uid='marketplace_slurm.handlers.add_component_usage',
-        )
-
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)
         marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
 
