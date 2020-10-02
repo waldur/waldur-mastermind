@@ -18,6 +18,8 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 
 
 class BaseRegistrator:
@@ -86,7 +88,18 @@ class BaseRegistrator:
         return source.name
 
     def get_details(self, source):
-        return {}
+        if not isinstance(source, marketplace_models.Resource):
+            return {}
+
+        resource = source
+        details = marketplace_utils.get_offering_details(resource.offering)
+        details['limits'] = resource.limits
+        details['usages'] = {}
+
+        for usage in resource.usages.all():
+            details['usages'][usage.component.type] = usage.usage
+
+        return details
 
 
 class RegistrationManager:

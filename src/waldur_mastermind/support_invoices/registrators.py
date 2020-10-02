@@ -125,14 +125,10 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def get_details(self, source):
         offering = source
-        details = {
-            'offering_type': offering.type,
-            'offering_name': offering.name,
-            'offering_uuid': offering.uuid.hex,
-            'plan_name': offering.plan.name if offering.plan else '',
-        }
-        service_provider_info = marketplace_utils.get_service_provider_info(source)
+        details = marketplace_utils.get_offering_details(offering)
+        service_provider_info = marketplace_utils.get_service_provider_info(offering)
         details.update(service_provider_info)
+        details['plan_name'] = offering.plan.name if offering.plan else ''
         return details
 
     def get_name(self, offering):

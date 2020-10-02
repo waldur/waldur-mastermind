@@ -101,3 +101,9 @@ class MarketplaceConfig(AppConfig):
             core_signals.pre_serializer_fields.connect(
                 sender=resource_serializer, receiver=utils.add_marketplace_offering,
             )
+
+        signals.post_save.connect(
+            handlers.add_component_usage,
+            sender=models.ComponentUsage,
+            dispatch_uid='waldur_mastermind.marketplace.add_component_usage',
+        )
