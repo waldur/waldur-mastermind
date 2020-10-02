@@ -20,4 +20,9 @@ class Quotas:
         )
 
     def __str__(self):
-        return "Quotas: CPU=%s, GPU=%s, RAM=%s, Deposit=%s"
+        return "Quotas: CPU=%s, GPU=%s, RAM=%s, Deposit=%s" % (
+            self.cpu,
+            self.gpu,
+            self.ram,
+            self.deposit,
+        )
