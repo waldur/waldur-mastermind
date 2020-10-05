@@ -480,6 +480,17 @@ class NetworkViewSet(structure_views.BaseResourceViewSet):
     ]
     create_subnet_serializer_class = serializers.SubNetSerializer
 
+    @decorators.action(detail=True, methods=['post'])
+    def set_mtu(self, request, uuid=None):
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
+        serializer.is_valid(raise_exception=True)
+        network = serializer.save()
+        executors.SetMtuExecutor.execute(network)
+        return response.Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+
+    set_mtu_validators = [core_validators.StateValidator(models.Network.States.OK)]
+    set_mtu_serializer_class = serializers.SetMtuSerializer
+
 
 class SubNetViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SubNet.objects.all()

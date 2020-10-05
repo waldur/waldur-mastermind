@@ -180,6 +180,18 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
                     "type": "form",
                     "method": "PUT",
                 },
+                "set_mtu": {
+                    "title": "Set Mtu",
+                    "method": "POST",
+                    "destructive": False,
+                    "url": url + "set_mtu/",
+                    "reason": None,
+                    "enabled": True,
+                    "type": "form",
+                    "fields": {
+                        "mtu": {"type": "integer", "required": True, "label": "Mtu"}
+                    },
+                },
             },
         )
 
