@@ -871,6 +871,7 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
             'type',
             'segmentation_id',
             'subnets',
+            'mtu',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -879,6 +880,7 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
                 'is_external',
                 'type',
                 'segmentation_id',
+                'mtu',
                 'service_settings',
                 'project',
             )
@@ -896,6 +898,15 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['tenant'] = tenant = self.context['view'].get_object()
         attrs['service_project_link'] = tenant.service_project_link
         return super(NetworkSerializer, self).validate(attrs)
+
+
+class SetMtuSerializer(serializers.Serializer):
+    mtu = serializers.IntegerField()
+
+    def update(self, network, validated_data):
+        network.mtu = validated_data['mtu']
+        network.save(update_fields=['mtu'])
+        return network
 
 
 class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):

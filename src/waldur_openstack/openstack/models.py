@@ -1,5 +1,6 @@
 from urllib.parse import urlparse
 
+from django.core import validators
 from django.db import models
 from django.template.defaultfilters import slugify
 from django.utils.translation import ugettext_lazy as _
@@ -316,6 +317,16 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
     is_external = models.BooleanField(default=False)
     type = models.CharField(max_length=50, blank=True)
     segmentation_id = models.IntegerField(null=True)
+    mtu = models.IntegerField(
+        null=True,
+        help_text=_(
+            'The maximum transmission unit (MTU) value to address fragmentation.'
+        ),
+        validators=[
+            validators.MinValueValidator(68),
+            validators.MaxValueValidator(9000),
+        ],
+    )
 
     def get_backend(self):
         return self.tenant.get_backend()
@@ -341,6 +352,7 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
             'type',
             'segmentation_id',
             'runtime_state',
+            'mtu',
         )
 
 

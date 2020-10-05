@@ -520,6 +520,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             description=backend_network['description'],
             is_external=backend_network['router:external'],
             runtime_state=backend_network['status'],
+            mtu=backend_network.get('mtu'),
             backend_id=backend_network['id'],
             state=models.Network.States.OK,
         )
@@ -1358,15 +1359,21 @@ class OpenStackBackend(BaseOpenStackBackend):
             network.tenant.internal_network_id = network.backend_id
             network.tenant.save()
 
-    @log_backend_action()
-    def update_network(self, network):
+    def _update_network(self, network_id, data):
         neutron = self.neutron_admin_client
 
-        data = {'name': network.name}
         try:
-            neutron.update_network(network.backend_id, {'network': data})
+            neutron.update_network(network_id, {'network': data})
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def update_network(self, network):
+        self._update_network(network.backend_id, {'name': network.name})
+
+    @log_backend_action()
+    def set_network_mtu(self, network):
+        self._update_network(network.backend_id, {'mtu': network.mtu})
 
     @log_backend_action()
     def delete_network(self, network):

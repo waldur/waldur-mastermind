@@ -465,6 +465,16 @@ class NetworkPullExecutor(core_executors.ActionExecutor):
         )
 
 
+class SetMtuExecutor(core_executors.ActionExecutor):
+    action = 'set_mtu'
+
+    @classmethod
+    def get_task_signature(cls, network, serialized_network, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_network, 'set_network_mtu', state_transition='begin_updating'
+        )
+
+
 class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
