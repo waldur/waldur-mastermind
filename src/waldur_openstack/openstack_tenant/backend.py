@@ -31,6 +31,7 @@ def backend_internal_ip_to_internal_ip(backend_internal_ip, **kwargs):
         backend_id=backend_internal_ip['id'],
         mac_address=backend_internal_ip['mac_address'],
         ip4_address=backend_internal_ip['fixed_ips'][0]['ip_address'],
+        allowed_address_pairs=backend_internal_ip.get('allowed_address_pairs', []),
     )
 
     for field, value in kwargs.items():
@@ -1686,6 +1687,18 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 e,
             )
         internal_ip.delete()
+
+    @log_backend_action()
+    def push_instance_allowed_address_pairs(
+        self, instance, backend_id, allowed_address_pairs
+    ):
+        neutron = self.neutron_client
+        try:
+            neutron.update_port(
+                backend_id, {'port': {'allowed_address_pairs': allowed_address_pairs}}
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def pull_instance_security_groups(self, instance):

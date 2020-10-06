@@ -889,6 +889,18 @@ class InstanceRestartExecutor(core_executors.ActionExecutor):
         )
 
 
+class InstanceAllowedAddressPairsUpdateExecutor(core_executors.ActionExecutor):
+    action = 'Update allowed address pairs'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            'push_instance_allowed_address_pairs',
+            state_transition='begin_updating',
+        )
+
+
 class InstanceInternalIPsSetUpdateExecutor(core_executors.ActionExecutor):
     action = 'Update internal IPs'
 

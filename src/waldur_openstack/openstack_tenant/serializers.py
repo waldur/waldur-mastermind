@@ -23,6 +23,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_admin_access
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
+from waldur_openstack.openstack.serializers import validate_private_subnet_cidr
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
@@ -911,6 +912,7 @@ class NestedInternalIPSerializer(
             'subnet_name',
             'subnet_description',
             'subnet_cidr',
+            'allowed_address_pairs',
         )
         read_only_fields = (
             'ip4_address',
@@ -919,6 +921,7 @@ class NestedInternalIPSerializer(
             'subnet_name',
             'subnet_description',
             'subnet_cidr',
+            'allowed_address_pairs',
         )
         related_paths = {
             'subnet': ('uuid', 'name', 'description', 'cidr'),
@@ -1650,6 +1653,43 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
             instance.security_groups.clear()
             instance.security_groups.add(*security_groups)
 
+        return instance
+
+
+class AllowedAddressPairSerializer(serializers.Serializer):
+    ip_address = serializers.IPAddressField(
+        validators=[validate_private_subnet_cidr],
+        default='192.168.42.0/24',
+        initial='192.168.42.0/24',
+        write_only=True,
+    )
+    mac_address = serializers.CharField(required=False)
+
+
+class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
+    subnet = serializers.HyperlinkedRelatedField(
+        queryset=models.SubNet.objects.all(),
+        view_name='openstacktenant-subnet-detail',
+        lookup_field='uuid',
+        write_only=True,
+    )
+
+    allowed_address_pairs = AllowedAddressPairSerializer(many=True)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        subnet = validated_data['subnet']
+        try:
+            internal_ip = models.InternalIP.objects.get(
+                instance=instance, subnet=subnet
+            )
+        except models.InternalIP.DoesNotExist:
+            raise serializers.ValidationError(
+                _('Instance is not connected to subnet "%s" yet.') % subnet
+            )
+
+        internal_ip.allowed_address_pairs = validated_data['allowed_address_pairs']
+        internal_ip.save(update_fields=['allowed_address_pairs'])
         return instance
 
 
