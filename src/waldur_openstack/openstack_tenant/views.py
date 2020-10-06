@@ -660,6 +660,33 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     create_backup_schedule_serializer_class = serializers.BackupScheduleSerializer
 
     @decorators.action(detail=True, methods=['post'])
+    def update_allowed_address_pairs(self, request, uuid=None):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        subnet = serializer.validated_data['subnet']
+        allowed_address_pairs = serializer.validated_data['allowed_address_pairs']
+        internal_ip = models.InternalIP.objects.get(instance=instance, subnet=subnet)
+
+        executors.InstanceAllowedAddressPairsUpdateExecutor().execute(
+            instance,
+            backend_id=internal_ip.backend_id,
+            allowed_address_pairs=allowed_address_pairs,
+        )
+        return response.Response(
+            {'status': _('Allowed address pairs update was scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    update_allowed_address_pairs_validators = [
+        core_validators.StateValidator(models.Instance.States.OK)
+    ]
+    update_allowed_address_pairs_serializer_class = (
+        serializers.InstanceAllowedAddressPairsUpdateSerializer
+    )
+
+    @decorators.action(detail=True, methods=['post'])
     def update_internal_ips_set(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
