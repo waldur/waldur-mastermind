@@ -250,7 +250,8 @@ class ErrorMessageTask(Task):
     def save_error_message(self, instance):
         if isinstance(instance, models.ErrorMessageMixin):
             instance.error_message = self.result.result
-            instance.save(update_fields=['error_message'])
+            instance.error_traceback = str(self.result.traceback)
+            instance.save(update_fields=['error_message', 'error_traceback'])
             # log exception if instance is not already ERRED.
             if instance.state != models.StateMixin.States.ERRED:
                 message = 'Instance: %s.\n' % utils.serialize_instance(instance)
@@ -288,7 +289,8 @@ class RecoverTask(StateTransitionTask):
     def execute(self, instance):
         self.state_transition(instance, 'recover')
         instance.error_message = ''
-        instance.save(update_fields=['error_message'])
+        instance.error_traceback = ''
+        instance.save(update_fields=['error_message', 'error_traceback'])
 
 
 class PreApplyExecutorTask(Task):

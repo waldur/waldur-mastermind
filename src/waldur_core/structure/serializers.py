@@ -1855,6 +1855,7 @@ class BaseResourceSerializer(
             'customer_abbreviation',
             'tags',
             'error_message',
+            'error_traceback',
             'resource_type',
             'state',
             'created',
@@ -1870,7 +1871,7 @@ class BaseResourceSerializer(
             'project',
             'service_settings',
         )
-        read_only_fields = ('error_message', 'backend_id')
+        read_only_fields = ('error_message', 'error_traceback', 'backend_id')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
