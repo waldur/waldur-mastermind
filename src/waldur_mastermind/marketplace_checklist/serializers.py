@@ -8,7 +8,7 @@ class CategorySerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.Category
-        fields = ('uuid', 'url', 'name', 'description', 'checklists_count')
+        fields = ('uuid', 'icon', 'url', 'name', 'description', 'checklists_count')
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',

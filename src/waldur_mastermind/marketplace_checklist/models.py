@@ -3,6 +3,7 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.media.validators import ImageValidator
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -10,6 +11,13 @@ from waldur_mastermind.marketplace import models as marketplace_models
 class Category(
     core_models.UuidMixin, core_models.NameMixin, core_models.DescribableMixin,
 ):
+    icon = models.FileField(
+        upload_to='marketplace_checklist_category_icons',
+        blank=True,
+        null=True,
+        validators=[ImageValidator],
+    )
+
     def __str__(self):
         return self.name
 

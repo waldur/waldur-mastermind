@@ -6,7 +6,7 @@ from . import models
 
 
 class CategoryAdmin(import_export_admin.ImportExportModelAdmin):
-    fields = ('name', 'description')
+    fields = ('icon', 'name', 'description')
 
 
 class QuestionInline(modeltranslation_admin.TranslationStackedInline):
