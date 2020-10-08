@@ -412,11 +412,18 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             'article_code',
             'max_value',
             'min_value',
+            'is_boolean',
             'factor',
         )
         extra_kwargs = {
             'billing_type': {'required': True},
         }
+
+    def validate(self, attrs):
+        if attrs.get('is_boolean'):
+            attrs['min_value'] = 0
+            attrs['max_value'] = 1
+        return attrs
 
     def get_factor(self, offering_component):
         builtin_components = plugins.manager.get_components(
