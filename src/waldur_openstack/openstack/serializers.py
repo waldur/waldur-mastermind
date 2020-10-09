@@ -849,6 +849,23 @@ class _NestedSubNetSerializer(serializers.ModelSerializer):
         )
 
 
+class RouterSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.Router
+        fields = (
+            'backend_id',
+            'uuid',
+            'name',
+            'description',
+            'url',
+            'tenant',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},
+            'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
+        }
+
+
 class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',

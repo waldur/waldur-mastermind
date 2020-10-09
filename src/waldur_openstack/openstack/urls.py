@@ -29,6 +29,9 @@ def register_in(router):
         r'openstack-floating-ips', views.FloatingIPViewSet, basename='openstack-fip'
     )
     router.register(
+        r'openstack-routers', views.RouterViewSet, basename='openstack-router'
+    )
+    router.register(
         r'openstack-networks', views.NetworkViewSet, basename='openstack-network'
     )
     router.register(

@@ -4,7 +4,7 @@ from itertools import groupby
 from typing import Dict
 
 from cinderclient import exceptions as cinder_exceptions
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
@@ -444,6 +444,41 @@ class OpenStackBackend(BaseOpenStackBackend):
             setattr(security_group, field, value)
 
         return security_group
+
+    def pull_tenant_routers(self, tenant):
+        neutron = self.neutron_client
+
+        try:
+            backend_routers = neutron.list_routers(tenant_id=tenant.backend_id)[
+                'routers'
+            ]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        for backend_router in backend_routers:
+            defaults = {
+                'name': backend_router['name'],
+                'description': backend_router['description'],
+                'service_project_link': tenant.service_project_link,
+            }
+            backend_id = backend_router['id']
+            try:
+                models.Router.objects.update_or_create(
+                    tenant=tenant, backend_id=backend_id, defaults=defaults
+                )
+            except IntegrityError:
+                logger.warning(
+                    'Could not create router with backend ID %s '
+                    'and tenant %s due to concurrent update.',
+                    backend_id,
+                    tenant,
+                )
+
+        remote_ids = {ip['id'] for ip in backend_routers}
+        stale_routers = models.Router.objects.filter(tenant=tenant).exclude(
+            backend_id__in=remote_ids
+        )
+        stale_routers.delete()
 
     def pull_networks(self):
         tenants = (
