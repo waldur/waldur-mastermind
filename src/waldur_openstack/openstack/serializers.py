@@ -859,11 +859,26 @@ class RouterSerializer(serializers.HyperlinkedModelSerializer):
             'description',
             'url',
             'tenant',
+            'routes',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},
             'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
         }
+
+
+class StaticRouteSerializer(serializers.Serializer):
+    destination = serializers.CharField()
+    nexthop = serializers.IPAddressField()
+
+
+class RouterSetRoutesSerializer(serializers.Serializer):
+    routes = StaticRouteSerializer(many=True)
+
+    def update(self, router, validated_data):
+        router.routes = validated_data['routes']
+        router.save(update_fields=['routes'])
+        return router
 
 
 class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):

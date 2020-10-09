@@ -461,6 +461,21 @@ class RouterViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.RouterFilter
     serializer_class = serializers.RouterSerializer
 
+    @decorators.action(detail=True, methods=['POST'])
+    def set_routes(self, request, uuid=None):
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        executors.RouterSetRoutesExecutor().execute(self.get_object())
+        return response.Response(
+            {'status': _('Routes update was successfully scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    set_routes_serializer_class = serializers.RouterSetRoutesSerializer
+    set_routes_validators = [core_validators.StateValidator(models.Router.States.OK)]
+
 
 class NetworkViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Network.objects.all()
