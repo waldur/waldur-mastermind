@@ -307,13 +307,14 @@ class Tenant(structure_models.PrivateCloud):
             return limit
 
 
-class Router(structure_models.ResourceMixin):
+class Router(structure_models.SubResource):
     service_project_link = models.ForeignKey(
         OpenStackServiceProjectLink, related_name='routers', on_delete=models.PROTECT
     )
     tenant: Tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name='routers'
     )
+    routes = JSONField(default=list)
 
     def get_backend(self):
         return self.tenant.get_backend()

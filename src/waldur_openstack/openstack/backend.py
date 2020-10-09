@@ -58,6 +58,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.pull_floating_ips()
         self.pull_networks()
         self.pull_subnets()
+        self.pull_routers()
 
     def pull_tenants(self):
         keystone = self.keystone_admin_client
@@ -445,6 +446,13 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         return security_group
 
+    def pull_routers(self):
+        for tenant in models.Tenant.objects.filter(
+            state=models.Tenant.States.OK,
+            service_project_link__service__settings=self.settings,
+        ):
+            self.pull_tenant_routers(tenant)
+
     def pull_tenant_routers(self, tenant):
         neutron = self.neutron_client
 
@@ -459,7 +467,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             defaults = {
                 'name': backend_router['name'],
                 'description': backend_router['description'],
+                'routes': backend_router['routes'],
                 'service_project_link': tenant.service_project_link,
+                'state': models.Router.States.OK,
             }
             backend_id = backend_router['id']
             try:
@@ -1342,6 +1352,18 @@ class OpenStackBackend(BaseOpenStackBackend):
                 security_group.backend_id, {'security_group': data}
             )
             self.push_security_group_rules(security_group)
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def set_static_routes(self, router):
+        neutron = self.neutron_client
+        routes = [
+            {'destination': route.destination, 'nexthop': route.nexthop,}
+            for route in router.routes
+        ]
+        try:
+            neutron.update_router(router.backend_id, routes=routes)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
