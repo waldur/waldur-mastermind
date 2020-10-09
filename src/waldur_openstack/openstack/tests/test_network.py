@@ -67,11 +67,15 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         subnet = models.SubNet.objects.get(uuid=response.data['uuid'])
 
-        core_tasks_mock().si.assert_called_once_with(
-            core_utils.serialize_instance(subnet),
-            'create_subnet',
-            state_transition='begin_creating',
-            enable_default_gateway=False,
+        core_tasks_mock().si.assert_has_calls(
+            [
+                mock.call(
+                    core_utils.serialize_instance(subnet),
+                    'create_subnet',
+                    state_transition='begin_creating',
+                    enable_default_gateway=False,
+                )
+            ]
         )
 
     @mock.patch('waldur_openstack.openstack.executors.SubNetCreateExecutor.execute')

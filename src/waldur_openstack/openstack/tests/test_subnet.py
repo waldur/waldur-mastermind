@@ -71,9 +71,13 @@ class SubNetUpdateActionTest(BaseSubNetTest):
         self.request_data['enable_default_gateway'] = False
         response = self.client.put(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        core_tasks_mock().si.assert_called_once_with(
-            core_utils.serialize_instance(self.fixture.subnet),
-            'update_subnet',
-            state_transition='begin_updating',
-            enable_default_gateway=False,
+        core_tasks_mock().si.assert_has_calls(
+            [
+                mock.call(
+                    core_utils.serialize_instance(self.fixture.subnet),
+                    'update_subnet',
+                    state_transition='begin_updating',
+                    enable_default_gateway=False,
+                )
+            ]
         )

@@ -1,8 +1,9 @@
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response
 from rest_framework import serializers as rf_serializers
-from rest_framework import status
+from rest_framework import status, viewsets
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
@@ -451,6 +452,14 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         )
 
     pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+
+
+class RouterViewSet(viewsets.ReadOnlyModelViewSet):
+    lookup_field = 'uuid'
+    queryset = models.Router.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.RouterFilter
+    serializer_class = serializers.RouterSerializer
 
 
 class NetworkViewSet(structure_views.BaseResourceViewSet):
