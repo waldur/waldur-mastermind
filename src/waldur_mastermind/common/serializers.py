@@ -35,6 +35,10 @@ def validate_options(options, attributes):
             field_class = serializers.ChoiceField
             params['choices'] = option.get('choices')
 
+        if field_type == 'select_string_multi':
+            field_class = serializers.MultipleChoiceField
+            params['choices'] = option.get('choices')
+
         fields[name] = field_class(**params)
 
     serializer_class = type('AttributesSerializer', (serializers.Serializer,), fields)
