@@ -364,6 +364,7 @@ FIELD_TYPES = (
     'text',
     'html_text',
     'select_string',
+    'select_string_multi',
     'select_openstack_tenant',
     'select_openstack_instance',
     'select_multiple_openstack_instances',
