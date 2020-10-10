@@ -849,22 +849,27 @@ class _NestedSubNetSerializer(serializers.ModelSerializer):
         )
 
 
-class RouterSerializer(serializers.HyperlinkedModelSerializer):
+class RouterSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='openstack-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='openstack-spl-detail', read_only=True
+    )
+
     class Meta:
         model = models.Router
-        fields = (
-            'backend_id',
-            'uuid',
-            'name',
-            'description',
-            'url',
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'tenant',
             'routes',
         )
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},
-            'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
-        }
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},
+            tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
+        )
 
 
 class StaticRouteSerializer(serializers.Serializer):
@@ -874,11 +879,6 @@ class StaticRouteSerializer(serializers.Serializer):
 
 class RouterSetRoutesSerializer(serializers.Serializer):
     routes = StaticRouteSerializer(many=True)
-
-    def update(self, router, validated_data):
-        router.routes = validated_data['routes']
-        router.save(update_fields=['routes'])
-        return router
 
 
 class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):

@@ -1,17 +1,23 @@
+import logging
+
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response
 from rest_framework import serializers as rf_serializers
-from rest_framework import status, viewsets
+from rest_framework import status
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
+from waldur_core.core import views as core_views
+from waldur_core.logging.loggers import event_logger
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
 from . import executors, filters, models, serializers
+
+logger = logging.getLogger(__name__)
 
 
 class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
@@ -454,7 +460,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
     pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
 
 
-class RouterViewSet(viewsets.ReadOnlyModelViewSet):
+class RouterViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
     queryset = models.Router.objects.all()
     filter_backends = (DjangoFilterBackend,)
@@ -463,11 +469,33 @@ class RouterViewSet(viewsets.ReadOnlyModelViewSet):
 
     @decorators.action(detail=True, methods=['POST'])
     def set_routes(self, request, uuid=None):
-        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
+        router = self.get_object()
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        old_routes = router.routes
+        new_routes = serializer.validated_data['routes']
+        router.routes = new_routes
+        router.save(update_fields=['routes'])
+        executors.RouterSetRoutesExecutor().execute(router)
 
-        executors.RouterSetRoutesExecutor().execute(self.get_object())
+        event_logger.openstack_router.info(
+            'Static routes have been updated.',
+            event_type='openstack_router_updated',
+            event_context={
+                'router': router,
+                'old_routes': old_routes,
+                'new_routes': new_routes,
+                'tenant_backend_id': router.tenant.backend_id,
+            },
+        )
+
+        logger.info(
+            'Static routes have been updated for router %s from %s to %s.',
+            router,
+            old_routes,
+            new_routes,
+        )
+
         return response.Response(
             {'status': _('Routes update was successfully scheduled.')},
             status=status.HTTP_202_ACCEPTED,
