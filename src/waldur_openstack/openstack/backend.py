@@ -454,7 +454,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             self.pull_tenant_routers(tenant)
 
     def pull_tenant_routers(self, tenant):
-        neutron = self.neutron_client
+        neutron = self.neutron_admin_client
 
         try:
             backend_routers = neutron.list_routers(tenant_id=tenant.backend_id)[
