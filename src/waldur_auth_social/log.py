@@ -10,6 +10,7 @@ provider_event_type_mapping = {
     'smartid.ee': 'auth_logged_in_with_smartid_ee',
     'tara': 'auth_logged_in_with_tara',
     'keycloak': 'auth_logged_in_with_keycloak',
+    'eduteams': 'auth_logged_in_with_eduteams',
 }
 
 

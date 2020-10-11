@@ -24,6 +24,13 @@ class AuthSocialExtension(WaldurExtension):
             'KEYCLOAK_AUTH_URL': '',
             # https://www.keycloak.org/docs/latest/securing_apps/#token-endpoint
             'KEYCLOAK_TOKEN_URL': '',
+            'KEYCLOAK_USERINFO_URL': '',
+            'EDUTEAMS_LABEL': 'Eduteams',
+            'EDUTEAMS_CLIENT_ID': '',
+            'EDUTEAMS_SECRET': '',
+            'EDUTEAMS_AUTH_URL': 'https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization',
+            'EDUTEAMS_TOKEN_URL': 'https://proxy.acc.eduteams.org/OIDC/token',
+            'EDUTEAMS_USERINFO_URL': 'https://proxy.acc.eduteams.org/OIDC/userinfo',
         }
 
     @staticmethod
@@ -38,6 +45,9 @@ class AuthSocialExtension(WaldurExtension):
             'KEYCLOAK_CLIENT_ID',
             'KEYCLOAK_LABEL',
             'KEYCLOAK_AUTH_URL',
+            'EDUTEAMS_CLIENT_ID',
+            'EDUTEAMS_LABEL',
+            'EDUTEAMS_AUTH_URL',
         ]
 
     @staticmethod

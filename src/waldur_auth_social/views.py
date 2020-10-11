@@ -25,13 +25,20 @@ auth_social_settings = getattr(settings, 'WALDUR_AUTH_SOCIAL', {})
 GOOGLE_SECRET = auth_social_settings.get('GOOGLE_SECRET')
 FACEBOOK_SECRET = auth_social_settings.get('FACEBOOK_SECRET')
 SMARTIDEE_SECRET = auth_social_settings.get('SMARTIDEE_SECRET')
+
 TARA_CLIENT_ID = auth_social_settings.get('TARA_CLIENT_ID')
 TARA_SECRET = auth_social_settings.get('TARA_SECRET')
 TARA_SANDBOX = auth_social_settings.get('TARA_SANDBOX')
+
 KEYCLOAK_CLIENT_ID = auth_social_settings.get('KEYCLOAK_CLIENT_ID')
 KEYCLOAK_SECRET = auth_social_settings.get('KEYCLOAK_SECRET')
 KEYCLOAK_TOKEN_URL = auth_social_settings.get('KEYCLOAK_TOKEN_URL')
 KEYCLOAK_USERINFO_URL = auth_social_settings.get('KEYCLOAK_USERINFO_URL')
+
+EDUTEAMS_CLIENT_ID = auth_social_settings.get('EDUTEAMS_CLIENT_ID')
+EDUTEAMS_SECRET = auth_social_settings.get('EDUTEAMS_SECRET')
+EDUTEAMS_TOKEN_URL = auth_social_settings.get('EDUTEAMS_TOKEN_URL')
+EDUTEAMS_USERINFO_URL = auth_social_settings.get('EDUTEAMS_USERINFO_URL')
 
 validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
 validate_local_signup = validate_authentication_method('LOCAL_SIGNUP')
@@ -102,6 +109,17 @@ class KeycloakException(AuthException):
         if error_description:
             self.message = '%s (%s)' % (self.message, error_description)
         super(KeycloakException, self).__init__(detail=self.message)
+
+    def __str__(self):
+        return self.message
+
+
+class EduteamsException(AuthException):
+    def __init__(self, error_message, error_description=None):
+        self.message = 'Eduteams error: %s' % error_message
+        if error_description:
+            self.message = '%s (%s)' % (self.message, error_description)
+        super(EduteamsException, self).__init__(detail=self.message)
 
     def __str__(self):
         return self.message
@@ -441,7 +459,7 @@ class KeycloakView(BaseAuthView):
     def get_user_info(self, access_token):
         headers = {'Authorization': f'Bearer {access_token}'}
         try:
-            response = requests.post(KEYCLOAK_USERINFO_URL, headers=headers)
+            response = requests.get(KEYCLOAK_USERINFO_URL, headers=headers)
         except requests.exceptions.RequestException as e:
             logger.warning('Unable to send user info request. Error is %s', e)
             raise KeycloakException('Unable to send user info request.')
@@ -471,6 +489,82 @@ class KeycloakView(BaseAuthView):
     def create_or_update_user(self, backend_user):
         # Preferred username is not unique. Sub in UUID.
         username = f'keycloak_f{backend_user["sub"]}'
+        email = backend_user.get('email')
+        full_name = backend_user.get('name', '')
+        try:
+            user = User.objects.get(username=username)
+            created = False
+        except User.DoesNotExist:
+            created = True
+            user = User.objects.create_user(
+                username=username,
+                registration_method=self.provider,
+                email=email,
+                full_name=full_name,
+            )
+            user.set_unusable_password()
+            user.save()
+        return user, created
+
+
+class EduteamsView(BaseAuthView):
+    provider = 'eduteams'
+
+    def get_access_token(self, validated_data):
+        data = {
+            'grant_type': 'authorization_code',
+            'redirect_uri': validated_data['redirect_uri'],
+            'code': validated_data['code'],
+            'client_id': EDUTEAMS_CLIENT_ID,
+            'client_secret': EDUTEAMS_SECRET,
+        }
+
+        try:
+            response = requests.post(EDUTEAMS_TOKEN_URL, data=data)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send authentication request. Error is %s', e)
+            raise EduteamsException('Unable to send authentication request.')
+        self.check_response(response)
+
+        try:
+            return response.json()['access_token']
+        except (ValueError, TypeError):
+            raise EduteamsException('Unable to parse JSON in authentication response.')
+        except KeyError:
+            raise EduteamsException('Authentication response does not contain token.')
+
+    def get_user_info(self, access_token):
+        headers = {'Authorization': f'Bearer {access_token}'}
+        try:
+            response = requests.get(EDUTEAMS_USERINFO_URL, headers=headers)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send user info request. Error is %s', e)
+            raise EduteamsException('Unable to send user info request.')
+        self.check_response(response)
+
+        try:
+            return response.json()
+        except (ValueError, TypeError):
+            raise EduteamsException('Unable to parse JSON in user info response.')
+
+    def get_backend_user(self, validated_data):
+        access_token = self.get_access_token(validated_data)
+        return self.get_user_info(access_token)
+
+    def check_response(self, r, valid_response=requests.codes.ok):
+        if r.status_code != valid_response:
+            try:
+                data = r.json()
+                error_message = data['error']
+                error_description = data.get('error_description', '')
+            except Exception:
+                values = (r.reason, r.status_code)
+                error_message = 'Message: %s, status code: %s' % values
+                error_description = ''
+            raise EduteamsException(error_message, error_description)
+
+    def create_or_update_user(self, backend_user):
+        username = backend_user["sub"]
         email = backend_user.get('email')
         full_name = backend_user.get('name', '')
         try:
