@@ -1358,12 +1358,8 @@ class OpenStackBackend(BaseOpenStackBackend):
     @log_backend_action()
     def set_static_routes(self, router):
         neutron = self.neutron_client
-        routes = [
-            {'destination': route.destination, 'nexthop': route.nexthop,}
-            for route in router.routes
-        ]
         try:
-            neutron.update_router(router.backend_id, routes=routes)
+            neutron.update_router(router.backend_id, routes=router.routes)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
