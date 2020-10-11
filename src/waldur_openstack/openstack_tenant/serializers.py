@@ -902,6 +902,8 @@ class NestedSecurityGroupSerializer(
 class NestedInternalIPSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    allowed_address_pairs = serializers.JSONField(read_only=True)
+
     class Meta:
         model = models.InternalIP
         fields = (
@@ -1657,7 +1659,7 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
 
 
 class AllowedAddressPairSerializer(serializers.Serializer):
-    ip_address = serializers.IPAddressField(
+    ip_address = serializers.CharField(
         validators=[validate_private_subnet_cidr],
         default='192.168.42.0/24',
         initial='192.168.42.0/24',

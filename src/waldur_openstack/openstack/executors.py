@@ -401,6 +401,9 @@ class TenantPullExecutor(core_executors.ActionExecutor):
             core_tasks.IndependentBackendMethodTask().si(
                 serialized_tenant, 'pull_subnets'
             ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, backend_method='pull_tenant_routers'
+            ),
         )
 
 

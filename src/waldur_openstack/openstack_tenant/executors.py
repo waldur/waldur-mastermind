@@ -898,6 +898,7 @@ class InstanceAllowedAddressPairsUpdateExecutor(core_executors.ActionExecutor):
             serialized_instance,
             'push_instance_allowed_address_pairs',
             state_transition='begin_updating',
+            **kwargs
         )
 
 
