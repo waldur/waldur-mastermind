@@ -12,6 +12,7 @@ from rest_framework import generics, response, status, views
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException, ValidationError
 
+from waldur_core.core.models import SshPublicKey
 from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
 
 from . import tasks
@@ -567,8 +568,13 @@ class EduteamsView(BaseAuthView):
         username = backend_user["sub"]
         email = backend_user.get('email')
         full_name = backend_user.get('name', '')
+        # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-Assurance
+        details = {'eduperson_assurance': backend_user.get('eduperson_assurance', [])}
         try:
             user = User.objects.get(username=username)
+            if user.details != details:
+                user.details = details
+                user.save(update_fields=['details'])
             created = False
         except User.DoesNotExist:
             created = True
@@ -577,9 +583,30 @@ class EduteamsView(BaseAuthView):
                 registration_method=self.provider,
                 email=email,
                 full_name=full_name,
+                details=details,
             )
             user.set_unusable_password()
             user.save()
+
+        existing_keys_map = {
+            key.public_key: key
+            for key in SshPublicKey.objects.filter(
+                user=user, name__startswith='eduteams_'
+            )
+        }
+        eduteams_keys = backend_user.get('ssh_public_key', [])
+
+        new_keys = set(eduteams_keys) - set(existing_keys_map.keys())
+        stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
+
+        for key in new_keys:
+            name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
+            new_key = SshPublicKey(user=user, name=name, public_key=key)
+            new_key.save()
+
+        for key in stale_keys:
+            existing_keys_map[key].delete()
+
         return user, created
 
 

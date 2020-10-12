@@ -2,16 +2,20 @@ import json
 from unittest import mock
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.core.models import SshPublicKey
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 
 from ..models import AuthProfile
+
+User = get_user_model()
 
 
 class BaseAuthTest(test.APITransactionTestCase):
@@ -138,3 +142,50 @@ class DisabledAuthenticationTest(BaseAuthTest):
         response = self.google_login()
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertTrue(b'Authentication method is disabled.' in response.content)
+
+
+@override_waldur_core_settings(AUTHENTICATION_METHODS=['SOCIAL_SIGNUP'])
+class EduteamsAuthenticationTest(test.APITransactionTestCase):
+    def setUp(self):
+        super(EduteamsAuthenticationTest, self).setUp()
+        self.valid_data = {
+            'clientId': '4242324',
+            'redirectUri': 'http://example.com/redirect/',
+            'code': 'secret',
+        }
+        self.backend_user = {
+            'name': 'Jack Dougherty',
+            'email': 'jack.dougherty@example.com',
+            'sub': '28c5353b8bb34984a8bd4169ba94c606@eduteams.org',
+            'eduperson_assurance': [
+                'https://refeds',
+                'https://refeds/ID/unique',
+                'https://refeds/ID/eppn-unique-no-reassign',
+                'https://refeds/IAP/low',
+                'https://refeds$/ATP/ePA-1m',
+                'https://refeds/ATP/ePA-1d',
+            ],
+            'ssh_public_key': [
+                'ssh-ed25519 AAAAC3NqaC1lZDI1TTE5AAAAIJ4pfKk7hRdUVeMfrKdLYhxdKy92nVPuHDlVVvZMyqeP'
+            ],
+        }
+
+    def test_details_are_imported(self):
+        with mock.patch(
+            'waldur_auth_social.views.EduteamsView.get_backend_user'
+        ) as get_backend_user:
+            get_backend_user.return_value = self.backend_user
+            response = self.client.post(reverse('auth_eduteams'), self.valid_data)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            user = User.objects.get(
+                username='28c5353b8bb34984a8bd4169ba94c606@eduteams.org'
+            )
+            self.assertEqual(user.email, self.backend_user['email'])
+            self.assertEqual(user.full_name, self.backend_user['name'])
+            self.assertEqual(
+                user.details,
+                {'eduperson_assurance': self.backend_user['eduperson_assurance']},
+            )
+            ssh_key = SshPublicKey.objects.get(user=user)
+            self.assertEqual(ssh_key.public_key, self.backend_user['ssh_public_key'][0])
+            self.assertTrue(ssh_key.name.startswith('eduteams_'))
