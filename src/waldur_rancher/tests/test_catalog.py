@@ -2,6 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from .. import models
 from . import factories, fixtures, utils
 
 
@@ -71,3 +72,44 @@ class CatalogDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_delete_catalog_if_related_cluster_has_been_deleted(self):
+        self.catalog.scope.delete()
+        self.assertRaises(models.Catalog.DoesNotExist, self.catalog.refresh_from_db)
+
+    def test_delete_catalog_if_related_settings_has_been_deleted(self):
+        self.catalog.scope = factories.RancherServiceSettingsFactory()
+        self.catalog.save()
+        self.catalog.scope.delete()
+        self.assertRaises(models.Catalog.DoesNotExist, self.catalog.refresh_from_db)
+
+    def test_delete_catalog_if_related_project_has_been_deleted(self):
+        self.catalog.scope = factories.ProjectFactory()
+        self.catalog.save()
+        self.catalog.scope.delete()
+        self.assertRaises(models.Catalog.DoesNotExist, self.catalog.refresh_from_db)
+
+    def test_migration(self):
+        migration = __import__(
+            'waldur_rancher.migrations.0034_delete_catalogs_without_scope',
+            fromlist=['0034_delete_catalogs_without_scope'],
+        )
+        func = migration.delete_catalogs
+
+        class Apps(object):
+            @staticmethod
+            def get_model(app, klass):
+                if klass == 'Catalog':
+                    return models.Catalog
+
+        mock_apps = Apps()
+        catalog = factories.CatalogFactory()
+
+        # We must use an object of a class other than those for which there are signals to delete
+        fake_scope = factories.NodeFactory()
+        catalog.scope = fake_scope
+        catalog.save()
+        fake_scope.delete()
+        catalog.refresh_from_db()
+        func(mock_apps, None)
+        self.assertRaises(models.Catalog.DoesNotExist, catalog.refresh_from_db)
