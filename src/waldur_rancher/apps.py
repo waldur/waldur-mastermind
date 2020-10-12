@@ -9,7 +9,6 @@ class RancherConfig(AppConfig):
 
     def ready(self):
         from waldur_core.structure import SupportedServices
-        from waldur_core.structure import models as structure_models
 
         from waldur_openstack.openstack_tenant.models import Instance
 
@@ -22,6 +21,12 @@ class RancherConfig(AppConfig):
             handlers.notify_create_user,
             sender=models.RancherUser,
             dispatch_uid='waldur_rancher.notify_create_user',
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_catalog_when_cluster_is_deleted,
+            sender=models.Cluster,
+            dispatch_uid='waldur_rancher.delete_catalog_when_cluster_is_deleted',
         )
 
         signals.post_delete.connect(
@@ -47,11 +52,3 @@ class RancherConfig(AppConfig):
             sender=models.Node,
             dispatch_uid='waldur_rancher.set_error_state_for_cluster_if_related_node_deleting_is_failed',
         )
-
-        for klass in (models.Project, models.Cluster, structure_models.ServiceSettings):
-            signals.post_delete.connect(
-                handlers.delete_catalog_if_scope_has_been_deleted,
-                sender=klass,
-                dispatch_uid='waldur_rancher.delete_catalog_if_scope_has_been_deleted_(%s)'
-                % klass.__name__,
-            )
