@@ -661,6 +661,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             enable_dhcp=backend_subnet['enable_dhcp'],
             gateway_ip=backend_subnet.get('gateway_ip'),
             dns_nameservers=backend_subnet['dns_nameservers'],
+            host_routes=backend_subnet['host_routes'],
             backend_id=backend_subnet['id'],
             state=models.SubNet.States.OK,
         )
@@ -1487,6 +1488,8 @@ class OpenStackBackend(BaseOpenStackBackend):
         }
         if subnet.dns_nameservers:
             data['dns_nameservers'] = subnet.dns_nameservers
+        if subnet.host_routes:
+            data['host_routes'] = subnet.host_routes
         data.update(self._serialize_subnet_gateway(subnet))
         try:
             response = neutron.create_subnet({'subnets': [data]})
