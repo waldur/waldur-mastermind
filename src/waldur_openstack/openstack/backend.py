@@ -661,7 +661,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             enable_dhcp=backend_subnet['enable_dhcp'],
             gateway_ip=backend_subnet.get('gateway_ip'),
             dns_nameservers=backend_subnet['dns_nameservers'],
-            host_routes=backend_subnet['host_routes'],
+            host_routes=backend_subnet.get('host_routes', []),
             backend_id=backend_subnet['id'],
             state=models.SubNet.States.OK,
         )
