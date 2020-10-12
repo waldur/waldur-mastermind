@@ -966,7 +966,8 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
         lookup_field='uuid',
     )
     tenant_name = serializers.CharField(source='network.tenant.name', read_only=True)
-    dns_nameservers = serializers.JSONField(read_only=True)
+    dns_nameservers = serializers.JSONField(required=False)
+    host_routes = StaticRouteSerializer(many=True, required=False)
     enable_default_gateway = serializers.BooleanField(default=True, write_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -983,6 +984,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             'ip_version',
             'enable_dhcp',
             'dns_nameservers',
+            'host_routes',
             'enable_default_gateway',
         )
         protected_fields = (
@@ -1032,9 +1034,16 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             attrs['service_project_link'] = network.service_project_link
             options = network.service_project_link.service.settings.options
             attrs['allocation_pools'] = _generate_subnet_allocation_pool(cidr)
-            attrs['dns_nameservers'] = options.get('dns_nameservers', [])
+            attrs.setdefault('dns_nameservers', options.get('dns_nameservers', []))
 
         return attrs
+
+    def update(self, instance, validated_data):
+        host_routes = validated_data.pop('host_routes', [])
+        instance = super(SubNetSerializer, self).update(instance, validated_data)
+        instance.host_routes = host_routes
+        instance.save()
+        return instance
 
 
 def _generate_subnet_allocation_pool(cidr):
