@@ -1512,7 +1512,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         else:
             self.connect_subnet(subnet)
 
-        data = {'name': subnet.name}
+        data = {
+            'name': subnet.name,
+            'dns_nameservers': subnet.dns_nameservers,
+            'host_routes': subnet.host_routes,
+        }
         data.update(self._serialize_subnet_gateway(subnet))
         try:
             neutron.update_subnet(subnet.backend_id, {'subnet': data})
@@ -1582,6 +1586,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             name=backend_subnet['name'],
             description=backend_subnet['description'],
             allocation_pools=backend_subnet['allocation_pools'],
+            host_routes=backend_subnet['host_routes'],
+            dns_nameservers=backend_subnet['dns_nameservers'],
             cidr=backend_subnet['cidr'],
             ip_version=backend_subnet.get('ip_version'),
             gateway_ip=backend_subnet.get('gateway_ip'),
@@ -1601,6 +1607,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'name',
                 'cidr',
                 'allocation_pools',
+                'host_routes',
+                'dns_nameservers',
                 'ip_version',
                 'gateway_ip',
                 'enable_dhcp',

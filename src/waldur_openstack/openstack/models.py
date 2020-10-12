@@ -390,6 +390,9 @@ class SubNet(structure_models.SubResource):
         default=list,
         help_text=_('List of DNS name servers associated with the subnet.'),
     )
+    host_routes = JSONField(
+        default=list, help_text=_('List of additional routes for the subnet.'),
+    )
 
     class Meta:
         verbose_name = _('Subnet')
@@ -421,6 +424,7 @@ class SubNet(structure_models.SubResource):
             'enable_dhcp',
             'gateway_ip',
             'dns_nameservers',
+            'host_routes',
         )
 
 
