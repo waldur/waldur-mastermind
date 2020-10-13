@@ -26,3 +26,6 @@ class Quotas:
             self.ram,
             self.deposit,
         )
+
+    def __repr__(self) -> str:
+        return self.__str__()

@@ -119,6 +119,9 @@ class AllocationUsage(slurm_mixins.UsageMixin, core_models.UuidMixin):
     def __str__(self):
         return "%s [%s-%s]" % (self.allocation.name, self.month, self.year)
 
+    def __repr__(self) -> str:
+        return self.__str__()
+
 
 class AllocationUserUsage(slurm_mixins.UsageMixin):
     """
@@ -135,3 +138,6 @@ class AllocationUserUsage(slurm_mixins.UsageMixin):
 
     def __str__(self):
         return "%s: %s" % (self.username, self.allocation_usage.allocation.name)
+
+    def __repr__(self) -> str:
+        return self.__str__()
