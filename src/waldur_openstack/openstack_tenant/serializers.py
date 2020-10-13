@@ -23,7 +23,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_admin_access
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
-from waldur_openstack.openstack.serializers import validate_private_subnet_cidr
+from waldur_openstack.openstack.serializers import validate_private_cidr
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
@@ -1660,7 +1660,7 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
 
 class AllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
-        validators=[validate_private_subnet_cidr],
+        validators=[validate_private_cidr],
         default='192.168.42.0/24',
         initial='192.168.42.0/24',
         write_only=True,

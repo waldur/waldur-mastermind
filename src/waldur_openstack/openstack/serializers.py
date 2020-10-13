@@ -566,7 +566,7 @@ def is_subnet_of(a, b):
     )
 
 
-def validate_private_subnet_cidr(value):
+def validate_private_cidr(value, enforced_prefixlen=None):
     try:
         network = IPv4Network(value, strict=True)
     except (AddressValueError, NetmaskValueError, ValueError):
@@ -574,15 +574,21 @@ def validate_private_subnet_cidr(value):
             message=_('Enter a valid IPv4 address.'), code='invalid',
         )
 
-    if network.prefixlen != 24:
+    if enforced_prefixlen and network.prefixlen != enforced_prefixlen:
         raise ValidationError(
-            message=_('Network mask length should be equal to 24.'), code='invalid',
+            message=_('Network mask length should be equal to %s.')
+            % enforced_prefixlen,
+            code='invalid',
         )
 
     if not any(is_subnet_of(network, net) for net in ALLOWED_PRIVATE_NETWORKS):
         raise ValidationError(
             message=_('A private network CIDR is expected.'), code='invalid',
         )
+
+
+def validate_private_subnet_cidr(value):
+    validate_private_cidr(value, 24)
 
 
 class TenantSerializer(structure_serializers.PrivateCloudSerializer):
