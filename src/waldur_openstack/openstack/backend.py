@@ -1556,6 +1556,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
+        else:
+            subnet.is_connected = False
+            subnet.save(update_fields=['is_connected'])
+
     def connect_subnet(self, subnet):
         try:
             self.connect_router(
@@ -1566,6 +1570,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
+        else:
+            subnet.is_connected = True
+            subnet.save(update_fields=['is_connected'])
 
     @log_backend_action()
     def delete_subnet(self, subnet):

@@ -3,6 +3,7 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import models as core_models
+from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 
 
@@ -83,3 +84,21 @@ class BaseVolumeType(core_models.DescribableMixin, structure_models.ServicePrope
 
     def __str__(self):
         return self.name
+
+
+class BaseSubNet(models.Model):
+    class Meta:
+        abstract = True
+
+    cidr = models.CharField(max_length=32, blank=True)
+    gateway_ip = models.GenericIPAddressField(protocol='IPv4', null=True)
+    allocation_pools = JSONField(default=dict)
+    ip_version = models.SmallIntegerField(default=4)
+    enable_dhcp = models.BooleanField(default=True)
+    dns_nameservers = JSONField(
+        default=list,
+        help_text=_('List of DNS name servers associated with the subnet.'),
+    )
+    is_connected = models.BooleanField(
+        default=True, help_text=_('Is subnet connected to the default tenant router.')
+    )

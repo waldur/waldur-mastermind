@@ -373,23 +373,14 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
         )
 
 
-class SubNet(structure_models.SubResource):
+class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
     service_project_link = models.ForeignKey(
         OpenStackServiceProjectLink, related_name='subnets', on_delete=models.PROTECT
     )
     network = models.ForeignKey(
         on_delete=models.CASCADE, to=Network, related_name='subnets'
     )
-    cidr = models.CharField(max_length=32, blank=True)
-    gateway_ip = models.GenericIPAddressField(protocol='IPv4', null=True)
-    allocation_pools = JSONField(default=dict)
-    ip_version = models.SmallIntegerField(default=4)
     disable_gateway = models.BooleanField(default=False)
-    enable_dhcp = models.BooleanField(default=True)
-    dns_nameservers = JSONField(
-        default=list,
-        help_text=_('List of DNS name servers associated with the subnet.'),
-    )
     host_routes = JSONField(
         default=list, help_text=_('List of additional routes for the subnet.'),
     )

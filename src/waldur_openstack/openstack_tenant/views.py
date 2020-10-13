@@ -723,7 +723,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
         executors.InstanceFloatingIPsUpdateExecutor().execute(instance)
         return response.Response(
-            {'status': _('floating ips update was scheduled')},
+            {'status': _('Floating IPs update was scheduled.')},
             status=status.HTTP_202_ACCEPTED,
         )
 
