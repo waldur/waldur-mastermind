@@ -992,6 +992,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             'dns_nameservers',
             'host_routes',
             'enable_default_gateway',
+            'is_connected',
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
@@ -1006,6 +1007,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
                 'enable_dhcp',
                 'service_settings',
                 'project',
+                'is_connected',
             )
         )
         extra_kwargs = dict(

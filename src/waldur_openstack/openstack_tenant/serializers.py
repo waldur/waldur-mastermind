@@ -1067,6 +1067,9 @@ def _validate_instance_floating_ips(
         )
 
     for floating_ip, subnet in floating_ips_with_subnets:
+        if not subnet.is_connected:
+            message = ugettext('SubNet %s is not connected to router.') % subnet
+            raise serializers.ValidationError({'floating_ips': message})
         if subnet not in instance_subnets:
             message = ugettext('SubNet %s is not connected to instance.') % subnet
             raise serializers.ValidationError({'floating_ips': message})

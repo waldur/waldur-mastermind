@@ -393,6 +393,7 @@ class SubNetHandler(BaseSynchronizationHandler):
         'dns_nameservers',
         'enable_dhcp',
         'ip_version',
+        'is_connected',
     )
 
     def get_tenant(self, resource):
