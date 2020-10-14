@@ -24,7 +24,7 @@ class InvoicesTest(TestCase):
     def get_expected_quantity(self, usage, component_type):
         usage = getattr(usage, component_type + '_usage')
         if component_type == 'ram':
-            expected_quantity = int(math.ceil(1.0 * usage / 1024))
+            expected_quantity = int(math.ceil(1.0 * usage / 1024 / 60))
         else:
             expected_quantity = int(math.ceil(1.0 * usage / 60))
         return expected_quantity
@@ -50,7 +50,7 @@ class InvoicesTest(TestCase):
             item_type = invoice_item.details['type']
             if item_type == 'ram':
                 expected_price = (
-                    int(math.ceil(1.0 * allocation_usage.ram_usage / 1024))
+                    int(math.ceil(1.0 * allocation_usage.ram_usage / 1024 / 60))
                     * package.ram_price
                 )
             else:
@@ -70,13 +70,13 @@ class InvoicesTest(TestCase):
         allocation.save()
 
         invoice_items = self.get_invoice_items()
-        type2name = self.get_component_name_map()
+        component_details = self.get_component_details()
 
         self.assertEqual(len(invoice_items), self.get_component_number())
 
         for invoice_item in invoice_items:
             item_type = invoice_item.details['type']
-            expected_name = f'{allocation.name} ({type2name[item_type]})'
+            expected_name = f'{allocation.name} ({component_details[item_type]["name"]} {component_details[item_type]["unit"]})'
 
             self.assertEqual(invoice_item.name, expected_name)
             self.assertEqual(
@@ -89,13 +89,14 @@ class InvoicesTest(TestCase):
         allocation = self.fixture.allocation
         invoice_items = self.get_invoice_items()
         self.update_usage()
-        type2name = self.get_component_name_map()
+        component_details = self.get_component_details()
 
         self.assertEqual(len(invoice_items), self.get_component_number())
 
         for invoice_item in invoice_items:
             item_type = invoice_item.details['type']
-            expected_name = f'{allocation.name} ({type2name[item_type]})'
+
+            expected_name = f'{allocation.name} ({component_details[item_type]["name"]} {component_details[item_type]["unit"]})'
 
             self.assertEqual(invoice_item.name, expected_name)
 
@@ -121,7 +122,7 @@ class InvoicesTest(TestCase):
     def test_invoice_items_partial_creation(self):
         self.create_package()
         allocation_usage = self.update_usage(gpu_usage=0)
-        used_components = self.get_component_name_map()
+        used_components = self.get_component_details()
         used_components.pop('gpu')
         invoice_items = self.get_invoice_items()
 
@@ -205,9 +206,9 @@ class InvoicesTest(TestCase):
     def get_invoice_items(self):
         return invoice_models.InvoiceItem.objects.filter(scope=self.fixture.allocation)
 
-    def get_component_name_map(self):
+    def get_component_details(self):
         return {
-            component.type: component.name
+            component.type: {'name': component.name, 'unit': component.measured_unit}
             for component in manager.get_components(PLUGIN_NAME)
         }
 

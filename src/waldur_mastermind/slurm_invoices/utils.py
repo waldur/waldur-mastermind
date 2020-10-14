@@ -55,10 +55,10 @@ def get_component_price(allocation_usage, package, unit_type):
 
 
 def get_usage_quantity(usage, component_type):
+    minutes_in_hour = 60
     if component_type == 'ram':
         mb_in_gb = 1024
-        quantity = int(math.ceil(1.0 * usage / mb_in_gb))
+        quantity = int(math.ceil(1.0 * usage / mb_in_gb / minutes_in_hour))
     else:
-        minutes_in_hour = 60
         quantity = int(math.ceil(1.0 * usage / minutes_in_hour))
     return quantity
