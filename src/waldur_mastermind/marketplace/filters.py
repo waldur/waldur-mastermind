@@ -435,7 +435,21 @@ class ServiceProviderOfferingFilter(BaseFilterBackend):
         return queryset
 
 
+class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        is_service_provider = request.query_params.get('is_service_provider')
+        if is_service_provider in ['true', 'True']:
+            customers = models.ServiceProvider.objects.values_list(
+                'customer_id', flat=True
+            )
+            return queryset.filter(pk__in=customers)
+        return queryset
+
+
 structure_filters.ExternalCustomerFilterBackend.register(CustomerResourceFilter())
 structure_filters.ExternalCustomerFilterBackend.register(
     ServiceProviderOfferingFilter()
+)
+structure_filters.ExternalCustomerFilterBackend.register(
+    CustomerServiceProviderFilter()
 )
