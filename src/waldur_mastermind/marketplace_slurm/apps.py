@@ -60,7 +60,7 @@ class MarketplaceSlurmConfig(AppConfig):
                 Component(
                     type='ram',
                     name='RAM',
-                    measured_unit='GB',
+                    measured_unit='GB-hours',
                     billing_type=USAGE,
                     disable_quotas=True,
                 ),

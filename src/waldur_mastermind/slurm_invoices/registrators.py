@@ -102,7 +102,11 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             start=start,
             end=end,
         )
-        item.name = '%s (%s)' % (self.get_name(item.scope), component.name)
+        item.name = '%s (%s %s)' % (
+            self.get_name(item.scope),
+            component.name,
+            component.measured_unit,
+        )
         details = self.get_details(allocation)
         details.update({'type': component.type})
         item.details.update(details)
