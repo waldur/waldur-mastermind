@@ -106,13 +106,31 @@ def _create_slurm_usage(instance):
                 .filter(Q(end__gt=date) | Q(end__isnull=True))
                 .get(resource=resource)
             )
-            marketplace_models.ComponentUsage.objects.create(
+
+            (
+                component_usage,
+                created,
+            ) = marketplace_models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=plan_component,
-                usage=usage,
-                date=date,
                 billing_period=month_start(date),
                 plan_period=plan_period,
+                defaults={"usage": usage, "date": date,},
+            )
+
+            if created:
+                operation: str = 'created'
+            else:
+                operation: str = 'updated'
+
+            logger.debug(
+                'marketplace.ComponentUsage [%s] was %s for resource [%s] '
+                'with usage = [%s] for date [%s]',
+                component_usage,
+                operation,
+                resource,
+                usage,
+                date,
             )
         except django_exceptions.ObjectDoesNotExist:
             logger.warning(
