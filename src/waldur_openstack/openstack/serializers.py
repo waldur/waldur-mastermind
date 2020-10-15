@@ -855,6 +855,15 @@ class _NestedSubNetSerializer(serializers.ModelSerializer):
         )
 
 
+class StaticRouteSerializer(serializers.Serializer):
+    destination = serializers.CharField()
+    nexthop = serializers.IPAddressField()
+
+
+class RouterSetRoutesSerializer(serializers.Serializer):
+    routes = StaticRouteSerializer(many=True)
+
+
 class RouterSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -865,6 +874,7 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='openstack-spl-detail', read_only=True
     )
+    routes = StaticRouteSerializer(many=True)
 
     class Meta:
         model = models.Router
@@ -876,15 +886,6 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
             url={'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
         )
-
-
-class StaticRouteSerializer(serializers.Serializer):
-    destination = serializers.CharField()
-    nexthop = serializers.IPAddressField()
-
-
-class RouterSetRoutesSerializer(serializers.Serializer):
-    routes = StaticRouteSerializer(many=True)
 
 
 class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
