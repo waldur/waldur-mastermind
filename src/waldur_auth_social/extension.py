@@ -5,8 +5,6 @@ class AuthSocialExtension(WaldurExtension):
     class Settings:
         # wiki: https://opennode.atlassian.net/wiki/display/WD/AuthSocial+plugin+configuration
         WALDUR_AUTH_SOCIAL = {
-            'GOOGLE_SECRET': '',
-            'GOOGLE_CLIENT_ID': '',
             'FACEBOOK_SECRET': '',
             'FACEBOOK_CLIENT_ID': '',
             'SMARTIDEE_SECRET': '',
@@ -36,7 +34,6 @@ class AuthSocialExtension(WaldurExtension):
     @staticmethod
     def get_public_settings():
         return [
-            'GOOGLE_CLIENT_ID',
             'FACEBOOK_CLIENT_ID',
             'SMARTIDEE_CLIENT_ID',
             'TARA_CLIENT_ID',

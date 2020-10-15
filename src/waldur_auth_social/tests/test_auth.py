@@ -26,13 +26,6 @@ class BaseAuthTest(test.APITransactionTestCase):
             'code': 'secret',
         }
 
-    def google_login(self):
-        with mock.patch(
-            'waldur_auth_social.views.GoogleView.get_backend_user'
-        ) as get_backend_user:
-            get_backend_user.return_value = {'id': '123', 'name': 'Google user'}
-            return self.client.post(reverse('auth_google'), self.valid_data)
-
     def facebook_login(self):
         with mock.patch(
             'waldur_auth_social.views.FacebookView.get_backend_user'
@@ -46,26 +39,19 @@ class SocialSignupTest(BaseAuthTest):
     def test_auth_view_works_for_anonymous_only(self):
         user = structure_factories.UserFactory()
         self.client.force_authenticate(user)
-        response = self.client.post(reverse('auth_google'), self.valid_data)
+        response = self.client.post(reverse('auth_facebook'), self.valid_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_input_data_is_validated(self):
-        response = self.client.post(reverse('auth_google'), {})
+        response = self.client.post(reverse('auth_facebook'), {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_if_google_auth_succeeded_user_and_profile_is_created(self):
-        response = self.google_login()
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(
-            'Google user', AuthProfile.objects.get(google='123').user.full_name
-        )
 
     def test_if_user_already_exists_it_is_not_created_again(self):
         user = structure_factories.UserFactory()
-        user.auth_profile.google = '123'
+        user.auth_profile.facebook = '123'
         user.auth_profile.save()
 
-        response = self.google_login()
+        response = self.facebook_login()
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_if_facebook_auth_succeeded_user_and_profile_is_created(self):
@@ -76,7 +62,7 @@ class SocialSignupTest(BaseAuthTest):
         )
 
     def test_expired_token_is_recreated_on_successful_authentication(self):
-        response = self.google_login()
+        response = self.facebook_login()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         token1 = response.data['token']
 
@@ -85,12 +71,12 @@ class SocialSignupTest(BaseAuthTest):
         )
         mocked_now = timezone.now() + lifetime
         with mock.patch('django.utils.timezone.now', lambda: mocked_now):
-            response = self.google_login()
+            response = self.facebook_login()
             token2 = response.data['token']
             self.assertNotEqual(token1, token2)
 
     @mock.patch('requests.post')
-    def test_raises_exception_if_user_is_not_authorized_by_google(
+    def test_raises_exception_if_user_is_not_authorized_by_facebook(
         self, post_request_mock
     ):
         invalid_response = {
@@ -101,7 +87,7 @@ class SocialSignupTest(BaseAuthTest):
         post_request_mock.return_value = mockresponse
         mockresponse.text = json.dumps(invalid_response)
 
-        response = self.client.post(reverse('auth_google'), self.valid_data)
+        response = self.client.post(reverse('auth_facebook'), self.valid_data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
@@ -138,8 +124,8 @@ class LocalSignupTest(test.APITransactionTestCase):
 
 @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNIN'])
 class DisabledAuthenticationTest(BaseAuthTest):
-    def test_google_auth_fails_if_social_authentication_is_not_enabled(self):
-        response = self.google_login()
+    def test_facebook_auth_fails_if_social_authentication_is_not_enabled(self):
+        response = self.facebook_login()
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertTrue(b'Authentication method is disabled.' in response.content)
 
