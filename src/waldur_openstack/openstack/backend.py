@@ -1490,7 +1490,10 @@ class OpenStackBackend(BaseOpenStackBackend):
             data['dns_nameservers'] = subnet.dns_nameservers
         if subnet.host_routes:
             data['host_routes'] = subnet.host_routes
-        data.update(self._serialize_subnet_gateway(subnet))
+        if subnet.disable_gateway:
+            data['gateway_ip'] = None
+        elif subnet.gateway_ip:
+            data['gateway_ip'] = subnet.gateway_ip
         try:
             response = neutron.create_subnet({'subnets': [data]})
             backend_subnet = response['subnets'][0]
@@ -1520,19 +1523,21 @@ class OpenStackBackend(BaseOpenStackBackend):
             'dns_nameservers': subnet.dns_nameservers,
             'host_routes': subnet.host_routes,
         }
-        data.update(self._serialize_subnet_gateway(subnet))
+
+        # We should send gateway_ip only when it is changed, because
+        # updating gateway_ip is prohibited when the ip is used.
+        try:
+            backend_subnet = neutron.show_subnet(subnet.backend_id)['subnet']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        if backend_subnet['gateway_ip'] != subnet.gateway_ip:
+            data['gateway_ip'] = subnet.gateway_ip
+
         try:
             neutron.update_subnet(subnet.backend_id, {'subnet': data})
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
-
-    def _serialize_subnet_gateway(self, subnet):
-        data = {}
-        if subnet.disable_gateway:
-            data['gateway_ip'] = None
-        elif subnet.gateway_ip:
-            data['gateway_ip'] = subnet.gateway_ip
-        return data
 
     def disconnect_subnet(self, subnet):
         neutron = self.neutron_admin_client
