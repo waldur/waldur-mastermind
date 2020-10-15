@@ -221,7 +221,7 @@ def send_new_invoices_notification():
         send_invoice_notification.delay(invoice.uuid.hex)
 
 
-@shared_task
+@shared_task(name='invoices.send_notifications_about_upcoming_ends')
 def send_notifications_about_upcoming_ends():
     upcoming_ends = utils.get_upcoming_ends_of_fixed_payment_profiles()
 
