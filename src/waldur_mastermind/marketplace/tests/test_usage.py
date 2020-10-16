@@ -70,9 +70,18 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            type='cpu',
+        )
+        self.offering_component2 = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            type='ram',
         )
         self.component = factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component
+        )
+        self.component2 = factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component2
         )
         self.resource = models.Resource.objects.create(
             offering=self.offering, plan=self.plan, project=self.fixture.project,
@@ -145,7 +154,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         description = 'My first usage report'
         response = self.submit_usage(**self.get_valid_payload(description=description))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        report = models.ComponentUsage.objects.get(resource=self.resource)
+        report = models.ComponentUsage.objects.filter(resource=self.resource).first()
         self.assertEqual(report.description, description)
 
     def test_plan_period_linking(self):
@@ -181,19 +190,27 @@ class SubmitUsageTest(test.APITransactionTestCase):
                 billing_period=billing_period,
             ).exists()
         )
+        self.assertTrue(
+            models.ComponentUsage.objects.filter(
+                resource=self.resource,
+                component=self.offering_component2,
+                date=date,
+                billing_period=billing_period,
+            ).exists()
+        )
 
-    @mock.patch('waldur_mastermind.marketplace.views.logger')
-    def test_event_log_creates_if_component_usage_has_been_created(self, mock_logger):
+    @mock.patch('waldur_mastermind.marketplace.serializers.logger')
+    def test_event_log_is_created_if_component_usage_has_been_created(
+        self, mock_logger
+    ):
         self.client.force_authenticate(self.fixture.staff)
         usage_data = self.get_usage_data()
         response = self.client.post(
             '/api/marketplace-component-usages/set_usage/', usage_data
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        mock_logger.info.assert_called_once_with(
-            'Usage has been created. Data: {\'plan_period\': \'%s\','
-            ' \'usages\': [{\'type\': \'cpu\', \'amount\': 5, \'description\': \'\'}]}.'
-            % self.plan_period.uuid.hex
+        mock_logger.info.assert_called_with(
+            'Usage has been created for %s, component: ram, value: 5' % self.resource
         )
 
         date = timezone.now()
@@ -388,6 +405,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         return {
             'plan_period': self.plan_period.uuid.hex,
             'usages': [
-                {'type': component_type, 'amount': amount, 'description': description,}
+                {'type': component_type, 'amount': amount, 'description': description,},
+                {'type': 'ram', 'amount': amount, 'description': description,},
             ],
         }
