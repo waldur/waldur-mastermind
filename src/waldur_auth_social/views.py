@@ -1,5 +1,4 @@
 import base64
-import json
 import logging
 import uuid
 
@@ -23,7 +22,6 @@ from .serializers import ActivationSerializer, AuthSerializer, RegistrationSeria
 logger = logging.getLogger(__name__)
 
 auth_social_settings = getattr(settings, 'WALDUR_AUTH_SOCIAL', {})
-GOOGLE_SECRET = auth_social_settings.get('GOOGLE_SECRET')
 FACEBOOK_SECRET = auth_social_settings.get('FACEBOOK_SECRET')
 SMARTIDEE_SECRET = auth_social_settings.get('SMARTIDEE_SECRET')
 
@@ -60,23 +58,6 @@ class FacebookException(AuthException):
             self.message_type, self.message_code, self.message_text
         )
         super(FacebookException, self).__init__(detail=self.message)
-
-    def __str__(self):
-        return self.message
-
-
-class GoogleException(AuthException):
-    def __init__(self, google_error):
-        if isinstance(google_error, str):
-            self.message = google_error
-        else:
-            self.message_text = google_error.get('message', 'Undefined')
-            self.message_code = google_error.get('code', 'Undefined')
-            self.message = 'Google error (code:{}): {}'.format(
-                self.message_code, self.message_text
-            )
-
-        super(GoogleException, self).__init__(detail=self.message)
 
     def __str__(self):
         return self.message
@@ -190,43 +171,6 @@ class BaseAuthView(RefreshTokenMixin, views.APIView):
                 profile.user.full_name = user_name
                 profile.user.save()
             return profile.user, False
-
-
-class GoogleView(BaseAuthView):
-
-    provider = 'google'
-
-    def get_backend_user(self, validated_data):
-        access_token_url = 'https://www.googleapis.com/oauth2/v3/token'
-        people_api_url = 'https://www.googleapis.com/plus/v1/people/me/openIdConnect'
-
-        payload = dict(
-            client_id=validated_data['client_id'],
-            redirect_uri=validated_data['redirect_uri'],
-            client_secret=GOOGLE_SECRET,
-            code=validated_data['code'],
-            grant_type='authorization_code',
-        )
-
-        # Step 1. Exchange authorization code for access token.
-        r = requests.post(access_token_url, data=payload)
-
-        token = json.loads(r.text)
-        self._assert_response_valid(token)
-        headers = {'Authorization': 'Bearer {0}'.format(token['access_token'])}
-
-        # Step 2. Retrieve information about the current user.
-        r = requests.get(people_api_url, headers=headers)
-        response_data = json.loads(r.text)
-
-        # Step 3. Check is response valid.
-        self._assert_response_valid(response_data)
-
-        return {'id': response_data['sub'], 'name': response_data['name']}
-
-    def _assert_response_valid(self, response_data):
-        if 'error' in response_data:
-            raise GoogleException(response_data['error'])
 
 
 class FacebookView(BaseAuthView):
