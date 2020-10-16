@@ -47,7 +47,7 @@ from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_pid import models as pid_models
 
-from . import attribute_types, models, permissions, plugins, tasks, utils
+from . import attribute_types, log, models, permissions, plugins, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -1987,7 +1987,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 resource=resource, component=component, billing_period=billing_period,
             ).update(recurring=False)
 
-            return models.ComponentUsage.objects.update_or_create(
+            usage, created = models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 plan_period=plan_period,
@@ -1999,6 +1999,22 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     'recurring': recurring,
                 },
             )
+            if created:
+                message = 'Usage has been created for %s, component: %s, value: %s' % (
+                    resource,
+                    component.type,
+                    amount,
+                )
+                logger.info(message)
+                log.log_component_usage_creation_succeeded(usage)
+            else:
+                message = 'Usage has been updated for %s, component: %s, value: %s' % (
+                    resource,
+                    component.type,
+                    amount,
+                )
+                logger.info(message)
+                log.log_component_usage_updation_succeeded(usage)
 
 
 class OfferingFileSerializer(
