@@ -5,7 +5,9 @@ from django.db import migrations
 
 def rename_components(apps, schema_editor):
     OfferingComponent = apps.get_model('marketplace', 'OfferingComponent')
-    OfferingComponent.objects.filter(name='RAM').update(measured_unit='GB-hours')
+    OfferingComponent.objects.filter(
+        offering__type='SlurmInvoices.SlurmPackage', name='RAM'
+    ).update(measured_unit='GB-hours')
 
 
 def fix_slurm_invoices(apps, schema_editor):
