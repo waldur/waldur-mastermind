@@ -863,6 +863,16 @@ class StaticRouteSerializer(serializers.Serializer):
 class RouterSetRoutesSerializer(serializers.Serializer):
     routes = StaticRouteSerializer(many=True)
 
+    def validate(self, attrs):
+        fixed_ips = self.instance.fixed_ips
+        for route in attrs['routes']:
+            nexthop = route['nexthop']
+            if nexthop in fixed_ips:
+                raise serializers.ValidationError(
+                    _('Nexthop %s is used by router.') % nexthop
+                )
+        return attrs
+
 
 class RouterSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
@@ -877,6 +887,7 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
     routes = StaticRouteSerializer(many=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
+    fixed_ips = serializers.JSONField(read_only=True)
 
     class Meta:
         model = models.Router
@@ -885,6 +896,7 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
             'tenant_name',
             'tenant_uuid',
             'routes',
+            'fixed_ips',
         )
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},

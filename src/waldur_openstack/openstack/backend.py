@@ -464,14 +464,24 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         for backend_router in backend_routers:
+            backend_id = backend_router['id']
+            try:
+                ports = neutron.list_ports(device_id=backend_id)['ports']
+                fixed_ips = []
+                for port in ports:
+                    for fixed_ip in port['fixed_ips']:
+                        fixed_ips.append(fixed_ip['ip_address'])
+            except neutron_exceptions.NeutronClientException as e:
+                raise OpenStackBackendError(e)
+
             defaults = {
                 'name': backend_router['name'],
                 'description': backend_router['description'],
                 'routes': backend_router['routes'],
+                'fixed_ips': fixed_ips,
                 'service_project_link': tenant.service_project_link,
                 'state': models.Router.States.OK,
             }
-            backend_id = backend_router['id']
             try:
                 models.Router.objects.update_or_create(
                     tenant=tenant, backend_id=backend_id, defaults=defaults
