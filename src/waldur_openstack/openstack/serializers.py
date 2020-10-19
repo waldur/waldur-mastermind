@@ -875,11 +875,15 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
         view_name='openstack-spl-detail', read_only=True
     )
     routes = StaticRouteSerializer(many=True)
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
 
     class Meta:
         model = models.Router
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'tenant',
+            'tenant_name',
+            'tenant_uuid',
             'routes',
         )
         extra_kwargs = dict(
