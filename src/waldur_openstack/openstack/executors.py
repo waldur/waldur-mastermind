@@ -499,6 +499,7 @@ class SetMtuExecutor(core_executors.ActionExecutor):
 class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
+        serialized_tenant = core_utils.serialize_instance(subnet.network.tenant)
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_subnet,
@@ -507,7 +508,7 @@ class SubNetCreateExecutor(core_executors.CreateExecutor):
                 enable_default_gateway=kwargs.get('enable_default_gateway', True),
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_subnet, backend_method='pull_tenant_routers'
+                serialized_tenant, backend_method='pull_tenant_routers'
             ),
         )
 
@@ -515,6 +516,7 @@ class SubNetCreateExecutor(core_executors.CreateExecutor):
 class SubNetUpdateExecutor(core_executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
+        serialized_tenant = core_utils.serialize_instance(subnet.network.tenant)
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_subnet,
@@ -523,7 +525,7 @@ class SubNetUpdateExecutor(core_executors.UpdateExecutor):
                 enable_default_gateway=kwargs.get('enable_default_gateway', True),
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_subnet, backend_method='pull_tenant_routers'
+                serialized_tenant, backend_method='pull_tenant_routers'
             ),
         )
 
