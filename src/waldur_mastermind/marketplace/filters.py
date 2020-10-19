@@ -310,12 +310,15 @@ class ResourceFilter(django_filters.FilterSet):
             if 'resource_model' in b.keys()
         ]
         for resource_model in resource_models:
-            try:
-                resource = resource_model.objects.get(backend_id=value)
-                ct = ContentType.objects.get_for_model(resource)
-                return queryset.filter(content_type=ct, object_id=resource.id)
-            except resource_model.DoesNotExist:
-                pass
+            resources_ids = resource_model.objects.filter(backend_id=value).values_list(
+                'id', flat=True
+            )
+
+            if not resources_ids:
+                continue
+
+            ct = ContentType.objects.get_for_model(resource_model)
+            return queryset.filter(content_type=ct, object_id__in=resources_ids)
 
         return queryset.none()
 

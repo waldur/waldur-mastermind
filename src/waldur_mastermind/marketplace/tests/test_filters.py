@@ -1,8 +1,11 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.tests import factories as support_factories
 
 
 class CustomerResourcesFilterTest(test.APITransactionTestCase):
@@ -59,3 +62,27 @@ class ServiceProviderFilterTest(test.APITransactionTestCase):
 
     def test_list_is_empty_if_offering_does_not_have_customers(self):
         self.assertEqual(0, len(self.list_customers(self.service_provider2.uuid.hex)))
+
+
+class ResourceFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.UserFixture()
+        self.offering_1 = support_factories.OfferingFactory(backend_id='backend_id')
+        self.offering_2 = support_factories.OfferingFactory(backend_id='backend_id')
+        self.offering_3 = support_factories.OfferingFactory(
+            backend_id='other_backend_id'
+        )
+
+        ct = ContentType.objects.get_for_model(support_models.Offering)
+        self.resource_1 = factories.ResourceFactory(
+            object_id=self.offering_1.id, content_type=ct
+        )
+        factories.ResourceFactory(object_id=self.offering_3.id, content_type=ct)
+
+        self.url = factories.ResourceFactory.get_list_url()
+
+    def test_backend_id_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'backend_id': 'backend_id'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
