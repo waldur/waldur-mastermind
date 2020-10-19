@@ -231,7 +231,7 @@ class SAFReportSerializer(serializers.Serializer):
     RMAKSUSUM = serializers.SerializerMethodField(method_name='get_tax')
     RMAKSULIPP = serializers.SerializerMethodField(method_name='get_vat')
     ARTPROJEKT = serializers.SerializerMethodField(method_name='get_project')
-    ARTNIMI = serializers.ReadOnlyField(source='name')
+    ARTNIMI = serializers.SerializerMethodField(method_name='get_artnimi_field')
     VALI = serializers.SerializerMethodField(method_name='get_vali_field')
     U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
@@ -306,6 +306,12 @@ class SAFReportSerializer(serializers.Serializer):
 
     def get_empty_field(self, invoice_item):
         return ''
+
+    def get_artnimi_field(self, invoice_item):
+        if 'plan_name' in invoice_item.details.keys():
+            return f'{invoice_item.name} / {invoice_item.details["plan_name"]}'
+        else:
+            return invoice_item.name
 
     def get_covered_period(self, invoice_item):
         first_day = self.get_first_day(invoice_item)
