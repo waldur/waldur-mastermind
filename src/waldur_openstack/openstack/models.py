@@ -315,6 +315,7 @@ class Router(structure_models.SubResource):
         on_delete=models.CASCADE, to=Tenant, related_name='routers'
     )
     routes = JSONField(default=list)
+    fixed_ips = JSONField(default=list)
 
     def get_backend(self):
         return self.tenant.get_backend()

@@ -470,7 +470,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
     @decorators.action(detail=True, methods=['POST'])
     def set_routes(self, request, uuid=None):
         router = self.get_object()
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(router, data=request.data)
         serializer.is_valid(raise_exception=True)
         old_routes = router.routes
         new_routes = serializer.validated_data['routes']
