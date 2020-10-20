@@ -402,11 +402,13 @@ class CustomerSerializer(
             'default_tax_percent',
             'accounting_start_date',
         )
-        protected_fields = ('agreement_number',)
-        read_only_fields = (
+        staff_only_fields = (
             'access_subnets',
             'accounting_start_date',
             'default_tax_percent',
+            'agreement_number',
+            'domain',
+            'division',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -423,11 +425,8 @@ class CustomerSerializer(
             return fields
 
         if not user.is_staff:
-            if 'domain' in fields:
-                fields['domain'].read_only = True
-
-            if 'division' in fields:
-                fields['division'].read_only = True
+            for field_name in CustomerSerializer.Meta.staff_only_fields:
+                fields[field_name].read_only = True
 
         return fields
 
