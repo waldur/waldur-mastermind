@@ -249,7 +249,7 @@ class ErrorMessageTask(Task):
 
     def save_error_message(self, instance):
         if isinstance(instance, models.ErrorMessageMixin):
-            instance.error_message = self.result.result
+            instance.error_message = self.result.result or ''
             instance.error_traceback = str(self.result.traceback)
             instance.save(update_fields=['error_message', 'error_traceback'])
             # log exception if instance is not already ERRED.
