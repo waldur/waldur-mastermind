@@ -425,7 +425,9 @@ class CustomerSerializer(
             return fields
 
         if not user.is_staff:
-            for field_name in CustomerSerializer.Meta.staff_only_fields:
+            for field_name in set(CustomerSerializer.Meta.staff_only_fields) & set(
+                fields.keys()
+            ):
                 fields[field_name].read_only = True
 
         return fields
