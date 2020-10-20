@@ -645,6 +645,10 @@ class InternalIP(openstack_base_models.Port):
     class Meta:
         unique_together = ('backend_id', 'settings')
 
+    @classmethod
+    def get_backend_fields(cls):
+        return super(InternalIP, cls).get_backend_fields() + ('allowed_address_pairs',)
+
 
 class VolumeType(openstack_base_models.BaseVolumeType):
 
