@@ -1103,6 +1103,10 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
             'use_limit_for_billing',
             'product_code',
             'article_code',
+            'is_boolean',
+            'default_limit',
+            'min_value',
+            'max_value',
         )
 
         for component_key in updated_components:
