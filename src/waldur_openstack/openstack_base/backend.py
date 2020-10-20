@@ -305,8 +305,9 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.subnet_count: neutron_quotas['subnet'],
         }
 
+        valid_volume_type_quotas = self._get_valid_volume_type_quotas()
         for name, value in cinder_quotas._info.items():
-            if name.startswith('gigabytes_'):
+            if name in valid_volume_type_quotas:
                 quotas[name] = value
 
         return quotas
@@ -366,8 +367,9 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.snapshots_size: snapshots_size,
         }
 
+        valid_volume_type_quotas = self._get_valid_volume_type_quotas()
         for name, value in cinder_quotas.items():
-            if name.startswith('gigabytes_'):
+            if name in valid_volume_type_quotas:
                 quotas[name] = value['in_use']
 
         return quotas
@@ -453,3 +455,17 @@ class BaseOpenStackBackend(ServiceBackend):
             )
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
+
+    def _get_current_volume_types(self):
+        """
+        It is expected that this method is implemented in inherited backend classes
+        so that it would be possible to avoid circular dependency between base and openstack_tenant
+        applications.
+        """
+        return []
+
+    def _get_valid_volume_type_quotas(self):
+        return {
+            f'gigabytes_{volume_type.name}'
+            for volume_type in self._get_current_volume_types().values()
+        }

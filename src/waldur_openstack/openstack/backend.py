@@ -163,6 +163,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             models.Image, lambda image: image['visibility'] == 'public', admin=True
         )
 
+    def _get_current_volume_types(self):
+        return self._get_current_properties(models.VolumeType)
+
     def pull_volume_types(self):
         try:
             volume_types = self.cinder_admin_client.volume_types.list(is_public=True)
@@ -170,7 +173,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         with transaction.atomic():
-            cur_volume_types = self._get_current_properties(models.VolumeType)
+            cur_volume_types = self._get_current_volume_types()
             for backend_type in volume_types:
                 cur_volume_types.pop(backend_type.id, None)
                 models.VolumeType.objects.update_or_create(

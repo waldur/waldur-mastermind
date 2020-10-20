@@ -1895,6 +1895,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
+    def _get_current_volume_types(self):
+        return self._get_current_properties(models.VolumeType)
+
     def pull_volume_types(self):
         try:
             volume_types = self.cinder_client.volume_types.list()
@@ -1910,7 +1913,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         with transaction.atomic():
-            cur_volume_types = self._get_current_properties(models.VolumeType)
+            cur_volume_types = self._get_current_volume_types()
             for backend_type in volume_types:
                 cur_volume_types.pop(backend_type.id, None)
                 models.VolumeType.objects.update_or_create(
