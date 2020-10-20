@@ -428,7 +428,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs['limit_period'] = ''
             attrs['limit_amount'] = None
             attrs['disable_quotas'] = False
-            attrs['use_limit_for_billing'] = False
+            attrs['use_limit_for_billing'] = True
         return attrs
 
     def get_factor(self, offering_component):
