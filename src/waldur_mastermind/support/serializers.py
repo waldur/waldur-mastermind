@@ -243,11 +243,12 @@ class IssueSerializer(
             or project.customer.has_user(user, structure_models.CustomerRole.OWNER)
             or project.has_user(user, structure_models.ProjectRole.MANAGER)
             or project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)
+            or project.has_user(user, structure_models.ProjectRole.SUPPORT)
         ):
             return project
         raise serializers.ValidationError(
             _(
-                'Only customer owner, project manager, project admin, staff or support can report such issue.'
+                'Only customer owner, project manager, project admin, project support, staff or support can report such issue.'
             )
         )
 
