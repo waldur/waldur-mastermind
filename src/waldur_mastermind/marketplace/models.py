@@ -485,6 +485,7 @@ class OfferingComponent(
     max_value = models.IntegerField(blank=True, null=True)
     min_value = models.IntegerField(blank=True, null=True)
     is_boolean = models.BooleanField(default=False)
+    default_limit = models.IntegerField(blank=True, null=True)
     disable_quotas = models.BooleanField(
         default=False,
         help_text=_(

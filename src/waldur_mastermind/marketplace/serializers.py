@@ -414,6 +414,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             'max_value',
             'min_value',
             'is_boolean',
+            'default_limit',
             'factor',
         )
         extra_kwargs = {
