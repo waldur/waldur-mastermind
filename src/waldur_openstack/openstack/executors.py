@@ -249,6 +249,9 @@ class TenantDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_tenant, backend_method='delete_tenant_floating_ips',
             ),
             core_tasks.BackendMethodTask().si(
+                serialized_tenant, backend_method='delete_tenant_routes',
+            ),
+            core_tasks.BackendMethodTask().si(
                 serialized_tenant, backend_method='delete_tenant_ports',
             ),
             core_tasks.BackendMethodTask().si(

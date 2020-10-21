@@ -919,6 +919,34 @@ class OpenStackBackend(BaseOpenStackBackend):
                 raise OpenStackBackendError(e)
 
     @log_backend_action()
+    def delete_tenant_routes(self, tenant):
+        if not tenant.backend_id:
+            # This method will remove all routers if tenant `backend_id` is not defined.
+            raise OpenStackBackendError(
+                'This method should not be called if tenant has no backend_id'
+            )
+
+        neutron = self.neutron_admin_client
+
+        try:
+            routers = neutron.list_routers(tenant_id=tenant.backend_id)
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        for router in routers.get('routers', []):
+            if not router['routes']:
+                continue
+            logger.info(
+                "Deleting routes for router %s from tenant %s",
+                router['id'],
+                tenant.backend_id,
+            )
+            try:
+                neutron.update_router(router['id'], {'router': {'routes': []}})
+            except neutron_exceptions.NeutronClientException as e:
+                raise OpenStackBackendError(e)
+
+    @log_backend_action()
     def delete_tenant_routers(self, tenant):
         if not tenant.backend_id:
             # This method will remove all routers if tenant `backend_id` is not defined.
