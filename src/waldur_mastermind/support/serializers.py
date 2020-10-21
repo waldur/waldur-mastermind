@@ -315,6 +315,7 @@ class CommentSerializer(
     )
 
     author_uuid = serializers.ReadOnlyField(source='author.user.uuid')
+    author_email = serializers.ReadOnlyField(source='author.user.email')
 
     class Meta:
         model = models.Comment
@@ -328,6 +329,7 @@ class CommentSerializer(
             'author_name',
             'author_uuid',
             'author_user',
+            'author_email',
             'backend_id',
             'created',
         )
