@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2 import client as cinder_client
@@ -26,6 +27,12 @@ from waldur_core.structure.exceptions import SerializableBackendError
 from waldur_openstack.openstack.models import Tenant
 
 logger = logging.getLogger(__name__)
+
+VALID_VOLUME_TYPE_NAME_PATTERN = re.compile(r'^gigabytes_[a-z]+[-_a-z]+$')
+
+
+def is_valid_volume_type_name(name):
+    return re.match(VALID_VOLUME_TYPE_NAME_PATTERN, name)
 
 
 class OpenStackBackendError(SerializableBackendError):
@@ -305,9 +312,8 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.subnet_count: neutron_quotas['subnet'],
         }
 
-        valid_volume_type_quotas = self._get_valid_volume_type_quotas()
         for name, value in cinder_quotas._info.items():
-            if name in valid_volume_type_quotas:
+            if is_valid_volume_type_name(name):
                 quotas[name] = value
 
         return quotas
@@ -367,9 +373,8 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.snapshots_size: snapshots_size,
         }
 
-        valid_volume_type_quotas = self._get_valid_volume_type_quotas()
         for name, value in cinder_quotas.items():
-            if name in valid_volume_type_quotas:
+            if is_valid_volume_type_name(name):
                 quotas[name] = value['in_use']
 
         return quotas
@@ -463,9 +468,3 @@ class BaseOpenStackBackend(ServiceBackend):
         applications.
         """
         return []
-
-    def _get_valid_volume_type_quotas(self):
-        return {
-            f'gigabytes_{volume_type.name}'
-            for volume_type in self._get_current_volume_types().values()
-        }
