@@ -88,7 +88,8 @@ Build docker image for tests:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
-    - "docker:19.03.12-dind"
+    - name: "docker:19.03.12-dind"
+      command: ["--mtu=1450"]
   script:
     - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
     - docker pull $WALDUR_MASTERMIND_TEST_IMAGE || true
