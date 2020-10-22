@@ -2159,10 +2159,11 @@ class PrivateCloudSerializer(BaseResourceSerializer):
 class DivisionSerializer(serializers.HyperlinkedModelSerializer):
     type = serializers.ReadOnlyField(source='type.name')
     parent_uuid = serializers.ReadOnlyField(source='parent.uuid')
+    parent_name = serializers.ReadOnlyField(source='parent.type.name')
 
     class Meta:
         model = models.Division
-        fields = ('uuid', 'url', 'name', 'type', 'parent_uuid', 'parent')
+        fields = ('uuid', 'url', 'name', 'type', 'parent_uuid', 'parent_name', 'parent')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'parent': {'lookup_field': 'uuid'},
