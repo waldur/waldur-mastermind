@@ -357,6 +357,8 @@ class CustomerSerializer(
     display_name = serializers.ReadOnlyField(source='get_display_name')
     division_name = serializers.ReadOnlyField(source='division.name')
     division_uuid = serializers.ReadOnlyField(source='division.uuid')
+    division_parent_name = serializers.ReadOnlyField(source='division.parent.name')
+    division_parent_uuid = serializers.ReadOnlyField(source='division.parent.uuid')
     division_type_name = serializers.ReadOnlyField(source='division.type.name')
     division_type_uuid = serializers.ReadOnlyField(source='division.type.uuid')
 
@@ -372,6 +374,8 @@ class CustomerSerializer(
             'division',
             'division_name',
             'division_uuid',
+            'division_parent_name',
+            'division_parent_uuid',
             'division_type_name',
             'division_type_uuid',
             'contact_details',
