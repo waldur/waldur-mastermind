@@ -327,7 +327,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             external = self._get_property(
                 'comment', backend_comment.id, 'sd.allow.public.comment'
             )
-            comment.is_public = not external.get('value', {}).get('allow', False)
+            comment.is_public = external.get('value', {}).get('allow', False)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
         attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
