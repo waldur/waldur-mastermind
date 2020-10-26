@@ -23,7 +23,7 @@ Run linters:
   interruptible: true
   rules:
     # Skip tests if said so
-    - if: '$SKIP_TESTS == "true"'
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == "master"'
@@ -41,7 +41,7 @@ Run unit tests:
   interruptible: true
   rules:
     # Skip tests if said so
-    - if: '$SKIP_TESTS == "true"'
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_BRANCH == "master"'
