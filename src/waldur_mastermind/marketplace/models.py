@@ -389,6 +389,10 @@ class Offering(
     def archive(self):
         pass
 
+    @transition(field=state, source='*', target=States.DRAFT)
+    def draft(self):
+        pass
+
     def __str__(self):
         return str(self.name)
 

@@ -165,6 +165,10 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         return self._update_state('activate')
 
     @action(detail=True, methods=['post'])
+    def draft(self, request, uuid=None):
+        return self._update_state('draft')
+
+    @action(detail=True, methods=['post'])
     def pause(self, request, uuid=None):
         return self._update_state('pause', request)
 
