@@ -1,5 +1,6 @@
 from django.db import transaction
-from django.utils.dateparse import datetime_re
+from django.utils import timezone
+from django.utils.dateparse import datetime_re, parse_datetime
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.serializers import ValidationError
 
@@ -49,6 +50,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                             'Value \'start\' or \'end\' does not exist in schedules item.'
                         )
                     )
+
             except KeyError:
                 raise ValidationError(
                     _('Key \'start\' or \'end\' does not exist in schedules item.')
@@ -66,6 +68,9 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                     raise ValidationError(
                         _('The value %s does not match the format.') % value
                     )
+
+            if parse_datetime(start) < timezone.now():
+                raise ValidationError(_('Past slots are not available for selection.'))
 
         # Check that the schedule is available for the offering.
         offering = self.order_item.offering

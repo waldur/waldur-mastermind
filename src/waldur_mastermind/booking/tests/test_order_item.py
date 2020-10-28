@@ -1,3 +1,4 @@
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -34,6 +35,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         self.assertEqual(resource.state, marketplace_models.Resource.States.CREATING)
 
 
+@freeze_time('2018-12-01')
 class OrderCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -43,6 +45,10 @@ class OrderCreateTest(test.APITransactionTestCase):
             type=PLUGIN_NAME,
             attributes={
                 'schedules': [
+                    {
+                        'start': '2018-11-01T00:00:00.000000Z',
+                        'end': '2018-11-01T23:59:59.000000Z',
+                    },
                     {
                         'start': '2019-01-01T00:00:00.000000Z',
                         'end': '2019-01-01T23:59:59.000000Z',
@@ -243,6 +249,33 @@ class OrderCreateTest(test.APITransactionTestCase):
             str(response.content, 'utf-8'),
             '["Time period from %s to %s is not available."]'
             % ('2019-01-02T00:00:00.000000Z', '2019-01-02T23:59:59.000000Z'),
+        )
+
+    def test_past_slots_are_not_available(self):
+        add_payload = {
+            'items': [
+                {
+                    'offering': marketplace_factories.OfferingFactory.get_url(
+                        self.offering
+                    ),
+                    'attributes': {
+                        'schedules': [
+                            {
+                                'start': '2018-11-01T00:00:00.000000Z',
+                                'end': '2018-11-01T23:59:59.000000Z',
+                            },
+                        ]
+                    },
+                },
+            ]
+        }
+        response = self.create_order(
+            self.user, offering=self.offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            str(response.content, 'utf-8'),
+            '["Past slots are not available for selection."]',
         )
 
     def create_order(self, user, offering=None, add_payload=None):
