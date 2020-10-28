@@ -51,6 +51,8 @@ class PluginManager:
         which supports user-defined limits, such as VPC RAM and vCPU.
         :key resource_model: optional Django model class which corresponds to resource.
         :key get_filtered_components: optional function to filter out enabled offering components.
+        :key change_attributes_for_view: optional function to change the display of attributes in a view. An attributes
+        of offering do not change.
         """
         self.backends[offering_type] = kwargs
 
@@ -143,6 +145,12 @@ class PluginManager:
         Return a processor class for given offering type and order item type.
         """
         return self.backends.get(offering_type, {}).get(processor_type)
+
+    def get_change_attributes_for_view(self, offering_type):
+        """
+        Return a function for attributes showing.
+        """
+        return self.backends.get(offering_type, {}).get('change_attributes_for_view')
 
 
 manager = PluginManager()

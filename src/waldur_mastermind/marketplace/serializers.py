@@ -706,6 +706,7 @@ class OfferingDetailsSerializer(
         if method == 'GET':
             fields['components'] = serializers.SerializerMethodField('get_components')
             fields['plans'] = serializers.SerializerMethodField('get_filtered_plans')
+            fields['attributes'] = serializers.SerializerMethodField('get_attributes')
 
         user = self.context['view'].request.user
         if not user.is_authenticated:
@@ -756,6 +757,14 @@ class OfferingDetailsSerializer(
     def get_filtered_plans(self, offering):
         qs = (offering.parent or offering).plans.all()
         return BasePlanSerializer(qs, many=True, context=self.context).data
+
+    def get_attributes(self, offering):
+        func = manager.get_change_attributes_for_view(offering.type)
+
+        if func:
+            return func(offering.attributes)
+
+        return offering.attributes
 
 
 class OfferingComponentLimitSerializer(serializers.Serializer):

@@ -1,4 +1,5 @@
 from dateutil.parser import parse as parse_datetime
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -43,4 +44,43 @@ class BookingsTest(test.APITransactionTestCase):
                     'end': parse_datetime('2020-03-05'),
                 },
             ],
+        )
+
+
+@freeze_time('2020-02-01')
+class SlotsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        schedules = [
+            {'start': '2020-01-01T00:00:00.000Z', 'end': '2020-01-02T00:00:00.000Z'},
+            {'start': '2020-03-01T00:00:00.000Z', 'end': '2020-03-02T00:00:00.000Z'},
+        ]
+        self.offering = marketplace_factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type=PLUGIN_NAME,
+            attributes={'schedules': schedules,},
+        )
+        self.url = marketplace_factories.OfferingFactory.get_url(self.offering)
+
+    def test_do_not_display_expired_slots(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['attributes']['schedules']), 1)
+
+    def test_change_start_if_end_is_not_expired(self):
+        schedules = [
+            {'start': '2020-01-01T00:00:00.000Z', 'end': '2020-02-10T00:00:00.000Z'},
+        ]
+        self.offering.attributes = {
+            'schedules': schedules,
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['attributes']['schedules']), 1)
+        self.assertEqual(
+            response.data['attributes']['schedules'][0]['start'],
+            '2020-02-01T00:00:00.000Z',
         )

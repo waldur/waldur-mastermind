@@ -1,7 +1,9 @@
+import copy
 import datetime
 import logging
 
 from dateutil.parser import parse as parse_datetime
+from django.utils import timezone
 
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -95,3 +97,19 @@ def get_info_about_upcoming_bookings():
                 )
 
     return result
+
+
+def change_attributes_for_view(attrs):
+    # We use copy of attrs to do not change offering.attributes
+    attributes = copy.deepcopy(attrs)
+    schedules = attributes.get('schedules', [])
+    attributes['schedules'] = [
+        schedule
+        for schedule in schedules
+        if parse_datetime(schedule['end']) > timezone.now()
+    ]
+    for schedule in attributes['schedules']:
+        if parse_datetime(schedule['start']) < timezone.now():
+            schedule['start'] = timezone.now().strftime('%Y-%m-%dT%H:%M:%S.000Z')
+
+    return attributes
