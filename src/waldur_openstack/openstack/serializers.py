@@ -916,12 +916,14 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
     )
     subnets = _NestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Network
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'tenant',
             'tenant_name',
+            'tenant_uuid',
             'is_external',
             'type',
             'segmentation_id',
