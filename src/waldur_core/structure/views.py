@@ -827,6 +827,27 @@ class CustomerPermissionLogViewSet(
     filterset_class = filters.CustomerPermissionFilter
 
 
+class CustomerPermissionReviewViewSet(
+    mixins.RetrieveModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
+):
+    queryset = models.CustomerPermissionReview.objects.all()
+    serializer_class = serializers.CustomerPermissionReviewSerializer
+    filter_backends = (
+        filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.CustomerPermissionReviewFilter
+    lookup_field = 'uuid'
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, uuid=None):
+        review: models.CustomerPermissionReview = self.get_object()
+        if not review.is_pending:
+            raise ValidationError(_('Review is already closed.'))
+        review.close(request.user)
+        return Response(status=status.HTTP_200_OK)
+
+
 class SshKeyViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,

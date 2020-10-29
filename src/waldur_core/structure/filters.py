@@ -452,6 +452,18 @@ class CustomerPermissionFilter(UserPermissionFilter):
     )
 
 
+class CustomerPermissionReviewFilter(django_filters.FilterSet):
+    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
+    reviewer_uuid = django_filters.UUIDFilter(field_name='reviewer__uuid')
+    o = django_filters.OrderingFilter(fields=('created', 'closed'))
+
+    class Meta:
+        model = models.CustomerPermissionReview
+        fields = [
+            'is_pending',
+        ]
+
+
 class SshKeyFilter(NameFilterSet):
     uuid = django_filters.UUIDFilter()
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')

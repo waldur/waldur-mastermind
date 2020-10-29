@@ -18,6 +18,11 @@ def register_in(router):
         basename='customer_permission_log',
     )
     router.register(
+        r'customer-permissions-reviews',
+        views.CustomerPermissionReviewViewSet,
+        basename='customer_permission_review',
+    )
+    router.register(
         r'project-permissions',
         views.ProjectPermissionViewSet,
         basename='project_permission',

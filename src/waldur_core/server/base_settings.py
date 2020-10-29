@@ -242,6 +242,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(hours=1),
         'args': (),
     },
+    'create_customer_permission_reviews': {
+        'task': 'waldur_core.structure.create_customer_permission_reviews',
+        'schedule': timedelta(hours=24),
+        'args': (),
+    },
 }
 
 # Logging

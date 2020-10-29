@@ -710,6 +710,36 @@ class CustomerPermissionLogSerializer(CustomerPermissionSerializer):
         view_name = 'customer_permission_log-detail'
 
 
+class CustomerPermissionReviewSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    class Meta:
+        model = models.CustomerPermissionReview
+        view_name = 'customer_permission_review-detail'
+        fields = (
+            'url',
+            'uuid',
+            'reviewer_full_name',
+            'reviewer_uuid',
+            'customer_uuid',
+            'customer_name',
+            'is_pending',
+            'created',
+            'closed',
+        )
+        read_only_fields = (
+            'is_pending',
+            'closed',
+        )
+        related_paths = {
+            'reviewer': ('full_name', 'uuid'),
+            'customer': ('name', 'uuid'),
+        }
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
 class ProjectPermissionSerializer(
     PermissionFieldFilteringMixin, BasePermissionSerializer
 ):

@@ -809,6 +809,34 @@ class Project(
         base_manager_name = 'objects'
 
 
+class CustomerPermissionReview(core_models.UuidMixin):
+    class Permissions:
+        customer_path = 'customer'
+
+    customer = models.ForeignKey(
+        Customer,
+        verbose_name=_('organization'),
+        related_name='reviews',
+        on_delete=models.CASCADE,
+    )
+    is_pending = models.BooleanField(default=True)
+    created = AutoCreatedField()
+    closed = models.DateTimeField(null=True, blank=True)
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    @classmethod
+    def get_url_name(cls):
+        return 'customer_permission_review'
+
+    def close(self, user):
+        self.is_pending = False
+        self.closed = timezone.now()
+        self.reviewer = user
+        self.save()
+
+
 class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
     link = models.URLField(max_length=255, blank=True)
     # NameMixin is not used here as name has to be unique.
