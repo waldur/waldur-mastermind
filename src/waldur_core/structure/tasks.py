@@ -5,6 +5,7 @@ from datetime import timedelta
 from celery import shared_task
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.db.utils import DatabaseError
 from django.utils import timezone
 
@@ -305,3 +306,22 @@ def send_change_email_notification(request_serialized):
     core_utils.broadcast_mail(
         'structure', 'change_email_request', context, [request.email]
     )
+
+
+@shared_task(name='waldur_core.structure.create_customer_permission_reviews')
+def create_customer_permission_reviews():
+    for customer in structure_models.Customer.objects.all():
+        # Skip customers with pending reviews or customers which recently passed permission review
+        if structure_models.CustomerPermissionReview.objects.filter(
+            Q(customer=customer, is_pending=True)
+            | Q(
+                customer=customer,
+                is_pending=False,
+                closed__gte=timezone.now() - timedelta(days=90),
+            )
+        ).exists():
+            continue
+        # Skip customers without users
+        if not customer.get_users().count():
+            continue
+        structure_models.CustomerPermissionReview.objects.create(customer=customer)
