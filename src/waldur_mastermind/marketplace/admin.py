@@ -19,6 +19,9 @@ from waldur_core.structure.models import (
     ServiceSettings,
     SharedServiceSettings,
 )
+from waldur_mastermind.marketplace_openstack import (
+    executors as marketplace_openstack_executors,
+)
 from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
 
@@ -564,7 +567,19 @@ class ResourceAdmin(admin.ModelAdmin):
             return {'user': request.user}
 
     terminate_resources = TerminateResources()
-    actions = ['terminate_resources']
+
+    class RestoreLimits(ExecutorAdminAction):
+        executor = marketplace_openstack_executors.RestoreTenantLimitsExecutor
+        short_description = 'Restore Openstack limits'
+        confirmation_description = 'Openstack limits will be restored.'
+        confirmation = True
+
+        def validate(self, resource):
+            if resource.state != models.Resource.States.OK:
+                raise ValidationError(_('Resource has to be in OK state.'))
+
+    restore_limits = RestoreLimits()
+    actions = ['terminate_resources', 'restore_limits']
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)

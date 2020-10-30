@@ -255,7 +255,7 @@ class BaseOpenStackBackend(ServiceBackend):
 
     def ping(self, raise_exception=False):
         try:
-            self.keystone_client
+            self.keystone_admin_client
         except keystone_exceptions.ClientException as e:
             if raise_exception:
                 raise OpenStackBackendError(e)
