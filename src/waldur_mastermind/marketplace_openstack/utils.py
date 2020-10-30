@@ -677,3 +677,25 @@ def push_tenant_limits(resource):
         _apply_quotas(tenant, quotas)
         for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
             _apply_quotas(target, quotas)
+
+
+def restore_limits(resource):
+    order_item = (
+        marketplace_models.OrderItem.objects.filter(
+            resource=resource,
+            type__in=[
+                marketplace_models.OrderItem.Types.CREATE,
+                marketplace_models.OrderItem.Types.UPDATE,
+            ],
+        )
+        .order_by('-created')
+        .first()
+    )
+
+    if not order_item:
+        return
+
+    if not isinstance(order_item.resource.scope, openstack_models.Tenant):
+        return
+
+    update_limits(order_item)
