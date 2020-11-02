@@ -387,11 +387,6 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
 def get_offering_costs(offering, active_customers, start, end):
     costs = []
-
-    resources = models.Resource.objects.filter(
-        offering=offering, project__customer__in=active_customers,
-    )
-    resources_ids = resources.values_list('id', flat=True)
     date = start
 
     while date <= end:
@@ -399,8 +394,8 @@ def get_offering_costs(offering, active_customers, start, end):
         month = date.month
 
         invoice_items = invoice_models.InvoiceItem.objects.filter(
-            content_type_id=ContentType.objects.get_for_model(models.Resource).id,
-            object_id__in=resources_ids,
+            details__offering_uuid=offering.uuid.hex,
+            project__customer__in=active_customers,
             invoice__year=year,
             invoice__month=month,
         )
