@@ -18,6 +18,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
     def setUp(self):
         fixture_1 = structure_fixtures.CustomerFixture()
         fixture_1.owner
+        self.staff = fixture_1.staff
         fixture_2 = structure_fixtures.CustomerFixture()
         fixture_2.owner
         offering_1 = marketplace_factories.OfferingFactory(
@@ -119,3 +120,20 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         )
         response = self.client.post(url)
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+    def test_get_specific_fields(self):
+        self.order_item.order.approved_by = self.staff
+        self.order_item.order.save()
+        self.resource.attributes['description'] = 'Description'
+        self.resource.save()
+        url = reverse(
+            'booking-resource-detail', kwargs={'uuid': self.resource.uuid.hex},
+        )
+        response = self.client.get(url)
+        self.assertTrue(
+            self.order_item.order.created_by.uuid.hex in response.data['created_by']
+        )
+        self.assertTrue(
+            self.order_item.order.approved_by.uuid.hex in response.data['approved_by']
+        )
+        self.assertEqual('Description', response.data['description'])

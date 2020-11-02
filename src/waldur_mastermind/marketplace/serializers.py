@@ -1712,6 +1712,7 @@ class ResourceSerializer(BaseItemSerializer):
             'project',
             'project_uuid',
             'project_name',
+            'project_description',
             'customer_uuid',
             'customer_name',
             'offering_uuid',
@@ -1733,6 +1734,7 @@ class ResourceSerializer(BaseItemSerializer):
     )
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
+    project_description = serializers.ReadOnlyField(source='project.description')
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
