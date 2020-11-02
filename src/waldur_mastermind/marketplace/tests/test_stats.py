@@ -369,3 +369,29 @@ class ComponentStatsTest(StatsBaseTest):
                 }
             ],
         )
+
+    def test_migration_0030_offering_data_to_invoice_item_details(self):
+        item = self._create_item()
+        item.details = {}
+        item.save()
+        details = utils.get_offering_details(self.resource.offering)
+
+        migration = __import__(
+            'waldur_mastermind.marketplace.migrations.0030_offering_data_to_invoice_item_details',
+            fromlist=['offering_data'],
+        )
+        func = migration.offering_data
+
+        class Apps(object):
+            @staticmethod
+            def get_model(app, klass):
+                if klass == 'InvoiceItem':
+                    return invoices_models.InvoiceItem
+
+                if klass == 'Resource':
+                    return models.Resource
+
+        mock_apps = Apps()
+        func(mock_apps, None)
+        item.refresh_from_db()
+        self.assertEqual(item.details, details)
