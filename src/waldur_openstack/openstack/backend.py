@@ -29,6 +29,13 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
+VALID_ROUTER_INTERFACE_OWNERS = (
+    'network:router_interface',
+    'network:router_interface_distributed',
+    'network:ha_router_replicated_interface',
+)
+
+
 class OpenStackBackend(BaseOpenStackBackend):
     DEFAULTS = {
         'tenant_name': 'admin',
@@ -881,11 +888,10 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         for port in ports.get('ports', []):
-            if 'device_id' in port and port['device_owner'] in [
-                'network:router_interface',
-                'network:router_interface_distributed',
-                'network:ha_router_replicated_interface',
-            ]:
+            if (
+                'device_id' in port
+                and port['device_owner'] in VALID_ROUTER_INTERFACE_OWNERS
+            ):
                 logger.info(
                     "Deleting port %s interface_router from tenant %s",
                     port['id'],
@@ -1585,18 +1591,11 @@ class OpenStackBackend(BaseOpenStackBackend):
     def disconnect_subnet(self, subnet):
         neutron = self.neutron_admin_client
         try:
-            ports = neutron.list_ports(
-                network_id=subnet.network.backend_id,
-                device_owner='network:router_interface',
-            )['ports']
-
-            # in newer versions of openstack with HA routers owner is different
-            ports += neutron.list_ports(
-                network_id=subnet.network.backend_id,
-                device_owner='network:ha_router_replicated_interface',
-            )['ports']
+            ports = neutron.list_ports(network_id=subnet.network.backend_id)['ports']
 
             for port in ports:
+                if port['device_owner'] not in VALID_ROUTER_INTERFACE_OWNERS:
+                    continue
                 neutron.remove_interface_router(
                     port['device_id'], {'subnet_id': subnet.backend_id}
                 )
@@ -1640,6 +1639,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
+        is_connected = self.is_subnet_connected(
+            backend_subnet['id'], backend_subnet['network_id']
+        )
+
         subnet = models.SubNet(
             name=backend_subnet['name'],
             description=backend_subnet['description'],
@@ -1651,8 +1654,25 @@ class OpenStackBackend(BaseOpenStackBackend):
             gateway_ip=backend_subnet.get('gateway_ip'),
             enable_dhcp=backend_subnet.get('enable_dhcp', False),
             state=models.Network.States.OK,
+            is_connected=is_connected,
         )
         return subnet
+
+    def is_subnet_connected(self, subnet_backend_id, subnet_network_backend_id):
+        neutron = self.neutron_admin_client
+
+        try:
+            ports = neutron.list_ports(network_id=subnet_network_backend_id)['ports']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        for port in ports:
+            if port['device_owner'] not in VALID_ROUTER_INTERFACE_OWNERS:
+                continue
+            for fixed_ip in port['fixed_ips']:
+                if fixed_ip['subnet_id'] == subnet_backend_id:
+                    return True
+        return False
 
     @log_backend_action()
     def pull_subnet(self, subnet):
@@ -1661,17 +1681,9 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         subnet.refresh_from_db()
         if subnet.modified < import_time:
-            update_fields = (
-                'name',
-                'cidr',
-                'allocation_pools',
-                'host_routes',
-                'dns_nameservers',
-                'ip_version',
-                'gateway_ip',
-                'enable_dhcp',
+            update_pulled_fields(
+                subnet, imported_subnet, models.SubNet.get_backend_fields()
             )
-            update_pulled_fields(subnet, imported_subnet, update_fields)
 
     @log_backend_action('pull floating ip')
     def pull_floating_ip(self, floating_ip):
