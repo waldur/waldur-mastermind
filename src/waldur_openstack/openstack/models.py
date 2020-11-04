@@ -417,6 +417,7 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
             'gateway_ip',
             'dns_nameservers',
             'host_routes',
+            'is_connected',
         )
 
 
