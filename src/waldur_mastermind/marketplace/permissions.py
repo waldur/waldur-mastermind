@@ -23,6 +23,18 @@ def check_availability_of_auto_approving(items, user, project):
     if all(item.offering.is_private for item in items):
         return structure_permissions._has_admin_access(user, project)
 
+    # Skip approval of public offering belonging to the same organization under which the request is done
+    if all(
+        item.offering.shared
+        and item.offering.customer == project.customer
+        and item.offering.plugin_options.get(
+            'auto_approve_in_service_provider_projects'
+        )
+        is True
+        for item in items
+    ):
+        return True
+
     # Service provider is not required to approve termination order
     if (
         len(items) == 1
