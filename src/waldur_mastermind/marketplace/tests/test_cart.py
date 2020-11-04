@@ -159,37 +159,42 @@ class AutoapproveTest(test.APITransactionTestCase):
         )
 
     def submit_public_and_private(self, role):
-        fixture = fixtures.ProjectFixture()
+        provider_fixture = fixtures.ProjectFixture()
+        consumer_fixture = fixtures.ProjectFixture()
         service = structure_factories.TestServiceFactory(
-            settings=self.service_settings, customer=fixture.customer
+            settings=self.service_settings, customer=consumer_fixture.customer
         )
         structure_factories.TestServiceProjectLinkFactory(
-            service=service, project=fixture.project
+            service=service, project=consumer_fixture.project
         )
         private_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=False,
             billable=False,
-            customer=fixture.customer,
+            customer=provider_fixture.customer,
             type='TEST_TYPE',
             scope=self.service_settings,
         )
+        private_offering.allowed_customers.add(consumer_fixture.customer)
         public_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=True,
             billable=True,
-            customer=fixture.customer,
+            customer=provider_fixture.customer,
             type='TEST_TYPE',
             scope=self.service_settings,
         )
+        public_offering.allowed_customers.add(consumer_fixture.customer)
 
-        self.client.force_authenticate(getattr(fixture, role))
+        self.client.force_authenticate(getattr(consumer_fixture, role))
 
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
                 'offering': factories.OfferingFactory.get_url(private_offering),
-                'project': structure_factories.ProjectFactory.get_url(fixture.project),
+                'project': structure_factories.ProjectFactory.get_url(
+                    consumer_fixture.project
+                ),
                 'attributes': {'name': 'test'},
             },
         )
@@ -198,12 +203,14 @@ class AutoapproveTest(test.APITransactionTestCase):
             factories.CartItemFactory.get_list_url(),
             {
                 'offering': factories.OfferingFactory.get_url(public_offering),
-                'project': structure_factories.ProjectFactory.get_url(fixture.project),
+                'project': structure_factories.ProjectFactory.get_url(
+                    consumer_fixture.project
+                ),
                 'attributes': {'name': 'test'},
             },
         )
 
-        return self.submit(fixture.project)
+        return self.submit(consumer_fixture.project)
 
     @ddt.data('staff', 'owner', 'manager', 'admin')
     def test_order_gets_approved_if_all_offerings_are_private(self, role, mocked_task):
@@ -270,6 +277,52 @@ class AutoapproveTest(test.APITransactionTestCase):
         response = self.submit_public_and_private('admin')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()
+
+    @ddt.data(True, False)
+    def test_public_offering_is_approved_in_the_same_organization(
+        self, auto_approve_in_service_provider_projects, mocked_task
+    ):
+        consumer_fixture = provider_fixture = fixtures.ProjectFixture()
+        service = structure_factories.TestServiceFactory(
+            settings=self.service_settings, customer=consumer_fixture.customer
+        )
+        structure_factories.TestServiceProjectLinkFactory(
+            service=service, project=consumer_fixture.project
+        )
+        public_offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+            shared=True,
+            billable=True,
+            customer=provider_fixture.customer,
+            type='TEST_TYPE',
+            scope=self.service_settings,
+            plugin_options={
+                'auto_approve_in_service_provider_projects': auto_approve_in_service_provider_projects
+            },
+        )
+
+        self.client.force_authenticate(getattr(consumer_fixture, 'admin'))
+
+        self.client.post(
+            factories.CartItemFactory.get_list_url(),
+            {
+                'offering': factories.OfferingFactory.get_url(public_offering),
+                'project': structure_factories.ProjectFactory.get_url(
+                    consumer_fixture.project
+                ),
+                'attributes': {'name': 'test'},
+            },
+        )
+
+        response = self.submit(consumer_fixture.project)
+        self.assertEqual(
+            response.data['state'],
+            auto_approve_in_service_provider_projects
+            and 'executing'
+            or 'requested for approval',
+        )
+        if auto_approve_in_service_provider_projects:
+            mocked_task.delay.assert_not_called()
 
 
 class CartUpdateTest(test.APITransactionTestCase):
