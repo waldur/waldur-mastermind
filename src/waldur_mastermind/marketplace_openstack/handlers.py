@@ -281,7 +281,7 @@ def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
     utils.import_volume_metadata(resource)
 
 
-def synchronize_instance_metadata(sender, instance, created=False, **kwargs):
+def synchronize_instance_name(sender, instance, created=False, **kwargs):
     if not created and not set(instance.tracker.changed()) & {'name'}:
         return
 
@@ -299,6 +299,18 @@ def synchronize_instance_metadata(sender, instance, created=False, **kwargs):
 
         resource.backend_metadata['instance_name'] = volume.instance.name
         resource.save(update_fields=['backend_metadata'])
+
+
+def synchronize_instance_after_pull(sender, instance, **kwargs):
+    if (
+        instance.tracker.has_changed('action')
+        and instance.tracker.previous('action') == 'Pull'
+    ):
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=instance)
+            utils.import_instance_metadata(resource)
+        except ObjectDoesNotExist:
+            pass
 
 
 def synchronize_internal_ips(sender, instance, created=False, **kwargs):

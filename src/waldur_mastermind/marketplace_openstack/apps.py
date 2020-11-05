@@ -149,9 +149,15 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.synchronize_instance_metadata,
+            handlers.synchronize_instance_name,
             sender=tenant_models.Instance,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_instance_metadata',
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_instance_name',
+        )
+
+        signals.post_save.connect(
+            handlers.synchronize_instance_after_pull,
+            sender=tenant_models.Instance,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_instance_after_pull',
         )
 
         signals.post_save.connect(
