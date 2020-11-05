@@ -18,8 +18,8 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace.processors import process_order_item
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.log import IssueEventLogger
