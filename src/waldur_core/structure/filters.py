@@ -114,7 +114,7 @@ class CustomerFilter(NameFilterSet):
         field_name='division__name', lookup_expr='icontains'
     )
     division_type_uuid = django_filters.UUIDFilter(field_name='division__type__uuid')
-    division_name = django_filters.CharFilter(
+    division_type_name = django_filters.CharFilter(
         field_name='division__type__name', lookup_expr='icontains'
     )
 
