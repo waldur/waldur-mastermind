@@ -109,6 +109,9 @@ def get_service_provider_info(source):
 
 
 def get_offering_details(offering):
+    if not isinstance(offering, models.Offering):
+        return {}
+
     return {
         'offering_type': offering.type,
         'offering_name': offering.name,

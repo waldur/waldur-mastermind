@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 
 from waldur_core.structure.models import Project
 from waldur_mastermind.invoices import models as invoice_models
@@ -125,7 +126,13 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def get_details(self, source):
         offering = source
-        details = marketplace_utils.get_offering_details(offering)
+
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=source)
+            details = marketplace_utils.get_offering_details(resource.offering)
+        except (ObjectDoesNotExist, MultipleObjectsReturned):
+            details = {}
+
         service_provider_info = marketplace_utils.get_service_provider_info(offering)
         details.update(service_provider_info)
         details['plan_name'] = offering.plan.name if offering.plan else ''
