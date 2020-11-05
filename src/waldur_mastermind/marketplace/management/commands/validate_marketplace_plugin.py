@@ -12,8 +12,8 @@ from rest_framework.test import APIClient
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.processors import process_order_item
 from waldur_mastermind.marketplace.tests import factories
-from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.support import models as support_models
 
 logger = logging.getLogger(__name__)

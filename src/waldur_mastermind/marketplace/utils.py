@@ -26,54 +26,6 @@ from waldur_mastermind.invoices import models as invoice_models
 from . import models, plugins
 
 
-def get_order_item_processor(order_item):
-    if order_item.resource:
-        offering = order_item.resource.offering
-    else:
-        offering = order_item.offering
-
-    if order_item.type == models.RequestTypeMixin.Types.CREATE:
-        return plugins.manager.get_processor(offering.type, 'create_resource_processor')
-
-    elif order_item.type == models.RequestTypeMixin.Types.UPDATE:
-        return plugins.manager.get_processor(offering.type, 'update_resource_processor')
-
-    elif order_item.type == models.RequestTypeMixin.Types.TERMINATE:
-        return plugins.manager.get_processor(offering.type, 'delete_resource_processor')
-
-
-def process_order_item(order_item, user):
-    processor = get_order_item_processor(order_item)
-    if not processor:
-        order_item.error_message = (
-            'Skipping order item processing because processor is not found.'
-        )
-        order_item.set_state_erred()
-        order_item.save(update_fields=['state', 'error_message'])
-        return
-
-    try:
-        order_item.set_state_executing()
-        order_item.save(update_fields=['state'])
-        processor(order_item).process_order_item(user)
-    except Exception as e:
-        # Here it is necessary to catch all exceptions.
-        # If this is not done, then the order will remain in the executed status.
-        order_item.error_message = str(e)
-        order_item.set_state_erred()
-        order_item.save(update_fields=['state', 'error_message'])
-
-
-def validate_order_item(order_item, request):
-    processor = get_order_item_processor(order_item)
-    if processor:
-        try:
-            processor(order_item).validate_order_item(request)
-        except NotImplementedError:
-            # It is okay if validation is not implemented yet
-            pass
-
-
 def create_screenshot_thumbnail(screenshot):
     pic = screenshot.image
     fh = storage.open(pic.name, 'rb')

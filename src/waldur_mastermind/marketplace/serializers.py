@@ -43,7 +43,10 @@ from waldur_mastermind.marketplace.permissions import (
     check_availability_of_auto_approving,
 )
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace.processors import CreateResourceProcessor
+from waldur_mastermind.marketplace.processors import (
+    CreateResourceProcessor,
+    validate_order_item,
+)
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_pid import models as pid_models
 
@@ -793,7 +796,8 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         return attrs
 
     def validate_type(self, offering_type):
-        if offering_type not in plugins.manager.backends.keys():
+        # Offering type is optional
+        if offering_type and offering_type not in plugins.manager.backends.keys():
             raise rf_exceptions.ValidationError(_('Invalid value.'))
         return offering_type
 
@@ -1577,7 +1581,7 @@ def create_order(project, user, items, request):
             order_item = order.add_item(**params)
         except ValidationError as e:
             raise rf_exceptions.ValidationError(e)
-        utils.validate_order_item(order_item, request)
+        validate_order_item(order_item, request)
 
     order.init_total_cost()
     order.save()

@@ -12,7 +12,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import utils as invoice_utils
-from waldur_mastermind.marketplace.utils import process_order_item
+from waldur_mastermind.marketplace.processors import process_order_item
 
 from . import exceptions, models, utils, views
 
