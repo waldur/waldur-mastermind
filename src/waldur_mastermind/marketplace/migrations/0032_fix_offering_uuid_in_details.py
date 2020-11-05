@@ -12,18 +12,20 @@ def offering_data(apps, schema_editor):
     for invoice_item in InvoiceItem.objects.filter(
         content_type_id=ContentType.objects.get_for_model(Resource).id
     ):
-        if (
-            'offering_uuid' not in invoice_item.details.keys()
-        ) and invoice_item.object_id:
+        if invoice_item.object_id:
             try:
                 resource = Resource.objects.get(pk=invoice_item.object_id)
-                invoice_item.details.update(
-                    {
-                        'offering_type': resource.offering.type,
-                        'offering_name': resource.offering.name,
-                        'offering_uuid': resource.offering.uuid.hex,
-                    }
-                )
+                details = {
+                    'offering_type': resource.offering.type,
+                    'offering_name': resource.offering.name,
+                    'offering_uuid': resource.offering.uuid.hex,
+                }
+
+                # Preserve existing value of offering_name field if it is already defined.
+                if 'offering_name' in invoice_item.details.keys():
+                    details.pop('offering_name')
+
+                invoice_item.details.update(details)
                 invoice_item.save()
             except ObjectDoesNotExist:
                 pass
@@ -32,7 +34,7 @@ def offering_data(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0029_offeringcomponent_default_limit'),
+        ('marketplace', '0031_optional_offering_type'),
         ('invoices', '0040_invoice_created'),
         ('contenttypes', '0002_remove_content_type_name'),
     ]
