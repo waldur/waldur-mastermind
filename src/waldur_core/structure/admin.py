@@ -832,12 +832,12 @@ class VirtualMachineAdmin(ResourceAdmin):
 
 
 class DivisionTypeAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'uuid')
     search_fields = ['name']
 
 
 class DivisionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'type', 'parent')
+    list_display = ('name', 'type', 'parent', 'uuid')
     search_fields = ['name']
     list_filter = ('type',)
 
