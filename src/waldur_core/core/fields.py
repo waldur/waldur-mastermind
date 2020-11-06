@@ -182,7 +182,10 @@ class UUIDField(models.UUIDField):
     def _parse_uuid(self, value):
         if not value:
             return None
-        return StringUUID(smart_text(value))
+        try:
+            return StringUUID(smart_text(value))
+        except ValueError:
+            return None
 
     def from_db_value(self, value, expression, connection, context):
         return self._parse_uuid(value)

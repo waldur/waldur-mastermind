@@ -109,11 +109,22 @@ class CustomerFilter(NameFilterSet):
     native_name = django_filters.CharFilter(lookup_expr='icontains')
     abbreviation = django_filters.CharFilter(lookup_expr='icontains')
     contact_details = django_filters.CharFilter(lookup_expr='icontains')
-    division_uuid = django_filters.UUIDFilter(field_name='division__uuid')
+    division_uuid = django_filters.ModelMultipleChoiceFilter(
+        field_name='division__uuid',
+        label='division_uuid',
+        to_field_name='uuid',
+        queryset=models.Division.objects.all(),
+    )
     division_name = django_filters.CharFilter(
         field_name='division__name', lookup_expr='icontains'
     )
-    division_type_uuid = django_filters.UUIDFilter(field_name='division__type__uuid')
+    division_type_uuid = django_filters.ModelMultipleChoiceFilter(
+        field_name='division__type__uuid',
+        label='division_type_uuid',
+        to_field_name='uuid',
+        queryset=models.DivisionType.objects.all(),
+    )
+
     division_type_name = django_filters.CharFilter(
         field_name='division__type__name', lookup_expr='icontains'
     )
