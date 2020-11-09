@@ -350,6 +350,7 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
                 from_port=rule.from_port,
                 to_port=rule.to_port,
                 cidr=rule.cidr,
+                description=rule.description,
                 backend_id=rule.backend_id,
                 security_group=security_group,
             )

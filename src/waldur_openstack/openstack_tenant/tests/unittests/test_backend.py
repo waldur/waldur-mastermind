@@ -291,6 +291,7 @@ class PullSecurityGroupsTest(BaseBackendTest):
                 'port_range_min': 80,
                 'port_range_max': 80,
                 'protocol': 'tcp',
+                'description': '',
                 'remote_ip_prefix': '0.0.0.0/0',
             }
         ]
