@@ -7,7 +7,7 @@ from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 
 
-class BaseSecurityGroupRule(models.Model):
+class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     TCP = 'tcp'
     UDP = 'udp'
     ICMP = 'icmp'

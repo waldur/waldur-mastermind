@@ -409,6 +409,7 @@ class BaseOpenStackBackend(ServiceBackend):
                     'to_port': backend_rule['port_range_max'],
                     'protocol': backend_rule['protocol'],
                     'cidr': backend_rule['remote_ip_prefix'],
+                    'description': backend_rule['description'],
                 },
             )
         security_group.rules.filter(backend_id__in=cur_rules.keys()).delete()

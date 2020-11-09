@@ -1307,6 +1307,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                             if nc_rule.to_port != -1
                             else None,
                             'remote_ip_prefix': nc_rule.cidr,
+                            'description': nc_rule.description,
                         }
                     }
                 )

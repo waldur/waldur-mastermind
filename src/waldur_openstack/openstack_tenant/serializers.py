@@ -247,6 +247,7 @@ class SecurityGroupSerializer(structure_serializers.BasePropertySerializer):
                     'from_port': rule.from_port,
                     'to_port': rule.to_port,
                     'cidr': rule.cidr,
+                    'description': rule.description,
                 }
             )
         return rules

@@ -221,7 +221,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
 class SecurityGroupRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SecurityGroupRule
-        fields = ('id', 'protocol', 'from_port', 'to_port', 'cidr')
+        fields = ('id', 'protocol', 'from_port', 'to_port', 'cidr', 'description')
 
     def validate(self, rule):
         """
