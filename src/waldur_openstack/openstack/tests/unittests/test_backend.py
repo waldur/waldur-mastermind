@@ -1,4 +1,4 @@
-from unittest import mock
+from unittest import mock, skip
 
 from ddt import data, ddt
 from keystoneclient import exceptions as keystone_exceptions
@@ -243,6 +243,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
 
 
 class PushSecurityGroupTest(BaseBackendTestCase):
+    @skip('Not valid anymore')
     def test_egress_rules_are_not_modified(self):
         security_group = self.fixture.security_group
         rule = factories.SecurityGroupRuleFactory(security_group=security_group)
