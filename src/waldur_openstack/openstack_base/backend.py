@@ -348,7 +348,6 @@ class BaseOpenStackBackend(ServiceBackend):
         # therefore we need to calculate them manually
         volumes_size = sum(self.gb2mb(v.size) for v in volumes)
         snapshots_size = sum(self.gb2mb(v.size) for v in snapshots)
-        storage = volumes_size + snapshots_size
 
         quotas = {
             # Nova quotas
@@ -366,7 +365,7 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.network_count: neutron_quotas['network']['used'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet']['used'],
             # Cinder quotas
-            Tenant.Quotas.storage: storage,
+            Tenant.Quotas.storage: cinder_quotas['gigabytes']['in_use'],
             Tenant.Quotas.volumes: len(volumes),
             Tenant.Quotas.volumes_size: volumes_size,
             Tenant.Quotas.snapshots: len(snapshots),
