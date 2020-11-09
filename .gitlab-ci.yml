@@ -9,6 +9,8 @@ include:
     file: "/templates/release/sync-to-github.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/validate/docker-compose-trigger.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/test/lint-docker-image.yaml"
 
 variables:
   GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/waldur-mastermind.git"
@@ -95,3 +97,13 @@ Build docker image for tests:
     - docker pull $WALDUR_MASTERMIND_TEST_IMAGE || true
     - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
     - docker push $WALDUR_MASTERMIND_TEST_IMAGE
+
+Lint docker image:
+  extends: .Lint docker image template
+  variables:
+    IMAGE: opennode/waldur-mastermind:latest
+
+Lint docker image for tests:
+  extends: .Lint docker image template
+  before_script:
+    - export IMAGE=$WALDUR_MASTERMIND_TEST_IMAGE
