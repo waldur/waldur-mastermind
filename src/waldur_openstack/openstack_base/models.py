@@ -12,17 +12,26 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     UDP = 'udp'
     ICMP = 'icmp'
 
-    CHOICES = (
+    PROTOCOLS = (
         (TCP, 'tcp'),
         (UDP, 'udp'),
         (ICMP, 'icmp'),
     )
 
+    INGRESS = 'ingress'
+    EGRESS = 'egress'
+
+    DIRECTIONS = (
+        (INGRESS, 'ingress'),
+        (EGRESS, 'egress'),
+    )
+
     # Empty string represents any protocol
-    protocol = models.CharField(max_length=4, blank=True, choices=CHOICES)
+    protocol = models.CharField(max_length=4, blank=True, choices=PROTOCOLS)
     from_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     to_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     cidr = models.CharField(max_length=32, blank=True)
+    direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
 
     backend_id = models.CharField(max_length=128, blank=True)
 

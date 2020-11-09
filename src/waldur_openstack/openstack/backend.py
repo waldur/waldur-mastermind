@@ -1221,9 +1221,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         backend_rules = {
             rule['id']: self._normalize_security_group_rule(rule)
             for rule in backend_security_group['security_group_rules']
-            # TODO: Currently only security group rules for incoming traffic can be created
-            # Therefore we should not modify security group rules for outgoing traffic
-            if rule['direction'] == 'ingress'
         }
 
         # list of nc rules, that do not exist in openstack
@@ -1297,8 +1294,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                     {
                         'security_group_rule': {
                             'security_group_id': security_group.backend_id,
-                            # XXX: Currently only security groups for incoming traffic can be created
-                            'direction': 'ingress',
+                            'direction': nc_rule.direction,
                             'protocol': nc_rule_protocol,
                             'port_range_min': nc_rule.from_port
                             if nc_rule.from_port != -1
