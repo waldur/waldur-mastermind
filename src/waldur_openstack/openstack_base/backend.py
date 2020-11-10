@@ -365,7 +365,7 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.network_count: neutron_quotas['network']['used'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet']['used'],
             # Cinder quotas
-            Tenant.Quotas.storage: cinder_quotas['gigabytes']['in_use'],
+            Tenant.Quotas.storage: self.gb2mb(cinder_quotas['gigabytes']['in_use']),
             Tenant.Quotas.volumes: len(volumes),
             Tenant.Quotas.volumes_size: volumes_size,
             Tenant.Quotas.snapshots: len(snapshots),
