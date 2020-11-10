@@ -12,8 +12,8 @@ from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import models as test_models
 from waldur_core.structure.tests import serializers as structure_test_serializers
 from waldur_core.structure.tests import views as structure_test_views
-from waldur_mastermind.marketplace.base import override_marketplace_settings
 from waldur_mastermind.marketplace.plugins import manager
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from .. import models
 from . import factories, utils
