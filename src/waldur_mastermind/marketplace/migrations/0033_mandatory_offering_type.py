@@ -6,13 +6,11 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0030_offering_data_to_invoice_item_details'),
+        ('marketplace', '0032_fix_offering_uuid_in_details'),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='offering',
-            name='type',
-            field=models.CharField(blank=True, default='', max_length=100),
+            model_name='offering', name='type', field=models.CharField(max_length=100),
         ),
     ]
