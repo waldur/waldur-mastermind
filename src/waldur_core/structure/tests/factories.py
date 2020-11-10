@@ -217,6 +217,8 @@ class TestServiceFactory(factory.DjangoModelFactory):
 
 
 class TestServiceProjectLinkFactory(factory.DjangoModelFactory):
+    __test__ = False
+
     class Meta:
         model = test_models.TestServiceProjectLink
 
@@ -238,6 +240,8 @@ class TestServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class TestNewInstanceFactory(factory.DjangoModelFactory):
+    __test__ = False
+
     class Meta:
         model = test_models.TestNewInstance
 

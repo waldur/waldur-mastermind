@@ -6,6 +6,8 @@ from waldur_core.structure import models as structure_models
 
 
 class TestService(structure_models.Service):
+    __test__ = False
+
     projects = models.ManyToManyField(
         structure_models.Project, through='TestServiceProjectLink'
     )
@@ -33,6 +35,7 @@ class TestServiceProjectLink(structure_models.ServiceProjectLink):
 
 
 class TestNewInstance(QuotaModelMixin, structure_models.VirtualMachine):
+    __test__ = False
 
     service_project_link = models.ForeignKey(
         TestServiceProjectLink, on_delete=models.PROTECT
