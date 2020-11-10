@@ -174,6 +174,9 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
             validate_limits(self.order_item.limits, self.order_item.offering)
             return
 
+        self.validate_request(request)
+
+    def validate_request(self, request):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
         context = {'request': request, 'skip_permission_check': True}
@@ -378,3 +381,27 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
 
     def get_scope_from_response(self, response):
         return self.get_resource_model().objects.get(uuid=response.data['uuid'])
+
+
+class BasicCreateResourceProcessor(AbstractCreateResourceProcessor):
+    def send_request(self, user):
+        pass
+
+    def validate_order_item(self, request):
+        pass
+
+
+class BasicDeleteResourceProcessor(AbstractDeleteResourceProcessor):
+    def send_request(self, user, resource):
+        return True
+
+
+class BasicUpdateResourceProcessor(AbstractUpdateResourceProcessor):
+    def send_request(self, user):
+        pass
+
+    def validate_request(self, request):
+        pass
+
+    def update_limits_process(self, user):
+        pass

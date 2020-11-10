@@ -11,7 +11,14 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import SupportedServices
 
-        from . import handlers, models, utils, signals as marketplace_signals
+        from . import (
+            handlers,
+            models,
+            utils,
+            signals as marketplace_signals,
+            processors,
+        )
+        from .plugins import manager
 
         signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
@@ -106,4 +113,11 @@ class MarketplaceConfig(AppConfig):
             handlers.add_component_usage,
             sender=models.ComponentUsage,
             dispatch_uid='waldur_mastermind.marketplace.add_component_usage',
+        )
+
+        manager.register(
+            offering_type='Marketplace.Basic',
+            create_resource_processor=processors.BasicCreateResourceProcessor,
+            update_resource_processor=processors.BasicUpdateResourceProcessor,
+            delete_resource_processor=processors.BasicDeleteResourceProcessor,
         )
