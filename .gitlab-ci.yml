@@ -20,7 +20,7 @@ before_script:
   - export
 
 Run linters:
-  image: "python:3.6"
+  image: "$CI_REGISTRY/waldur/waldur-pipelines/python:3.6"
   stage: test
   interruptible: true
   rules:
@@ -52,7 +52,7 @@ Run unit tests:
     # If event is related to a created merge request
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   services:
-    - name: "postgres:12-alpine"
+    - name: "$CI_REGISTRY/waldur/waldur-pipelines/postgres:12-alpine"
       command:
         [
           "postgres",
@@ -90,7 +90,7 @@ Build docker image for tests:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
-    - name: "docker:19.03.12-dind"
+    - name: "$CI_REGISTRY/waldur/waldur-pipelines/docker:19.03.12-dind"
       command: ["--mtu=1400"]
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
