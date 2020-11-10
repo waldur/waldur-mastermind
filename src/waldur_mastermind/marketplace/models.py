@@ -344,7 +344,7 @@ class Offering(
     native_description = models.CharField(max_length=500, default='', blank=True)
     terms_of_service = models.TextField(blank=True)
 
-    type = models.CharField(max_length=100, default='', blank=True)
+    type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
 

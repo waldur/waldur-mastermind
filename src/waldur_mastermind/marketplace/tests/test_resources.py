@@ -7,10 +7,9 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace.processors import process_order_item
 from waldur_mastermind.support.tests.base import override_support_settings
 
-from .. import callbacks, log, models, plugins, tasks
+from .. import callbacks, log, models, plugins, tasks, utils
 from . import factories
 from . import utils as test_utils
 
@@ -704,6 +703,6 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         order_item = models.OrderItem.objects.get(
             type=models.OrderItem.Types.UPDATE, resource=self.resource,
         )
-        process_order_item(order_item, self.fixture.staff)
+        utils.process_order_item(order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits['vcpu'], 10)

@@ -8,7 +8,7 @@ from rest_framework.reverse import reverse
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
-from waldur_mastermind.marketplace import models, plugins, signals
+from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.utils import validate_limits
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class BaseOrderItemProcessor:
         This method receives user object and creates plugin's resource corresponding
         to provided order item. It is called after order has been approved.
         """
-        pass
+        raise NotImplementedError()
 
     def validate_order_item(self, request):
         """
@@ -73,7 +73,7 @@ class BaseOrderItemProcessor:
         validation error if provided order item is invalid.
         It is called after order has been created but before it is submitted.
         """
-        pass
+        raise NotImplementedError()
 
 
 class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
@@ -100,7 +100,7 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
         """
         This method should send request to backend.
         """
-        return None
+        raise NotImplementedError
 
 
 class CreateResourceProcessor(AbstractCreateResourceProcessor):
@@ -281,7 +281,7 @@ class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
         """
         This method should send request to backend.
         """
-        return True
+        raise NotImplementedError
 
     def process_order_item(self, user):
         resource = self.get_resource()
@@ -378,56 +378,3 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
 
     def get_scope_from_response(self, response):
         return self.get_resource_model().objects.get(uuid=response.data['uuid'])
-
-
-def get_order_item_processor(order_item):
-    if order_item.resource:
-        offering = order_item.resource.offering
-    else:
-        offering = order_item.offering
-
-    if order_item.type == models.RequestTypeMixin.Types.CREATE:
-        return (
-            plugins.manager.get_processor(offering.type, 'create_resource_processor')
-            or AbstractCreateResourceProcessor
-        )
-
-    elif order_item.type == models.RequestTypeMixin.Types.UPDATE:
-        return plugins.manager.get_processor(offering.type, 'update_resource_processor')
-
-    elif order_item.type == models.RequestTypeMixin.Types.TERMINATE:
-        return (
-            plugins.manager.get_processor(offering.type, 'delete_resource_processor')
-            or AbstractDeleteResourceProcessor
-        )
-
-
-def process_order_item(order_item, user):
-    processor = get_order_item_processor(order_item)
-    if not processor:
-        logger.debug(
-            'Skipping order item %s processing because there is no processor.'
-            % order_item.id
-        )
-        return
-
-    try:
-        order_item.set_state_executing()
-        order_item.save(update_fields=['state'])
-        processor(order_item).process_order_item(user)
-    except Exception as e:
-        # Here it is necessary to catch all exceptions.
-        # If this is not done, then the order will remain in the executed status.
-        order_item.error_message = str(e)
-        order_item.set_state_erred()
-        order_item.save(update_fields=['state', 'error_message'])
-
-
-def validate_order_item(order_item, request):
-    processor = get_order_item_processor(order_item)
-    if processor:
-        try:
-            processor(order_item).validate_order_item(request)
-        except NotImplementedError:
-            # It is okay if validation is not implemented yet
-            pass

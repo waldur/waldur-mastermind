@@ -10,7 +10,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import signals as marketplace_signals
-from waldur_mastermind.marketplace.processors import process_order_item
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
@@ -97,7 +97,7 @@ class InvoiceTest(BaseOpenStackTest):
             resource=self.resource, type=marketplace_models.OrderItem.Types.UPDATE
         )
 
-        process_order_item(update_order_item, user)
+        marketplace_utils.process_order_item(update_order_item, user)
 
         new_template = update_order_item.plan.scope
         packages_serializers._set_tenant_quotas(self.tenant, new_template)
@@ -159,7 +159,7 @@ class InvoiceTest(BaseOpenStackTest):
         order_item = marketplace_models.OrderItem.objects.get(
             uuid=response.data['items'][0]['uuid']
         )
-        process_order_item(order_item, user)
+        marketplace_utils.process_order_item(order_item, user)
         self.resource = order_item.resource
         callbacks.resource_creation_succeeded(self.resource)
 
