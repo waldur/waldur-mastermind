@@ -93,10 +93,10 @@ Build docker image for tests:
     - name: "docker:19.03.12-dind"
       command: ["--mtu=1400"]
   script:
-    - docker login -u $WALDUR_DOCKER_HUB_USER -p $WALDUR_DOCKER_HUB_PASSWORD
-    - docker pull $WALDUR_MASTERMIND_TEST_IMAGE || true
-    - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --cache-from $WALDUR_MASTERMIND_TEST_IMAGE
-    - docker push $WALDUR_MASTERMIND_TEST_IMAGE
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE || true
+    - docker build . -f gitlab-ci-test/Dockerfile -t $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE --cache-from $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+    - docker push $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
 
 Lint docker image:
   extends: .Lint docker image template
