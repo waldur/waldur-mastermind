@@ -15,6 +15,8 @@ User = get_user_model()
 
 TestRole = collections.namedtuple('TestRole', ['user', 'project', 'role'])
 
+TestRole.__test__ = False
+
 
 class ProjectPermissionBaseTest(test.APITransactionTestCase):
     all_roles = (

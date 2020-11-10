@@ -10,6 +10,8 @@ User = auth.get_user_model()
 
 
 class TestUserSerializer(serializers.HyperlinkedModelSerializer):
+    __test__ = False
+
     class Meta:
         model = User
         fields = ('username', 'full_name')
