@@ -53,6 +53,7 @@ Run unit tests:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   services:
     - name: "$CI_REGISTRY/waldur/waldur-pipelines/postgres:12-alpine"
+      alias: postgres
       command:
         [
           "postgres",
@@ -91,6 +92,7 @@ Build docker image for tests:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
     - name: "$CI_REGISTRY/waldur/waldur-pipelines/docker:19.03.12-dind"
+      alias: docker
       command: ["--mtu=1400"]
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
