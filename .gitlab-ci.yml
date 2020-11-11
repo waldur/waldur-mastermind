@@ -38,7 +38,7 @@ Run linters:
     - pre-commit run --all
 
 Run unit tests:
-  image: $WALDUR_MASTERMIND_TEST_IMAGE
+  image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
   stage: test
   interruptible: true
   rules:
