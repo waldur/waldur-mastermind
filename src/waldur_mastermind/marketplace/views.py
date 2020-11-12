@@ -593,6 +593,74 @@ class OrderItemViewSet(BaseMarketplaceView):
     ]
 
     @action(detail=True, methods=['post'])
+    def reject(self, request, uuid=None):
+        order_item = self.get_object()
+        if not order_item.offering.customer.has_user(
+            request.user, structure_models.CustomerRole.OWNER
+        ):
+            return Response(
+                {
+                    'details': 'Order item could not be rejected because user is not owner of service provider.'
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            order_item.set_state_terminated()
+            order_item.save()
+
+            if (
+                order_item.state == models.OrderItem.Types.CREATE
+                and order_item.resource
+            ):
+                order_item.resource.set_state_terminated()
+                order_item.resource.save()
+        except TransitionNotAllowed:
+            return Response(
+                {
+                    'details': 'Order item could not be rejected because it has been already processed.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'details': 'Order item has been rejected.'}, status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, uuid=None):
+        order_item = self.get_object()
+        if not order_item.offering.customer.has_user(
+            request.user, structure_models.CustomerRole.OWNER
+        ):
+            return Response(
+                {
+                    'details': 'Order item could not be approved because user is not owner of service provider.'
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            order_item.set_state_done()
+            order_item.save()
+
+            if (
+                order_item.state == models.OrderItem.Types.CREATE
+                and order_item.resource
+            ):
+                order_item.resource.set_state_ok()
+                order_item.resource.save()
+        except TransitionNotAllowed:
+            return Response(
+                {
+                    'details': 'Order item could not be approved because it has been already processed.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'details': 'Order item has been approved.'}, status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         order_item = self.get_object()
         if not plugins.manager.can_terminate_order_item(order_item.offering.type):
