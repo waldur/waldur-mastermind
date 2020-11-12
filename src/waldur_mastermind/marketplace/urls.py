@@ -74,4 +74,12 @@ urlpatterns = [
         views.CustomerOfferingViewSet.as_view(),
     ),
     url(r'^api/marketplace-plugins/$', views.PluginViewSet.as_view()),
+    url(
+        r'^api/marketplace-resource-states/(?P<project_uuid>[a-f0-9]+)/$',
+        views.ResourceStatesViewSet.as_view(),
+    ),
+    url(
+        r'^api/marketplace-resource-offerings/(?P<project_uuid>[a-f0-9]+)/$',
+        views.ResourceOfferingsViewSet.as_view(),
+    ),
 ]

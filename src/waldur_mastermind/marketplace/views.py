@@ -24,13 +24,14 @@ from rest_framework import status, views
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
-from waldur_core.core.utils import month_start, order_with_nulls
+from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -851,6 +852,39 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         qs = qs.filter(Q(end=None) | Q(end__gte=month_start(timezone.now())))
         serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProjectChoicesViewSet(ListAPIView):
+    def get_project(self):
+        project_uuid = self.kwargs['project_uuid']
+        if not is_uuid_like(project_uuid):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data='Project UUID is invalid.'
+            )
+        return get_object_or_404(structure_models.Project, uuid=project_uuid)
+
+
+class ResourceStatesViewSet(ProjectChoicesViewSet):
+    def list(self, request, *args, **kwargs):
+        project = self.get_project()
+        qs = (
+            models.Resource.objects.filter(project=project)
+            .order_by('backend_metadata__runtime_state')
+            .values_list('backend_metadata__runtime_state', flat=True)
+            .distinct()
+        )
+        return Response(qs)
+
+
+class ResourceOfferingsViewSet(ProjectChoicesViewSet):
+    serializer_class = serializers.ResourceOfferingSerializer
+
+    def get_queryset(self):
+        project = self.get_project()
+        offerings = models.Resource.objects.filter(project=project).values_list(
+            'offering_id', flat=True
+        )
+        return models.Offering.objects.filter(pk__in=offerings)
 
 
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
