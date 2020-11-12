@@ -1807,6 +1807,12 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     )
 
 
+class ResourceOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Offering
+        fields = ('name', 'uuid')
+
+
 class BaseComponentSerializer(serializers.Serializer):
     type = serializers.ReadOnlyField(source='component.type')
     name = serializers.ReadOnlyField(source='component.name')
