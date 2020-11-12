@@ -595,8 +595,11 @@ class OrderItemViewSet(BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         order_item = self.get_object()
-        if not order_item.offering.customer.has_user(
-            request.user, structure_models.CustomerRole.OWNER
+        if (
+            not order_item.offering.customer.has_user(
+                request.user, structure_models.CustomerRole.OWNER
+            )
+            and not request.user.is_staff
         ):
             return Response(
                 {
@@ -629,8 +632,11 @@ class OrderItemViewSet(BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         order_item = self.get_object()
-        if not order_item.offering.customer.has_user(
-            request.user, structure_models.CustomerRole.OWNER
+        if (
+            not order_item.offering.customer.has_user(
+                request.user, structure_models.CustomerRole.OWNER
+            )
+            and not request.user.is_staff
         ):
             return Response(
                 {
