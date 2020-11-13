@@ -916,10 +916,13 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         return context
 
     def __str__(self):
-        return 'project: %s, created by: %s' % (
-            self.project.name,
-            self.created_by.username,
-        )
+        try:
+            return 'project: %s, created by: %s' % (
+                self.project.name,
+                self.created_by.username,
+            )
+        except KeyError:
+            return f'<Order {self.pk}>'
 
 
 class Resource(
