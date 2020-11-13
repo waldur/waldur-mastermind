@@ -5,7 +5,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.postgres.fields import JSONField as BetterJSONField
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
@@ -921,7 +921,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
                 self.project.name,
                 self.created_by.username,
             )
-        except KeyError:
+        except (KeyError, ObjectDoesNotExist):
             return f'<Order {self.pk}>'
 
 
