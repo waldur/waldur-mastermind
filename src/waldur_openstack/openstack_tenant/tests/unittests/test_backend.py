@@ -287,6 +287,7 @@ class PullSecurityGroupsTest(BaseBackendTest):
         self.backend_security_groups['security_groups'][0]['security_group_rules'] = [
             {
                 'id': 'security_group_id',
+                'ethertype': 'IPv4',
                 'direction': 'ingress',
                 'port_range_min': 80,
                 'port_range_max': 80,

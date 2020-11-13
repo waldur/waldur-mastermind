@@ -870,6 +870,7 @@ class NestedSecurityGroupRuleSerializer(serializers.ModelSerializer):
         model = models.SecurityGroupRule
         fields = (
             'id',
+            'ethertype',
             'direction',
             'protocol',
             'from_port',

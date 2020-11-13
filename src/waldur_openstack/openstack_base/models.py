@@ -26,12 +26,21 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
         (EGRESS, 'egress'),
     )
 
+    IPv4 = 'IPv4'
+    IPv6 = 'IPv6'
+
+    ETHER_TYPES = (
+        (IPv4, 'IPv4'),
+        (IPv6, 'IPv6'),
+    )
+
     # Empty string represents any protocol
     protocol = models.CharField(max_length=4, blank=True, choices=PROTOCOLS)
     from_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     to_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     cidr = models.CharField(max_length=32, blank=True)
     direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
+    ethertype = models.CharField(max_length=8, default=IPv4, choices=ETHER_TYPES)
 
     backend_id = models.CharField(max_length=128, blank=True)
 

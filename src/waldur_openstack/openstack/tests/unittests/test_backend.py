@@ -1,4 +1,4 @@
-from unittest import mock, skip
+from unittest import mock
 
 from ddt import data, ddt
 from keystoneclient import exceptions as keystone_exceptions
@@ -235,6 +235,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
                     'remote_ip_prefix': rule.cidr,
                     'description': rule.description,
                     'direction': 'ingress',
+                    'ethertype': 'IPv4',
                     'id': rule.id,
                 }
             )
@@ -243,11 +244,11 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
 
 
 class PushSecurityGroupTest(BaseBackendTestCase):
-    @skip('Not valid anymore')
-    def test_egress_rules_are_not_modified(self):
+    def test_egress_rules_are_modified(self):
         security_group = self.fixture.security_group
         rule = factories.SecurityGroupRuleFactory(security_group=security_group)
 
+        EGRESS_RULE_ID = '93aa42e5-80db-4581-9391-3a608bd0e448'
         INGRESS_RULE_ID = 'c0b09f00-1d49-4e64-a0a7-8a186d928138'
 
         self.mocked_neutron().show_security_group.return_value = {
@@ -255,8 +256,8 @@ class PushSecurityGroupTest(BaseBackendTestCase):
                 'security_group_rules': [
                     {
                         "direction": "egress",
+                        "id": EGRESS_RULE_ID,
                         "ethertype": "IPv4",
-                        "id": "93aa42e5-80db-4581-9391-3a608bd0e448",
                         "port_range_max": None,
                         "port_range_min": None,
                         "protocol": None,
@@ -293,13 +294,14 @@ class PushSecurityGroupTest(BaseBackendTestCase):
 
         self.backend.push_security_group_rules(security_group)
 
-        self.mocked_neutron().delete_security_group_rule.assert_called_once_with(
-            INGRESS_RULE_ID
+        self.mocked_neutron().delete_security_group_rule.assert_has_calls(
+            [mock.call(EGRESS_RULE_ID), mock.call(INGRESS_RULE_ID),]
         )
         self.mocked_neutron().create_security_group_rule.assert_called_once_with(
             {
                 'security_group_rule': {
                     'security_group_id': security_group.backend_id,
+                    'ethertype': 'IPv4',
                     'direction': 'ingress',
                     'protocol': rule.protocol,
                     'port_range_min': rule.from_port,

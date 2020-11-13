@@ -402,6 +402,7 @@ class BaseOpenStackBackend(ServiceBackend):
             security_group.rules.update_or_create(
                 backend_id=backend_rule['id'],
                 defaults={
+                    'ethertype': backend_rule['ethertype'],
                     'direction': backend_rule['direction'],
                     'from_port': backend_rule['port_range_min'],
                     'to_port': backend_rule['port_range_max'],

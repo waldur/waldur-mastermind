@@ -32,6 +32,7 @@ class FloatingIPAdmin(structure_admin.BackendModelAdmin):
 class SecurityGroupRule(admin.TabularInline):
     model = models.SecurityGroupRule
     fields = (
+        'ethertype',
         'direction',
         'protocol',
         'from_port',

@@ -346,6 +346,7 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
     def map_rules(self, security_group, openstack_security_group):
         return [
             models.SecurityGroupRule(
+                ethertype=rule.ethertype,
                 direction=rule.direction,
                 protocol=rule.protocol,
                 from_port=rule.from_port,
