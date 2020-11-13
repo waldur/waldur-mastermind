@@ -1294,6 +1294,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                     {
                         'security_group_rule': {
                             'security_group_id': security_group.backend_id,
+                            'ethertype': nc_rule.ethertype,
                             'direction': nc_rule.direction,
                             'protocol': nc_rule_protocol,
                             'port_range_min': nc_rule.from_port
