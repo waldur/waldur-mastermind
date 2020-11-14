@@ -383,7 +383,10 @@ class BaseOpenStackBackend(ServiceBackend):
             rule['protocol'] = ''
 
         if rule['remote_ip_prefix'] is None:
-            rule['remote_ip_prefix'] = '0.0.0.0/0'
+            if rule['ethertype'] == 'IPv6':
+                rule['remote_ip_prefix'] = '::/0'
+            elif rule['ethertype'] == 'IPv4':
+                rule['remote_ip_prefix'] = '0.0.0.0/0'
 
         if rule['port_range_min'] is None:
             rule['port_range_min'] = -1
