@@ -74,6 +74,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('marketplace', '0023_category_i18n'),
         ('contenttypes', '0002_remove_content_type_name'),
+        ('invoices', '0040_invoice_created'),
     ]
 
     operations = [
