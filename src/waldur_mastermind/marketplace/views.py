@@ -863,17 +863,13 @@ class ProjectChoicesViewSet(ListAPIView):
             )
         return get_object_or_404(structure_models.Project, uuid=project_uuid)
 
-
-class ResourceStatesViewSet(ProjectChoicesViewSet):
-    def list(self, request, *args, **kwargs):
-        project = self.get_project()
-        qs = (
-            models.Resource.objects.filter(project=project)
-            .order_by('backend_metadata__runtime_state')
-            .values_list('backend_metadata__runtime_state', flat=True)
-            .distinct()
-        )
-        return Response(qs)
+    def get_category(self):
+        category_uuid = self.kwargs['category_uuid']
+        if not is_uuid_like(category_uuid):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data='Category UUID is invalid.'
+            )
+        return get_object_or_404(models.Category, uuid=category_uuid)
 
 
 class ResourceOfferingsViewSet(ProjectChoicesViewSet):
@@ -881,9 +877,10 @@ class ResourceOfferingsViewSet(ProjectChoicesViewSet):
 
     def get_queryset(self):
         project = self.get_project()
-        offerings = models.Resource.objects.filter(project=project).values_list(
-            'offering_id', flat=True
-        )
+        category = self.get_category()
+        offerings = models.Resource.objects.filter(
+            project=project, offering__category=category
+        ).values_list('offering_id', flat=True)
         return models.Offering.objects.filter(pk__in=offerings)
 
 
