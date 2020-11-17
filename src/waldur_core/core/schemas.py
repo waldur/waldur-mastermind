@@ -1,3 +1,7 @@
+from urllib.parse import urlparse
+
+from django.conf import settings
+from django.http.response import Http404
 from django.urls import NoReverseMatch
 from django.utils.encoding import force_text, smart_text
 from django_filters import ChoiceFilter, ModelMultipleChoiceFilter, OrderingFilter
@@ -21,6 +25,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import filters as structure_filters
+
+from ..core.api_groups_mapping import API_GROUPS
 
 
 # XXX: Drop after removing HEAD requests
@@ -272,19 +278,45 @@ def is_disabled_action(view):
 class WaldurSchemaGenerator(schemas.SchemaGenerator):
     endpoint_inspector_cls = WaldurEndpointInspector
 
+    def __init__(
+        self,
+        title=None,
+        url=None,
+        description=None,
+        patterns=None,
+        urlconf=None,
+        group=None,
+    ):
+        super(WaldurSchemaGenerator, self).__init__(
+            title, url, description, patterns, urlconf
+        )
+        self.group = group
+
     def _get_paths_and_endpoints(self, request):
         """
         Generate (path, method, view) given (path, method, callback) for paths.
         """
         paths = []
         view_endpoints = []
+
+        if not self.group:
+            group_endpoint_prefixes = ['']
+        else:
+            group_endpoint_prefixes = API_GROUPS[self.group]
+
         for path, method, callback in self.endpoints:
             view = self.create_view(callback, method, request)
             if is_disabled_action(view):
                 continue
-            path = self.coerce_path(path, method, view)
-            paths.append(path)
-            view_endpoints.append((path, method, view))
+
+            prefixes_matching = [
+                path.startswith(prefix) for prefix in group_endpoint_prefixes
+            ]
+
+            if any(prefixes_matching):
+                path = self.coerce_path(path, method, view)
+                paths.append(path)
+                view_endpoints.append((path, method, view))
 
         return paths, view_endpoints
 
@@ -398,7 +430,14 @@ class WaldurSchemaView(APIView):
     renderer_classes = [renderers.OpenAPIRenderer, renderers.SwaggerUIRenderer]
 
     def get(self, request):
-        generator = WaldurSchemaGenerator(title='Waldur MasterMind',)
+        url = urlparse(request.get_full_path())
+        group = url.path.split('/')[2]
+        if group and group not in API_GROUPS:
+            raise Http404
+
+        generator = WaldurSchemaGenerator(
+            title=settings.WALDUR_CORE['SITE_NAME'], group=group
+        )
         schema = generator.get_schema(request=request)
 
         if not schema:
