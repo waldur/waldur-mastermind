@@ -410,6 +410,9 @@ class TenantPullExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, backend_method='pull_tenant_routers'
             ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, backend_method='pull_tenant_ports'
+            ),
         )
 
 

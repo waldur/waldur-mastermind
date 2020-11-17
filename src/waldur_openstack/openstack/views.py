@@ -463,7 +463,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
 class RouterViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
     queryset = models.Router.objects.all()
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.RouterFilter
     serializer_class = serializers.RouterSerializer
 
@@ -503,6 +503,14 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
 
     set_routes_serializer_class = serializers.RouterSetRoutesSerializer
     set_routes_validators = [core_validators.StateValidator(models.Router.States.OK)]
+
+
+class PortViewSet(core_views.ReadOnlyActionsViewSet):
+    lookup_field = 'uuid'
+    queryset = models.Port.objects.all()
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.PortFilter
+    serializer_class = serializers.PortSerializer
 
 
 class NetworkViewSet(structure_views.BaseResourceViewSet):

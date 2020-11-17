@@ -64,6 +64,13 @@ class Port(core_models.BackendModelMixin, models.Model):
     ip6_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv6')
     backend_id = models.CharField(max_length=255, blank=True)
 
+    allowed_address_pairs = JSONField(
+        default=list,
+        help_text=_(
+            'A server can send a packet with source address which matches one of the specified allowed address pairs.'
+        ),
+    )
+
     class Meta:
         abstract = True
 
@@ -76,6 +83,7 @@ class Port(core_models.BackendModelMixin, models.Model):
             'ip4_address',
             'ip6_address',
             'mac_address',
+            'allowed_address_pairs',
         )
 
 

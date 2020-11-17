@@ -421,6 +421,26 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
         )
 
 
+class Port(structure_models.SubResource, openstack_base_models.Port):
+    service_project_link = models.ForeignKey(
+        OpenStackServiceProjectLink, related_name='ports', on_delete=models.CASCADE
+    )
+    tenant: Tenant = models.ForeignKey(
+        on_delete=models.CASCADE, to=Tenant, related_name='ports'
+    )
+    network = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Network,
+        related_name='ports',
+        null=True,
+        blank=True,
+    )
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstack-port'
+
+
 class CustomerOpenStack(TimeStampedModel):
     settings = models.ForeignKey(
         structure_models.ServiceSettings,
