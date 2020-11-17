@@ -628,7 +628,9 @@ class OfferingDetailsSerializer(
 ):
 
     attributes = serializers.JSONField(required=False)
-    options = serializers.JSONField(required=False)
+    options = serializers.JSONField(
+        required=False, default={'options': {}, 'order': []}
+    )
     secret_options = serializers.JSONField(required=False)
     components = OfferingComponentSerializer(required=False, many=True)
     geolocations = core_serializers.GeoLocationField(required=False)
