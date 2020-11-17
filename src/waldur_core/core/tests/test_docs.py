@@ -11,5 +11,5 @@ class DocsRenderTest(test.APITransactionTestCase):
         )
         self.client.force_authenticate(user=user)
 
-        response = self.client.get('/docs/')
+        response = self.client.get('/docs/users')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
