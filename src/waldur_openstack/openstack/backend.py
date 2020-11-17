@@ -66,6 +66,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.pull_networks()
         self.pull_subnets()
         self.pull_routers()
+        self.pull_ports()
 
     def pull_tenants(self):
         keystone = self.keystone_admin_client
@@ -509,6 +510,54 @@ class OpenStackBackend(BaseOpenStackBackend):
             backend_id__in=remote_ids
         )
         stale_routers.delete()
+
+    def pull_ports(self):
+        for tenant in models.Tenant.objects.filter(
+            state=models.Tenant.States.OK,
+            service_project_link__service__settings=self.settings,
+        ):
+            self.pull_tenant_ports(tenant)
+
+    def pull_tenant_ports(self, tenant):
+        neutron = self.neutron_admin_client
+
+        try:
+            backend_ports = neutron.list_ports(tenant_id=tenant.backend_id)['ports']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        networks = models.Network.objects.filter(tenant=tenant)
+        network_mappings = {network.backend_id: network for network in networks}
+
+        for backend_port in backend_ports:
+            backend_id = backend_port['id']
+            defaults = {
+                'name': backend_port['name'],
+                'description': backend_port['description'],
+                'service_project_link': tenant.service_project_link,
+                'state': models.Port.States.OK,
+                'mac_address': backend_port['mac_address'],
+                'ip4_address': backend_port['fixed_ips'][0]['ip_address'],
+                'allowed_address_pairs': backend_port.get('allowed_address_pairs', []),
+                'network': network_mappings.get(backend_port['network_id']),
+            }
+            try:
+                models.Port.objects.update_or_create(
+                    tenant=tenant, backend_id=backend_id, defaults=defaults
+                )
+            except IntegrityError:
+                logger.warning(
+                    'Could not create or update port with backend ID %s '
+                    'and tenant %s due to concurrent update.',
+                    backend_id,
+                    tenant,
+                )
+
+        remote_ids = {ip['id'] for ip in backend_ports}
+        stale_ports = models.Port.objects.filter(tenant=tenant).exclude(
+            backend_id__in=remote_ids
+        )
+        stale_ports.delete()
 
     def pull_networks(self):
         tenants = (
