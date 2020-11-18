@@ -24,7 +24,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
         response = self.client.post(url, request_data)
         return response
 
-    @data('global_support', 'customer_support', 'project_support')
+    @data('global_support', 'customer_support', 'member')
     def test_user_cannot_restore_snapshot_if_he_has_not_admin_access(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
