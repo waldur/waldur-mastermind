@@ -1,13 +1,8 @@
-FROM python:3.6
+FROM python:3.8
 
-# set UTF-8 locale as default
-RUN apt-get update
-RUN apt-get install -y locales
-RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen
-ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
-ENV PYTHONIOENCODING=UTF-8
-
-RUN apt-get install -y  \
+# Install necessary packages
+RUN apt-get update    &&\
+    apt-get install -y  \
     libldap2-dev        \
     libsasl2-dev        \
     ldap-utils          \
