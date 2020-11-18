@@ -200,6 +200,11 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
+    def test_options_default_value(self):
+        self.create_offering('staff')
+        offering = models.Offering.objects.get(customer=self.customer)
+        self.assertEqual(offering.options, {'options': {}, 'order': []})
+
     def test_validate_correct_geolocations(self):
         response = self.create_offering(
             'staff', add_payload={'geolocations': [{'latitude': 123, 'longitude': 345}]}
