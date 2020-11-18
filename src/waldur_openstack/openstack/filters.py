@@ -81,6 +81,7 @@ class PortFilter(structure_filters.NameFilterSet):
     tenant = core_filters.URLFilter(
         view_name='openstack-tenant-detail', field_name='tenant__uuid'
     )
+    o = django_filters.OrderingFilter(fields=(('network__name', 'network_name'),))
 
     class Meta:
         model = models.Port
