@@ -271,7 +271,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for tenant_id, floating_ips in groupby(
             backend_floating_ips, lambda x: x['tenant_id']
         ):
-            tenant_floating_ips[tenant_mappings[tenant_id]] = floating_ips
+            tenant_floating_ips[tenant_mappings[tenant_id]] = list(floating_ips)
 
         with transaction.atomic():
             for tenant, floating_ips in tenant_floating_ips.items():
@@ -374,7 +374,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for tenant_id, security_groups in groupby(
             backend_security_groups, lambda x: x['tenant_id']
         ):
-            tenant_security_groups[tenant_mappings[tenant_id]] = security_groups
+            tenant_security_groups[tenant_mappings[tenant_id]] = list(security_groups)
 
         with transaction.atomic():
             for tenant, security_groups in tenant_security_groups.items():

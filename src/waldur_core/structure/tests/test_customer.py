@@ -145,21 +145,21 @@ class CustomerListTest(CustomerBaseTest):
         'customer_support',
         'admin',
         'manager',
-        'project_support',
+        'member',
     )
     def test_user_can_list_customers(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
         self._check_user_list_access_customers(self.fixture.customer, 'assertIn')
 
-    @data('user', 'admin', 'manager', 'project_support')
+    @data('user', 'admin', 'manager', 'member')
     def test_user_cannot_list_other_customer(self, user):
         customer = factories.CustomerFactory()
         self.client.force_authenticate(user=getattr(self.fixture, user))
         self._check_customer_in_list(customer, False)
 
     # Nested objects filtration tests
-    @data('admin', 'manager', 'project_support')
+    @data('admin', 'manager', 'member')
     def test_user_can_see_project_he_has_a_role_in_within_customer(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -173,7 +173,7 @@ class CustomerListTest(CustomerBaseTest):
             'User should see project',
         )
 
-    @data('admin', 'manager', 'project_support')
+    @data('admin', 'manager', 'member')
     def test_user_cannot_see_project_he_has_no_role_in_within_customer(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -245,12 +245,7 @@ class CustomerDeleteTest(CustomerBaseTest):
 
     # Deletion tests
     @data(
-        'owner',
-        'admin',
-        'manager',
-        'global_support',
-        'customer_support',
-        'project_support',
+        'owner', 'admin', 'manager', 'global_support', 'customer_support', 'member',
     )
     def test_user_cannot_delete_customer(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -394,7 +389,7 @@ class CustomerCreateTest(BaseCustomerMutationTest):
 
 @ddt
 class CustomerUpdateTest(BaseCustomerMutationTest):
-    @data('manager', 'admin', 'customer_support', 'project_support', 'global_support')
+    @data('manager', 'admin', 'customer_support', 'member', 'global_support')
     def test_user_cannot_change_customer_as_whole(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -591,7 +586,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         'manager',
         'admin',
         'customer_support',
-        'project_support',
+        'member',
         'global_support',
     )
 
@@ -622,7 +617,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
                 self.fixture.admin.uuid.hex,
                 self.fixture.manager.uuid.hex,
                 self.fixture.customer_support.uuid.hex,
-                self.fixture.project_support.uuid.hex,
+                self.fixture.member.uuid.hex,
             },
         )
         self.assertSetEqual(
@@ -630,7 +625,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
                 user['projects'] and user['projects'][0]['role'] or None
                 for user in response.data
             },
-            {None, 'admin', 'manager', 'support'},
+            {None, 'admin', 'manager', 'member'},
         )
 
     def test_user_can_not_list_project_users(self):
@@ -684,7 +679,7 @@ class CustomerCountersListTest(test.APITransactionTestCase):
         self.customer_support = self.fixture.customer_support
         self.admin = self.fixture.admin
         self.manager = self.fixture.manager
-        self.project_support = self.fixture.project_support
+        self.member = self.fixture.member
         self.customer = self.fixture.customer
         self.service = self.fixture.service
         self.url = factories.CustomerFactory.get_url(self.customer, action='counters')

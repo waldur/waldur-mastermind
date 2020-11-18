@@ -715,7 +715,7 @@ class TenantChangePasswordTest(BaseTenantActionsTest):
         self.tenant.refresh_from_db()
         self.assertEqual(self.tenant.user_password, self.new_password)
 
-    @data('global_support', 'customer_support', 'project_support')
+    @data('global_support', 'customer_support', 'member')
     def test_user_cannot_change_tenant_user_password(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 

@@ -304,12 +304,10 @@ class ProjectAdminForm(ModelForm):
         required=False,
         widget=FilteredSelectMultiple(verbose_name=_('Managers'), is_stacked=False),
     )
-    support_users = ModelMultipleChoiceField(
+    members = ModelMultipleChoiceField(
         User.objects.all().order_by('full_name'),
         required=False,
-        widget=FilteredSelectMultiple(
-            verbose_name=_('Support users'), is_stacked=False
-        ),
+        widget=FilteredSelectMultiple(verbose_name=_('Members'), is_stacked=False),
     )
 
     def __init__(self, *args, **kwargs):
@@ -317,21 +315,21 @@ class ProjectAdminForm(ModelForm):
         if self.instance and self.instance.pk:
             self.admins = self.instance.get_users(models.ProjectRole.ADMINISTRATOR)
             self.managers = self.instance.get_users(models.ProjectRole.MANAGER)
-            self.support_users = self.instance.get_users(models.ProjectRole.SUPPORT)
+            self.members = self.instance.get_users(models.ProjectRole.MEMBER)
             self.fields['admins'].initial = self.admins
             self.fields['managers'].initial = self.managers
-            self.fields['support_users'].initial = self.support_users
+            self.fields['members'].initial = self.members
         else:
-            for field_name in ('admins', 'managers', 'support_users'):
+            for field_name in ('admins', 'managers', 'members'):
                 setattr(self, field_name, User.objects.none())
 
     def clean(self):
         cleaned_data = super(ProjectAdminForm, self).clean()
         admins = self.cleaned_data['admins']
         managers = self.cleaned_data['managers']
-        support_users = self.cleaned_data['support_users']
+        members = self.cleaned_data['members']
         for xs, ys in itertools.combinations(
-            [set(admins), set(managers), set(support_users)], 2
+            [set(admins), set(managers), set(members)], 2
         ):
             invalid_users = xs & ys
             if invalid_users:
@@ -353,7 +351,7 @@ class ProjectAdminForm(ModelForm):
 
         self.populate_users('admins', project, models.ProjectRole.ADMINISTRATOR)
         self.populate_users('managers', project, models.ProjectRole.MANAGER)
-        self.populate_users('support_users', project, models.ProjectRole.SUPPORT)
+        self.populate_users('members', project, models.ProjectRole.MEMBER)
 
         return project
 
@@ -389,7 +387,7 @@ class ProjectAdmin(
         'type',
         'admins',
         'managers',
-        'support_users',
+        'members',
         'certifications',
     )
 

@@ -54,10 +54,10 @@ class ProjectFixture(CustomerFixture):
         return manager
 
     @cached_property
-    def project_support(self):
-        support = factories.UserFactory()
-        self.project.add_user(support, models.ProjectRole.SUPPORT)
-        return support
+    def member(self):
+        member = factories.UserFactory()
+        self.project.add_user(member, models.ProjectRole.MEMBER)
+        return member
 
 
 class ServiceFixture(ProjectFixture):

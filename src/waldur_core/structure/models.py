@@ -595,12 +595,12 @@ class Customer(
 class ProjectRole(models.CharField):
     ADMINISTRATOR = 'admin'
     MANAGER = 'manager'
-    SUPPORT = 'support'
+    MEMBER = 'member'
 
     CHOICES = (
         (ADMINISTRATOR, 'Administrator'),
         (MANAGER, 'Manager'),
-        (SUPPORT, 'Support'),
+        (MEMBER, 'Member'),
     )
 
     def __init__(self, *args, **kwargs):
