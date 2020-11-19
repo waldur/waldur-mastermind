@@ -219,6 +219,9 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
 
 
 class SecurityGroupRuleSerializer(serializers.ModelSerializer):
+    remote_group_name = serializers.ReadOnlyField(source='remote_group.name')
+    remote_group_uuid = serializers.ReadOnlyField(source='remote_group.uuid')
+
     class Meta:
         model = models.SecurityGroupRule
         fields = (
@@ -230,6 +233,8 @@ class SecurityGroupRuleSerializer(serializers.ModelSerializer):
             'to_port',
             'cidr',
             'description',
+            'remote_group_name',
+            'remote_group_uuid',
         )
 
     def validate(self, rule):

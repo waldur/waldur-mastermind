@@ -416,7 +416,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         stale_ips.delete()
 
     def _update_tenant_security_groups(self, tenant, backend_security_groups):
-        security_group_uuids = []
         for backend_security_group in backend_security_groups:
             imported_security_group = self._backend_security_group_to_security_group(
                 backend_security_group,
@@ -439,8 +438,30 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
                 handle_resource_update_success(security_group)
 
-            security_group_uuids.append(security_group.uuid)
             self._extract_security_group_rules(security_group, backend_security_group)
+
+        self._update_remote_security_groups(tenant, backend_security_groups)
+
+    def _update_remote_security_groups(self, tenant, backend_security_groups):
+        security_group_map = {
+            security_group.backend_id: security_group
+            for security_group in models.SecurityGroup.objects.filter(tenant=tenant)
+        }
+        security_group_rule_map = {
+            security_group_rule.backend_id: security_group_rule
+            for security_group_rule in models.SecurityGroupRule.objects.filter(
+                security_group__tenant=tenant
+            )
+        }
+        for backend_security_group in backend_security_groups:
+            for backend_rule in backend_security_group['security_group_rules']:
+                security_group_rule = security_group_rule_map.get(backend_rule['id'])
+                remote_group = security_group_map.get(backend_rule['remote_group_id'])
+                if not security_group_rule:
+                    continue
+                if security_group_rule.remote_group != remote_group:
+                    security_group_rule.remote_group = remote_group
+                    security_group_rule.save(update_fields=['remote_group'])
 
     def _backend_security_group_to_security_group(
         self, backend_security_group, **kwargs
