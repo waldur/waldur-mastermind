@@ -64,6 +64,16 @@ def resource_creation_failed(resource):
     log.log_resource_creation_failed(resource)
 
 
+def resource_creation_canceled(resource):
+    resource.set_state_terminated()
+    resource.save(update_fields=['state'])
+    set_order_item_state(
+        resource, models.RequestTypeMixin.Types.CREATE, models.OrderItem.States.DONE,
+    )
+
+    log.log_resource_creation_canceled(resource)
+
+
 def resource_update_succeeded(resource):
     if resource.state != models.Resource.States.OK:
         resource.set_state_ok()
