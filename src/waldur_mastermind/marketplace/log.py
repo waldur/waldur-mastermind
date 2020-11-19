@@ -47,6 +47,7 @@ class MarketplaceResourceLogger(EventLogger):
         ] or event_type not in (
             'marketplace_resource_create_succeeded',
             'marketplace_resource_create_failed',
+            'marketplace_resource_create_canceled',
             'marketplace_resource_update_succeeded',
             'marketplace_resource_update_failed',
             'marketplace_resource_terminate_succeeded',
@@ -77,6 +78,7 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_create_requested',
             'marketplace_resource_create_succeeded',
             'marketplace_resource_create_failed',
+            'marketplace_resource_create_canceled',
             'marketplace_resource_update_requested',
             'marketplace_resource_update_succeeded',
             'marketplace_resource_update_failed',
@@ -184,8 +186,16 @@ def log_resource_creation_succeeded(resource):
 
 def log_resource_creation_failed(instance):
     event_logger.marketplace_resource.error(
-        'Resource {resource_name} creation has failed.',
+        'Resource {resource_name} creation has been failed.',
         event_type='marketplace_resource_create_failed',
+        event_context={'resource': instance},
+    )
+
+
+def log_resource_creation_canceled(instance):
+    event_logger.marketplace_resource.info(
+        'Resource {resource_name} creation has been canceled.',
+        event_type='marketplace_resource_create_canceled',
         event_context={'resource': instance},
     )
 
@@ -208,7 +218,7 @@ def log_resource_update_succeeded(resource):
 
 def log_resource_update_failed(instance):
     event_logger.marketplace_resource.error(
-        'Resource {resource_name} update has failed.',
+        'Resource {resource_name} update has been failed.',
         event_type='marketplace_resource_update_failed',
         event_context={'resource': instance},
     )
@@ -216,7 +226,7 @@ def log_resource_update_failed(instance):
 
 def log_resource_terminate_requested(resource):
     event_logger.marketplace_resource.info(
-        'Resource {resource_name} deletion been requested.',
+        'Resource {resource_name} deletion has been requested.',
         event_type='marketplace_resource_terminate_requested',
         event_context={'resource': resource},
     )
@@ -232,7 +242,7 @@ def log_resource_terminate_succeeded(resource):
 
 def log_resource_terminate_failed(instance):
     event_logger.marketplace_resource.error(
-        'Resource {resource_name} deletion has failed.',
+        'Resource {resource_name} deletion has been failed.',
         event_type='marketplace_resource_terminate_failed',
         event_context={'resource': instance},
     )

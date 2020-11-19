@@ -70,7 +70,12 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
             instance.tracker.previous('state')
             == support_models.Offering.States.REQUESTED
         ):
-            callbacks.resource_creation_failed(resource)
+            if instance.issue.state == instance.issue.States.OK:
+                # If the requested support offering was terminate and the related issue state is OK,
+                # then mean a creation request has been canceled, and the resource must be terminated also.
+                callbacks.resource_creation_canceled(resource)
+            else:
+                callbacks.resource_creation_failed(resource)
         if instance.tracker.previous('state') == support_models.Offering.States.OK:
             callbacks.resource_deletion_succeeded(resource)
 
