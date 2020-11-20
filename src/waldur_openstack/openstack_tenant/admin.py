@@ -31,7 +31,16 @@ class FloatingIPAdmin(structure_admin.BackendModelAdmin):
 
 class SecurityGroupRule(admin.TabularInline):
     model = models.SecurityGroupRule
-    fields = ('protocol', 'from_port', 'to_port', 'cidr', 'backend_id')
+    fields = (
+        'ethertype',
+        'direction',
+        'protocol',
+        'from_port',
+        'to_port',
+        'cidr',
+        'backend_id',
+        'description',
+    )
     readonly_fields = fields
     extra = 0
     can_delete = False

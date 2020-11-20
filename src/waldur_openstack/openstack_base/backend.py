@@ -348,7 +348,6 @@ class BaseOpenStackBackend(ServiceBackend):
         # therefore we need to calculate them manually
         volumes_size = sum(self.gb2mb(v.size) for v in volumes)
         snapshots_size = sum(self.gb2mb(v.size) for v in snapshots)
-        storage = volumes_size + snapshots_size
 
         quotas = {
             # Nova quotas
@@ -366,7 +365,7 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.network_count: neutron_quotas['network']['used'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet']['used'],
             # Cinder quotas
-            Tenant.Quotas.storage: storage,
+            Tenant.Quotas.storage: self.gb2mb(cinder_quotas['gigabytes']['in_use']),
             Tenant.Quotas.volumes: len(volumes),
             Tenant.Quotas.volumes_size: volumes_size,
             Tenant.Quotas.snapshots: len(snapshots),
@@ -383,9 +382,6 @@ class BaseOpenStackBackend(ServiceBackend):
         if rule['protocol'] is None:
             rule['protocol'] = ''
 
-        if rule['remote_ip_prefix'] is None:
-            rule['remote_ip_prefix'] = '0.0.0.0/0'
-
         if rule['port_range_min'] is None:
             rule['port_range_min'] = -1
 
@@ -398,18 +394,18 @@ class BaseOpenStackBackend(ServiceBackend):
         backend_rules = backend_security_group['security_group_rules']
         cur_rules = {rule.backend_id: rule for rule in security_group.rules.all()}
         for backend_rule in backend_rules:
-            # TODO: Currently we support only rules for incoming traffic
-            if backend_rule['direction'] != 'ingress':
-                continue
             cur_rules.pop(backend_rule['id'], None)
             backend_rule = self._normalize_security_group_rule(backend_rule)
             security_group.rules.update_or_create(
                 backend_id=backend_rule['id'],
                 defaults={
+                    'ethertype': backend_rule['ethertype'],
+                    'direction': backend_rule['direction'],
                     'from_port': backend_rule['port_range_min'],
                     'to_port': backend_rule['port_range_max'],
                     'protocol': backend_rule['protocol'],
                     'cidr': backend_rule['remote_ip_prefix'],
+                    'description': backend_rule['description'] or '',
                 },
             )
         security_group.rules.filter(backend_id__in=cur_rules.keys()).delete()

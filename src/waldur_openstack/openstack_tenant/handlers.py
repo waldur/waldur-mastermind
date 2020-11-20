@@ -346,10 +346,13 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
     def map_rules(self, security_group, openstack_security_group):
         return [
             models.SecurityGroupRule(
+                ethertype=rule.ethertype,
+                direction=rule.direction,
                 protocol=rule.protocol,
                 from_port=rule.from_port,
                 to_port=rule.to_port,
                 cidr=rule.cidr,
+                description=rule.description,
                 backend_id=rule.backend_id,
                 security_group=security_group,
             )

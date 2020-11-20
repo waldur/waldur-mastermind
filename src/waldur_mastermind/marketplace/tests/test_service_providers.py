@@ -6,8 +6,8 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
-from .. import base
 from . import factories
 
 
@@ -74,13 +74,13 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
+    @override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
     @data('owner')
     def test_owner_can_register_service_provider_with_settings_enabled(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
+    @override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(
         self, user

@@ -18,8 +18,8 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
-from waldur_mastermind.marketplace.processors import process_order_item
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.log import IssueEventLogger
@@ -99,9 +99,12 @@ class RequestCreateTest(BaseTest):
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
 
-    def test_order_item_set_state_erred_if_offering_terminated(self):
+    def test_order_item_set_state_done_if_offering_terminated(self):
         fixture = fixtures.ProjectFixture()
         offering = support_factories.OfferingFactory()
+        issue = offering.issue
+        issue.state = issue.States.OK
+        issue.save()
         resource = marketplace_factories.ResourceFactory(
             project=fixture.project, scope=offering
         )
@@ -117,11 +120,11 @@ class RequestCreateTest(BaseTest):
         offering.save()
 
         order_item.refresh_from_db()
-        self.assertEqual(order_item.state, order_item.States.ERRED)
+        self.assertEqual(order_item.state, order_item.States.DONE)
 
         order_item.resource.refresh_from_db()
         self.assertEqual(
-            order_item.resource.state, marketplace_models.Resource.States.ERRED
+            order_item.resource.state, marketplace_models.Resource.States.TERMINATED
         )
 
         order_item.order.refresh_from_db()

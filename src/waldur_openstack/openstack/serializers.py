@@ -219,9 +219,23 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
 
 
 class SecurityGroupRuleSerializer(serializers.ModelSerializer):
+    remote_group_name = serializers.ReadOnlyField(source='remote_group.name')
+    remote_group_uuid = serializers.ReadOnlyField(source='remote_group.uuid')
+
     class Meta:
         model = models.SecurityGroupRule
-        fields = ('id', 'protocol', 'from_port', 'to_port', 'cidr')
+        fields = (
+            'id',
+            'ethertype',
+            'direction',
+            'protocol',
+            'from_port',
+            'to_port',
+            'cidr',
+            'description',
+            'remote_group_name',
+            'remote_group_uuid',
+        )
 
     def validate(self, rule):
         """
@@ -901,6 +915,42 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'openstack-router-detail'},
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
+        )
+
+
+class PortSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='openstack-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='openstack-spl-detail', read_only=True
+    )
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
+    network_name = serializers.CharField(source='network.name', read_only=True)
+    network_uuid = serializers.CharField(source='network.uuid', read_only=True)
+    allowed_address_pairs = serializers.JSONField(read_only=True)
+
+    class Meta:
+        model = models.Port
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'ip4_address',
+            'mac_address',
+            'allowed_address_pairs',
+            'tenant',
+            'tenant_name',
+            'tenant_uuid',
+            'network',
+            'network_name',
+            'network_uuid',
+        )
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'openstack-port-detail'},
+            tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
+            network={'lookup_field': 'uuid', 'view_name': 'openstack-network-detail'},
         )
 
 

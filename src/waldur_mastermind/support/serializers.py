@@ -243,7 +243,7 @@ class IssueSerializer(
             or project.customer.has_user(user, structure_models.CustomerRole.OWNER)
             or project.has_user(user, structure_models.ProjectRole.MANAGER)
             or project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)
-            or project.has_user(user, structure_models.ProjectRole.SUPPORT)
+            or project.has_user(user, structure_models.ProjectRole.MEMBER)
         ):
             return project
         raise serializers.ValidationError(

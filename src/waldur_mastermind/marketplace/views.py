@@ -24,13 +24,14 @@ from rest_framework import status, views
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
-from waldur_core.core.utils import month_start, order_with_nulls
+from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -593,6 +594,80 @@ class OrderItemViewSet(BaseMarketplaceView):
     ]
 
     @action(detail=True, methods=['post'])
+    def reject(self, request, uuid=None):
+        order_item = self.get_object()
+        if (
+            not order_item.offering.customer.has_user(
+                request.user, structure_models.CustomerRole.OWNER
+            )
+            and not request.user.is_staff
+        ):
+            return Response(
+                {
+                    'details': 'Order item could not be rejected because user is not owner of service provider.'
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            order_item.set_state_terminated()
+            order_item.save()
+
+            if (
+                order_item.state == models.OrderItem.Types.CREATE
+                and order_item.resource
+            ):
+                order_item.resource.set_state_terminated()
+                order_item.resource.save()
+        except TransitionNotAllowed:
+            return Response(
+                {
+                    'details': 'Order item could not be rejected because it has been already processed.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'details': 'Order item has been rejected.'}, status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, uuid=None):
+        order_item = self.get_object()
+        if (
+            not order_item.offering.customer.has_user(
+                request.user, structure_models.CustomerRole.OWNER
+            )
+            and not request.user.is_staff
+        ):
+            return Response(
+                {
+                    'details': 'Order item could not be approved because user is not owner of service provider.'
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            order_item.set_state_done()
+            order_item.save()
+
+            if (
+                order_item.state == models.OrderItem.Types.CREATE
+                and order_item.resource
+            ):
+                order_item.resource.set_state_ok()
+                order_item.resource.save()
+        except TransitionNotAllowed:
+            return Response(
+                {
+                    'details': 'Order item could not be approved because it has been already processed.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'details': 'Order item has been approved.'}, status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         order_item = self.get_object()
         if not plugins.manager.can_terminate_order_item(order_item.offering.type):
@@ -777,6 +852,36 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         qs = qs.filter(Q(end=None) | Q(end__gte=month_start(timezone.now())))
         serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProjectChoicesViewSet(ListAPIView):
+    def get_project(self):
+        project_uuid = self.kwargs['project_uuid']
+        if not is_uuid_like(project_uuid):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data='Project UUID is invalid.'
+            )
+        return get_object_or_404(structure_models.Project, uuid=project_uuid)
+
+    def get_category(self):
+        category_uuid = self.kwargs['category_uuid']
+        if not is_uuid_like(category_uuid):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data='Category UUID is invalid.'
+            )
+        return get_object_or_404(models.Category, uuid=category_uuid)
+
+
+class ResourceOfferingsViewSet(ProjectChoicesViewSet):
+    serializer_class = serializers.ResourceOfferingSerializer
+
+    def get_queryset(self):
+        project = self.get_project()
+        category = self.get_category()
+        offerings = models.Resource.objects.filter(
+            project=project, offering__category=category
+        ).values_list('offering_id', flat=True)
+        return models.Offering.objects.filter(pk__in=offerings)
 
 
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):

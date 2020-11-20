@@ -247,6 +247,7 @@ class SecurityGroupSerializer(structure_serializers.BasePropertySerializer):
                     'from_port': rule.from_port,
                     'to_port': rule.to_port,
                     'cidr': rule.cidr,
+                    'description': rule.description,
                 }
             )
         return rules
@@ -867,7 +868,16 @@ class NestedVolumeSerializer(
 class NestedSecurityGroupRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SecurityGroupRule
-        fields = ('id', 'protocol', 'from_port', 'to_port', 'cidr')
+        fields = (
+            'id',
+            'ethertype',
+            'direction',
+            'protocol',
+            'from_port',
+            'to_port',
+            'cidr',
+            'description',
+        )
 
     def to_internal_value(self, data):
         # Return exist security group as internal value if id is provided

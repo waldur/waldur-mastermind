@@ -13,13 +13,13 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 
 # Add tini
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+ENV TINI_VERSION=v0.19.0
+RUN curl -L https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini -o /tini
 RUN chmod +x /tini
 
 # Add gosu
 ENV GOSU_VERSION=1.12
-ADD https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64 /usr/local/bin/gosu
+RUN curl -L https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64 -o /usr/local/bin/gosu
 RUN chmod +x /usr/local/bin/gosu
 
 # Install build dependencies for Waldur MasterMind from RPM repositories

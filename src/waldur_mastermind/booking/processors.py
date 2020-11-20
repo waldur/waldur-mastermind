@@ -1,15 +1,34 @@
+from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import datetime_re, parse_datetime
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.booking.utils import get_offering_bookings
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import processors
 
 from .utils import TimePeriod, is_interval_in_schedules
 
 
-class BookingCreateProcessor(processors.AbstractCreateResourceProcessor):
+class BookingCreateProcessor(processors.BaseOrderItemProcessor):
+    def process_order_item(self, user):
+        with transaction.atomic():
+            resource = marketplace_models.Resource(
+                project=self.order_item.order.project,
+                offering=self.order_item.offering,
+                plan=self.order_item.plan,
+                limits=self.order_item.limits,
+                attributes=self.order_item.attributes,
+                name=self.order_item.attributes.get('name') or '',
+                state=marketplace_models.Resource.States.CREATING,
+            )
+            resource.init_cost()
+            resource.save()
+            resource.init_quotas()
+            self.order_item.resource = resource
+            self.order_item.save(update_fields=['resource'])
+
     def validate_order_item(self, request):
         schedules = self.order_item.attributes.get('schedules')
 
@@ -79,3 +98,7 @@ class BookingCreateProcessor(processors.AbstractCreateResourceProcessor):
                     _('Time period from %s to %s is not available.')
                     % (period['start'], period['end'])
                 )
+
+
+class BookingDeleteProcessor(processors.DeleteResourceProcessor):
+    pass

@@ -5,7 +5,7 @@ from io import BytesIO
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.postgres.fields import JSONField as BetterJSONField
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
@@ -344,7 +344,7 @@ class Offering(
     native_description = models.CharField(max_length=500, default='', blank=True)
     terms_of_service = models.TextField(blank=True)
 
-    type = models.CharField(max_length=100, default='', blank=True)
+    type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
 
@@ -916,10 +916,13 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         return context
 
     def __str__(self):
-        return 'project: %s, created by: %s' % (
-            self.project.name,
-            self.created_by.username,
-        )
+        try:
+            return 'project: %s, created by: %s' % (
+                self.project.name,
+                self.created_by.username,
+            )
+        except (KeyError, ObjectDoesNotExist):
+            return f'<Order {self.pk}>'
 
 
 class Resource(

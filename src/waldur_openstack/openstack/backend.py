@@ -66,6 +66,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.pull_networks()
         self.pull_subnets()
         self.pull_routers()
+        self.pull_ports()
 
     def pull_tenants(self):
         keystone = self.keystone_admin_client
@@ -270,7 +271,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for tenant_id, floating_ips in groupby(
             backend_floating_ips, lambda x: x['tenant_id']
         ):
-            tenant_floating_ips[tenant_mappings[tenant_id]] = floating_ips
+            tenant_floating_ips[tenant_mappings[tenant_id]] = list(floating_ips)
 
         with transaction.atomic():
             for tenant, floating_ips in tenant_floating_ips.items():
@@ -373,7 +374,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for tenant_id, security_groups in groupby(
             backend_security_groups, lambda x: x['tenant_id']
         ):
-            tenant_security_groups[tenant_mappings[tenant_id]] = security_groups
+            tenant_security_groups[tenant_mappings[tenant_id]] = list(security_groups)
 
         with transaction.atomic():
             for tenant, security_groups in tenant_security_groups.items():
@@ -415,7 +416,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         stale_ips.delete()
 
     def _update_tenant_security_groups(self, tenant, backend_security_groups):
-        security_group_uuids = []
         for backend_security_group in backend_security_groups:
             imported_security_group = self._backend_security_group_to_security_group(
                 backend_security_group,
@@ -438,8 +438,30 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
                 handle_resource_update_success(security_group)
 
-            security_group_uuids.append(security_group.uuid)
             self._extract_security_group_rules(security_group, backend_security_group)
+
+        self._update_remote_security_groups(tenant, backend_security_groups)
+
+    def _update_remote_security_groups(self, tenant, backend_security_groups):
+        security_group_map = {
+            security_group.backend_id: security_group
+            for security_group in models.SecurityGroup.objects.filter(tenant=tenant)
+        }
+        security_group_rule_map = {
+            security_group_rule.backend_id: security_group_rule
+            for security_group_rule in models.SecurityGroupRule.objects.filter(
+                security_group__tenant=tenant
+            )
+        }
+        for backend_security_group in backend_security_groups:
+            for backend_rule in backend_security_group['security_group_rules']:
+                security_group_rule = security_group_rule_map.get(backend_rule['id'])
+                remote_group = security_group_map.get(backend_rule['remote_group_id'])
+                if not security_group_rule:
+                    continue
+                if security_group_rule.remote_group != remote_group:
+                    security_group_rule.remote_group = remote_group
+                    security_group_rule.save(update_fields=['remote_group'])
 
     def _backend_security_group_to_security_group(
         self, backend_security_group, **kwargs
@@ -509,6 +531,54 @@ class OpenStackBackend(BaseOpenStackBackend):
             backend_id__in=remote_ids
         )
         stale_routers.delete()
+
+    def pull_ports(self):
+        for tenant in models.Tenant.objects.filter(
+            state=models.Tenant.States.OK,
+            service_project_link__service__settings=self.settings,
+        ):
+            self.pull_tenant_ports(tenant)
+
+    def pull_tenant_ports(self, tenant):
+        neutron = self.neutron_admin_client
+
+        try:
+            backend_ports = neutron.list_ports(tenant_id=tenant.backend_id)['ports']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        networks = models.Network.objects.filter(tenant=tenant)
+        network_mappings = {network.backend_id: network for network in networks}
+
+        for backend_port in backend_ports:
+            backend_id = backend_port['id']
+            defaults = {
+                'name': backend_port['name'],
+                'description': backend_port['description'],
+                'service_project_link': tenant.service_project_link,
+                'state': models.Port.States.OK,
+                'mac_address': backend_port['mac_address'],
+                'ip4_address': backend_port['fixed_ips'][0]['ip_address'],
+                'allowed_address_pairs': backend_port.get('allowed_address_pairs', []),
+                'network': network_mappings.get(backend_port['network_id']),
+            }
+            try:
+                models.Port.objects.update_or_create(
+                    tenant=tenant, backend_id=backend_id, defaults=defaults
+                )
+            except IntegrityError:
+                logger.warning(
+                    'Could not create or update port with backend ID %s '
+                    'and tenant %s due to concurrent update.',
+                    backend_id,
+                    tenant,
+                )
+
+        remote_ids = {ip['id'] for ip in backend_ports}
+        stale_ports = models.Port.objects.filter(tenant=tenant).exclude(
+            backend_id__in=remote_ids
+        )
+        stale_ports.delete()
 
     def pull_networks(self):
         tenants = (
@@ -1221,9 +1291,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         backend_rules = {
             rule['id']: self._normalize_security_group_rule(rule)
             for rule in backend_security_group['security_group_rules']
-            # TODO: Currently only security group rules for incoming traffic can be created
-            # Therefore we should not modify security group rules for outgoing traffic
-            if rule['direction'] == 'ingress'
         }
 
         # list of nc rules, that do not exist in openstack
@@ -1297,8 +1364,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                     {
                         'security_group_rule': {
                             'security_group_id': security_group.backend_id,
-                            # XXX: Currently only security groups for incoming traffic can be created
-                            'direction': 'ingress',
+                            'ethertype': nc_rule.ethertype,
+                            'direction': nc_rule.direction,
                             'protocol': nc_rule_protocol,
                             'port_range_min': nc_rule.from_port
                             if nc_rule.from_port != -1
@@ -1307,6 +1374,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                             if nc_rule.to_port != -1
                             else None,
                             'remote_ip_prefix': nc_rule.cidr,
+                            'description': nc_rule.description,
                         }
                     }
                 )

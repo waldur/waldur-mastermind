@@ -6,8 +6,8 @@ from rest_framework import status, test
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.marketplace.base import override_marketplace_settings
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from .. import models
 from . import factories
