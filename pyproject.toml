@@ -87,6 +87,9 @@ django-storages = "^1.9.1"
 boto3 = "^1.14.18"
 django-axes = "^5.4.3"
 geopy = "^2.0.0"
+google-api-python-client = "^1.12.5"
+google-auth-httplib2 = "^0.0.4"
+google-auth-oauthlib = "^0.4.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"
@@ -145,6 +148,7 @@ waldur_vmware = "waldur_vmware.extension:VMwareExtension"
 waldur_zabbix = "waldur_zabbix.extension:ZabbixExtension"
 waldur_zabbix_openstack = "waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension"
 waldur_pid = "waldur_pid.extension:PIDExtension"
+waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
 
 [build-system]
 requires = ["poetry>=0.12"]

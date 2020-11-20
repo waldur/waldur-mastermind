@@ -14,12 +14,6 @@ class BookingExtension(WaldurExtension):
         return True
 
     @staticmethod
-    def django_urls():
-        from .urls import urlpatterns
-
-        return urlpatterns
-
-    @staticmethod
     def rest_urls():
         from .urls import register_in
 
