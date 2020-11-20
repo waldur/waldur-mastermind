@@ -9,7 +9,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.template.defaultfilters import slugify
 from django.utils.translation import ugettext_lazy as _
-from iptools.ipv4 import validate_cidr
+from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
+from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -218,7 +219,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
         return super(FloatingIPSerializer, self).validate(attrs)
 
 
-class SecurityGroupRuleSerializer(serializers.ModelSerializer):
+class SecurityGroupRuleSerializer(serializers.HyperlinkedModelSerializer):
     remote_group_name = serializers.ReadOnlyField(source='remote_group.name')
     remote_group_uuid = serializers.ReadOnlyField(source='remote_group.uuid')
 
@@ -233,8 +234,12 @@ class SecurityGroupRuleSerializer(serializers.ModelSerializer):
             'to_port',
             'cidr',
             'description',
+            'remote_group',
             'remote_group_name',
             'remote_group_uuid',
+        )
+        extra_kwargs = dict(
+            remote_group={'lookup_field': 'uuid', 'view_name': 'openstack-sgp-detail'},
         )
 
     def validate(self, rule):
@@ -242,18 +247,40 @@ class SecurityGroupRuleSerializer(serializers.ModelSerializer):
         Please note that validate function accepts rule object instead of validated data
         because it is used as a child of list serializer.
         """
+        ethertype = rule.ethertype
         protocol = rule.protocol
         from_port = rule.from_port
         to_port = rule.to_port
         cidr = rule.cidr
+        remote_group = rule.remote_group
 
-        if cidr and not validate_cidr(cidr):
+        if cidr:
+            if ethertype == models.SecurityGroupRule.IPv4 and not is_valid_ipv4_cidr(
+                cidr
+            ):
+                raise serializers.ValidationError(
+                    {
+                        'cidr': _(
+                            'Expected CIDR format: <0-255>.<0-255>.<0-255>.<0-255>/<0-32>'
+                        )
+                    }
+                )
+            elif ethertype == models.SecurityGroupRule.IPv6 and not is_valid_ipv6_cidr(
+                cidr
+            ):
+                raise serializers.ValidationError(
+                    {
+                        'cidr': _(
+                            'IPv6 addresses are represented as eight groups, separated by colons.'
+                        )
+                    }
+                )
+
+        if cidr and remote_group:
             raise serializers.ValidationError(
-                {
-                    'cidr': _(
-                        'Expected cidr format: <0-255>.<0-255>.<0-255>.<0-255>/<0-32>'
-                    )
-                }
+                _(
+                    'You can specify either the remote_group_id or cidr attribute, not both.'
+                )
             )
 
         if to_port is None:
@@ -370,7 +397,9 @@ class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
 
 
 def validate_duplicate_security_group_rules(rules):
-    values = rules.values_list('protocol', 'from_port', 'to_port', 'cidr')
+    values = rules.values_list(
+        'ethertype', 'direction', 'protocol', 'from_port', 'to_port', 'cidr'
+    )
     if len(set(values)) != len(values):
         raise serializers.ValidationError(
             _('Duplicate security group rules are not allowed.')

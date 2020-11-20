@@ -117,6 +117,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         logger.info('Deleted ssh public key %s from backend', key_name)
 
     def _are_rules_equal(self, backend_rule, nc_rule):
+        if backend_rule['ethertype'] != nc_rule.ethertype:
+            return False
+        if backend_rule['direction'] != nc_rule.direction:
+            return False
         if backend_rule['port_range_min'] != nc_rule.from_port:
             return False
         if backend_rule['port_range_max'] != nc_rule.to_port:
@@ -124,6 +128,12 @@ class OpenStackBackend(BaseOpenStackBackend):
         if backend_rule['protocol'] != nc_rule.protocol:
             return False
         if backend_rule['remote_ip_prefix'] != nc_rule.cidr:
+            return False
+        if backend_rule['remote_group_id'] != (
+            nc_rule.remote_group.backend_id if nc_rule.remote_group else None
+        ):
+            return False
+        if backend_rule['description'] != nc_rule.description:
             return False
         return True
 
@@ -1374,6 +1384,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                             if nc_rule.to_port != -1
                             else None,
                             'remote_ip_prefix': nc_rule.cidr,
+                            'remote_group_id': nc_rule.remote_group.backend_id
+                            if nc_rule.remote_group
+                            else None,
                             'description': nc_rule.description,
                         }
                     }
