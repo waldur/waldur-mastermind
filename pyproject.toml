@@ -19,7 +19,7 @@ classifiers=[
 ]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.8"
 apache-libcloud = "2.2.1"
 azure-mgmt-compute = "5.0.0"
 azure-mgmt-network = "2.0.0"
