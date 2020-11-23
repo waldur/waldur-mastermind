@@ -600,15 +600,6 @@ ALLOWED_PRIVATE_NETWORKS = (
 )
 
 
-# Backported from Python 3.7
-# See also: https://github.com/python/cpython/blob/3.7/Lib/ipaddress.py#L1005
-def is_subnet_of(a, b):
-    return (
-        b.network_address <= a.network_address
-        and b.broadcast_address >= a.broadcast_address
-    )
-
-
 def validate_private_cidr(value, enforced_prefixlen=None):
     try:
         network = IPv4Network(value, strict=True)
@@ -624,7 +615,7 @@ def validate_private_cidr(value, enforced_prefixlen=None):
             code='invalid',
         )
 
-    if not any(is_subnet_of(network, net) for net in ALLOWED_PRIVATE_NETWORKS):
+    if not any(network.subnet_of(net) for net in ALLOWED_PRIVATE_NETWORKS):
         raise ValidationError(
             message=_('A private network CIDR is expected.'), code='invalid',
         )
