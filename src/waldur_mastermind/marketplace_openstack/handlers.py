@@ -234,7 +234,8 @@ def create_offerings_for_volume_and_instance(tenant):
             'attributes',
             'thumbnail',
             'vendor_details',
-            'geolocations',
+            'latitude',
+            'longitude',
         )
         for field in fields:
             payload[field] = getattr(parent_offering, field)

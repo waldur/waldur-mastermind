@@ -207,17 +207,10 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
     def test_validate_correct_geolocations(self):
         response = self.create_offering(
-            'staff', add_payload={'geolocations': [{'latitude': 123, 'longitude': 345}]}
+            'staff', add_payload={'latitude': 123, 'longitude': 345}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
-
-    def test_validate_invalid_geolocations(self):
-        response = self.create_offering(
-            'staff', add_payload={'geolocations': [{'longitude': 345}]}
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('geolocations' in response.data.keys())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_create_offering(self, user):

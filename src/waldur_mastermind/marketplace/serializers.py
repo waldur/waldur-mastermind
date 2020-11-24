@@ -558,7 +558,6 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             'attributes',
             'options',
             'components',
-            'geolocations',
             'plugin_options',
             'secret_options',
             'state',
@@ -571,6 +570,8 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             'category_id',
             'customer_id',
             'plans',
+            'latitude',
+            'longitude',
         )
 
     def save(self, **kwargs):
@@ -633,7 +634,6 @@ class OfferingDetailsSerializer(
     )
     secret_options = serializers.JSONField(required=False)
     components = OfferingComponentSerializer(required=False, many=True)
-    geolocations = core_serializers.GeoLocationField(required=False)
     order_item_count = serializers.SerializerMethodField()
     plans = BasePlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
@@ -663,7 +663,6 @@ class OfferingDetailsSerializer(
             'attributes',
             'options',
             'components',
-            'geolocations',
             'plugin_options',
             'secret_options',
             'state',
@@ -684,6 +683,8 @@ class OfferingDetailsSerializer(
             'paused_reason',
             'datacite_doi',
             'citation_count',
+            'latitude',
+            'longitude',
         )
         related_paths = {
             'customer': ('uuid', 'name'),

@@ -216,7 +216,6 @@ class OfferingAdminForm(ModelForm):
     class Meta:
         widgets = {
             'attributes': JsonWidget(),
-            'geolocations': JsonWidget(),
             'options': JsonWidget(),
             'secret_options': JsonWidget(),
             'plugin_options': JsonWidget(),
@@ -271,7 +270,6 @@ class OfferingAdmin(admin.ModelAdmin):
         'options',
         'plugin_options',
         'secret_options',
-        'geolocations',
         'shared',
         'billable',
         'allowed_customers',
@@ -281,6 +279,8 @@ class OfferingAdmin(admin.ModelAdmin):
         'paused_reason',
         'datacite_doi',
         'citation_count',
+        'latitude',
+        'longitude',
     )
     readonly_fields = (
         'rating',
