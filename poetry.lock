@@ -341,10 +341,6 @@ pyreadline = "*"
 setuptools = ">=34.4"
 wcwidth = ">=0.1.7"
 
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = ">=1.6.0"
-
 [package.extras]
 dev = ["pytest", "codecov", "pytest-cov", "pytest-mock", "tox", "nox", "flake8", "sphinx", "sphinx-rtd-theme", "sphinx-autobuild", "doc8", "invoke", "twine (>=1.11)", "mock"]
 test = ["codecov", "coverage", "pytest", "pytest-cov", "pytest-mock", "mock", "gnureadline"]
@@ -485,8 +481,8 @@ category = "main"
 description = "XML bomb protection for Python stdlib modules"
 name = "defusedxml"
 optional = false
-python-versions = "*"
-version = "0.5.0"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+version = "0.6.0"
 
 [[package]]
 category = "main"
@@ -622,7 +618,7 @@ Django = ">=2.0"
 diff-match-patch = "*"
 
 [package.dependencies.tablib]
-extras = ["html", "yaml", "xls", "ods", "xlsx"]
+extras = ["html", "xls", "yaml", "xlsx", "ods"]
 version = ">=0.14.0"
 
 [[package]]
@@ -1030,23 +1026,6 @@ testing = ["packaging", "pep517", "importlib-resources (>=1.3)"]
 
 [[package]]
 category = "main"
-description = "Read resources from Python packages"
-marker = "python_version < \"3.7\""
-name = "importlib-resources"
-optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
-version = "3.0.0"
-
-[package.dependencies]
-[package.dependencies.zipp]
-python = "<3.8"
-version = ">=0.4"
-
-[package.extras]
-docs = ["sphinx", "rst.linker", "jaraco.packaging"]
-
-[[package]]
-category = "main"
 description = "InfluxDB client"
 name = "influxdb"
 optional = false
@@ -1228,10 +1207,6 @@ pyrsistent = ">=0.14.0"
 setuptools = "*"
 six = ">=1.11.0"
 
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = "*"
-
 [package.extras]
 format = ["idna", "jsonpointer (>1.13)", "rfc3987", "strict-rfc3339", "webcolors"]
 format_nongpl = ["idna", "jsonpointer (>1.13)", "webcolors", "rfc3986-validator (>0.1.0)", "rfc3339-validator"]
@@ -1248,10 +1223,6 @@ version = "21.2.1"
 SecretStorage = ">=3"
 jeepney = ">=0.4.2"
 pywin32-ctypes = "<0.1.0 || >0.1.0,<0.1.1 || >0.1.1"
-
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = "*"
 
 [package.extras]
 docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
@@ -1290,10 +1261,6 @@ version = "4.6.11"
 
 [package.dependencies]
 amqp = ">=2.6.0,<2.7"
-
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = ">=0.18"
 
 [package.extras]
 azureservicebus = ["azure-servicebus (>=0.21.1)"]
@@ -1434,11 +1401,6 @@ name = "netaddr"
 optional = false
 python-versions = "*"
 version = "0.8.0"
-
-[package.dependencies]
-[package.dependencies.importlib-resources]
-python = "<3.7"
-version = "*"
 
 [[package]]
 category = "main"
@@ -1751,14 +1713,6 @@ pyyaml = ">=5.1"
 toml = "*"
 virtualenv = ">=15.2"
 
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = "*"
-
-[package.dependencies.importlib-resources]
-python = "<3.7"
-version = "*"
-
 [[package]]
 category = "main"
 description = "A simple Python library for easily displaying tabular data in a visually appealing ASCII table format."
@@ -2026,7 +1980,7 @@ description = "digitalocean.com API to manage Droplets and Images"
 name = "python-digitalocean"
 optional = false
 python-versions = "*"
-version = "1.13.2"
+version = "1.16.0"
 
 [package.dependencies]
 jsonpickle = "*"
@@ -2421,10 +2375,6 @@ version = "3.1.0"
 [package.dependencies]
 pbr = ">=2.0.0,<2.1.0 || >2.1.0"
 
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = ">=1.7.0"
-
 [[package]]
 category = "main"
 description = "Format agnostic tabular data library (XLS, JSON, YAML, CSV)"
@@ -2518,14 +2468,6 @@ distlib = ">=0.3.1,<1"
 filelock = ">=3.0.0,<4"
 six = ">=1.9.0,<2"
 
-[package.dependencies.importlib-metadata]
-python = "<3.8"
-version = ">=0.12,<2"
-
-[package.dependencies.importlib-resources]
-python = "<3.7"
-version = ">=1.0"
-
 [package.extras]
 docs = ["sphinx (>=3)", "sphinx-argparse (>=0.2.5)", "sphinx-rtd-theme (>=0.4.3)", "towncrier (>=19.9.0rc1)", "proselint (>=0.10.2)"]
 testing = ["pytest (>=4)", "coverage (>=5)", "coverage-enable-subprocess (>=1)", "pytest-xdist (>=1.31.0)", "pytest-mock (>=2)", "pytest-env (>=0.6.2)", "pytest-randomly (>=1)", "pytest-timeout (>=1)", "pytest-freezegun (>=0.4.1)", "flaky (>=3)", "packaging (>=20.0)", "xonsh (>=0.9.16)"]
@@ -2599,8 +2541,8 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "991e1e8466a7ed7eb1c1bd92ce92061a7e8729475bd45d4ea13249dfa1fb042d"
-python-versions = "^3.6"
+content-hash = "9bad8f8c279c7bef2e4534a8938c1b785d8c17a35d5a07aaa535cc2b3a84b33f"
+python-versions = "^3.8"
 
 [metadata.files]
 adal = [
@@ -2829,8 +2771,8 @@ decorator = [
     {file = "decorator-4.4.2.tar.gz", hash = "sha256:e3a62f0520172440ca0dcc823749319382e377f37f140a0b99ef45fecb84bfe7"},
 ]
 defusedxml = [
-    {file = "defusedxml-0.5.0-py2.py3-none-any.whl", hash = "sha256:702a91ade2968a82beb0db1e0766a6a273f33d4616a6ce8cde475d8e09853b20"},
-    {file = "defusedxml-0.5.0.tar.gz", hash = "sha256:24d7f2f94f7f3cb6061acb215685e5125fbcdc40a857eff9de22518820b0a4f4"},
+    {file = "defusedxml-0.6.0-py2.py3-none-any.whl", hash = "sha256:6687150770438374ab581bb7a1b327a847dd9c5749e396102de3fad4e8a3ef93"},
+    {file = "defusedxml-0.6.0.tar.gz", hash = "sha256:f684034d135af4c6cbb949b8a4d2ed61634515257a67299e5f940fbaa34377f5"},
 ]
 diff-match-patch = [
     {file = "diff-match-patch-20200713.tar.gz", hash = "sha256:da6f5a01aa586df23dfc89f3827e1cafbb5420be9d87769eeb079ddfd9477a18"},
@@ -2896,6 +2838,7 @@ django-modeltranslation = [
 ]
 django-redis-cache = [
     {file = "django-redis-cache-2.0.0.tar.gz", hash = "sha256:77dcb9d11beef5ce77dadfb95328b7712c3d9bde8419a0ba92968712b9bff48b"},
+    {file = "django_redis_cache-2.0.0-py2.7.egg", hash = "sha256:c9e3994a3622e85533275e73125c885f6fb4c5f7e584282af35b70b58c6dffa3"},
 ]
 django-rest-swagger = [
     {file = "django-rest-swagger-2.1.2.tar.gz", hash = "sha256:ff889e2b339a9a57010dba7729d56471e05b77827f6dd36c0bcb983839882598"},
@@ -3016,10 +2959,6 @@ idna = [
 importlib-metadata = [
     {file = "importlib_metadata-1.7.0-py2.py3-none-any.whl", hash = "sha256:dc15b2969b4ce36305c51eebe62d418ac7791e9a157911d58bfb1f9ccd8e2070"},
     {file = "importlib_metadata-1.7.0.tar.gz", hash = "sha256:90bb658cdbbf6d1735b6341ce708fc7024a3e14e99ffdc5783edea9f9b077f83"},
-]
-importlib-resources = [
-    {file = "importlib_resources-3.0.0-py2.py3-none-any.whl", hash = "sha256:d028f66b66c0d5732dae86ba4276999855e162a749c92620a38c1d779ed138a7"},
-    {file = "importlib_resources-3.0.0.tar.gz", hash = "sha256:19f745a6eca188b490b1428c8d1d4a0d2368759f32370ea8fb89cad2ab1106c3"},
 ]
 influxdb = [
     {file = "influxdb-5.0.0-py2.py3-none-any.whl", hash = "sha256:43b2fde195ee2302cfa87c8a0e1d29429f175ed584516d02e04f9b2c3c2ac2ad"},
@@ -3237,6 +3176,7 @@ netifaces = [
 ]
 nodeenv = [
     {file = "nodeenv-1.4.0-py2.py3-none-any.whl", hash = "sha256:4b0b77afa3ba9b54f4b6396e60b0c83f59eaeb2d63dc3cc7a70f7f4af96c82bc"},
+    {file = "nodeenv-1.4.0.tar.gz", hash = "sha256:26941644654d8dd5378720e38f62a3bac5f9240811fb3b8913d2663a17baa91c"},
 ]
 oauthlib = [
     {file = "oauthlib-3.1.0-py2.py3-none-any.whl", hash = "sha256:df884cd6cbe20e32633f1db1072e9356f53638e4361bef4e8b03c9127c9328ea"},
@@ -3511,8 +3451,8 @@ python-dateutil = [
     {file = "python_dateutil-2.7.3-py2.py3-none-any.whl", hash = "sha256:1adb80e7a782c12e52ef9a8182bebeb73f1d7e24e374397af06fb4956c8dc5c0"},
 ]
 python-digitalocean = [
-    {file = "python-digitalocean-1.13.2.macosx-10.13-x86_64.tar.gz", hash = "sha256:06391cf0b253c8b4a5a10b3a4b7b7808b890a1d1e3b43d5ce3b5293a9c77af6b"},
-    {file = "python-digitalocean-1.13.2.tar.gz", hash = "sha256:7c8ac24e3e9570d6fa99adc520b9067c8819c267069bb7691e0bccaadbcd8d40"},
+    {file = "python-digitalocean-1.16.0.tar.gz", hash = "sha256:23af5af538e7202876a803d3cb7b909bc6db24c1e47653678cf6b21ed09d2794"},
+    {file = "python_digitalocean-1.16.0-py3-none-any.whl", hash = "sha256:963e33ed0d6443cbd33f10d03e6b746d8f58e21a2cb3b50dfff1692ba42fc591"},
 ]
 python-freeipa = [
     {file = "python-freeipa-0.2.5.tar.gz", hash = "sha256:8cae49651177975bd8cf0df73a5ae91b715469217cbae109fd9f51944117e636"},
