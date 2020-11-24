@@ -141,12 +141,18 @@ def import_openstack_service_settings(
             scope=service_settings,
             type=PACKAGE_TYPE,
             name=service_settings.name,
-            geolocations=service_settings.geolocations,
             customer=service_settings.customer or default_customer,
             category=category,
             shared=service_settings.shared,
             state=state,
         )
+
+        if service_settings.geolocations:
+            geolocation = service_settings.geolocations[0]
+            offering.latitude = geolocation['latitude']
+            offering.longitude = geolocation['longitude']
+            offering.save(update_fields=['latitude', 'longitude'])
+
         create_offering_components(offering)
         return offering
 

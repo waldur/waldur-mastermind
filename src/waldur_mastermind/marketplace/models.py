@@ -21,13 +21,13 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import get_upload_path
 from waldur_core.media.validators import ImageValidator
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
+from waldur_geo_ip.mixins import CoordinatesMixin
 from waldur_pid import mixins as pid_mixins
 
 from ..common import mixins as common_mixins
@@ -269,6 +269,7 @@ class Offering(
     core_mixins.ScopeMixin,
     LoggableMixin,
     pid_mixins.DataciteMixin,
+    CoordinatesMixin,
 ):
     class States:
         DRAFT = 1
@@ -329,14 +330,6 @@ class Offering(
         default=dict,
         help_text=_(
             'Private data used by specific plugin, such as credentials and hooks.'
-        ),
-    )
-    geolocations = JSONField(
-        default=list,
-        blank=True,
-        help_text=_(
-            'List of latitudes and longitudes. For example: '
-            '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'
         ),
     )
 
