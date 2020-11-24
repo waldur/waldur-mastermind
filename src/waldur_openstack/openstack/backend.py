@@ -568,7 +568,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'service_project_link': tenant.service_project_link,
                 'state': models.Port.States.OK,
                 'mac_address': backend_port['mac_address'],
-                'ip4_address': backend_port['fixed_ips'][0]['ip_address'],
+                'ip4_address': backend_port['fixed_ips'][0]['ip_address']
+                if len(backend_port['fixed_ips']) > 0
+                else '',
                 'allowed_address_pairs': backend_port.get('allowed_address_pairs', []),
                 'network': network_mappings.get(backend_port['network_id']),
             }
