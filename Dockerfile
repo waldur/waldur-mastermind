@@ -29,8 +29,12 @@ RUN apt-get update       && \
     libxslt-dev             \
     libyaml-dev             \
     uwsgi-src               \
-    wkhtmltopdf             \
+    xfonts-75dpi            \
     fonts-liberation
+
+RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_amd64.deb && \
+    dpkg -i wkhtmltox_0.12.6-1.buster_amd64.deb                                                                  && \
+    rm wkhtmltox_0.12.6-1.buster_amd64.deb
 
 # Create python3.8 uwsgi plugin
 RUN PYTHON=python3.8 uwsgi --build-plugin "/usr/src/uwsgi/plugins/python python38" && \
