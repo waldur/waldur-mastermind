@@ -30,6 +30,7 @@ RUN apt-get update       && \
     libyaml-dev             \
     uwsgi-src               \
     xfonts-75dpi            \
+    xfonts-base             \
     fonts-liberation
 
 RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_amd64.deb && \
