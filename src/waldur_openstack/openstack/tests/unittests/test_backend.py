@@ -233,6 +233,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
                     'port_range_max': rule.to_port,
                     'protocol': rule.protocol,
                     'remote_ip_prefix': rule.cidr,
+                    'remote_group_id': None,
                     'description': rule.description,
                     'direction': 'ingress',
                     'ethertype': 'IPv4',
@@ -307,6 +308,7 @@ class PushSecurityGroupTest(BaseBackendTestCase):
                     'port_range_min': rule.from_port,
                     'port_range_max': rule.to_port,
                     'remote_ip_prefix': rule.cidr,
+                    'remote_group_id': None,
                     'description': rule.description,
                 }
             }

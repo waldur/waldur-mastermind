@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class TimePeriod:
-    def __init__(self, start, end):
+    def __init__(self, start, end, period_id=None):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)
 
@@ -22,6 +22,9 @@ class TimePeriod:
 
         self.start = start
         self.end = end
+
+        if period_id:
+            self.id = period_id
 
 
 def is_interval_in_schedules(interval, schedules):
@@ -46,7 +49,7 @@ def get_offering_bookings(offering):
         offering=offering, state__in=(States.OK, States.CREATING),
     ).values_list('attributes__schedules', flat=True)
     return [
-        TimePeriod(period['start'], period['end'])
+        TimePeriod(period['start'], period['end'], period.get('id'))
         for schedule in schedules
         if schedule
         for period in schedule

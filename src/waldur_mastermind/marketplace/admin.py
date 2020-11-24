@@ -12,13 +12,19 @@ from modeltranslation import admin as modeltranslation_admin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core import utils as core_utils
-from waldur_core.core.admin import ExecutorAdminAction, JsonWidget, format_json_field
+from waldur_core.core.admin import (
+    ExecutorAdminAction,
+    JsonWidget,
+    PasswordWidget,
+    format_json_field,
+)
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.structure.models import (
     PrivateServiceSettings,
     ServiceSettings,
     SharedServiceSettings,
 )
+from waldur_mastermind.google.models import GoogleCredentials
 from waldur_mastermind.marketplace_openstack import (
     executors as marketplace_openstack_executors,
 )
@@ -28,8 +34,23 @@ from waldur_pid import utils as pid_utils
 from . import executors, models, tasks
 
 
+class GoogleCredentialsAdminForm(ModelForm):
+    class Meta:
+        widgets = {
+            'client_secret': PasswordWidget(),
+            'calendar_token': PasswordWidget(),
+            'calendar_refresh_token': PasswordWidget(),
+        }
+
+
+class GoogleCredentialsInline(admin.StackedInline):
+    model = GoogleCredentials
+    form = GoogleCredentialsAdminForm
+
+
 class ServiceProviderAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'customer', 'created')
+    inlines = [GoogleCredentialsInline]
 
 
 class AttributeOptionInline(admin.TabularInline):

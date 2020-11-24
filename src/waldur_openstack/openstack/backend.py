@@ -117,6 +117,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         logger.info('Deleted ssh public key %s from backend', key_name)
 
     def _are_rules_equal(self, backend_rule, nc_rule):
+        if backend_rule['ethertype'] != nc_rule.ethertype:
+            return False
+        if backend_rule['direction'] != nc_rule.direction:
+            return False
         if backend_rule['port_range_min'] != nc_rule.from_port:
             return False
         if backend_rule['port_range_max'] != nc_rule.to_port:
@@ -124,6 +128,12 @@ class OpenStackBackend(BaseOpenStackBackend):
         if backend_rule['protocol'] != nc_rule.protocol:
             return False
         if backend_rule['remote_ip_prefix'] != nc_rule.cidr:
+            return False
+        if backend_rule['remote_group_id'] != (
+            nc_rule.remote_group.backend_id if nc_rule.remote_group else None
+        ):
+            return False
+        if backend_rule['description'] != nc_rule.description:
             return False
         return True
 
@@ -271,7 +281,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for tenant_id, floating_ips in groupby(
             backend_floating_ips, lambda x: x['tenant_id']
         ):
-            tenant_floating_ips[tenant_mappings[tenant_id]] = floating_ips
+            tenant_floating_ips[tenant_mappings[tenant_id]] = list(floating_ips)
 
         with transaction.atomic():
             for tenant, floating_ips in tenant_floating_ips.items():
@@ -374,7 +384,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for tenant_id, security_groups in groupby(
             backend_security_groups, lambda x: x['tenant_id']
         ):
-            tenant_security_groups[tenant_mappings[tenant_id]] = security_groups
+            tenant_security_groups[tenant_mappings[tenant_id]] = list(security_groups)
 
         with transaction.atomic():
             for tenant, security_groups in tenant_security_groups.items():
@@ -416,7 +426,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         stale_ips.delete()
 
     def _update_tenant_security_groups(self, tenant, backend_security_groups):
-        security_group_uuids = []
         for backend_security_group in backend_security_groups:
             imported_security_group = self._backend_security_group_to_security_group(
                 backend_security_group,
@@ -439,8 +448,30 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
                 handle_resource_update_success(security_group)
 
-            security_group_uuids.append(security_group.uuid)
             self._extract_security_group_rules(security_group, backend_security_group)
+
+        self._update_remote_security_groups(tenant, backend_security_groups)
+
+    def _update_remote_security_groups(self, tenant, backend_security_groups):
+        security_group_map = {
+            security_group.backend_id: security_group
+            for security_group in models.SecurityGroup.objects.filter(tenant=tenant)
+        }
+        security_group_rule_map = {
+            security_group_rule.backend_id: security_group_rule
+            for security_group_rule in models.SecurityGroupRule.objects.filter(
+                security_group__tenant=tenant
+            )
+        }
+        for backend_security_group in backend_security_groups:
+            for backend_rule in backend_security_group['security_group_rules']:
+                security_group_rule = security_group_rule_map.get(backend_rule['id'])
+                remote_group = security_group_map.get(backend_rule['remote_group_id'])
+                if not security_group_rule:
+                    continue
+                if security_group_rule.remote_group != remote_group:
+                    security_group_rule.remote_group = remote_group
+                    security_group_rule.save(update_fields=['remote_group'])
 
     def _backend_security_group_to_security_group(
         self, backend_security_group, **kwargs
@@ -1353,6 +1384,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                             if nc_rule.to_port != -1
                             else None,
                             'remote_ip_prefix': nc_rule.cidr,
+                            'remote_group_id': nc_rule.remote_group.backend_id
+                            if nc_rule.remote_group
+                            else None,
                             'description': nc_rule.description,
                         }
                     }
