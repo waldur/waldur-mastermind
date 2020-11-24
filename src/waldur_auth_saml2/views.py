@@ -4,7 +4,8 @@ import logging
 from django.conf import settings
 from django.contrib import auth
 from django.core.exceptions import ValidationError
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.utils.six import text_type
 from django.utils.translation import ugettext_lazy as _
 from djangosaml2.cache import IdentityCache, OutstandingQueriesCache, StateCache
 from djangosaml2.conf import get_config
@@ -14,8 +15,9 @@ from djangosaml2.views import _get_subject_id, _set_subject_id
 from rest_framework.authtoken.models import Token
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
-from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT
+from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT, md
 from saml2.client import Saml2Client
+from saml2.metadata import do_extensions, entity_descriptor
 from saml2.response import StatusRequestDenied
 from saml2.xmldsig import DIGEST_SHA1, SIG_RSA_SHA1
 
@@ -34,6 +36,28 @@ from .log import event_logger
 logger = logging.getLogger(__name__)
 
 validate_saml2 = validate_authentication_method('SAML2')
+
+
+def metadata(request, config_loader_path=None, valid_for=None):
+    """Returns an XML with the SAML 2.0 metadata for this
+    SP as configured in the settings.py file.
+    """
+    conf = get_config(config_loader_path, request)
+    metadata = entity_descriptor(conf)
+    if conf.extensions:
+        if metadata.extensions is None:
+            metadata.extensions = md.Extensions()
+
+        for key, val in conf.extensions.items():
+            _ext = do_extensions(key, val)
+            if _ext:
+                for _e in _ext:
+                    metadata.extensions.add_extension_element(_e)
+
+    return HttpResponse(
+        content=text_type(metadata).encode('utf-8'),
+        content_type="text/xml; charset=utf8",
+    )
 
 
 class BaseSaml2View(APIView):

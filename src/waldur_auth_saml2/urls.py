@@ -1,5 +1,4 @@
 from django.conf.urls import url
-from djangosaml2.views import metadata
 
 from .views import (
     Saml2LoginCompleteView,
@@ -7,6 +6,7 @@ from .views import (
     Saml2LogoutCompleteView,
     Saml2LogoutView,
     Saml2ProviderView,
+    metadata,
 )
 
 urlpatterns = [
