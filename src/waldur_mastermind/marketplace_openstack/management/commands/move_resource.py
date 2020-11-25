@@ -16,6 +16,16 @@ class MoveResourceException(Exception):
 @transaction.atomic
 def move_resource(resource, project):
     old_project = resource.project
+
+    linked_offerings = marketplace_models.Offering.objects.filter(
+        scope=resource.scope, allowed_customers__in=[old_project.customer],
+    )
+
+    offering: marketplace_models.Offering
+    for offering in linked_offerings:
+        offering.allowed_customers.remove(old_project.customer)
+        offering.allowed_customers.add(project.customer)
+
     resource.project = project
     resource.save(update_fields=['project'])
 
