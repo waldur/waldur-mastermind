@@ -18,6 +18,10 @@ class CommandTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(project=self.project)
         self.resource.scope = self.tenant
         self.resource.save()
+        resource_offering = self.resource.offering
+        resource_offering.allowed_customers.add(self.project.customer)
+        resource_offering.scope = self.tenant
+        resource_offering.save()
         self.order = marketplace_factories.OrderFactory(project=self.project)
         marketplace_factories.OrderItemFactory(resource=self.resource, order=self.order)
         self.new_project = structure_factories.ProjectFactory()
@@ -48,6 +52,12 @@ class CommandTest(test.APITransactionTestCase):
         self.tenant.refresh_from_db()
         self.order.refresh_from_db()
         self.resource.refresh_from_db()
+        self.assertTrue(
+            self.new_project.customer in self.resource.offering.allowed_customers.all()
+        )
+        self.assertFalse(
+            self.project.customer in self.resource.offering.allowed_customers.all()
+        )
         self.assertEqual(self.tenant.service_project_link.project, self.new_project)
         self.assertEqual(self.order.project, self.new_project)
         self.assertEqual(self.resource.project, self.new_project)
