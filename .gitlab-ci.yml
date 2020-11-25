@@ -95,6 +95,8 @@ Build docker image for tests:
       alias: docker
       command: ["--mtu=1400"]
   script:
+    - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT
+    - cat docker/rootfs/COMMIT
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker pull $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE || true
     - docker build . -f gitlab-ci-test/Dockerfile -t $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE --cache-from $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
