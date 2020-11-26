@@ -8,9 +8,10 @@ def fill_new_geo_fields(apps, schema_editor):
     for offering in Offering.objects.all():
         if offering.geolocations:
             geolocation = offering.geolocations[0]
-            offering.latitude = geolocation['latitude']
-            offering.longitude = geolocation['longitude']
-            offering.save()
+            if geolocation:  # non empty
+                offering.latitude = geolocation['latitude']
+                offering.longitude = geolocation['longitude']
+                offering.save()
 
 
 class Migration(migrations.Migration):
