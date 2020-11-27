@@ -19,6 +19,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from rest_framework import exceptions as rf_exceptions
+from rest_framework import mixins
 from rest_framework import permissions as rf_permissions
 from rest_framework import status, views
 from rest_framework import viewsets as rf_viewsets
@@ -122,7 +123,12 @@ def can_update_offering(request, view, obj=None):
         return
 
     if offering.state == models.Offering.States.DRAFT:
-        structure_permissions.is_owner(request, view, offering)
+        if offering.has_user(request.user) or _has_owner_access(
+            request.user, offering.customer
+        ):
+            return
+        else:
+            raise rf_exceptions.PermissionDenied()
     else:
         structure_permissions.is_staff(request, view)
 
@@ -348,6 +354,31 @@ class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelView
         DjangoFilterBackend,
     )
     filterset_class = filters.OfferingReferralFilter
+
+
+class OfferingPermissionViewSet(structure_views.BasePermissionViewSet):
+    queryset = models.OfferingPermission.objects.filter(is_active=True).order_by(
+        '-created'
+    )
+    serializer_class = serializers.OfferingPermissionSerializer
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.OfferingPermissionFilter
+    scope_field = 'offering'
+
+
+class OfferingPermissionLogViewSet(
+    mixins.RetrieveModelMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    queryset = models.OfferingPermission.objects.filter(is_active=None)
+    serializer_class = serializers.OfferingPermissionLogSerializer
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.OfferingPermissionFilter
 
 
 class PlanUsageReporter:
@@ -907,10 +938,12 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         resource = serializer.validated_data['plan_period'].resource
-        if not _has_owner_access(request.user, resource.offering.customer):
+        if not _has_owner_access(
+            request.user, resource.offering.customer
+        ) and not resource.offering.has_user(request.user):
             raise PermissionDenied(
                 _(
-                    'Only staff and service provider owner is allowed '
+                    'Only staff, service provider owner and service manager are allowed '
                     'to submit usage data for marketplace resource.'
                 )
             )

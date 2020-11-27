@@ -34,6 +34,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import models as logging_models
+from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import (
     ServiceBackendError,
     ServiceBackendNotImplemented,
@@ -606,7 +607,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         scope = serializer.validated_data[self.scope_field]
-        role = serializer.validated_data['role']
+        role = serializer.validated_data.get('role')
         affected_user = serializer.validated_data['user']
         expiration_time = serializer.validated_data.get('expiration_time')
 
@@ -614,17 +615,21 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
             raise PermissionDenied()
 
         utils.check_customer_blocked(scope)
+        self.validate_quota_change(scope, affected_user)
 
+        super(BasePermissionViewSet, self).perform_create(serializer)
+
+    def validate_quota_change(self, scope, affected_user):
         if self.quota_scope_field:
             quota_scope = getattr(scope, self.quota_scope_field)
         else:
             quota_scope = scope
+        if not isinstance(quota_scope, QuotaModelMixin):
+            return
         if not quota_scope.get_users().filter(pk=affected_user.pk).exists():
             quota_scope.validate_quota_change(
                 {'nc_user_count': 1}, raise_exception=True
             )
-
-        super(BasePermissionViewSet, self).perform_create(serializer)
 
     def perform_update(self, serializer):
         permission = serializer.instance
@@ -649,7 +654,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         permission = instance
         scope = getattr(permission, self.scope_field)
-        role = permission.role
+        role = getattr(permission, 'role', None)
         affected_user = permission.user
         expiration_time = permission.expiration_time
 

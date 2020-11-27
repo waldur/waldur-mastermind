@@ -3,6 +3,7 @@ import logging
 
 import jwt
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.db.models import (
@@ -1231,6 +1232,87 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         return offering
 
 
+class OfferingPermissionSerializer(
+    structure_serializers.PermissionFieldFilteringMixin,
+    structure_serializers.BasePermissionSerializer,
+):
+    offering_name = serializers.ReadOnlyField(source='offering.name')
+
+    class Meta(structure_serializers.BasePermissionSerializer.Meta):
+        model = models.OfferingPermission
+        fields = (
+            'url',
+            'pk',
+            'created',
+            'expiration_time',
+            'created_by',
+            'offering',
+            'offering_uuid',
+            'offering_name',
+        ) + structure_serializers.BasePermissionSerializer.Meta.fields
+        related_paths = dict(
+            offering=('name', 'uuid'),
+            **structure_serializers.BasePermissionSerializer.Meta.related_paths
+        )
+        protected_fields = ('offering', 'user', 'created_by', 'created')
+        extra_kwargs = {
+            'user': {
+                'view_name': 'user-detail',
+                'lookup_field': 'uuid',
+                'queryset': get_user_model().objects.all(),
+            },
+            'created_by': {
+                'view_name': 'user-detail',
+                'lookup_field': 'uuid',
+                'read_only': True,
+            },
+            'offering': {
+                'view_name': 'marketplace-offering-detail',
+                'lookup_field': 'uuid',
+                'queryset': models.Offering.objects.all(),
+            },
+        }
+
+    def validate(self, data):
+        if not self.instance:
+            offering = data['offering']
+            user = data['user']
+
+            if offering.has_user(user):
+                raise serializers.ValidationError(
+                    _('The fields offering and user must make a unique set.')
+                )
+
+        return data
+
+    def create(self, validated_data):
+        offering = validated_data['offering']
+        user = validated_data['user']
+        expiration_time = validated_data.get('expiration_time')
+
+        created_by = self.context['request'].user
+        permission, _ = offering.add_user(
+            user=user, created_by=created_by, expiration_time=expiration_time
+        )
+
+        return permission
+
+    def validate_expiration_time(self, value):
+        if value is not None and value < timezone.now():
+            raise serializers.ValidationError(
+                _('Expiration time should be greater than current time.')
+            )
+        return value
+
+    def get_filtered_field_names(self):
+        return ('offering',)
+
+
+class OfferingPermissionLogSerializer(OfferingPermissionSerializer):
+    class Meta(OfferingPermissionSerializer.Meta):
+        view_name = 'marketplace-offering-permission-log-detail'
+
+
 class ComponentQuotaSerializer(serializers.ModelSerializer):
     type = serializers.ReadOnlyField(source='component.type')
 
@@ -2039,7 +2121,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     amount,
                 )
                 logger.info(message)
-                log.log_component_usage_updation_succeeded(usage)
+                log.log_component_usage_update_succeeded(usage)
 
 
 class OfferingFileSerializer(

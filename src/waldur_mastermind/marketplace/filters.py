@@ -111,7 +111,6 @@ class OfferingImportableFilterBackend(DjangoFilterBackend):
             if user.is_staff:
                 return queryset
 
-            owned_offerings_ids = []
             used_offerings_ids = []
 
             queryset = queryset.filter(shared=False)
@@ -161,12 +160,22 @@ class OfferingImportableFilterBackend(DjangoFilterBackend):
         return queryset
 
 
-class ScreenshotFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid'
+class OfferingFilterMixin:
+    offering = django_filters.UUIDFilter(field_name='offering__uuid')
+    offering_uuid = core_filters.URLFilter(
+        view_name='marketplace-offering-detail', field_name='offering__uuid',
     )
-    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
+
+class OfferingPermissionFilter(
+    OfferingFilterMixin, structure_filters.UserPermissionFilter
+):
+    class Meta:
+        model = models.OfferingPermission
+        fields = []
+
+
+class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     class Meta:
@@ -217,11 +226,7 @@ class OrderFilter(django_filters.FilterSet):
         fields = []
 
 
-class OrderItemFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid'
-    )
-    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
+class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(field_name='order__project__uuid')
     category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
@@ -265,14 +270,10 @@ class OrderItemFilter(django_filters.FilterSet):
         fields = []
 
 
-class ResourceFilter(django_filters.FilterSet):
+class ResourceFilter(OfferingFilterMixin, django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     name_exact = django_filters.CharFilter(field_name='name')
     query = django_filters.CharFilter(method='filter_query')
-    offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid'
-    )
-    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
     offering_type = django_filters.CharFilter(field_name='offering__type')
     offering_billable = django_filters.UUIDFilter(field_name='offering__billable')
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
@@ -331,12 +332,7 @@ class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return 'scope'
 
 
-class PlanFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid'
-    )
-    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
-
+class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
         model = models.Plan
         fields = []
@@ -399,12 +395,7 @@ class OfferingReferralScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return 'scope'
 
 
-class OfferingFileFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid'
-    )
-    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
-
+class OfferingFileFilter(OfferingFilterMixin, django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     class Meta:

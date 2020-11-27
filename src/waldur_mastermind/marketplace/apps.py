@@ -10,6 +10,7 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.core import signals as core_signals
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import SupportedServices
+        from waldur_core.structure import signals as structure_signals
 
         from . import (
             handlers,
@@ -120,4 +121,22 @@ class MarketplaceConfig(AppConfig):
             create_resource_processor=processors.BasicCreateResourceProcessor,
             update_resource_processor=processors.BasicUpdateResourceProcessor,
             delete_resource_processor=processors.BasicDeleteResourceProcessor,
+        )
+
+        structure_signals.structure_role_granted.connect(
+            handlers.log_offering_permission_granted,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_granted',
+        )
+
+        structure_signals.structure_role_revoked.connect(
+            handlers.log_offering_permission_revoked,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_revoked',
+        )
+
+        structure_signals.structure_role_updated.connect(
+            handlers.log_offering_permission_updated,
+            sender=models.OfferingPermission,
+            dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_updated',
         )
