@@ -356,3 +356,19 @@ def add_component_usage(sender, instance, created=False, **kwargs):
         item.save()
     except invoices_models.InvoiceItem.DoesNotExist:
         pass
+
+
+def log_offering_permission_granted(
+    sender, structure, user, role=None, created_by=None, **kwargs
+):
+    log.log_offering_permission_granted(structure, user, created_by)
+
+
+def log_offering_permission_revoked(
+    sender, structure, user, role=None, removed_by=None, **kwargs
+):
+    log.log_offering_permission_revoked(structure, user, removed_by)
+
+
+def log_offering_permission_updated(sender, instance, user, **kwargs):
+    log.log_offering_permission_updated(instance, user)

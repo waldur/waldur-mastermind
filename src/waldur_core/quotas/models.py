@@ -3,6 +3,7 @@ import logging
 
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.db.models import F, Sum
 from django.utils.translation import ugettext_lazy as _
@@ -213,7 +214,10 @@ class QuotaModelMixin(models.Model):
         """
         errors = []
         for name, delta in quota_deltas.items():
-            quota = self.quotas.get(name=name)
+            try:
+                quota = self.quotas.get(name=name)
+            except ObjectDoesNotExist:
+                continue
             if quota.is_exceeded(delta):
                 errors.append(
                     '%s quota limit: %s, requires %s (%s)\n'

@@ -18,6 +18,16 @@ def register_in(router):
         r'marketplace-offerings', views.OfferingViewSet, basename='marketplace-offering'
     )
     router.register(
+        r'marketplace-offering-permissions',
+        views.OfferingPermissionViewSet,
+        basename='marketplace-offering-permission',
+    )
+    router.register(
+        r'project-permissions-log',
+        views.OfferingPermissionLogViewSet,
+        basename='marketplace-offering-permission_log',
+    )
+    router.register(
         r'marketplace-plans', views.PlanViewSet, basename='marketplace-plan'
     )
     router.register(

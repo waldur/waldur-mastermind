@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import transaction
 
+from waldur_core.core.models import User
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_core.structure.models import Project
 
@@ -115,9 +116,30 @@ class MarketplaceComponentUsageLogger(EventLogger):
         return {resource, project, project.customer}
 
 
+class MarketplaceOfferingPermissionEventLogger(EventLogger):
+    offering = models.Offering
+    affected_user = User
+    user = User
+
+    class Meta:
+        event_types = 'role_granted', 'role_revoked', 'role_updated'
+        event_groups = {
+            'customers': event_types,
+            'users': event_types,
+        }
+        nullable_fields = ['user']
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['offering'].customer}
+
+
 event_logger.register('marketplace_order', MarketplaceOrderLogger)
 event_logger.register('marketplace_resource', MarketplaceResourceLogger)
 event_logger.register('marketplace_component_usage', MarketplaceComponentUsageLogger)
+event_logger.register(
+    'marketplace_offering_permission', MarketplaceOfferingPermissionEventLogger
+)
 
 
 def log_order_created(order):
@@ -272,9 +294,62 @@ def log_component_usage_creation_succeeded(usage):
     )
 
 
-def log_component_usage_updation_succeeded(usage):
+def log_component_usage_update_succeeded(usage):
     event_logger.marketplace_component_usage.info(
         'Marketplace component usage {usage_uuid} has been updated.',
         event_type='marketplace_component_usage_updated',
         event_context={'usage': usage},
+    )
+
+
+def log_offering_permission_granted(offering, user, created_by=None):
+    event_context = {
+        'offering': offering,
+        'affected_user': user,
+    }
+    if created_by:
+        event_context['user'] = created_by
+
+    event_logger.marketplace_offering_permission.info(
+        'User {affected_user_username} has gained service manager permission in offering {offering_name}.',
+        event_type='role_granted',
+        event_context=event_context,
+    )
+
+
+def log_offering_permission_revoked(offering, user, removed_by=None):
+    event_context = {
+        'affected_user': user,
+        'offering': offering,
+    }
+    if removed_by:
+        event_context['user'] = removed_by
+
+    event_logger.marketplace_offering_permission.info(
+        'User {affected_user_username} has lost service manager permission in offering {offering_name}.',
+        event_type='role_revoked',
+        event_context=event_context,
+    )
+
+
+def log_offering_permission_updated(permission, user):
+    template = (
+        'User %(user_username)s has changed permission expiration time '
+        'for user {affected_user_username} in offering {offering_name} from '
+        '%(old_expiration_time)s to %(new_expiration_time)s.'
+    )
+
+    context = {
+        'old_expiration_time': permission.tracker.previous('expiration_time'),
+        'new_expiration_time': permission.expiration_time,
+        'user_username': user.full_name or user.username,
+    }
+
+    event_context = {
+        'affected_user': permission.user,
+        'offering': permission.offering,
+    }
+
+    event_logger.marketplace_offering_permission.info(
+        template % context, event_type='role_updated', event_context=event_context,
     )

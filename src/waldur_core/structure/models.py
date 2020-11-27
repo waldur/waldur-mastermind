@@ -228,10 +228,7 @@ class PermissionMixin:
             - None - check whether user has permanent role in entity.
             - Datetime object - check whether user will have role in entity at specific timestamp.
         """
-        permissions = self.permissions.filter(user=user, is_active=True)
-
-        if role is not None:
-            permissions = permissions.filter(role=role)
+        permissions = self.get_active_permissions(user, role)
 
         if timestamp is None:
             permissions = permissions.filter(expiration_time=None)
@@ -243,20 +240,20 @@ class PermissionMixin:
         return permissions.exists()
 
     @transaction.atomic()
-    def add_user(self, user, role, created_by=None, expiration_time=None):
-        permission = self.permissions.filter(
-            user=user, role=role, is_active=True
-        ).first()
+    def add_user(self, user, role=None, created_by=None, expiration_time=None):
+        permission = self.get_active_permissions(user, role).first()
         if permission:
             return permission, False
 
-        permission = self.permissions.create(
+        kwargs = dict(
             user=user,
-            role=role,
             is_active=True,
             created_by=created_by,
             expiration_time=expiration_time,
         )
+        if role:
+            kwargs['role'] = role
+        permission = self.permissions.create(**kwargs)
 
         structure_role_granted.send(
             sender=self.__class__,
@@ -270,16 +267,20 @@ class PermissionMixin:
 
     @transaction.atomic()
     def remove_user(self, user, role=None, removed_by=None):
-        permissions = self.permissions.all().filter(user=user, is_active=True)
-
-        if role is not None:
-            permissions = permissions.filter(role=role)
+        permissions = self.get_active_permissions(user, role)
 
         affected_permissions = list(permissions)
         permissions.update(is_active=None, expiration_time=timezone.now())
 
         for permission in affected_permissions:
             self.log_role_revoked(permission, removed_by)
+
+    def get_active_permissions(self, user, role=None):
+        permissions = self.permissions.filter(user=user, is_active=True)
+
+        if role is not None:
+            permissions = permissions.filter(role=role)
+        return permissions
 
     @transaction.atomic()
     def remove_all_users(self):
@@ -292,9 +293,23 @@ class PermissionMixin:
             sender=self.__class__,
             structure=self,
             user=permission.user,
-            role=permission.role,
+            role=getattr(permission, 'role', None),
             removed_by=removed_by,
         )
+
+    def can_manage_role(self, user, role=None, timestamp=False):
+        """
+        Checks whether user can grant/update/revoke permissions for specific role.
+        `timestamp` can have following values:
+            - False - check whether user can manage permissions at the moment.
+            - None - check whether user can permanently manage permissions.
+            - Datetime object - check whether user will be able to manage permissions at specific timestamp.
+        """
+        raise NotImplementedError
+
+    def get_users(self, role=None):
+        """ Return all connected to scope users """
+        raise NotImplementedError
 
 
 class CustomerRole(models.CharField):
@@ -516,7 +531,7 @@ class Customer(
             customerpermission__role=CustomerRole.SUPPORT,
         )
 
-    def get_users(self):
+    def get_users(self, role=None):
         """ Return all connected to customer users """
         return (
             get_user_model()
@@ -535,13 +550,6 @@ class Customer(
         return user.is_staff
 
     def can_manage_role(self, user, role=None, timestamp=False):
-        """
-        Checks whether user can grant/update/revoke customer permissions.
-        `timestamp` can have following values:
-            - False - check whether user can manage permissions at the moment.
-            - None - check whether user can permanently manage permissions.
-            - Datetime object - check whether user will be able to manage permissions at specific timestamp.
-        """
         return user.is_staff or (
             self.has_user(user, CustomerRole.OWNER, timestamp)
             and settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
@@ -774,14 +782,7 @@ class Project(
     def can_user_update_quotas(self, user):
         return user.is_staff or self.customer.has_user(user, CustomerRole.OWNER)
 
-    def can_manage_role(self, user, role, timestamp=False):
-        """
-        Checks whether user can grant/update/revoke project permissions for specific role.
-        `timestamp` can have following values:
-            - False - check whether user can manage permissions at the moment.
-            - None - check whether user can permanently manage permissions.
-            - Datetime object - check whether user will be able to manage permissions at specific timestamp.
-        """
+    def can_manage_role(self, user, role=None, timestamp=False):
         if user.is_staff:
             return True
         if self.customer.has_user(user, CustomerRole.OWNER, timestamp):

@@ -31,6 +31,7 @@ class OfferingQuerySet(django_models.QuerySet):
             Q(shared=True)
             | Q(shared=False, allowed_customers__in=connected_customers)
             | Q(shared=False, customer__in=connected_customers)
+            | Q(shared=True, permissions__user=user, permissions__is_active=True),
         )
 
     def filter_for_customer(self, value):

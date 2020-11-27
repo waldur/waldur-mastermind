@@ -264,6 +264,7 @@ class Offering(
     core_models.NameMixin,
     core_models.DescribableMixin,
     quotas_models.QuotaModelMixin,
+    structure_models.PermissionMixin,
     structure_models.StructureModel,
     TimeStampedModel,
     core_mixins.ScopeMixin,
@@ -300,7 +301,7 @@ class Offering(
     category = models.ForeignKey(
         on_delete=models.CASCADE, to=Category, related_name='offerings'
     )
-    customer = models.ForeignKey(
+    customer: structure_models.Customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=structure_models.Customer,
         related_name='+',
@@ -426,6 +427,17 @@ class Offering(
         return settings.WALDUR_MARKETPLACE['OFFERING_LINK_TEMPLATE'].format(
             offering_uuid=self.uuid.hex
         )
+
+    def can_manage_role(self, user, role=None, timestamp=False):
+        if not self.shared:
+            return False
+        return user.is_staff or self.customer.has_user(
+            user, structure_models.CustomerRole.OWNER, timestamp
+        )
+
+    def get_users(self, role=None):
+        query = Q(offeringpermission__offering=self, offeringpermission__is_active=True)
+        return get_user_model().objects.filter(query).order_by('username')
 
 
 class OfferingComponent(
@@ -1294,3 +1306,23 @@ class OfferingFile(
 
     def __str__(self):
         return 'offering: %s' % self.offering
+
+
+class OfferingPermission(core_models.UuidMixin, structure_models.BasePermission):
+    class Meta:
+        unique_together = ('offering', 'user', 'is_active')
+
+    class Permissions:
+        customer_path = 'offering__customer'
+
+    offering: Offering = models.ForeignKey(
+        on_delete=models.CASCADE, to=Offering, related_name='permissions'
+    )
+    tracker = FieldTracker(fields=['expiration_time'])
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-offering-permission'
+
+    def revoke(self):
+        self.offering.remove_user(self.user)
