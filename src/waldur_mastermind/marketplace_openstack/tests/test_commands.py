@@ -4,10 +4,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack.management.commands.move_resource import (
-    MoveResourceException,
-    move_resource,
-)
+from waldur_mastermind.marketplace.utils import MoveResourceException, move_resource
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
 

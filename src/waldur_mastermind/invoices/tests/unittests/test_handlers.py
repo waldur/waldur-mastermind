@@ -9,8 +9,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.management.commands.move_project import move_project
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.utils import move_project
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.packages import models as packages_models
 from waldur_mastermind.packages.tests import factories as packages_factories

@@ -1,11 +1,14 @@
 import collections
 import logging
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.lru_cache import lru_cache
 from django.utils.topological_sort import stable_topological_sort
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
+
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.signals import project_moved
 
 from . import SupportedServices
 
@@ -176,3 +179,29 @@ def check_customer_blocked(obj):
     customer = permissions._get_customer(obj)
     if customer and customer.blocked:
         raise ValidationError(_('Blocked organization is not available.'))
+
+
+@transaction.atomic
+def move_project(project, customer):
+    if customer.blocked:
+        raise ValidationError(_('New customer must be not blocked'))
+
+    old_customer = project.customer
+    if customer == old_customer:
+        raise ValidationError(_('New customer must be different than current one'))
+
+    project.customer = customer
+    project.save(update_fields=['customer'])
+
+    for permission in structure_models.ProjectPermission.objects.filter(
+        project=project
+    ):
+        permission.revoke()
+        logger.info('Permission %s has been revoked' % permission)
+
+    project_moved.send(
+        sender=project.__class__,
+        project=project,
+        old_customer=old_customer,
+        new_customer=customer,
+    )

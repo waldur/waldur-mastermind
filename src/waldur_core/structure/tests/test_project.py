@@ -8,10 +8,10 @@ from rest_framework import status, test
 
 from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import executors, models, permissions, signals, views
-from waldur_core.structure.management.commands.move_project import move_project
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
+from waldur_core.structure.utils import move_project
 
 
 class ProjectPermissionGrantTest(TransactionTestCase):
@@ -758,3 +758,41 @@ class ChangeProjectCustomerTest(test.APITransactionTestCase):
         self.assertEqual(
             self.new_customer.quotas.get(name='nc_project_count').usage, 1.0
         )
+
+
+class ProjectMoveTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.url = factories.ProjectFactory.get_url(self.project, action='move_project')
+        self.customer = factories.CustomerFactory()
+
+    def get_response(self, role, customer):
+        self.client.force_authenticate(role)
+        payload = {'customer': {'url': factories.CustomerFactory.get_url(customer)}}
+        return self.client.post(self.url, payload)
+
+    def test_move_project_rest(self):
+        response = self.get_response(self.fixture.staff, self.customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.project.customer, self.customer)
+
+    def test_move_project_is_not_possible_when_customer_the_same(self):
+        old_customer = self.project.customer
+        response = self.get_response(self.fixture.staff, old_customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.project.customer, old_customer)
+
+    def test_move_project_is_not_possible_when_new_customer_is_blocked(self):
+        old_customer = self.project.customer
+        self.customer.blocked = True
+        self.customer.save(update_fields=['blocked'])
+        response = self.get_response(self.fixture.staff, self.customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.project.customer, old_customer)

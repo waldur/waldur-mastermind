@@ -1,22 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.signals import project_moved
-
-
-def move_project(project, customer):
-    old_customer = project.customer
-    project.customer = customer
-    project.save()
-
-    structure_models.ProjectPermission.objects.filter(project=project).delete()
-
-    project_moved.send(
-        sender=project.__class__,
-        project=project,
-        old_customer=old_customer,
-        new_customer=customer,
-    )
+from waldur_core.structure.utils import move_project
 
 
 class Command(BaseCommand):

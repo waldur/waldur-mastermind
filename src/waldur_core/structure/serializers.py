@@ -494,6 +494,30 @@ class CustomerSerializer(
         return attrs
 
 
+class NestedCustomerSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    class Meta:
+        model = models.Customer
+        fields = ('uuid', 'url')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
+class NestedProjectSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    class Meta:
+        model = models.Project
+        fields = ('uuid', 'url')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
 class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     url = serializers.HyperlinkedRelatedField(
         source='project',
@@ -1098,6 +1122,12 @@ class ServiceCertificationsUpdateSerializer(serializers.Serializer):
         instance.certifications.clear()
         instance.certifications.add(*certifications)
         return instance
+
+
+class MoveProjectSerializer(serializers.Serializer):
+    customer = NestedCustomerSerializer(
+        queryset=models.Customer.objects.all(), required=True, many=False
+    )
 
 
 class ServiceCertificationSerializer(serializers.HyperlinkedModelSerializer):

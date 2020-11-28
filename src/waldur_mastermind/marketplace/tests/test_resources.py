@@ -6,8 +6,11 @@ from rest_framework import status, test
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
-from waldur_core.structure.tests.factories import UserFactory
+from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
+from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.support.tests.base import override_support_settings
+from waldur_openstack.openstack.tests import factories as openstack_factories
 
 from .. import callbacks, log, models, plugins, tasks, utils
 from . import factories
@@ -706,3 +709,83 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         utils.process_order_item(order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits['vcpu'], 10)
+
+
+class ResourceMoveTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.tenant = openstack_factories.TenantFactory()
+        self.fixture = fixtures.ProjectFixture()
+        self.new_project = ProjectFactory()
+        self.project = self.fixture.project
+
+        spl = self.tenant.service_project_link
+        spl.project = self.project
+        spl.save()
+
+        self.resource = factories.ResourceFactory(project=self.project)
+        self.resource.scope = self.tenant
+        self.resource.save()
+
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, action='move_resource'
+        )
+
+    def get_response(self, role):
+        self.client.force_authenticate(role)
+        payload = {'project': {'url': ProjectFactory.get_url(self.new_project)}}
+        return self.client.post(self.url, payload)
+
+    def test_move_resource_rest(self):
+        response = self.get_response(self.fixture.staff)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.resource.project, self.new_project)
+
+    def test_move_resource_is_not_possible_for_project_owner(self):
+        response = self.get_response(self.fixture.owner)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.resource.project, self.project)
+
+    def test_move_resource_is_not_possible_when_new_customer_is_blocked(self):
+        new_customer = self.new_project.customer
+        new_customer.blocked = True
+        new_customer.save()
+
+        response = self.get_response(self.fixture.staff)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.resource.project, self.project)
+
+    def test_move_resource_exception_hadling(self):
+        start_invoice = invoices_factories.InvoiceFactory(
+            customer=self.project.customer,
+            year=2020,
+            month=1,
+            state=invoices_models.Invoice.States.PENDING,
+        )
+        invoices_factories.InvoiceItemFactory(
+            invoice=start_invoice, project=self.project, scope=self.resource,
+        )
+
+        invoices_factories.InvoiceFactory(
+            customer=self.new_project.customer,
+            year=2020,
+            month=1,
+            state=invoices_models.Invoice.States.CREATED,
+        )
+
+        response = self.get_response(self.fixture.staff)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            response.json(),
+            {
+                'error_message': 'Resource moving is not possible, because invoice items moving is not possible.'
+            },
+        )
+        self.assertEqual(self.resource.project, self.project)
