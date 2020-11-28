@@ -2209,6 +2209,12 @@ class ResourceTerminateSerializer(serializers.Serializer):
     )
 
 
+class MoveResourceSerializer(serializers.Serializer):
+    project = structure_serializers.NestedProjectSerializer(
+        queryset=structure_models.Project.objects.all(), required=True, many=False
+    )
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer, receiver=add_service_provider,
 )

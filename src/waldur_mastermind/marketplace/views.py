@@ -12,6 +12,7 @@ from django.db.models import (
     Subquery,
 )
 from django.http import Http404, HttpResponse
+from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -883,6 +884,27 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         qs = qs.filter(Q(end=None) | Q(end__gte=month_start(timezone.now())))
         serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def move_resource(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.validated_data['project']
+        try:
+            utils.move_resource(resource, project)
+        except utils.MoveResourceException as exception:
+            error_message = str(exception)
+            return JsonResponse({'error_message': error_message}, status=409)
+
+        serialized_resource = serializers.ResourceSerializer(
+            resource, context=self.get_serializer_context()
+        )
+
+        return Response(serialized_resource.data, status=status.HTTP_200_OK)
+
+    move_resource_serializer_class = serializers.MoveResourceSerializer
+    move_resource_permissions = [structure_permissions.is_staff]
 
 
 class ProjectChoicesViewSet(ListAPIView):

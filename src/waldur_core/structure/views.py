@@ -405,6 +405,24 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     )
     update_certifications_permissions = [permissions.is_owner]
 
+    @action(detail=True, methods=['post'])
+    def move_project(self, request, uuid=None):
+        project = self.get_object()
+        serializer = self.get_serializer(project, data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        customer = serializer.validated_data['customer']
+
+        utils.move_project(project, customer)
+        serialized_project = serializers.ProjectSerializer(
+            project, context={'request': self.request}
+        )
+
+        return Response(serialized_project.data, status=status.HTTP_200_OK)
+
+    move_project_serializer_class = serializers.MoveProjectSerializer
+    move_project_permissions = [permissions.is_staff]
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
