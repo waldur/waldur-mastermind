@@ -1,10 +1,10 @@
 from django.conf import settings
 from django.conf.urls import include, url
 from django.contrib import admin
-from django.views.generic import TemplateView
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
+from waldur_core.core.api_groups_mapping import API_GROUPS
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.core.schemas import WaldurSchemaView
 from waldur_core.logging import urls as logging_urls
@@ -41,7 +41,23 @@ urlpatterns += [
     url(r'^api/version/', core_views.version_detail),
     url(r'^api/configuration/', core_views.configuration_detail),
     url(r'^api-auth/password/', core_views.obtain_auth_token, name='auth-password'),
-    url(r'^$', TemplateView.as_view(template_name='landing/index.html')),
+    url(
+        r'^$',
+        core_views.ExtraContextTemplateView.as_view(
+            template_name='landing/index.html',
+            extra_context={'site_name': settings.WALDUR_CORE['SITE_NAME']},
+        ),
+    ),
+    url(
+        r'^apidocs$',
+        core_views.ExtraContextTemplateView.as_view(
+            template_name='landing/apidocs.html',
+            extra_context={
+                'api_groups': sorted(API_GROUPS.keys()),
+                'site_name': settings.WALDUR_CORE['SITE_NAME'],
+            },
+        ),
+    ),
 ]
 
 if settings.DEBUG:
