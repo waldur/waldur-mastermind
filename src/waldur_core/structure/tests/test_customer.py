@@ -670,6 +670,66 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'email': 'gmail.com'})
         self.assertEqual(len(response.data), 2)
 
+    def test_filter_by_roles(self):
+        walter = factories.UserFactory(
+            full_name='', username='walter', email='walter@gmail.com'
+        )
+        admin = factories.UserFactory(
+            full_name='admin', username='zzz', email='admin@waldur.com'
+        )
+        alice = factories.UserFactory(
+            full_name='', username='alice', email='alice@gmail.com'
+        )
+
+        self.fixture.customer.add_user(walter, CustomerRole.SUPPORT)
+        self.fixture.project.add_user(walter, ProjectRole.MANAGER)
+
+        self.fixture.customer.add_user(admin, CustomerRole.OWNER)
+        self.fixture.project.add_user(admin, ProjectRole.ADMINISTRATOR)
+
+        self.fixture.customer.add_user(alice, CustomerRole.SUPPORT)
+        self.fixture.project.add_user(alice, ProjectRole.MEMBER)
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 3)
+
+        response = self.client.get(
+            self.url, {'project_role': [ProjectRole.ADMINISTRATOR, ProjectRole.MANAGER]}
+        )
+        usernames = [item['username'] for item in response.data]
+        self.assertEqual(len(usernames), 2)
+        self.assertTrue(admin.username in usernames)
+        self.assertTrue(walter.username in usernames)
+
+        response = self.client.get(
+            self.url, {'organization_role': [CustomerRole.SUPPORT]}
+        )
+        usernames = [item['username'] for item in response.data]
+        self.assertEqual(len(usernames), 2)
+        self.assertTrue(walter.username in usernames)
+        self.assertTrue(alice.username in usernames)
+
+        response = self.client.get(
+            self.url, {'organization_role': [CustomerRole.OWNER]}
+        )
+        usernames = [item['username'] for item in response.data]
+        self.assertEqual(len(usernames), 1)
+        self.assertTrue(admin.username in usernames)
+
+        response = self.client.get(
+            self.url,
+            {
+                'organization_role': [CustomerRole.OWNER],
+                'project_role': [ProjectRole.MEMBER],
+            },
+        )
+        usernames = [item['username'] for item in response.data]
+        self.assertEqual(len(usernames), 2)
+        self.assertTrue(admin.username in usernames)
+        self.assertTrue(alice.username in usernames)
+
 
 @ddt
 class CustomerCountersListTest(test.APITransactionTestCase):
