@@ -24,7 +24,7 @@ class OpenStackTenantConfig(AppConfig):
             SharedServiceSettings,
         )
         from waldur_core.structure import SupportedServices
-        from waldur_openstack.openstack.models import Tenant
+        from waldur_openstack.openstack.models import Tenant, SecurityGroupRule
 
         from .backend import OpenStackTenantBackend
         from . import handlers, models
@@ -150,6 +150,12 @@ class OpenStackTenantConfig(AppConfig):
                 sender=model,
                 dispatch_uid='openstack_tenant.handlers.delete_%s' % name,
             )
+
+        signals.post_save.connect(
+            handlers.update_remote_group_when_rule_is_updated,
+            sender=SecurityGroupRule,
+            dispatch_uid='openstack_tenant.handlers.update_remote_group_when_rule_is_updated',
+        )
 
         signals.post_save.connect(
             handlers.log_backup_schedule_creation,

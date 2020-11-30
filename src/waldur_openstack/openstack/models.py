@@ -169,6 +169,7 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
         null=True,
         blank=True,
     )
+    tracker = FieldTracker()
 
 
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
