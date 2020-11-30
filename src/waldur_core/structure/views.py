@@ -216,14 +216,18 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
 
         return super(CustomerViewSet, self).perform_destroy(instance)
 
-    @action(detail=True, filter_backends=[filters.GenericRoleFilter])
+    @action(
+        detail=True, filter_backends=[filters.GenericRoleFilter],
+    )
     def users(self, request, uuid=None):
         """ A list of users connected to the customer. """
         customer = self.get_object()
         queryset = customer.get_users()
         # we need to handle filtration manually because we want to filter only customer users, not customers.
-        filter_backend = filters.UserConcatenatedNameOrderingBackend()
-        queryset = filter_backend.filter_queryset(request, queryset, self)
+        name_filter_backend = filters.UserConcatenatedNameOrderingBackend()
+        queryset = name_filter_backend.filter_queryset(request, queryset, self)
+        roles_filter_backend = filters.UserRolesFilter()
+        queryset = roles_filter_backend.filter_queryset(request, queryset, self)
         queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(queryset, many=True)
         return self.get_paginated_response(serializer.data)
