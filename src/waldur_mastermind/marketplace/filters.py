@@ -32,9 +32,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
         fields = []
 
 
-class BaseOfferingFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_expr='icontains')
-    name_exact = django_filters.CharFilter(field_name='name')
+class BaseOfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     customer = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid'
     )
@@ -170,6 +168,11 @@ class OfferingFilterMixin:
 class OfferingPermissionFilter(
     OfferingFilterMixin, structure_filters.UserPermissionFilter
 ):
+    customer = core_filters.URLFilter(
+        view_name='customer-detail', field_name='offering__customer__uuid'
+    )
+    customer_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
+
     class Meta:
         model = models.OfferingPermission
         fields = []
@@ -270,9 +273,9 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
-class ResourceFilter(OfferingFilterMixin, django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_expr='icontains')
-    name_exact = django_filters.CharFilter(field_name='name')
+class ResourceFilter(
+    OfferingFilterMixin, structure_filters.NameFilterSet, django_filters.FilterSet
+):
     query = django_filters.CharFilter(method='filter_query')
     offering_type = django_filters.CharFilter(field_name='offering__type')
     offering_billable = django_filters.UUIDFilter(field_name='offering__billable')
