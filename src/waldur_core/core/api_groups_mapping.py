@@ -1,7 +1,7 @@
 API_GROUPS = {
-    'auth': ['/api-auth/', '/api/auth-valimo/',],
-    'users': ['/api/users/', '/api/user-invitations/', '/api/user-counters/',],
-    'customers': [
+    'authentication': ['/api-auth/', '/api/auth-valimo/',],
+    'user': ['/api/users/', '/api/user-invitations/', '/api/user-counters/',],
+    'organization': [
         '/api/customers/',
         '/api/customer-permissions-log/',
         '/api/customer-permissions-reviews/',

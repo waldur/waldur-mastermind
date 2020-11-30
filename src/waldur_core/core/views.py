@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
+from django.views.generic import TemplateView
 from rest_framework import exceptions
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
@@ -409,3 +410,15 @@ class CheckExtensionMixin:
         if not conf or not conf['ENABLED']:
             raise ExtensionDisabled()
         return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
+
+
+class ExtraContextTemplateView(TemplateView):
+    extra_context = None
+
+    def get_context_data(self, *args, **kwargs):
+        context = super(ExtraContextTemplateView, self).get_context_data(
+            *args, **kwargs
+        )
+        if self.extra_context:
+            context.update(self.extra_context)
+        return context
