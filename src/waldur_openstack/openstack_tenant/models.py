@@ -106,6 +106,13 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
     security_group = models.ForeignKey(
         on_delete=models.CASCADE, to=SecurityGroup, related_name='rules'
     )
+    remote_group = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=SecurityGroup,
+        related_name='+',
+        null=True,
+        blank=True,
+    )
 
 
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):

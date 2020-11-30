@@ -40,7 +40,9 @@ class SecurityGroupRule(admin.TabularInline):
         'cidr',
         'backend_id',
         'description',
+        'remote_group',
     )
+    fk_name = 'security_group'
     readonly_fields = fields
     extra = 0
     can_delete = False

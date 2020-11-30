@@ -640,3 +640,39 @@ def delete_volume_type_quotas_from_private_service_settings(sender, instance, **
     tenant = quota.scope
     private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
     Quota.objects.filter(scope__in=private_settings, name=quota.name).delete()
+
+
+def update_remote_group_when_rule_is_updated(sender, instance, **kwargs):
+    if not instance.tracker.has_changed('remote_group_id'):
+        return
+
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=instance.security_group.tenant,
+            type=apps.OpenStackTenantConfig.service_name,
+        )
+    except (
+        django_exceptions.ObjectDoesNotExist,
+        django_exceptions.MultipleObjectsReturned,
+    ):
+        return
+
+    try:
+        security_group = models.SecurityGroup.objects.get(
+            settings=service_settings, backend_id=instance.security_group.backend_id
+        )
+    except django_exceptions.ObjectDoesNotExist:
+        return
+
+    remote_group_id = None
+    if instance.remote_group:
+        try:
+            remote_group_id = models.SecurityGroup.objects.get(
+                settings=service_settings, backend_id=instance.remote_group.backend_id
+            ).id
+        except django_exceptions.ObjectDoesNotExist:
+            pass
+
+    models.SecurityGroupRule.objects.filter(
+        security_group=security_group, backend_id=instance.backend_id
+    ).update(remote_group_id=remote_group_id)
