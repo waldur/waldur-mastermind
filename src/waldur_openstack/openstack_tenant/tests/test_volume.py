@@ -651,3 +651,42 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         self.assertEqual(
             self.volume.size / 1024, scope.quotas.get(name=new_type_key).usage
         )
+
+
+class VolumeFilterTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.url = factories.VolumeFactory.get_list_url()
+        self.instance = self.fixture.instance
+        self.volume = self.fixture.volume
+        self.client.force_authenticate(user=self.fixture.owner)
+
+    def test_filter_volumes_by_valid_instance_uuid(self):
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'available'
+        self.volume.save()
+
+        volume1 = factories.VolumeFactory(
+            service_project_link=self.fixture.spl,
+            state=models.Volume.States.OK,
+            runtime_state='available',
+            type=self.fixture.volume_type,
+            availability_zone=self.fixture.volume_availability_zone,
+        )
+
+        new_fixture = fixtures.OpenStackTenantFixture()
+        volume2 = new_fixture.volume
+
+        response = self.client.get(
+            self.url, {'attach_instance_uuid': self.instance.uuid.hex}
+        )
+        volume_names = [volume['name'] for volume in response.data]
+        self.assertEqual(response.status_code, status.HTTP_200_OK, data)
+        self.assertEqual(len(volume_names), 2)
+        self.assertIn(self.volume.name, volume_names)
+        self.assertIn(volume1.name, volume_names)
+        self.assertNotIn(volume2.name, volume_names)
+
+    def test_filter_volumes_by_invalid_instance_uuid(self):
+        response = self.client.get(self.url, {'attach_instance_uuid': 'invalid'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
