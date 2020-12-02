@@ -93,6 +93,37 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
         field_name='availability_zone__name'
     )
 
+    attach_instance_uuid = django_filters.UUIDFilter(method='filter_attach_instance')
+
+    def filter_attach_instance(self, queryset, name, value):
+        """
+        This filter is used by volume attachment dialog for instance.
+        It allows to filter out volumes that could be attached to the given instance.
+        """
+        try:
+            instance = models.Instance.objects.get(uuid=value)
+        except models.Volume.DoesNotExist:
+            return queryset.none()
+
+        queryset = queryset.filter(
+            service_project_link=instance.service_project_link
+        ).exclude(instance=instance)
+
+        zones_map = get_valid_availability_zones(instance)
+        if instance.availability_zone and zones_map:
+            zone_names = {
+                nova_zone
+                for (nova_zone, cinder_zone) in zones_map.items()
+                if cinder_zone == instance.availability_zone.name
+            }
+            nova_zones = models.InstanceAvailabilityZone.objects.filter(
+                settings=instance.service_project_link.service.settings,
+                name__in=zone_names,
+                available=True,
+            )
+            queryset = queryset.filter(availability_zone__in=nova_zones)
+        return queryset
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Volume
         fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
@@ -147,7 +178,7 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
 
     def filter_attach_volume(self, queryset, name, value):
         """
-        This filter is used for in volume attachment dialog.
+        This filter is used by volume attachment dialog.
         It allows to filter out instances that could be attached to the given volume.
         """
         try:
