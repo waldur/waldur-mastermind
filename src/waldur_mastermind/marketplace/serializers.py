@@ -45,10 +45,11 @@ from waldur_mastermind.marketplace.permissions import (
 )
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
+from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_pid import models as pid_models
 
-from . import attribute_types, log, models, permissions, plugins, tasks, utils
+from . import log, models, permissions, plugins, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -823,42 +824,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         if attributes is None:
             attributes = dict()
 
-        category_attributes = models.Attribute.objects.filter(
-            section__category=category
-        )
-        required_attributes = category_attributes.filter(required=True).values_list(
-            'key', flat=True
-        )
-        missing_attributes = set(required_attributes) - set(attributes.keys())
-
-        if missing_attributes:
-            raise rf_exceptions.ValidationError(
-                {
-                    'attributes': _(
-                        'These attributes are required: %s'
-                        % ', '.join(sorted(missing_attributes))
-                    )
-                }
-            )
-
-        for attribute in category_attributes:
-            value = attributes.get(attribute.key)
-            if value is None:
-                # Use default attribute value if it is defined
-                if attribute.default is not None:
-                    attributes[attribute.key] = attribute.default
-                continue
-
-            validator = attribute_types.get_attribute_type(attribute.type)
-            if not validator:
-                continue
-
-            try:
-                validator.validate(
-                    value, list(attribute.options.values_list('key', flat=True))
-                )
-            except ValidationError as e:
-                raise rf_exceptions.ValidationError({attribute.key: e.message})
+        validate_attributes(attributes, category)
 
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)

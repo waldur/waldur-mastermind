@@ -42,6 +42,7 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import resource_imported
+from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
 
 from . import filters, models, permissions, plugins, serializers, tasks, utils
@@ -139,6 +140,19 @@ def validate_offering_update(offering):
         raise rf_exceptions.ValidationError(
             _('It is not possible to update archived offering.')
         )
+
+
+def can_update_offering_attributes(request, view, obj=None):
+    offering = obj
+
+    if not offering:
+        return
+
+    validate_offering_update(offering)
+    if not offering.has_user(request.user) and not _has_owner_access(
+        request.user, offering.customer
+    ):
+        raise rf_exceptions.PermissionDenied()
 
 
 class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
@@ -244,6 +258,18 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
         page = self.paginate_queryset(resources)
         return self.get_paginated_response(page)
+
+    @action(detail=True, methods=['post'])
+    def update_attributes(self, request, uuid=None):
+        offering = self.get_object()
+        if not isinstance(request.data, dict):
+            raise rf_exceptions.ValidationError('Dictionary is expected.')
+        validate_attributes(request.data, offering.category)
+        offering.attributes = request.data
+        offering.save(update_fields=['attributes'])
+        return Response(status=status.HTTP_200_OK)
+
+    update_attributes_permissions = [can_update_offering_attributes]
 
     importable_resources_permissions = [permissions.user_can_list_importable_resources]
 
