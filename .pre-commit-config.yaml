@@ -33,3 +33,10 @@ repos:
         exclude: src/waldur_core/server/base_settings.py
         additional_dependencies:
           - flake8-bandit==2.1.0
+  - repo: local
+    hooks:
+      - id: migrations
+        name: migrations with auto-generated names
+        entry: migrations must not be with auto-generated names
+        language: fail
+        files: '^.*/migrations/\d{4}_auto_\d{8}_\d{4}.py$'
