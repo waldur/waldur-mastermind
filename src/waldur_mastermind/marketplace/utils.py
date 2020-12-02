@@ -7,7 +7,7 @@ import pdfkit
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import transaction
@@ -15,8 +15,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from PIL import Image
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -25,6 +25,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.marketplace import attribute_types
 
 from . import models, plugins
 
@@ -270,6 +271,44 @@ def validate_limits(limits, offering):
             )
 
 
+def validate_attributes(attributes, category):
+    category_attributes = models.Attribute.objects.filter(section__category=category)
+
+    required_attributes = category_attributes.filter(required=True).values_list(
+        'key', flat=True
+    )
+
+    missing_attributes = set(required_attributes) - set(attributes.keys())
+    if missing_attributes:
+        raise rf_exceptions.ValidationError(
+            {
+                'attributes': _(
+                    'These attributes are required: %s'
+                    % ', '.join(sorted(missing_attributes))
+                )
+            }
+        )
+
+    for attribute in category_attributes:
+        value = attributes.get(attribute.key)
+        if value is None:
+            # Use default attribute value if it is defined
+            if attribute.default is not None:
+                attributes[attribute.key] = attribute.default
+            continue
+
+        validator = attribute_types.get_attribute_type(attribute.type)
+        if not validator:
+            continue
+
+        try:
+            validator.validate(
+                value, list(attribute.options.values_list('key', flat=True))
+            )
+        except ValidationError as e:
+            raise rf_exceptions.ValidationError({attribute.key: e.message})
+
+
 def create_offering_components(offering, custom_components=None):
     fixed_components = plugins.manager.get_components(offering.type)
     category_components = {
@@ -508,7 +547,7 @@ class MoveResourceException(Exception):
 @transaction.atomic
 def move_resource(resource, project):
     if project.customer.blocked:
-        raise ValidationError('New customer must be not blocked')
+        raise rf_exceptions.ValidationError('New customer must be not blocked')
 
     old_project = resource.project
 

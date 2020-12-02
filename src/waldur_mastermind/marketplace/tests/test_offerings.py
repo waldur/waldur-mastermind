@@ -13,6 +13,7 @@ from rest_framework import status, test
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import ServiceFixture
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
@@ -682,6 +683,46 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_authorized_user_can_update_offering_attributes_in_valid_state(self):
+        self.fixture.service_manager = UserFactory()
+        self.offering.add_user(self.fixture.service_manager)
+
+        url = factories.OfferingFactory.get_url(self.offering, 'update_attributes')
+
+        for state in (
+            models.Offering.States.DRAFT,
+            models.Offering.States.ACTIVE,
+            models.Offering.States.PAUSED,
+        ):
+            for user in ('staff', 'owner', 'service_manager'):
+                with self.subTest():
+                    # Arrange
+                    self.offering.state = state
+                    self.offering.save()
+
+                    # Act
+                    self.client.force_authenticate(getattr(self.fixture, user))
+                    response = self.client.post(url, {'key': 'value'})
+                    self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+                    self.offering.refresh_from_db()
+                    self.assertEqual(self.offering.attributes, {'key': 'value'})
+
+    def test_authorized_user_can_not_update_offering_attributes_in_archived_state(self):
+        self.fixture.service_manager = UserFactory()
+        self.offering.add_user(self.fixture.service_manager)
+
+        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.save()
+
+        url = factories.OfferingFactory.get_url(self.offering, 'update_attributes')
+
+        for user in ('staff', 'owner', 'service_manager'):
+            with self.subTest():
+                self.client.force_authenticate(getattr(self.fixture, user))
+                response = self.client.post(url, {'key': 'value'})
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_offering_updating_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True
