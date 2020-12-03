@@ -19,7 +19,9 @@ class IssueCreateExecutor(core_executors.CreateExecutor):
                 action_details={},
             ),
             tasks.create_issue.si(serialized_issue),
-            tasks.create_confirmation_comment.si(serialized_issue),
+            tasks.create_confirmation_comment.si(
+                serialized_issue, kwargs.get('comment_tmpl')
+            ),
         )
 
 

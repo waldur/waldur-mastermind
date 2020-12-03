@@ -68,10 +68,10 @@ def create_issue(serialized_issue):
 
 
 @shared_task(name='waldur_mastermind.support.create_confirmation_comment')
-def create_confirmation_comment(serialized_issue):
+def create_confirmation_comment(serialized_issue, comment_tmpl=''):
     issue = core_utils.deserialize_instance(serialized_issue)
     try:
-        backend.get_active_backend().create_confirmation_comment(issue)
+        backend.get_active_backend().create_confirmation_comment(issue, comment_tmpl)
     except Exception as e:
         issue.error_message = str(e)
         issue.save(update_fields=['error_message'])
