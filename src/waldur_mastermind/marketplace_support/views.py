@@ -9,6 +9,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 from rest_framework.response import Response
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support.utils import (
@@ -116,5 +117,16 @@ class OfferingViewSet(support_views.OfferingViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering = serializer.save()
-        support_executors.IssueCreateExecutor.execute(offering.issue)
+
+        comment_tmpl = None
+        order_item = request.data.get('order_item')
+        if order_item:
+            order_item = core_utils.deserialize_instance(order_item)
+            comment_tmpl = order_item.offering.secret_options.get(
+                'template_confirmation_comment'
+            )
+
+        support_executors.IssueCreateExecutor.execute(
+            offering.issue, comment_tmpl=comment_tmpl
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)

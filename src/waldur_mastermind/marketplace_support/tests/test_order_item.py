@@ -22,6 +22,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.log import IssueEventLogger
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
@@ -231,6 +232,44 @@ class RequestCreateTest(BaseTest):
     ):
         self.submit_order_item()
         mock_executor.execute.assert_called_once()
+
+    def test_create_confirmation_comment_if_offering_template_is_defined(self):
+        mock.patch.stopall()
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PLUGIN_NAME,
+            options={'order': []},
+            secret_options={
+                'template_confirmation_comment': 'template_confirmation_comment'
+            },
+        )
+
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=offering,
+            attributes={'name': 'item_name', 'description': 'Description'},
+        )
+
+        serialized_order = core_utils.serialize_instance(order_item.order)
+        serialized_user = core_utils.serialize_instance(fixture.staff)
+        with mock.patch(
+            'waldur_mastermind.support.executors.IssueCreateExecutor.get_task_signature'
+        ) as get_task_signature:
+            marketplace_tasks.process_order(serialized_order, serialized_user)
+            self.assertEqual(
+                get_task_signature.call_args.kwargs.get('comment_tmpl'),
+                'template_confirmation_comment',
+            )
+
+        with mock.patch(
+            'waldur_mastermind.support.backend.atlassian.ServiceDeskBackend._add_comment'
+        ) as _add_comment:
+            ServiceDeskBackend().create_confirmation_comment(
+                get_task_signature.call_args.args[0],
+                comment_tmpl=get_task_signature.call_args.kwargs.get('comment_tmpl'),
+            )
+            _add_comment.assert_called_once_with(
+                None, 'template_confirmation_comment', is_internal=False
+            )
 
 
 @freeze_time('2019-01-01')

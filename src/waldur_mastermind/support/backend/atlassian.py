@@ -133,22 +133,26 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
 
-    def create_confirmation_comment(self, issue):
-        try:
-            tmpl = models.TemplateConfirmationComment.objects.get(issue_type=issue.type)
-        except models.TemplateConfirmationComment.DoesNotExist:
+    def create_confirmation_comment(self, issue, comment_tmpl=''):
+        if not comment_tmpl:
             try:
                 tmpl = models.TemplateConfirmationComment.objects.get(
-                    issue_type='default'
+                    issue_type=issue.type
                 )
             except models.TemplateConfirmationComment.DoesNotExist:
-                logger.debug(
-                    'A confirmation comment hasn\'t been created, because a template does not exist.'
-                )
-                return
+                try:
+                    tmpl = models.TemplateConfirmationComment.objects.get(
+                        issue_type='default'
+                    )
+                except models.TemplateConfirmationComment.DoesNotExist:
+                    logger.debug(
+                        'A confirmation comment hasn\'t been created, because a template does not exist.'
+                    )
+                    return
+            comment_tmpl = tmpl.template
 
         body = (
-            Template(tmpl.template)
+            Template(comment_tmpl)
             .render(Context({'issue': issue}, autoescape=False))
             .strip()
         )
