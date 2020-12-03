@@ -38,7 +38,7 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     protocol = models.CharField(max_length=4, blank=True, choices=PROTOCOLS)
     from_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     to_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
-    cidr = models.CharField(max_length=32, blank=True, null=True)
+    cidr = models.CharField(max_length=255, blank=True, null=True)
     direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
     ethertype = models.CharField(max_length=8, default=IPv4, choices=ETHER_TYPES)
 
