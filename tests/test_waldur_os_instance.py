@@ -63,3 +63,37 @@ class InstanceSubNetUpdateTest(unittest.TestCase):
             wait=True,
         )
         self.assertTrue(has_changed)
+
+    def test_update_ip_of_marketplace_instance(self):
+        client = mock.Mock()
+        instance_uuid = '59e46d029a79473779915a22'
+        client.get_instance_via_marketplace.return_value = {
+            'uuid': instance_uuid,
+            'internal_ips_set': [],
+            'security_groups': [],
+        }
+
+        module = mock.Mock()
+        module.params = {
+            'name': 'Test instance',
+            'project': 'Test project',
+            'subnet': self.subnets_set[0],
+            'floating_ip': 'auto',
+            'state': 'present',
+            'wait': True,
+            'interval': 20,
+            'timeout': 600,
+        }
+        module.check_mode = False
+
+        _, has_changed = waldur_marketplace_os_instance.send_request_to_waldur(
+            client, module
+        )
+        client.update_instance_internal_ips_set.assert_called_once_with(
+            instance_uuid=instance_uuid,
+            subnet_set=[self.subnets_set[0]],
+            interval=20,
+            timeout=600,
+            wait=True,
+        )
+        self.assertTrue(has_changed)

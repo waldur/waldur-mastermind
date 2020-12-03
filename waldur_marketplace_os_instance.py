@@ -325,6 +325,8 @@ def send_request_to_waldur(client, module):
             if networks:
                 subnet = [net['subnet'] for net in networks]
             if subnet:
+                if not isinstance(subnet, list):
+                    subnet = [subnet]
                 instance_subnets = instance.get('internal_ips_set')
                 needed_update_subnets = False
 
