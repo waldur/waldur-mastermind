@@ -1,6 +1,6 @@
 from django.db.models import Q
 
-from waldur_core.structure.models import Customer, CustomerRole
+from waldur_core.structure.models import Customer, CustomerRole, Project
 from waldur_mastermind.marketplace.models import Resource
 
 
@@ -41,14 +41,29 @@ def get_users_for_query(query):
         )
 
     if offerings:
-        projects.extend(
-            [
-                r.project
-                for r in Resource.objects.filter(
-                    Q(offering__in=offerings) | Q(offering__parent__in=offerings)
-                ).exclude(state=Resource.States.TERMINATED)
-            ]
-        )
+        extra_resources = Resource.objects.filter(
+            Q(offering__in=offerings) | Q(offering__parent__in=offerings)
+        ).exclude(state=Resource.States.TERMINATED)
+
+        if project_roles:
+            projects.extend(
+                list(
+                    Project.objects.filter(
+                        pk__in=extra_resources.values_list('project_id', flat=True)
+                    )
+                )
+            )
+
+        if customer_roles:
+            customers.extend(
+                list(
+                    Customer.objects.filter(
+                        pk__in=extra_resources.values_list(
+                            'project__customer_id', flat=True
+                        )
+                    )
+                )
+            )
 
     for customer in customers:
         users |= get_customer_users(customer, customer_roles)
