@@ -56,7 +56,7 @@ class BaseOfferingFilter(structure_filters.NameFilterSet, django_filters.FilterS
     )
     category_uuid = django_filters.UUIDFilter(field_name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
-    o = django_filters.OrderingFilter(fields=('name', 'created'))
+    o = django_filters.OrderingFilter(fields=('name', 'created', 'type'))
 
     def filter_allowed_customer(self, queryset, name, value):
         return queryset.filter_for_customer(value)
