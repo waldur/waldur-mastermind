@@ -158,7 +158,9 @@ class SecurityGroup(structure_models.SubResource):
         return super(SecurityGroup, cls).get_backend_fields() + ('name', 'description')
 
 
-class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
+class SecurityGroupRule(
+    core_models.LoggableMixin, openstack_base_models.BaseSecurityGroupRule
+):
     security_group = models.ForeignKey(
         on_delete=models.CASCADE, to=SecurityGroup, related_name='rules'
     )
@@ -170,6 +172,18 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
         blank=True,
     )
     tracker = FieldTracker()
+
+    def get_log_fields(self):
+        return (
+            'security_group',
+            'protocol',
+            'from_port',
+            'to_port',
+            'cidr',
+            'direction',
+            'ethertype',
+            'backend_id',
+        )
 
 
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
@@ -427,6 +441,9 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
             'host_routes',
             'is_connected',
         )
+
+    def get_log_fields(self):
+        return super(SubNet, self).get_log_fields() + ('network',)
 
 
 class Port(structure_models.SubResource, openstack_base_models.Port):

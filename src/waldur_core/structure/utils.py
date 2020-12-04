@@ -127,6 +127,7 @@ def update_pulled_fields(instance, imported_instance, fields):
         modified = True
     if modified:
         instance.save()
+    return modified
 
 
 def handle_resource_not_found(resource):

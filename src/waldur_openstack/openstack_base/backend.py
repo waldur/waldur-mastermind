@@ -396,19 +396,38 @@ class BaseOpenStackBackend(ServiceBackend):
         for backend_rule in backend_rules:
             cur_rules.pop(backend_rule['id'], None)
             backend_rule = self._normalize_security_group_rule(backend_rule)
-            security_group.rules.update_or_create(
+            rule, created = security_group.rules.update_or_create(
                 backend_id=backend_rule['id'],
-                defaults={
-                    'ethertype': backend_rule['ethertype'],
-                    'direction': backend_rule['direction'],
-                    'from_port': backend_rule['port_range_min'],
-                    'to_port': backend_rule['port_range_max'],
-                    'protocol': backend_rule['protocol'],
-                    'cidr': backend_rule['remote_ip_prefix'],
-                    'description': backend_rule['description'] or '',
-                },
+                defaults=self._import_security_group_rule(backend_rule),
             )
-        security_group.rules.filter(backend_id__in=cur_rules.keys()).delete()
+            if created:
+                self._log_security_group_rule_imported(rule)
+            else:
+                self._log_security_group_rule_pulled(rule)
+        stale_rules = security_group.rules.filter(backend_id__in=cur_rules.keys())
+        for rule in stale_rules:
+            self._log_security_group_rule_cleaned(rule)
+        stale_rules.delete()
+
+    def _log_security_group_rule_imported(self, rule):
+        pass
+
+    def _log_security_group_rule_pulled(self, rule):
+        pass
+
+    def _log_security_group_rule_cleaned(self, rule):
+        pass
+
+    def _import_security_group_rule(self, backend_rule):
+        return {
+            'ethertype': backend_rule['ethertype'],
+            'direction': backend_rule['direction'],
+            'from_port': backend_rule['port_range_min'],
+            'to_port': backend_rule['port_range_max'],
+            'protocol': backend_rule['protocol'],
+            'cidr': backend_rule['remote_ip_prefix'],
+            'description': backend_rule['description'] or '',
+        }
 
     def _get_current_properties(self, model):
         return {p.backend_id: p for p in model.objects.filter(settings=self.settings)}
