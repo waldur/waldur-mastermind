@@ -134,7 +134,29 @@ class BackupEventLogger(EventLogger):
         return ResourceActionEventLogger.get_scopes(event_context)
 
 
+class FloatingIPEventLogger(EventLogger):
+    floating_ip = models.FloatingIP
+    instance = models.Instance
+
+    class Meta:
+        event_types = (
+            'openstack_floating_ip_connected',
+            'openstack_floating_ip_disconnected',
+        )
+        event_groups = {'resources': event_types}
+
+    @staticmethod
+    def get_scopes(event_context):
+        floating_ip = event_context['floating_ip']
+        instance = event_context['instance']
+        return [
+            floating_ip,
+            instance,
+        ]
+
+
 event_logger.register('openstack_resource_action', ResourceActionEventLogger)
 event_logger.register('openstack_backup_schedule', BackupScheduleEventLogger)
 event_logger.register('openstack_snapshot_schedule', SnapshotScheduleEventLogger)
 event_logger.register('openstack_backup', BackupEventLogger)
+event_logger.register('openstack_tenant_floating_ip', FloatingIPEventLogger)
