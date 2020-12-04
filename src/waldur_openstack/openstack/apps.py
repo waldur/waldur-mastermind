@@ -22,6 +22,10 @@ class OpenStackConfig(AppConfig):
         from . import handlers
 
         Tenant = self.get_model('Tenant')
+        Network = self.get_model('Network')
+        SubNet = self.get_model('SubNet')
+        SecurityGroup = self.get_model('SecurityGroup')
+        SecurityGroupRule = self.get_model('SecurityGroupRule')
 
         # structure
         from .backend import OpenStackBackend
@@ -67,4 +71,28 @@ class OpenStackConfig(AppConfig):
             handlers.update_service_settings_name,
             sender=Tenant,
             dispatch_uid='openstack.handlers.update_service_settings_name',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_security_group_cleaned,
+            sender=SecurityGroup,
+            dispatch_uid='openstack.handlers.log_security_group_cleaned',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_security_group_rule_cleaned,
+            sender=SecurityGroupRule,
+            dispatch_uid='openstack.handlers.log_security_group_rule_cleaned',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_network_cleaned,
+            sender=Network,
+            dispatch_uid='openstack.handlers.log_network_cleaned',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_subnet_cleaned,
+            sender=SubNet,
+            dispatch_uid='openstack.handlers.log_subnet_cleaned',
         )

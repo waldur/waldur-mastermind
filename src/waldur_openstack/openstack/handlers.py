@@ -89,3 +89,35 @@ def update_service_settings_name(sender, instance, created=False, **kwargs):
     else:
         service_settings.name = tenant.name
         service_settings.save()
+
+
+def log_security_group_cleaned(sender, instance, **kwargs):
+    event_logger.openstack_security_group.info(
+        'Security group %s has been cleaned from cache.' % instance.name,
+        event_type='openstack_security_group_cleaned',
+        event_context={'security_group': instance,},
+    )
+
+
+def log_security_group_rule_cleaned(sender, instance, **kwargs):
+    event_logger.openstack_security_group_rule.info(
+        'Security group rule %s has been cleaned from cache.' % str(instance),
+        event_type='openstack_security_group_rule_cleaned',
+        event_context={'security_group_rule': instance,},
+    )
+
+
+def log_network_cleaned(sender, instance, **kwargs):
+    event_logger.openstack_network.info(
+        'Network %s has been cleaned from cache.' % instance.name,
+        event_type='openstack_network_cleaned',
+        event_context={'network': instance,},
+    )
+
+
+def log_subnet_cleaned(sender, instance, **kwargs):
+    event_logger.openstack_subnet.info(
+        'SubNet %s has been cleaned.' % instance.name,
+        event_type='openstack_subnet_cleaned',
+        event_context={'subnet': instance,},
+    )
