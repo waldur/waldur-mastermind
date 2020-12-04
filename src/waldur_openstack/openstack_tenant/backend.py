@@ -22,6 +22,7 @@ from waldur_openstack.openstack_base.backend import (
 )
 
 from . import models
+from .log import event_logger
 
 logger = logging.getLogger(__name__)
 
@@ -1165,6 +1166,22 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     )
                 except neutron_exceptions.NeutronClientException as e:
                     raise OpenStackBackendError(e)
+                else:
+                    floating_ip = models.FloatingIP(
+                        address=backend_floating_ip['floating_ip_address'],
+                        runtime_state=backend_floating_ip['status'],
+                        backend_id=backend_floating_ip['id'],
+                        backend_network_id=backend_floating_ip['floating_network_id'],
+                    )
+                    event_logger.openstack_tenant_floating_ip.info(
+                        'Floating IP %s has been disconnected from instance %s.'
+                        % (floating_ip.address, instance.name),
+                        event_type='openstack_floating_ip_disconnected',
+                        event_context={
+                            'floating_ip': floating_ip,
+                            'instance': instance,
+                        },
+                    )
 
         # connect new ones
         backend_floating_ip_ids = {fip['id']: fip for fip in backend_floating_ips}
@@ -1185,6 +1202,16 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     )
                 except neutron_exceptions.NeutronClientException as e:
                     raise OpenStackBackendError(e)
+                else:
+                    event_logger.openstack_tenant_floating_ip.info(
+                        'Floating IP %s has been connected to instance %s.'
+                        % (floating_ip.address, instance.name),
+                        event_type='openstack_floating_ip_connected',
+                        event_context={
+                            'floating_ip': floating_ip,
+                            'instance': instance,
+                        },
+                    )
 
     def create_floating_ip(self, floating_ip):
         neutron = self.neutron_client

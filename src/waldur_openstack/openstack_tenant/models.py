@@ -125,7 +125,7 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
         return service_settings, service_settings.scope
 
 
-class FloatingIP(structure_models.ServiceProperty):
+class FloatingIP(core_models.LoggableMixin, structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4', null=True, default=None)
     runtime_state = models.CharField(max_length=30)
     backend_network_id = models.CharField(max_length=255, editable=False)
@@ -168,6 +168,9 @@ class FloatingIP(structure_models.ServiceProperty):
             'runtime_state',
             'backend_network_id',
         )
+
+    def get_log_fields(self):
+        return ('address', 'runtime_state', 'backend_id', 'backend_network_id')
 
 
 class Volume(TenantQuotaMixin, structure_models.Volume):
