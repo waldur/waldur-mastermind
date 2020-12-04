@@ -13,6 +13,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import signals as structure_signals
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.signals import resource_imported
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
@@ -370,6 +371,9 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
         executors.SnapshotRestorationExecutor().execute(restoration)
         serialized_volume = serializers.VolumeSerializer(
             restoration.volume, context={'request': self.request}
+        )
+        resource_imported.send(
+            sender=models.Volume, instance=restoration.volume,
         )
         return response.Response(serialized_volume.data, status=status.HTTP_201_CREATED)
 
