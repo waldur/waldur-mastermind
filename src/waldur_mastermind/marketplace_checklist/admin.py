@@ -14,10 +14,20 @@ class QuestionInline(modeltranslation_admin.TranslationStackedInline):
     fields = ('order', 'description', 'solution', 'correct_answer', 'category')
 
 
+class ChecklistCustomerRoleInline(admin.StackedInline):
+    model = models.ChecklistCustomerRole
+    fields = ('role',)
+
+
+class ChecklistProjectRoleInline(admin.StackedInline):
+    model = models.ChecklistProjectRole
+    fields = ('role',)
+
+
 class ChecklistAdmin(
     import_export_admin.ImportExportMixin, modeltranslation_admin.TranslationAdmin
 ):
-    inlines = [QuestionInline]
+    inlines = [QuestionInline, ChecklistCustomerRoleInline, ChecklistProjectRoleInline]
     list_display = ('name', 'description', 'category')
     list_filter = ('category',)
     fields = ('name', 'description', 'category')
