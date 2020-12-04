@@ -1,4 +1,4 @@
-from django.db.models import F, Q
+from django.db.models import Count, F, Q
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -10,7 +10,12 @@ from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core.models import User
 from waldur_core.structure.filters import filter_visible_users
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import (
+    Customer,
+    CustomerPermission,
+    Project,
+    ProjectPermission,
+)
 from waldur_core.structure.permissions import is_administrator, is_owner
 
 from . import models, serializers
@@ -18,6 +23,26 @@ from . import models, serializers
 
 def get_score(num, den):
     return round(100 * num / max(1, den), 2)
+
+
+def filter_checklists_by_roles(queryset, user):
+    if user.is_staff or user.is_support:
+        return queryset
+
+    project_roles = ProjectPermission.objects.filter(
+        user=user, is_active=True,
+    ).values_list('role', flat=True)
+    customer_roles = CustomerPermission.objects.filter(
+        user=user, is_active=True,
+    ).values_list('role', flat=True)
+    return queryset.annotate(
+        project_roles_count=Count('project_roles'),
+        customer_roles_count=Count('customer_roles'),
+    ).filter(
+        Q(project_roles__role__in=project_roles)
+        | Q(customer_roles__role__in=customer_roles)
+        | Q(project_roles_count=0, customer_roles_count=0)
+    )
 
 
 class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):
@@ -30,14 +55,19 @@ class CategoryChecklistsView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.ChecklistSerializer
 
     def get_queryset(self):
-        return models.Checklist.objects.filter(
+        qs = models.Checklist.objects.filter(
             category__uuid=self.kwargs['category_uuid']
         )
+        return filter_checklists_by_roles(qs, self.request.user)
 
 
 class ChecklistListView(ListModelMixin, GenericViewSet):
     queryset = models.Checklist.objects.all()
     serializer_class = serializers.ChecklistSerializer
+
+    def get_queryset(self):
+        qs = super(ChecklistListView, self).get_queryset()
+        return filter_checklists_by_roles(qs, self.request.user)
 
 
 class ChecklistDetailView(RetrieveModelMixin, GenericViewSet):
