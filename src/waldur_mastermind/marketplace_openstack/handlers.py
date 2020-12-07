@@ -217,6 +217,7 @@ def create_offerings_for_volume_and_instance(tenant):
                 'for instances and volumes is not yet defined.'
             )
             continue
+        actual_customer = tenant.service_project_link.project.customer
         payload = dict(
             type=offering_type,
             name=offering_name,
@@ -226,11 +227,11 @@ def create_offerings_for_volume_and_instance(tenant):
             # OpenStack instance and volume offerings are charged as a part of its tenant
             billable=False,
             parent=parent_offering,
+            customer=actual_customer,
         )
 
         fields = (
             'state',
-            'customer',
             'attributes',
             'thumbnail',
             'vendor_details',
@@ -240,9 +241,7 @@ def create_offerings_for_volume_and_instance(tenant):
         for field in fields:
             payload[field] = getattr(parent_offering, field)
 
-        with transaction.atomic():
-            offering = marketplace_models.Offering.objects.create(**payload)
-            offering.allowed_customers.add(tenant.service_project_link.project.customer)
+        marketplace_models.Offering.objects.create(**payload)
 
 
 def archive_offering(sender, instance, **kwargs):

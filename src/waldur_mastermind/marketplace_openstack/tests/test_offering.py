@@ -308,6 +308,9 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
 
         self.assertTrue(isinstance(service_settings, structure_models.ServiceSettings))
         self.assertEqual(service_settings.scope, tenant)
+        self.assertEqual(
+            offering.customer, tenant.service_project_link.project.customer
+        )
 
     @data(INSTANCE_TYPE, VOLUME_TYPE)
     @override_plugin_settings(AUTOMATICALLY_CREATE_PRIVATE_OFFERING=False)
