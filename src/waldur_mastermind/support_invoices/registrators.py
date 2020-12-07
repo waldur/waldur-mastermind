@@ -10,8 +10,6 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.support import models as support_models
 
-from . import utils
-
 logger = logging.getLogger(__name__)
 
 BillingTypes = marketplace_models.OfferingComponent.BillingTypes
@@ -29,10 +27,14 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         return project.customer
 
     def _find_item(self, source, now):
-        offering = source
-        result = utils.get_offering_items().filter(
-            object_id=offering.id,
-            invoice__customer=self.get_customer(offering),
+        support_offering = source
+        model_type = ContentType.objects.get_for_model(support_offering)
+        resources_ids = marketplace_models.Resource.objects.filter(
+            object_id=support_offering.id, content_type=model_type
+        ).values_list('id', flat=True)
+        result = invoice_models.InvoiceItem.objects.filter(
+            object_id__in=resources_ids,
+            invoice__customer=self.get_customer(support_offering),
             invoice__state=invoice_models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
@@ -40,40 +42,28 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         return list(result)
 
     def _create_item(self, source, invoice, start, end, **kwargs):
-        offering = source
+        support_offering = source
 
         try:
-            resource = marketplace_models.Resource.objects.get(scope=offering)
+            resource = marketplace_models.Resource.objects.get(scope=support_offering)
             self.create_items_for_plan(
-                invoice, resource, offering, start, end, **kwargs
+                invoice, resource, support_offering, start, end, **kwargs
             )
 
         except marketplace_models.Resource.DoesNotExist:
-            # If an offering isn't request based support offering
-            item = invoice_models.InvoiceItem.objects.create(
-                content_type=ContentType.objects.get_for_model(offering),
-                object_id=offering.id,
-                project=offering.project,
-                invoice=invoice,
-                start=start,
-                end=end,
-                details=self.get_details(offering),
-                unit_price=offering.unit_price,
-                unit=offering.unit,
-                product_code=offering.product_code,
-                article_code=offering.article_code,
-            )
-            self.init_details(item)
-            return item
+            logger.error('Offering isn\'t request based support offering.')
 
-    def create_items_for_plan(self, invoice, resource, offering, start, end, **kwargs):
+    def create_items_for_plan(
+        self, invoice, resource, support_offering, start, end, **kwargs
+    ):
         plan = resource.plan
+
         if not plan:
             logger.warning(
                 'Skipping support invoice creation because '
-                'billing is not enabled for offering. '
-                'Offering ID: %s',
-                offering.id,
+                'billing is not enabled for resource. '
+                'Resource ID: %s',
+                resource.id,
             )
             return
 
@@ -93,7 +83,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 or (is_switch and order_type == OrderTypes.UPDATE)
                 or (is_usage and offering_component.use_limit_for_billing)
             ):
-                details = self.get_component_details(offering, plan_component)
+                details = self.get_component_details(support_offering, plan_component)
 
                 unit_price = plan_component.price
                 unit = plan.unit
@@ -109,9 +99,9 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     quantity = resource.limits.get(offering_component.type)
 
                 item = invoice_models.InvoiceItem.objects.create(
-                    content_type=ContentType.objects.get_for_model(offering),
-                    object_id=offering.id,
-                    project=offering.project,
+                    content_type=ContentType.objects.get_for_model(resource),
+                    object_id=resource.id,
+                    project=resource.project,
                     invoice=invoice,
                     start=start,
                     end=end,
@@ -125,7 +115,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 self.init_details(item)
 
     def get_details(self, source):
-        offering = source
+        support_offering = source
 
         try:
             resource = marketplace_models.Resource.objects.get(scope=source)
@@ -133,28 +123,25 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         except (ObjectDoesNotExist, MultipleObjectsReturned):
             details = {}
 
-        service_provider_info = marketplace_utils.get_service_provider_info(offering)
+        service_provider_info = marketplace_utils.get_service_provider_info(
+            support_offering
+        )
         details.update(service_provider_info)
-        details['plan_name'] = offering.plan.name if offering.plan else ''
+        details['plan_name'] = (
+            support_offering.plan.name if support_offering.plan else ''
+        )
         return details
 
-    def get_name(self, offering):
+    def get_name(self, resource):
+        offering = resource.scope
+
         if offering.plan:
             return '%s (%s / %s)' % (offering.name, offering.type, offering.plan.name)
         else:
             return '%s (%s)' % (offering.name, offering.type)
 
-    def terminate(self, source, now=None):
-        super(OfferingRegistrator, self).terminate(source, now)
-        offering = source
-
-        if not utils.is_request_based(offering):
-            utils.get_offering_items().filter(object_id=offering.id).update(
-                object_id=None
-            )
-
-    def get_component_details(self, offering, plan_component):
-        details = self.get_details(offering)
+    def get_component_details(self, support_offering, plan_component):
+        details = self.get_details(support_offering)
         details.update(
             {
                 'plan_component_id': plan_component.id,

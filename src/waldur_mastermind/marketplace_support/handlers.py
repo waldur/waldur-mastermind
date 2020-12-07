@@ -83,6 +83,10 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
 def terminate_resource(sender, instance, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
+
+        if resource.state == marketplace_models.Resource.States.TERMINATED:
+            return
+
     except ObjectDoesNotExist:
         logger.debug(
             'Skipping resource terminate for support request '

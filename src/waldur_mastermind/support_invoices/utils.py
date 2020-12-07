@@ -18,8 +18,14 @@ def is_request_based(offering):
 
 
 def get_offering_items():
-    model_type = ContentType.objects.get_for_model(support_models.Offering)
-    return invoice_models.InvoiceItem.objects.filter(content_type=model_type)
+    resource_model_type = ContentType.objects.get_for_model(marketplace_models.Resource)
+    offering_model_type = ContentType.objects.get_for_model(support_models.Offering)
+    resources_ids = marketplace_models.Resource.objects.filter(
+        content_type=offering_model_type
+    ).values_list('id', flat=True)
+    return invoice_models.InvoiceItem.objects.filter(
+        content_type=resource_model_type, object_id__in=resources_ids
+    )
 
 
 def component_usage_register(component_usage):

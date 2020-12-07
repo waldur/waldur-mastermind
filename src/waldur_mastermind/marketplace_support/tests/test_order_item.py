@@ -431,7 +431,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         end = month_end(new_start)
         self.assertTrue(
             invoices_models.InvoiceItem.objects.filter(
-                scope=self.request,
+                scope=self.resource,
                 project=self.project,
                 unit_price=Decimal(10),
                 start=self.start,
@@ -440,7 +440,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         )
         self.assertTrue(
             invoices_models.InvoiceItem.objects.filter(
-                scope=self.request,
+                scope=self.resource,
                 project=self.project,
                 unit_price=Decimal(50),
                 start=new_start,

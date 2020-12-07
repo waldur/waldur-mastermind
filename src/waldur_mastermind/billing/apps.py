@@ -37,7 +37,7 @@ class BillingConfig(AppConfig):
         signals.post_save.connect(
             handlers.process_invoice_item,
             sender=invoices_models.InvoiceItem,
-            dispatch_uid='waldur_mastermind.billing. process_invoice_item',
+            dispatch_uid='waldur_mastermind.billing.process_invoice_item',
         )
 
         signals.post_save.connect(

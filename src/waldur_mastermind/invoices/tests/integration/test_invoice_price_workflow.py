@@ -13,13 +13,15 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.marketplace_support.tests import (
+    fixtures as marketplace_support_fixtures,
+)
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as packages_views
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.support.tests import factories as support_factories
 from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
@@ -27,10 +29,7 @@ from ... import models, tasks, utils
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
-class InvoicePriceWorkflowTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = package_fixtures.PackageFixture()
-
+class BaseInvoicePriceWorkflowTest(test.APITransactionTestCase):
     def get_package_create_payload(self):
         spl = self.fixture.openstack_spl
         spl_url = openstack_factories.OpenStackServiceProjectLinkFactory.get_url(spl)
@@ -49,6 +48,203 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             price=component_price, amount=component_amount,
         )
         return template
+
+
+class InvoicePriceWorkflowTest(BaseInvoicePriceWorkflowTest):
+    def setUp(self):
+        self.fixture = package_fixtures.PackageFixture()
+        self.marketplace_support_fixture = (
+            marketplace_support_fixtures.MarketplaceSupportApprovedFixture()
+        )
+
+    def test_package_price_is_calculated_properly_if_it_was_used_only_for_one_day(self):
+        cheap_package_template = self.create_package_template(component_price=10)
+        medium_package_template = self.create_package_template(component_price=15)
+        expensive_package_template = self.create_package_template(component_price=20)
+        customer = structure_factories.CustomerFactory()
+        date = timezone.datetime(2017, 1, 26)
+        month_end = timezone.datetime(2017, 1, 31, 23, 59, 59)
+        full_days = utils.get_full_days(date, month_end)
+
+        # at first user has bought cheap package
+        with freeze_time(date):
+            cheap_package = packages_factories.OpenStackPackageFactory(
+                template=cheap_package_template,
+                tenant__service_project_link__project__customer=customer,
+            )
+        invoice = models.Invoice.objects.get(customer=customer)
+        cheap_item = invoice.generic_items.get(scope=cheap_package)
+        self.assertEqual(cheap_item.unit_price, cheap_package_template.price)
+        self.assertEqual(cheap_item.usage_days, full_days)
+
+        # later at the same day he switched to the expensive one
+        with freeze_time(date + timezone.timedelta(hours=2)):
+            cheap_package.delete()
+            expensive_package = packages_factories.OpenStackPackageFactory(
+                template=expensive_package_template, tenant=cheap_package.tenant
+            )
+        expensive_item = invoice.generic_items.get(scope=expensive_package)
+        self.assertEqual(expensive_item.unit_price, expensive_package_template.price)
+        self.assertEqual(expensive_item.usage_days, full_days)
+        # cheap item price should not exits, because it was replaced by expensive one
+        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
+
+        # at last he switched to the medium one
+        with freeze_time(date + timezone.timedelta(hours=4)):
+            expensive_package.delete()
+            medium_package = packages_factories.OpenStackPackageFactory(
+                template=medium_package_template, tenant=expensive_package.tenant
+            )
+        medium_item = invoice.generic_items.get(scope=medium_package)
+        # medium item usage days should start from tomorrow,
+        # because expensive item should be calculated for current day
+        self.assertEqual(medium_item.usage_days, full_days - 1)
+        # expensive item should be calculated for one day
+        expensive_item.refresh_from_db()
+
+        # cheap item price should not exits
+        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
+
+    def test_invoice_item_with_daily_price(self):
+        start_date = timezone.datetime(2017, 7, 14)
+        end_date = timezone.datetime(2017, 7, 31, 23, 59, 59)
+        offering = self.marketplace_support_fixture.offering
+        self.marketplace_support_fixture.plan.unit = (
+            common_mixins.UnitPriceMixin.Units.PER_DAY
+        )
+        self.marketplace_support_fixture.plan.save()
+
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        expected_price = (
+            utils.get_full_days(start_date, end_date)
+            * self.marketplace_support_fixture.plan_component.price
+        )
+        offering_item = models.InvoiceItem.objects.get(
+            scope=self.marketplace_support_fixture.resource
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_monthly_price(self):
+        start_date = timezone.datetime(2017, 7, 20)
+        end_date = timezone.datetime(2017, 7, 31)
+        offering = self.marketplace_support_fixture.offering
+
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        use_days = (end_date - start_date).days + 1
+        month_days = monthrange(start_date.year, start_date.month)[1]
+        factor = quantize_price(decimal.Decimal(use_days) / month_days)
+        expected_price = self.marketplace_support_fixture.plan_component.price * factor
+
+        offering_item = models.InvoiceItem.objects.get(
+            scope=self.marketplace_support_fixture.resource
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
+        start_date = timezone.datetime(2017, 7, 14)
+        offering = self.marketplace_support_fixture.offering
+        self.marketplace_support_fixture.plan.unit = (
+            common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
+        )
+        self.marketplace_support_fixture.plan.save()
+
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        month_days = monthrange(2017, 7)[1]
+        factor = quantize_price(
+            1 + (16 - start_date.day) / decimal.Decimal(month_days / 2)
+        )
+        expected_price = self.marketplace_support_fixture.plan_component.price * factor
+        offering_item = models.InvoiceItem.objects.get(
+            scope=self.marketplace_support_fixture.resource
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_start_in_second_half(self):
+        start_date = timezone.datetime(2017, 7, 16)
+        offering = self.marketplace_support_fixture.offering
+        self.marketplace_support_fixture.plan.unit = (
+            common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
+        )
+        self.marketplace_support_fixture.plan.save()
+
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        expected_price = self.marketplace_support_fixture.plan_component.price
+        offering_item = models.InvoiceItem.objects.get(
+            scope=self.marketplace_support_fixture.resource
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_end_in_first_half(self):
+        start_date = timezone.datetime(2017, 7, 10)
+        end_date = timezone.datetime(2017, 7, 14)
+        offering, offering_item, expected_price = self._start_end_offering(
+            start_date, end_date
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_end_in_second_half(self):
+        start_date = timezone.datetime(2017, 7, 10)
+        end_date = timezone.datetime(2017, 7, 20)
+        offering, offering_item, expected_price = self._start_end_offering(
+            start_date, end_date
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_both_halves(self):
+        start_date = timezone.datetime(2017, 7, 1)
+        month_days = monthrange(2017, 7)[1]
+        end_date = timezone.datetime(2017, 7, month_days)
+        offering, offering_item, expected_price = self._start_end_offering(
+            start_date, end_date
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_start_in_first_day_and_end_in_second_half(self):
+        start_date = timezone.datetime(2017, 7, 1)
+        end_date = timezone.datetime(2017, 7, 20)
+        offering, offering_item, expected_price = self._start_end_offering(
+            start_date, end_date
+        )
+        self.assertEqual(offering_item.price, expected_price)
+
+    def _start_end_offering(self, start_date, end_date):
+        offering = self.marketplace_support_fixture.offering
+
+        use_days = (end_date - start_date).days + 1
+        month_days = monthrange(start_date.year, start_date.month)[1]
+        factor = quantize_price(decimal.Decimal(use_days) / month_days)
+        expected_price = self.marketplace_support_fixture.plan_component.price * factor
+
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+            offering_item = models.InvoiceItem.objects.get(
+                scope=self.marketplace_support_fixture.resource
+            )
+
+        with freeze_time(end_date):
+            offering.state = support_models.Offering.States.TERMINATED
+            offering.save(update_fields=['state'])
+            offering_item.refresh_from_db()
+
+        return offering, offering_item, expected_price
+
+
+class InvoicePriceAfterHalfMonthTest(BaseInvoicePriceWorkflowTest):
+    def setUp(self):
+        self.fixture = package_fixtures.PackageFixture()
 
     def test_new_invoice_is_created_in_new_month_after_half_month_of_usage(self):
         """
@@ -117,170 +313,3 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             self.assertEqual(expected_price, second_invoice.price)
             openstack_item = second_invoice.generic_items.first()
             self.assertEqual(openstack_item.end.date(), package_deletion_date.date())
-
-    def test_package_price_is_calculated_properly_if_it_was_used_only_for_one_day(self):
-        cheap_package_template = self.create_package_template(component_price=10)
-        medium_package_template = self.create_package_template(component_price=15)
-        expensive_package_template = self.create_package_template(component_price=20)
-        customer = structure_factories.CustomerFactory()
-        date = timezone.datetime(2017, 1, 26)
-        month_end = timezone.datetime(2017, 1, 31, 23, 59, 59)
-        full_days = utils.get_full_days(date, month_end)
-
-        # at first user has bought cheap package
-        with freeze_time(date):
-            cheap_package = packages_factories.OpenStackPackageFactory(
-                template=cheap_package_template,
-                tenant__service_project_link__project__customer=customer,
-            )
-        invoice = models.Invoice.objects.get(customer=customer)
-        cheap_item = invoice.generic_items.get(scope=cheap_package)
-        self.assertEqual(cheap_item.unit_price, cheap_package_template.price)
-        self.assertEqual(cheap_item.usage_days, full_days)
-
-        # later at the same day he switched to the expensive one
-        with freeze_time(date + timezone.timedelta(hours=2)):
-            cheap_package.delete()
-            expensive_package = packages_factories.OpenStackPackageFactory(
-                template=expensive_package_template, tenant=cheap_package.tenant
-            )
-        expensive_item = invoice.generic_items.get(scope=expensive_package)
-        self.assertEqual(expensive_item.unit_price, expensive_package_template.price)
-        self.assertEqual(expensive_item.usage_days, full_days)
-        # cheap item price should not exits, because it was replaced by expensive one
-        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
-
-        # at last he switched to the medium one
-        with freeze_time(date + timezone.timedelta(hours=4)):
-            expensive_package.delete()
-            medium_package = packages_factories.OpenStackPackageFactory(
-                template=medium_package_template, tenant=expensive_package.tenant
-            )
-        medium_item = invoice.generic_items.get(scope=medium_package)
-        # medium item usage days should start from tomorrow,
-        # because expensive item should be calculated for current day
-        self.assertEqual(medium_item.usage_days, full_days - 1)
-        # expensive item should be calculated for one day
-        expensive_item.refresh_from_db()
-
-        # cheap item price should not exits
-        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
-
-    def test_invoice_item_with_daily_price(self):
-        start_date = timezone.datetime(2017, 7, 14)
-        end_date = timezone.datetime(2017, 7, 31, 23, 59, 59)
-        offering = support_factories.OfferingFactory(
-            unit=common_mixins.UnitPriceMixin.Units.PER_DAY
-        )
-        with freeze_time(start_date):
-            offering.state = support_models.Offering.States.OK
-            offering.save(update_fields=['state'])
-
-        expected_price = utils.get_full_days(start_date, end_date) * offering.unit_price
-        offering_item = models.InvoiceItem.objects.get(scope=offering)
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_monthly_price(self):
-        start_date = timezone.datetime(2017, 7, 20)
-        month_days = monthrange(2017, 7)[1]
-        usage_days = month_days - start_date.day + 1
-        offering = support_factories.OfferingFactory(
-            unit=common_mixins.UnitPriceMixin.Units.PER_MONTH
-        )
-        with freeze_time(start_date):
-            offering.state = support_models.Offering.States.OK
-            offering.save(update_fields=['state'])
-
-        expected_price = offering.unit_price * quantize_price(
-            decimal.Decimal((usage_days / month_days))
-        )
-        offering_item = models.InvoiceItem.objects.get(scope=offering)
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
-        start_date = timezone.datetime(2017, 7, 14)
-        usage_days = 2
-        offering = support_factories.OfferingFactory(
-            unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
-        )
-        with freeze_time(start_date):
-            offering.state = support_models.Offering.States.OK
-            offering.save(update_fields=['state'])
-
-        month_days = monthrange(2017, 7)[1]
-        expected_price = offering.unit_price * quantize_price(
-            1 + (usage_days / decimal.Decimal(month_days / 2))
-        )
-        offering_item = models.InvoiceItem.objects.get(scope=offering)
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_half_monthly_price_with_start_in_second_half(self):
-        start_date = timezone.datetime(2017, 7, 16)
-        offering = support_factories.OfferingFactory(
-            unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
-        )
-        with freeze_time(start_date):
-            offering.state = support_models.Offering.States.OK
-            offering.save(update_fields=['state'])
-
-        expected_price = offering.unit_price
-        offering_item = models.InvoiceItem.objects.get(scope=offering)
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_half_monthly_price_with_end_in_first_half(self):
-        start_date = timezone.datetime(2017, 7, 10)
-        end_date = timezone.datetime(2017, 7, 14)
-        usage_days = 5
-        offering, offering_item = self._start_end_offering(start_date, end_date)
-        month_days = monthrange(2017, 7)[1]
-        expected_price = offering.unit_price * quantize_price(
-            usage_days / decimal.Decimal(month_days / 2)
-        )
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_half_monthly_price_with_end_in_second_half(self):
-        start_date = timezone.datetime(2017, 7, 10)
-        end_date = timezone.datetime(2017, 7, 20)
-        usage_days = 11
-        offering, offering_item = self._start_end_offering(start_date, end_date)
-        month_days = monthrange(2017, 7)[1]
-        expected_price = offering.unit_price * quantize_price(
-            usage_days / decimal.Decimal(month_days / 2)
-        )
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_both_halves(self):
-        start_date = timezone.datetime(2017, 7, 1)
-        month_days = monthrange(2017, 7)[1]
-        end_date = timezone.datetime(2017, 7, month_days)
-        offering, offering_item = self._start_end_offering(start_date, end_date)
-        expected_price = offering.unit_price * 2
-        self.assertEqual(offering_item.price, expected_price)
-
-    def test_invoice_item_with_start_in_first_day_and_end_in_second_half(self):
-        start_date = timezone.datetime(2017, 7, 1)
-        month_days = monthrange(2017, 7)[1]
-        end_date = timezone.datetime(2017, 7, 20)
-        usage_days = 5
-        offering, offering_item = self._start_end_offering(start_date, end_date)
-        expected_price = offering.unit_price * quantize_price(
-            1 + (usage_days / decimal.Decimal(month_days / 2))
-        )
-        self.assertEqual(offering_item.price, expected_price)
-
-    def _start_end_offering(self, start_date, end_date):
-        offering = support_factories.OfferingFactory(
-            unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH
-        )
-
-        with freeze_time(start_date):
-            offering.state = support_models.Offering.States.OK
-            offering.save(update_fields=['state'])
-            offering_item = models.InvoiceItem.objects.get(scope=offering)
-
-        with freeze_time(end_date):
-            offering.state = support_models.Offering.States.TERMINATED
-            offering.save(update_fields=['state'])
-            offering_item.refresh_from_db()
-
-        return offering, offering_item

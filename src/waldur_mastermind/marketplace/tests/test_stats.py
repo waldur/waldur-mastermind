@@ -283,10 +283,14 @@ class ComponentStatsTest(StatsBaseTest):
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
             type='storage',
         )
+        plan_period = factories.ResourcePlanPeriodFactory(
+            resource=self.resource, plan=self.plan,
+        )
         usage = factories.ComponentUsageFactory(
             resource=self.resource,
             billing_period=core_utils.month_start(timezone.now()),
             component=component,
+            plan_period=plan_period,
         )
         self._create_item()
         self.client.force_authenticate(self.fixture.staff)
@@ -353,10 +357,16 @@ class ComponentStatsTest(StatsBaseTest):
             type='storage',
         )
         self._create_item()
+        plan_period = factories.ResourcePlanPeriodFactory(
+            resource=self.resource,
+            plan=self.plan,
+            start=core_utils.month_start(timezone.now()),
+        )
         usage = factories.ComponentUsageFactory(
             resource=self.resource,
             billing_period=core_utils.month_start(timezone.now()),
             component=component,
+            plan_period=plan_period,
         )
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
