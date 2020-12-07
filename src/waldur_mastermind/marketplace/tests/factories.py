@@ -362,3 +362,12 @@ class ComponentUsageFactory(factory.DjangoModelFactory):
     usage = 1
     date = timezone.now()
     billing_period = core_utils.month_start(timezone.now())
+
+
+class ResourcePlanPeriodFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.ResourcePlanPeriod
+
+    resource = factory.SubFactory(ResourceFactory)
+    plan = factory.SubFactory(PlanFactory)
+    start = core_utils.month_start(timezone.now())

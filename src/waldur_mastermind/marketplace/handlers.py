@@ -344,11 +344,27 @@ def add_component_usage(sender, instance, created=False, **kwargs):
     if not isinstance(component_usage.resource, models.Resource):
         return
 
+    if not component_usage.plan_period:
+        # Field plan_period is optional if component_usage is not connected with billing
+        return
+    else:
+        if component_usage.plan_period.end:
+            plan_period_end = component_usage.plan_period.end
+        else:
+            plan_period_end = core_utils.month_end(component_usage.billing_period)
+
+        if component_usage.plan_period.start:
+            plan_period_start = component_usage.plan_period.start
+        else:
+            plan_period_start = component_usage.billing_period
+
     try:
         item = invoices_models.InvoiceItem.objects.get(
             invoice__year=component_usage.billing_period.year,
             invoice__month=component_usage.billing_period.month,
             scope=component_usage.resource,
+            start__gte=plan_period_start,
+            end__lte=plan_period_end,
         )
         usages = item.details.get('usages', {})
         usages[component_usage.component.type] = component_usage.usage

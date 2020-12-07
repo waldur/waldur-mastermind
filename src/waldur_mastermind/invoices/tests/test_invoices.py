@@ -16,6 +16,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
@@ -320,6 +321,34 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             plan=self.support_plan,
             state=support_models.Offering.States.OK,
         )
+        self.marketplace_support_offering = marketplace_factories.OfferingFactory(
+            name=self.support_offering.name,
+            type=PLUGIN_NAME,
+            customer=self.provider.customer,
+        )
+        self.marketplace_support_offering.scope = self.support_offering
+        self.marketplace_support_offering.save()
+
+        self.support_offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.marketplace_support_offering
+        )
+        self.marketplace_support_plan = marketplace_factories.PlanFactory(
+            offering=self.marketplace_support_offering,
+            unit=UnitPriceMixin.Units.PER_DAY,
+        )
+        self.component = marketplace_factories.PlanComponentFactory(
+            component=self.support_offering_component,
+            price=Decimal(5),
+            plan=self.marketplace_support_plan,
+        )
+        self.resource_4 = marketplace_factories.ResourceFactory(
+            state=marketplace_models.Resource.States.OK,
+            offering=self.marketplace_support_offering,
+            project=self.resource_1.project,
+            plan=self.marketplace_support_plan,
+        )
+        self.resource_4.scope = self.support_offering
+        self.resource_4.save()
 
     @freeze_time('2019-01-01')
     def test_invoice_stats(self):
@@ -333,7 +362,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             {d['uuid'] for d in result.data},
             {
                 self.offering.uuid.hex,
-                self.support_template.uuid.hex,
+                self.marketplace_support_offering.uuid.hex,
                 self.offering_2.uuid.hex,
             },
         )
@@ -389,22 +418,19 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.assertEqual(
             list(
                 filter(
-                    lambda x: x['uuid'] == self.support_template.uuid.hex, result.data
+                    lambda x: x['uuid'] == self.marketplace_support_offering.uuid.hex,
+                    result.data,
                 )
             )[0],
             {
-                'uuid': self.support_template.uuid.hex,
-                'offering_name': self.support_template.name,
+                'uuid': self.marketplace_support_offering.uuid.hex,
+                'offering_name': self.marketplace_support_offering.name,
                 'aggregated_cost': models.InvoiceItem.objects.get(
-                    invoice=invoice,
-                    object_id=self.support_offering.id,
-                    content_type=ContentType.objects.get_for_model(
-                        support_models.Offering
-                    ),
+                    invoice=invoice, object_id=self.resource_4.id,
                 ).price,
-                'service_category_title': 'Request',
-                'service_provider_name': '',
-                'service_provider_uuid': '',
+                'service_category_title': self.marketplace_support_offering.category.title,
+                'service_provider_name': self.offering.customer.name,
+                'service_provider_uuid': self.provider.uuid.hex,
             },
         )
 

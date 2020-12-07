@@ -8,13 +8,15 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices.tests import factories as invoice_factories
+from waldur_mastermind.marketplace_support.tests import (
+    fixtures as marketplace_support_fixtures,
+)
 from waldur_mastermind.packages import views as packages_views
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import utils as packages_utils
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.support.tests import fixtures as support_fixtures
 
 from .. import exceptions, models
 from . import factories
@@ -158,12 +160,12 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
 
     @data('project', 'customer')
     def test_when_offering_is_created_total_is_updated(self, scope):
-        fixture = support_fixtures.SupportFixture()
+        fixture = marketplace_support_fixtures.MarketplaceSupportApprovedFixture()
         offering = fixture.offering
         offering.state = support_models.Offering.States.OK
         offering.save()
         estimate = models.PriceEstimate.objects.get(scope=getattr(fixture, scope))
-        self.assertEqual(estimate.total, offering.unit_price * 31)
+        self.assertEqual(estimate.total, fixture.plan_component.price)
 
 
 @ddt
@@ -174,7 +176,7 @@ class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
     """
 
     def setUp(self):
-        self.fixture = support_fixtures.SupportFixture()
+        self.fixture = marketplace_support_fixtures.MarketplaceSupportApprovedFixture()
 
     @data('project', 'customer')
     def test_if_resource_cost_exceeds_limit_provision_is_disabled(self, scope):
@@ -192,10 +194,11 @@ class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
         self.create_resource(cost=10)
 
     def create_resource(self, cost):
-        offering = self.fixture.offering
-        offering.unit_price = cost / 31.0
-        offering.state = support_models.Offering.States.OK
-        offering.save()
+        plan_component = self.fixture.plan_component
+        plan_component.price = cost
+        plan_component.save()
+        self.fixture.offering.state = support_models.Offering.States.OK
+        self.fixture.offering.save()
 
 
 @ddt

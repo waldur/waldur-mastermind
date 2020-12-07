@@ -7,6 +7,9 @@ from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.invoices.tasks import format_invoice_csv
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support.tests import factories as support_factories
 
@@ -30,6 +33,30 @@ class BaseReportFormatterTest(TransactionTestCase):
         invoice.set_created()
         self.invoice = invoice
 
+        self.marketplace_offering = marketplace_factories.OfferingFactory(
+            type=PLUGIN_NAME,
+        )
+        offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.marketplace_offering
+        )
+        plan = marketplace_factories.PlanFactory(
+            offering=self.marketplace_offering,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
+        )
+        marketplace_factories.PlanComponentFactory(
+            component=offering_component, plan=plan
+        )
+        resource = marketplace_factories.ResourceFactory(
+            project=package.tenant.service_project_link.project,
+            offering=self.marketplace_offering,
+            plan=plan,
+        )
+        self.support_offering = support_factories.OfferingFactory(
+            template__name='OFFERING-001', project=self.fixture.project
+        )
+        resource.scope = self.support_offering
+        resource.save()
+
 
 class GenericReportFormatterTest(BaseReportFormatterTest):
     def test_invoice_items_are_properly_formatted(self):
@@ -47,11 +74,9 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
         self.assertEqual(lines[0], expected_header)
 
     def test_offering_items_are_serialized(self):
-        offering = support_factories.OfferingFactory(
-            template__name='OFFERING-001', project=self.fixture.project
-        )
-        offering.state = offering.__class__.States.OK
-        offering.save()
+        self.support_offering.state = self.support_offering.__class__.States.OK
+        self.support_offering.save()
+        self.invoice.refresh_from_db()
         report = format_invoice_csv(self.invoice)
         lines = report.splitlines()
         self.assertEqual(3, len(lines))

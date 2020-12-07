@@ -18,12 +18,6 @@ class SupportInvoicesConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.add_new_offering_to_invoice,
-            sender=marketplace_models.OrderItem,
-            dispatch_uid='support_invoices.handlers.add_new_offering_to_invoice',
-        )
-
-        signals.post_save.connect(
             handlers.terminate_invoice_when_offering_cancelled,
             sender=support_models.Offering,
             dispatch_uid='support_invoices.handlers.terminate_invoice_when_offering_cancelled',
@@ -51,12 +45,6 @@ class SupportInvoicesConfig(AppConfig):
             handlers.add_new_offering_details_to_invoice,
             sender=support_models.Offering,
             dispatch_uid='waldur_mastermind.invoices.add_new_offering_details_to_invoice',
-        )
-
-        signals.pre_delete.connect(
-            handlers.update_invoice_on_offering_deletion,
-            sender=support_models.Offering,
-            dispatch_uid='waldur_mastermind.invoices.update_invoice_on_offering_deletion',
         )
 
         signals.post_save.connect(
