@@ -13,4 +13,7 @@ gosu waldur sh -c "waldur update_translation_fields"
 echo "INFO: Recalculating quotas..."
 gosu waldur sh -c "waldur recalculatequotas"
 
+echo "INFO: Creating initial revisions..."
+gosu waldur sh -c "waldur createinitialrevisions"
+
 exit 0
