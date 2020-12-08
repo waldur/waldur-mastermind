@@ -1,5 +1,6 @@
 import logging
 
+import reversion
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import (
@@ -155,7 +156,12 @@ def can_update_offering_attributes(request, view, obj=None):
         raise rf_exceptions.PermissionDenied()
 
 
-class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
+class OfferingViewSet(
+    core_views.CreateReversionMixin,
+    core_views.UpdateReversionMixin,
+    PublicViewsetMixin,
+    BaseMarketplaceView,
+):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
@@ -208,12 +214,19 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
         except TransitionNotAllowed:
             raise rf_exceptions.ValidationError(_('Offering state is invalid.'))
 
-        if request:
-            serializer = self.get_serializer(offering, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            offering = serializer.save()
+        with reversion.create_revision():
+            if request:
+                serializer = self.get_serializer(
+                    offering, data=request.data, partial=True
+                )
+                serializer.is_valid(raise_exception=True)
+                offering = serializer.save()
 
-        offering.save(update_fields=['state'])
+            offering.save(update_fields=['state'])
+            reversion.set_user(self.request.user)
+            reversion.set_comment(
+                f'Offering state has been updated using method {action}'
+            )
         return Response(
             {
                 'detail': _('Offering state updated.'),
@@ -266,7 +279,10 @@ class OfferingViewSet(PublicViewsetMixin, BaseMarketplaceView):
             raise rf_exceptions.ValidationError('Dictionary is expected.')
         validate_attributes(request.data, offering.category)
         offering.attributes = request.data
-        offering.save(update_fields=['attributes'])
+        with reversion.create_revision():
+            offering.save(update_fields=['attributes'])
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Offering attributes have been updated via REST API')
         return Response(status=status.HTTP_200_OK)
 
     update_attributes_permissions = [can_update_offering_attributes]
@@ -496,7 +512,7 @@ def validate_plan_archive(plan):
         raise rf_exceptions.ValidationError(_('Plan is already archived.'))
 
 
-class PlanViewSet(BaseMarketplaceView):
+class PlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
     queryset = models.Plan.objects.all()
     serializer_class = serializers.PlanDetailsSerializer
     filterset_class = filters.PlanFilter
@@ -510,8 +526,11 @@ class PlanViewSet(BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def archive(self, request, uuid=None):
         plan = self.get_object()
-        plan.archived = True
-        plan.save(update_fields=['archived'])
+        with reversion.create_revision():
+            plan.archived = True
+            plan.save(update_fields=['archived'])
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Plan has been archived.')
         return Response(
             {'detail': _('Plan has been archived.')}, status=status.HTTP_200_OK
         )
@@ -521,7 +540,11 @@ class PlanViewSet(BaseMarketplaceView):
         return PlanUsageReporter(self, request).get_report()
 
 
-class ScreenshotViewSet(BaseMarketplaceView):
+class ScreenshotViewSet(
+    core_views.CreateReversionMixin,
+    core_views.UpdateReversionMixin,
+    BaseMarketplaceView,
+):
     queryset = models.Screenshot.objects.all()
     serializer_class = serializers.ScreenshotSerializer
     filterset_class = filters.ScreenshotFilter

@@ -16,6 +16,7 @@ from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
+from reversion import revisions as reversion
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
@@ -1326,3 +1327,10 @@ class OfferingPermission(core_models.UuidMixin, structure_models.BasePermission)
 
     def revoke(self):
         self.offering.remove_user(self.user)
+
+
+reversion.register(Screenshot)
+reversion.register(OfferingComponent)
+reversion.register(PlanComponent)
+reversion.register(Plan, follow=('components',))
+reversion.register(Offering, follow=('components', 'plans', 'screenshots'))
