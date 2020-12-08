@@ -71,6 +71,8 @@ class SAML2Extension(WaldurExtension):
             'IDENTITY_PROVIDER_URL': None,
             'IDENTITY_PROVIDER_LABEL': None,
             'DEFAULT_BINDING': saml2.BINDING_HTTP_POST,
+            'DISCOVERY_SERVICE_URL': None,
+            'DISCOVERY_SERVICE_LABEL': None,
         }
 
         # These shouldn't be configurable by user -- see SAML2 section for details
@@ -231,6 +233,10 @@ class SAML2Extension(WaldurExtension):
             'ALLOW_TO_SELECT_IDENTITY_PROVIDER',
             'IDENTITY_PROVIDER_URL',
             'IDENTITY_PROVIDER_LABEL',
+            'DISCOVERY_SERVICE_URL',
+            'DISCOVERY_SERVICE_LABEL',
+            # base_url is used to build entityId and it is supplied to discovery service
+            'base_url',
         ]
 
     @staticmethod
