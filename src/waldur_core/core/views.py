@@ -2,6 +2,7 @@ import functools
 import logging
 from urllib.parse import urlencode
 
+import reversion
 from django.conf import settings
 from django.contrib import auth
 from django.core.cache import cache
@@ -422,3 +423,19 @@ class ExtraContextTemplateView(TemplateView):
         if self.extra_context:
             context.update(self.extra_context)
         return context
+
+
+class CreateReversionMixin:
+    def perform_create(self, serializer):
+        with reversion.create_revision():
+            super(CreateReversionMixin, self).perform_update(serializer)
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Created via REST API')
+
+
+class UpdateReversionMixin:
+    def perform_update(self, serializer):
+        with reversion.create_revision():
+            super(UpdateReversionMixin, self).perform_update(serializer)
+            reversion.set_user(self.request.user)
+            reversion.set_comment('Updated via REST API')

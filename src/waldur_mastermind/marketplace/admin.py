@@ -9,6 +9,7 @@ from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
 from modeltranslation import admin as modeltranslation_admin
+from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core import utils as core_utils
@@ -188,7 +189,7 @@ class PlanComponentInline(
             return super(PlanComponentInline, self).get_extra(request, obj, **kwargs)
 
 
-class PlanAdmin(ConnectedResourceMixin, admin.ModelAdmin):
+class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
     list_display = ('name', 'offering', 'archived', 'unit', 'unit_price')
     list_filter = ('offering', 'archived')
     search_fields = ('name', 'offering__name')
@@ -244,7 +245,7 @@ def get_admin_link_for_scope(scope):
     return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(scope), scope)
 
 
-class OfferingAdmin(admin.ModelAdmin):
+class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
     list_display = ('name', 'uuid', 'customer', 'state', 'category', 'billable')
