@@ -14,7 +14,9 @@ class Command(BaseCommand):
         changed_hooks = 0
         for model in EventTypesMixin.get_all_models():
             for hook in model.objects.all():
-                clean_events = filter(lambda x: x in valid_events, hook.event_types)
+                clean_events = list(
+                    filter(lambda x: x in valid_events, hook.event_types)
+                )
                 if clean_events != hook.event_types:
                     hook.event_types = clean_events
                     hook.save(update_fields=['event_types'])

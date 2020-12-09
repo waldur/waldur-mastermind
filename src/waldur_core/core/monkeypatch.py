@@ -38,8 +38,8 @@ def patch_fsm_field_mixin(cls):
         method_name = method.__name__
         current_state = self.get_state(instance)
         try:
-            current_state_name = filter(
-                lambda x: x[0] == current_state, meta.field.choices
+            current_state_name = list(
+                filter(lambda x: x[0] == current_state, meta.field.choices)
             )[0][1]
         except Exception:
             current_state_name = current_state

@@ -1080,7 +1080,9 @@ class ZabbixBackend(ServiceBackend):
             host_id = host['hostid']
 
             if trigger_hosts is not None:
-                host_name = filter(lambda h: h['hostid'] == host_id, trigger_hosts)
+                host_name = list(
+                    filter(lambda h: h['hostid'] == host_id, trigger_hosts)
+                )
                 if host_name:
                     host_name = host_name[0]['host']
                 else:
@@ -1092,8 +1094,8 @@ class ZabbixBackend(ServiceBackend):
 
         trigger['event_count'] = None
         if backend_events is not None:
-            events = filter(
-                lambda e: e['objectid'] == trigger['backend_id'], backend_events
+            events = list(
+                filter(lambda e: e['objectid'] == trigger['backend_id'], backend_events)
             )
             trigger['event_count'] = 0 if not events else events[0]['rowscount']
 
