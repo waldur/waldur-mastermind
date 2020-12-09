@@ -69,7 +69,7 @@ class BackendModelAdmin(admin.ModelAdmin):
         if not settings.WALDUR_CORE['BACKEND_FIELDS_EDITABLE']:
             instance_class = type(obj)
             fields = fields + instance_class.get_backend_fields()
-            fields = filter(lambda field: field not in excluded, fields)
+            fields = list(filter(lambda field: field not in excluded, fields))
 
         return fields
 

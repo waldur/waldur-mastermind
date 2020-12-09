@@ -441,7 +441,7 @@ class BaseOpenStackBackend(ServiceBackend):
 
         images = [image for image in images if not image['status'] == 'deleted']
         if filter_function:
-            images = filter(filter_function, images)
+            images = list(filter(filter_function, images))
 
         with transaction.atomic():
             cur_images = self._get_current_properties(model_class)
