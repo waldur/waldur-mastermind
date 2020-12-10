@@ -1106,7 +1106,7 @@ class OrderItem(
             (TERMINATING, 'terminating'),
         )
 
-        TERMINAL_STATES = {DONE, ERRED}
+        TERMINAL_STATES = {DONE, ERRED, TERMINATED}
 
     order = models.ForeignKey(on_delete=models.CASCADE, to=Order, related_name='items')
     offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering)

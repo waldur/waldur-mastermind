@@ -3,6 +3,8 @@ import logging
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.utils.timezone import now
+from django.utils.translation import ugettext_lazy as _
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.models import StateMixin
 
@@ -41,46 +43,61 @@ def close_resource_plan_period(resource):
         )
 
 
-def resource_creation_succeeded(resource):
+def resource_creation_succeeded(resource, validate=False):
+    order_item = set_order_item_state(
+        resource,
+        models.RequestTypeMixin.Types.CREATE,
+        models.OrderItem.States.DONE,
+        validate,
+    )
     resource.set_state_ok()
     resource.save(update_fields=['state'])
-    set_order_item_state(
-        resource, models.RequestTypeMixin.Types.CREATE, models.OrderItem.States.DONE,
-    )
     if resource.plan:
         create_resource_plan_period(resource)
 
     signals.resource_creation_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_creation_succeeded(resource)
+    return order_item
 
 
-def resource_creation_failed(resource):
+def resource_creation_failed(resource, validate=False):
+    order_item = set_order_item_state(
+        resource,
+        models.RequestTypeMixin.Types.CREATE,
+        models.OrderItem.States.ERRED,
+        validate,
+    )
     resource.set_state_erred()
     resource.save(update_fields=['state'])
-    set_order_item_state(
-        resource, models.RequestTypeMixin.Types.CREATE, models.OrderItem.States.ERRED,
-    )
 
     log.log_resource_creation_failed(resource)
+    return order_item
 
 
-def resource_creation_canceled(resource):
+def resource_creation_canceled(resource, validate=False):
+    order_item = set_order_item_state(
+        resource,
+        models.RequestTypeMixin.Types.CREATE,
+        models.OrderItem.States.TERMINATED,
+        validate,
+    )
     resource.set_state_terminated()
     resource.save(update_fields=['state'])
-    set_order_item_state(
-        resource, models.RequestTypeMixin.Types.CREATE, models.OrderItem.States.DONE,
-    )
 
     log.log_resource_creation_canceled(resource)
+    return order_item
 
 
-def resource_update_succeeded(resource):
+def resource_update_succeeded(resource, validate=False):
+    order_item = set_order_item_state(
+        resource,
+        models.RequestTypeMixin.Types.UPDATE,
+        models.OrderItem.States.DONE,
+        validate,
+    )
     if resource.state != models.Resource.States.OK:
         resource.set_state_ok()
         resource.save(update_fields=['state'])
-    order_item = set_order_item_state(
-        resource, models.RequestTypeMixin.Types.UPDATE, models.OrderItem.States.DONE,
-    )
     if order_item and order_item.plan:
         close_resource_plan_period(resource)
 
@@ -92,56 +109,79 @@ def resource_update_succeeded(resource):
 
     signals.resource_update_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_update_succeeded(resource)
+    return order_item
 
 
-def resource_update_failed(resource):
+def resource_update_failed(resource, validate=False):
+    order_item = set_order_item_state(
+        resource,
+        models.RequestTypeMixin.Types.UPDATE,
+        models.OrderItem.States.ERRED,
+        validate,
+    )
     resource.set_state_erred()
     resource.save(update_fields=['state'])
-    set_order_item_state(
-        resource, models.RequestTypeMixin.Types.UPDATE, models.OrderItem.States.ERRED,
-    )
 
     log.log_resource_update_failed(resource)
+    return order_item
 
 
-def resource_deletion_succeeded(resource):
+def resource_deletion_succeeded(resource, validate=False):
+    order_item = set_order_item_state(
+        resource,
+        models.RequestTypeMixin.Types.TERMINATE,
+        models.OrderItem.States.DONE,
+        validate,
+    )
     resource.set_state_terminated()
     resource.save(update_fields=['state'])
-    set_order_item_state(
-        resource, models.RequestTypeMixin.Types.TERMINATE, models.OrderItem.States.DONE,
-    )
 
     if resource.plan:
         close_resource_plan_period(resource)
 
     signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
     log.log_resource_terminate_succeeded(resource)
+    return order_item
 
 
-def resource_deletion_failed(resource):
-    resource.set_state_erred()
-    resource.save(update_fields=['state'])
-    set_order_item_state(
+def resource_deletion_failed(resource, validate=False):
+    order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
         models.OrderItem.States.ERRED,
+        validate,
     )
+    resource.set_state_erred()
+    resource.save(update_fields=['state'])
 
     log.log_resource_terminate_failed(resource)
+    return order_item
 
 
-def set_order_item_state(resource, type, new_state):
+def set_order_item_state(resource, order_item_type, new_state, validate=False):
     try:
         order_item = models.OrderItem.objects.get(
-            resource=resource, type=type, state=models.OrderItem.States.EXECUTING,
+            resource=resource,
+            type=order_item_type,
+            state=models.OrderItem.States.EXECUTING,
         )
     except django_exceptions.ObjectDoesNotExist:
+        if validate:
+            raise ValidationError(
+                _('Unable to complete action because related order item is not found.')
+            )
         logger.debug(
             'Skipping order item synchronization for marketplace resource '
             'because order item is not found. Resource ID: %s',
             resource.id,
         )
     except django_exceptions.MultipleObjectsReturned:
+        if validate:
+            raise ValidationError(
+                _(
+                    'Unable to complete action because multiple related order items are found.'
+                )
+            )
         logger.debug(
             'Skipping order item synchronization for marketplace resource '
             'because there are multiple active order items are found. '

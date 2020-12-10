@@ -2,7 +2,6 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -14,9 +13,12 @@ from waldur_mastermind.booking.utils import get_offering_bookings
 from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.callbacks import (
+    resource_creation_canceled,
+    resource_creation_succeeded,
+)
 
 from . import PLUGIN_NAME, filters, serializers, tasks
-from .log import event_logger
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
@@ -34,31 +36,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         resource = self.get_object()
 
         with transaction.atomic():
-            try:
-                order_item = models.OrderItem.objects.get(
-                    resource=resource,
-                    offering=resource.offering,
-                    type=models.OrderItem.Types.CREATE,
-                    state=models.OrderItem.States.EXECUTING,
-                )
-            except models.OrderItem.DoesNotExist:
-                raise rf_serializers.ValidationError(
-                    _(
-                        'Resource rejecting is not available because '
-                        'the reference order item is not found.'
-                    )
-                )
-            except models.OrderItem.MultipleObjectsReturned:
-                raise rf_serializers.ValidationError(
-                    _(
-                        'Resource rejecting is not available because '
-                        'several reference order items are found.'
-                    )
-                )
-            order_item.set_state_terminated()
-            order_item.save()
-            resource.set_state_terminated()
-            resource.save()
+            order_item = resource_creation_canceled(resource, validate=True)
 
         return Response(
             {'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK
@@ -69,37 +47,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         resource = self.get_object()
 
         with transaction.atomic():
-            try:
-                order_item = models.OrderItem.objects.get(
-                    resource=resource,
-                    offering=resource.offering,
-                    type=models.OrderItem.Types.CREATE,
-                    state=models.OrderItem.States.EXECUTING,
-                )
-            except models.OrderItem.DoesNotExist:
-                raise rf_serializers.ValidationError(
-                    _(
-                        'Resource accepting is not available because '
-                        'the reference order item is not found.'
-                    )
-                )
-            except models.OrderItem.MultipleObjectsReturned:
-                raise rf_serializers.ValidationError(
-                    _(
-                        'Resource accepting is not available because '
-                        'several reference order items are found.'
-                    )
-                )
-            order_item.set_state_done()
-            order_item.save()
-            resource.set_state_ok()
-            resource.save()
-
-            event_logger.waldur_booking.info(
-                'Device booking {resource_name} has been accepted.',
-                event_type='device_booking_is_accepted',
-                event_context={'resource': resource,},
-            )
+            order_item = resource_creation_succeeded(resource, validate=True)
 
         return Response(
             {'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK

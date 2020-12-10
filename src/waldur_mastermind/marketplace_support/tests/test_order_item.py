@@ -100,7 +100,7 @@ class RequestCreateTest(BaseTest):
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
 
-    def test_order_item_set_state_done_if_offering_terminated(self):
+    def test_order_item_set_state_terminated_if_offering_terminated(self):
         fixture = fixtures.ProjectFixture()
         offering = support_factories.OfferingFactory()
         issue = offering.issue
@@ -121,7 +121,7 @@ class RequestCreateTest(BaseTest):
         offering.save()
 
         order_item.refresh_from_db()
-        self.assertEqual(order_item.state, order_item.States.DONE)
+        self.assertEqual(order_item.state, order_item.States.TERMINATED)
 
         order_item.resource.refresh_from_db()
         self.assertEqual(
