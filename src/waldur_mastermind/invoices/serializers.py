@@ -18,6 +18,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
     factor = serializers.ReadOnlyField(source='get_factor')
+    measured_unit = serializers.ReadOnlyField(source='get_measured_unit')
 
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.SerializerMethodField()
@@ -32,6 +33,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'unit_price',
             'unit',
             'factor',
+            'measured_unit',
             'start',
             'end',
             'product_code',
