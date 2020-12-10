@@ -57,6 +57,25 @@ def get_offering_bookings(offering):
     ]
 
 
+def get_other_offering_booking_requests(order_item):
+    States = marketplace_models.OrderItem.States
+    schedules = (
+        marketplace_models.OrderItem.objects.filter(
+            offering=order_item.offering,
+            state__in=(States.PENDING, States.EXECUTING, States.DONE),
+        )
+        .exclude(id=order_item.id)
+        .values_list('attributes__schedules', flat=True)
+    )
+    return [
+        TimePeriod(period['start'], period['end'], period.get('id'))
+        for schedule in schedules
+        if schedule
+        for period in schedule
+        if period
+    ]
+
+
 def get_info_about_upcoming_bookings():
     tomorrow = datetime.date.today() + datetime.timedelta(days=1)
     upcoming_bookings = marketplace_models.Resource.objects.filter(
