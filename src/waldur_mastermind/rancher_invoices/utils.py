@@ -120,6 +120,7 @@ def component_usage_register(component_usage):
             'offering_id': offering_component.offering.id,
             'plan_period_id': plan_period.id,
             'plan_component_id': plan_component.id,
+            'offering_component_measured_unit': offering_component.measured_unit,
         }
         month_start = core_utils.month_start(component_usage.date)
         month_end = core_utils.month_end(component_usage.date)

@@ -285,6 +285,34 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             use_days = (self.end - self.start).days + 1
             return quantize_price(decimal.Decimal(use_days) / month_days)
 
+    def get_measured_unit(self):
+        if 'offering_component_measured_unit' in self.details.keys():
+            return self.details.get('offering_component_measured_unit')
+
+        plural = self.get_factor() > 1
+
+        if self.unit == self.Units.QUANTITY:
+            if not self.scope:
+                return ''
+
+            if hasattr(self.scope, 'content_type'):
+                meta = self.scope.content_type.model_class()._meta
+            else:
+                meta = self.scope._meta
+            return (
+                str(meta.verbose_name_plural).lower()
+                if plural
+                else str(meta.verbose_name).lower()
+            )
+        elif self.unit == self.Units.PER_HOUR:
+            return _('hours') if plural else _('hour')
+        elif self.unit == self.Units.PER_DAY:
+            return _('days') if plural else _('day')
+        elif self.unit == self.Units.PER_HALF_MONTH:
+            return _('percents from half a month')
+        else:
+            return _('percents from a month')
+
     @property
     def price(self):
         return self._price()

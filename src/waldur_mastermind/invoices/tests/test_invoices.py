@@ -6,6 +6,7 @@ from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
+from django.utils.translation import ugettext_lazy as _
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -19,10 +20,11 @@ from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
-from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
+from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
+from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
 from .. import models, tasks, utils
@@ -202,7 +204,7 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
 class InvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = slurm_fixtures.SlurmFixture()
-        self.package = slurm_factories.SlurmPackageFactory(
+        self.package = slurm_invoices_factories.SlurmPackageFactory(
             service_settings=self.fixture.service.settings
         )
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
@@ -251,6 +253,39 @@ class InvoiceItemTest(test.APITransactionTestCase):
         response = self.client.get(url)
         item = response.data['items'][0]
         self.assertEqual(item['scope_type'], 'Support.Offering')
+
+    def test_invoice_item_measured_unit(self):
+        item = factories.InvoiceItemFactory(
+            start=datetime.date(year=2020, month=12, day=1),
+            end=datetime.date(year=2020, month=12, day=10),
+            quantity=2,
+            unit=UnitPriceMixin.Units.PER_DAY,
+            details={'offering_component_measured_unit': 'kG'},
+        )
+        # Get measured unit if it was set in a plugin from component info.
+        self.assertEqual(item.get_measured_unit(), _('kG'))
+
+        # Get measured unit if it wasn't set in a plugin
+        item.details = {}
+        item.save()
+        self.assertEqual(item.get_measured_unit(), _('days'))
+
+        item.unit = UnitPriceMixin.Units.PER_HOUR
+        item.save()
+        self.assertEqual(item.get_measured_unit(), _('hours'))
+
+        item.unit = UnitPriceMixin.Units.PER_HALF_MONTH
+        item.save()
+        self.assertEqual(item.get_measured_unit(), _('percents from half a month'))
+
+        item.unit = UnitPriceMixin.Units.PER_MONTH
+        item.save()
+        self.assertEqual(item.get_measured_unit(), _('percents from a month'))
+
+        item.unit = UnitPriceMixin.Units.QUANTITY
+        item.scope = slurm_factories.AllocationFactory()
+        item.save()
+        self.assertEqual(item.get_measured_unit(), _('allocations'))
 
 
 class InvoiceStatsTest(test.APITransactionTestCase):
