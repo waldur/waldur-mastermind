@@ -62,3 +62,12 @@ class OpenStackFixture(ProjectFixture):
     @cached_property
     def volume_type(self):
         return factories.VolumeTypeFactory(settings=self.openstack_service_settings)
+
+    @cached_property
+    def port(self):
+        return factories.PortFactory(
+            network=self.network,
+            tenant=self.tenant,
+            service_project_link=self.openstack_spl,
+            state=models.Port.States.OK,
+        )

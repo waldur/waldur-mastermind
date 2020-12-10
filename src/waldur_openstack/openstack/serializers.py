@@ -954,7 +954,7 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
     network_uuid = serializers.CharField(source='network.uuid', read_only=True)
     allowed_address_pairs = serializers.JSONField(read_only=True)
 
-    class Meta:
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'ip4_address',
@@ -967,11 +967,25 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
             'network_name',
             'network_uuid',
         )
+        read_only_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
+            + ('tenant', 'allowed_address_pairs', 'service_settings', 'project',)
+        )
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'openstack-port-detail'},
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
             network={'lookup_field': 'uuid', 'view_name': 'openstack-network-detail'},
         )
+
+    def validate(self, attrs):
+        if self.instance:
+            return attrs
+        subnet: models.SubNet = self.context['view'].get_object()
+        attrs['service_project_link'] = subnet.service_project_link
+        attrs['network'] = subnet.network
+        attrs['tenant'] = subnet.network.tenant
+
+        return super(PortSerializer, self).validate(attrs)
 
 
 class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):

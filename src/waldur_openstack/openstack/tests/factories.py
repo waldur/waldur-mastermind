@@ -292,3 +292,24 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('openstack-volume-type-list')
+
+
+class PortFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Port
+
+    name = factory.Sequence(lambda n: 'port_%s' % n)
+    backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+
+    @classmethod
+    def get_url(cls, port=None):
+        if port is None:
+            port = PortFactory()
+        return 'http://testserver' + reverse(
+            'openstack-port-detail', kwargs={'uuid': port.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstack-port-list')

@@ -139,9 +139,35 @@ class SubNetLogger(EventLogger):
         }
 
 
+class PortLogger(EventLogger):
+    port = 'openstack.Port'
+
+    class Meta:
+        event_types = (
+            'openstack_port_created',
+            'openstack_port_imported',
+            'openstack_port_updated',
+            'openstack_port_pulled',
+            'openstack_port_deleted',
+            'openstack_port_cleaned',
+        )
+        event_groups = {
+            'resources': event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        port = event_context['port']
+        return {
+            port,
+            port.network,
+        }
+
+
 event_logger.register('openstack_tenant_quota', TenantQuotaLogger)
 event_logger.register('openstack_router', RouterLogger)
 event_logger.register('openstack_network', NetworkLogger)
 event_logger.register('openstack_subnet', SubNetLogger)
 event_logger.register('openstack_security_group', SecurityGroupLogger)
 event_logger.register('openstack_security_group_rule', SecurityGroupRuleLogger)
+event_logger.register('openstack_port', PortLogger)
