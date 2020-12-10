@@ -4,7 +4,10 @@ from django.utils.dateparse import datetime_re, parse_datetime
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.serializers import ValidationError
 
-from waldur_mastermind.booking.utils import get_offering_bookings
+from waldur_mastermind.booking.utils import (
+    get_offering_bookings,
+    get_other_offering_booking_requests,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import processors
 
@@ -96,6 +99,19 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
             ):
                 raise ValidationError(
                     _('Time period from %s to %s is not available.')
+                    % (period['start'], period['end'])
+                )
+
+        # Check that there are no other booking requests.
+        booking_requests = get_other_offering_booking_requests(self.order_item)
+        for period in schedules:
+            if is_interval_in_schedules(
+                TimePeriod(period['start'], period['end']), booking_requests
+            ):
+                raise ValidationError(
+                    _(
+                        'Time period from %s to %s is not available. Other booking request exists.'
+                    )
                     % (period['start'], period['end'])
                 )
 

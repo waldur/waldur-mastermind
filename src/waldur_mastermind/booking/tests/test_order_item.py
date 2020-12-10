@@ -278,6 +278,46 @@ class OrderCreateTest(test.APITransactionTestCase):
             '["Past slots are not available for selection."]',
         )
 
+    def test_do_not_create_order_if_other_booking_request_exists(self):
+        add_payload = {
+            'items': [
+                {
+                    'offering': marketplace_factories.OfferingFactory.get_url(
+                        self.offering
+                    ),
+                    'attributes': {
+                        'schedules': [
+                            {
+                                'start': '2019-01-02T00:00:00.000000Z',
+                                'end': '2019-01-02T23:59:59.000000Z',
+                            },
+                        ]
+                    },
+                },
+            ]
+        }
+        response = self.create_order(
+            self.user, offering=self.offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(
+            marketplace_models.Order.objects.filter(created_by=self.user).exists()
+        )
+        self.assertEqual(1, len(response.data['items']))
+
+        # We try to create another order.
+        response = self.create_order(
+            self.user, offering=self.offering, add_payload=add_payload
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertEqual(
+            str(response.content, 'utf-8'),
+            '["Time period from %s to %s is not available. Other booking request exists."]'
+            % ('2019-01-02T00:00:00.000000Z', '2019-01-02T23:59:59.000000Z'),
+        )
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = marketplace_factories.OfferingFactory(
