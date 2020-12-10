@@ -505,12 +505,15 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
     set_routes_validators = [core_validators.StateValidator(models.Router.States.OK)]
 
 
-class PortViewSet(core_views.ReadOnlyActionsViewSet):
-    lookup_field = 'uuid'
+class PortViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Port.objects.all()
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PortFilter
     serializer_class = serializers.PortSerializer
+
+    disabled_actions = ['create']
+    update_executor = executors.PortUpdateExecutor
+    delete_executor = executors.PortDeleteExecutor
 
 
 class NetworkViewSet(structure_views.BaseResourceViewSet):
@@ -568,3 +571,16 @@ class SubNetViewSet(structure_views.BaseResourceViewSet):
                 'enable_default_gateway'
             ]
         }
+
+    @decorators.action(detail=True, methods=['post'])
+    def create_port(self, request, uuid=None):
+        subnet = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        port = serializer.save()
+        executors.PortCreateExecutor().execute(port, subnet_id=subnet.backend_id)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    create_port_serializer_class = serializers.PortSerializer
+
+    create_port_validators = [core_validators.StateValidator(models.SubNet.States.OK)]

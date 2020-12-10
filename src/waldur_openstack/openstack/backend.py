@@ -2191,3 +2191,65 @@ class OpenStackBackend(BaseOpenStackBackend):
             stats[name + '_usage'] = quota.usage
         stats.update(quota_stats)
         return stats
+
+    @log_backend_action()
+    def create_port(self, port: models.Port, subnet_id):
+        neutron = self.neutron_admin_client
+        port_payload = {
+            'network_id': port.network.backend_id,
+            'fixed_ips': [{'subnet_id': subnet_id}],
+        }
+        if port.ip4_address:
+            port_payload['fixed_ips'][0]['ip_address'] = port.ip4_address
+        if port.mac_address:
+            port_payload['mac_address'] = port.mac_address
+
+        try:
+            port_response = neutron.create_port({'port': port_payload})['port']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            port.mac_address = port_response['mac_address']
+            port.ip4_address = port_response['ip_address']
+            port.backend_id = port_response['id']
+            port.save()
+
+            event_logger.opentask_port.info(
+                'Port %s has been created in the backend.' % port.name,
+                event_type='openstack_port_created',
+                event_context={'port': port,},
+            )
+
+            return port
+
+    def update_port(self, port: models.Port):
+        neutron = self.neutron_admin_client
+
+        payload = {{'allowed_address_pairs': port.allowed_address_pairs}}
+
+        try:
+            neutron.update_port(port.backend_id, {'port': payload})['port']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_port.info(
+                'Port %s has been updated' % port.name,
+                event_type='openstack_port_updated',
+                event_context={'port': port,},
+            )
+
+            return port
+
+    def delete_port(self, port: models.Port):
+        neutron = self.neutron_admin_client
+
+        try:
+            neutron.delete_port(port.backend_id)
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_port.info(
+                'Port %s has been deleted' % port.name,
+                event_type='openstack_port_deleted',
+                event_context={'port': port,},
+            )
