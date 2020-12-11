@@ -19,19 +19,19 @@ class MarketplaceSlurmConfig(AppConfig):
         signals.post_save.connect(
             handlers.synchronize_slurm_package,
             sender=marketplace_models.PlanComponent,
-            dispatch_uid='waldur_mastermind.marketpace_slurm.synchronize_slurm_package',
+            dispatch_uid='waldur_mastermind.marketplace_slurm.synchronize_slurm_package',
         )
 
         signals.post_save.connect(
             handlers.create_slurm_usage,
             sender=slurm_models.AllocationUsage,
-            dispatch_uid='waldur_mastermind.marketpace_slurm.create_slurm_usage',
+            dispatch_uid='waldur_mastermind.marketplace_slurm.create_slurm_usage',
         )
 
         signals.post_save.connect(
             handlers.update_component_quota,
             sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketpace_slurm.update_component_quota',
+            dispatch_uid='waldur_mastermind.marketplace_slurm.update_component_quota',
         )
 
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)

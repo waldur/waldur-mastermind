@@ -35,6 +35,6 @@ class MarketplaceRancherConfig(AppConfig):
         structure_signals.resource_imported.connect(
             handlers.create_marketplace_resource_for_imported_cluster,
             sender=rancher_models.Cluster,
-            dispatch_uid='waldur_mastermind.marketpace_rancher.'
+            dispatch_uid='waldur_mastermind.marketplace_rancher.'
             'create_resource_for_imported_cluster',
         )

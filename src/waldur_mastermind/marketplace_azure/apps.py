@@ -26,13 +26,13 @@ class MarketplaceAzureConfig(AppConfig):
         signals.post_save.connect(
             handlers.synchronize_nic,
             sender=azure_models.NetworkInterface,
-            dispatch_uid='waldur_mastermind.marketpace_azure.synchronize_nic',
+            dispatch_uid='waldur_mastermind.marketplace_azure.synchronize_nic',
         )
 
         signals.post_save.connect(
             handlers.synchronize_public_ip,
             sender=azure_models.PublicIP,
-            dispatch_uid='waldur_mastermind.marketpace_azure.synchronize_public_ip',
+            dispatch_uid='waldur_mastermind.marketplace_azure.synchronize_public_ip',
         )
 
         manager.register(

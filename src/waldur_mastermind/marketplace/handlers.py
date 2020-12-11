@@ -261,14 +261,14 @@ def connect_resource_handlers(*resources):
         signals.post_save.connect(
             change_order_item_state,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketpace.change_order_item_state_%s'
+            dispatch_uid='waldur_mastermind.marketplace.change_order_item_state_%s'
             % suffix,
         )
 
         signals.pre_delete.connect(
             terminate_resource,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketpace.terminate_resource_%s' % suffix,
+            dispatch_uid='waldur_mastermind.marketplace.terminate_resource_%s' % suffix,
         )
 
 
@@ -296,7 +296,7 @@ def connect_resource_metadata_handlers(*resources):
         signals.post_save.connect(
             synchronize_resource_metadata,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketpace.'
+            dispatch_uid='waldur_mastermind.marketplace.'
             'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
         )
 

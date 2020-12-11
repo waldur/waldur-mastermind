@@ -51,13 +51,13 @@ class MarketplaceOpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.create_offering_from_tenant,
             sender=openstack_models.Tenant,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.create_offering_from_tenant',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.create_offering_from_tenant',
         )
 
         signals.pre_delete.connect(
             handlers.archive_offering,
             sender=structure_models.ServiceSettings,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.archive_offering',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.archive_offering',
         )
 
         resource_models = (
@@ -71,25 +71,25 @@ class MarketplaceOpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.create_template_for_plan,
             sender=marketplace_models.Plan,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.create_template_for_plan',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.create_template_for_plan',
         )
 
         signals.post_save.connect(
             handlers.update_template_for_plan,
             sender=marketplace_models.Plan,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.update_template_for_plan',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.update_template_for_plan',
         )
 
         signals.post_save.connect(
             handlers.update_plan_for_template,
             sender=package_models.PackageTemplate,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.update_plan_for_template',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.update_plan_for_template',
         )
 
         signals.post_save.connect(
             handlers.synchronize_plan_component,
             sender=marketplace_models.PlanComponent,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_plan_component',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_plan_component',
         )
 
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
@@ -145,49 +145,49 @@ class MarketplaceOpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.synchronize_volume_metadata,
             sender=tenant_models.Volume,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_volume_metadata',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_volume_metadata',
         )
 
         signals.post_save.connect(
             handlers.synchronize_instance_name,
             sender=tenant_models.Instance,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_instance_name',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_instance_name',
         )
 
         signals.post_save.connect(
             handlers.synchronize_instance_after_pull,
             sender=tenant_models.Instance,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_instance_after_pull',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_instance_after_pull',
         )
 
         signals.post_save.connect(
             handlers.synchronize_internal_ips,
             sender=tenant_models.InternalIP,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_internal_ips',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_internal_ips',
         )
 
         signals.post_save.connect(
             handlers.synchronize_floating_ips,
             sender=tenant_models.FloatingIP,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_floating_ips',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_floating_ips',
         )
 
         signals.post_delete.connect(
             handlers.synchronize_internal_ips_on_delete,
             sender=tenant_models.InternalIP,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_internal_ips_on_delete',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_internal_ips_on_delete',
         )
 
         signals.post_delete.connect(
             handlers.synchronize_floating_ips_on_delete,
             sender=tenant_models.FloatingIP,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_floating_ips_on_delete',
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_floating_ips_on_delete',
         )
 
         signals.post_save.connect(
             handlers.create_resource_of_volume_if_instance_created,
             sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'create_resource_of_volume_if_instance_created',
         )
 
@@ -199,21 +199,21 @@ class MarketplaceOpenStackConfig(AppConfig):
             structure_signals.resource_imported.connect(
                 handlers.create_marketplace_resource_for_imported_resources,
                 sender=model,
-                dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                dispatch_uid='waldur_mastermind.marketplace_openstack.'
                 'create_resource_for_imported_%s' % model,
             )
 
         signals.post_save.connect(
             handlers.import_resource_metadata_when_resource_is_created,
             sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'import_resource_metadata_when_resource_is_created',
         )
 
         signals.post_save.connect(
             handlers.update_openstack_tenant_usages,
             sender=quota_models.Quota,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'update_openstack_tenant_usages',
         )
 
@@ -245,20 +245,20 @@ class MarketplaceOpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.create_offering_component_for_volume_type,
             sender=openstack_models.VolumeType,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'create_offering_component_for_volume_type',
         )
 
         signals.post_delete.connect(
             handlers.delete_offering_component_for_volume_type,
             sender=openstack_models.VolumeType,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'delete_offering_component_for_volume_type',
         )
 
         signals.post_save.connect(
             handlers.synchronize_limits_when_storage_mode_is_switched,
             sender=marketplace_models.Offering,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'synchronize_limits_when_storage_mode_is_switched',
         )
