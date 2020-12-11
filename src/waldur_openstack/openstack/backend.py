@@ -1504,9 +1504,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
                 event_logger.openstack_security_group_rule.info(
                     'Security group rule %s has been created in backend.'
-                    % str(security_group_rule),
+                    % str(nc_rule),
                     event_type='openstack_security_group_rule_created',
-                    event_context={'security_group_rule': security_group_rule,},
+                    event_context={'security_group_rule': nc_rule},
                 )
 
     @log_backend_action()
