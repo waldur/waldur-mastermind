@@ -208,7 +208,7 @@ def log_resource_creation_succeeded(resource):
 
 def log_resource_creation_failed(instance):
     event_logger.marketplace_resource.error(
-        'Resource {resource_name} creation has been failed.',
+        'Resource {resource_name} creation has failed.',
         event_type='marketplace_resource_create_failed',
         event_context={'resource': instance},
     )
@@ -240,7 +240,7 @@ def log_resource_update_succeeded(resource):
 
 def log_resource_update_failed(instance):
     event_logger.marketplace_resource.error(
-        'Resource {resource_name} update has been failed.',
+        'Resource {resource_name} update has failed.',
         event_type='marketplace_resource_update_failed',
         event_context={'resource': instance},
     )
@@ -264,7 +264,7 @@ def log_resource_terminate_succeeded(resource):
 
 def log_resource_terminate_failed(instance):
     event_logger.marketplace_resource.error(
-        'Resource {resource_name} deletion has been failed.',
+        'Resource {resource_name} deletion has failed.',
         event_type='marketplace_resource_terminate_failed',
         event_context={'resource': instance},
     )
