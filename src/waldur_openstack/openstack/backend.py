@@ -1,6 +1,6 @@
 import logging
 import re
-from itertools import groupby
+from collections import defaultdict
 from typing import Dict
 
 from cinderclient import exceptions as cinder_exceptions
@@ -278,11 +278,11 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         backend_floating_ips = self.list_floatingips(list(tenant_mappings.keys()))
 
-        tenant_floating_ips = dict()
-        for tenant_id, floating_ips in groupby(
-            backend_floating_ips, lambda x: x['tenant_id']
-        ):
-            tenant_floating_ips[tenant_mappings[tenant_id]] = list(floating_ips)
+        tenant_floating_ips = defaultdict(list)
+        for floating_ip in backend_floating_ips:
+            tenant_id = floating_ip['tenant_id']
+            tenant = tenant_mappings[tenant_id]
+            tenant_floating_ips[tenant].append(floating_ip)
 
         with transaction.atomic():
             for tenant, floating_ips in tenant_floating_ips.items():
@@ -381,11 +381,11 @@ class OpenStackBackend(BaseOpenStackBackend):
             list(tenant_mappings.keys())
         )
 
-        tenant_security_groups = dict()
-        for tenant_id, security_groups in groupby(
-            backend_security_groups, lambda x: x['tenant_id']
-        ):
-            tenant_security_groups[tenant_mappings[tenant_id]] = list(security_groups)
+        tenant_security_groups = defaultdict(list)
+        for security_group in backend_security_groups:
+            tenant_id = security_group['tenant_id']
+            tenant = tenant_mappings[tenant_id]
+            tenant_security_groups[tenant].append(security_group)
 
         with transaction.atomic():
             for tenant, security_groups in tenant_security_groups.items():
