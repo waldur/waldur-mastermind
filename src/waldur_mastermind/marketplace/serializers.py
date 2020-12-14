@@ -1316,6 +1316,7 @@ class BaseItemSerializer(
             'limits',
             'uuid',
             'created',
+            'modified',
         )
         related_paths = {
             'offering': (
