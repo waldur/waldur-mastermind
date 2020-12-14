@@ -17,7 +17,6 @@ RUN apt-get update       && \
     libldap2-dev            \
     libsasl2-dev            \
     ldap-utils              \
-    xmlsec1                 \
     lcov                    \
     python3-dev             \
     gettext                 \
@@ -31,7 +30,37 @@ RUN apt-get update       && \
     uwsgi-src               \
     xfonts-75dpi            \
     xfonts-base             \
-    fonts-liberation
+    fonts-liberation        \
+    build-essential         \
+    chrpath                 \
+    debhelper               \
+    help2man                \
+    libgcrypt20-dev         \
+    libnss3-dev             \
+    gtk-doc-tools           \
+    man2html-base           \
+    xsltproc
+
+RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && \
+    mkdir xmlsec1               && \
+    cd xmlsec1                  && \
+    apt-get update              && \
+    apt-get source xmlsec1      && \
+    cd xmlsec1-1*               && \
+    sed "s/--disable-crypto-dl/--disable-crypto-dl --enable-md5=no --enable-ripemd160=no/g" debian/rules >> debian/rules && \
+    dpkg-buildpackage -us -uc   && \
+    cd ..                       && \
+    dpkg -i *.deb               && \
+    apt-mark hold '*xmlsec1*'   && \
+    rm -rf /xmlsec1/            && \
+    apt-get remove -y              \
+    build-essential                \
+    chrpath                        \
+    debhelper                      \
+    help2man                       \
+    gtk-doc-tools                  \
+    man2html-base                  \
+    xsltproc
 
 RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_amd64.deb && \
     dpkg -i wkhtmltox_0.12.6-1.buster_amd64.deb                                                                  && \
