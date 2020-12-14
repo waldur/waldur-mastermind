@@ -250,7 +250,6 @@ class CustomerAdmin(
         'homepage',
         'country',
         'vat_code',
-        'is_company',
         'owners',
         'support_users',
         'address',
