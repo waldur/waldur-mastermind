@@ -1,3 +1,4 @@
+import mock
 from ddt import data, ddt
 from django.urls import reverse
 from django.utils import timezone
@@ -460,6 +461,31 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.domain, '')
+
+    @mock.patch('waldur_core.structure.serializers.pyvat')
+    def test_update_vat_code(self, mock_pyvat):
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        class CheckResult:
+            def __init__(self):
+                self.business_name = ''
+                self.business_address = ''
+                self.is_valid = True
+                self.log_lines = []
+
+        check_result = CheckResult()
+        mock_pyvat.check_vat_number.return_value = check_result
+
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer), {'vat_code': 'ATU99999999'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.vat_code, 'ATU99999999')
+        mock_pyvat.is_vat_number_format_valid.assert_called_once_with(
+            'ATU99999999', None
+        )
+        mock_pyvat.check_vat_number.assert_called_once_with('ATU99999999', None)
 
 
 class CustomerQuotasTest(test.APITransactionTestCase):

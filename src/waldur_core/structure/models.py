@@ -142,9 +142,6 @@ class VATMixin(models.Model):
         help_text=_('Optional business address retrieved for the VAT number.'),
     )
 
-    is_company = models.BooleanField(
-        default=False, help_text=_('Is company or private person')
-    )
     country = core_fields.CountryField(blank=True)
 
     def get_vat_rate(self):
@@ -173,7 +170,7 @@ class VATMixin(models.Model):
         return pyvat.get_sale_vat_charge(
             datetime.date.today(),
             pyvat.ItemType.generic_electronic_service,
-            pyvat.Party(self.country, self.is_company and self.vat_code),
+            pyvat.Party(self.country, bool(self.vat_code)),
             pyvat.Party(seller_country, True),
         )
 

@@ -396,7 +396,6 @@ class CustomerSerializer(
             'country',
             'country_name',
             'vat_code',
-            'is_company',
             'postal',
             'address',
             'bank_name',
@@ -450,14 +449,8 @@ class CustomerSerializer(
     def validate(self, attrs):
         country = attrs.get('country')
         vat_code = attrs.get('vat_code')
-        is_company = attrs.get('is_company')
 
         if vat_code:
-            if not is_company:
-                raise serializers.ValidationError(
-                    {'vat_code': _('VAT number is not supported for private persons.')}
-                )
-
             # Check VAT format
             if not pyvat.is_vat_number_format_valid(vat_code, country):
                 raise serializers.ValidationError(
