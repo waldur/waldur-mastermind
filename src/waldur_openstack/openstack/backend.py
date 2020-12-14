@@ -703,7 +703,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 state__in=[models.Network.States.OK, models.Network.States.ERRED],
                 tenant__in=tenants,
             ).exclude(uuid__in=networks_uuid)
-            for network in networks:
+            for network in stale_networks:
                 event_logger.openstack_network.info(
                     'Network %s has been cleaned from cache.' % network.name,
                     event_type='openstack_network_cleaned',
