@@ -980,9 +980,11 @@ class ResourceOfferingsViewSet(ProjectChoicesViewSet):
     def get_queryset(self):
         project = self.get_project()
         category = self.get_category()
-        offerings = models.Resource.objects.filter(
-            project=project, offering__category=category
-        ).values_list('offering_id', flat=True)
+        offerings = (
+            models.Resource.objects.filter(project=project, offering__category=category)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list('offering_id', flat=True)
+        )
         return models.Offering.objects.filter(pk__in=offerings)
 
 
