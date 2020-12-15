@@ -140,3 +140,15 @@ class MarketplaceConfig(AppConfig):
             sender=models.OfferingPermission,
             dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_updated',
         )
+
+        structure_signals.structure_role_granted.connect(
+            handlers.add_service_manager_role_to_customer,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.add_service_manager_role_to_customer',
+        )
+
+        structure_signals.structure_role_revoked.connect(
+            handlers.drop_service_manager_role_from_customer,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.drop_service_manager_role_from_customer',
+        )

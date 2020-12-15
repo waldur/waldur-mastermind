@@ -2,6 +2,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
@@ -71,6 +72,16 @@ class GrantOfferingPermissionTest(test.APITransactionTestCase):
         response = self.grant_permission(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_when_offering_permission_is_granted_customer_permission_is_granted_too(
+        self,
+    ):
+        self.grant_permission('owner')
+        self.assertTrue(
+            self.offering.customer.has_user(
+                self.fixture.user, CustomerRole.SERVICE_MANAGER
+            )
+        )
+
 
 @ddt
 class RevokeOfferingPermissionTest(test.APITransactionTestCase):
@@ -100,6 +111,28 @@ class RevokeOfferingPermissionTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_revoke_offering_permission(self):
         response = self.revoke_permission('admin')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_when_offering_permission_is_revoked_customer_permission_is_revoked_too(
+        self,
+    ):
+        self.revoke_permission('owner')
+        self.assertFalse(
+            self.offering.customer.has_user(
+                self.fixture.user, CustomerRole.SERVICE_MANAGER
+            )
+        )
+
+    def test_customer_permission_is_not_revoked_if_another_offering_exists(self,):
+        offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        offering.add_user(self.fixture.user)
+        self.revoke_permission('owner')
+        self.assertTrue(
+            self.fixture.customer.has_user(
+                self.fixture.user, CustomerRole.SERVICE_MANAGER
+            )
+        )
 
 
 @ddt
