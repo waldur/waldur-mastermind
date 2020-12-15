@@ -593,7 +593,7 @@ def create_offering_component_for_volume_type(
             type='gigabytes_' + instance.name,
             measured_unit='GB',
             description=instance.description,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
             use_limit_for_billing=True,
         ),
     )
