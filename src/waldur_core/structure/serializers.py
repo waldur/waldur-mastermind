@@ -343,6 +343,9 @@ class CustomerSerializer(
     support_users = BasicUserSerializer(
         source='get_support_users', many=True, read_only=True
     )
+    service_managers = BasicUserSerializer(
+        source='get_service_managers', many=True, read_only=True
+    )
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
 
     COUNTRIES = core_fields.CountryField.COUNTRIES
@@ -388,6 +391,7 @@ class CustomerSerializer(
             'projects',
             'owners',
             'support_users',
+            'service_managers',
             'backend_id',
             'registration_code',
             'homepage',
@@ -1298,8 +1302,8 @@ class ServiceSettingsSerializer(
 
 
 class ServiceSerializerMetaclass(serializers.SerializerMetaclass):
-    """ Build a list of supported services via serializers definition.
-        See SupportedServices for details.
+    """Build a list of supported services via serializers definition.
+    See SupportedServices for details.
     """
 
     def __new__(cls, name, bases, args):
@@ -1691,8 +1695,8 @@ class BaseServiceProjectLinkSerializer(
 
 
 class ResourceSerializerMetaclass(serializers.SerializerMetaclass):
-    """ Build a list of supported resource via serializers definition.
-        See SupportedServices for details.
+    """Build a list of supported resource via serializers definition.
+    See SupportedServices for details.
     """
 
     def __new__(cls, name, bases, args):
@@ -2188,8 +2192,8 @@ class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializ
 
 
 class PropertySerializerMetaclass(serializers.SerializerMetaclass):
-    """ Build a list of supported properties via serializers definition.
-        See SupportedServices for details.
+    """Build a list of supported properties via serializers definition.
+    See SupportedServices for details.
     """
 
     def __new__(cls, name, bases, args):
