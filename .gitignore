@@ -25,4 +25,4 @@ test_report.xml
 docs/_build/
 docs/drfapi/
 
-/static_files
+/static
