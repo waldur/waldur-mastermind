@@ -420,7 +420,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.assertEqual(component.offering, self.offering)
         self.assertEqual(
             component.billing_type,
-            marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            marketplace_models.OfferingComponent.BillingTypes.FIXED,
         )
         self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
         self.assertEqual(component.type, 'gigabytes_' + self.volume_type.name)

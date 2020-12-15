@@ -240,8 +240,20 @@ def validate_limits(limits, offering):
         .exclude(disable_quotas=True)
         .values_list('type', flat=True)
     )
+
+    if offering.type:
+        fixed_components = (
+            offering.components.filter(
+                billing_type=models.OfferingComponent.BillingTypes.FIXED
+            )
+            .exclude(disable_quotas=True)
+            .values_list('type', flat=True)
+        )
+    else:
+        fixed_components = []
     valid_component_types = set(usage_components)
     valid_component_types.update(plugins.manager.get_available_limits(offering.type))
+    valid_component_types.update(fixed_components)
     invalid_types = set(limits.keys()) - valid_component_types
     if invalid_types:
         raise serializers.ValidationError(
