@@ -517,17 +517,19 @@ class Customer(
         return ('uuid', 'name', 'abbreviation', 'contact_details')
 
     def get_owners(self):
-        return get_user_model().objects.filter(
-            customerpermission__customer=self,
-            customerpermission__is_active=True,
-            customerpermission__role=CustomerRole.OWNER,
-        )
+        return self.get_users_by_role(CustomerRole.OWNER)
 
     def get_support_users(self):
+        return self.get_users_by_role(CustomerRole.SUPPORT)
+
+    def get_service_managers(self):
+        return self.get_users_by_role(CustomerRole.SERVICE_MANAGER)
+
+    def get_users_by_role(self, role):
         return get_user_model().objects.filter(
             customerpermission__customer=self,
             customerpermission__is_active=True,
-            customerpermission__role=CustomerRole.SUPPORT,
+            customerpermission__role=role,
         )
 
     def get_users(self, role=None):
