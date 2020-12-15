@@ -312,10 +312,12 @@ class PermissionMixin:
 class CustomerRole(models.CharField):
     OWNER = 'owner'
     SUPPORT = 'support'
+    SERVICE_MANAGER = 'service_manager'
 
     CHOICES = (
         (OWNER, 'Owner'),
         (SUPPORT, 'Support'),
+        (SERVICE_MANAGER, 'Service manager'),
     )
 
     def __init__(self, *args, **kwargs):

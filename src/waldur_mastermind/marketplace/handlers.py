@@ -7,7 +7,7 @@ from django.db.models import Count, signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer, CustomerRole, Project
 from waldur_mastermind.invoices import models as invoices_models
 
 from . import callbacks, log, models, tasks, utils
@@ -388,3 +388,19 @@ def log_offering_permission_revoked(
 
 def log_offering_permission_updated(sender, instance, user, **kwargs):
     log.log_offering_permission_updated(instance, user)
+
+
+def add_service_manager_role_to_customer(
+    sender, structure, user, role=None, created_by=None, **kwargs
+):
+    if not structure.customer.has_user(user):
+        structure.customer.add_user(user, CustomerRole.SERVICE_MANAGER)
+
+
+def drop_service_manager_role_from_customer(
+    sender, structure, user, role=None, removed_by=None, **kwargs
+):
+    if not models.OfferingPermission.objects.filter(
+        offering__customer=structure.customer, user=user, is_active=True
+    ).exists():
+        structure.customer.remove_user(user, CustomerRole.SERVICE_MANAGER)
