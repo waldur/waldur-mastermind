@@ -353,6 +353,10 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
     import_resource_serializer_class = serializers.VolumeImportSerializer
 
 
+class VolumeReadUpdateViewSet(VolumeViewSet):
+    disabled_actions = ['create', 'destroy']
+
+
 class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Snapshot.objects.all().order_by('name')
     serializer_class = serializers.SnapshotSerializer
@@ -817,6 +821,10 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
         ),
     ]
     force_destroy_serializer_class = destroy_serializer_class
+
+
+class InstanceReadUpdateViewSet(InstanceViewSet):
+    disabled_actions = ['create', 'destroy']
 
 
 class BackupViewSet(structure_views.BaseResourceViewSet):

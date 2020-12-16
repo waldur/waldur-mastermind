@@ -63,19 +63,6 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
             actual = sorted([g[field] for g in response.data['security_groups']])
             self.assertEqual(expected, actual)
 
-    def test_add_instance_with_security_groups(self):
-        data = _instance_data(self.admin, self.instance)
-        data['security_groups'] = [
-            self._get_valid_security_group_payload(sg) for sg in self.security_groups
-        ]
-
-        response = self.client.post(factories.InstanceFactory.get_list_url(), data=data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-        reread_instance = models.Instance.objects.get(pk=self.instance.pk)
-        reread_security_groups = list(reread_instance.security_groups.all())
-        self.assertEquals(reread_security_groups, self.security_groups)
-
     @patch(
         'waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute'
     )
@@ -133,12 +120,6 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
         self.assertEquals(reread_security_groups, [security_group])
         mocked_execute_method.assert_called_once()
-
-    def test_security_groups_is_not_required(self):
-        data = _instance_data(self.admin, self.instance)
-        self.assertNotIn('security_groups', data)
-        response = self.client.post(factories.InstanceFactory.get_list_url(), data=data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     # Helper methods
     def _get_valid_security_group_payload(self, security_group=None):
