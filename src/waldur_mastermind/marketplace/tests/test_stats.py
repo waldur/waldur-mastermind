@@ -1,3 +1,5 @@
+import decimal
+
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -8,7 +10,11 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
+from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.tests import factories as support_factories
 
 from .. import models, tasks, utils
 from . import factories, helpers
@@ -31,7 +37,7 @@ class StatsBaseTest(test.APITransactionTestCase):
             state=models.Offering.States.ACTIVE,
         )
         self.offering_component = factories.OfferingComponentFactory(
-            offering=self.offering, parent=self.category_component
+            offering=self.offering, parent=self.category_component, type='cores'
         )
 
 
@@ -164,7 +170,7 @@ class CostsStatsTest(StatsBaseTest):
             offering=self.offering,
             state=models.Resource.States.OK,
             plan=self.plan,
-            limits={'cpu': 1},
+            limits={'cores': 1},
         )
         invoices_tasks.create_monthly_invoices()
 
@@ -243,7 +249,7 @@ class ComponentStatsTest(StatsBaseTest):
             offering=self.offering,
             state=models.Resource.States.OK,
             plan=self.plan,
-            limits={'cpu': 1},
+            limits={'cores': 1},
         )
 
     def _create_item(self):
@@ -277,7 +283,7 @@ class ComponentStatsTest(StatsBaseTest):
             },
         )
 
-    def test_component_stats(self):
+    def test_component_stats_if_invoice_item_details_includes_limits(self):
         component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
@@ -295,12 +301,57 @@ class ComponentStatsTest(StatsBaseTest):
         self._create_item()
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
+        components = manager.get_components(self.resource.offering.type)
+        component_cores = [*filter(lambda x: x.type == 'cores', components)][0]
+        component_storage = [*filter(lambda x: x.type == 'storage', components)][0]
+
         self.assertEqual(
             result.data,
             [
                 {
+                    'description': component_cores.description,
+                    'measured_unit': component_cores.measured_unit,
+                    'name': component_cores.name,
                     'period': '2020-03',
-                    'components': {'cpu': 1, usage.component.type: usage.usage},
+                    'type': component_cores.type,
+                    'value': 1 / decimal.Decimal(component_cores.factor or 1),
+                },
+                {
+                    'description': component_storage.description,
+                    'measured_unit': component_storage.measured_unit,
+                    'name': component_storage.name,
+                    'period': '2020-03',
+                    'type': component_storage.type,
+                    'value': usage.usage
+                    / decimal.Decimal(component_storage.factor or 1),
+                },
+            ],
+        )
+
+    def test_component_stats__if_invoice_item_details_includes_plan_component_data(
+        self,
+    ):
+        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.save()
+        support_offering = support_factories.OfferingFactory(
+            project=self.resource.project, state=support_models.Offering.States.OK
+        )
+        self.resource.scope = support_offering
+        self.resource.save()
+
+        self._create_item()
+        self.client.force_authenticate(self.fixture.staff)
+        result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
+        self.assertEqual(
+            result.data,
+            [
+                {
+                    'description': self.offering_component.description,
+                    'measured_unit': self.offering_component.measured_unit,
+                    'name': self.offering_component.name,
+                    'period': '2020-03',
+                    'type': self.offering_component.type,
+                    'value': 31,
                 }
             ],
         )
@@ -370,13 +421,29 @@ class ComponentStatsTest(StatsBaseTest):
         )
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
+        components = manager.get_components(self.resource.offering.type)
+        component_cores = [*filter(lambda x: x.type == 'cores', components)][0]
+        component_storage = [*filter(lambda x: x.type == 'storage', components)][0]
         self.assertEqual(
             result.data,
             [
                 {
+                    'description': component_cores.description,
+                    'measured_unit': component_cores.measured_unit,
+                    'name': component_cores.name,
                     'period': '2020-03',
-                    'components': {'cpu': 1, usage.component.type: usage.usage},
-                }
+                    'type': component_cores.type,
+                    'value': 1 / decimal.Decimal(component_cores.factor or 1),
+                },
+                {
+                    'description': component_storage.description,
+                    'measured_unit': component_storage.measured_unit,
+                    'name': component_storage.name,
+                    'period': '2020-03',
+                    'type': component_storage.type,
+                    'value': usage.usage
+                    / decimal.Decimal(component_storage.factor or 1),
+                },
             ],
         )
 

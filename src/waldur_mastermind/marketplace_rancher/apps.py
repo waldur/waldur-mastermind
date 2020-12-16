@@ -22,7 +22,10 @@ class MarketplaceRancherConfig(AppConfig):
             delete_resource_processor=processors.RancherDeleteProcessor,
             components=(
                 Component(
-                    type='node', name='K8S node', measured_unit='', billing_type=USAGE
+                    type='node',
+                    name='K8S node',
+                    measured_unit='nodes',
+                    billing_type=USAGE,
                 ),
             ),
             service_type=RancherConfig.service_name,
