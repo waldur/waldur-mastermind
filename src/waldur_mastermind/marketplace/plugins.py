@@ -5,7 +5,14 @@ from waldur_core.structure import SupportedServices
 
 class Component:
     def __init__(
-        self, type, name, measured_unit, billing_type, factor=1, disable_quotas=False
+        self,
+        type,
+        name,
+        measured_unit,
+        billing_type,
+        factor=1,
+        disable_quotas=False,
+        description='',
     ):
         self.type = type
         self.name = name
@@ -13,6 +20,7 @@ class Component:
         self.billing_type = billing_type
         self.factor = factor
         self.disable_quotas = disable_quotas
+        self.description = description
 
     def _asdict(self):
         # Note that factor is not serialized to dict because it is not stored in the database.

@@ -1,5 +1,7 @@
 import base64
 import datetime
+import decimal
+import logging
 import os
 from io import BytesIO
 
@@ -11,6 +13,7 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import transaction
+from django.db.models import Sum
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -26,8 +29,11 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import attribute_types
+from waldur_mastermind.marketplace.plugins import manager
 
 from . import models, plugins
+
+logger = logging.getLogger(__name__)
 
 
 def get_order_item_processor(order_item):
@@ -520,6 +526,7 @@ def get_offering_component_stats(offering, active_customers, start, end):
     while date <= end:
         year = date.year
         month = date.month
+        period = '%s-%02d' % (year, month)
 
         invoice_items = invoice_models.InvoiceItem.objects.filter(
             content_type_id=ContentType.objects.get_for_model(models.Resource).id,
@@ -528,26 +535,136 @@ def get_offering_component_stats(offering, active_customers, start, end):
             invoice__month=month,
         )
 
-        stats = {}
         for item in invoice_items:
             limits = item.details.get('limits', {})
 
-            '''If a resource will be deleted then usages will be deleted too.
-            Then statistics will be not available.
-            Therefore we use invoice item details.'''
-            usages = item.details.get('usages', {})
-            limits.update(usages)
+            if limits:
+                # Case when invoice item details includes limits. This is correct for openstack offering for example.
+                '''If a resource will be deleted then usages will be deleted too.
+                Then statistics will be not available.
+                Therefore we use invoice item details.'''
+                usages = item.details.get('usages', {})
+                limits.update(usages)
 
-            for limit, usage in limits.items():
-                if limit in stats.keys():
-                    stats[limit] += usage
-                else:
-                    stats[limit] = usage
-        component_stats.append(
-            {'period': '%s-%02d' % (year, month), 'components': stats}
-        )
+                for limit, usage in limits.items():
+
+                    if not isinstance(item.scope, models.Resource):
+                        logger.error(
+                            'Invoice item scope %s is not resource object.' % item.id
+                        )
+                        continue
+
+                    components = manager.get_components(item.scope.offering.type)
+                    try:
+                        component = [*filter(lambda x: x.type == limit, components)][0]
+                    except IndexError:
+                        logger.error(
+                            'Limit %s of invoice item %s is not found.'
+                            % (limit, item.id)
+                        )
+                        continue
+
+                    other = [
+                        *filter(
+                            lambda x: x['period'] == period
+                            and x['offering_component_id'] == limit,
+                            component_stats,
+                        )
+                    ]
+                    if other:
+                        stats = other[0]
+                        stats['value'] += usage / decimal.Decimal(component.factor or 1)
+                    else:
+                        stats = {
+                            'value': usage / decimal.Decimal(component.factor or 1),
+                            'description': component.description,
+                            'measured_unit': component.measured_unit,
+                            'type': component.type,
+                            'name': component.name,
+                            'period': period,
+                            'offering_component_id': component.type,
+                            # offering_component_id is needed for components uniting
+                            # of  the same offering components and periods.
+                        }
+                        component_stats.append(stats)
+
+                continue
+
+            # Case when invoice item details includes plan component data.
+            plan_component_id = item.details.get('plan_component_id')
+
+            if not plan_component_id:
+                continue
+
+            try:
+                plan_component = models.PlanComponent.objects.get(pk=plan_component_id)
+                offering_component = plan_component.component
+
+                if (
+                    offering_component.billing_type
+                    == models.OfferingComponent.BillingTypes.USAGE
+                ):
+                    if [
+                        *filter(
+                            lambda x: x['period'] == period
+                            and x['offering_component_id'] == offering_component.id,
+                            component_stats,
+                        )
+                    ]:
+                        continue
+
+                    usages = models.ComponentUsage.objects.filter(
+                        component=offering_component, billing_period=date
+                    ).aggregate(usage=Sum('usage'))['usage']
+
+                    component_stats.append(
+                        {
+                            'value': usages,
+                            'description': offering_component.description,
+                            'measured_unit': offering_component.measured_unit,
+                            'type': offering_component.type,
+                            'name': offering_component.name,
+                            'period': period,
+                            'offering_component_id': offering_component.id,
+                        }
+                    )
+
+                if (
+                    offering_component.billing_type
+                    == models.OfferingComponent.BillingTypes.FIXED
+                ):
+                    other = [
+                        *filter(
+                            lambda x: x['period'] == period
+                            and x['offering_component_id'] == offering_component.id,
+                            component_stats,
+                        )
+                    ]
+                    if other:
+                        other[0]['value'] += item.get_factor()
+                        continue
+
+                    component_stats.append(
+                        {
+                            'value': item.get_factor(),
+                            'description': offering_component.description,
+                            'measured_unit': offering_component.measured_unit,
+                            'type': offering_component.type,
+                            'name': offering_component.name,
+                            'period': period,
+                            'offering_component_id': offering_component.id,
+                        }
+                    )
+
+            except models.PlanComponent.DoesNotExist:
+                logger.error(
+                    'PlanComponent with id %s is not found.' % plan_component_id
+                )
 
         date += relativedelta(months=1)
+
+    # delete internal data
+    [s.pop('offering_component_id', None) for s in component_stats]
 
     return component_stats
 
