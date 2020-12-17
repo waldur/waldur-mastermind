@@ -638,13 +638,13 @@ class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
 
     # customer
     customer = django_filters.UUIDFilter(
-        field_name='service_project_link__service__customer__uuid'
+        field_name='service_project_link__project__customer__uuid'
     )
     customer_uuid = django_filters.UUIDFilter(
-        field_name='service_project_link__service__customer__uuid'
+        field_name='service_project_link__project__customer__uuid'
     )
     customer_name = django_filters.CharFilter(
-        field_name='service_project_link__service__customer__name',
+        field_name='service_project_link__project__customer__name',
         lookup_expr='icontains',
     )
     customer_native_name = django_filters.CharFilter(
