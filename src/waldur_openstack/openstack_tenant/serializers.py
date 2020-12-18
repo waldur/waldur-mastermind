@@ -25,7 +25,10 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack.serializers import validate_private_cidr
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
-from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
+from waldur_openstack.openstack_base.serializers import (
+    BaseSecurityGroupRuleSerializer,
+    BaseVolumeTypeSerializer,
+)
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
 from . import fields, models
@@ -227,8 +230,13 @@ class FloatingIPSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
+class SecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
+    class Meta(BaseSecurityGroupRuleSerializer.Meta):
+        model = models.SecurityGroupRule
+
+
 class SecurityGroupSerializer(structure_serializers.BasePropertySerializer):
-    rules = serializers.SerializerMethodField()
+    rules = SecurityGroupRuleSerializer(many=True)
 
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.SecurityGroup
@@ -237,26 +245,6 @@ class SecurityGroupSerializer(structure_serializers.BasePropertySerializer):
             'url': {'lookup_field': 'uuid'},
             'settings': {'lookup_field': 'uuid'},
         }
-
-    def get_rules(self, security_group):
-        rules = []
-        for rule in security_group.rules.all():
-            rules.append(
-                {
-                    'protocol': rule.protocol,
-                    'from_port': rule.from_port,
-                    'to_port': rule.to_port,
-                    'cidr': rule.cidr,
-                    'description': rule.description,
-                    'remote_group_name': rule.remote_group
-                    and rule.remote_group.name
-                    or None,
-                    'remote_group_uuid': rule.remote_group
-                    and rule.remote_group.uuid.hex
-                    or None,
-                }
-            )
-        return rules
 
 
 class VolumeImportableSerializer(
@@ -871,24 +859,10 @@ class NestedVolumeSerializer(
         }
 
 
-class NestedSecurityGroupRuleSerializer(serializers.ModelSerializer):
-    remote_group_name = serializers.ReadOnlyField(source='remote_group.name')
-    remote_group_uuid = serializers.ReadOnlyField(source='remote_group.uuid')
-
-    class Meta:
+class NestedSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
+    class Meta(BaseSecurityGroupRuleSerializer.Meta):
         model = models.SecurityGroupRule
-        fields = (
-            'id',
-            'ethertype',
-            'direction',
-            'protocol',
-            'from_port',
-            'to_port',
-            'cidr',
-            'description',
-            'remote_group_name',
-            'remote_group_uuid',
-        )
+        fields = BaseSecurityGroupRuleSerializer.Meta.fields + ('id',)
 
     def to_internal_value(self, data):
         # Return exist security group as internal value if id is provided
@@ -1031,8 +1005,8 @@ class NestedFloatingIPSerializer(
 
 
 def _validate_instance_internal_ips(internal_ips, settings):
-    """ - make sure that internal_ips belong to specified setting;
-        - make sure that internal_ips does not connect to the same subnet twice;
+    """- make sure that internal_ips belong to specified setting;
+    - make sure that internal_ips does not connect to the same subnet twice;
     """
     if not internal_ips:
         raise serializers.ValidationError(
@@ -1065,8 +1039,7 @@ def _validate_instance_internal_ips(internal_ips, settings):
 
 
 def _validate_instance_security_groups(security_groups, settings):
-    """ Make sure that security_group belong to specified setting.
-    """
+    """Make sure that security_group belong to specified setting."""
     for security_group in security_groups:
         if security_group.settings != settings:
             error = _(
@@ -1163,8 +1136,8 @@ def _validate_instance_name(data, max_len=255):
 
 
 def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
-    """ Connect floating IP to instance via specified subnet.
-        If floating IP is not defined - take exist free one or create a new one.
+    """Connect floating IP to instance via specified subnet.
+    If floating IP is not defined - take exist free one or create a new one.
     """
     settings = instance.service_project_link.service.settings
     external_network_id = settings.options.get('external_network_id')
@@ -1460,8 +1433,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        """ Store flavor, ssh_key and image details into instance model.
-            Create volumes and security groups for instance.
+        """Store flavor, ssh_key and image details into instance model.
+        Create volumes and security groups for instance.
         """
         security_groups = validated_data.pop('security_groups', [])
         internal_ips = validated_data.pop('internal_ips_set', [])
