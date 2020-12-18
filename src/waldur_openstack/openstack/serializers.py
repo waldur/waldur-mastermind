@@ -18,7 +18,10 @@ from waldur_core.core import utils as core_utils
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
-from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
+from waldur_openstack.openstack_base.serializers import (
+    BaseSecurityGroupRuleSerializer,
+    BaseVolumeTypeSerializer,
+)
 
 from . import models
 from .backend import OpenStackBackendError
@@ -219,25 +222,12 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
         return super(FloatingIPSerializer, self).validate(attrs)
 
 
-class SecurityGroupRuleSerializer(serializers.HyperlinkedModelSerializer):
-    remote_group_name = serializers.ReadOnlyField(source='remote_group.name')
-    remote_group_uuid = serializers.ReadOnlyField(source='remote_group.uuid')
-
-    class Meta:
+class SecurityGroupRuleSerializer(
+    BaseSecurityGroupRuleSerializer, serializers.HyperlinkedModelSerializer
+):
+    class Meta(BaseSecurityGroupRuleSerializer.Meta):
         model = models.SecurityGroupRule
-        fields = (
-            'id',
-            'ethertype',
-            'direction',
-            'protocol',
-            'from_port',
-            'to_port',
-            'cidr',
-            'description',
-            'remote_group',
-            'remote_group_name',
-            'remote_group_uuid',
-        )
+        fields = BaseSecurityGroupRuleSerializer.Meta.fields + ('id', 'remote_group')
         extra_kwargs = dict(
             remote_group={'lookup_field': 'uuid', 'view_name': 'openstack-sgp-detail'},
         )
