@@ -6,6 +6,7 @@ from rest_framework import status, test
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
+from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
@@ -425,6 +426,19 @@ class OrderApproveTest(test.APITransactionTestCase):
         self.order.project.customer.save()
         response = self.approve_order(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
+    def test_when_order_with_basic_offering_is_approved_resource_is_marked_as_ok(
+        self, mocked_delay
+    ):
+        mocked_delay.side_effect = process_order
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type='Marketplace.Basic'
+        )
+        order_item = factories.OrderItemFactory(offering=offering, order=self.order)
+        self.approve_order(self.fixture.owner)
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.resource.state, models.Resource.States.OK)
 
     def approve_order(self, user):
         self.client.force_authenticate(user)
