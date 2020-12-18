@@ -9,6 +9,7 @@ from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
+from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.utils import validate_limits
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,9 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
             resource.init_quotas()
             self.order_item.resource = resource
             self.order_item.save(update_fields=['resource'])
+
+            if not scope:
+                resource_creation_succeeded(resource)
 
     def send_request(self, user):
         """
