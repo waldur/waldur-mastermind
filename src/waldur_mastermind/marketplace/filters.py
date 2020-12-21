@@ -32,18 +32,19 @@ class ServiceProviderFilter(django_filters.FilterSet):
         fields = []
 
 
-class BaseOfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
+class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
+    class Meta:
+        model = models.Offering
+        fields = ['type']
+
     customer = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid'
     )
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
     project_uuid = django_filters.UUIDFilter(method='filter_project')
-    allowed_customer_uuid = django_filters.UUIDFilter(
-        field_name='customer__uuid', method='filter_allowed_customer'
-    )
-    attributes = django_filters.CharFilter(
-        field_name='attributes', method='filter_attributes'
-    )
+    allowed_customer_uuid = django_filters.UUIDFilter(method='filter_allowed_customer')
+    service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
+    attributes = django_filters.CharFilter(method='filter_attributes')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[
             (representation, representation)
@@ -56,10 +57,14 @@ class BaseOfferingFilter(structure_filters.NameFilterSet, django_filters.FilterS
     )
     category_uuid = django_filters.UUIDFilter(field_name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
+    shared = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created', 'type'))
 
     def filter_allowed_customer(self, queryset, name, value):
         return queryset.filter_for_customer(value)
+
+    def filter_service_manager(self, queryset, name, value):
+        return queryset.filter_for_service_manager(value)
 
     def filter_project(self, queryset, name, value):
         return queryset.filter_for_project(value)
@@ -86,14 +91,6 @@ class BaseOfferingFilter(structure_filters.NameFilterSet, django_filters.FilterS
             else:
                 queryset = queryset.filter(attributes__contains={k: v})
         return queryset
-
-
-class OfferingFilter(BaseOfferingFilter):
-    shared = django_filters.BooleanFilter(widget=BooleanWidget)
-
-    class Meta:
-        model = models.Offering
-        fields = ['shared', 'type']
 
 
 class OfferingCustomersFilterBackend(DjangoFilterBackend):
@@ -282,6 +279,7 @@ class ResourceFilter(
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     project_name = django_filters.CharFilter(field_name='project__name')
     customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
     backend_id = django_filters.CharFilter(method='filter_backend_id')
@@ -325,6 +323,13 @@ class ResourceFilter(
             return queryset.filter(content_type=ct, object_id__in=resources_ids)
 
         return queryset.none()
+
+    def filter_service_manager(self, queryset, name, value):
+        return queryset.filter(
+            offering__shared=True,
+            offering__permissions__user__uuid=value,
+            offering__permissions__is_active=True,
+        )
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):

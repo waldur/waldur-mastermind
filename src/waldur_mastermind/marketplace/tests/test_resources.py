@@ -64,6 +64,23 @@ class ResourceGetTest(test.APITransactionTestCase):
         response = self.get_resource(UserFactory())
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_filter_resources_for_service_manager(self):
+        # Arrange
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        offering.add_user(self.fixture.user)
+        resource = factories.ResourceFactory(project=self.project, offering=offering)
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url()
+        response = self.client.get(
+            url, {'service_manager_uuid': self.fixture.user.uuid.hex}
+        )
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], resource.uuid.hex)
+
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):

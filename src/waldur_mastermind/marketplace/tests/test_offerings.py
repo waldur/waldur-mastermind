@@ -188,6 +188,24 @@ class OfferingFilterTest(test.APITransactionTestCase):
         )
         self.assertEqual(len(response.data), 0)
 
+    def test_filter_offerings_for_service_manager(self):
+        # Arrange
+        factories.OfferingFactory(customer=self.fixture.customer, shared=False)
+
+        self.offering.shared = True
+        self.offering.save()
+        self.offering.add_user(self.fixture.user)
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            self.url, {'service_manager_uuid': self.fixture.user.uuid.hex}
+        )
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.offering.uuid.hex)
+
 
 @ddt
 class OfferingCreateTest(test.APITransactionTestCase):
