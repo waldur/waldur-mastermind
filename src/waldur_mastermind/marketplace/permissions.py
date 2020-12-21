@@ -165,3 +165,18 @@ def user_can_terminate_resource(request, view, resource=None):
         return
 
     raise exceptions.PermissionDenied()
+
+
+def user_is_owner_or_service_manager(request, view, obj=None):
+    offering = obj
+
+    if not offering:
+        return
+
+    if offering.has_user(request.user):
+        return
+
+    if structure_permissions._has_owner_access(request.user, offering.customer):
+        return
+
+    raise exceptions.PermissionDenied()
