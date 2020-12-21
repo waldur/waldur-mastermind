@@ -1650,6 +1650,7 @@ class OrderSerializer(
 
     state = serializers.ReadOnlyField(source='get_state_display')
     items = NestedOrderItemSerializer(many=True)
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
 
     class Meta:
         model = models.Order
@@ -1666,6 +1667,7 @@ class OrderSerializer(
             'approved_by_full_name',
             'project',
             'project_uuid',
+            'customer_uuid',
             'state',
             'items',
             'total_cost',
