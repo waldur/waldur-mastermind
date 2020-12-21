@@ -380,6 +380,10 @@ class Offering(
     def pause(self):
         pass
 
+    @transition(field=state, source=States.PAUSED, target=States.ACTIVE)
+    def unpause(self):
+        pass
+
     @transition(field=state, source='*', target=States.ARCHIVED)
     def archive(self):
         pass

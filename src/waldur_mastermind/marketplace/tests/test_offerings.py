@@ -1165,18 +1165,56 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
+        self.fixture.service_manager = UserFactory()
+        self.offering.add_user(self.fixture.service_manager)
 
     @data('staff',)
-    def test_authorized_user_can_update_state(self, user):
+    def test_authorized_user_can_activate_offering(self, user):
         response, offering = self.update_offering_state(user, 'activate')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.state, offering.States.ACTIVE)
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
-    def test_unauthorized_user_can_not_update_state(self, user):
+    @data('owner', 'user', 'customer_support', 'admin', 'manager', 'service_manager')
+    def test_unauthorized_user_can_not_activate_offering(self, user):
         response, offering = self.update_offering_state(user, 'activate')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(offering.state, offering.States.DRAFT)
+
+    @data('owner', 'service_manager')
+    def test_authorized_user_can_pause_offering(self, user):
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, 'pause')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, models.Offering.States.PAUSED)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_pause_offering(self, user):
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, 'pause')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(offering.state, offering.States.ACTIVE)
+
+    @data('owner', 'service_manager')
+    def test_authorized_user_can_unpause_offering(self, user):
+        self.offering.state = models.Offering.States.PAUSED
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, 'unpause')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, models.Offering.States.ACTIVE)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_unpause_offering(self, user):
+        self.offering.state = models.Offering.States.PAUSED
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, 'unpause')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, models.Offering.States.PAUSED)
 
     def test_invalid_state(self):
         response, offering = self.update_offering_state('staff', 'pause')

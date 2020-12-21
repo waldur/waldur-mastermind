@@ -143,19 +143,6 @@ def validate_offering_update(offering):
         )
 
 
-def can_update_offering_attributes(request, view, obj=None):
-    offering = obj
-
-    if not offering:
-        return
-
-    validate_offering_update(offering)
-    if not offering.has_user(request.user) and not _has_owner_access(
-        request.user, offering.customer
-    ):
-        raise rf_exceptions.PermissionDenied()
-
-
 class OfferingViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
@@ -203,6 +190,10 @@ class OfferingViewSet(
     pause_serializer_class = serializers.OfferingPauseSerializer
 
     @action(detail=True, methods=['post'])
+    def unpause(self, request, uuid=None):
+        return self._update_state('unpause', request)
+
+    @action(detail=True, methods=['post'])
     def archive(self, request, uuid=None):
         return self._update_state('archive')
 
@@ -235,7 +226,9 @@ class OfferingViewSet(
             status=status.HTTP_200_OK,
         )
 
-    pause_permissions = archive_permissions = [structure_permissions.is_owner]
+    pause_permissions = unpause_permissions = archive_permissions = [
+        permissions.user_is_owner_or_service_manager,
+    ]
 
     activate_permissions = [structure_permissions.is_staff]
 
@@ -285,7 +278,8 @@ class OfferingViewSet(
             reversion.set_comment('Offering attributes have been updated via REST API')
         return Response(status=status.HTTP_200_OK)
 
-    update_attributes_permissions = [can_update_offering_attributes]
+    update_attributes_permissions = [permissions.user_is_owner_or_service_manager]
+    update_attributes_validators = [validate_offering_update]
 
     importable_resources_permissions = [permissions.user_can_list_importable_resources]
 
