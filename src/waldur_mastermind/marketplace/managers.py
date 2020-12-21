@@ -39,6 +39,11 @@ class OfferingQuerySet(django_models.QuerySet):
             Q(shared=True) | Q(customer__uuid=value) | Q(allowed_customers__uuid=value)
         )
 
+    def filter_for_service_manager(self, value):
+        return self.filter(
+            shared=True, permissions__user__uuid=value, permissions__is_active=True
+        )
+
     def filter_for_project(self, value):
         settings_ct = ContentType.objects.get_for_model(
             structure_models.ServiceSettings
