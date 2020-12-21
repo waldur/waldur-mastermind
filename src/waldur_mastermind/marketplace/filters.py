@@ -158,11 +158,11 @@ class OfferingImportableFilterBackend(DjangoFilterBackend):
         return queryset
 
 
-class OfferingFilterMixin:
-    offering = django_filters.UUIDFilter(field_name='offering__uuid')
-    offering_uuid = core_filters.URLFilter(
+class OfferingFilterMixin(django_filters.FilterSet):
+    offering = core_filters.URLFilter(
         view_name='marketplace-offering-detail', field_name='offering__uuid',
     )
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
 
 class OfferingPermissionFilter(
