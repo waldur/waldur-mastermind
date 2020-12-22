@@ -313,17 +313,20 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': component_cores.measured_unit,
                     'name': component_cores.name,
                     'period': '2020-03',
+                    'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_cores.type,
-                    'value': 1 / decimal.Decimal(component_cores.factor or 1),
+                    'usage': float(1 / decimal.Decimal(component_cores.factor or 1)),
                 },
                 {
                     'description': component_storage.description,
                     'measured_unit': component_storage.measured_unit,
                     'name': component_storage.name,
                     'period': '2020-03',
+                    'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_storage.type,
-                    'value': usage.usage
-                    / decimal.Decimal(component_storage.factor or 1),
+                    'usage': float(
+                        usage.usage / decimal.Decimal(component_storage.factor or 1)
+                    ),
                 },
             ],
         )
@@ -350,8 +353,9 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': self.offering_component.measured_unit,
                     'name': self.offering_component.name,
                     'period': '2020-03',
+                    'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': self.offering_component.type,
-                    'value': 31,
+                    'usage': 31,
                 }
             ],
         )
@@ -432,17 +436,20 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': component_cores.measured_unit,
                     'name': component_cores.name,
                     'period': '2020-03',
+                    'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_cores.type,
-                    'value': 1 / decimal.Decimal(component_cores.factor or 1),
+                    'usage': float(1 / decimal.Decimal(component_cores.factor or 1)),
                 },
                 {
                     'description': component_storage.description,
                     'measured_unit': component_storage.measured_unit,
                     'name': component_storage.name,
                     'period': '2020-03',
+                    'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_storage.type,
-                    'value': usage.usage
-                    / decimal.Decimal(component_storage.factor or 1),
+                    'usage': float(
+                        usage.usage / decimal.Decimal(component_storage.factor or 1)
+                    ),
                 },
             ],
         )

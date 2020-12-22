@@ -527,7 +527,8 @@ def get_offering_component_stats(offering, active_customers, start, end):
         year = date.year
         month = date.month
         period = '%s-%02d' % (year, month)
-
+        # for consistency with usage resource usage reporting, assume values by the end of the month
+        period_visible = core_utils.month_end(date).isoformat()
         invoice_items = invoice_models.InvoiceItem.objects.filter(
             content_type_id=ContentType.objects.get_for_model(models.Resource).id,
             object_id__in=resources_ids,
@@ -571,17 +572,21 @@ def get_offering_component_stats(offering, active_customers, start, end):
                             component_stats,
                         )
                     ]
+                    normalized_usage = float(
+                        decimal.Decimal(usage) / decimal.Decimal(component.factor or 1)
+                    )
                     if other:
                         stats = other[0]
-                        stats['value'] += usage / decimal.Decimal(component.factor or 1)
+                        stats['usage'] += normalized_usage
                     else:
                         stats = {
-                            'value': usage / decimal.Decimal(component.factor or 1),
+                            'usage': normalized_usage,
                             'description': component.description,
                             'measured_unit': component.measured_unit,
                             'type': component.type,
                             'name': component.name,
                             'period': period,
+                            'date': period_visible,
                             'offering_component_id': component.type,
                             # offering_component_id is needed for components uniting
                             # of  the same offering components and periods.
@@ -619,12 +624,13 @@ def get_offering_component_stats(offering, active_customers, start, end):
 
                     component_stats.append(
                         {
-                            'value': usages,
+                            'usage': usages,
                             'description': offering_component.description,
                             'measured_unit': offering_component.measured_unit,
                             'type': offering_component.type,
                             'name': offering_component.name,
                             'period': period,
+                            'date': period_visible,
                             'offering_component_id': offering_component.id,
                         }
                     )
@@ -641,17 +647,18 @@ def get_offering_component_stats(offering, active_customers, start, end):
                         )
                     ]
                     if other:
-                        other[0]['value'] += item.get_factor()
+                        other[0]['usage'] += item.get_factor()
                         continue
 
                     component_stats.append(
                         {
-                            'value': item.get_factor(),
+                            'usage': item.get_factor(),
                             'description': offering_component.description,
                             'measured_unit': offering_component.measured_unit,
                             'type': offering_component.type,
                             'name': offering_component.name,
                             'period': period,
+                            'date': period_visible,
                             'offering_component_id': offering_component.id,
                         }
                     )
