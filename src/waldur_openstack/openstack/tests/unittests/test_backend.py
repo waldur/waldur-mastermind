@@ -63,6 +63,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
                     'id': floating_ip.backend_id,
                     'description': '',
                     'tenant_id': floating_ip.tenant.backend_id,
+                    'port_id': self.fixture.port.backend_id,
                 }
             ]
         )
@@ -92,6 +93,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
         self.assertEqual(created_ip.runtime_state, floating_ip.runtime_state)
         self.assertEqual(created_ip.backend_network_id, floating_ip.backend_network_id)
         self.assertEqual(created_ip.address, floating_ip.address)
+        self.assertEqual(created_ip.port, self.fixture.port)
 
     @data(True, False)
     def test_floating_ip_is_deleted_if_it_is_not_returned_by_neutron(self, is_admin):
@@ -118,6 +120,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
     def test_floating_ip_is_updated(self, is_admin):
         floating_ip = self.fixture.floating_ip
         floating_ip.runtime_state = 'ACTIVE'
+
         self.setup_client(is_admin, self._get_valid_new_backend_ip(floating_ip))
 
         floating_ip.runtime_state = 'DOWN'
@@ -127,6 +130,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
 
         floating_ip.refresh_from_db()
         self.assertEqual(floating_ip.runtime_state, 'ACTIVE')
+        self.assertEqual(floating_ip.port, self.fixture.port)
 
 
 @ddt

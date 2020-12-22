@@ -12,6 +12,7 @@ from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher
 from waldur_core.structure import SupportedServices, log_backend_action
 from waldur_core.structure.utils import (
@@ -352,6 +353,14 @@ class OpenStackBackend(BaseOpenStackBackend):
             handle_resource_update_success(floating_ip)
 
     def _backend_floating_ip_to_floating_ip(self, backend_floating_ip, **kwargs):
+        port_id = backend_floating_ip['port_id']
+        if port_id:
+            port = models.Port.objects.filter(
+                backend_id=port_id,
+                service_project_link__service__settings=self.settings,
+            ).first()
+        else:
+            port = None
         floating_ip = models.FloatingIP(
             name=backend_floating_ip['floating_ip_address'],
             description=backend_floating_ip['description'],
@@ -360,6 +369,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             runtime_state=backend_floating_ip['status'],
             backend_id=backend_floating_ip['id'],
             state=models.FloatingIP.States.OK,
+            port=port,
         )
         for field, value in kwargs.items():
             setattr(floating_ip, field, value)
@@ -2222,6 +2232,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
             return port
 
+    @log_backend_action()
     def update_port(self, port: models.Port):
         neutron = self.neutron_admin_client
 
@@ -2240,6 +2251,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
             return port
 
+    @log_backend_action()
     def delete_port(self, port: models.Port):
         neutron = self.neutron_admin_client
 
@@ -2252,4 +2264,57 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'Port %s has been deleted' % port.name,
                 event_type='openstack_port_deleted',
                 event_context={'port': port,},
+            )
+
+    @log_backend_action()
+    def attach_floating_ip_to_port(
+        self, floating_ip: models.FloatingIP, serialized_port
+    ):
+        port: models.Port = core_utils.deserialize_instance(serialized_port)
+        neutron = self.neutron_admin_client
+        payload = {
+            'port_id': port.backend_id,
+        }
+        try:
+            response_floating_ip = neutron.update_floatingip(
+                floating_ip.backend_id, {'floatingip': payload}
+            )['floatingip']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            floating_ip.runtime_state = response_floating_ip['status']
+            floating_ip.address = response_floating_ip['fixed_ip_address']
+            floating_ip.port = port
+            floating_ip.save(update_fields=['address', 'runtime_state', 'port'])
+
+            event_logger.openstack_floating_ip.info(
+                'Floating IP [%s] has been attached to port [%s].'
+                % (floating_ip, port),
+                event_type='openstack_floating_ip_attached',
+                event_context={'floating_ip': floating_ip, 'port': port,},
+            )
+
+    @log_backend_action()
+    def detach_floating_ip_from_port(self, floating_ip: models.FloatingIP):
+        neutron = self.neutron_admin_client
+        payload = {
+            'port_id': None,
+        }
+        try:
+            response_floating_ip = neutron.update_floatingip(
+                floating_ip.backend_id, {'floatingip': payload}
+            )['floatingip']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            port = floating_ip.port
+            floating_ip.runtime_state = response_floating_ip['status']
+            floating_ip.address = None
+            floating_ip.port = None
+            floating_ip.save(update_fields=['address', 'runtime_state', 'port'])
+
+            event_logger.openstack_floating_ip.info(
+                'Floating IP %s has been detached from port %s.' % (floating_ip, port),
+                event_type='openstack_floating_ip_detached',
+                event_context={'floating_ip': floating_ip, 'port': port,},
             )

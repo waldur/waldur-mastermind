@@ -345,6 +345,27 @@ class FloatingIPPullExecutor(core_executors.ActionExecutor):
         )
 
 
+class FloatingIPAttachExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, floating_ip, serialized_floating_ip, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_floating_ip,
+            'attach_floating_ip_to_port',
+            state_transition='begin_updating',
+            serialized_port=kwargs.get('port'),
+        )
+
+
+class FloatingIPDetachExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, floating_ip, serialized_floating_ip, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_floating_ip,
+            'detach_floating_ip_from_port',
+            state_transition='begin_updating',
+        )
+
+
 class TenantPullFloatingIPsExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, tenant, serialized_tenant, **kwargs):

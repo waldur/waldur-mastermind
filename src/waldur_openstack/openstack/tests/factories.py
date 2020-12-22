@@ -172,12 +172,13 @@ class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
 
     @classmethod
-    def get_url(cls, instance=None):
+    def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = FloatingIPFactory()
-        return 'http://testserver' + reverse(
+        url = 'http://testserver' + reverse(
             'openstack-fip-detail', kwargs={'uuid': instance.uuid.hex}
         )
+        return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):

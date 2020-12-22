@@ -164,6 +164,25 @@ class PortLogger(EventLogger):
         }
 
 
+class FloatingIPLogger(EventLogger):
+    floating_ip = 'openstack.FloatingIP'
+
+    class Meta:
+        event_types = (
+            'openstack_floating_ip_attached',
+            'openstack_floating_ip_detached',
+        )
+        event_groups = {
+            'resources': event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        floating_ip = event_context['floating_ip']
+        port = event_context['port']
+        return {floating_ip, floating_ip.tenant, port}
+
+
 event_logger.register('openstack_tenant_quota', TenantQuotaLogger)
 event_logger.register('openstack_router', RouterLogger)
 event_logger.register('openstack_network', NetworkLogger)
@@ -171,3 +190,4 @@ event_logger.register('openstack_subnet', SubNetLogger)
 event_logger.register('openstack_security_group', SecurityGroupLogger)
 event_logger.register('openstack_security_group_rule', SecurityGroupRuleLogger)
 event_logger.register('openstack_port', PortLogger)
+event_logger.register('openstack_floating_ip', FloatingIPLogger)

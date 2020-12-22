@@ -8,6 +8,7 @@ from rest_framework import serializers as rf_serializers
 from rest_framework import status
 
 from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.logging.loggers import event_logger
@@ -224,6 +225,64 @@ class FloatingIPViewSet(structure_views.BaseResourceViewSet):
         """
 
         return super(FloatingIPViewSet, self).list(request, *args, **kwargs)
+
+    @decorators.action(detail=True, methods=['post'])
+    def attach_to_port(self, request, uuid=None):
+        floating_ip: models.FloatingIP = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        port: models.Port = serializer.validated_data['port']
+        if port.state != models.Port.States.OK:
+            raise core_exceptions.IncorrectStateException(
+                _(
+                    'The port [%(port)s] is expected to have [OK] state, but actual one is [%(state)s]'
+                )
+                % {'port': port, 'state': port.get_state_display()}
+            )
+        if port.tenant != floating_ip.tenant:
+            raise exceptions.ValidationError(
+                {
+                    'detail': _(
+                        'The port [%(port)s] is expected to belong to the same tenant [%(tenant)s] , but actual one is [%(actual_tenant)s]'
+                    )
+                    % {
+                        'port': port,
+                        'tenant': floating_ip.tenant,
+                        'actual_tenant': port.tenant,
+                    }
+                }
+            )
+
+        executors.FloatingIPAttachExecutor().execute(
+            floating_ip, port=core_utils.serialize_instance(port)
+        )
+        return response.Response(
+            {'status': _('attaching was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
+
+    attach_to_port_serializer_class = serializers.FloatingIPAttachSerializer
+    attach_to_port_validators = [
+        core_validators.StateValidator(models.FloatingIP.States.OK)
+    ]
+
+    @decorators.action(detail=True, methods=['post'])
+    def detach_from_port(self, request=None, uuid=None):
+        floating_ip: models.FloatingIP = self.get_object()
+        if not floating_ip.port:
+            raise exceptions.ValidationError(
+                {
+                    'port': _('Floating IP [%(fip)s] is not attached to any port.')
+                    % {'fip': floating_ip}
+                }
+            )
+        executors.FloatingIPDetachExecutor().execute(floating_ip)
+        return response.Response(
+            {'status': _('detaching was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
+
+    detach_from_port_validators = [
+        core_validators.StateValidator(models.FloatingIP.States.OK)
+    ]
 
 
 class TenantViewSet(structure_views.ImportableResourceViewSet):

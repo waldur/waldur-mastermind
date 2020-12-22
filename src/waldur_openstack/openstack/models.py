@@ -199,6 +199,13 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
         null=True, blank=True, protocol='IPv4', default=None
     )
     backend_network_id = models.CharField(max_length=255, editable=False)
+    port = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to='Port',
+        related_name='floating_ips',
+        blank=True,
+        null=True,
+    )
 
     tracker = FieldTracker()
 
@@ -229,6 +236,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
             'address',
             'backend_network_id',
             'runtime_state',
+            'port',
         )
 
     def increase_backend_quotas_usage(self, validate=True):
