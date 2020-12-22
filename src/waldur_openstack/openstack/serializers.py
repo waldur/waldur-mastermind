@@ -182,6 +182,9 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='openstack-spl-detail', read_only=True
     )
+    port = serializers.HyperlinkedRelatedField(
+        view_name='openstack-port-detail', lookup_field='uuid', read_only=True,
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.FloatingIP
@@ -192,6 +195,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
             'tenant',
             'tenant_name',
             'tenant_uuid',
+            'port',
         )
         related_paths = ('tenant',)
         read_only_fields = (
@@ -205,6 +209,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
                 'backend_network_id',
                 'service_settings',
                 'project',
+                'port',
             )
         )
         extra_kwargs = dict(
@@ -220,6 +225,16 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['tenant'] = tenant = self.context['view'].get_object()
         attrs['service_project_link'] = tenant.service_project_link
         return super(FloatingIPSerializer, self).validate(attrs)
+
+
+class FloatingIPAttachSerializer(serializers.Serializer):
+    port = serializers.HyperlinkedRelatedField(
+        queryset=models.Port.objects.all(),
+        view_name='openstack-port-detail',
+        lookup_field='uuid',
+        many=False,
+        required=True,
+    )
 
 
 class SecurityGroupRuleSerializer(
@@ -943,6 +958,12 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
     network_name = serializers.CharField(source='network.name', read_only=True)
     network_uuid = serializers.CharField(source='network.uuid', read_only=True)
     allowed_address_pairs = serializers.JSONField(read_only=True)
+    floating_ips = serializers.HyperlinkedRelatedField(
+        view_name='openstack-fip-detail',
+        lookup_field='uuid',
+        read_only=True,
+        many=True,
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
@@ -956,6 +977,7 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
             'network',
             'network_name',
             'network_uuid',
+            'floating_ips',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields

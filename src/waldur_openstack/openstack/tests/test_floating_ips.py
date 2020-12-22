@@ -1,3 +1,5 @@
+from unittest import mock
+
 from rest_framework import status, test
 
 from .. import models
@@ -128,5 +130,124 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
                     "type": "button",
                     "method": "POST",
                 },
+                "attach_to_port": {
+                    "title": "Attach To Port",
+                    "url": url + "attach_to_port/",
+                    "enabled": True,
+                    "reason": None,
+                    "destructive": False,
+                    "type": "form",
+                    "method": "POST",
+                    'fields': {
+                        'port': {
+                            'type': 'select',
+                            'required': True,
+                            'label': 'Port',
+                            'url': 'http://testserver/api/openstack-ports/',
+                            'value_field': 'url',
+                            'display_name_field': 'display_name',
+                        }
+                    },
+                },
+                "detach_from_port": {
+                    "title": "Detach From Port",
+                    "url": url + "detach_from_port/",
+                    "enabled": True,
+                    "reason": None,
+                    "destructive": False,
+                    "type": "button",
+                    "method": "POST",
+                },
             },
         )
+
+
+class BaseFloatingIPTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.OpenStackFixture()
+        self.ip = self.fixture.floating_ip
+        self.port = self.fixture.port
+        self.client.force_login(self.fixture.staff)
+
+
+class FloatingIPRetrieveTest(BaseFloatingIPTest):
+    def test_floating_ip_access_from_port(self):
+        self.ip.port = self.port
+        self.ip.save()
+        response = self.client.get(factories.PortFactory.get_url(self.port))
+        response_fips = response.data['floating_ips']
+        self.assertEqual([factories.FloatingIPFactory.get_url(self.ip)], response_fips)
+
+
+class FloatingIPAttachTest(BaseFloatingIPTest):
+    def setUp(self) -> None:
+        super(FloatingIPAttachTest, self).setUp()
+        self.request_data = {'port': factories.PortFactory.get_url(self.port)}
+        self.url = factories.FloatingIPFactory.get_url(self.ip, action='attach_to_port')
+
+    def test_floating_ip_attach(self):
+        response = self.client.post(self.url, self.request_data)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_floating_ip_attaching_for_ip_with_not_ok_state(self):
+        self.ip.state = models.FloatingIP.States.ERRED
+        self.ip.save()
+        response = self.client.post(self.url, self.request_data)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch('waldur_openstack.openstack.executors.FloatingIPAttachExecutor.execute')
+    def test_floating_ip_attaching_triggers_executor(
+        self, attach_ip_executor_action_mock
+    ):
+        response = self.client.post(self.url, self.request_data)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        attach_ip_executor_action_mock.assert_called_once()
+
+    def test_floating_ip_attaching_to_port_with_not_ok_state(self):
+        self.port.state = models.Port.States.ERRED
+        self.port.save()
+        response = self.client.post(self.url, self.request_data)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn('state', response.data['detail'])
+
+    def test_floating_ip_attaching_to_port_from_different_tenant(self):
+        self.port.tenant = factories.TenantFactory()
+        self.port.save()
+        response = self.client.post(self.url, self.request_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('tenant', response.data['detail'])
+
+
+class FloatingIPDetachTest(BaseFloatingIPTest):
+    def setUp(self) -> None:
+        super(FloatingIPDetachTest, self).setUp()
+        self.url = factories.FloatingIPFactory.get_url(
+            self.ip, action='detach_from_port'
+        )
+        self.ip.port = self.port
+        self.ip.save()
+
+    def test_floating_ip_detach(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_floating_ip_detaching_for_ip_with_not_ok_state(self):
+        self.ip.state = models.FloatingIP.States.ERRED
+        self.ip.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch('waldur_openstack.openstack.executors.FloatingIPDetachExecutor.execute')
+    def test_floating_ip_detaching_triggers_executor(
+        self, detach_ip_executor_action_mock
+    ):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        detach_ip_executor_action_mock.assert_called_once()
+
+    def test_floating_ip_detaching_without_port(self):
+        self.ip.port = None
+        self.ip.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('not attached to any port', response.data['port'])
