@@ -25,7 +25,7 @@ from waldur_core.structure.models import (
     ServiceSettings,
     SharedServiceSettings,
 )
-from waldur_mastermind.google.models import GoogleCredentials
+from waldur_mastermind.google.models import GoogleCalendar, GoogleCredentials
 from waldur_mastermind.marketplace_openstack import (
     executors as marketplace_openstack_executors,
 )
@@ -230,6 +230,11 @@ class OfferingComponentInline(admin.StackedInline):
     extra = 1
 
 
+class GoogleCalendarInline(admin.StackedInline):
+    model = GoogleCalendar
+    classes = ['collapse']
+
+
 def get_admin_url_for_scope(scope):
     if isinstance(scope, ServiceSettings):
         model = scope.shared and SharedServiceSettings or PrivateServiceSettings
@@ -247,7 +252,12 @@ def get_admin_link_for_scope(scope):
 
 class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     form = OfferingAdminForm
-    inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
+    inlines = [
+        ScreenshotsInline,
+        PlansInline,
+        OfferingComponentInline,
+        GoogleCalendarInline,
+    ]
     list_display = ('name', 'uuid', 'customer', 'state', 'category', 'billable')
     list_filter = (
         'state',

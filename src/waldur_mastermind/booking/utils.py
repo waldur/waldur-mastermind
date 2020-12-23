@@ -1,6 +1,8 @@
+import collections
 import copy
 import datetime
 import logging
+import re
 
 from dateutil.parser import parse as parse_datetime
 from django.utils import timezone
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class TimePeriod:
-    def __init__(self, start, end, period_id=None):
+    def __init__(self, start, end, period_id=None, location=None, attendees=None):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)
 
@@ -23,8 +25,13 @@ class TimePeriod:
         self.start = start
         self.end = end
 
-        if period_id:
-            self.id = period_id
+        reg_exp = re.compile(r'[^a-z0-9]')
+        self.id = period_id and re.sub(reg_exp, '', period_id)
+        self.location = location
+        self.attendees = attendees or []
+
+        if not isinstance(self.attendees, collections.Sequence):
+            self.attendees = [self.attendees]
 
 
 def is_interval_in_schedules(interval, schedules):
@@ -45,16 +52,47 @@ def get_offering_bookings(offering):
     always available (if some time slots at risk, better to conceal them).
     """
     States = marketplace_models.Resource.States
-    schedules = marketplace_models.Resource.objects.filter(
-        offering=offering, state__in=(States.OK, States.CREATING),
-    ).values_list('attributes__schedules', flat=True)
-    return [
-        TimePeriod(period['start'], period['end'], period.get('id'))
-        for schedule in schedules
-        if schedule
-        for period in schedule
-        if period
-    ]
+    resources = marketplace_models.Resource.objects.filter(
+        offering=offering, state__in=(States.OK, States.CREATING)
+    )
+    bookings = []
+
+    for resource in resources:
+        order_item = (
+            resources.first()
+            .orderitem_set.filter(type=marketplace_models.OrderItem.Types.CREATE)
+            .first()
+        )
+        attendees = []
+        location = None
+
+        if order_item:
+            email = order_item.order.created_by.email or None
+            full_name = order_item.order.created_by.full_name or None
+            if email:
+                attendees = [{'displayName': full_name, 'email': email}]
+
+            if resource.offering.latitude and resource.offering.longitude:
+                location = '{%s}, {%s}' % (
+                    resource.offering.latitude,
+                    resource.offering.longitude,
+                )
+
+        schedule = resource.attributes.get('schedules')
+        if schedule:
+            for period in schedule:
+                if period:
+                    bookings.append(
+                        TimePeriod(
+                            period['start'],
+                            period['end'],
+                            period.get('id'),
+                            attendees=attendees,
+                            location=location,
+                        )
+                    )
+
+    return bookings
 
 
 def get_other_offering_booking_requests(order_item):

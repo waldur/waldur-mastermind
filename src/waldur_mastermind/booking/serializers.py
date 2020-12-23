@@ -76,3 +76,18 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
 class BookingSerializer(serializers.Serializer):
     start = serializers.DateTimeField()
     end = serializers.DateTimeField()
+
+
+class OfferingDetailsSerializer(marketplace_serializers.OfferingDetailsSerializer):
+    google_calendar_link = serializers.SerializerMethodField()
+
+    class Meta(marketplace_serializers.OfferingDetailsSerializer.Meta):
+        fields = marketplace_serializers.OfferingDetailsSerializer.Meta.fields + (
+            'google_calendar_link',
+        )
+
+    def get_google_calendar_link(self, offering):
+        google_calendar = getattr(offering, 'googlecalendar', None)
+
+        if google_calendar:
+            return google_calendar.http_link

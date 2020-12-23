@@ -19,6 +19,17 @@ class BookingsTest(test.APITransactionTestCase):
         self.offering = marketplace_factories.OfferingFactory(
             customer=self.fixture.customer, type=PLUGIN_NAME
         )
+        self.google_calendar = google_factories.GoogleCalendarFactory(
+            offering=self.offering
+        )
+        self.service_provider = marketplace_factories.ServiceProviderFactory(
+            customer=self.offering.customer
+        )
+        self.google_credentials = google_factories.GoogleCredentialsFactory(
+            service_provider=self.service_provider,
+            calendar_token='calendar_token',
+            calendar_refresh_token='calendar_refresh_token',
+        )
         self.schedules = [
             {
                 'start': '2020-02-12T02:00:00+03:00',
@@ -66,20 +77,11 @@ class BookingsTest(test.APITransactionTestCase):
 
     @data('owner', 'staff')
     def test_user_can_sync_bookings_to_calendar(self, user):
-        service_provider = marketplace_factories.ServiceProviderFactory(
-            customer=self.offering.customer
-        )
-        google_factories.GoogleCredentialsFactory(
-            service_provider=service_provider,
-            calendar_token='calendar_token',
-            calendar_refresh_token='calendar_refresh_token',
-        )
-
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(
             f'/api/marketplace-bookings/{self.offering.uuid.hex}/google_calendar_sync/'
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     @data('user')
     def test_user_cannot_sync_bookings_to_calendar(self, user):
@@ -90,7 +92,7 @@ class BookingsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_google_calendar_sync_validators(self):
-        marketplace_factories.ServiceProviderFactory(customer=self.offering.customer)
+        self.google_credentials.delete()
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             f'/api/marketplace-bookings/{self.offering.uuid.hex}/google_calendar_sync/'
@@ -101,15 +103,10 @@ class BookingsTest(test.APITransactionTestCase):
     @freeze_time('2020-02-20')
     def test_bookings_sync(self, mock_build):
         mock_build().events().list().execute().get.return_value = []
-        service_provider = marketplace_factories.ServiceProviderFactory(
-            customer=self.offering.customer
-        )
-        google_factories.GoogleCredentialsFactory(service_provider=service_provider)
         sync_bookings = calendar.SyncBookings(self.offering)
 
         need_to_add, need_to_delete, need_to_update = sync_bookings.get_bookings()
-        self.assertEqual(len(need_to_add), 1)
-        self.assertEqual(need_to_add[0].id, self.schedules[1]['id'])
+        self.assertEqual(len(need_to_add), 2)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 0)
 
@@ -126,20 +123,48 @@ class BookingsTest(test.APITransactionTestCase):
         ] = '2020-03-02T02:00:00+03:00'
         self.resource_2.save()
         need_to_add, need_to_delete, need_to_update = sync_bookings.get_bookings()
-        self.assertEqual(len(need_to_add), 0)
+        self.assertEqual(len(need_to_add), 1)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 1)
         self.assertEqual(need_to_update[0].id, self.schedules[1]['id'])
 
+        # Past events are also being updated
         self.resource_2.attributes['schedules'][0][
             'start'
         ] = '2020-02-02T02:00:00+03:00'
         self.resource_2.save()
         need_to_add, need_to_delete, need_to_update = sync_bookings.get_bookings()
-        self.assertEqual(len(need_to_add), 0)
-        self.assertEqual(len(need_to_delete), 1)
-        self.assertEqual(need_to_delete.pop(), self.schedules[1]['id'])
-        self.assertEqual(len(need_to_update), 0)
+        self.assertEqual(len(need_to_add), 1)
+        self.assertEqual(len(need_to_delete), 0)
+        self.assertEqual(len(need_to_update), 1)
+        self.assertEqual(need_to_update[0].id, self.schedules[1]['id'])
+
+    @mock.patch('waldur_mastermind.google.backend.build')
+    def test_automatically_create_google_calendar(self, mock_build):
+        # if calendar backend_id exists
+        backend = calendar.SyncBookings(self.offering)
+        backend.calendar_id
+        mock_build().calendars().insert().execute.assert_not_called()
+
+        # if calendar backend_id doesn't exist
+        self.google_calendar.backend_id = ''
+        self.google_calendar.save()
+        backend = calendar.SyncBookings(self.offering)
+        mock_build().calendars().insert().execute.return_value = {
+            'id': 'new_calendar_id'
+        }
+        backend.calendar_id
+        mock_build().calendars().insert().execute.assert_called_once()
+        self.google_calendar.refresh_from_db()
+        self.assertEqual(self.google_calendar.backend_id, 'new_calendar_id')
+
+    @mock.patch('waldur_mastermind.booking.handlers.GoogleCalendarRenameExecutor')
+    def test_update_google_calendar_name_if_offering_name_has_been_updated(
+        self, mock_executor
+    ):
+        self.offering.name = 'new name'
+        self.offering.save()
+        mock_executor.execute.assert_called_once()
 
 
 @freeze_time('2020-02-01')

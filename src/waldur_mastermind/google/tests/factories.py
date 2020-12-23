@@ -1,6 +1,7 @@
 import factory
 from rest_framework.reverse import reverse
 
+from waldur_core.core import models as core_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from .. import models
@@ -37,3 +38,12 @@ class GoogleCredentialsFactory(factory.DjangoModelFactory):
             'google-auth-detail',
             kwargs={'uuid': credentials.service_provider.uuid.hex},
         )
+
+
+class GoogleCalendarFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.GoogleCalendar
+
+    offering = factory.SubFactory(marketplace_factories.OfferingFactory)
+    backend_id = factory.Sequence(lambda n: '%s@group.calendar.google.com' % n)
+    state = core_models.StateMixin.States.OK
