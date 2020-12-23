@@ -29,7 +29,6 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import attribute_types
-from waldur_mastermind.marketplace.plugins import manager
 
 from . import models, plugins
 
@@ -248,13 +247,7 @@ def validate_limits(limits, offering):
     )
 
     if offering.type:
-        fixed_components = (
-            offering.components.filter(
-                billing_type=models.OfferingComponent.BillingTypes.FIXED
-            )
-            .exclude(disable_quotas=True)
-            .values_list('type', flat=True)
-        )
+        fixed_components = offering.fixed_components.values_list('type', flat=True)
     else:
         fixed_components = []
     valid_component_types = set(usage_components)
@@ -555,16 +548,23 @@ def get_offering_component_stats(offering, active_customers, start, end):
                         )
                         continue
 
-                    components = manager.get_components(item.scope.offering.type)
+                    components = offering.estimated_components
+
                     try:
-                        component = [*filter(lambda x: x.type == limit, components)][0]
-                    except IndexError:
+                        component = components.get(type=limit)
+                    except ObjectDoesNotExist:
                         logger.error(
                             'Limit %s of invoice item %s is not found.'
                             % (limit, item.id)
                         )
                         continue
 
+                    normalized_usage = float(
+                        decimal.Decimal(usage)
+                        / decimal.Decimal(
+                            offering.component_factors.get(component.type, 1)
+                        )
+                    )
                     other = [
                         *filter(
                             lambda x: x['period'] == period
@@ -572,9 +572,6 @@ def get_offering_component_stats(offering, active_customers, start, end):
                             component_stats,
                         )
                     ]
-                    normalized_usage = float(
-                        decimal.Decimal(usage) / decimal.Decimal(component.factor or 1)
-                    )
                     if other:
                         stats = other[0]
                         stats['usage'] += normalized_usage
@@ -592,7 +589,7 @@ def get_offering_component_stats(offering, active_customers, start, end):
                             # of  the same offering components and periods.
                         }
                         component_stats.append(stats)
-
+                # avoid processing invoice items further if InvoiceItem contains limits details
                 continue
 
             # Case when invoice item details includes plan component data.

@@ -133,6 +133,25 @@ class TenantCreateTest(BaseOpenStackTest):
         expected = 20 * 1 + 100 * 0.5 + 10000 * 0.1
         self.assertEqual(float(response.data['total_cost']), expected)
 
+    def test_cost_estimate_is_calculated_using_dynamic_storage(self):
+        create_offering_components(self.offering)
+
+        self.create_plan_component(CORES_TYPE, 1)
+        self.create_plan_component(RAM_TYPE, 0.5)
+        marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type='gigabytes_llvm',
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+        )
+        self.create_plan_component('gigabytes_llvm', 0.1)
+
+        response = self.create_order(
+            limits={'cores': 20, 'ram': 1024 * 100, 'gigabytes_llvm': 10000}
+        )
+
+        expected = 20 * 1 + 100 * 0.5 + 10000 * 0.1
+        self.assertEqual(float(response.data['total_cost']), expected)
+
     def create_order(self, add_attributes=None, user='staff', limits=None):
         project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
         offering_url = marketplace_factories.OfferingFactory.get_url(self.offering)
@@ -214,7 +233,7 @@ class TenantCreateTest(BaseOpenStackTest):
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type='gigabytes_llvm',
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
         )
 
         response = self.create_order(

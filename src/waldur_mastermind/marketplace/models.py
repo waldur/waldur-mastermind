@@ -406,6 +406,29 @@ class Offering(
         return {component.type: component for component in components}
 
     @cached_property
+    def fixed_components(self):
+        components = self.components.filter(
+            billing_type=OfferingComponent.BillingTypes.FIXED
+        ).exclude(disable_quotas=True)
+
+        return components
+
+    @cached_property
+    def estimated_components(self):
+        available_limits = plugins.manager.get_available_limits(self.type)
+        return self.components.filter(
+            Q(billing_type=OfferingComponent.BillingTypes.USAGE)
+            | Q(type__in=available_limits)
+            | Q(billing_type=OfferingComponent.BillingTypes.FIXED)
+        ).exclude(disable_quotas=True)
+
+    @cached_property
+    def component_factors(self):
+        # get factor from plugin components
+        plugin_components = plugins.manager.get_components(self.type)
+        return {c.type: c.factor for c in plugin_components}
+
+    @cached_property
     def is_usage_based(self):
         return self.components.filter(
             billing_type=OfferingComponent.BillingTypes.USAGE,
@@ -585,21 +608,18 @@ class Plan(
         cost = self.unit_price
 
         if limits:
-            available_limits = plugins.manager.get_available_limits(self.offering.type)
-            components = self.offering.components.filter(
-                Q(billing_type=OfferingComponent.BillingTypes.USAGE)
-                | Q(type__in=available_limits)
-            )
+            components = self.offering.estimated_components
             components_map = {component.type: component for component in components}
             component_prices = {
                 c.component.type: c.price for c in self.components.all()
             }
-            builtin_components = plugins.manager.get_components(self.offering.type)
-            component_factors = {c.type: c.factor for c in builtin_components}
+
+            factors = self.offering.component_factors
+
             for key in components_map.keys():
                 price = component_prices.get(key, 0)
                 limit = limits.get(key, 0)
-                factor = component_factors.get(key, 1)
+                factor = factors.get(key, 1)
                 cost += Decimal(price) * limit / factor
 
         return cost
