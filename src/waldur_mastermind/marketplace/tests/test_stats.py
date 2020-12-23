@@ -10,7 +10,6 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
-from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
@@ -301,9 +300,8 @@ class ComponentStatsTest(StatsBaseTest):
         self._create_item()
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
-        components = manager.get_components(self.resource.offering.type)
-        component_cores = [*filter(lambda x: x.type == 'cores', components)][0]
-        component_storage = [*filter(lambda x: x.type == 'storage', components)][0]
+        component_cores = self.resource.offering.components.get(type='cores')
+        component_storage = self.resource.offering.components.get(type='storage')
 
         self.assertEqual(
             result.data,
@@ -315,7 +313,14 @@ class ComponentStatsTest(StatsBaseTest):
                     'period': '2020-03',
                     'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_cores.type,
-                    'usage': float(1 / decimal.Decimal(component_cores.factor or 1)),
+                    'usage': float(
+                        decimal.Decimal(self.resource.limits['cores'])
+                        / decimal.Decimal(
+                            self.resource.offering.component_factors.get(
+                                component_cores.type, 1
+                            )
+                        )
+                    ),
                 },
                 {
                     'description': component_storage.description,
@@ -325,7 +330,12 @@ class ComponentStatsTest(StatsBaseTest):
                     'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_storage.type,
                     'usage': float(
-                        usage.usage / decimal.Decimal(component_storage.factor or 1)
+                        decimal.Decimal(usage.usage)
+                        / decimal.Decimal(
+                            self.resource.offering.component_factors.get(
+                                component_storage.type, 1
+                            )
+                        )
                     ),
                 },
             ],
@@ -425,9 +435,8 @@ class ComponentStatsTest(StatsBaseTest):
         )
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
-        components = manager.get_components(self.resource.offering.type)
-        component_cores = [*filter(lambda x: x.type == 'cores', components)][0]
-        component_storage = [*filter(lambda x: x.type == 'storage', components)][0]
+        component_cores = self.resource.offering.components.get(type='cores')
+        component_storage = self.resource.offering.components.get(type='storage')
         self.assertEqual(
             result.data,
             [
@@ -438,7 +447,14 @@ class ComponentStatsTest(StatsBaseTest):
                     'period': '2020-03',
                     'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_cores.type,
-                    'usage': float(1 / decimal.Decimal(component_cores.factor or 1)),
+                    'usage': float(
+                        decimal.Decimal(self.resource.limits['cores'])
+                        / decimal.Decimal(
+                            self.resource.offering.component_factors.get(
+                                component_cores.type, 1
+                            )
+                        )
+                    ),
                 },
                 {
                     'description': component_storage.description,
@@ -448,7 +464,12 @@ class ComponentStatsTest(StatsBaseTest):
                     'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_storage.type,
                     'usage': float(
-                        usage.usage / decimal.Decimal(component_storage.factor or 1)
+                        decimal.Decimal(usage.usage)
+                        / decimal.Decimal(
+                            self.resource.offering.component_factors.get(
+                                component_storage.type, 1
+                            )
+                        )
                     ),
                 },
             ],
