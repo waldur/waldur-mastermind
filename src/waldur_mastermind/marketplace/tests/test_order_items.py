@@ -11,7 +11,7 @@ from . import factories
 
 
 @ddt
-class ItemGetTest(test.APITransactionTestCase):
+class OrderItemFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -20,13 +20,13 @@ class ItemGetTest(test.APITransactionTestCase):
             project=self.project, created_by=self.manager
         )
         self.order_item = factories.OrderItemFactory(order=self.order)
+        self.url = factories.OrderItemFactory.get_list_url()
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_items_should_be_visible_to_colleagues_and_staff(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.OrderItemFactory.get_list_url()
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
@@ -34,15 +34,29 @@ class ItemGetTest(test.APITransactionTestCase):
     def test_items_should_be_invisible_to_other_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.OrderItemFactory.get_list_url()
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
     def test_items_should_be_invisible_to_unauthenticated_users(self):
-        url = factories.OrderItemFactory.get_list_url()
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_filter_order_items_for_service_manager(self):
+        # Arrange
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        offering.add_user(self.fixture.user)
+        order_item = factories.OrderItemFactory(offering=offering, order=self.order)
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            self.url, {'service_manager_uuid': self.fixture.user.uuid.hex}
+        )
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], order_item.uuid.hex)
 
 
 @unittest.skip('OrderItem creation is irrelevant now.')

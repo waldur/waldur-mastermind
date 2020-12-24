@@ -233,6 +233,7 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(
         field_name='order__project__customer__uuid'
     )
+    service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[
             (representation, representation)
@@ -268,6 +269,13 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
         model = models.OrderItem
         fields = []
+
+    def filter_service_manager(self, queryset, name, value):
+        return queryset.filter(
+            offering__shared=True,
+            offering__permissions__user__uuid=value,
+            offering__permissions__is_active=True,
+        )
 
 
 class ResourceFilter(
