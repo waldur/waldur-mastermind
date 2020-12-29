@@ -28,12 +28,11 @@ class ServiceSerializer(
         'use_sudo': _('Set to true to activate privilege escalation'),
         'gateway': _('Hostname or IP address of gateway node'),
         'default_account': _('Default SLURM account for user'),
-        'batch_service': _('Batch service, SLURM or MOAB'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.SlurmService
-        required_fields = ('hostname', 'username', 'batch_service')
+        required_fields = ('hostname', 'username')
         extra_field_options = {
             'username': {'default_value': 'root',},
             'use_sudo': {'default_value': False,},
@@ -71,7 +70,6 @@ class AllocationSerializer(
 
     username = rf_serializers.SerializerMethodField()
     gateway = rf_serializers.SerializerMethodField()
-    batch_service = rf_serializers.ReadOnlyField()
     homepage = rf_serializers.ReadOnlyField(
         source='service_project_link.service.settings.homepage'
     )
@@ -97,12 +95,9 @@ class AllocationSerializer(
             'gpu_usage',
             'ram_limit',
             'ram_usage',
-            'deposit_limit',
-            'deposit_usage',
             'username',
             'gateway',
             'is_active',
-            'batch_service',
             'homepage',
         )
         read_only_fields = (
@@ -115,8 +110,6 @@ class AllocationSerializer(
                 'gpu_limit',
                 'ram_limit',
                 'is_active',
-                'deposit_limit',
-                'deposit_usage',
             )
         )
         extra_kwargs = dict(

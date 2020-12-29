@@ -28,7 +28,6 @@ class SlurmPackageTest(test.APITransactionTestCase):
                 customer=fixture.customer
             ),
             'service_attributes': {
-                'batch_service': 'SLURM',
                 'hostname': 'example.com',
                 'username': 'root',
                 'port': 8888,

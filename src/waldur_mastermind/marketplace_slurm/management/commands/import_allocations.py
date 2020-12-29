@@ -62,7 +62,6 @@ def import_allocation(dry_run=False):
             offering=offering,
             created=allocation.created,
             plan=plan,
-            limits={'deposit_limit': int(allocation.deposit_limit)},
         )
 
         marketplace_models.ComponentQuota.objects.create(

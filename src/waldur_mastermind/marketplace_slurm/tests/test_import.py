@@ -186,4 +186,3 @@ class AllocationImportTest(test.APITransactionTestCase):
             resource.quotas.filter(component__type='ram').get().limit,
             allocation.ram_limit,
         )
-        self.assertEqual(resource.limits['deposit_limit'], allocation.deposit_limit)
