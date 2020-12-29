@@ -9,7 +9,6 @@ class UsageMixin(models.Model):
     cpu_usage = models.BigIntegerField(default=0)
     ram_usage = models.BigIntegerField(default=0)
     gpu_usage = models.BigIntegerField(default=0)
-    deposit_usage = models.DecimalField(max_digits=8, decimal_places=2, default=0)
 
 
 class AllocationUsageSerializerMixin(rf_serializers.HyperlinkedModelSerializer):
@@ -19,7 +18,6 @@ class AllocationUsageSerializerMixin(rf_serializers.HyperlinkedModelSerializer):
             'cpu_usage',
             'ram_usage',
             'gpu_usage',
-            'deposit_usage',
             'month',
             'year',
         )

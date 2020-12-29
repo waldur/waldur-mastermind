@@ -74,7 +74,6 @@ class AllocationUsageAdmin(admin.ModelAdmin):
         'cpu_usage',
         'gpu_usage',
         'ram_usage_mb',
-        'deposit_usage',
         'year',
         'month',
     )

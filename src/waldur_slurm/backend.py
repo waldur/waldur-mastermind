@@ -10,7 +10,6 @@ from django.utils import timezone
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_freeipa import models as freeipa_models
 from waldur_slurm.client import SlurmClient
-from waldur_slurm.client_moab import MoabClient
 from waldur_slurm.structures import Quotas
 
 from . import base, models
@@ -24,11 +23,7 @@ class SlurmBackend(ServiceBackend):
         self.client = self.get_client(settings)
 
     def get_client(self, settings):
-        batch_service = models.get_batch_service(settings)
-        cls = SlurmClient
-        if batch_service == 'MOAB':
-            cls = MoabClient
-        return cls(
+        return SlurmClient(
             hostname=settings.options.get('hostname', 'localhost'),
             username=settings.username or 'root',
             port=settings.options.get('port', 22),
@@ -142,7 +137,6 @@ class SlurmBackend(ServiceBackend):
             cpu=default_limits['CPU'],
             gpu=default_limits['GPU'],
             ram=default_limits['RAM'],
-            deposit=default_limits['DEPOSIT'],
         )
 
         self.client.set_resource_limits(allocation.backend_id, quotas)
@@ -220,10 +214,7 @@ class SlurmBackend(ServiceBackend):
         allocation.cpu_usage = quotas.cpu
         allocation.gpu_usage = quotas.gpu
         allocation.ram_usage = quotas.ram
-        allocation.deposit_usage = quotas.deposit
-        allocation.save(
-            update_fields=['cpu_usage', 'gpu_usage', 'ram_usage', 'deposit_usage']
-        )
+        allocation.save(update_fields=['cpu_usage', 'gpu_usage', 'ram_usage'])
 
         usernames = usage.keys()
         usermap = {
@@ -239,7 +230,6 @@ class SlurmBackend(ServiceBackend):
                 'cpu_usage': quotas.cpu,
                 'gpu_usage': quotas.gpu,
                 'ram_usage': quotas.ram,
-                'deposit_usage': quotas.deposit,
             },
         )
 
@@ -252,7 +242,6 @@ class SlurmBackend(ServiceBackend):
                     'cpu_usage': quotas.cpu,
                     'gpu_usage': quotas.gpu,
                     'ram_usage': quotas.ram,
-                    'deposit_usage': quotas.deposit,
                 },
             )
 

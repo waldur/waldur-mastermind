@@ -24,7 +24,6 @@ class ParserTest(TestCase):
 
     def get_report(self, raw):
         self.fixture = fixtures.SlurmFixture()
-        self.fixture.service.settings.options = {'batch_service': 'SLURM'}
 
         self.subprocess_patcher = mock.patch('subprocess.check_output')
         self.subprocess_mock = self.subprocess_patcher.start()

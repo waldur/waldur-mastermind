@@ -38,23 +38,3 @@ def update_invoice_item_on_allocation_usage_update(
         registrator.create_or_update_items(
             allocation, allocation_usage, package, invoice, start, end
         )
-
-
-def update_allocation_deposit(sender, instance, created=False, **kwargs):
-    allocation = instance
-    if allocation.batch_service != 'MOAB':
-        return
-
-    package = utils.get_package(allocation)
-    if not package:
-        return
-
-    if created or allocation.usage_changed():
-        if 'deposit_limit' in (kwargs.get('update_fields') or {}):
-            return
-
-        allocation.deposit_limit = utils.get_deposit_limit(allocation, package)
-        if created:
-            allocation.save()
-        else:
-            allocation.save(update_fields=['deposit_limit'])

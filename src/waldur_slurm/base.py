@@ -185,7 +185,6 @@ class BaseReportLine(metaclass=abc.ABCMeta):
             self.cpu * self.duration * self.node,
             self.gpu * self.duration * self.node,
             self.ram * self.duration * self.node,
-            self.charge,
         )
 
     def __str__(self):

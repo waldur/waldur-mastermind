@@ -13,7 +13,6 @@ class SlurmExtension(WaldurExtension):
                 'CPU': 16000,  # Measured unit is CPU-hours
                 'GPU': 400,  # Measured unit is GPU-hours
                 'RAM': 100000 * 2 ** 10,  # Measured unit is MB
-                'DEPOSIT': 200,  # Measured unis is EUR
             },
         }
 

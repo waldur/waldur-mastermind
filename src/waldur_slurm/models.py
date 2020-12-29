@@ -10,13 +10,6 @@ from waldur_slurm import mixins as slurm_mixins
 from waldur_slurm import utils
 
 
-def get_batch_service(service_settings):
-    batch_service = service_settings.options.get('batch_service')
-    if batch_service not in ('SLURM', 'MOAB'):
-        batch_service = 'SLURM'
-    return batch_service
-
-
 class SlurmService(structure_models.Service):
     projects = models.ManyToManyField(
         structure_models.Project, related_name='+', through='SlurmServiceProjectLink'
@@ -70,13 +63,6 @@ class Allocation(structure_models.NewResource):
     )
     ram_usage = models.BigIntegerField(default=0)
 
-    deposit_limit = models.DecimalField(
-        max_digits=6,
-        decimal_places=0,
-        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['DEPOSIT'],
-    )
-    deposit_usage = models.DecimalField(max_digits=8, decimal_places=2, default=0)
-
     @classmethod
     def get_url_name(cls):
         return 'slurm-allocation'
@@ -90,12 +76,7 @@ class Allocation(structure_models.NewResource):
             'cpu_usage',
             'gpu_usage',
             'ram_usage',
-            'deposit_usage',
         )
-
-    @property
-    def batch_service(self):
-        return get_batch_service(self.service_project_link.service.settings)
 
 
 class AllocationUsage(slurm_mixins.UsageMixin, core_models.UuidMixin):
