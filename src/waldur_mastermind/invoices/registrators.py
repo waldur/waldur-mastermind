@@ -108,6 +108,10 @@ class RegistrationManager:
     _registrators = {}
 
     @classmethod
+    def get_key(cls, source):
+        return getattr(source, 'invoice_registrator_key', source.__class__)
+
+    @classmethod
     def get_registrators(cls):
         return cls._registrators.values()
 
@@ -117,7 +121,7 @@ class RegistrationManager:
 
     @classmethod
     def get_registrator(cls, source):
-        return cls._registrators[source.__class__]
+        return cls._registrators[cls.get_key(source)]
 
     @classmethod
     def get_or_create_invoice(cls, customer, date, **kwargs):
@@ -144,7 +148,7 @@ class RegistrationManager:
         if now is None:
             now = timezone.now()
 
-        registrator = cls._registrators[source.__class__]
+        registrator = cls._registrators[cls.get_key(source)]
         customer = registrator.get_customer(source)
 
         with transaction.atomic():
@@ -162,7 +166,7 @@ class RegistrationManager:
         if now is None:
             now = timezone.now()
 
-        registrator = cls._registrators[source.__class__]
+        registrator = cls._registrators[cls.get_key(source)]
         customer = registrator.get_customer(source)
 
         with transaction.atomic():
@@ -174,15 +178,15 @@ class RegistrationManager:
         if now is None:
             now = timezone.now()
 
-        registrator = cls._registrators[source.__class__]
+        registrator = cls._registrators[cls.get_key(source)]
         return registrator._find_item(source, now)
 
     @classmethod
     def get_name(cls, source):
-        registrator = cls._registrators[source.__class__]
+        registrator = cls._registrators[cls.get_key(source)]
         return registrator.get_name(source)
 
     @classmethod
     def get_details(cls, source):
-        registrator = cls._registrators[source.__class__]
+        registrator = cls._registrators[cls.get_key(source)]
         return registrator.get_details(source)
