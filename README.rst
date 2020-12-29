@@ -1,7 +1,3 @@
-.. image:: https://travis-ci.org/opennode/waldur-mastermind.svg?branch=develop
-    :target: https://travis-ci.org/opennode/waldur-mastermind
-    :alt: Build status
-
 Waldur MasterMind
 =================
 
