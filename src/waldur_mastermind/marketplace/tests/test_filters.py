@@ -75,7 +75,12 @@ class ResourceFilterTest(test.APITransactionTestCase):
 
         ct = ContentType.objects.get_for_model(support_models.Offering)
         self.resource_1 = factories.ResourceFactory(
-            object_id=self.offering_1.id, content_type=ct
+            object_id=self.offering_1.id,
+            content_type=ct,
+            backend_metadata={
+                'external_ips': ['200.200.200.200', '200.200.200.201'],
+                'internal_ips': ['192.168.42.1', '192.168.42.2'],
+            },
         )
         factories.ResourceFactory(object_id=self.offering_3.id, content_type=ct)
 
@@ -84,5 +89,17 @@ class ResourceFilterTest(test.APITransactionTestCase):
     def test_backend_id_filter(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url, {'backend_id': 'backend_id'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
+
+    def test_backend_metadata_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        # check external IP lookup
+        response = self.client.get(self.url, {'query': '200.200.200.200'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
+
+        # check internal IP lookup
+        response = self.client.get(self.url, {'query': '192.168.42.1'})
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)

@@ -38,6 +38,13 @@ OFFERING_OPTIONS = {
 }
 
 
+def backend_metadata_generator(number):
+    return {
+        'internal_ips': [f'10.40.1.{number}', f'10.40.2.{number}'],
+        'external_ips': [f'193.40.1.{number}', f'193.40.2.{number}'],
+    }
+
+
 class ServiceProviderFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.ServiceProvider
@@ -316,6 +323,7 @@ class ResourceFactory(factory.DjangoModelFactory):
 
     offering = factory.SubFactory(OfferingFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
+    backend_metadata = factory.Sequence(backend_metadata_generator)
 
     @classmethod
     def get_url(cls, resource=None, action=None):
