@@ -311,7 +311,11 @@ class ResourceFilter(
         if is_uuid_like(value):
             return queryset.filter(uuid=value)
         else:
-            return queryset.filter(name__icontains=value)
+            return queryset.filter(
+                Q(name__icontains=value)
+                | Q(backend_metadata__external_ips__icontains=value)
+                | Q(backend_metadata__internal_ips__icontains=value)
+            )
 
     def filter_backend_id(self, queryset, name, value):
         resource_models = [
