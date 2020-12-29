@@ -4,6 +4,7 @@ from django.utils.lru_cache import lru_cache
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
@@ -78,16 +79,11 @@ class BookingSerializer(serializers.Serializer):
     end = serializers.DateTimeField()
 
 
-class OfferingDetailsSerializer(marketplace_serializers.OfferingDetailsSerializer):
-    google_calendar_link = serializers.SerializerMethodField()
+class OfferingSerializer(marketplace_serializers.OfferingDetailsSerializer):
+    googlecalendar = google_serializers.GoogleCalendarSerializer(required=False)
 
     class Meta(marketplace_serializers.OfferingDetailsSerializer.Meta):
         fields = marketplace_serializers.OfferingDetailsSerializer.Meta.fields + (
-            'google_calendar_link',
+            'googlecalendar',
         )
-
-    def get_google_calendar_link(self, offering):
-        google_calendar = getattr(offering, 'googlecalendar', None)
-
-        if google_calendar:
-            return google_calendar.http_link
+        view_name = 'booking-offering-detail'
