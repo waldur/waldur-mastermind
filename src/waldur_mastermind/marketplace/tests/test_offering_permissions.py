@@ -82,6 +82,15 @@ class GrantOfferingPermissionTest(test.APITransactionTestCase):
             )
         )
 
+    def test_service_manager_permission_is_created_even_for_customer_owner(self,):
+        self.offering.customer.add_user(self.fixture.user, CustomerRole.OWNER)
+        self.grant_permission('owner')
+        self.assertTrue(
+            self.offering.customer.has_user(
+                self.fixture.user, CustomerRole.SERVICE_MANAGER
+            )
+        )
+
 
 @ddt
 class RevokeOfferingPermissionTest(test.APITransactionTestCase):

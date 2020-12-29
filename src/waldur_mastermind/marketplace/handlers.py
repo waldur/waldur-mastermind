@@ -393,7 +393,7 @@ def log_offering_permission_updated(sender, instance, user, **kwargs):
 def add_service_manager_role_to_customer(
     sender, structure, user, role=None, created_by=None, **kwargs
 ):
-    if not structure.customer.has_user(user):
+    if not structure.customer.has_user(user, CustomerRole.SERVICE_MANAGER):
         structure.customer.add_user(user, CustomerRole.SERVICE_MANAGER)
 
 
