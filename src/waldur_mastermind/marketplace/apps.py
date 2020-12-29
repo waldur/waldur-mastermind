@@ -18,6 +18,8 @@ class MarketplaceConfig(AppConfig):
             utils,
             signals as marketplace_signals,
             processors,
+            registrators as marketplace_registrators,
+            PLUGIN_NAME,
         )
         from .plugins import manager
 
@@ -117,11 +119,13 @@ class MarketplaceConfig(AppConfig):
         )
 
         manager.register(
-            offering_type='Marketplace.Basic',
+            offering_type=PLUGIN_NAME,
             create_resource_processor=processors.BasicCreateResourceProcessor,
             update_resource_processor=processors.BasicUpdateResourceProcessor,
             delete_resource_processor=processors.BasicDeleteResourceProcessor,
         )
+
+        marketplace_registrators.MarketplaceRegistrator.connect()
 
         structure_signals.structure_role_granted.connect(
             handlers.log_offering_permission_granted,

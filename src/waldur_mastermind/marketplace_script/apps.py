@@ -8,7 +8,7 @@ class MarketplaceScriptConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import PLUGIN_NAME, processors
+        from . import PLUGIN_NAME, processors, registrators as script_registrators
 
         manager.register(
             offering_type=PLUGIN_NAME,
@@ -16,3 +16,5 @@ class MarketplaceScriptConfig(AppConfig):
             update_resource_processor=processors.UpdateProcessor,
             delete_resource_processor=processors.DeleteProcessor,
         )
+
+        script_registrators.ScriptRegistrator.connect()

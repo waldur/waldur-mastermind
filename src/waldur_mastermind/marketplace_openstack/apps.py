@@ -218,7 +218,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         registrators.RegistrationManager.add_registrator(
-            marketplace_models.Resource, MarketplaceItemRegistrator,
+            PACKAGE_TYPE, MarketplaceItemRegistrator,
         )
 
         marketplace_signals.resource_creation_succeeded.connect(

@@ -1078,6 +1078,10 @@ class Resource(
             'backend_type',
         )
 
+    @property
+    def invoice_registrator_key(self):
+        return self.offering.type
+
     def __str__(self):
         if self.name:
             return f'{self.name} ({self.offering.name})'
