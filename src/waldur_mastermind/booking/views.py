@@ -2,7 +2,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status
+from rest_framework import status, views
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -58,21 +58,14 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     ]
 
 
-class OfferingBookingsViewSet(core_views.ReadOnlyActionsViewSet):
+class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Offering.objects.filter(type=PLUGIN_NAME)
     filter_backends = (
         DjangoFilterBackend,
         filters.CustomersFilterBackend,
     )
     lookup_field = 'uuid'
-    serializer_class = serializers.OfferingDetailsSerializer
-
-    def retrieve(self, request, uuid=None):
-        offerings = models.Offering.objects.all().filter_for_user(request.user)
-        offering = get_object_or_404(offerings, uuid=uuid)
-        bookings = get_offering_bookings(offering)
-        serializer = serializers.BookingSerializer(instance=bookings, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    serializer_class = serializers.OfferingSerializer
 
     @action(detail=True, methods=['post'])
     def google_calendar_sync(self, request, uuid=None):
@@ -132,11 +125,42 @@ class OfferingBookingsViewSet(core_views.ReadOnlyActionsViewSet):
             # a calendar will be created in waldur later
             pass
 
-    google_calendar_sync_validators = (
-        share_google_calendar_validators
-    ) = unshare_google_calendar_validators = [
+    def validate_sharing_available(offering):
+        try:
+            google_calendar = google_models.GoogleCalendar.objects.get(
+                offering=offering
+            )
+
+            if google_calendar.public:
+                raise ValidationError(_('The calendar is public already.'))
+        except google_models.GoogleCalendar.DoesNotExist:
+            # a calendar will be created in waldur later
+            pass
+
+    def validate_unsharing_available(offering):
+        try:
+            google_calendar = google_models.GoogleCalendar.objects.get(
+                offering=offering
+            )
+
+            if not google_calendar.public:
+                raise ValidationError(_('The calendar is private already.'))
+        except google_models.GoogleCalendar.DoesNotExist:
+            raise ValidationError(_('The calendar does not exist.'))
+
+    google_calendar_sync_validators = [
         validate_google_credential,
         validate_google_calendar_state,
+    ]
+    share_google_calendar_validators = [
+        validate_google_credential,
+        validate_google_calendar_state,
+        validate_sharing_available,
+    ]
+    unshare_google_calendar_validators = [
+        validate_google_credential,
+        validate_google_calendar_state,
+        validate_unsharing_available,
     ]
 
     def _get_or_create_google_calendar(self, offering):
@@ -144,3 +168,12 @@ class OfferingBookingsViewSet(core_views.ReadOnlyActionsViewSet):
             offering=offering
         )
         return google_calendar
+
+
+class OfferingBookingsViewSet(views.APIView):
+    def get(self, request, uuid):
+        offerings = models.Offering.objects.all().filter_for_user(request.user)
+        offering = get_object_or_404(offerings, uuid=uuid)
+        bookings = get_offering_bookings(offering)
+        serializer = serializers.BookingSerializer(instance=bookings, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

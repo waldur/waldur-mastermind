@@ -1,3 +1,5 @@
+from django.conf.urls import url
+
 from waldur_mastermind.booking import views
 
 
@@ -6,7 +8,13 @@ def register_in(router):
         r'booking-resources', views.ResourceViewSet, basename='booking-resource'
     )
     router.register(
-        r'marketplace-bookings',
-        views.OfferingBookingsViewSet,
-        basename='marketplace-bookings',
+        r'booking-offerings', views.OfferingViewSet, basename='booking-offering'
     )
+
+
+urlpatterns = [
+    url(
+        r'^api/marketplace-bookings/(?P<uuid>[a-f0-9]+)/$',
+        views.OfferingBookingsViewSet.as_view(),
+    ),
+]
