@@ -32,7 +32,7 @@ def register_in(router):
     )
     router.register(
         r'openstacktenant-volumes',
-        views.VolumeReadUpdateViewSet,
+        views.VolumeViewSet,
         basename='openstacktenant-volume',
     )
     router.register(
@@ -47,7 +47,7 @@ def register_in(router):
     )
     router.register(
         r'openstacktenant-instances',
-        views.InstanceReadUpdateViewSet,
+        views.InstanceViewSet,
         basename='openstacktenant-instance',
     )
     router.register(
