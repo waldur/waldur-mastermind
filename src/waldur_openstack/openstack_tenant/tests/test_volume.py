@@ -4,8 +4,48 @@ from ddt import data, ddt
 from django.conf import settings
 from rest_framework import status, test
 
+from waldur_openstack.openstack_tenant.tests.helpers import (
+    override_openstack_tenant_settings,
+)
+
 from .. import models
 from . import factories, fixtures
+
+
+class VolumeDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.volume = self.fixture.volume
+        self.spl = self.fixture.spl
+
+    def destroy_volume(self):
+        url = factories.VolumeFactory.get_url(self.volume)
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.delete(url)
+
+    def test_spl_quota_updated_by_signal_handler_when_volume_is_removed(self):
+        self.volume.delete()
+        Quotas = models.OpenStackTenantServiceProjectLink.Quotas
+        self.assertEqual(self.spl.quotas.get(name=Quotas.storage).usage, 0)
+
+    def test_erred_volume_can_be_destroyed(self):
+        self.volume.state = models.Volume.States.ERRED
+        self.volume.save()
+        response = self.destroy_volume()
+        self.assertEqual(response.status_code, 202)
+
+    def test_attached_volume_can_not_be_destroyed(self):
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'in-use'
+        self.volume.save()
+        response = self.destroy_volume()
+        self.assertEqual(response.status_code, 409)
+
+    def test_pending_volume_can_not_be_destroyed(self):
+        self.volume.state = models.Volume.States.CREATING
+        self.volume.save()
+        response = self.destroy_volume()
+        self.assertEqual(response.status_code, 409)
 
 
 @ddt
@@ -401,6 +441,138 @@ class BaseVolumeCreateTest(test.APITransactionTestCase):
 
         url = factories.VolumeFactory.get_list_url()
         return self.client.post(url, payload)
+
+
+class VolumeNameCreateTest(BaseVolumeCreateTest):
+    def test_image_name_populated_on_volume_creation(self):
+        response = self.create_volume(image=self.image_url)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['image_name'], self.image.name)
+
+    def test_volume_image_name_populated_on_instance_creation(self):
+        flavor = factories.FlavorFactory(settings=self.settings)
+        flavor_url = factories.FlavorFactory.get_url(flavor)
+        subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
+        url = factories.InstanceFactory.get_list_url()
+
+        payload = {
+            'name': 'test-instance',
+            'image': self.image_url,
+            'service_project_link': self.spl_url,
+            'flavor': flavor_url,
+            'system_volume_size': 20480,
+            'internal_ips_set': [{'subnet': subnet_url}],
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        system_volume = response.data['volumes'][0]
+        self.assertEqual(system_volume['image_name'], self.image.name)
+
+    def test_create_instance_with_data_volumes_with_different_names(self):
+        flavor = factories.FlavorFactory(settings=self.settings)
+        flavor_url = factories.FlavorFactory.get_url(flavor)
+        subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
+        url = factories.InstanceFactory.get_list_url()
+
+        payload = {
+            'name': 'test-instance',
+            'image': self.image_url,
+            'service_project_link': self.spl_url,
+            'flavor': flavor_url,
+            'system_volume_size': 20480,
+            'internal_ips_set': [{'subnet': subnet_url}],
+            'data_volumes': [
+                {'size': 1024, 'type': factories.VolumeTypeFactory.get_url(),},
+                {'size': 1024 * 3, 'type': factories.VolumeTypeFactory.get_url(),},
+            ],
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        data_volumes_names = [
+            v['name'] for v in response.data['volumes'] if not v['bootable']
+        ]
+        self.assertEqual(
+            set(['test-instance-data-3', 'test-instance-data-2']),
+            set(data_volumes_names),
+        )
+
+
+class VolumeTypeCreateTest(BaseVolumeCreateTest):
+    def setUp(self):
+        super(VolumeTypeCreateTest, self).setUp()
+        self.type = factories.VolumeTypeFactory(
+            settings=self.settings, backend_id='ssd'
+        )
+        self.type_url = factories.VolumeTypeFactory.get_url(self.type)
+
+    def test_type_populated_on_volume_creation(self):
+        response = self.create_volume(type=self.type_url)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['type'], self.type_url)
+
+    def test_volume_type_should_be_related_to_the_same_service_settings(self):
+        response = self.create_volume(type=factories.VolumeTypeFactory.get_url())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('type', response.data)
+
+    def test_when_volume_is_created_volume_type_quota_is_updated(self):
+        self.create_volume(type=self.type_url, size=1024 * 10)
+
+        key = 'gigabytes_' + self.type.backend_id
+        usage = self.settings.quotas.get(name=key).usage
+        self.assertEqual(usage, 10)
+
+    def test_user_can_not_create_volume_if_resulting_quota_usage_is_greater_than_limit(
+        self,
+    ):
+        self.settings.set_quota_usage('gigabytes_ssd', 0)
+        self.settings.set_quota_limit('gigabytes_ssd', 0)
+
+        response = self.create_volume(type=self.type_url, size=1024)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class VolumeAvailabilityZoneCreateTest(BaseVolumeCreateTest):
+    def test_availability_zone_should_be_related_to_the_same_service_settings(self):
+        response = self.create_volume(
+            availability_zone=factories.VolumeAvailabilityZoneFactory.get_url()
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_availability_zone_should_be_available(self):
+        zone = self.fixture.volume_availability_zone
+        zone.available = False
+        zone.save()
+
+        response = self.create_volume(
+            availability_zone=factories.VolumeAvailabilityZoneFactory.get_url(zone)
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_availability_zone_name_is_validated(self):
+        zone = self.fixture.volume_availability_zone
+
+        response = self.create_volume(
+            availability_zone=factories.VolumeAvailabilityZoneFactory.get_url(zone)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_openstack_tenant_settings(REQUIRE_AVAILABILITY_ZONE=True)
+    def test_when_availability_zone_is_mandatory_and_exists_validation_fails(self):
+        self.fixture.volume_availability_zone
+        response = self.create_volume()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_openstack_tenant_settings(REQUIRE_AVAILABILITY_ZONE=True)
+    def test_when_availability_zone_is_mandatory_and_does_not_exist_validation_succeeds(
+        self,
+    ):
+        response = self.create_volume()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
 @ddt
