@@ -365,6 +365,7 @@ def add_component_usage(sender, instance, created=False, **kwargs):
             scope=component_usage.resource,
             start__gte=plan_period_start,
             end__lte=plan_period_end,
+            details__offering_component_type=component_usage.component.type,
         )
         usages = item.details.get('usages', {})
         usages[component_usage.component.type] = component_usage.usage
