@@ -251,12 +251,12 @@ class ComponentStatsTest(StatsBaseTest):
             limits={'cores': 1},
         )
 
-    def _create_item(self):
+    def _create_items(self):
         invoices_tasks.create_monthly_invoices()
         invoice = invoices_models.Invoice.objects.get(
             year=2020, month=3, customer=self.resource.project.customer
         )
-        return invoice.items.get(object_id=self.resource.id)
+        return invoice.items.filter(object_id=self.resource.id)
 
     def test_item_details(self):
         component = factories.OfferingComponentFactory(
@@ -269,7 +269,7 @@ class ComponentStatsTest(StatsBaseTest):
             billing_period=core_utils.month_start(timezone.now()),
             component=component,
         )
-        item = self._create_item()
+        item = self._create_items().first()
         self.assertEqual(
             item.details,
             {
@@ -297,7 +297,7 @@ class ComponentStatsTest(StatsBaseTest):
             component=component,
             plan_period=plan_period,
         )
-        self._create_item()
+        self._create_items()
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
         component_cores = self.resource.offering.components.get(type='cores')
@@ -341,7 +341,7 @@ class ComponentStatsTest(StatsBaseTest):
             ],
         )
 
-    def test_component_stats__if_invoice_item_details_includes_plan_component_data(
+    def test_component_stats_if_invoice_item_details_includes_plan_component_data(
         self,
     ):
         self.resource.offering.type = PLUGIN_NAME
@@ -352,7 +352,7 @@ class ComponentStatsTest(StatsBaseTest):
         self.resource.scope = support_offering
         self.resource.save()
 
-        self._create_item()
+        self._create_items()
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
         self.assertEqual(
@@ -371,7 +371,7 @@ class ComponentStatsTest(StatsBaseTest):
         )
 
     def test_migration(self):
-        item = self._create_item()
+        item = self._create_items().first()
         details = utils.get_offering_details(self.resource.offering)
         details['scope_uuid'] = self.resource.uuid.hex
         details['limits'] = self.resource.limits
@@ -416,12 +416,27 @@ class ComponentStatsTest(StatsBaseTest):
         self.assertEqual(item.details, details)
 
     def test_handler(self):
-        component = factories.OfferingComponentFactory(
+        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.save()
+        support_offering = support_factories.OfferingFactory(
+            project=self.resource.project, state=support_models.Offering.States.OK
+        )
+        self.resource.scope = support_offering
+        self.resource.save()
+
+        # add usage-based component to the offering and plan
+        COMPONENT_TYPE = 'storage'
+        new_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='storage',
+            use_limit_for_billing=True,
+            type=COMPONENT_TYPE,
         )
-        self._create_item()
+        factories.PlanComponentFactory(
+            plan=self.plan, component=new_component,
+        )
+
+        self._create_items()
         plan_period = factories.ResourcePlanPeriodFactory(
             resource=self.resource,
             plan=self.plan,
@@ -430,8 +445,9 @@ class ComponentStatsTest(StatsBaseTest):
         usage = factories.ComponentUsageFactory(
             resource=self.resource,
             billing_period=core_utils.month_start(timezone.now()),
-            component=component,
+            component=new_component,
             plan_period=plan_period,
+            usage=2,
         )
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
@@ -447,14 +463,7 @@ class ComponentStatsTest(StatsBaseTest):
                     'period': '2020-03',
                     'date': '2020-03-31T23:59:59.999999+00:00',
                     'type': component_cores.type,
-                    'usage': float(
-                        decimal.Decimal(self.resource.limits['cores'])
-                        / decimal.Decimal(
-                            self.resource.offering.component_factors.get(
-                                component_cores.type, 1
-                            )
-                        )
-                    ),
+                    'usage': 31,  # days in March of 1 core usage with per-day plan
                 },
                 {
                     'description': component_storage.description,
@@ -476,7 +485,7 @@ class ComponentStatsTest(StatsBaseTest):
         )
 
     def test_migration_0030_offering_data_to_invoice_item_details(self):
-        item = self._create_item()
+        item = self._create_items().first()
         item.details = {}
         item.save()
         details = utils.get_offering_details(self.resource.offering)
