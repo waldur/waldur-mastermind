@@ -96,7 +96,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     quantity = 1
                 elif is_usage:
                     unit = invoice_models.Units.QUANTITY
-                    quantity = resource.limits.get(offering_component.type)
+                    quantity = resource.limits.get(offering_component.type, 0)
 
                 item = invoice_models.InvoiceItem.objects.create(
                     content_type=ContentType.objects.get_for_model(resource),

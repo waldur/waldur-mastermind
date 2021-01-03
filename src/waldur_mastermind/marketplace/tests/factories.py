@@ -262,6 +262,7 @@ class OfferingComponentFactory(factory.DjangoModelFactory):
     offering = factory.SubFactory(OfferingFactory)
     type = 'cpu'
     billing_type = models.OfferingComponent.BillingTypes.FIXED
+    use_limit_for_billing = False
 
 
 class PlanComponentFactory(factory.DjangoModelFactory):
