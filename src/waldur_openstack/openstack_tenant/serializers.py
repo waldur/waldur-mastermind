@@ -902,7 +902,7 @@ class NestedInternalIPSerializer(
     class Meta:
         model = models.InternalIP
         fields = (
-            'ip4_address',
+            'fixed_ips',
             'mac_address',
             'subnet',
             'subnet_uuid',
@@ -912,7 +912,7 @@ class NestedInternalIPSerializer(
             'allowed_address_pairs',
         )
         read_only_fields = (
-            'ip4_address',
+            'fixed_ips',
             'mac_address',
             'subnet_uuid',
             'subnet_name',
@@ -960,7 +960,7 @@ class NestedFloatingIPSerializer(
             'url',
             'uuid',
             'address',
-            'internal_ip_ip4_address',
+            'internal_ip_fixed_ips',
             'internal_ip_mac_address',
             'subnet',
             'subnet_uuid',
@@ -970,10 +970,10 @@ class NestedFloatingIPSerializer(
         )
         read_only_fields = (
             'address',
-            'internal_ip_ip4_address',
+            'internal_ip_fixed_ips',
             'internal_ip_mac_address',
         )
-        related_paths = {'internal_ip': ('ip4_address', 'mac_address')}
+        related_paths = {'internal_ip': ('fixed_ips', 'mac_address')}
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'openstacktenant-fip-detail'},
         }

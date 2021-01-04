@@ -92,21 +92,27 @@ class NetworkMetadataTest(BaseOpenStackTest):
         internal_ip = self.fixture.internal_ip
         resource = self.import_resource()
         self.assertEqual(
-            resource.backend_metadata['internal_ips'], [internal_ip.ip4_address]
+            resource.backend_metadata['internal_ips'], internal_ip.fixed_ips
         )
 
     def test_internal_ip_address_is_updated(self):
         internal_ip = self.fixture.internal_ip
         resource = self.import_resource()
-        internal_ip.ip4_address = '10.0.0.1'
+        internal_ip.fixed_ips = [
+            {'ip_address': '10.0.0.1', 'subnet_id': internal_ip.subnet.backend_id}
+        ]
         internal_ip.save()
         resource.refresh_from_db()
-        self.assertEqual(resource.backend_metadata['internal_ips'], ['10.0.0.1'])
+        self.assertEqual(
+            resource.backend_metadata['internal_ips'], ['10.0.0.1'],
+        )
 
     def test_internal_ip_address_is_updated_on_delete(self):
         internal_ip = self.fixture.internal_ip
         resource = self.import_resource()
-        internal_ip.ip4_address = '10.0.0.1'
+        internal_ip.fixed_ips = [
+            {'ip_address': '10.0.0.1', 'subnet_id': internal_ip.subnet.backend_id}
+        ]
         internal_ip.save()
         resource.refresh_from_db()
 

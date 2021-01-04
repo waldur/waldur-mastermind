@@ -613,6 +613,22 @@ class NetworkViewSet(structure_views.BaseResourceViewSet):
     set_mtu_validators = [core_validators.StateValidator(models.Network.States.OK)]
     set_mtu_serializer_class = serializers.SetMtuSerializer
 
+    @decorators.action(detail=True, methods=['post'])
+    def create_port(self, request, uuid=None):
+        network: models.Network = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        port: models.Port = serializer.save()
+
+        executors.PortCreateExecutor().execute(
+            port, network=core_utils.serialize_instance(network)
+        )
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    create_port_serializer_class = serializers.PortSerializer
+
+    create_port_validators = [core_validators.StateValidator(models.Network.States.OK)]
+
 
 class SubNetViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SubNet.objects.all()
@@ -630,16 +646,3 @@ class SubNetViewSet(structure_views.BaseResourceViewSet):
                 'enable_default_gateway'
             ]
         }
-
-    @decorators.action(detail=True, methods=['post'])
-    def create_port(self, request, uuid=None):
-        subnet = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        port = serializer.save()
-        executors.PortCreateExecutor().execute(port, subnet_id=subnet.backend_id)
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    create_port_serializer_class = serializers.PortSerializer
-
-    create_port_validators = [core_validators.StateValidator(models.SubNet.States.OK)]

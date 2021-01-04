@@ -473,6 +473,9 @@ class Port(structure_models.SubResource, openstack_base_models.Port):
     def get_url_name(cls):
         return 'openstack-port'
 
+    def __str__(self):
+        return self.name
+
 
 class CustomerOpenStack(TimeStampedModel):
     settings = models.ForeignKey(

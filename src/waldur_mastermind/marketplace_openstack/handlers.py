@@ -316,7 +316,7 @@ def synchronize_instance_after_pull(sender, instance, **kwargs):
 def synchronize_internal_ips(sender, instance, created=False, **kwargs):
     internal_ip = instance
     if not created and not set(internal_ip.tracker.changed()) & {
-        'ip4_address',
+        'fixed_ips',
         'instance_id',
     }:
         return

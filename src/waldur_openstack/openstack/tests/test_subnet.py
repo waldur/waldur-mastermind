@@ -3,7 +3,6 @@ from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_openstack.openstack import models
 
 from . import factories, fixtures
 
@@ -82,29 +81,3 @@ class SubNetUpdateActionTest(BaseSubNetTest):
                 )
             ]
         )
-
-
-class SubNetCreatePortActionTest(BaseSubNetTest):
-    def setUp(self):
-        super(SubNetCreatePortActionTest, self).setUp()
-        self.client.force_authenticate(user=self.fixture.admin)
-        self.subnet = self.fixture.subnet
-        self.url = factories.SubNetFactory.get_url(self.subnet, action='create_port')
-        self.request_data = {'name': 'test_port_name'}
-
-    def test_create_port_if_subnet_has_ok_state(self):
-        response = self.client.post(self.url, self.request_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_create_port_if_subnet_has_erred_state(self):
-        self.subnet.state = models.SubNet.States.ERRED
-        self.subnet.save()
-
-        response = self.client.post(self.url, self.request_data)
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-
-    @mock.patch('waldur_openstack.openstack.executors.PortCreateExecutor.execute')
-    def test_create_port_triggers_executor(self, create_port_executor_action_mock):
-        response = self.client.post(self.url, self.request_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        create_port_executor_action_mock.assert_called_once()

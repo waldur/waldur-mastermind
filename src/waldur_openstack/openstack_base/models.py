@@ -60,8 +60,13 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
 class Port(core_models.BackendModelMixin, models.Model):
     # TODO: Use dedicated field: https://github.com/django-macaddress/django-macaddress
     mac_address = models.CharField(max_length=32, blank=True)
-    ip4_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4')
-    ip6_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv6')
+    fixed_ips = JSONField(
+        default=list,
+        help_text=_(
+            'A list of tuples (ip_address, subnet_id), where ip_address can be both IPv4 and IPv6 '
+            'and subnet_id is a backend id of the subnet'
+        ),
+    )
     backend_id = models.CharField(max_length=255, blank=True)
 
     allowed_address_pairs = JSONField(
@@ -74,14 +79,10 @@ class Port(core_models.BackendModelMixin, models.Model):
     class Meta:
         abstract = True
 
-    def __str__(self):
-        return self.ip4_address or self.ip6_address or 'Not initialized'
-
     @classmethod
     def get_backend_fields(cls):
         return super(Port, cls).get_backend_fields() + (
-            'ip4_address',
-            'ip6_address',
+            'fixed_ips',
             'mac_address',
             'allowed_address_pairs',
         )

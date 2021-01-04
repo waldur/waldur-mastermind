@@ -661,3 +661,84 @@ class PullImagesTest(BaseBackendTestCase):
         self.mocked_glance().images.list.return_value[0]['status'] = 'deleted'
         self.backend.pull_images()
         self.assertEqual(models.Image.objects.count(), 0)
+
+
+class PullPortsTest(BaseBackendTestCase):
+    def setUp(self):
+        super(PullPortsTest, self).setUp()
+        self.subnet = self.fixture.subnet
+        self.subnet.backend_id = f'{self.subnet.name}_backend_id'
+        self.subnet.save()
+
+        self.port: models.Port = self.fixture.port
+        self.port.backend_id = f'{self.port.name}_backend_id'
+        self.port.fixed_ips = [
+            {'ip_address': '192.168.11.1', 'subnet_id': self.subnet.backend_id}
+        ]
+        self.port.save()
+
+    def _get_valid_new_backend_port(self, port: models.Port):
+        return dict(
+            ports=[
+                {
+                    'id': port.backend_id,
+                    'name': port.name,
+                    'tenant_id': port.tenant.backend_id,
+                    'network_id': port.network.backend_id,
+                    'fixed_ips': port.fixed_ips,
+                    'description': port.description,
+                    'mac_address': port.mac_address,
+                }
+            ]
+        )
+
+    def setup_client(self, is_admin, value):
+        self.mocked_neutron().list_ports.return_value = value
+
+    def call_backend(self):
+        return self.backend.pull_tenant_ports(self.tenant)
+
+    def test_port_is_created_if_does_not_exists(self):
+        port = self.port
+        self.setup_client(False, self._get_valid_new_backend_port(port))
+        port.delete()
+
+        self.call_backend()
+
+        self.assertEqual(models.Port.objects.count(), 1)
+        created_port: models.Port = models.Port.objects.get(
+            tenant=self.tenant, backend_id=port.backend_id
+        )
+
+        self.assertEqual(created_port.state, models.Port.States.OK)
+        self.assertEqual(created_port.network, port.network)
+
+        self.assertEqual(
+            created_port.fixed_ips,
+            [{'ip_address': '192.168.11.1', 'subnet_id': self.subnet.backend_id}],
+        )
+
+    def test_port_is_deleted_if_it_is_not_returned_by_neutron(self):
+        port = self.port
+        self.setup_client(False, dict(ports=[]))
+
+        self.call_backend()
+
+        self.assertRaises(models.Port.DoesNotExist, port.refresh_from_db)
+
+    def test_port_is_updated(self):
+        port: models.Port = self.port
+
+        self.setup_client(False, self._get_valid_new_backend_port(port))
+
+        port.fixed_ips = []
+        port.save()
+
+        self.call_backend()
+
+        port.refresh_from_db()
+
+        self.assertEqual(
+            port.fixed_ips,
+            [{'ip_address': '192.168.11.1', 'subnet_id': self.subnet.backend_id}],
+        )

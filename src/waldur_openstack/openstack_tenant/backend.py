@@ -31,7 +31,7 @@ def backend_internal_ip_to_internal_ip(backend_internal_ip, **kwargs):
     internal_ip = models.InternalIP(
         backend_id=backend_internal_ip['id'],
         mac_address=backend_internal_ip['mac_address'],
-        ip4_address=backend_internal_ip['fixed_ips'][0]['ip_address'],
+        fixed_ips=backend_internal_ip['fixed_ips'],
         allowed_address_pairs=backend_internal_ip.get('allowed_address_pairs', []),
     )
 
@@ -1648,9 +1648,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             except nova_exceptions.ClientException as e:
                 raise OpenStackBackendError(e)
             new_internal_ip.mac_address = backend_internal_ip['mac_address']
-            new_internal_ip.ip4_address = backend_internal_ip['fixed_ips'][0][
-                'ip_address'
-            ]
+            new_internal_ip.fixed_ips = backend_internal_ip['fixed_ips']
             new_internal_ip.backend_id = backend_internal_ip['id']
             new_internal_ip.save()
 
@@ -1682,7 +1680,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         internal_ip.mac_address = backend_internal_ip['mac_address']
-        internal_ip.ip4_address = backend_internal_ip['fixed_ips'][0]['ip_address']
+        internal_ip.fixed_ips = backend_internal_ip['fixed_ips']
         internal_ip.backend_id = backend_internal_ip['id']
         internal_ip.save()
 
