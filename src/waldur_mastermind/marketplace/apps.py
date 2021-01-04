@@ -10,6 +10,7 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.core import signals as core_signals
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import SupportedServices
+        from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
 
         from . import (
@@ -155,4 +156,10 @@ class MarketplaceConfig(AppConfig):
             handlers.drop_service_manager_role_from_customer,
             sender=models.Offering,
             dispatch_uid='waldur_mastermind.marketplace.drop_service_manager_role_from_customer',
+        )
+
+        structure_signals.structure_role_revoked.connect(
+            handlers.drop_offering_permissions_if_service_manager_role_is_revoked,
+            sender=structure_models.Customer,
+            dispatch_uid='waldur_mastermind.marketplace.drop_offering_permissions_if_service_manager_role_is_revoked',
         )
