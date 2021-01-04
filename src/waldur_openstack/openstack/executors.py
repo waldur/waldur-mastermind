@@ -600,7 +600,7 @@ class PortCreateExecutor(core_executors.CreateExecutor):
             serialized_port,
             'create_port',
             state_transition='begin_creating',
-            subnet_id=kwargs.get('subnet_id'),
+            serialized_network=kwargs.get('network'),
         )
 
 

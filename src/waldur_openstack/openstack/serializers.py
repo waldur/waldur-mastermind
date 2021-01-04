@@ -5,6 +5,7 @@ from ipaddress import AddressValueError, IPv4Network, NetmaskValueError
 from django.conf import settings
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_ipv46_address
 from django.db import transaction
 from django.db.models import Q
 from django.template.defaultfilters import slugify
@@ -964,11 +965,12 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         read_only=True,
         many=True,
     )
+    fixed_ips = serializers.JSONField(required=False)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'ip4_address',
+            'fixed_ips',
             'mac_address',
             'allowed_address_pairs',
             'tenant',
@@ -992,10 +994,55 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
     def validate(self, attrs):
         if self.instance:
             return attrs
-        subnet: models.SubNet = self.context['view'].get_object()
-        attrs['service_project_link'] = subnet.service_project_link
-        attrs['network'] = subnet.network
-        attrs['tenant'] = subnet.network.tenant
+        fixed_ips = attrs.get('fixed_ips')
+        network: models.Network = self.context['view'].get_object()
+        if fixed_ips:
+            for fixed_ip in fixed_ips:
+                if 'ip_address' not in fixed_ip and 'subnet_id' not in fixed_ip:
+                    raise serializers.ValidationError(
+                        _('Either ip_address or subnet_id field must be specified')
+                    )
+
+                wrong_fields = set(fixed_ip.keys()) - {'ip_address', 'subnet_id'}
+                if wrong_fields != set():
+                    raise serializers.ValidationError(
+                        _(
+                            'Only ip_address and subnet_id fields can be specified. Got: %(fields)s'
+                        )
+                        % {'fields': wrong_fields}
+                    )
+
+                if fixed_ip.get('ip_address') == '':
+                    raise serializers.ValidationError(
+                        _('ip_address field must not be blank. Got %(fixed_ip)s.')
+                        % {'fixed_ip': fixed_ip}
+                    )
+
+                if fixed_ip.get('subnet_id') == '':
+                    raise serializers.ValidationError(
+                        _('subnet_id field must not be blank. Got %(fixed_ip)s.')
+                        % {'fixed_ip': fixed_ip}
+                    )
+
+                if 'ip_address' in fixed_ip:
+                    validate_ipv46_address(fixed_ip['ip_address'])
+
+                subnet_backend_id = fixed_ip.get('subnet_id')
+                if subnet_backend_id:
+                    if not models.SubNet.objects.filter(
+                        backend_id=subnet_backend_id, network=network
+                    ).exists():
+                        raise serializers.ValidationError(
+                            {
+                                'subnet': _(
+                                    'There is no subnet with backend_id [%(backend_id)s] in the network [%(network)s]'
+                                )
+                                % {'backend_id': subnet_backend_id, 'network': network,}
+                            }
+                        )
+        attrs['service_project_link'] = network.service_project_link
+        attrs['network'] = network
+        attrs['tenant'] = network.tenant
 
         return super(PortSerializer, self).validate(attrs)
 

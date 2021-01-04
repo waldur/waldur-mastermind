@@ -211,7 +211,7 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
         )
 
     ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
-        ('internal_ips_set__ip4_address', 'internal_ips'),
+        ('internal_ips_set__fixed_ips__0__ip_address', 'ip_address'),
         ('internal_ips_set__floating_ips__address', 'external_ips'),
     )
 

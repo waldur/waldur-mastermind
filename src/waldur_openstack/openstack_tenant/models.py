@@ -410,7 +410,11 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     @property
     def internal_ips(self):
-        return list(self.internal_ips_set.values_list('ip4_address', flat=True))
+        return [
+            val['ip_address']
+            for ip_list in self.internal_ips_set.values_list('fixed_ips', flat=True)
+            for val in ip_list
+        ]
 
     @property
     def size(self):
@@ -645,6 +649,9 @@ class InternalIP(openstack_base_models.Port):
         on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+'
     )
     tracker = FieldTracker()
+
+    def __str__(self):
+        return self.backend_id
 
     class Meta:
         unique_together = ('backend_id', 'settings')

@@ -871,7 +871,7 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         # Assert
         internal_ip.refresh_from_db()
         self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
-        self.assertEqual(internal_ip.ip4_address, '10.0.0.2')
+        self.assertEqual(internal_ip.fixed_ips[0]['ip_address'], '10.0.0.2')
 
     def test_shared_internal_ips_are_reassigned(self):
         # Arrange
@@ -965,7 +965,7 @@ class PullInternalIpsTest(BaseBackendTest):
         # Assert
         internal_ip.refresh_from_db()
         self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
-        self.assertEqual(internal_ip.ip4_address, '10.0.0.2')
+        self.assertEqual(internal_ip.fixed_ips[0]['ip_address'], '10.0.0.2')
 
     def test_even_if_internal_ip_is_not_connected_it_is_not_skipped(self):
         # Arrange
@@ -982,7 +982,7 @@ class PullInternalIpsTest(BaseBackendTest):
         self.assertEqual(internal_ip.instance, None)
         self.assertEqual(internal_ip.backend_id, 'port_id')
         self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
-        self.assertEqual(internal_ip.ip4_address, '10.0.0.2')
+        self.assertEqual(internal_ip.fixed_ips[0]['ip_address'], '10.0.0.2')
 
     def test_instance_has_several_ports_in_the_same_network_connected_to_the_same_instance(
         self,
@@ -1026,10 +1026,16 @@ class PullInternalIpsTest(BaseBackendTest):
         )
         self.assertEqual({subnet.id}, actual_subnets)
 
-        actual_addresses = set(
-            instance.internal_ips_set.values_list('ip4_address', flat=True)
+        actual_addresses = list(
+            instance.internal_ips_set.values_list('fixed_ips', flat=True)
         )
-        self.assertEqual({'10.0.0.2', '10.0.0.3'}, actual_addresses)
+        self.assertEqual(
+            [
+                [{'ip_address': '10.0.0.2', 'subnet_id': subnet_id}],
+                [{'ip_address': '10.0.0.3', 'subnet_id': subnet_id}],
+            ],
+            actual_addresses,
+        )
 
         actual_ids = set(instance.internal_ips_set.values_list('backend_id', flat=True))
         self.assertEqual({'port1', 'port2'}, actual_ids)
@@ -1185,13 +1191,15 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
         instance = self.fixture.instance
 
         ip1 = factories.InternalIPFactory(
-            subnet=subnet, backend_id='port_id1', ip4_address='192.168.42.42',
+            subnet=subnet,
+            backend_id='port_id1',
+            fixed_ips=[{'ip_address': '192.168.42.42', 'subnet_id': subnet.backend_id}],
         )
 
         ip2 = factories.InternalIPFactory(
             subnet=subnet,
             backend_id='port_id2',
-            ip4_address='192.168.42.62',
+            fixed_ips=[{'ip_address': '192.168.42.62', 'subnet_id': subnet.backend_id}],
             instance=instance,
         )
 

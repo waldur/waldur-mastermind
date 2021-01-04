@@ -16,7 +16,10 @@ class ZabbixServiceProjectLinkResourceFilterBackendTest(test.APITransactionTestC
 
         server_vm = fixture.instance
         internal_ip = InternalIPFactory.create(
-            instance=server_vm, ip4_address='10.0.10.2'
+            instance=server_vm,
+            fixed_ips=[
+                {'ip_address': '10.0.10.2', 'subnet_id': fixture.subnet.backend_id}
+            ],
         )
         settings = factories.ServiceSettingsFactory(
             customer=fixture.customer, scope=server_vm
@@ -51,7 +54,9 @@ class ZabbixServiceProjectLinkResourceFilterBackendTest(test.APITransactionTestC
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['url'], self.valid_link_url)
-        self.assertEqual(response.data[0]['internal_ip'], self.internal_ip.ip4_address)
+        self.assertEqual(
+            response.data[0]['internal_ip'], self.internal_ip.fixed_ips[0]['ip_address']
+        )
         self.assertEqual(response.data[0]['service_settings_uuid'], self.settings.uuid)
 
     def test_if_server_vm_is_missing_queryset_is_empty(self):

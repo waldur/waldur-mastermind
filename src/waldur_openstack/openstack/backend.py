@@ -621,9 +621,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'service_project_link': tenant.service_project_link,
                 'state': models.Port.States.OK,
                 'mac_address': backend_port['mac_address'],
-                'ip4_address': backend_port['fixed_ips'][0]['ip_address']
-                if len(backend_port['fixed_ips']) > 0
-                else '',
+                'fixed_ips': backend_port['fixed_ips'],
                 'allowed_address_pairs': backend_port.get('allowed_address_pairs', []),
                 'network': network_mappings.get(backend_port['network_id']),
             }
@@ -2203,14 +2201,17 @@ class OpenStackBackend(BaseOpenStackBackend):
         return stats
 
     @log_backend_action()
-    def create_port(self, port: models.Port, subnet_id):
+    def create_port(self, port: models.Port, serialized_network: models.Network):
         neutron = self.neutron_admin_client
+        network = core_utils.deserialize_instance(serialized_network)
+
         port_payload = {
-            'network_id': port.network.backend_id,
-            'fixed_ips': [{'subnet_id': subnet_id}],
+            'name': port.name,
+            'description': port.description,
+            'network_id': network.backend_id,
+            'fixed_ips': port.fixed_ips,
+            'tenant_id': port.tenant.backend_id,
         }
-        if port.ip4_address:
-            port_payload['fixed_ips'][0]['ip_address'] = port.ip4_address
         if port.mac_address:
             port_payload['mac_address'] = port.mac_address
 
@@ -2220,14 +2221,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
         else:
             port.mac_address = port_response['mac_address']
-            port.ip4_address = port_response['ip_address']
             port.backend_id = port_response['id']
-            port.save()
+            port.fixed_ips = port_response['fixed_ips']
+            port.save(update_fields=['backend_id', 'mac_address', 'fixed_ips'])
 
             event_logger.opentask_port.info(
-                'Port %s has been created in the backend.' % port.name,
+                'Port [%s] has been created in the backend for network [%s].'
+                % (port, network),
                 event_type='openstack_port_created',
-                event_context={'port': port,},
+                event_context={'port': port},
             )
 
             return port
@@ -2244,9 +2246,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
         else:
             event_logger.openstack_port.info(
-                'Port %s has been updated' % port.name,
+                'Port [%s] has been updated in network [%s].' % (port, port.network),
                 event_type='openstack_port_updated',
-                event_context={'port': port,},
+                event_context={'port': port},
             )
 
             return port
@@ -2261,9 +2263,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
         else:
             event_logger.openstack_port.info(
-                'Port %s has been deleted' % port.name,
+                'Port [%s] has been deleted from network [%s].' % (port, port.network),
                 event_type='openstack_port_deleted',
-                event_context={'port': port,},
+                event_context={'port': port},
             )
 
     @log_backend_action()
