@@ -405,3 +405,14 @@ def drop_service_manager_role_from_customer(
         offering__customer=structure.customer, user=user, is_active=True
     ).exists():
         structure.customer.remove_user(user, CustomerRole.SERVICE_MANAGER)
+
+
+def drop_offering_permissions_if_service_manager_role_is_revoked(
+    sender, structure, user, role=None, removed_by=None, **kwargs
+):
+    if role != CustomerRole.SERVICE_MANAGER:
+        return
+    for perm in models.OfferingPermission.objects.filter(
+        offering__customer=structure, user=user, is_active=True
+    ):
+        perm.revoke()

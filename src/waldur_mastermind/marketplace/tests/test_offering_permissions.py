@@ -99,7 +99,8 @@ class RevokeOfferingPermissionTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.permission = OfferingPermission.objects.create(
+        self.offering.add_user(self.fixture.user)
+        self.permission = OfferingPermission.objects.get(
             offering=self.offering, user=self.fixture.user, is_active=True
         )
 
@@ -142,6 +143,14 @@ class RevokeOfferingPermissionTest(test.APITransactionTestCase):
                 self.fixture.user, CustomerRole.SERVICE_MANAGER
             )
         )
+
+    def test_when_service_manager_role_is_revoked_offering_permissions_are_revoked_too(
+        self,
+    ):
+        self.offering.customer.remove_user(
+            self.fixture.user, CustomerRole.SERVICE_MANAGER
+        )
+        self.assertFalse(self.offering.has_user(self.fixture.user,))
 
 
 @ddt
