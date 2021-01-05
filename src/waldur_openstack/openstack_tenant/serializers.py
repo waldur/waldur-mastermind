@@ -898,6 +898,7 @@ class NestedInternalIPSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     allowed_address_pairs = serializers.JSONField(read_only=True)
+    fixed_ips = serializers.JSONField(read_only=True)
 
     class Meta:
         model = models.InternalIP
@@ -953,6 +954,9 @@ class NestedFloatingIPSerializer(
         source='internal_ip.subnet.description'
     )
     subnet_cidr = serializers.ReadOnlyField(source='internal_ip.subnet.cidr')
+    internal_ip_fixed_ips = serializers.JSONField(
+        source='internal_ip.fixed_ips', read_only=True
+    )
 
     class Meta:
         model = models.FloatingIP
