@@ -57,6 +57,7 @@ class CustomMenu(Menu):
     USERS = (
         'waldur_core.core.models.*',
         'waldur_core.users.models.*',
+        'waldur_freeipa.models.*',
     )
 
     ACCOUNTING = (

@@ -146,17 +146,27 @@ class CustomerAdminForm(ModelForm):
             verbose_name=_('Support users'), is_stacked=False
         ),
     )
+    service_managers = ModelMultipleChoiceField(
+        User.objects.all().order_by('full_name'),
+        required=False,
+        widget=FilteredSelectMultiple(
+            verbose_name=_('Service managers'), is_stacked=False
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         super(CustomerAdminForm, self).__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self.owners = self.instance.get_owners()
             self.support_users = self.instance.get_support_users()
+            self.service_managers = self.instance.get_service_managers()
             self.fields['owners'].initial = self.owners
             self.fields['support_users'].initial = self.support_users
+            self.fields['service_managers'].initial = self.service_managers
         else:
             self.owners = User.objects.none()
             self.support_users = User.objects.none()
+            self.service_managers = User.objects.none()
         self.fields['agreement_number'].initial = models.get_next_agreement_number()
 
         textarea_attrs = {'cols': '40', 'rows': '4'}
@@ -173,6 +183,9 @@ class CustomerAdminForm(ModelForm):
 
         self.populate_users('owners', customer, models.CustomerRole.OWNER)
         self.populate_users('support_users', customer, models.CustomerRole.SUPPORT)
+        self.populate_users(
+            'service_managers', customer, models.CustomerRole.SERVICE_MANAGER
+        )
 
         return customer
 
@@ -201,7 +214,7 @@ class CustomerAdminForm(ModelForm):
             invalid_users_list = ', '.join(map(str, invalid_users))
             raise ValidationError(
                 _(
-                    'User role within organization must be unique. '
+                    'User cannot be owner and support at the same time. '
                     'Role assignment of The following users is invalid: %s.'
                 )
                 % invalid_users_list
@@ -252,6 +265,7 @@ class CustomerAdmin(
         'vat_code',
         'owners',
         'support_users',
+        'service_managers',
         'address',
         'postal',
         'latitude',
