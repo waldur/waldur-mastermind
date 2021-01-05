@@ -250,9 +250,18 @@ def get_admin_link_for_scope(scope):
     return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(scope), scope)
 
 
+class OfferingPermissionInline(admin.TabularInline):
+    model = models.OfferingPermission
+    fields = ('user', 'is_active', 'created_by')
+    readonly_fields = ('created_by',)
+    ordering = ('-user__full_name',)
+    extra = 1
+
+
 class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [
+        OfferingPermissionInline,
         ScreenshotsInline,
         PlansInline,
         OfferingComponentInline,
