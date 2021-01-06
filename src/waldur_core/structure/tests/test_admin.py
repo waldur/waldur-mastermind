@@ -258,7 +258,7 @@ class CustomerAdminTest(TestCase):
         self.customer.refresh_from_db()
         return self.customer
 
-    def test_new_users_are_added(self):
+    def test_new_support_users_are_added(self):
         # Arrange
         user1 = factories.UserFactory()
         user2 = factories.UserFactory()
@@ -269,6 +269,48 @@ class CustomerAdminTest(TestCase):
         # Asset
         self.assertTrue(customer.has_user(user1, structure_models.CustomerRole.SUPPORT))
         self.assertTrue(customer.has_user(user2, structure_models.CustomerRole.SUPPORT))
+
+    def test_new_customer_owners_are_added(self):
+        # Arrange
+        user1 = factories.UserFactory()
+        user2 = factories.UserFactory()
+
+        # Act
+        customer = self.change_customer(owners=[user1.pk, user2.pk])
+
+        # Asset
+        self.assertTrue(customer.has_user(user1, structure_models.CustomerRole.OWNER))
+        self.assertTrue(customer.has_user(user2, structure_models.CustomerRole.OWNER))
+
+    def test_new_service_managers_are_added(self):
+        # Arrange
+        user1 = factories.UserFactory()
+        user2 = factories.UserFactory()
+
+        # Act
+        customer = self.change_customer(service_managers=[user1.pk, user2.pk])
+
+        # Asset
+        self.assertTrue(
+            customer.has_user(user1, structure_models.CustomerRole.SERVICE_MANAGER)
+        )
+        self.assertTrue(
+            customer.has_user(user2, structure_models.CustomerRole.SERVICE_MANAGER)
+        )
+
+    def test_user_can_be_owner_and_service_manager(self):
+        # Arrange
+        user = factories.UserFactory()
+        self.customer.add_user(user, structure_models.CustomerRole.OWNER)
+
+        # Act
+        customer = self.change_customer(service_managers=[user], owners=[user])
+
+        # Asset
+        self.assertTrue(
+            customer.has_user(user, structure_models.CustomerRole.SERVICE_MANAGER)
+        )
+        self.assertTrue(customer.has_user(user, structure_models.CustomerRole.OWNER))
 
     def test_old_users_are_deleted_and_existing_are_preserved(self):
         # Arrange
@@ -296,7 +338,7 @@ class CustomerAdminTest(TestCase):
                 support_users=[user1.pk, user2.pk], owners=[user1.pk, user2.pk]
             )
 
-    def test_customer_deleting_is_passable_only_if_related_project_is_removed(self):
+    def test_customer_deleting_is_possible_only_if_related_project_is_removed(self):
         site = AdminSite()
         model_admin = structure_admin.CustomerAdmin(structure_models.Customer, site)
         project = factories.ProjectFactory(customer=self.customer)
