@@ -199,8 +199,7 @@ class CustomerAdminForm(ModelForm):
 
         added_users = new_users.exclude(pk__in=field)
         for user in added_users:
-            # User role within customer must be unique.
-            if not customer.has_user(user):
+            if not customer.has_user(user, role):
                 customer.add_user(user, role, self.request.user)
 
         self.save_m2m()
