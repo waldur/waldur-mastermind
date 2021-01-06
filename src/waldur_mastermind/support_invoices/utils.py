@@ -46,7 +46,7 @@ def component_usage_register(component_usage):
     try:
         plan_component = plan.components.get(component=offering_component)
         item = invoice_models.InvoiceItem.objects.get(
-            scope=component_usage.resource.scope,
+            scope=component_usage.resource,
             details__plan_period_id=plan_period.id,
             details__plan_component_id=plan_component.id,
             invoice__year=component_usage.billing_period.year,
@@ -62,8 +62,11 @@ def component_usage_register(component_usage):
             customer, component_usage.date
         )
 
+        # Refactor and move invoice logic to Marketplace
         details = OfferingRegistrator().get_component_details(offering, plan_component)
         details['plan_period_id'] = plan_period.id
+        details['resource_name'] = component_usage.resource.name
+        details['resource_uuid'] = component_usage.resource.uuid.hex
 
         month_start = core_utils.month_start(component_usage.date)
         month_end = core_utils.month_end(component_usage.date)
@@ -80,8 +83,8 @@ def component_usage_register(component_usage):
         )
 
         invoice_models.InvoiceItem.objects.create(
-            content_type=ContentType.objects.get_for_model(offering),
-            object_id=offering.id,
+            content_type=ContentType.objects.get_for_model(component_usage.resource),
+            object_id=component_usage.resource.id,
             project=offering.project,
             invoice=invoice,
             start=start,

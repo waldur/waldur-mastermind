@@ -54,7 +54,13 @@ class OfferingRegistrator(registrators.BaseRegistrator):
             logger.error('Offering isn\'t request based support offering.')
 
     def create_items_for_plan(
-        self, invoice, resource, support_offering, start, end, **kwargs
+        self,
+        invoice: invoice_models.Invoice,
+        resource: marketplace_models.Resource,
+        support_offering: support_models.Offering,
+        start,
+        end,
+        **kwargs
     ):
         plan = resource.plan
 

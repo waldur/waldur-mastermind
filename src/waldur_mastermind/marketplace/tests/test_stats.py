@@ -276,6 +276,8 @@ class ComponentStatsTest(StatsBaseTest):
                 'limits': self.resource.limits,
                 'usages': {usage.component.type: usage.usage},
                 'scope_uuid': item.scope.uuid.hex,
+                'resource_name': item.scope.name,
+                'resource_uuid': item.scope.uuid.hex,
                 'offering_name': self.offering.name,
                 'offering_type': PACKAGE_TYPE,
                 'offering_uuid': self.offering.uuid.hex,
@@ -373,6 +375,8 @@ class ComponentStatsTest(StatsBaseTest):
     def test_migration(self):
         item = self._create_items().first()
         details = utils.get_offering_details(self.resource.offering)
+        details['resource_name'] = self.resource.name
+        details['resource_uuid'] = self.resource.uuid.hex
         details['scope_uuid'] = self.resource.uuid.hex
         details['limits'] = self.resource.limits
         details['usages'] = {}

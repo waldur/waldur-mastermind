@@ -93,6 +93,8 @@ class BaseRegistrator:
 
         resource = source
         details = marketplace_utils.get_offering_details(resource.offering)
+        details['resource_name'] = resource.name
+        details['resource_uuid'] = resource.uuid.hex
         details['limits'] = resource.limits
         details['usages'] = {}
 

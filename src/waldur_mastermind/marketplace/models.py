@@ -1082,6 +1082,10 @@ class Resource(
     def invoice_registrator_key(self):
         return self.offering.type
 
+    @classmethod
+    def get_scope_type(cls):
+        return 'Marketplace.Resource'
+
     def __str__(self):
         if self.name:
             return f'{self.name} ({self.offering.name})'
