@@ -466,9 +466,7 @@ class StateMixin(ErrorMessageMixin):
     def schedule_deleting(self):
         pass
 
-    @transition(
-        field=state, source=[States.UPDATING, States.CREATING], target=States.OK
-    )
+    @transition(field=state, source='*', target=States.OK)
     def set_ok(self):
         pass
 
