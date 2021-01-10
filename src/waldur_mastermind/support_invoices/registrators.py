@@ -90,6 +90,9 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 or (is_usage and offering_component.use_limit_for_billing)
             ):
                 details = self.get_component_details(support_offering, plan_component)
+                # add explicitly resource name and uuid
+                details['resource_name'] = resource.name
+                details['resource_uuid'] = resource.uuid.hex
 
                 unit_price = plan_component.price
                 unit = plan.unit
