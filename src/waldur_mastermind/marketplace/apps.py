@@ -119,6 +119,30 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace.add_component_usage',
         )
 
+        signals.post_save.connect(
+            handlers.disable_archived_service_settings_without_existing_resource,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.disable_archived_service_settings_without_existing_resource',
+        )
+
+        signals.post_save.connect(
+            handlers.disable_service_settings_without_existing_resource_when_archived,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.disable_service_settings_without_existing_resource_when_archived',
+        )
+
+        signals.post_save.connect(
+            handlers.enable_service_settings_with_existing_resource,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.enable_service_settings_whith_existing_resource',
+        )
+
+        signals.post_save.connect(
+            handlers.enable_service_settings_when_not_archived,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.enable_service_settings_when_not_archived',
+        )
+
         manager.register(
             offering_type=PLUGIN_NAME,
             create_resource_processor=processors.BasicCreateResourceProcessor,

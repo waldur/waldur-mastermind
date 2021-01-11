@@ -7,6 +7,7 @@ from django.db.models import Count, signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, CustomerRole, Project
 from waldur_mastermind.invoices import models as invoices_models
 
@@ -416,3 +417,105 @@ def drop_offering_permissions_if_service_manager_role_is_revoked(
         offering__customer=structure, user=user, is_active=True
     ):
         perm.revoke()
+
+
+def disable_empty_service_settings(offering):
+    service_settings = offering.scope
+    if not service_settings:
+        return
+
+    if not isinstance(service_settings, structure_models.ServiceSettings):
+        return
+
+    if (
+        not models.Resource.objects.filter(offering=offering)
+        .exclude(state=models.Resource.States.TERMINATED)
+        .exists()
+    ):
+        service_settings.is_active = False
+        service_settings.save(update_fields=['is_active'])
+
+
+def enable_nonempty_service_settings(offering):
+    service_settings = offering.scope
+    if not service_settings:
+        return
+
+    if not isinstance(service_settings, structure_models.ServiceSettings):
+        return
+
+    if (
+        models.Resource.objects.filter(offering=offering)
+        .exclude(state=models.Resource.States.TERMINATED)
+        .exists()
+    ):
+        service_settings.is_active = True
+        service_settings.save(update_fields=['is_active'])
+
+
+def disable_archived_service_settings_without_existing_resource(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state != models.Resource.States.TERMINATED:
+        return
+
+    offering: models.Offering = instance.offering
+
+    if offering.state != models.Offering.States.ARCHIVED:
+        return
+
+    disable_empty_service_settings(offering)
+
+
+def disable_service_settings_without_existing_resource_when_archived(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state != models.Offering.States.ARCHIVED:
+        return
+
+    disable_empty_service_settings(instance)
+
+
+def enable_service_settings_with_existing_resource(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state in [
+        models.Resource.States.TERMINATED,
+        models.Resource.States.TERMINATING,
+    ]:
+        return
+
+    enable_nonempty_service_settings(instance.offering)
+
+
+def enable_service_settings_when_not_archived(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state == models.Offering.States.ARCHIVED:
+        return
+
+    enable_nonempty_service_settings(instance)
