@@ -520,8 +520,12 @@ def get_offering_component_stats(offering, active_customers, start, end):
         year = date.year
         month = date.month
         period = '%s-%02d' % (year, month)
-        # for consistency with usage resource usage reporting, assume values by the end of the month
-        period_visible = core_utils.month_end(date).isoformat()
+        # for consistency with usage resource usage reporting, assume values at the beginning of the last day
+        period_visible = (
+            core_utils.month_end(date)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .isoformat()
+        )
         invoice_items = invoice_models.InvoiceItem.objects.filter(
             content_type_id=ContentType.objects.get_for_model(models.Resource).id,
             object_id__in=resources_ids,

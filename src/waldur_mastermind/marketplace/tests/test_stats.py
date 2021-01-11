@@ -313,7 +313,7 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': component_cores.measured_unit,
                     'name': component_cores.name,
                     'period': '2020-03',
-                    'date': '2020-03-31T23:59:59.999999+00:00',
+                    'date': '2020-03-31T00:00:00+00:00',
                     'type': component_cores.type,
                     'usage': float(
                         decimal.Decimal(self.resource.limits['cores'])
@@ -329,7 +329,7 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': component_storage.measured_unit,
                     'name': component_storage.name,
                     'period': '2020-03',
-                    'date': '2020-03-31T23:59:59.999999+00:00',
+                    'date': '2020-03-31T00:00:00+00:00',
                     'type': component_storage.type,
                     'usage': float(
                         decimal.Decimal(usage.usage)
@@ -365,7 +365,7 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': self.offering_component.measured_unit,
                     'name': self.offering_component.name,
                     'period': '2020-03',
-                    'date': '2020-03-31T23:59:59.999999+00:00',
+                    'date': '2020-03-31T00:00:00+00:00',
                     'type': self.offering_component.type,
                     'usage': 31,
                 }
@@ -465,7 +465,7 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': component_cores.measured_unit,
                     'name': component_cores.name,
                     'period': '2020-03',
-                    'date': '2020-03-31T23:59:59.999999+00:00',
+                    'date': '2020-03-31T00:00:00+00:00',
                     'type': component_cores.type,
                     'usage': 31,  # days in March of 1 core usage with per-day plan
                 },
@@ -474,7 +474,7 @@ class ComponentStatsTest(StatsBaseTest):
                     'measured_unit': component_storage.measured_unit,
                     'name': component_storage.name,
                     'period': '2020-03',
-                    'date': '2020-03-31T23:59:59.999999+00:00',
+                    'date': '2020-03-31T00:00:00+00:00',
                     'type': component_storage.type,
                     'usage': float(
                         decimal.Decimal(usage.usage)
