@@ -922,6 +922,11 @@ class ServiceSettings(
 
     objects = ServiceSettingsManager('scope')
 
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Information about inactive service settings will not be updated in the background',
+    )
+
     def get_backend(self, **kwargs):
         return SupportedServices.get_service_backend(self.type)(self, **kwargs)
 

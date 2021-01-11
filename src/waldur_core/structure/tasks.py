@@ -181,7 +181,9 @@ class ServiceListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         States = self.model.States
-        return self.model.objects.filter(state__in=[States.ERRED, States.OK])
+        return self.model.objects.filter(
+            state__in=[States.ERRED, States.OK], is_active=True
+        )
 
 
 class ServicePropertiesPullTask(BackgroundPullTask):
