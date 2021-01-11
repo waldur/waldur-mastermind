@@ -632,6 +632,9 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
 
     @classmethod
     def get_release_floating_ips_tasks(cls, instance, release_floating_ips):
+        if not instance.floating_ips.exists():
+            return []
+
         _tasks = []
         if release_floating_ips:
             for index, floating_ip in enumerate(instance.floating_ips):
@@ -660,8 +663,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
             serialized_tenant = core_utils.serialize_instance(shared_tenant)
             _tasks.append(core_tasks.PollStateTask().si(serialized_tenant))
             _tasks.append(
-                openstack_executors.TenantPullFloatingIPsExecutor.as_signature(
-                    shared_tenant
+                core_tasks.BackendMethodTask().si(
+                    serialized_tenant, 'pull_tenant_floating_ips'
                 )
             )
 
