@@ -533,6 +533,7 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
     list_display = (
         'name',
         'customer',
+        'is_active',
         'get_type_display',
         'state',
         'error_message',
@@ -546,6 +547,7 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
     fields = (
         'type',
         'name',
+        'is_active',
         'uuid',
         'backend_url',
         'username',
@@ -568,6 +570,7 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
     common_fields = (
         'type',
         'name',
+        'is_active',
         'uuid',
         'options',
         'customer',
