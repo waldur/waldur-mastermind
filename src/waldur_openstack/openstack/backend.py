@@ -624,6 +624,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'fixed_ips': backend_port['fixed_ips'],
                 'allowed_address_pairs': backend_port.get('allowed_address_pairs', []),
                 'network': network_mappings.get(backend_port['network_id']),
+                'device_id': backend_port.get('device_id'),
+                'device_owner': backend_port.get('device_owner'),
             }
             try:
                 models.Port.objects.update_or_create(
@@ -2238,7 +2240,7 @@ class OpenStackBackend(BaseOpenStackBackend):
     def update_port(self, port: models.Port):
         neutron = self.neutron_admin_client
 
-        payload = {{'allowed_address_pairs': port.allowed_address_pairs}}
+        payload = {'allowed_address_pairs': port.allowed_address_pairs}
 
         try:
             neutron.update_port(port.backend_id, {'port': payload})['port']

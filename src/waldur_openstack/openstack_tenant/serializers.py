@@ -911,6 +911,8 @@ class NestedInternalIPSerializer(
             'subnet_description',
             'subnet_cidr',
             'allowed_address_pairs',
+            'device_id',
+            'device_owner',
         )
         read_only_fields = (
             'fixed_ips',
@@ -920,6 +922,8 @@ class NestedInternalIPSerializer(
             'subnet_description',
             'subnet_cidr',
             'allowed_address_pairs',
+            'device_id',
+            'device_owner',
         )
         related_paths = {
             'subnet': ('uuid', 'name', 'description', 'cidr'),
