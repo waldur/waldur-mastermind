@@ -68,13 +68,14 @@ class Port(core_models.BackendModelMixin, models.Model):
         ),
     )
     backend_id = models.CharField(max_length=255, blank=True)
-
     allowed_address_pairs = JSONField(
         default=list,
         help_text=_(
             'A server can send a packet with source address which matches one of the specified allowed address pairs.'
         ),
     )
+    device_id = models.CharField(max_length=255, null=True, blank=True,)
+    device_owner = models.CharField(max_length=100, null=True, blank=True,)
 
     class Meta:
         abstract = True
@@ -85,6 +86,8 @@ class Port(core_models.BackendModelMixin, models.Model):
             'fixed_ips',
             'mac_address',
             'allowed_address_pairs',
+            'device_id',
+            'device_owner',
         )
 
 

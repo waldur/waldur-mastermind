@@ -980,10 +980,19 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
             'network_name',
             'network_uuid',
             'floating_ips',
+            'device_id',
+            'device_owner',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('tenant', 'allowed_address_pairs', 'service_settings', 'project',)
+            + (
+                'tenant',
+                'allowed_address_pairs',
+                'service_settings',
+                'project',
+                'device_id',
+                'device_owner',
+            )
         )
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'openstack-port-detail'},
