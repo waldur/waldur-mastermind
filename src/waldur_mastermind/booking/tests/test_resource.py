@@ -7,7 +7,8 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
-from .. import PLUGIN_NAME
+from .. import PLUGIN_NAME, utils
+from . import fixtures
 
 
 class MarketplaceFixture(structure_fixtures.ProjectFixture):
@@ -145,3 +146,164 @@ class OrderItemRejectTest(test.APITransactionTestCase):
     def test_owner_cannot_reject_other_owners_resources(self):
         response = self.reject(MarketplaceFixture().resource)
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+
+class ResourceGetTest(test.APITransactionTestCase):
+    def setUp(self):
+        super(ResourceGetTest, self).setUp()
+        self.fixture = fixtures.BookingFixture()
+        self.resource_1 = self.fixture.resource
+        self.fixture_2 = fixtures.BookingFixture()
+        self.resource_2 = self.fixture_2.resource
+        self.fixture_3 = fixtures.BookingFixture()
+        self.resource_3 = self.fixture_3.resource
+        self.resource_1.attributes = {
+            'schedules': [
+                {
+                    'start': '2020-01-12T02:00:00+03:00',
+                    'end': '2020-01-15T02:00:00+03:00',
+                    'id': '1',
+                }
+            ]
+        }
+        self.resource_1.save()
+
+        self.resource_2.attributes = {
+            'schedules': [
+                {
+                    'start': '2020-02-12T02:00:00+03:00',
+                    'end': '2020-02-15T02:00:00+03:00',
+                    'id': '2',
+                }
+            ]
+        }
+        self.resource_2.save()
+
+        self.resource_3.attributes = {
+            'schedules': [
+                {
+                    'start': '2020-03-12T02:00:00+03:00',
+                    'end': '2020-03-15T02:00:00+03:00',
+                    'id': '3',
+                }
+            ]
+        }
+        self.resource_3.save()
+        self.url = reverse('booking-resource-list')
+
+    def test_ordering_by_schedules(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + '?o=schedules')
+        self.assertEqual(len(response.data), 3)
+        self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
+        self.assertEqual(response.data[2]['uuid'], self.resource_3.uuid.hex)
+
+        response = self.client.get(self.url + '?o=-schedules')
+        self.assertEqual(len(response.data), 3)
+        self.assertEqual(response.data[0]['uuid'], self.resource_3.uuid.hex)
+        self.assertEqual(response.data[2]['uuid'], self.resource_1.uuid.hex)
+
+    def test_function_sort_attributes_schedules(self):
+        attributes = {
+            'schedules': [
+                {
+                    'start': '2020-02-12T02:00:00+03:00',
+                    'end': '2020-02-15T02:00:00+03:00',
+                    'id': '2',
+                },
+                {
+                    'start': '2020-03-12T02:00:00+03:00',
+                    'end': '2020-03-15T02:00:00+03:00',
+                    'id': '3',
+                },
+                {
+                    'start': '2020-01-12T02:00:00+03:00',
+                    'end': '2020-01-15T02:00:00+03:00',
+                    'id': '1',
+                },
+            ]
+        }
+        utils.sort_attributes_schedules(attributes)
+        self.assertEqual(
+            attributes,
+            {
+                'schedules': [
+                    {
+                        'start': '2020-01-12T02:00:00+03:00',
+                        'end': '2020-01-15T02:00:00+03:00',
+                        'id': '1',
+                    },
+                    {
+                        'start': '2020-02-12T02:00:00+03:00',
+                        'end': '2020-02-15T02:00:00+03:00',
+                        'id': '2',
+                    },
+                    {
+                        'start': '2020-03-12T02:00:00+03:00',
+                        'end': '2020-03-15T02:00:00+03:00',
+                        'id': '3',
+                    },
+                ]
+            },
+        )
+
+    def test_migration(self):
+        self.resource = self.fixture.resource
+        self.resource.attributes = {
+            'schedules': [
+                {
+                    'start': '2020-02-12T02:00:00+03:00',
+                    'end': '2020-02-15T02:00:00+03:00',
+                    'id': '2',
+                },
+                {
+                    'start': '2020-03-12T02:00:00+03:00',
+                    'end': '2020-03-15T02:00:00+03:00',
+                    'id': '3',
+                },
+                {
+                    'start': '2020-01-12T02:00:00+03:00',
+                    'end': '2020-01-15T02:00:00+03:00',
+                    'id': '1',
+                },
+            ]
+        }
+        self.resource.save()
+
+        migration = __import__(
+            'waldur_mastermind.booking.migrations.0001_initial',
+            fromlist=['0001_initial'],
+        )
+        func = migration.sort_schedules
+
+        class Apps(object):
+            @staticmethod
+            def get_model(app, klass):
+                if klass == 'Resource':
+                    return marketplace_models.Resource
+
+        mock_apps = Apps()
+        func(mock_apps, None)
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            self.resource.attributes,
+            {
+                'schedules': [
+                    {
+                        'start': '2020-01-12T02:00:00+03:00',
+                        'end': '2020-01-15T02:00:00+03:00',
+                        'id': '1',
+                    },
+                    {
+                        'start': '2020-02-12T02:00:00+03:00',
+                        'end': '2020-02-15T02:00:00+03:00',
+                        'id': '2',
+                    },
+                    {
+                        'start': '2020-03-12T02:00:00+03:00',
+                        'end': '2020-03-15T02:00:00+03:00',
+                        'id': '3',
+                    },
+                ]
+            },
+        )
