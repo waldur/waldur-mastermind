@@ -173,3 +173,11 @@ def change_attributes_for_view(attrs):
             schedule['start'] = timezone.now().strftime('%Y-%m-%dT%H:%M:%S.000Z')
 
     return attributes
+
+
+def sort_attributes_schedules(attributes):
+    schedules = attributes.get('schedules')
+    if not schedules:
+        return
+
+    attributes['schedules'] = sorted(schedules, key=lambda schedule: schedule['start'])

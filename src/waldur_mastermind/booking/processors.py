@@ -11,12 +11,13 @@ from waldur_mastermind.booking.utils import (
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import processors
 
-from .utils import TimePeriod, is_interval_in_schedules
+from .utils import TimePeriod, is_interval_in_schedules, sort_attributes_schedules
 
 
 class BookingCreateProcessor(processors.BaseOrderItemProcessor):
     def process_order_item(self, user):
         with transaction.atomic():
+            sort_attributes_schedules(self.order_item.attributes)
             resource = marketplace_models.Resource(
                 project=self.order_item.order.project,
                 offering=self.order_item.offering,

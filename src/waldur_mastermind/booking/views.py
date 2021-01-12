@@ -11,7 +11,6 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_mastermind.booking.utils import get_offering_bookings
 from waldur_mastermind.google import models as google_models
-from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import (
     resource_creation_canceled,
@@ -27,7 +26,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
     )
-    filterset_class = marketplace_filters.ResourceFilter
+    filterset_class = filters.BookingResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.BookingResourceSerializer
 
