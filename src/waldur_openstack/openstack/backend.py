@@ -2244,25 +2244,6 @@ class OpenStackBackend(BaseOpenStackBackend):
             return port
 
     @log_backend_action()
-    def update_port(self, port: models.Port):
-        neutron = self.neutron_admin_client
-
-        payload = {'allowed_address_pairs': port.allowed_address_pairs}
-
-        try:
-            neutron.update_port(port.backend_id, {'port': payload})['port']
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
-        else:
-            event_logger.openstack_port.info(
-                'Port [%s] has been updated in network [%s].' % (port, port.network),
-                event_type='openstack_port_updated',
-                event_context={'port': port},
-            )
-
-            return port
-
-    @log_backend_action()
     def delete_port(self, port: models.Port):
         neutron = self.neutron_admin_client
 

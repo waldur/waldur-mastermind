@@ -21,22 +21,6 @@ class PortCreateActionTest(BasePortTest):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class PortUpdateTest(BasePortTest):
-    def setUp(self) -> None:
-        super(PortUpdateTest, self).setUp()
-        self.port = self.fixture.port
-        self.url = factories.PortFactory.get_url(self.port)
-        self.request_data = {
-            'name': 'test_port_name',
-        }
-
-    @mock.patch('waldur_openstack.openstack.executors.PortUpdateExecutor.execute')
-    def test_port_update_triggers_executor(self, update_port_executor_action_mock):
-        response = self.client.put(self.url, self.request_data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        update_port_executor_action_mock.assert_called_once()
-
-
 class PortDeleteTest(BasePortTest):
     def setUp(self) -> None:
         super(PortDeleteTest, self).setUp()
