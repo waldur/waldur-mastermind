@@ -393,23 +393,6 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     users_serializer_class = serializers.ProjectUserSerializer
 
     @action(detail=True, methods=['post'])
-    def update_certifications(self, request, uuid=None):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
-        serialized_instance = serializers.ProjectSerializer(
-            instance, context={'request': self.request}
-        )
-
-        return Response(serialized_instance.data, status=status.HTTP_200_OK)
-
-    update_certifications_serializer_class = (
-        serializers.ServiceCertificationsUpdateSerializer
-    )
-    update_certifications_permissions = [permissions.is_owner]
-
-    @action(detail=True, methods=['post'])
     def move_project(self, request, uuid=None):
         project = self.get_object()
         serializer = self.get_serializer(project, data=request.data)
@@ -1061,26 +1044,6 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
             stats = {}
 
         return Response(stats, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'])
-    def update_certifications(self, request, uuid=None):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
-        serialized_instance = serializers.ServiceSettingsSerializer(
-            instance, context={'request': self.request}
-        )
-
-        return Response(serialized_instance.data, status=status.HTTP_200_OK)
-
-    update_certifications_serializer_class = (
-        serializers.ServiceCertificationsUpdateSerializer
-    )
-    update_certifications_permissions = [
-        can_user_update_settings,
-        permissions.check_access_to_services_management,
-    ]
 
 
 class ServiceMetadataViewSet(viewsets.GenericViewSet):
@@ -1815,14 +1778,6 @@ class ImportableResourceViewSet(BaseResourceViewSet):
             self.import_resource_executor.execute(resource)
 
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)
-
-
-class ServiceCertificationViewSet(core_views.ActionsViewSet):
-    lookup_field = 'uuid'
-    metadata_class = ActionsMetadata
-    unsafe_methods_permissions = [permissions.is_staff]
-    serializer_class = serializers.ServiceCertificationSerializer
-    queryset = models.ServiceCertification.objects.all()
 
 
 class DivisionViewSet(core_views.ReadOnlyActionsViewSet):

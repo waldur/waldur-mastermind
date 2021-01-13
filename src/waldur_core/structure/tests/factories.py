@@ -262,37 +262,6 @@ class TestNewInstanceFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('test-new-instances-list')
 
 
-class ServiceCertificationFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.ServiceCertification
-
-    name = factory.Sequence(lambda n: 'certification%s' % n)
-    link = factory.Sequence(lambda n: 'https://www.test.com/certification%s' % n)
-    description = factory.Sequence(lambda n: 'description of the certification%s' % n)
-
-    @classmethod
-    def get_url(cls, instance=None, action=None):
-        if instance is None:
-            instance = ServiceCertificationFactory()
-        url = 'http://testserver' + reverse(
-            'service-certification-detail', kwargs={'uuid': instance.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('service-certification-list')
-
-    @factory.post_generation
-    def service_settings(self, create, extracted, **kwargs):
-        if not create:
-            return
-
-        if extracted:
-            for service_settings in extracted:
-                self.service_settings.add(service_settings)
-
-
 class TestSubResourceFactory(factory.DjangoModelFactory):
     class Meta:
         model = test_models.TestSubResource
