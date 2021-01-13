@@ -146,7 +146,6 @@ class PortLogger(EventLogger):
         event_types = (
             'openstack_port_created',
             'openstack_port_imported',
-            'openstack_port_updated',
             'openstack_port_pulled',
             'openstack_port_deleted',
             'openstack_port_cleaned',

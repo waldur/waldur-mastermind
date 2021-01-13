@@ -570,8 +570,7 @@ class PortViewSet(structure_views.BaseResourceViewSet):
     filterset_class = filters.PortFilter
     serializer_class = serializers.PortSerializer
 
-    disabled_actions = ['create']
-    update_executor = executors.PortUpdateExecutor
+    disabled_actions = ['create', 'update', 'partial_update']
     delete_executor = executors.PortDeleteExecutor
 
 

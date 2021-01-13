@@ -604,14 +604,6 @@ class PortCreateExecutor(core_executors.CreateExecutor):
         )
 
 
-class PortUpdateExecutor(core_executors.UpdateExecutor):
-    @classmethod
-    def get_task_signature(cls, port, serialized_port, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_port, 'update_port', state_transition='begin_updating',
-        )
-
-
 class PortDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, port, serialized_port, **kwargs):
