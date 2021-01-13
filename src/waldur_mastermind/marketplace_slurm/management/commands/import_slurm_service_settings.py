@@ -58,12 +58,6 @@ def import_slurm_service_settings(default_customer, dry_run=False):
             state=marketplace_models.Offering.States.ACTIVE,
         )
 
-        if service_settings.geolocations:
-            geolocation = service_settings.geolocations[0]
-            offering.latitude = geolocation['latitude']
-            offering.longitude = geolocation['longitude']
-            offering.save(update_fields=['latitude', 'longitude'])
-
         components = plugins.manager.get_components(PLUGIN_NAME)
 
         for component_data in components:

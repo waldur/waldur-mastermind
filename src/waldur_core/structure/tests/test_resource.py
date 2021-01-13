@@ -63,24 +63,6 @@ class ResourceCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
 
-    def test_resource_cannot_be_created_for_invalid_service_project_link(self):
-        self.fixture.project.certifications.add(factories.ServiceCertificationFactory())
-        self.assertFalse(self.fixture.service_project_link.is_valid)
-
-        payload = {
-            'service_project_link': factories.TestServiceProjectLinkFactory.get_url(
-                self.fixture.service_project_link
-            ),
-            'name': 'impossible resource',
-        }
-        url = factories.TestNewInstanceFactory.get_list_url()
-
-        self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('service_project_link', response.data)
-
     def test_shared_key_is_valid_for_virtual_machine_serializer(self):
         shared_key = factories.SshPublicKeyFactory(is_shared=True)
         key_url = factories.SshPublicKeyFactory.get_url(shared_key)

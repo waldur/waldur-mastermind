@@ -199,19 +199,6 @@ class NestedServiceProjectLinkSerializer(serializers.Serializer):
         return link.service.settings.shared
 
 
-class NestedServiceCertificationSerializer(
-    core_serializers.AugmentedSerializerMixin,
-    core_serializers.HyperlinkedRelatedModelSerializer,
-):
-    class Meta:
-        model = models.ServiceCertification
-        fields = ('uuid', 'url', 'name', 'description', 'link')
-        read_only_fields = ('name', 'description', 'link')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
-
-
 class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.ProjectType
@@ -229,9 +216,6 @@ class ProjectSerializer(
 ):
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
     services = serializers.SerializerMethodField()
-    certifications = NestedServiceCertificationSerializer(
-        queryset=models.ServiceCertification.objects.all(), many=True, required=False
-    )
 
     class Meta:
         model = models.Project
@@ -248,21 +232,18 @@ class ProjectSerializer(
             'quotas',
             'services',
             'created',
-            'certifications',
             'type',
             'type_name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
-            'certifications': {'lookup_field': 'uuid'},
             'type': {'lookup_field': 'uuid', 'view_name': 'project_type-detail'},
         }
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation'),
             'type': ('name',),
         }
-        protected_fields = ('certifications',)
 
     @staticmethod
     def eager_load(queryset, request=None):
@@ -279,15 +260,8 @@ class ProjectSerializer(
         return (
             queryset.select_related('customer')
             .only(*related_fields)
-            .prefetch_related('quotas', 'certifications')
+            .prefetch_related('quotas')
         )
-
-    def create(self, validated_data):
-        certifications = validated_data.pop('certifications', [])
-        project = super(ProjectSerializer, self).create(validated_data)
-        project.certifications.add(*certifications)
-
-        return project
 
     def get_filtered_field_names(self):
         return ('customer',)
@@ -321,7 +295,6 @@ class ProjectSerializer(
                 link_model.objects.all()
                 .select_related('service', 'service__settings')
                 .only(*related_fields)
-                .prefetch_related('service__settings__certifications')
             )
             if isinstance(self.instance, list):
                 links = links.filter(project__in=self.instance)
@@ -1108,35 +1081,10 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
         return fields
 
 
-class ServiceCertificationsUpdateSerializer(serializers.Serializer):
-    certifications = NestedServiceCertificationSerializer(
-        queryset=models.ServiceCertification.objects.all(), required=True, many=True
-    )
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        certifications = validated_data.pop('certifications', None)
-        instance.certifications.clear()
-        instance.certifications.add(*certifications)
-        return instance
-
-
 class MoveProjectSerializer(serializers.Serializer):
     customer = NestedCustomerSerializer(
         queryset=models.Customer.objects.all(), required=True, many=False
     )
-
-
-class ServiceCertificationSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = models.ServiceCertification
-        fields = ('uuid', 'url', 'name', 'description', 'link')
-        extra_kwargs = {
-            'url': {
-                'lookup_field': 'uuid',
-                'view_name': 'service-certification-detail',
-            },
-        }
 
 
 class ServiceSettingsSerializer(
@@ -1155,8 +1103,6 @@ class ServiceSettingsSerializer(
     scope = core_serializers.GenericRelatedField(
         related_models=models.ResourceMixin.get_all_models(), required=False
     )
-    certifications = NestedServiceCertificationSerializer(many=True, read_only=True)
-    geolocations = core_serializers.GeoLocationField(read_only=True)
 
     class Meta:
         model = models.ServiceSettings
@@ -1176,12 +1122,9 @@ class ServiceSettingsSerializer(
             'customer',
             'customer_name',
             'customer_native_name',
-            'homepage',
             'terms_of_services',
-            'certifications',
             'quotas',
             'scope',
-            'geolocations',
         )
         protected_fields = ('type', 'customer')
         read_only_fields = ('shared', 'state', 'error_message')
@@ -1189,7 +1132,6 @@ class ServiceSettingsSerializer(
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
-            'certifications': {'lookup_field': 'uuid'},
         }
         write_only_fields = (
             'backend_url',
@@ -1207,9 +1149,7 @@ class ServiceSettingsSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.select_related('customer').prefetch_related(
-            'quotas', 'certifications'
-        )
+        return queryset.select_related('customer').prefetch_related('quotas',)
 
     def get_fields(self):
         fields = super(ServiceSettingsSerializer, self).get_fields()
@@ -1372,13 +1312,6 @@ class BaseServiceSerializer(
     shared = serializers.ReadOnlyField(source='settings.shared')
     error_message = serializers.ReadOnlyField(source='settings.error_message')
     terms_of_services = serializers.ReadOnlyField(source='settings.terms_of_services')
-    homepage = serializers.ReadOnlyField(source='settings.homepage')
-    geolocations = core_serializers.GeoLocationField(
-        source='settings.geolocations', read_only=True
-    )
-    certifications = NestedServiceCertificationSerializer(
-        many=True, read_only=True, source='settings.certifications'
-    )
     name = serializers.ReadOnlyField(source='settings.name')
 
     class Meta:
@@ -1406,9 +1339,6 @@ class BaseServiceSerializer(
             'certificate',
             'domain',
             'terms_of_services',
-            'homepage',
-            'certifications',
-            'geolocations',
             'available_for_all',
             'scope',
             'tags',
@@ -1886,13 +1816,6 @@ class BaseResourceSerializer(
 
     tags = TagListSerializerField(required=False)
     access_url = serializers.SerializerMethodField()
-    is_link_valid = serializers.BooleanField(
-        source='service_project_link.is_valid',
-        read_only=True,
-        help_text=_(
-            'True if resource is originated from a service that satisfies an associated project requirements.'
-        ),
-    )
 
     class Meta:
         model = NotImplemented
@@ -1925,7 +1848,6 @@ class BaseResourceSerializer(
             'service_project_link',
             'backend_id',
             'access_url',
-            'is_link_valid',
         )
         protected_fields = (
             'service',
@@ -1959,9 +1881,6 @@ class BaseResourceSerializer(
             'service_project_link__service__settings',
             'service_project_link__project',
             'service_project_link__project__customer',
-        ).prefetch_related(
-            'service_project_link__service__settings__certifications',
-            'service_project_link__project__certifications',
         )
 
     def get_fields(self):
@@ -2009,11 +1928,6 @@ class BaseResourceSerializer(
                         'Either service_project_link or service_settings and project should be specified.'
                     )
                 )
-
-        if not service_project_link.is_valid:
-            raise serializers.ValidationError(
-                {'service_project_link': service_project_link.validation_message}
-            )
 
         return attrs
 

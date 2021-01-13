@@ -39,11 +39,6 @@ def register_in(router):
     router.register(r'resources', views.ResourceSummaryViewSet, basename='resource')
     router.register(r'users', views.UserViewSet)
     router.register(r'keys', views.SshKeyViewSet)
-    router.register(
-        r'service-certifications',
-        views.ServiceCertificationViewSet,
-        basename='service-certification',
-    )
     router.register(r'divisions', views.DivisionViewSet, basename='division')
     router.register(
         r'division-types', views.DivisionTypesViewSet, basename='division-type'

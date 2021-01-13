@@ -30,7 +30,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import AbstractFieldTracker
 from waldur_core.core.shims import TaggableManager
-from waldur_core.core.validators import validate_cidr_list, validate_name
+from waldur_core.core.validators import validate_cidr_list
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
@@ -719,9 +719,6 @@ class Project(
             target_field='size',
         )
 
-    certifications = models.ManyToManyField(
-        to='ServiceCertification', related_name='projects', blank=True
-    )
     customer = models.ForeignKey(
         Customer,
         verbose_name=_('organization'),
@@ -839,26 +836,6 @@ class CustomerPermissionReview(core_models.UuidMixin):
         self.save()
 
 
-class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
-    link = models.URLField(max_length=255, blank=True)
-    # NameMixin is not used here as name has to be unique.
-    name = models.CharField(
-        _('name'), max_length=150, validators=[validate_name], unique=True
-    )
-
-    class Meta:
-        verbose_name = 'Service Certification'
-        verbose_name_plural = 'Service Certifications'
-        ordering = ['-name']
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def get_url_name(cls):
-        return 'service-certification'
-
-
 class ServiceSettings(
     quotas_models.ExtendableQuotaModelMixin,
     core_models.UuidMixin,
@@ -896,20 +873,8 @@ class ServiceSettings(
         max_length=255, db_index=True, validators=[validate_service_type]
     )
     options = JSONField(default=dict, help_text=_('Extra options'), blank=True)
-    geolocations = JSONField(
-        default=list,
-        blank=True,
-        help_text=_(
-            'List of latitudes and longitudes. For example: '
-            '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'
-        ),
-    )
     shared = models.BooleanField(default=False, help_text=_('Anybody can use it'))
-    homepage = models.URLField(max_length=255, blank=True)
     terms_of_services = models.URLField(max_length=255, blank=True)
-    certifications = models.ManyToManyField(
-        to='ServiceCertification', related_name='service_settings', blank=True
-    )
 
     tracker = FieldTracker()
 
@@ -1170,39 +1135,6 @@ class ServiceProjectLink(
         return itertools.chain.from_iterable(
             m.objects.filter(service_project_link=self) for m in resource_models
         )
-
-    @property
-    def validation_state(self):
-        """
-        Defines whether a  service compliant with required project certifications.
-        """
-        if set(self.project.certifications.all()).issubset(
-            set(self.service.settings.certifications.all())
-        ):
-            return self.States.OK
-        else:
-            return self.States.ERRED
-
-    @property
-    def is_valid(self):
-        return self.validation_state == self.States.OK
-
-    @property
-    def validation_message(self):
-        """
-        Validation result clarification.
-        """
-        if not self.is_valid:
-            service_certifications = self.service.settings.certifications.all()
-            project_certifications = self.project.certifications.all()
-            missing_certifications = set(project_certifications) - set(
-                service_certifications
-            )
-            return _(
-                'Provider does not match with project\'s security policy. Certifications are missing: "%s"'
-            ) % ', '.join([c.name for c in missing_certifications])
-        else:
-            return ''
 
     def __str__(self):
         return '{0} | {1}'.format(self.service.settings.name, self.project.name)

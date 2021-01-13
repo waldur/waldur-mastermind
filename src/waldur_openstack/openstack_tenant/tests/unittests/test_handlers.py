@@ -2,7 +2,6 @@ from django.test import TestCase
 
 from waldur_core.core.models import StateMixin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
 from ... import apps, models
@@ -335,102 +334,6 @@ class SubNetHandlerTest(BaseServicePropertyTest):
         )
         openstack_subnet.delete()
         self.assertEqual(models.SubNet.objects.count(), 0)
-
-
-class ServiceSettingsCertificationHandlerTest(TestCase):
-    def test_openstack_tenant_service_certifications_are_update_when_tenant_settings_certification_are_added(
-        self,
-    ):
-        tenant = openstack_factories.TenantFactory()
-        tenant_service1 = factories.OpenStackTenantServiceFactory(
-            settings__scope=tenant
-        )
-        tenant_service2 = factories.OpenStackTenantServiceFactory(
-            settings__scope=tenant
-        )
-        self.assertEqual(tenant_service1.settings.certifications.count(), 0)
-        self.assertEqual(tenant_service2.settings.certifications.count(), 0)
-        new_certification = structure_factories.ServiceCertificationFactory()
-
-        tenant.service_project_link.service.settings.certifications.add(
-            new_certification
-        )
-
-        self.assertTrue(
-            tenant_service1.settings.certifications.filter(
-                pk__in=[new_certification.pk]
-            ).exists()
-        )
-        self.assertTrue(
-            tenant_service2.settings.certifications.filter(
-                pk__in=[new_certification.pk]
-            ).exists()
-        )
-
-    def test_openstack_tenant_service_certifications_are_removed_if_tenant_settings_certifications_are_removed(
-        self,
-    ):
-        tenant = openstack_factories.TenantFactory()
-        tenant_service = factories.OpenStackTenantServiceFactory(settings__scope=tenant)
-        new_certification = structure_factories.ServiceCertificationFactory()
-
-        tenant.service_project_link.service.settings.certifications.add(
-            new_certification
-        )
-        self.assertEqual(tenant_service.settings.certifications.count(), 1)
-        tenant.service_project_link.service.settings.certifications.clear()
-
-        self.assertEqual(
-            tenant.service_project_link.service.settings.certifications.count(), 0
-        )
-        self.assertEquals(tenant_service.settings.certifications.count(), 0)
-
-
-class CopyCertificationsTest(TestCase):
-    def test_openstack_tenant_settings_certifications_are_copied_from_openstack_settings(
-        self,
-    ):
-        tenant = openstack_factories.TenantFactory()
-        certifications = structure_factories.ServiceCertificationFactory.create_batch(2)
-        tenant.service_project_link.service.settings.certifications.add(*certifications)
-
-        settings = factories.OpenStackTenantServiceSettingsFactory(scope=tenant)
-
-        certifications_pk = [c.pk for c in certifications]
-        self.assertEqual(
-            settings.certifications.filter(pk__in=certifications_pk).count(), 2
-        )
-
-    def test_openstack_tenant_settings_certifications_are_not_copied_on_update(self):
-        tenant = openstack_factories.TenantFactory()
-        certification = structure_factories.ServiceCertificationFactory()
-        tenant.service_project_link.service.settings.certifications.add(certification)
-        settings = factories.OpenStackTenantServiceSettingsFactory(scope=tenant)
-        self.assertEquals(settings.certifications.count(), 1)
-
-        settings.name = 'new_name'
-        settings.save()
-
-        self.assertEquals(settings.certifications.count(), 1)
-        self.assertEquals(settings.certifications.first().pk, certification.pk)
-
-    def test_openstack_tenant_settings_certifications_are_not_copied_if_scope_is_not_tenant(
-        self,
-    ):
-        instance = factories.InstanceFactory()
-        certification = structure_factories.ServiceCertificationFactory()
-        instance.service_project_link.service.settings.certifications.add(certification)
-
-        settings = factories.OpenStackTenantServiceSettingsFactory(scope=instance)
-
-        self.assertFalse(settings.certifications.exists())
-
-    def test_openstack_tenant_settings_certifications_are_not_copied_if_scope_is_None(
-        self,
-    ):
-        settings = factories.OpenStackTenantServiceSettingsFactory(scope=None)
-
-        self.assertFalse(settings.certifications.exists())
 
 
 class CreateServiceFromTenantTest(TestCase):

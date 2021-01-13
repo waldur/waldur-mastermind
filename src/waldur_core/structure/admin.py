@@ -400,7 +400,6 @@ class ProjectAdmin(
         'admins',
         'managers',
         'members',
-        'certifications',
     )
 
     list_display = [
@@ -416,7 +415,6 @@ class ProjectAdmin(
     search_fields = ['name', 'uuid']
     change_readonly_fields = ['customer']
     inlines = [QuotaInline]
-    filter_horizontal = ('certifications',)
     actions = ('cleanup',)
 
     class Cleanup(ExecutorAdminAction):
@@ -430,12 +428,6 @@ class ProjectAdmin(
 
     get_type_name.short_description = _('Type')
     get_type_name.admin_order_field = 'type__name'
-
-
-class ServiceCertificationAdmin(admin.ModelAdmin):
-    list_display = ('name', 'link')
-    search_fields = ['name', 'link']
-    list_filter = ('service_settings',)
 
 
 class ServiceSettingsAdminForm(ModelForm):
@@ -560,13 +552,9 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         'state',
         'error_message',
         'tags',
-        'homepage',
         'terms_of_services',
-        'certifications',
-        'geolocations',
     )
     inlines = [QuotaInline]
-    filter_horizontal = ('certifications',)
     common_fields = (
         'type',
         'name',
@@ -577,10 +565,7 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         'state',
         'error_message',
         'tags',
-        'homepage',
         'terms_of_services',
-        'certifications',
-        'geolocations',
     )
 
     # must be specified explicitly not to be constructed from model name by default.
@@ -855,7 +840,6 @@ class DivisionAdmin(admin.ModelAdmin):
     list_filter = ('type',)
 
 
-admin.site.register(models.ServiceCertification, ServiceCertificationAdmin)
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
 admin.site.register(models.Project, ProjectAdmin)

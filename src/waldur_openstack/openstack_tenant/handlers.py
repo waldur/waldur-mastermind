@@ -418,54 +418,6 @@ resource_handlers = (
 )
 
 
-def sync_certificates_between_openstack_service_with_openstacktenant_service(
-    sender, instance, action, **kwargs
-):
-    """
-    Copies certifications links in original service settings to derived openstack tenant service settings.
-    Handling works only for OpenStack service settings and ignored for all others.
-    """
-    service_settings = instance
-    if (
-        action not in ['post_add', 'post_remove', 'post_clear']
-        or service_settings.type != openstack_apps.OpenStackConfig.service_name
-    ):
-        return
-
-    tenants = openstack_models.Tenant.objects.filter(
-        service_project_link__service__settings=service_settings
-    )
-
-    if not tenants:
-        return
-
-    openstack_settings = structure_models.ServiceSettings.objects.filter(
-        scope__in=tenants
-    )
-
-    with transaction.atomic():
-        for settings in openstack_settings:
-            settings.certifications.clear()
-            settings.certifications.add(*service_settings.certifications.all())
-
-
-def copy_certifications_from_openstack_service_to_openstacktenant_service(
-    sender, instance, created=False, **kwargs
-):
-    if not created or instance.type != apps.OpenStackTenantConfig.service_name:
-        return
-
-    tenant = instance.scope
-    if not isinstance(tenant, openstack_models.Tenant):
-        return
-
-    admin_settings = tenant.service_project_link.service.settings
-
-    with transaction.atomic():
-        instance.certifications.clear()
-        instance.certifications.add(*admin_settings.certifications.all())
-
-
 def copy_flavor_exclude_regex_to_openstacktenant_service_settings(
     sender, instance, created=False, **kwargs
 ):
