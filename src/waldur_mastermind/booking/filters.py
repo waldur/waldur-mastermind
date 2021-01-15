@@ -1,13 +1,18 @@
 import collections
 
+from django.core import exceptions as django_exceptions
+from django.db.models import Q
 from django_filters import OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.filters import ResourceFilter
 
+from . import PLUGIN_NAME
 
-class OfferingCustomersFilterBackend(DjangoFilterBackend):
+
+class ResourceOwnerOrCreatorFilterBackend(DjangoFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
         if user.is_staff:
@@ -16,7 +21,22 @@ class OfferingCustomersFilterBackend(DjangoFilterBackend):
             customers = structure_models.CustomerPermission.objects.filter(
                 user=user, role=structure_models.CustomerRole.OWNER
             ).values_list('customer', flat=True)
-            return queryset.filter(offering__customer_id__in=customers)
+
+            try:
+                resource_ids = marketplace_models.OrderItem.objects.filter(
+                    type=marketplace_models.RequestTypeMixin.Types.CREATE,
+                    offering__type=PLUGIN_NAME,
+                    order__created_by=user,
+                ).values_list('resource_id', flat=True)
+            except (
+                django_exceptions.ObjectDoesNotExist,
+                django_exceptions.MultipleObjectsReturned,
+            ):
+                resource_ids = []
+
+            return queryset.filter(
+                Q(offering__customer_id__in=customers) | Q(id__in=resource_ids)
+            )
 
 
 class CustomersFilterBackend(DjangoFilterBackend):
