@@ -9,6 +9,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.booking.utils import get_offering_bookings
 from waldur_mastermind.google import models as google_models
 from waldur_mastermind.marketplace import models
@@ -24,7 +25,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
     filter_backends = (
         DjangoFilterBackend,
-        filters.OfferingCustomersFilterBackend,
+        filters.ResourceOwnerOrCreatorFilterBackend,
     )
     filterset_class = filters.BookingResourceFilter
     lookup_field = 'uuid'
@@ -55,6 +56,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)
     ]
+
+    accept_permissions = [structure_permissions.is_owner]
 
 
 class OfferingViewSet(core_views.ReadOnlyActionsViewSet):

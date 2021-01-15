@@ -85,8 +85,9 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.fixture.order_item
 
-    def accept(self, resource):
-        self.client.force_authenticate(self.fixture.owner)
+    def accept(self, resource, user=None):
+        user = user or self.fixture.owner
+        self.client.force_authenticate(user)
         url = '%s%s/accept/' % (reverse('booking-resource-list'), resource.uuid.hex,)
         return self.client.post(url)
 
@@ -108,6 +109,12 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
         response = self.accept(MarketplaceFixture().resource)
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
 
+    def test_creator_cannot_accept_his_resource(self):
+        response = self.accept(
+            self.fixture.resource, self.fixture.order_item.order.created_by
+        )
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
     def test_when_order_item_is_accepted_resource_plan_period_is_created(self):
         self.accept(self.fixture.resource)
         self.assertTrue(
@@ -123,8 +130,9 @@ class OrderItemRejectTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.fixture.order_item
 
-    def reject(self, resource):
-        self.client.force_authenticate(self.fixture.owner)
+    def reject(self, resource, user=None):
+        user = user or self.fixture.owner
+        self.client.force_authenticate(user)
         url = '%s%s/reject/' % (reverse('booking-resource-list'), resource.uuid.hex,)
         return self.client.post(url)
 
@@ -146,6 +154,23 @@ class OrderItemRejectTest(test.APITransactionTestCase):
     def test_owner_cannot_reject_other_owners_resources(self):
         response = self.reject(MarketplaceFixture().resource)
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+    def test_creator_can_reject_his_resource(self):
+        response = self.reject(
+            self.fixture.resource, self.fixture.order_item.order.created_by
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(
+            self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
+        )
+
+        self.fixture.order_item.refresh_from_db()
+        self.assertEqual(
+            self.fixture.order_item.state,
+            marketplace_models.OrderItem.States.TERMINATED,
+        )
 
 
 class ResourceGetTest(test.APITransactionTestCase):
