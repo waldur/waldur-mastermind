@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.db.models import Count, IntegerField, OuterRef, Subquery
+from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, generics, response
 from rest_framework import serializers as rf_serializers
@@ -1006,10 +1007,12 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
         # It allows to remove extra GROUP BY clause from the subquery.
         vms.query.group_by = []
 
+        # Workaround for Django bug:
+        # https://code.djangoproject.com/ticket/10929
         vm_count = Subquery(vms[:1], output_field=IntegerField())
         return structure_models.Customer.objects.filter(
             pk__in=private_settings.values('customer')
-        ).annotate(vm_count=vm_count)
+        ).annotate(vm_count=Coalesce(vm_count, Value(0)))
 
 
 class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
