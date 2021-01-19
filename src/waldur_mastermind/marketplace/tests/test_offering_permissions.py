@@ -173,6 +173,15 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, 'new_offering')
 
+    def test_offering_lookup_succeeds_if_more_than_one_manager_exists(self):
+        self.client.force_authenticate(self.fixture.user)
+        user = UserFactory()
+        OfferingPermission.objects.create(
+            offering=self.offering, user=user, is_active=True
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     @data(
         models.Offering.States.ACTIVE,
         models.Offering.States.PAUSED,
