@@ -144,3 +144,13 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
         self.offering.name = 'new name'
         self.offering.save()
         mock_executor.execute.assert_called_once()
+
+    def test_marketplace_offering_serializer_has_calendar_info(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('google_calendar_is_public' in response.data.keys())
+        self.assertEqual(
+            response.data['google_calendar_is_public'], self.google_calendar.public
+        )
