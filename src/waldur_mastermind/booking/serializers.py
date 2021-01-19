@@ -4,9 +4,12 @@ from django.utils.lru_cache import lru_cache
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core import signals as core_signals
 from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+
+from . import PLUGIN_NAME
 
 
 class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
@@ -87,3 +90,20 @@ class OfferingSerializer(marketplace_serializers.OfferingDetailsSerializer):
             'googlecalendar',
         )
         view_name = 'booking-offering-detail'
+
+
+def get_google_calendar_public(serializer, offering):
+    if offering.type != PLUGIN_NAME or not hasattr(offering, 'googlecalendar'):
+        return
+
+    return offering.googlecalendar.public
+
+
+def add_google_calendar_info(sender, fields, **kwargs):
+    fields['google_calendar_is_public'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_google_calendar_is_public', get_google_calendar_public)
+
+
+core_signals.pre_serializer_fields.connect(
+    add_google_calendar_info, sender=marketplace_serializers.OfferingDetailsSerializer
+)
