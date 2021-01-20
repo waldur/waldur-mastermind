@@ -687,13 +687,19 @@ class OfferingDetailsSerializer(
             'citation_count',
             'latitude',
             'longitude',
+            'backend_id',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
         }
         protected_fields = ('customer', 'type')
-        read_only_fields = ('state', 'paused_reason', 'citation_count')
+        read_only_fields = (
+            'state',
+            'paused_reason',
+            'citation_count',
+            'backend_id',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},

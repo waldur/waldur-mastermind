@@ -536,6 +536,7 @@ class OfferingComponent(
         ),
     )
     objects = managers.MixinManager('scope')
+    backend_id = models.CharField(max_length=255, blank=True)
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:
