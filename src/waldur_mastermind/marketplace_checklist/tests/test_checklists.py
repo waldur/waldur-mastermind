@@ -2,6 +2,8 @@ from django.urls import reverse
 from rest_framework import test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.marketplace_checklist import models
+from waldur_mastermind.marketplace_checklist.admin import ChecklistResource
 
 from . import factories
 
@@ -39,3 +41,19 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         self.client.post(self.url, [self.checklist2.uuid])
         self.assertEqual(self.get_customer_checklists(), [self.checklist2.uuid])
+
+
+class ChecklistImportExportTest(test.APITransactionTestCase):
+    def test_import_export(self):
+        question = factories.QuestionFactory()
+        dataset = ChecklistResource().export()
+        category_id = question.checklist.category.id
+        checklist_id = question.checklist.id
+        question_id = question.id
+        question.checklist.category.delete()
+        question.checklist.delete()
+        result = ChecklistResource().import_data(dataset)
+        self.assertFalse(result.has_errors())
+        self.assertTrue(models.Category.objects.filter(pk=category_id).exists())
+        self.assertTrue(models.Checklist.objects.filter(pk=checklist_id).exists())
+        self.assertTrue(models.Question.objects.filter(pk=question_id).exists())

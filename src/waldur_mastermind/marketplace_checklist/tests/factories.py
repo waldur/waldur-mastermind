@@ -4,11 +4,19 @@ from django.urls import reverse
 from .. import models
 
 
+class CategoryFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Category
+
+    name = factory.Sequence(lambda n: 'category-%s' % n)
+
+
 class ChecklistFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Checklist
 
     name = factory.Sequence(lambda n: 'checklist-%s' % n)
+    category = factory.SubFactory(CategoryFactory)
 
     @classmethod
     def get_url(cls, checklist=None):

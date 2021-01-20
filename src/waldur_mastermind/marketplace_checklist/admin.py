@@ -3,6 +3,7 @@ from import_export import admin as import_export_admin
 from modeltranslation import admin as modeltranslation_admin
 
 from . import models
+from .import_export_resources import ChecklistResource
 
 
 class CategoryAdmin(import_export_admin.ImportExportModelAdmin):
@@ -31,6 +32,8 @@ class ChecklistAdmin(
     list_display = ('name', 'description', 'category')
     list_filter = ('category',)
     fields = ('name', 'description', 'category')
+
+    resource_class = ChecklistResource
 
 
 class AnswerAdmin(admin.ModelAdmin):
