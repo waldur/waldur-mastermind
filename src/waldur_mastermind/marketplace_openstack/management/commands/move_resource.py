@@ -2,10 +2,7 @@ from django.core.management.base import BaseCommand
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_openstack.utils import (
-    MoveResourceException,
-    move_resource,
-)
+from waldur_mastermind.marketplace.utils import MoveResourceException, move_resource
 
 
 class Command(BaseCommand):
