@@ -149,6 +149,7 @@ waldur_zabbix = "waldur_zabbix.extension:ZabbixExtension"
 waldur_zabbix_openstack = "waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension"
 waldur_pid = "waldur_pid.extension:PIDExtension"
 waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
+waldur_waldur = "waldur_waldur.extension:RemoteWaldurExtension"
 
 [build-system]
 requires = ["poetry=1.0.9"]
