@@ -56,6 +56,12 @@ class QuestionSerializer(serializers.ModelSerializer):
         fields = ('uuid', 'description', 'solution', 'category_uuid', 'correct_answer')
 
 
+class ImportExportQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Question
+        fields = ('id', 'description', 'solution', 'correct_answer', 'order')
+
+
 class AnswerListSerializer(serializers.ModelSerializer):
     question_uuid = serializers.ReadOnlyField(source='question.uuid')
 
