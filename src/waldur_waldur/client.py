@@ -67,3 +67,9 @@ class WaldurClient:
 
     def list_remote_customers(self):
         return self._get_paginated_data('customers')
+
+    def get_public_offering(self, offering_uuid):
+        return self._get('marketplace-offerings/%s' % offering_uuid)
+
+    def get_customer(self, customer_uuid):
+        return self._get('customers/%s' % customer_uuid)
