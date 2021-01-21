@@ -1,11 +1,10 @@
 from unittest import mock
 
-from django.urls import reverse
-
 from waldur_waldur.tests.helpers import (
     VALID_CUSTOMERS,
     VALID_OFFERINGS,
     RemoteWaldurTestTemplate,
+    get_url,
 )
 
 
@@ -20,18 +19,10 @@ class RemoteWaldurApiTest(RemoteWaldurTestTemplate):
         }
         self.client.force_authenticate(self.fixture.user)
 
-    def get_url(self, action=None, customer_uuid=None):
-        url = reverse('remote-waldur-api-list')
-        if action:
-            url += action + '/'
-        if customer_uuid:
-            url += '?customer_uuid=%s' % customer_uuid
-        return url
-
     @mock.patch('waldur_waldur.backend.WaldurBackend.get_remote_customers')
     def test_remote_walur_get_remote_customers(self, get_remote_customers):
         get_remote_customers.return_value = VALID_CUSTOMERS
-        url = self.get_url(action='remote_customers')
+        url = get_url(action='remote_customers')
         response = self.client.post(url, data=self.request_data)
         self.assertEqual(200, response.status_code)
         self.assertEqual(VALID_CUSTOMERS, response.data)
@@ -39,7 +30,7 @@ class RemoteWaldurApiTest(RemoteWaldurTestTemplate):
     @mock.patch('waldur_waldur.backend.WaldurBackend.get_importable_offerings')
     def test_remote_walur_get_importable_offerings(self, get_importable_offerings):
         get_importable_offerings.return_value = VALID_OFFERINGS
-        url = self.get_url(action='shared_offerings', customer_uuid='1')
+        url = get_url(action='shared_offerings', customer_uuid='1')
         response = self.client.post(url, data=self.request_data)
         self.assertEqual(200, response.status_code)
         self.assertEqual(VALID_OFFERINGS, response.data)
@@ -49,7 +40,7 @@ class RemoteWaldurApiTest(RemoteWaldurTestTemplate):
         self, get_importable_offerings
     ):
         get_importable_offerings.return_value = VALID_OFFERINGS
-        url = self.get_url(action='shared_offerings')
+        url = get_url(action='shared_offerings')
         response = self.client.post(url, data=self.request_data)
         self.assertEqual(400, response.status_code)
         self.assertIn('customer_uuid', response.data['url'])

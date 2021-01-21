@@ -1,62 +1,42 @@
+from django.urls import reverse
 from rest_framework.test import APITransactionTestCase
 
 from waldur_core.structure.tests.fixtures import ServiceFixture
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_waldur.apps import RemoteWaldurConfig
 
 VALID_OFFERINGS = [
     {
-        'name': 'HPC1',
-        'uuid': '1',
+        'name': 'HPC%s' % i,
+        'uuid': str(i),
         'category_title': 'HPC',
         'type': 'SlurmInvoices.SlurmPackage',
         'customer_name': 'Customer1',
         'customer_uuid': '1',
-    },
-    {
-        'name': 'HPC2',
-        'uuid': '2',
-        'category_title': 'Private clouds',
-        'type': 'Packages.Template',
-        'customer_name': 'Customer1',
-        'customer_uuid': '1',
-    },
-    {
-        'name': 'HPC3',
-        'uuid': '3',
-        'category_title': 'Private clouds',
-        'type': 'Packages.Template',
-        'customer_name': 'Customer1',
-        'customer_uuid': '1',
-    },
-    {
-        'name': 'HPC4',
-        'uuid': '4',
-        'category_title': 'Private clouds',
-        'type': 'Packages.Template',
-        'customer_name': 'Customer1',
-        'customer_uuid': '1',
-    },
-    {
-        'name': 'Kubernetes1',
-        'uuid': '5',
-        'category_title': 'Platform',
-        'type': 'Marketplace.Rancher',
-        'customer_name': 'Customer1',
-        'customer_uuid': '1',
-    },
-    {
-        'name': 'HPC5',
-        'uuid': '6',
-        'category_title': 'HPC',
-        'type': 'SlurmInvoices.SlurmPackage',
-        'customer_name': 'Customer1',
-        'customer_uuid': '1',
-    },
+        'plans': [{'name': 'Small', 'unit': UnitPriceMixin.Units.PER_MONTH,}],
+        'attributes': {
+            'cloudDeploymentModel': 'private_cloud',
+            'vendorType': 'reseller',
+            'userSupportOptions': ['web_chat', 'phone'],
+            'dataProtectionInternal': 'ipsec',
+            'dataProtectionExternal': 'tls12',
+        },
+    }
+    for i in range(1, 7)
 ]
 
 VALID_CUSTOMERS = [
     {'name': 'Customer %s' % item, 'uuid': str(item)} for item in range(1, 4)
 ]
+
+
+def get_url(action=None, customer_uuid=None):
+    url = reverse('remote-waldur-api-list')
+    if action:
+        url += action + '/'
+    if customer_uuid:
+        url += '?customer_uuid=%s' % customer_uuid
+    return url
 
 
 class RemoteWaldurTestTemplate(APITransactionTestCase):
