@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
+from reversion import revisions as reversion
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -676,3 +677,7 @@ def adjust_invoice_items(invoice, source, start, unit_price, unit):
     2) Switching between hourly plans.
     """
     return InvoiceItemAdjuster(invoice, source, start, unit_price, unit).adjust()
+
+
+reversion.register(InvoiceItem)
+reversion.register(Invoice, follow=('generic_items',))

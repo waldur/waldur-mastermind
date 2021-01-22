@@ -8,6 +8,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
+from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
@@ -56,7 +57,10 @@ class PaymentTypeFilter(admin.SimpleListFilter):
 
 
 class InvoiceAdmin(
-    core_admin.ExtraActionsMixin, core_admin.UpdateOnlyModelAdmin, admin.ModelAdmin
+    VersionAdmin,
+    core_admin.ExtraActionsMixin,
+    core_admin.UpdateOnlyModelAdmin,
+    admin.ModelAdmin,
 ):
     inlines = [GenericItemInline]
     fields = [
