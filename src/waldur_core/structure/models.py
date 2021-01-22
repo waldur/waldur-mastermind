@@ -23,6 +23,7 @@ from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
 from model_utils.managers import SoftDeletableManagerMixin
 from model_utils.models import SoftDeletableModel, TimeStampedModel
+from reversion import revisions as reversion
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
@@ -1387,3 +1388,6 @@ class SubResource(NewResource):
     @lru_cache(maxsize=1)
     def get_all_models(cls):
         return [model for model in apps.get_models() if issubclass(model, cls)]
+
+
+reversion.register(Customer)

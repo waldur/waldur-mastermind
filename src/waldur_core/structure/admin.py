@@ -23,6 +23,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
+from reversion.admin import VersionAdmin
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
@@ -236,6 +237,7 @@ class CustomerAdminForm(ModelForm):
 
 
 class CustomerAdmin(
+    VersionAdmin,
     FormRequestAdminMixin,
     ResourceCounterFormMixin,
     NativeNameAdminMixin,
