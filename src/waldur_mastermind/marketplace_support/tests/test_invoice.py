@@ -41,7 +41,7 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         order_item.order.approve()
         order_item.order.save()
 
-        order_item.resource.scope.set_ok()
+        callbacks.resource_creation_succeeded(order_item.resource)
 
     def get_invoice(self):
         date = datetime.date.today()
@@ -51,11 +51,6 @@ class InvoicesBaseTest(test.APITransactionTestCase):
 
 
 class InvoicesTest(InvoicesBaseTest):
-    def setUp(self):
-        super(InvoicesTest, self).setUp()
-        self.fixture = fixtures.SupportFixture()
-        self.order_item = self.fixture.order_item
-
     def test_create_invoice(self):
         self.order_item_process(self.order_item)
         invoice = self.get_invoice()
@@ -95,60 +90,52 @@ class InvoicesTest(InvoicesBaseTest):
 
     def test_terminate_offering(self):
         self.order_item_process(self.order_item)
-        offering = self.order_item.resource.scope
-        offering.terminate()
+        self.order_item.resource.set_state_terminating()
+        self.order_item.resource.save()
+        self.order_item.resource.set_state_terminated()
+        self.order_item.resource.save()
 
-        invoice_items = invoices_models.InvoiceItem.objects.filter(scope=offering)
-
-        for item in invoice_items:
-            item.refresh_from_db()
+        for item in invoices_models.InvoiceItem.objects.filter(
+            scope=self.order_item.resource
+        ):
             self.assertEqual(item.end, timezone.now())
 
-    def test_delete_offering(self):
-        self.order_item_process(self.order_item)
-        offering = self.order_item.resource.scope
-        invoice_items = invoices_models.InvoiceItem.objects.filter(scope=offering)
-        offering.delete()
-
-        for item in invoice_items:
-            item.refresh_from_db()
-            self.assertEqual(item.end, timezone.now())
-
-    @freeze_time('2018-01-15')
     def test_switch_plan_resource(self):
         self.order_item_process(self.order_item)
-        resource = self.order_item.resource
-        resource.plan = self.fixture.new_plan
-        resource.save()
 
-        new_start = datetime.datetime.now()
-        end = month_end(new_start)
+        with freeze_time('2018-01-15'):
+            resource = self.order_item.resource
+            resource.plan = self.fixture.new_plan
+            resource.save()
 
-        old_items = invoices_models.InvoiceItem.objects.filter(
-            project=resource.project, end=new_start,
-        )
+            new_start = datetime.datetime.now()
+            end = month_end(new_start)
 
-        unit_price = 0
-        self.assertEqual(old_items.count(), 2)
+            old_items = invoices_models.InvoiceItem.objects.filter(
+                project=resource.project, end=new_start,
+            )
 
-        for i in old_items:
-            self.assertTrue(self.fixture.plan.name in i.name)
-            unit_price += i.unit_price
+            unit_price = 0
+            self.assertEqual(old_items.count(), self.fixture.plan.components.count())
 
-        self.assertEqual(unit_price, self.fixture.plan.unit_price)
+            for i in old_items:
+                self.assertTrue(self.fixture.plan.name in i.name)
+                unit_price += i.unit_price
 
-        new_items = invoices_models.InvoiceItem.objects.filter(
-            project=resource.project, start=new_start, end=end,
-        )
+            self.assertEqual(unit_price, self.fixture.plan.unit_price)
 
-        unit_price = 0
-        self.assertEqual(new_items.count(), 2)
+            new_items = invoices_models.InvoiceItem.objects.filter(
+                project=resource.project, start=new_start, end=end,
+            )
 
-        for i in new_items:
-            self.assertTrue(self.fixture.new_plan.name in i.name)
-            unit_price += i.unit_price
+            unit_price = 0
+            self.assertEqual(new_items.count(), 2)
 
-        self.assertEqual(unit_price, self.fixture.new_plan.unit_price)
+            for i in new_items:
+                self.assertTrue(self.fixture.new_plan.name in i.name)
+                unit_price += i.unit_price
+
+            self.assertEqual(unit_price, self.fixture.new_plan.unit_price)
 
     def test_invoice_item_should_include_service_provider_info(self):
         self.order_item_process(self.order_item)
@@ -349,7 +336,7 @@ class OneTimeTest(InvoicesBaseTest):
     def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(
         self,
     ):
-        registrators.RegistrationManager.register(self.resource.scope)
+        registrators.RegistrationManager.register(self.resource)
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_ram.price
@@ -375,7 +362,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
     def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(
         self,
     ):
-        registrators.RegistrationManager.register(self.resource.scope)
+        registrators.RegistrationManager.register(self.resource)
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_ram.price
@@ -396,7 +383,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         order_item.set_state_done()
         order_item.save()
         registrators.RegistrationManager.register(
-            self.resource.scope,
+            self.resource,
             timezone.now(),
             order_type=marketplace_models.OrderItem.Types.UPDATE,
         )

@@ -3,9 +3,8 @@ from django.test import TestCase
 from waldur_core.core.models import StateMixin
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
-
-from ... import apps, models
-from .. import factories
+from waldur_openstack.openstack_tenant import apps, models
+from waldur_openstack.openstack_tenant.tests import factories
 
 
 class BaseServicePropertyTest(TestCase):

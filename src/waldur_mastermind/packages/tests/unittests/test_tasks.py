@@ -3,9 +3,8 @@ from unittest.mock import MagicMock
 from django.test import TestCase
 
 from waldur_core.core import models as core_models
+from waldur_mastermind.packages import tasks
 from waldur_mastermind.packages.tests.fixtures import PackageFixture
-
-from ... import tasks
 
 
 class OpenStackPackageErrorTaskTest(TestCase):

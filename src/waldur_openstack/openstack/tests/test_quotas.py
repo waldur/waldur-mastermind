@@ -1,6 +1,6 @@
 from rest_framework import test
 
-from . import fixtures
+from waldur_openstack.openstack.tests import fixtures
 
 
 class TenantQuotasTest(test.APITransactionTestCase):

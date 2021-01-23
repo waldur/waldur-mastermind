@@ -6,9 +6,8 @@ from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.analytics import models, tasks, utils
 from waldur_mastermind.common.utils import parse_date
-
-from .. import models, tasks, utils
 
 
 class TestDailyQuotasEndpoint(test.APITransactionTestCase):

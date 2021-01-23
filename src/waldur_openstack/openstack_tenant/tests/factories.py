@@ -10,8 +10,7 @@ from factory import fuzzy
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.tests import factories as openstack_factories
-
-from .. import models
+from waldur_openstack.openstack_tenant import models
 
 
 class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsFactory):

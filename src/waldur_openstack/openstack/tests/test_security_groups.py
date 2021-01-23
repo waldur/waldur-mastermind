@@ -3,8 +3,8 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
-from .. import models
-from . import factories, fixtures
+from waldur_openstack.openstack import models
+from waldur_openstack.openstack.tests import factories, fixtures
 
 
 class BaseSecurityGroupTest(test.APITransactionTestCase):

@@ -174,7 +174,7 @@ class Migration(migrations.Migration):
                     'invoice',
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='generic_items',
+                        related_name='items',
                         to='invoices.Invoice',
                     ),
                 ),

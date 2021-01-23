@@ -3,9 +3,8 @@ from django.urls import reverse
 from factory import fuzzy
 from libcloud.compute.types import NodeState
 
+from waldur_aws import models
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
 
 
 class AWSServiceFactory(factory.DjangoModelFactory):

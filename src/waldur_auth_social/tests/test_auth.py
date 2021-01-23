@@ -9,11 +9,10 @@ from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_auth_social.models import AuthProfile
 from waldur_core.core.models import SshPublicKey
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
-
-from ..models import AuthProfile
 
 User = get_user_model()
 

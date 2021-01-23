@@ -3,8 +3,7 @@ from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-
-from . import factories, fixtures
+from waldur_openstack.openstack.tests import factories, fixtures
 
 
 class BaseSubNetTest(test.APITransactionTestCase):

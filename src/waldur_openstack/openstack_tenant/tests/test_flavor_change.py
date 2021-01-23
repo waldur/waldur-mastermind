@@ -2,8 +2,11 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.models import ProjectRole
+from waldur_openstack.openstack_tenant.models import (
+    Instance,
+    OpenStackTenantServiceProjectLink,
+)
 
-from ..models import Instance, OpenStackTenantServiceProjectLink
 from . import factories, fixtures
 
 

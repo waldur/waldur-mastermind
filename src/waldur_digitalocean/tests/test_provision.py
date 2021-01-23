@@ -5,11 +5,10 @@ from rest_framework import test
 
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
-
-from ..apps import DigitalOceanConfig
-from ..models import Droplet
-from ..views import DropletViewSet
-from . import factories
+from waldur_digitalocean.apps import DigitalOceanConfig
+from waldur_digitalocean.models import Droplet
+from waldur_digitalocean.tests import factories
+from waldur_digitalocean.views import DropletViewSet
 
 
 class DigitalOceanBackendTest(test.APITransactionTestCase):

@@ -2,9 +2,8 @@ from rest_framework import status, test
 
 from waldur_core.structure.models import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
-
-from ..models import DigitalOceanService
-from . import factories
+from waldur_digitalocean.models import DigitalOceanService
+from waldur_digitalocean.tests import factories
 
 
 class ServicePermissionTest(test.APITransactionTestCase):

@@ -5,10 +5,9 @@ from rest_framework.settings import api_settings
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.billing import models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests import factories as invoice_factories
-
-from .. import models
 
 
 class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):

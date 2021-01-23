@@ -3,8 +3,7 @@ from django.urls import reverse
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import enums, models
+from waldur_rancher import enums, models
 
 
 class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):

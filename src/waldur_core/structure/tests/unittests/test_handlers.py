@@ -3,8 +3,7 @@ from unittest import mock
 from django.test import TestCase
 
 from waldur_core.structure import models as structure_models
-
-from .. import factories, fixtures
+from waldur_core.structure.tests import factories, fixtures
 
 
 class LogProjectSaveTest(TestCase):

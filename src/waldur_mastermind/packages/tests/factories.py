@@ -3,10 +3,9 @@ import random
 import factory
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.packages import models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests.factories import TenantFactory
-
-from .. import models
 
 
 class PackageTemplateFactory(factory.DjangoModelFactory):

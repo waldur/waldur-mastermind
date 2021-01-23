@@ -144,7 +144,6 @@ waldur_rancher_invoices = "waldur_mastermind.rancher_invoices.extension:RancherI
 waldur_slurm = "waldur_slurm.extension:SlurmExtension"
 waldur_slurm_invoices = "waldur_mastermind.slurm_invoices.extension:SlurmInvoicesExtension"
 waldur_support = "waldur_mastermind.support.extension:SupportExtension"
-waldur_support_invoices = "waldur_mastermind.support_invoices.extension:SupportInvoicesExtension"
 waldur_vmware = "waldur_vmware.extension:VMwareExtension"
 waldur_zabbix = "waldur_zabbix.extension:ZabbixExtension"
 waldur_zabbix_openstack = "waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension"

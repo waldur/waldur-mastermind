@@ -6,8 +6,7 @@ from django.urls import reverse
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
+from waldur_openstack.openstack import models
 
 
 class OpenStackServiceSettingsFactory(structure_factories.ServiceSettingsFactory):

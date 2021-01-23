@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from .. import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 
 
 class TagCacheTask(TestCase):

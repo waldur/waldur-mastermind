@@ -9,14 +9,13 @@ from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import ResourceFactory
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import (
     load_resource,
     override_support_settings,
 )
-
-from .. import models
-from . import base, factories
 
 
 @ddt

@@ -4,8 +4,8 @@ from decimal import Decimal
 from django.db.models import ProtectedError
 from django.test import TestCase
 
-from ... import models
-from .. import factories
+from waldur_mastermind.packages import models
+from waldur_mastermind.packages.tests import factories
 
 
 class PackageTemplateTest(TestCase):

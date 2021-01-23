@@ -6,8 +6,8 @@ from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
+from waldur_rancher import models
 
-from .. import models
 from . import factories
 
 

@@ -6,7 +6,8 @@ from django.conf import settings
 from django.test import TestCase
 from django.utils import timezone
 
-from ... import models
+from waldur_openstack.openstack_tenant import models
+
 from .. import factories, fixtures
 
 

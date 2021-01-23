@@ -6,6 +6,8 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.billing import exceptions, models
+from waldur_mastermind.billing.tests import factories
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace_support.tests import (
@@ -17,9 +19,6 @@ from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import utils as packages_utils
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support import models as support_models
-
-from .. import exceptions, models
-from . import factories
 
 
 class PriceEstimateSignalsTest(test.APITransactionTestCase):

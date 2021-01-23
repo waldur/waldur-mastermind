@@ -1,6 +1,6 @@
 import factory.fuzzy
 
-from . import models
+from waldur_pid.tests import models
 
 
 class OfferingFactory(factory.DjangoModelFactory):

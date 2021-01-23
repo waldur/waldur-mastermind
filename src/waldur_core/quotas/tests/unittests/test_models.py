@@ -2,8 +2,8 @@ import random
 
 from django.test import TestCase
 
-from ... import exceptions
-from ..models import GrandparentModel
+from waldur_core.quotas import exceptions
+from waldur_core.quotas.tests.models import GrandparentModel
 
 
 class QuotaModelMixinTest(TestCase):

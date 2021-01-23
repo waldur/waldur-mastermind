@@ -3,9 +3,8 @@ from rest_framework.test import APITransactionTestCase
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as structure_tests_models
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
-
-from .. import models as marketplace_models
-from . import factories
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories
 
 
 class ResourceHandlerTest(APITransactionTestCase):

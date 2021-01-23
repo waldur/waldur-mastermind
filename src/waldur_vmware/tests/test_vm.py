@@ -3,9 +3,9 @@ from unittest import mock
 import ddt
 from rest_framework import status, test
 
+from waldur_vmware import models
 from waldur_vmware.tests.utils import override_plugin_settings
 
-from .. import models
 from . import factories, fixtures
 
 

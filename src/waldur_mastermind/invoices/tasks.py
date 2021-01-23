@@ -158,8 +158,7 @@ def format_invoice_csv(invoices):
         writer.writeheader()
 
         for invoice in invoices:
-            items = invoice.items
-            items = utils.filter_invoice_items(items)
+            items = utils.filter_invoice_items(invoice.items.all())
             serializer = serializers.SAFReportSerializer(items, many=True)
             writer.writerows(serializer.data)
         return stream.getvalue()
@@ -170,8 +169,7 @@ def format_invoice_csv(invoices):
     writer.writeheader()
 
     for invoice in invoices:
-        items = invoice.items
-        items = utils.filter_invoice_items(items)
+        items = utils.filter_invoice_items(invoice.items.all())
         serializer = serializers.InvoiceItemReportSerializer(items, many=True)
         writer.writerows(serializer.data)
 

@@ -4,8 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_jira import executors, models
-
-from . import factories, fixtures
+from waldur_jira.tests import factories, fixtures
 
 
 class ProjectBaseTest(test.APITransactionTestCase):

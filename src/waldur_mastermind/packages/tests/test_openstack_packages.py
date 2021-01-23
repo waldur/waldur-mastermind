@@ -7,14 +7,13 @@ from rest_framework.reverse import reverse
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
+from waldur_mastermind.packages import models
 from waldur_mastermind.packages import views as packages_views
+from waldur_mastermind.packages.tests import factories, fixtures, utils
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
-
-from .. import models
-from . import factories, fixtures, utils
 
 
 @ddt

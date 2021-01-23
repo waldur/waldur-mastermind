@@ -5,13 +5,17 @@ from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.core.utils import datetime_to_timestamp
+from waldur_core.monitoring.models import (
+    ResourceItem,
+    ResourceSla,
+    ResourceSlaStateTransition,
+)
 from waldur_core.structure.tests.factories import (
     TestNewInstanceFactory,
     TestServiceProjectLinkFactory,
     UserFactory,
 )
 
-from ..models import ResourceItem, ResourceSla, ResourceSlaStateTransition
 from ..utils import format_period
 
 

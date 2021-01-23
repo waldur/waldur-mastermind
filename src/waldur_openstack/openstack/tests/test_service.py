@@ -5,9 +5,8 @@ from rest_framework import status, test
 
 from waldur_core.structure.models import CustomerRole, ProjectRole, ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
-from . import factories, fixtures
+from waldur_openstack.openstack import models
+from waldur_openstack.openstack.tests import factories, fixtures
 
 
 class BaseServiceTest(test.APITransactionTestCase):

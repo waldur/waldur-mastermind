@@ -4,9 +4,8 @@ from django.conf import settings
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
-from . import factories, fixtures
+from waldur_jira import models
+from waldur_jira.tests import factories, fixtures
 
 
 class BaseTest(test.APITransactionTestCase):

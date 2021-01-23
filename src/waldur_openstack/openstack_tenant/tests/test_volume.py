@@ -4,11 +4,11 @@ from ddt import data, ddt
 from django.conf import settings
 from rest_framework import status, test
 
+from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
 )
 
-from .. import models
 from . import factories, fixtures
 
 

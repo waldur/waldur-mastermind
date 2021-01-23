@@ -2,8 +2,8 @@ from django.apps import apps
 from django.utils import timezone
 from rest_framework import test
 
-from .. import models, utils
-from . import factories
+from waldur_mastermind.marketplace import models, utils
+from waldur_mastermind.marketplace.tests import factories
 
 
 class FillActivatedFieldTest(test.APITransactionTestCase):

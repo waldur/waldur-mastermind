@@ -3,9 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from waldur_mastermind.common import mixins as common_mixins
-
-from ... import admin, models
-from .. import factories, fixtures
+from waldur_mastermind.packages import admin, models
+from waldur_mastermind.packages.tests import factories, fixtures
 
 User = get_user_model()
 

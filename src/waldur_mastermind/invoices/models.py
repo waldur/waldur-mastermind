@@ -117,7 +117,9 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def price(self):
-        return quantize_price(decimal.Decimal(sum((item.price for item in self.items))))
+        return quantize_price(
+            decimal.Decimal(sum((item.price for item in self.items.all())))
+        )
 
     @property
     def tax_current(self):
@@ -129,11 +131,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def price_current(self):
-        return sum((item.price_current for item in self.items))
-
-    @property
-    def items(self):
-        return self.generic_items.all()
+        return sum((item.price_current for item in self.items.all()))
 
     @property
     def due_date(self):
@@ -192,7 +190,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
 
     invoice = models.ForeignKey(
-        on_delete=models.CASCADE, to=Invoice, related_name='generic_items'
+        on_delete=models.CASCADE, to=Invoice, related_name='items'
     )
     content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'

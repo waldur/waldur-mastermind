@@ -5,11 +5,10 @@ from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_freeipa import tasks
+from waldur_freeipa.backend import FreeIPABackend
+from waldur_freeipa.tests import factories
 from waldur_freeipa.tests.helpers import override_plugin_settings
-
-from .. import tasks
-from ..backend import FreeIPABackend
-from . import factories
 
 
 @override_plugin_settings(ENABLED=True)

@@ -2,9 +2,8 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.common.utils import parse_datetime
-
-from .. import callbacks, models
-from . import factories
+from waldur_mastermind.marketplace import callbacks, models
+from waldur_mastermind.marketplace.tests import factories
 
 
 @freeze_time('2018-11-01')

@@ -10,13 +10,10 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
+from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace.tests import factories, helpers
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.support import models as support_models
-from waldur_mastermind.support.tests import factories as support_factories
-
-from .. import models, tasks, utils
-from . import factories, helpers
 
 
 class StatsBaseTest(test.APITransactionTestCase):
@@ -348,11 +345,6 @@ class ComponentStatsTest(StatsBaseTest):
     ):
         self.resource.offering.type = PLUGIN_NAME
         self.resource.offering.save()
-        support_offering = support_factories.OfferingFactory(
-            project=self.resource.project, state=support_models.Offering.States.OK
-        )
-        self.resource.scope = support_offering
-        self.resource.save()
 
         self._create_items()
         self.client.force_authenticate(self.fixture.staff)
@@ -422,11 +414,6 @@ class ComponentStatsTest(StatsBaseTest):
     def test_handler(self):
         self.resource.offering.type = PLUGIN_NAME
         self.resource.offering.save()
-        support_offering = support_factories.OfferingFactory(
-            project=self.resource.project, state=support_models.Offering.States.OK
-        )
-        self.resource.scope = support_offering
-        self.resource.save()
 
         # add usage-based component to the offering and plan
         COMPONENT_TYPE = 'storage'

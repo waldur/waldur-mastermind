@@ -2,8 +2,8 @@ import factory
 from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_zabbix import models
 
-from .. import models
 from ..apps import ZabbixConfig
 
 

@@ -37,7 +37,7 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TransactionTestCase):
             package.template.get_category_display(),
             package.template.name,
         )
-        item = invoice.generic_items.first()
+        item = invoice.items.first()
         self.assertEqual(item.name, expected_name)
 
     def test_invoice_price_changes_on_package_deletion(self):
@@ -82,18 +82,14 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
     def test_existing_invoice_is_updated_on_openstack_package_creation(self):
         self.fixture.customer = self.fixture.invoice.customer
         package = self.fixture.openstack_package
-        self.assertTrue(
-            self.fixture.invoice.generic_items.filter(scope=package).exists()
-        )
+        self.assertTrue(self.fixture.invoice.items.filter(scope=package).exists())
 
     def test_if_provisioning_failed_invoice_item_is_not_created(self):
         self.fixture.customer = self.fixture.invoice.customer
         self.fixture.openstack_tenant.backend_id = None
         self.fixture.openstack_tenant.save()
         package = self.fixture.openstack_package
-        self.assertFalse(
-            self.fixture.invoice.generic_items.filter(scope=package).exists()
-        )
+        self.assertFalse(self.fixture.invoice.items.filter(scope=package).exists())
 
     def test_if_provisioning_succeeded_invoice_item_is_created(self):
         self.fixture.customer = self.fixture.invoice.customer
@@ -103,16 +99,14 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
         package = self.fixture.openstack_package
         tenant.backend_id = 'VALID_ID'
         tenant.save()
-        self.assertTrue(
-            self.fixture.invoice.generic_items.filter(scope=package).exists()
-        )
+        self.assertTrue(self.fixture.invoice.items.filter(scope=package).exists())
 
     def test_new_invoice_is_created_on_openstack_package_creation(self):
         package = self.fixture.openstack_package
         invoice = invoices_models.Invoice.objects.get(
             customer=package.tenant.service_project_link.project.customer
         )
-        self.assertTrue(invoice.generic_items.filter(scope=package).exists())
+        self.assertTrue(invoice.items.filter(scope=package).exists())
 
     def test_invoice_price_is_calculated_on_package_creation(self):
         with freeze_time('2016-11-04 12:00:00'):

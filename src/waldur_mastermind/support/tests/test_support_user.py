@@ -5,12 +5,10 @@ from ddt import data, ddt
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import models, tasks
+from waldur_mastermind.support import exceptions, models, tasks
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import override_support_settings
-
-from .. import exceptions
-from . import base, factories
 
 
 @ddt

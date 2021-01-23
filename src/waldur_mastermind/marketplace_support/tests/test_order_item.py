@@ -457,12 +457,6 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.ERRED)
         self.assertEqual(self.resource.plan, self.current_plan)
 
-    def test_new_price_is_copied_if_plan_has_been_switched(self):
-        self.get_order_item(self.success_issue_status)
-        self.resource.refresh_from_db()
-        self.resource.scope.refresh_from_db()
-        self.assertEqual(self.resource.plan.unit_price, self.resource.scope.unit_price)
-
     @freeze_time('2019-01-15')
     def test_switch_invoice_item_if_plan_switched(self):
         self.get_order_item(self.success_issue_status)

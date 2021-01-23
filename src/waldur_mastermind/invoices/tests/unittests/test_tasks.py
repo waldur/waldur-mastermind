@@ -10,12 +10,11 @@ from freezegun import freeze_time
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices.tests import factories
+from waldur_mastermind.invoices.tests import utils as test_utils
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
-
-from ... import models, tasks, utils
-from .. import factories
-from .. import utils as test_utils
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
@@ -39,7 +38,7 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
             new_invoice = models.Invoice.objects.get(
                 customer=fixture.customer, state=models.Invoice.States.PENDING
             )
-            self.assertEqual(package, new_invoice.generic_items.first().scope)
+            self.assertEqual(package, new_invoice.items.first().scope)
 
     def test_old_invoices_are_marked_as_created(self):
 

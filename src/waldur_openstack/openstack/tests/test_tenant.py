@@ -10,12 +10,11 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import PrivateServiceSettings, ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack import executors, models
 from waldur_openstack.openstack.models import Tenant
+from waldur_openstack.openstack.tests import factories, fixtures
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
-
-from .. import executors, models
-from . import factories, fixtures
 
 
 @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)

@@ -8,8 +8,8 @@ from rest_framework import status, test
 from waldur_core.structure import ServiceBackendError
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_zabbix import models
 
-from .. import models
 from ..apps import ZabbixConfig
 from . import factories
 

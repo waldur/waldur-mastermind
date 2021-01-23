@@ -2,8 +2,8 @@ import mock
 import requests
 from rest_framework import test
 
-from .. import backend
-from . import factories
+from waldur_pid import backend
+from waldur_pid.tests import factories
 
 
 class DataciteTest(test.APITransactionTestCase):

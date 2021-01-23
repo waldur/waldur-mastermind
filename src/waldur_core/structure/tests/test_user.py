@@ -11,10 +11,9 @@ from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.serializers import PasswordSerializer
-from waldur_core.structure.tests import factories
+from waldur_core.structure.tests import factories, fixtures
 
 from .. import tasks
-from . import fixtures
 
 
 class UserPermissionApiTest(test.APITransactionTestCase):

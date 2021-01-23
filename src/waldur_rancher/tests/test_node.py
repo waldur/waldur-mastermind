@@ -8,10 +8,9 @@ from waldur_core.structure.tests.factories import SshPublicKeyFactory
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
+from waldur_rancher import models, tasks
 from waldur_rancher import utils as rancher_utils
-
-from .. import models, tasks
-from . import factories, fixtures, test_cluster, utils
+from waldur_rancher.tests import factories, fixtures, test_cluster, utils
 
 
 class NodeGetTest(test.APITransactionTestCase):
