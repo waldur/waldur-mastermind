@@ -1,6 +1,7 @@
 from django.utils.functional import cached_property
 
-from .. import models
+from waldur_core.structure import models
+
 from . import factories
 
 

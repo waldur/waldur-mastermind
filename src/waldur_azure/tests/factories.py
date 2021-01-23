@@ -4,10 +4,9 @@ import factory
 from django.urls import reverse
 from libcloud.compute.types import NodeState
 
+from waldur_azure import models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
 
 
 class AzureServiceSettingsFactory(structure_factories.ServiceSettingsFactory):

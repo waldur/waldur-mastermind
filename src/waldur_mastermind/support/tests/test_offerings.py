@@ -6,10 +6,9 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.support import models
+from waldur_mastermind.support.tests import factories, fixtures
 from waldur_mastermind.support.tests.base import BaseTest, override_support_settings
-
-from .. import models
-from . import factories, fixtures
 
 
 class BaseOfferingTest(BaseTest):

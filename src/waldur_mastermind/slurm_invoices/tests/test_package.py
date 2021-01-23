@@ -1,8 +1,7 @@
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from . import factories, fixtures
+from waldur_mastermind.slurm_invoices.tests import factories, fixtures
 
 
 class SlurmPackageTest(test.APITransactionTestCase):

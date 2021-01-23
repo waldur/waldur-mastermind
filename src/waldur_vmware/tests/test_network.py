@@ -3,8 +3,8 @@ from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_vmware import backend, models
 
-from .. import backend, models
 from . import factories
 
 

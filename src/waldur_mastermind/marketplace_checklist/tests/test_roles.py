@@ -2,9 +2,8 @@ from django.urls import reverse
 from rest_framework import test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
-
-from .. import models
-from . import factories
+from waldur_mastermind.marketplace_checklist import models
+from waldur_mastermind.marketplace_checklist.tests import factories
 
 
 class CustomerChecklistTest(test.APITransactionTestCase):

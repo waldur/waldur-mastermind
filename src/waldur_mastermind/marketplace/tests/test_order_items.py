@@ -5,9 +5,8 @@ from rest_framework import status, test
 
 from waldur_core.quotas import signals as quota_signals
 from waldur_core.structure.tests import fixtures
-
-from .. import models
-from . import factories
+from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.tests import factories
 
 
 @ddt

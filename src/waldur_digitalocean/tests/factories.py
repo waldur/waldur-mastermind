@@ -3,8 +3,7 @@ from django.urls import reverse
 from factory import fuzzy
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
+from waldur_digitalocean import models
 
 
 class DigitalOceanServiceFactory(factory.DjangoModelFactory):

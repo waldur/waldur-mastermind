@@ -5,8 +5,6 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.google.tests import factories as google_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
-from . import factories
-
 
 @ddt
 class GoogleCredentialsGetTest(test.APITransactionTestCase):
@@ -18,7 +16,7 @@ class GoogleCredentialsGetTest(test.APITransactionTestCase):
         google_credentials = google_factories.GoogleCredentialsFactory(
             service_provider=service_provider
         )
-        self.url = factories.GoogleCredentialsFactory.get_url(google_credentials)
+        self.url = google_factories.GoogleCredentialsFactory.get_url(google_credentials)
 
     @data('staff', 'owner')
     def test_user_can_get_google_credentials(self, user):
@@ -46,7 +44,7 @@ class GoogleCredentialsCreateTest(test.APITransactionTestCase):
         google_credentials = google_factories.GoogleCredentialsFactory(
             service_provider=self.service_provider
         )
-        self.url = factories.GoogleCredentialsFactory.get_url(google_credentials)
+        self.url = google_factories.GoogleCredentialsFactory.get_url(google_credentials)
 
     @data('staff', 'owner')
     def test_user_can_set_google_credentials(self, user):

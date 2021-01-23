@@ -3,8 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models
-
-from . import factories, fixtures
+from waldur_core.structure.tests import factories, fixtures
 
 
 class ServiceSettingsListTest(test.APITransactionTestCase):

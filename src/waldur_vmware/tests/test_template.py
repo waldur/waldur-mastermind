@@ -2,9 +2,9 @@ from unittest import mock
 
 from rest_framework import test
 
+from waldur_vmware import backend, models
 from waldur_vmware.tests.utils import override_plugin_settings
 
-from .. import backend, models
 from . import factories
 
 

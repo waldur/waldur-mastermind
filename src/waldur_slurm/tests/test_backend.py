@@ -5,10 +5,10 @@ from django.test import TestCase
 from freezegun import freeze_time
 
 from waldur_freeipa import models as freeipa_models
+from waldur_slurm import models
 from waldur_slurm.client import SlurmClient
 from waldur_slurm.parser import SlurmReportLine
 
-from .. import models
 from . import factories, fixtures
 
 VALID_REPORT = """

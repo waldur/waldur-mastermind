@@ -3,8 +3,7 @@ from django.utils import timezone
 from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
+from waldur_mastermind.invoices import models
 
 
 class InvoiceFactory(factory.DjangoModelFactory):

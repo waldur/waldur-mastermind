@@ -2,8 +2,7 @@ import factory
 from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
+from waldur_freeipa import models
 
 
 class ProfileFactory(factory.DjangoModelFactory):

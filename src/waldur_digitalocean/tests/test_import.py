@@ -6,8 +6,8 @@ from rest_framework import status, test
 
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_digitalocean import models
 
-from .. import models
 from . import factories
 
 

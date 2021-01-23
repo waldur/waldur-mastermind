@@ -3,12 +3,11 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.common.utils import parse_datetime
+from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
-
-from .. import models, tasks
 
 
 @freeze_time('2018-11-01')

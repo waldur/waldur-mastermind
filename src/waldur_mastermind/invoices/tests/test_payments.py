@@ -2,9 +2,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
-
-from .. import models
-from . import factories
+from waldur_mastermind.invoices import models
+from waldur_mastermind.invoices.tests import factories
 
 
 @ddt

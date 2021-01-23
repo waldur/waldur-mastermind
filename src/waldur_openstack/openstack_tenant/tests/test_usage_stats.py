@@ -1,6 +1,7 @@
 from rest_framework import status, test
 
-from .. import models
+from waldur_openstack.openstack_tenant import models
+
 from . import factories, fixtures
 
 

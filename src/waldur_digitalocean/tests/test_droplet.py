@@ -2,8 +2,8 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from .. import models
-from . import factories, fixtures
+from waldur_digitalocean import models
+from waldur_digitalocean.tests import factories, fixtures
 
 
 class DropletResizeTest(test.APITransactionTestCase):

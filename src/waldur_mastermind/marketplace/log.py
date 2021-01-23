@@ -4,8 +4,7 @@ from django.db import transaction
 from waldur_core.core.models import User
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_core.structure.models import Project
-
-from . import models, tasks
+from waldur_mastermind.marketplace import models, tasks
 
 
 class MarketplaceOrderLogger(EventLogger):

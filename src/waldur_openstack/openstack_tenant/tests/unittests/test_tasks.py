@@ -8,8 +8,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack_tenant import models, tasks
 
-from ... import models, tasks
 from ...tests import factories
 
 TenantQuotas = openstack_models.Tenant.Quotas

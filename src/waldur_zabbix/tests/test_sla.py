@@ -7,9 +7,9 @@ from rest_framework import status, test
 from waldur_core.core.utils import datetime_to_timestamp
 from waldur_core.monitoring.utils import format_period
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_zabbix import models
 from waldur_zabbix.tasks import pull_sla
 
-from .. import models
 from . import factories
 
 

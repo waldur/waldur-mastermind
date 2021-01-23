@@ -84,3 +84,9 @@ class InvoiceConfig(AppConfig):
             sender=structure_models.Project,
             dispatch_uid='waldur_mastermind.invoices.projects_customer_has_been_changed',
         )
+
+        signals.post_save.connect(
+            handlers.create_recurring_usage_if_invoice_has_been_created,
+            sender=models.Invoice,
+            dispatch_uid='waldur_mastermind.invoices.create_recurring_usage_if_invoice_has_been_created',
+        )

@@ -5,8 +5,7 @@ from django.urls import reverse
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
+from waldur_vmware import models
 
 
 class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):

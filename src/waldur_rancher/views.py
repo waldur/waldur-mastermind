@@ -23,10 +23,17 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
+from waldur_rancher import (
+    exceptions,
+    executors,
+    filters,
+    models,
+    serializers,
+    utils,
+    validators,
+)
 from waldur_rancher.apps import RancherConfig
 from waldur_rancher.exceptions import RancherException
-
-from . import exceptions, executors, filters, models, serializers, utils, validators
 
 logger = logging.getLogger(__name__)
 

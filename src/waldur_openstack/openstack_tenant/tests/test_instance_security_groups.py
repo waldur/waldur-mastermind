@@ -3,9 +3,8 @@ from unittest.mock import patch
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
-from . import factories, fixtures
+from waldur_openstack.openstack_tenant import models
+from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
 
 def _instance_data(user, instance=None):

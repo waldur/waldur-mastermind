@@ -6,16 +6,14 @@ from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_mastermind.invoices import models, tasks
+from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.invoices.tasks import format_invoice_csv
+from waldur_mastermind.invoices.tests import factories, fixtures, utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
-from waldur_mastermind.support.tests import factories as support_factories
-
-from .. import models, tasks
-from .. import utils as invoices_utils
-from . import factories, fixtures, utils
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
@@ -46,16 +44,12 @@ class BaseReportFormatterTest(TransactionTestCase):
         marketplace_factories.PlanComponentFactory(
             component=offering_component, plan=plan
         )
-        resource = marketplace_factories.ResourceFactory(
+        self.resource = marketplace_factories.ResourceFactory(
             project=package.tenant.service_project_link.project,
             offering=self.marketplace_offering,
             plan=plan,
+            name='OFFERING-001',
         )
-        self.support_offering = support_factories.OfferingFactory(
-            template__name='OFFERING-001', project=self.fixture.project
-        )
-        resource.scope = self.support_offering
-        resource.save()
 
 
 class GenericReportFormatterTest(BaseReportFormatterTest):
@@ -74,8 +68,8 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
         self.assertEqual(lines[0], expected_header)
 
     def test_offering_items_are_serialized(self):
-        self.support_offering.state = self.support_offering.__class__.States.OK
-        self.support_offering.save()
+        self.resource.set_state_ok()
+        self.resource.save()
         self.invoice.refresh_from_db()
         report = format_invoice_csv(self.invoice)
         lines = report.splitlines()
@@ -214,7 +208,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             days=50
         )
         self.customer.save()
-        for item in self.invoice.items:
+        for item in self.invoice.items.all():
             item.delete()
 
         tasks.send_invoice_report()
@@ -229,7 +223,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             days=50
         )
         self.customer.save()
-        for item in self.invoice.items:
+        for item in self.invoice.items.all():
             item.unit_price = 0
             item.save()
 

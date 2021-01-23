@@ -9,12 +9,11 @@ from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
+from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks, utils
+from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.support.tests.base import override_support_settings
 from waldur_openstack.openstack.tests import factories as openstack_factories
-
-from .. import callbacks, log, models, plugins, tasks, utils
-from . import factories
-from . import utils as test_utils
 
 
 class ResourceGetTest(test.APITransactionTestCase):

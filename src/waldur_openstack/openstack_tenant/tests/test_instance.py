@@ -14,12 +14,11 @@ from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
+from waldur_openstack.openstack_tenant import executors, models, views
+from waldur_openstack.openstack_tenant.tests import factories, fixtures, helpers
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
 )
-
-from .. import executors, models, views
-from . import factories, fixtures, helpers
 
 
 class InstanceFilterTest(test.APITransactionTestCase):

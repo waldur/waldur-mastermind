@@ -3,8 +3,8 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_zabbix import models
 
-from .. import models
 from . import factories
 
 

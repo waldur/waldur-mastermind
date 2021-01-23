@@ -16,15 +16,18 @@ from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import ServiceFixture
 from waldur_mastermind.common.mixins import UnitPriceMixin
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, serializers
+from waldur_mastermind.marketplace.management.commands.export_offering import (
+    export_offering,
+)
+from waldur_mastermind.marketplace.management.commands.import_offering import (
+    create_offering,
+    update_offering,
+)
+from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
-
-from .. import serializers
-from ..management.commands.export_offering import export_offering
-from ..management.commands.import_offering import create_offering, update_offering
-from . import factories
-from .helpers import override_marketplace_settings
 
 
 @ddt

@@ -1,6 +1,7 @@
 from rest_framework import status, test
 
-from .. import models
+from waldur_vmware import models
+
 from . import factories, fixtures
 
 

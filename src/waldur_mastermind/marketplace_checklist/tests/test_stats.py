@@ -4,9 +4,8 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common import utils as common_utils
-
-from .. import models, views
-from . import factories
+from waldur_mastermind.marketplace_checklist import models, views
+from waldur_mastermind.marketplace_checklist.tests import factories
 
 
 class ChecklistStatsTest(test.APITransactionTestCase):

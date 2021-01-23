@@ -14,6 +14,9 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices.tests import factories, fixtures
+from waldur_mastermind.invoices.tests import utils as test_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
@@ -21,15 +24,10 @@ from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
-from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
-
-from .. import models, tasks, utils
-from . import factories, fixtures
-from . import utils as test_utils
 
 
 @ddt
@@ -350,20 +348,9 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.support_plan = support_factories.OfferingPlanFactory(
             template=self.support_template, unit_price=7,
         )
-        self.support_offering = support_factories.OfferingFactory(
-            project=self.resource_1.project,
-            template=self.support_template,
-            plan=self.support_plan,
-            state=support_models.Offering.States.OK,
-        )
         self.marketplace_support_offering = marketplace_factories.OfferingFactory(
-            name=self.support_offering.name,
-            type=PLUGIN_NAME,
-            customer=self.provider.customer,
+            type=PLUGIN_NAME, customer=self.provider.customer,
         )
-        self.marketplace_support_offering.scope = self.support_offering
-        self.marketplace_support_offering.save()
-
         self.support_offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.marketplace_support_offering
         )
@@ -382,7 +369,6 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             project=self.resource_1.project,
             plan=self.marketplace_support_plan,
         )
-        self.resource_4.scope = self.support_offering
         self.resource_4.save()
 
     @freeze_time('2019-01-01')

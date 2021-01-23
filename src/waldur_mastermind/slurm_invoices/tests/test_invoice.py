@@ -10,11 +10,10 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_mastermind.slurm_invoices import models
 from waldur_slurm import models as slurm_models
 from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
-
-from .. import models
 
 
 class InvoicesTest(TestCase):

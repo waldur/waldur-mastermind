@@ -17,9 +17,8 @@ from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
-
-from .. import exceptions, models, tasks
-from . import factories, fixtures, utils
+from waldur_rancher import exceptions, models, tasks
+from waldur_rancher.tests import factories, fixtures, utils
 
 
 class ClusterGetTest(test.APITransactionTestCase):

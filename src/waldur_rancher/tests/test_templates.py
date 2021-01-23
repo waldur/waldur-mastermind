@@ -1,6 +1,6 @@
 from rest_framework import status, test
 
-from . import factories, fixtures
+from waldur_rancher.tests import factories, fixtures
 
 
 class TemplatesFilterTest(test.APITransactionTestCase):

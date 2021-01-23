@@ -4,7 +4,7 @@ from django.template import Context, Template
 from django.test import TransactionTestCase
 from django.utils import timezone
 
-from .. import factories
+from waldur_mastermind.support.tests import factories
 
 
 class BaseHandlerTest(TransactionTestCase):

@@ -2,8 +2,8 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from .. import models
-from . import factories, fixtures
+from waldur_openstack.openstack import models
+from waldur_openstack.openstack.tests import factories, fixtures
 
 
 class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):

@@ -99,7 +99,7 @@ def filter_invoice_items(items):
 
 
 def create_invoice_pdf(invoice):
-    all_items = filter_invoice_items(invoice.items)
+    all_items = filter_invoice_items(invoice.items.all())
     logo_path = settings.WALDUR_CORE['SITE_LOGO']
     if logo_path:
         with open(logo_path, 'rb') as image_file:

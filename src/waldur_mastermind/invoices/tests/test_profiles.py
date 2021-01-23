@@ -5,10 +5,8 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import tasks
-
-from .. import models, utils
-from . import factories
+from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices.tests import factories
 
 
 @ddt

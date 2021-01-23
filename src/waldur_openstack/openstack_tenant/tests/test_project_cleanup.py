@@ -4,9 +4,8 @@ from novaclient import exceptions as nova_exceptions
 from waldur_core.structure.executors import ProjectCleanupExecutor
 from waldur_core.structure.models import Project
 from waldur_openstack.openstack.tests.unittests import test_backend
-
-from .. import models
-from . import fixtures
+from waldur_openstack.openstack_tenant import models
+from waldur_openstack.openstack_tenant.tests import fixtures
 
 
 class PackageCleanupTest(test_backend.BaseBackendTestCase):

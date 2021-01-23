@@ -1,9 +1,8 @@
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
-from . import factories
+from waldur_openstack.openstack import models
+from waldur_openstack.openstack.tests import factories
 
 
 class StatsTest(test.APITransactionTestCase):

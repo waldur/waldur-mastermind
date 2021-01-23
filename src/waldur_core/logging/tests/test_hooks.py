@@ -4,12 +4,11 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.logging import loggers
+from waldur_core.logging import loggers, models, tasks
 from waldur_core.logging.tests.factories import PushHookFactory, WebHookFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
-from .. import models, tasks
 from . import factories
 
 

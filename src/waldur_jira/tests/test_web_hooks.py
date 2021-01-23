@@ -5,8 +5,8 @@ import pkg_resources
 from django.urls import reverse
 from rest_framework import status, test
 
-from .. import models
-from . import factories, fixtures
+from waldur_jira import models
+from waldur_jira.tests import factories, fixtures
 
 
 class BaseTest(test.APITransactionTestCase):

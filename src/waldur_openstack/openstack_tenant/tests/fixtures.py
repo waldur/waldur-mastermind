@@ -2,9 +2,8 @@ from django.utils.functional import cached_property
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
-
-from .. import models
-from . import factories
+from waldur_openstack.openstack_tenant import models
+from waldur_openstack.openstack_tenant.tests import factories
 
 
 class OpenStackTenantFixture(ProjectFixture):

@@ -2,7 +2,8 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from .. import models
+from waldur_rancher import models
+
 from . import factories, fixtures, utils
 
 

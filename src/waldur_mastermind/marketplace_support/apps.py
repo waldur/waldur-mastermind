@@ -13,7 +13,9 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_mastermind.marketplace_support import PLUGIN_NAME
         from waldur_mastermind.support import models as support_models
 
-        from . import handlers, processor
+        from . import handlers, processor, registrators
+
+        registrators.SupportRegistrator.connect()
 
         signals.post_save.connect(
             handlers.create_support_template,

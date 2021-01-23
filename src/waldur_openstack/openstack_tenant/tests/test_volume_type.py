@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from . import factories, fixtures
+from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
 
 @ddt

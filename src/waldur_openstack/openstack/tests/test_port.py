@@ -2,7 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from . import factories, fixtures
+from waldur_openstack.openstack.tests import factories, fixtures
 
 
 class BasePortTest(test.APITransactionTestCase):

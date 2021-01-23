@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from django.conf import settings
@@ -235,6 +236,39 @@ def projects_customer_has_been_changed(
     )
 
     if create:
-        invoice.generic_items.filter(project=project).delete()
+        invoice.items.filter(project=project).delete()
     else:
-        invoice.generic_items.filter(project=project).update(invoice=new_invoice)
+        invoice.items.filter(project=project).update(invoice=new_invoice)
+
+
+def create_recurring_usage_if_invoice_has_been_created(
+    sender, instance, created=False, **kwargs
+):
+    if not created:
+        return
+
+    invoice = instance
+
+    now = timezone.now()
+    prev_month = (now.replace(day=1) - datetime.timedelta(days=1)).date()
+    prev_month_start = prev_month.replace(day=1)
+    usages = marketplace_models.ComponentUsage.objects.filter(
+        resource__project__customer=invoice.customer,
+        recurring=True,
+        billing_period__gte=prev_month_start,
+    )
+
+    if not usages:
+        return
+
+    for usage in usages:
+        marketplace_models.ComponentUsage.objects.create(
+            resource=usage.resource,
+            component=usage.component,
+            usage=usage.usage,
+            description=usage.description,
+            date=now,
+            plan_period=usage.plan_period,
+            recurring=usage.recurring,
+            billing_period=core_utils.month_start(now),
+        )

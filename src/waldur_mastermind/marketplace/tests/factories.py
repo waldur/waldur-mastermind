@@ -9,9 +9,8 @@ from rest_framework.reverse import reverse
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.marketplace import models
 from waldur_pid import models as pid_models
-
-from .. import models
 
 OFFERING_OPTIONS = {
     'order': ['storage', 'ram', 'cpu_count'],

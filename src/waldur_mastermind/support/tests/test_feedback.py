@@ -6,10 +6,9 @@ from django.urls import reverse
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
-
-from .. import models, tasks
-from ..backend.atlassian import ServiceDeskBackend
-from . import base, factories
+from waldur_mastermind.support import models, tasks
+from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.tests import base, factories
 
 
 @ddt

@@ -2,9 +2,8 @@ from ddt import data, ddt
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-
-from .. import models
-from . import base, factories
+from waldur_mastermind.support import models
+from waldur_mastermind.support.tests import base, factories
 
 
 @ddt
