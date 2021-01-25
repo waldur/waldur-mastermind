@@ -35,26 +35,14 @@ options:
     description:
       - Fully qualified URL to the Waldur.
     required: true
-  cidr:
-    description:
-      - A CIDR the security group rule is applied to.
-       It is required if 'rules' are not provided.
   description:
     description:
       - A description of the security group.
     required: false
-  from_port:
-    description:
-      - The lowest port value the security group rule is applied to.
-        It is required if 'rules' are not provided.
   interval:
     default: 20
     description:
       - An interval of the security group state polling.
-  protocol:
-    description:
-      - A protocol the security group rule is applied to.
-        It is required if 'rules' are not provided.
   name:
     description:
       - The name of the security group.
@@ -66,8 +54,7 @@ options:
   rules:
     description:
       - A list of security group rules to be applied to the security group.
-        A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
-        It is required if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
+        A rule consists of 4 fields: 'to_port', 'from_port', 'protocol' and either 'cidr' or 'remote_group' (remote group name)
   state:
     choices:
       - present
@@ -75,10 +62,6 @@ options:
     default: present
     description:
       - Should the resource be present or absent.
-  to_port:
-    description:
-      - The highest port value the security group rule is applied to.
-        It is required if 'rules' are not provided.
   tags:
     description:
       - List of tags that will be added to the security group on provisioning.
@@ -138,10 +121,11 @@ EXAMPLES = '''
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         description: http only
-        from_port: 80
-        to_port: 80
-        cidr: 0.0.0.0/0
-        protocol: tcp
+        rules:
+          - from_port: 80
+            to_port: 80
+            cidr: 0.0.0.0/0
+            protocol: tcp
         state: present
         name: classic-web
         tags:
@@ -184,6 +168,24 @@ EXAMPLES = '''
         description: empty group
         state: present
         name: empty
+
+- name: add security group using remote group
+  hosts: localhost
+  tasks:
+    - name: create security group with a link to remote group
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: VPC
+        description: group depending on a remote group
+        rules:
+        - from_port: 80
+          to_port: 80
+          remote_group: web
+          protocol: tcp
+        state: present
+        name: group_remote_group
+
 '''
 
 
@@ -193,14 +195,20 @@ def send_request_to_waldur(client, module):
     tenant = module.params['tenant']
     name = module.params['name']
     description = module.params.get('description') or ''
-    rules = module.params.get('rules') or [
-        {
-            'from_port': module.params['from_port'],
-            'to_port': module.params['to_port'],
-            'cidr': module.params['cidr'],
-            'protocol': module.params['protocol'],
-        }
-    ] if module.params.get('rules') or module.params['cidr'] else []
+    rules = module.params['rules']
+    for rule in rules:
+        for item in ['from_port', 'to_port', 'protocol']:
+            if item not in rule:
+                module.fail_json(msg='A rule must contain %s parameter.' % item)
+
+        if 'cidr' in rule and 'remote_group' in rule:
+            module.fail_json(msg='Either cidr or remote_group must be specified, not both.')
+
+        if 'remote_group' in rule:
+            remote_group = client.get_security_group(tenant, rule['remote_group'])
+            rule['remote_group'] = remote_group['url']
+        elif 'cidr' not in rule:
+            module.fail_json(msg='One of cidr and remote_group parameters must be specified.')
 
     security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
@@ -236,27 +244,12 @@ def send_request_to_waldur(client, module):
 
 def main():
     fields = waldur_resource_argument_spec(
-        rules=dict(type='list', required=False),
-        from_port=dict(type='str'),
-        to_port=dict(type='str'),
-        cidr=dict(type='str'),
-        protocol=dict(type='str', choices=['tcp', 'udp', 'icmp']),
+        rules=dict(type='list', required=False, default=[]),
         project=dict(type='str', required=False),
         tenant=dict(type='str', required=True),
     )
-    required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
-    mutually_exclusive = [
-        ['from_port', 'rules'],
-        ['to_port', 'rules'],
-        ['cidr', 'rules'],
-        ['protocol', 'rules'],
-    ]
-    required_one_of = []
     module = AnsibleModule(
         argument_spec=fields,
-        required_together=required_together,
-        required_one_of=required_one_of,
-        mutually_exclusive=mutually_exclusive,
     )
 
     client = waldur_client_from_module(module)
