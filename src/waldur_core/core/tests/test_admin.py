@@ -1,5 +1,7 @@
 from django.contrib.admin.sites import AdminSite
-from django.test import TestCase
+from django.contrib.contenttypes.models import ContentType
+from django.test import TestCase, override_settings
+from reversion.models import Version
 
 from waldur_core.core.admin import UserAdmin, UserChangeForm
 from waldur_core.core.models import User
@@ -87,3 +89,42 @@ class NativeNameAdminTest(TestCase):
         customer = CustomerFactory()
         ma = CustomerAdmin(Customer, AdminSite())
         self.assertTrue('native_name' in ma.get_fields(request, customer))
+
+
+class UserReversionTest(TestCase):
+    @override_settings(
+        AUTHENTICATION_BACKENDS=('django.contrib.auth.backends.ModelBackend',)
+    )
+    def test_new_revisions_are_not_created_on_each_authentication(self):
+        staff = UserFactory(is_staff=True, is_superuser=True)
+        staff_password = User.objects.make_random_password()
+        staff.set_password(staff_password)
+        staff.save()
+        self.assertTrue(
+            self.client.login(username=staff.username, password=staff_password)
+        )
+
+        url = '/admin/core/user/add/'
+        user_password = User.objects.make_random_password()
+        self.client.post(
+            url,
+            {
+                'username': 'test',
+                'password1': user_password,
+                'password2': user_password,
+            },
+        )
+        user = User.objects.get(username='test')
+        ct = ContentType.objects.get_for_model(user)
+        self.assertEqual(
+            Version.objects.filter(object_id=user.id, content_type=ct).count(), 1
+        )
+
+        user.is_staff = True
+        user.save()
+        self.assertTrue(
+            self.client.login(username=user.username, password=user_password)
+        )
+        self.assertEqual(
+            Version.objects.filter(object_id=user.id, content_type=ct).count(), 1
+        )
