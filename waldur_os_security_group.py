@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
+from ipaddress import AddressValueError, IPv4Interface, IPv6Interface, NetmaskValueError
+
 import six
 from ansible.module_utils.basic import AnsibleModule
 
@@ -54,7 +56,9 @@ options:
   rules:
     description:
       - A list of security group rules to be applied to the security group.
-        A rule consists of 4 fields: 'to_port', 'from_port', 'protocol' and either 'cidr' or 'remote_group' (remote group name)
+        A rule consists of 5 fields: 'to_port', 'from_port', 'protocol', 'ethertype'
+         and either 'cidr' or 'remote_group' (remote group name).
+        'ethertype' parameter is optional (IPv4 by default).
   state:
     choices:
       - present
@@ -186,6 +190,43 @@ EXAMPLES = '''
         state: present
         name: group_remote_group
 
+- name: add security group with cidr ethertype
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: create security group with cidr ethertype
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: waldur-dev-infra
+        description: some descr
+        rules:
+        - from_port: 80
+          to_port: 80
+          cidr: 0.0.0.0/00
+          protocol: tcp
+          ethertype: IPv4
+        state: present
+        name: sec-group-with-ethertype
+
+- name: add security group with IPv6 cidr
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: create security group with cidr ethertype
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: waldur-dev-infra
+        description: some descr
+        rules:
+        - from_port: 80
+          to_port: 80
+          cidr: 2002::/16
+          protocol: tcp
+          ethertype: IPv6
+        state: present
+        name: sec-group-with-ethertype
 '''
 
 
@@ -202,13 +243,31 @@ def send_request_to_waldur(client, module):
                 module.fail_json(msg='A rule must contain %s parameter.' % item)
 
         if 'cidr' in rule and 'remote_group' in rule:
-            module.fail_json(msg='Either cidr or remote_group must be specified, not both.')
+            module.fail_json(
+                msg='Either cidr or remote_group must be specified, not both.')
 
         if 'remote_group' in rule:
             remote_group = client.get_security_group(tenant, rule['remote_group'])
             rule['remote_group'] = remote_group['url']
-        elif 'cidr' not in rule:
-            module.fail_json(msg='One of cidr and remote_group parameters must be specified.')
+        elif 'cidr' in rule:
+            address = rule['cidr']
+            if 'ethertype' not in rule or rule['ethertype'] == 'IPv4':
+                try:
+                    IPv4Interface(address)
+                except (AddressValueError, NetmaskValueError) as e:
+                    module.fail_json(msg='Invalid IPv4 address %s: %s' % (address, e))
+                else:
+                    rule['ethertype'] = 'IPv4'
+            elif rule['ethertype'] == 'IPv6':
+                try:
+                    IPv6Interface(address)
+                except (AddressValueError, NetmaskValueError) as e:
+                    module.fail_json(msg='Invalid IPv6 address %s: %s' % (address, e))
+            else:
+                module.fail_json(msg='Invalid ethertype: %s' % rule['ethertype'])
+        else:
+            module.fail_json(
+                msg='Either cidr or remote_group must be specified.')
 
     security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
