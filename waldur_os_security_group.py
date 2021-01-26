@@ -56,9 +56,10 @@ options:
   rules:
     description:
       - A list of security group rules to be applied to the security group.
-        A rule consists of 5 fields: 'to_port', 'from_port', 'protocol', 'ethertype'
-         and either 'cidr' or 'remote_group' (remote group name).
-        'ethertype' parameter is optional (IPv4 by default).
+        A rule consists of 5 fields: 'to_port', 'from_port', 'protocol', 'ethertype',
+        'direction' and either 'cidr' or 'remote_group' (remote group name).
+        'ethertype' (IPv4 by default) and 'direction' (ingress by default)
+        parameters are optional.
   state:
     choices:
       - present
@@ -227,6 +228,44 @@ EXAMPLES = '''
           ethertype: IPv6
         state: present
         name: sec-group-with-ethertype
+
+- name: add security group with ingress direction
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: create security group with direction
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: waldur-dev-infra
+        description: some descr
+        rules:
+        - from_port: 80
+          to_port: 80
+          cidr: 0.0.0.0/00
+          protocol: tcp
+          direction: ingress
+        state: present
+        name: sec-group-with-direction
+
+- name: add security group with egress direction
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: create security group with direction
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: waldur-dev-infra
+        description: some descr
+        rules:
+        - from_port: 80
+          to_port: 80
+          cidr: 0.0.0.0/00
+          protocol: tcp
+          direction: egress
+        state: present
+        name: sec-group-with-direction
 '''
 
 
@@ -266,8 +305,16 @@ def send_request_to_waldur(client, module):
             else:
                 module.fail_json(msg='Invalid ethertype: %s' % rule['ethertype'])
         else:
-            module.fail_json(
-                msg='Either cidr or remote_group must be specified.')
+            module.fail_json(msg='Either cidr or remote_group must be specified.')
+
+        if 'direction' not in rule:
+            rule['direction'] = 'ingress'
+        else:
+            if rule['direction'] not in ['ingress', 'egress']:
+                module.fail_json(
+                    msg='Invalid direction %s expected ingress or egress' %
+                        rule['direction']
+                )
 
     security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
