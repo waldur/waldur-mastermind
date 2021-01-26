@@ -19,7 +19,11 @@ class ResourceOwnerOrCreatorFilterBackend(DjangoFilterBackend):
             return queryset
         else:
             customers = structure_models.CustomerPermission.objects.filter(
-                user=user, role=structure_models.CustomerRole.OWNER
+                user=user,
+                role__in=[
+                    structure_models.CustomerRole.OWNER,
+                    structure_models.CustomerRole.SERVICE_MANAGER,
+                ],
             ).values_list('customer', flat=True)
 
             try:

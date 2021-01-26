@@ -1,5 +1,6 @@
 from functools import cached_property
 
+from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
@@ -173,6 +174,7 @@ class OrderItemRejectTest(test.APITransactionTestCase):
         )
 
 
+@ddt
 class ResourceGetTest(test.APITransactionTestCase):
     def setUp(self):
         super(ResourceGetTest, self).setUp()
@@ -332,3 +334,24 @@ class ResourceGetTest(test.APITransactionTestCase):
                 ]
             },
         )
+
+    @data('staff',)
+    def test_user_can_get_all_resources(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(3, len(response.data))
+
+    @data('owner', 'service_manager')
+    def test_user_can_get_only_his_resources(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    @data('admin',)
+    def test_user_cannot_get_resources(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
