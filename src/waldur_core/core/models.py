@@ -151,6 +151,7 @@ class UserDetailsMixin(models.Model):
     job_title = models.CharField(_('job title'), max_length=40, blank=True)
 
 
+@reversion.register()
 class User(
     LoggableMixin,
     UuidMixin,
@@ -337,6 +338,7 @@ def get_ssh_key_fingerprint(ssh_key):
     return ':'.join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
 
 
+@reversion.register()
 class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     """
     User public key.

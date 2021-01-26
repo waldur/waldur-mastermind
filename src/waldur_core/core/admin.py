@@ -206,7 +206,7 @@ class NativeNameAdminMixin(ExcludedFieldsAdminMixin):
         return []
 
 
-class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
+class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
     list_display = (
         'username',
         'uuid',
@@ -326,7 +326,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
     format_details.short_description = _('Details')
 
 
-class SshPublicKeyAdmin(admin.ModelAdmin):
+class SshPublicKeyAdmin(VersionAdmin):
     list_display = ('user', 'name', 'fingerprint')
     search_fields = ('user__username', 'name', 'fingerprint')
     readonly_fields = ('user', 'name', 'fingerprint', 'public_key')
