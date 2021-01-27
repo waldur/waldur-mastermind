@@ -1,7 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import permissions, status, viewsets
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
-from rest_framework.response import Response
 
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -40,7 +39,8 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
         allocation = self.get_object()
         backend = allocation.get_backend()
         users = backend.list_allocation_users(allocation)
-        return Response(data=users, status=status.HTTP_200_OK)
+        paginated_users = self.paginate_queryset(users)
+        return self.get_paginated_response(paginated_users)
 
 
 class AllocationUsageViewSet(viewsets.ReadOnlyModelViewSet):
