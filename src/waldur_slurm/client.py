@@ -144,6 +144,21 @@ class SlurmClient(BaseBatchClient):
             SlurmAssociationLine(line) for line in output.splitlines() if '|' in line
         ]
 
+    def list_account_users(self, account):
+        args = [
+            'list',
+            'associations',
+            'format=account,user',
+            'where',
+            'account=%s' % account,
+        ]
+        output = self._execute_command(args)
+        return [
+            line.split("|")[1]
+            for line in output.splitlines()
+            if '|' in line and line[-1] != '|'
+        ]
+
     def _execute_command(self, command, command_name='sacctmgr', immediate=True):
         account_command = [command_name, '--parsable2', '--noheader']
         if immediate:

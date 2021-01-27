@@ -1,3 +1,5 @@
+from unittest import mock
+
 from ddt import data, ddt
 from django.conf import settings as django_settings
 from rest_framework import status, test
@@ -41,6 +43,16 @@ class AllocationGetTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url)
         self.assertEqual(response.data['gateway'], '4.4.4.4')
+
+    @mock.patch('waldur_slurm.backend.SlurmBackend.list_allocation_users')
+    def test_get_allocation_users(self, list_allocation_users):
+        expected_result = ['user%s' % item for item in range(3)]
+        list_allocation_users.return_value = expected_result
+        url = factories.AllocationFactory.get_url(self.fixture.allocation, 'get_users')
+        self.client.force_login(self.fixture.admin)
+        response = self.client.get(url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(response.data, expected_result)
 
 
 @ddt

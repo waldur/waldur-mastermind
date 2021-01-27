@@ -27,6 +27,13 @@ allocation1|cpu=400,mem=100M,gres/gpu=120
 allocation1|
 """
 
+VALID_USERS = """
+allocation1|
+allocation1|user1
+allocation1|user2
+allocation1|user3
+"""
+
 
 class BackendTest(TestCase):
     def setUp(self):
@@ -200,3 +207,11 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.cpu_limit, cpu_limit_old)
             self.assertEqual(self.allocation.gpu_limit, gpu_limit_old)
             self.assertEqual(self.allocation.ram_limit, ram_limit_old)
+
+    @mock.patch('subprocess.check_output')
+    def test_get_allocation_users(self, check_output):
+        check_output.return_value = VALID_USERS.replace('allocation1', self.account)
+
+        backend = self.allocation.get_backend()
+        users = backend.list_allocation_users(self.allocation)
+        self.assertEqual(3, len(users))

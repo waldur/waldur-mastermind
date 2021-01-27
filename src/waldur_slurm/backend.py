@@ -296,3 +296,6 @@ class SlurmBackend(ServiceBackend):
             or object_or_uuid.uuid.hex
         )
         return '%s%s' % (prefix, key)
+
+    def list_allocation_users(self, allocation):
+        return self.client.list_account_users(allocation.backend_id)

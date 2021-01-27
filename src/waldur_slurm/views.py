@@ -1,5 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import permissions, viewsets
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -32,6 +34,13 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
 
     partial_update_permissions = update_permissions = [structure_permissions.is_owner]
     update_executor = executors.AllocationUpdateExecutor
+
+    @action(detail=True, methods=['get'])
+    def get_users(self, request, uuid=None):
+        allocation = self.get_object()
+        backend = allocation.get_backend()
+        users = backend.list_allocation_users(allocation)
+        return Response(data=users, status=status.HTTP_200_OK)
 
 
 class AllocationUsageViewSet(viewsets.ReadOnlyModelViewSet):
