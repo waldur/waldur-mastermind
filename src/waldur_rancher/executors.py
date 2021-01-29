@@ -18,12 +18,14 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         ]
         _tasks += cls.create_nodes(instance.node_set.all(), user)
         _tasks += [
-            core_tasks.PollRuntimeStateTask().si(
+            core_tasks.PollRuntimeStateTask()
+            .si(
                 serialized_instance,
                 backend_pull_method='check_cluster_nodes',
                 success_state=models.Cluster.RuntimeStates.ACTIVE,
                 erred_state='error',
             )
+            .set(countdown=120)
         ]
         _tasks += [
             # NB: countdown is needed for synchronization: wait until cluster will get ready for usage
