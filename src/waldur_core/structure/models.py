@@ -1213,11 +1213,7 @@ class ResourceMixin(
     @classmethod
     @lru_cache(maxsize=1)
     def get_all_models(cls):
-        return [
-            model
-            for model in apps.get_models()
-            if issubclass(model, cls) and not issubclass(model, SubResource)
-        ]
+        return [model for model in apps.get_models() if issubclass(model, cls)]
 
     @classmethod
     def get_url_name(cls):
