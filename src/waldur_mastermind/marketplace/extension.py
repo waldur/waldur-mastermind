@@ -16,11 +16,11 @@ class MarketplaceExtension(WaldurExtension):
             'NOTIFY_ABOUT_RESOURCE_CHANGE': True,
             'DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE': True,
             'OWNER_CAN_REGISTER_SERVICE_PROVIDER': False,
-            'ORDER_LINK_TEMPLATE': 'https://www.example.com/#/projects/'
+            'ORDER_LINK_TEMPLATE': 'https://www.example.com/projects/'
             '{project_uuid}/marketplace-order-list/',
-            'ORDER_ITEM_LINK_TEMPLATE': 'https://www.example.com/#/projects/{project_uuid}/'
+            'ORDER_ITEM_LINK_TEMPLATE': 'https://www.example.com/projects/{project_uuid}/'
             'marketplace-order-item-details/{order_item_uuid}/',
-            'PUBLIC_RESOURCES_LINK_TEMPLATE': 'https://www.example.com/#/organizations/{organization_uuid}/'
+            'PUBLIC_RESOURCES_LINK_TEMPLATE': 'https://www.example.com/organizations/{organization_uuid}/'
             'marketplace-public-resources/',
             'PLAN_TEMPLATE': 'Plan: {{ plan.name }}'
             '{% for component in components %}\n'
@@ -28,7 +28,7 @@ class MarketplaceExtension(WaldurExtension):
             'amount: {{component.amount}}; '
             'price: {{component.price|floatformat }};'
             '{% endfor %}',
-            'OFFERING_LINK_TEMPLATE': 'https://www.example.com/#/marketplace-offering-public/{offering_uuid}/',
+            'OFFERING_LINK_TEMPLATE': 'https://www.example.com/marketplace-offering-public/{offering_uuid}/',
         }
 
     @staticmethod
