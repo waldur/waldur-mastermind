@@ -963,6 +963,7 @@ class Resource(
     core_mixins.ScopeMixin,
     structure_models.StructureLoggableMixin,
     core_models.NameMixin,
+    core_models.DescribableMixin,
 ):
     """
     Core resource is abstract model, marketplace resource is not abstract,
@@ -1003,7 +1004,9 @@ class Resource(
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
     attributes = BetterJSONField(blank=True, default=dict)
+    backend_id = models.CharField(max_length=255, blank=True)
     backend_metadata = BetterJSONField(blank=True, default=dict)
+    report = BetterJSONField(blank=True, null=True)
     current_usages = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
@@ -1045,11 +1048,6 @@ class Resource(
     def backend_type(self):
         if self.scope:
             return self.scope.get_scope_type()
-
-    @property
-    def backend_id(self):
-        if self.scope:
-            return self.scope.backend_id
 
     def init_quotas(self):
         if self.limits:

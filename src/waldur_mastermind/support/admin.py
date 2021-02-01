@@ -8,10 +8,9 @@ from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core.admin import JsonWidget
 from waldur_core.structure import admin as structure_admin
 
-from . import backend, executors, models
+from . import backend, models
 from .backend.basic import BasicBackend
 
 User = get_user_model()
@@ -39,63 +38,6 @@ class SupportUserAdmin(admin.ModelAdmin):
 class SupportCustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'backend_id')
     search_fields = ('user__full_name', 'user__email')
-
-
-class OfferingAdminForm(forms.ModelForm):
-    class Meta:
-        widgets = {
-            'report': JsonWidget(),
-        }
-
-
-class OfferingAdmin(admin.ModelAdmin):
-    list_display = (
-        'template',
-        'name',
-        'project',
-        'unit_price',
-        'unit',
-        'state',
-        'created',
-        'modified',
-        'issue_key',
-    )
-    search_fields = ('name', 'template__name', 'issue__key')
-    fields = (
-        'name',
-        'unit_price',
-        'unit',
-        'template',
-        'issue',
-        'project',
-        'state',
-        'product_code',
-        'article_code',
-        'report',
-        'backend_id',
-    )
-    form = OfferingAdminForm
-    actions = ('create_issue',)
-
-    class CreateIssueAction(core_admin.ExecutorAdminAction):
-        executor = executors.OfferingIssueCreateExecutor
-        short_description = _('Create issue')
-
-    create_issue = CreateIssueAction()
-
-    def issue_key(self, offering):
-        return offering.issue and offering.issue.key or 'N/A'
-
-
-class OfferingTemplateAdminForm(forms.ModelForm):
-    class Meta:
-        widgets = {
-            'config': JsonWidget(),
-        }
-
-
-class OfferingTemplateAdmin(admin.ModelAdmin):
-    form = OfferingTemplateAdminForm
 
 
 class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendModelAdmin):
@@ -208,15 +150,12 @@ class FeedbackAdmin(admin.ModelAdmin):
     search_fields = ('issue__key', 'issue__summary')
 
 
-admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, CommentAdmin)
 admin.site.register(models.Attachment)
 admin.site.register(models.SupportUser, SupportUserAdmin)
 admin.site.register(models.SupportCustomer, SupportCustomerAdmin)
 admin.site.register(models.Template, TemplateAdmin)
-admin.site.register(models.OfferingTemplate, OfferingTemplateAdmin)
-admin.site.register(models.OfferingPlan)
 admin.site.register(models.TemplateStatusNotification)
 admin.site.register(models.IgnoredIssueStatus)
 admin.site.register(models.RequestType, RequestTypeAdmin)

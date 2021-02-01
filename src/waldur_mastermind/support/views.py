@@ -2,7 +2,6 @@ import logging
 
 from django.db import transaction
 from django.db.models import Avg, Count, Q
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators
@@ -11,17 +10,11 @@ from rest_framework import permissions, response, status, views, viewsets
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
-from waldur_core.core import utils as core_utils
-from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import metadata as structure_metadata
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import views as structure_views
 
-from . import backend, exceptions, executors, filters, models, serializers, tasks
-from .log import event_logger
+from . import backend, exceptions, executors, filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +37,6 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     def is_staff_or_support(request, view, obj=None):
         if not request.user.is_staff and not request.user.is_support:
             raise rf_exceptions.PermissionDenied()
-
-    def check_related_resources(request, view, obj=None):
-        if obj and obj.offering_set.exists():
-            raise rf_exceptions.ValidationError(
-                _('Issue has offering. Please remove it first.')
-            )
 
     def can_create_user(request, view, obj=None):
         if not request.user.email:
@@ -91,7 +78,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         backend.get_active_backend().delete_issue(issue)
         issue.delete()
 
-    destroy_permissions = [is_staff_or_support, check_related_resources]
+    destroy_permissions = [is_staff_or_support]
 
     def _comment_permission(request, view, obj=None):
         user = request.user
@@ -200,114 +187,6 @@ class WebHookReceiverView(CheckExtensionMixin, views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
-class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
-    queryset = models.Offering.objects.all()
-    serializer_class = serializers.OfferingSerializer
-    lookup_field = 'uuid'
-    metadata_class = structure_metadata.ActionsMetadata
-    filter_backends = (
-        structure_filters.GenericRoleFilter,
-        DjangoFilterBackend,
-    )
-    filterset_class = filters.OfferingFilter
-
-    @decorators.action(detail=False)
-    def configured(self, request):
-        summary_config = {}
-        for template in models.OfferingTemplate.objects.all():
-            summary_config[template.name] = template.config
-        return response.Response(summary_config, status=status.HTTP_200_OK)
-
-    @transaction.atomic()
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        offering = serializer.save()
-        serialized_issue = core_utils.serialize_instance(offering.issue)
-        task = tasks.create_issue.s(serialized_issue)
-        transaction.on_commit(lambda: task.apply_async(countdown=2))
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    create_serializer_class = serializers.OfferingCreateSerializer
-    create_permissions = [
-        structure_permissions.is_owner,
-        structure_permissions.is_manager,
-        structure_permissions.is_administrator,
-    ]
-
-    def offering_is_in_requested_state(offering):
-        if offering.state != models.Offering.States.REQUESTED:
-            raise rf_exceptions.ValidationError(
-                _('Offering must be in requested state.')
-            )
-
-    @decorators.action(detail=True, methods=['post'])
-    def complete(self, request, uuid=None):
-        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return response.Response(
-            {'status': _('Offering is marked as completed.')}, status=status.HTTP_200_OK
-        )
-
-    complete_validators = [offering_is_in_requested_state]
-    complete_permissions = [structure_permissions.is_staff]
-    complete_serializer_class = serializers.OfferingCompleteSerializer
-
-    @decorators.action(detail=True, methods=['post'])
-    def terminate(self, request, uuid=None):
-        offering = self.get_object()
-        offering.state = models.Offering.States.TERMINATED
-        offering.terminated_at = timezone.now()
-        offering.save()
-        return response.Response(
-            {'status': _('Offering is marked as terminated.')},
-            status=status.HTTP_200_OK,
-        )
-
-    terminate_permissions = [structure_permissions.is_staff]
-
-    update_permissions = partial_update_permissions = [structure_permissions.is_staff]
-
-    destroy_permissions = [structure_permissions.is_staff]
-    destroy_validators = [
-        core_validators.StateValidator(models.Offering.States.TERMINATED)
-    ]
-
-    @decorators.action(detail=True, methods=['post'])
-    def set_backend_id(self, request, uuid=None):
-        offering = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        new_backend_id = serializer.validated_data['backend_id']
-        old_backend_id = offering.backend_id
-        offering.backend_id = serializer.validated_data['backend_id']
-        offering.save()
-        logger.info(
-            '%s has changed backend_id from %s to %s',
-            request.user.full_name,
-            old_backend_id,
-            new_backend_id,
-        )
-        event_logger.waldur_offering_backend_id.info(
-            '{full_name} has changed backend_id from {old_backend_id} to {new_backend_id}',
-            event_type='offering_backend_id_changed',
-            event_context={
-                'old_backend_id': old_backend_id,
-                'new_backend_id': new_backend_id,
-                'full_name': request.user.full_name,
-            },
-        )
-
-        return response.Response(
-            {'status': _('Offering backend_id has been changed.')},
-            status=status.HTTP_200_OK,
-        )
-
-    set_backend_id_permissions = [structure_permissions.is_staff]
-    set_backend_id_serializer_class = serializers.OfferingSetBackendIDSerializer
-
-
 class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Attachment.objects.all()
     filterset_class = filters.AttachmentFilter
@@ -336,20 +215,6 @@ class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.Template.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.TemplateSerializer
-
-
-class OfferingTemplateViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = (permissions.IsAuthenticated,)
-    queryset = models.OfferingTemplate.objects.all()
-    lookup_field = 'uuid'
-    serializer_class = serializers.OfferingTemplateSerializer
-
-
-class OfferingPlanViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = (permissions.IsAuthenticated,)
-    queryset = models.OfferingPlan.objects.all()
-    lookup_field = 'uuid'
-    serializer_class = serializers.OfferingPlanSerializer
 
 
 class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
@@ -386,11 +251,3 @@ class FeedbackAverageReportViewSet(views.APIView):
         else:
             result = None
         return response.Response(result, status=status.HTTP_200_OK)
-
-
-def get_offerings_count(scope):
-    return scope.quotas.get(name='nc_offering_count').usage
-
-
-structure_views.CustomerCountersView.register_counter('offerings', get_offerings_count)
-structure_views.ProjectCountersView.register_counter('offerings', get_offerings_count)

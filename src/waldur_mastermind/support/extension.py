@@ -111,9 +111,3 @@ class SupportExtension(WaldurExtension):
                 'args': (),
             },
         }
-
-    @staticmethod
-    def get_cleanup_executor():
-        from waldur_mastermind.support.executors import SupportCleanupExecutor
-
-        return SupportCleanupExecutor

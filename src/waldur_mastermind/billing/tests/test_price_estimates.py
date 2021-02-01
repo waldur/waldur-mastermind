@@ -18,7 +18,6 @@ from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import utils as packages_utils
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
-from waldur_mastermind.support import models as support_models
 
 
 class PriceEstimateSignalsTest(test.APITransactionTestCase):
@@ -160,9 +159,9 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
     @data('project', 'customer')
     def test_when_offering_is_created_total_is_updated(self, scope):
         fixture = marketplace_support_fixtures.MarketplaceSupportApprovedFixture()
-        offering = fixture.offering
-        offering.state = support_models.Offering.States.OK
-        offering.save()
+        resource = fixture.resource
+        resource.set_state_ok()
+        resource.save()
         estimate = models.PriceEstimate.objects.get(scope=getattr(fixture, scope))
         self.assertEqual(estimate.total, fixture.plan_component.price)
 
@@ -196,8 +195,8 @@ class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
         plan_component = self.fixture.plan_component
         plan_component.price = cost
         plan_component.save()
-        self.fixture.offering.state = support_models.Offering.States.OK
-        self.fixture.offering.save()
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.save()
 
 
 @ddt

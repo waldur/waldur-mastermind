@@ -1,6 +1,5 @@
 import factory
 from django.urls import reverse
-from factory import fuzzy
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -65,104 +64,6 @@ class CommentFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-comment-list')
-
-
-class OfferingTemplateFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OfferingTemplate
-
-    name = factory.Sequence(lambda n: 'template-%s' % n)
-    config = {
-        'label': 'Custom VPC',
-        'order': ['storage', 'ram', 'cpu_count'],
-        'icon': 'fa-gear',
-        'category': 'Custom requests',
-        'description': 'Custom VPC example.',
-        'options': {
-            'storage': {
-                'type': 'integer',
-                'label': 'Max storage, GB',
-                'required': True,
-                'help_text': 'VPC storage limit in GB.',
-            },
-            'ram': {
-                'type': 'integer',
-                'label': 'Max RAM, GB',
-                'required': True,
-                'help_text': 'VPC RAM limit in GB.',
-            },
-            'cpu_count': {
-                'type': 'integer',
-                'label': 'Max vCPU',
-                'required': True,
-                'help_text': 'VPC CPU count limit.',
-            },
-        },
-    }
-
-    @classmethod
-    def get_url(cls, offering_template=None, action=None):
-        if offering_template is None:
-            offering_template = OfferingTemplateFactory()
-        url = 'http://testserver' + reverse(
-            'support-offering-template-detail',
-            kwargs={'uuid': offering_template.uuid.hex},
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('support-offering-template-list')
-
-
-class OfferingPlanFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OfferingPlan
-
-    name = factory.Sequence(lambda n: 'plan-%s' % n)
-    template = factory.SubFactory(OfferingTemplateFactory)
-    unit_price = fuzzy.FuzzyInteger(1, 10)
-
-    @classmethod
-    def get_url(cls, plan=None, action=None):
-        if plan is None:
-            plan = OfferingPlanFactory()
-        url = 'http://testserver' + reverse(
-            'support-offering-plan-detail', kwargs={'uuid': plan.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('support-offering-plan-list')
-
-
-class OfferingFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.Offering
-
-    issue = factory.SubFactory(IssueFactory)
-    unit_price = fuzzy.FuzzyInteger(1, 10)
-    project = factory.SelfAttribute('issue.project')
-    template = factory.SubFactory(OfferingTemplateFactory)
-
-    @classmethod
-    def get_url(cls, offering=None, action=None):
-        if offering is None:
-            offering = OfferingFactory()
-        url = 'http://testserver' + reverse(
-            'support-offering-detail', kwargs={'uuid': offering.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('support-offering-list')
-
-    @classmethod
-    def get_list_action_url(cls, action=None):
-        url = 'http://testserver' + reverse('support-offering-list')
-        return url if action is None else url + action + '/'
 
 
 class AttachmentFactory(factory.DjangoModelFactory):

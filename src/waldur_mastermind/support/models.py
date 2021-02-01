@@ -4,20 +4,17 @@ import re
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
-from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core.validators import validate_name, validate_template_syntax
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.common import mixins as common_mixins
 
-from . import backend, managers
+from . import managers
 
 logger = logging.getLogger(__name__)
 
@@ -292,129 +289,6 @@ class Comment(
 
     def __str__(self):
         return self.description[:50]
-
-
-class Offering(
-    core_models.UuidMixin,
-    core_models.NameMixin,
-    common_mixins.ProductCodeMixin,
-    common_mixins.UnitPriceMixin,
-    structure_models.StructureLoggableMixin,
-    TimeStampedModel,
-):
-    class Meta:
-        ordering = ['-created']
-        verbose_name = _('Request')
-        verbose_name_plural = _('Requests')
-
-    class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
-
-    class States:
-        REQUESTED = 'requested'
-        OK = 'ok'
-        TERMINATED = 'terminated'
-
-        CHOICES = (
-            (REQUESTED, _('Requested')),
-            (OK, _('OK')),
-            (TERMINATED, _('Terminated')),
-        )
-
-    template = models.ForeignKey('OfferingTemplate', on_delete=models.PROTECT)
-    plan = models.ForeignKey(
-        'OfferingPlan', blank=True, null=True, on_delete=models.PROTECT
-    )
-    issue = models.ForeignKey(Issue, null=True, on_delete=models.PROTECT)
-    project = models.ForeignKey(
-        structure_models.Project, null=True, on_delete=models.PROTECT
-    )
-    state = models.CharField(
-        default=States.REQUESTED, max_length=30, choices=States.CHOICES
-    )
-    report = core_fields.JSONField(blank=True)
-    terminated_at = models.DateTimeField(editable=False, blank=True, null=True)
-
-    # For storing unique reference to the resource provided through request-based item.
-    # E.g. ecs s3 namespace name.
-    backend_id = models.CharField(max_length=255, blank=True)
-
-    tracker = FieldTracker()
-
-    def get_backend(self):
-        backend.get_active_backend()
-
-    def get_log_fields(self):
-        return super(Offering, self).get_log_fields() + ('state',)
-
-    def terminate(self):
-        self.state = Offering.States.TERMINATED
-        self.save()
-
-    def set_ok(self):
-        self.state = Offering.States.OK
-        self.save()
-
-    @property
-    def type(self):
-        return self.template.name
-
-    @property
-    def type_label(self):
-        return self.template.config.get('label', None)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'support-offering'
-
-    def __str__(self):
-        return '{}: {}'.format(self.type_label or self.name, self.state)
-
-    @classmethod
-    def get_scope_type(cls):
-        return 'Support.Offering'
-
-    def _get_log_context(self, entity_name):
-        context = super(Offering, self)._get_log_context(entity_name)
-        context['resource_type'] = self.get_scope_type()
-        context['resource_uuid'] = self.uuid.hex
-        return context
-
-    @property
-    def config(self):
-        return self.template.config if self.template else {}
-
-
-class OfferingTemplate(core_models.UuidMixin, TimeStampedModel):
-    name = models.CharField(_('name'), max_length=150)
-    config = BetterJSONField()
-    sort_order = models.PositiveSmallIntegerField(default=1)
-
-    class Meta:
-        ordering = ['sort_order', 'name']
-
-    @classmethod
-    def get_url_name(cls):
-        return 'support-offering-template'
-
-    def __str__(self):
-        return self.name
-
-
-class OfferingPlan(
-    core_models.UuidMixin,
-    core_models.NameMixin,
-    core_models.DescribableMixin,
-    common_mixins.ProductCodeMixin,
-    common_mixins.UnitPriceMixin,
-):
-    template = models.ForeignKey(
-        on_delete=models.CASCADE, to=OfferingTemplate, related_name='plans'
-    )
-
-    def __str__(self):
-        return '{} | {}'.format(self.template, self.name)
 
 
 class Attachment(

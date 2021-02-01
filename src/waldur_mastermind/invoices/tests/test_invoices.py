@@ -21,11 +21,12 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.marketplace_support.tests.fixtures import (
+    MarketplaceSupportApprovedFixture,
+)
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
-from waldur_mastermind.support.tests import factories as support_factories
-from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
@@ -236,10 +237,10 @@ class InvoiceItemTest(test.APITransactionTestCase):
         self.check_output()
 
     def test_scope_type_is_rendered_for_support_request(self):
-        fixture = support_fixtures.SupportFixture()
+        fixture = MarketplaceSupportApprovedFixture()
         invoice = factories.InvoiceFactory(customer=fixture.customer)
         models.InvoiceItem.objects.create(
-            scope=fixture.offering,
+            scope=fixture.resource,
             invoice=invoice,
             unit=models.InvoiceItem.Units.QUANTITY,
             quantity=10,
@@ -250,7 +251,7 @@ class InvoiceItemTest(test.APITransactionTestCase):
         self.client.force_authenticate(fixture.owner)
         response = self.client.get(url)
         item = response.data['items'][0]
-        self.assertEqual(item['scope_type'], 'Support.Offering')
+        self.assertEqual(item['scope_type'], 'Marketplace.Resource')
 
     def test_invoice_item_measured_unit(self):
         item = factories.InvoiceItemFactory(
@@ -344,10 +345,6 @@ class InvoiceStatsTest(test.APITransactionTestCase):
 
         self.customer = self.resource_1.project.customer
 
-        self.support_template = support_factories.OfferingTemplateFactory()
-        self.support_plan = support_factories.OfferingPlanFactory(
-            template=self.support_template, unit_price=7,
-        )
         self.marketplace_support_offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME, customer=self.provider.customer,
         )

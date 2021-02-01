@@ -46,7 +46,6 @@ from waldur_mastermind.marketplace.permissions import (
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import validate_attributes
-from waldur_mastermind.support import serializers as support_serializers
 from waldur_pid import models as pid_models
 
 from . import log, models, permissions, plugins, tasks, utils
@@ -756,7 +755,7 @@ class OfferingDetailsSerializer(
             return 0
 
     def get_quotas(self, offering):
-        if offering.scope and hasattr(offering.scope, 'quotas'):
+        if getattr(offering, 'scope', None) and hasattr(offering.scope, 'quotas'):
             return BasicQuotaSerializer(
                 offering.scope.quotas, many=True, context=self.context
             ).data
@@ -1764,7 +1763,9 @@ class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
         fields = BaseItemSerializer.Meta.fields + (
+            'url',
             'scope',
+            'description',
             'state',
             'resource_uuid',
             'backend_id',
@@ -1782,8 +1783,20 @@ class ResourceSerializer(BaseItemSerializer):
             'name',
             'current_usages',
             'can_terminate',
+            'report',
         )
-        read_only_fields = ('backend_metadata', 'scope', 'current_usages', 'backend_id')
+        read_only_fields = (
+            'backend_metadata',
+            'scope',
+            'current_usages',
+            'backend_id',
+            'report',
+            'description',
+        )
+        view_name = 'marketplace-resource-detail'
+        extra_kwargs = dict(
+            **BaseItemSerializer.Meta.extra_kwargs, url={'lookup_field': 'uuid'}
+        )
 
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = core_serializers.GenericRelatedField()
@@ -1802,6 +1815,7 @@ class ResourceSerializer(BaseItemSerializer):
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
     can_terminate = serializers.SerializerMethodField()
+    report = serializers.JSONField(read_only=True)
 
     def get_can_terminate(self, resource):
         view = self.context['view']
@@ -1857,6 +1871,12 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         return attrs
 
 
+class ResourceUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ('name', 'description')
+
+
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
@@ -1865,6 +1885,29 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     limits = serializers.DictField(
         child=serializers.IntegerField(min_value=0), required=True
     )
+
+
+class ResourceBackendIDSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ('backend_id',)
+
+
+class ReportSectionSerializer(serializers.Serializer):
+    header = serializers.CharField()
+    body = serializers.CharField()
+
+
+class ResourceReportSerializer(serializers.Serializer):
+    report = ReportSectionSerializer(many=True)
+
+    def validate_report(self, report):
+        if len(report) == 0:
+            raise serializers.ValidationError(
+                'Report object should contain at least one section.'
+            )
+
+        return report
 
 
 class ResourceOfferingSerializer(serializers.ModelSerializer):
@@ -2192,9 +2235,4 @@ class MoveResourceSerializer(serializers.Serializer):
 
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer, receiver=add_service_provider,
-)
-
-core_signals.pre_serializer_fields.connect(
-    sender=support_serializers.OfferingSerializer,
-    receiver=utils.add_marketplace_offering,
 )
