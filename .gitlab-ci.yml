@@ -82,6 +82,10 @@ Run unit tests:
         git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
       fi
     - gitlab-ci-test/waldur-test
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
   parallel: 10
 
 Build docker image for tests:
