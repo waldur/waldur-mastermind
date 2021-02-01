@@ -794,12 +794,16 @@ class CartItemViewSet(core_views.ActionsViewSet):
     submit_serializer_class = serializers.CartSubmitSerializer
 
 
-class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
+class ResourceViewSet(core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
     filterset_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
+    disabled_actions = ['create', 'destroy']
+    update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.ResourceUpdateSerializer
 
     def get_queryset(self):
         """
@@ -948,6 +952,43 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     move_resource_serializer_class = serializers.MoveResourceSerializer
     move_resource_permissions = [structure_permissions.is_staff]
+
+    @action(detail=True, methods=['post'])
+    def set_backend_id(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_backend_id = serializer.validated_data['backend_id']
+        old_backend_id = resource.backend_id
+        resource.backend_id = serializer.validated_data['backend_id']
+        resource.save()
+        logger.info(
+            '%s has changed backend_id from %s to %s',
+            request.user.full_name,
+            old_backend_id,
+            new_backend_id,
+        )
+
+        return Response(
+            {'status': _('Resource backend_id has been changed.')},
+            status=status.HTTP_200_OK,
+        )
+
+    set_backend_id_permissions = [structure_permissions.is_staff]
+    set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
+
+    @action(detail=True, methods=['post'])
+    def submit_report(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource.report = serializer.validated_data['report']
+        resource.save(update_fields=['report'])
+
+        return Response(status=status.HTTP_200_OK)
+
+    submit_report_permissions = [structure_permissions.is_staff]
+    submit_report_serializer_class = serializers.ResourceReportSerializer
 
 
 class ProjectChoicesViewSet(ListAPIView):

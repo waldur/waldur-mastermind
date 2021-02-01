@@ -2,7 +2,6 @@ import json
 
 import django_filters
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,7 +13,6 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace.plugins import manager
 from waldur_pid import models as pid_models
 
 from . import models
@@ -290,7 +288,7 @@ class ResourceFilter(
     service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
-    backend_id = django_filters.CharFilter(method='filter_backend_id')
+    backend_id = django_filters.CharFilter()
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[
             (representation, representation)
@@ -316,25 +314,6 @@ class ResourceFilter(
                 | Q(backend_metadata__external_ips__icontains=value)
                 | Q(backend_metadata__internal_ips__icontains=value)
             )
-
-    def filter_backend_id(self, queryset, name, value):
-        resource_models = [
-            b['resource_model']
-            for b in manager.backends.values()
-            if 'resource_model' in b.keys()
-        ]
-        for resource_model in resource_models:
-            resources_ids = resource_model.objects.filter(backend_id=value).values_list(
-                'id', flat=True
-            )
-
-            if not resources_ids:
-                continue
-
-            ct = ContentType.objects.get_for_model(resource_model)
-            return queryset.filter(content_type=ct, object_id__in=resources_ids)
-
-        return queryset.none()
 
     def filter_service_manager(self, queryset, name, value):
         return queryset.filter(

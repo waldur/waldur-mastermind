@@ -294,7 +294,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             if not self.scope:
                 return ''
 
-            if hasattr(self.scope, 'content_type'):
+            if getattr(self.scope, 'content_type', None):
                 meta = self.scope.content_type.model_class()._meta
             else:
                 meta = self.scope._meta
@@ -678,4 +678,4 @@ def adjust_invoice_items(invoice, source, start, unit_price, unit):
 
 
 reversion.register(InvoiceItem)
-reversion.register(Invoice, follow=('generic_items',))
+reversion.register(Invoice, follow=('items',))

@@ -274,7 +274,14 @@ def connect_resource_handlers(*resources):
 
 
 def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
-    fields = {'action', 'action_details', 'state', 'runtime_state', 'name'}
+    fields = {
+        'action',
+        'action_details',
+        'state',
+        'runtime_state',
+        'name',
+        'backend_id',
+    }
     if not created and not set(instance.tracker.changed()) & fields:
         return
 
@@ -420,7 +427,7 @@ def drop_offering_permissions_if_service_manager_role_is_revoked(
 
 
 def disable_empty_service_settings(offering):
-    service_settings = offering.scope
+    service_settings = getattr(offering, 'scope', None)
     if not service_settings:
         return
 
@@ -437,7 +444,7 @@ def disable_empty_service_settings(offering):
 
 
 def enable_nonempty_service_settings(offering):
-    service_settings = offering.scope
+    service_settings = getattr(offering, 'scope', None)
     if not service_settings:
         return
 

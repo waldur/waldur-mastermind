@@ -139,60 +139,6 @@ class SupportUserFilter(django_filters.FilterSet):
         fields = ('name', 'user', 'backend_id')
 
 
-class OfferingFilter(django_filters.FilterSet):
-    uuid = django_filters.UUIDFilter(field_name='uuid')
-    name = django_filters.CharFilter(lookup_expr='icontains')
-    description = django_filters.CharFilter(lookup_expr='icontains')
-    type = django_filters.ModelMultipleChoiceFilter(
-        queryset=models.OfferingTemplate.objects.all(),
-        to_field_name='name',
-        method='offering_template_filter',
-    )
-    template = django_filters.ModelMultipleChoiceFilter(
-        queryset=models.OfferingTemplate.objects.all(),
-    )
-    issue = core_filters.URLFilter(
-        view_name='support-issue-detail', field_name='issue__uuid'
-    )
-    issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
-    issue_key = django_filters.CharFilter(field_name='issue__key')
-    backend_id = django_filters.CharFilter(field_name='backend_id')
-    project = core_filters.URLFilter(
-        view_name='project-detail', field_name='project__uuid'
-    )
-    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
-    state = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Offering.States.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Offering.States.CHOICES
-        },
-    )
-
-    o = django_filters.OrderingFilter(fields=('created', 'modified', 'state'))
-
-    def offering_template_filter(self, queryset, name, value):
-        if value:
-            return queryset.filter(template__in=value)
-        return queryset
-
-    class Meta:
-        model = models.Offering
-        fields = (
-            'name',
-            'description',
-            'template',
-            'issue',
-            'issue_uuid',
-            'project',
-            'project_uuid',
-            'state',
-        )
-
-
 class AttachmentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(
         view_name='support-issue-detail', field_name='issue__uuid'

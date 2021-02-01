@@ -256,7 +256,7 @@ def create_recurring_usage_if_invoice_has_been_created(
         resource__project__customer=invoice.customer,
         recurring=True,
         billing_period__gte=prev_month_start,
-    )
+    ).exclude(resource__state=marketplace_models.Resource.States.TERMINATED)
 
     if not usages:
         return

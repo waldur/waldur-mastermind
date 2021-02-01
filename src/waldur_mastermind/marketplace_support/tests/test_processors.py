@@ -6,7 +6,6 @@ from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
-from django.core.exceptions import ObjectDoesNotExist
 from django.template import Context, Template
 from django.test import override_settings
 from freezegun import freeze_time
@@ -21,8 +20,8 @@ from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.marketplace_support.utils import get_order_item_issue
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.log import IssueEventLogger
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
@@ -45,10 +44,9 @@ class RequestCreateTest(BaseTest):
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         self.assertTrue(
-            support_models.Offering.objects.filter(name='item_name').exists()
+            marketplace_models.Resource.objects.filter(name='item_name').exists()
         )
-        support_offering = support_models.Offering.objects.get(name='item_name')
-        resource = marketplace_models.Resource.objects.get(scope=support_offering)
+        resource = marketplace_models.Resource.objects.get(name='item_name')
         order_item = marketplace_models.OrderItem.objects.get(resource=resource)
         self.assertTrue(
             support_models.Issue.objects.filter(
@@ -71,65 +69,6 @@ class RequestCreateTest(BaseTest):
         self.client.force_login(self.user)
         response = self.client.post(url)
         self.assertTrue(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_order_item_set_state_done_if_offering_set_state_ok(self):
-        fixture = fixtures.ProjectFixture()
-        offering = support_factories.OfferingFactory()
-        resource = marketplace_factories.ResourceFactory(
-            project=fixture.project, scope=offering
-        )
-
-        order_item = marketplace_factories.OrderItemFactory(resource=resource)
-        order_item.set_state_executing()
-        order_item.save()
-
-        order_item.order.state = marketplace_models.Order.States.EXECUTING
-        order_item.order.save()
-
-        offering.state = support_models.Offering.States.OK
-        offering.save()
-
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.state, order_item.States.DONE)
-
-        order_item.resource.refresh_from_db()
-        self.assertEqual(
-            order_item.resource.state, marketplace_models.Resource.States.OK
-        )
-
-        order_item.order.refresh_from_db()
-        self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
-
-    def test_order_item_set_state_terminated_if_offering_terminated(self):
-        fixture = fixtures.ProjectFixture()
-        offering = support_factories.OfferingFactory()
-        issue = offering.issue
-        issue.state = issue.States.OK
-        issue.save()
-        resource = marketplace_factories.ResourceFactory(
-            project=fixture.project, scope=offering
-        )
-
-        order_item = marketplace_factories.OrderItemFactory(resource=resource)
-        order_item.set_state_executing()
-        order_item.save()
-
-        order_item.order.state = marketplace_models.Order.States.EXECUTING
-        order_item.order.save()
-
-        offering.state = support_models.Offering.States.TERMINATED
-        offering.save()
-
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.state, order_item.States.TERMINATED)
-
-        order_item.resource.refresh_from_db()
-        self.assertEqual(
-            order_item.resource.state, marketplace_models.Resource.States.TERMINATED
-        )
-
-        order_item.order.refresh_from_db()
-        self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
 
     def submit_order_item(self):
         fixture = fixtures.ProjectFixture()
@@ -156,40 +95,38 @@ class RequestCreateTest(BaseTest):
     def test_add_backlink_to_order_item_details_into_created_service_desk_ticket(self):
         order_item = self.submit_order_item()
         self.assertTrue(
-            support_models.Offering.objects.filter(name='item_name').exists()
+            marketplace_models.Resource.objects.filter(name='item_name').exists()
         )
-        offering = support_models.Offering.objects.get(name='item_name')
+        issue = get_order_item_issue(order_item)
         link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
         order_item_url = link_template.format(
             order_item_uuid=order_item.uuid.hex,
             project_uuid=order_item.order.project.uuid,
         )
-        self.assertTrue(order_item_url in offering.issue.description)
+        self.assertTrue(order_item_url in issue.description)
 
     def test_resource_name_is_propagated(self):
         self.submit_order_item()
-        offering = support_models.Offering.objects.get(name='item_name')
-        resource = marketplace_models.Resource.objects.get(scope=offering)
+        resource = marketplace_models.Resource.objects.get(name='item_name')
         self.assertEqual(resource.attributes['name'], 'item_name')
 
     def test_description_formatting(self):
-        self.submit_order_item()
-        offering = support_models.Offering.objects.get(name='item_name')
-        resource = marketplace_models.Resource.objects.get(scope=offering)
-        self.assertTrue('Order item' in offering.issue.description)
-        self.assertTrue(resource.plan.name in offering.issue.description)
+        order_item = self.submit_order_item()
+        resource = marketplace_models.Resource.objects.get(name='item_name')
+        issue = get_order_item_issue(order_item)
+        self.assertTrue('Order item' in issue.description)
+        self.assertTrue(resource.plan.name in issue.description)
         self.assertTrue(
-            resource.plan.components.first().component.name
-            in offering.issue.description
+            resource.plan.components.first().component.name in issue.description
         )
 
     def test_service_provider_name_is_propagated(self):
         order_item = self.submit_order_item()
         name = order_item.offering.customer.name
-        description = support_models.Offering.objects.get(
-            name='item_name'
-        ).issue.description
-        self.assertTrue(name in description)
+        resource = marketplace_models.Resource.objects.get(name='item_name')
+        order_item = marketplace_models.OrderItem.objects.get(resource=resource)
+        issue = get_order_item_issue(order_item)
+        self.assertTrue(name in issue.description)
 
     def test_issue_caller_is_equal_order_created_by(self):
         fixture = fixtures.ProjectFixture()
@@ -206,15 +143,14 @@ class RequestCreateTest(BaseTest):
         serialized_user = core_utils.serialize_instance(fixture.staff)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
-        support_offering = support_models.Offering.objects.get(name='item_name')
-        resource = marketplace_models.Resource.objects.get(scope=support_offering)
+        resource = marketplace_models.Resource.objects.get(name='item_name')
         order_item = marketplace_models.OrderItem.objects.get(resource=resource)
-        issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        issue = get_order_item_issue(order_item)
         self.assertEqual(issue.caller, order_item.order.created_by)
 
     def test_order_item_serializer_includes_issue_link(self):
         order_item = self.submit_order_item()
-        issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        issue = get_order_item_issue(order_item)
         issue.key = 'SUP-123'
         issue.save()
         self.client.force_authenticate(self.fixture.staff)
@@ -223,15 +159,6 @@ class RequestCreateTest(BaseTest):
         self.assertEqual(
             resource.data['issue'], {'key': 'SUP-123', 'uuid': issue.uuid.hex},
         )
-
-    @mock.patch(
-        'waldur_mastermind.marketplace_support.views.support_executors.IssueCreateExecutor'
-    )
-    def test_if_order_item_has_been_processed_then_executor_must_be_called(
-        self, mock_executor
-    ):
-        self.submit_order_item()
-        mock_executor.execute.assert_called_once()
 
     def test_create_confirmation_comment_if_offering_template_is_defined(self):
         mock.patch.stopall()
@@ -251,25 +178,11 @@ class RequestCreateTest(BaseTest):
 
         serialized_order = core_utils.serialize_instance(order_item.order)
         serialized_user = core_utils.serialize_instance(fixture.staff)
-        with mock.patch(
-            'waldur_mastermind.support.executors.IssueCreateExecutor.get_task_signature'
-        ) as get_task_signature:
-            marketplace_tasks.process_order(serialized_order, serialized_user)
-            self.assertEqual(
-                get_task_signature.call_args.kwargs.get('comment_tmpl'),
-                'template_confirmation_comment',
-            )
+        marketplace_tasks.process_order(serialized_order, serialized_user)
 
-        with mock.patch(
-            'waldur_mastermind.support.backend.atlassian.ServiceDeskBackend._add_comment'
-        ) as _add_comment:
-            ServiceDeskBackend().create_confirmation_comment(
-                get_task_signature.call_args.args[0],
-                comment_tmpl=get_task_signature.call_args.kwargs.get('comment_tmpl'),
-            )
-            _add_comment.assert_called_once_with(
-                None, 'template_confirmation_comment', is_internal=False
-            )
+        self.mock_get_active_backend().create_confirmation_comment.assert_called_once_with(
+            mock.ANY, 'template_confirmation_comment'
+        )
 
 
 @freeze_time('2019-01-01')
@@ -284,9 +197,6 @@ class RequestActionBaseTest(BaseTest):
             state=marketplace_models.Offering.States.ACTIVE, type=PLUGIN_NAME
         )
 
-        self.request = support_factories.OfferingFactory(
-            template=self.offering.scope, project=self.project, name='test_request'
-        )
         self.current_plan = marketplace_factories.PlanFactory(
             offering=self.offering, unit_price=10
         )
@@ -299,13 +209,13 @@ class RequestActionBaseTest(BaseTest):
             plan=self.current_plan, component=self.offering_component
         )
         self.resource = marketplace_factories.ResourceFactory(
+            name='test_request',
             project=self.project,
-            scope=self.request,
             offering=self.offering,
             plan=self.current_plan,
         )
-        self.resource.scope.state = support_models.Offering.States.OK
-        self.resource.scope.save()
+        self.resource.set_state_ok()
+        self.resource.save()
 
         self.success_issue_status = 'ok'
         support_factories.IssueStatusFactory(
@@ -335,7 +245,6 @@ class RequestDeleteTest(RequestActionBaseTest):
             self.resource.state, marketplace_models.Resource.States.TERMINATED
         )
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
-        self.assertRaises(ObjectDoesNotExist, self.request.refresh_from_db)
 
     def test_fail_termination_order_item_if_issue_is_canceled(self):
         order_item = self.get_order_item(self.error_issue_status)
@@ -389,11 +298,7 @@ class RequestDeleteTest(RequestActionBaseTest):
             order_item.order.save()
         process_order_item(order_item, self.user)
 
-        order_item_content_type = ContentType.objects.get_for_model(order_item)
-        issue = support_models.Issue.objects.get(
-            resource_object_id=order_item.id,
-            resource_content_type=order_item_content_type,
-        )
+        issue = get_order_item_issue(order_item)
         issue.status = issue_status
         issue.save()
         return marketplace_models.OrderItem.objects.first()
@@ -432,23 +337,17 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         self.assertEqual(
             self.mock_get_active_backend().create_issue_links.call_count, 1
         )
-        update_issue = support_models.Issue.objects.get(
-            resource_object_id=order_item.id
-        )
+        update_issue = get_order_item_issue(order_item)
         self.mock_get_active_backend().create_issue_links.assert_called_once_with(
             update_issue, list(support_models.Issue.objects.filter(id=create_issue.id))
         )
 
-    def test_offering_issue_is_updated_when_issue_is_resolved(self):
+    def test_order_item_is_updated_when_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)
-        order_item_content_type = ContentType.objects.get_for_model(order_item)
-        issue = support_models.Issue.objects.get(
-            resource_object_id=order_item.id,
-            resource_content_type=order_item_content_type,
-        )
-        offering = order_item.resource.scope
-        offering.refresh_from_db()
-        self.assertEqual(offering.issue, issue)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.plan, self.plan)
 
     def test_fail_switch_plan_if_issue_is_fail(self):
         order_item = self.get_order_item(self.error_issue_status)
@@ -529,24 +428,15 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
         process_order_item(order_item, self.user)
-
-        order_item_content_type = ContentType.objects.get_for_model(order_item)
-        return support_models.Issue.objects.get(
-            resource_object_id=order_item.id,
-            resource_content_type=order_item_content_type,
-        )
+        return get_order_item_issue(order_item)
 
     def get_order_item(self, issue_status):
-        self.request_switch_plan()
-        order = marketplace_models.Order.objects.get(project=self.project)
+        response = self.request_switch_plan()
+        order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
         process_order_item(order_item, self.user)
 
-        order_item_content_type = ContentType.objects.get_for_model(order_item)
-        issue = support_models.Issue.objects.get(
-            resource_object_id=order_item.id,
-            resource_content_type=order_item_content_type,
-        )
+        issue = get_order_item_issue(order_item)
         issue.status = issue_status
         issue.save()
         order_item.refresh_from_db()
@@ -617,12 +507,14 @@ class NotificationTest(BaseTest):
         self.assertTrue('display name' in mail.outbox[0].body)
 
     def create_issue(self, **kwargs):
-        self.issue = support_factories.IssueFactory(backend_id='', key='')
-        support_offering = support_factories.OfferingFactory(issue=self.issue)
-        resource = marketplace_factories.ResourceFactory(scope=support_offering)
+        resource = marketplace_factories.ResourceFactory()
         self.order_item = marketplace_factories.OrderItemFactory(
             resource=resource, offering=self.offering, **kwargs
         )
+        self.issue = support_factories.IssueFactory(
+            backend_id='', key='', resource=self.order_item
+        )
+        # Trigger handler
         self.issue.backend_id = 'TST-1'
         self.issue.save()
 

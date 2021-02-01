@@ -41,8 +41,6 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         order_item.order.approve()
         order_item.order.save()
 
-        callbacks.resource_creation_succeeded(order_item.resource)
-
     def get_invoice(self):
         date = datetime.date.today()
         return invoices_models.Invoice.objects.get(

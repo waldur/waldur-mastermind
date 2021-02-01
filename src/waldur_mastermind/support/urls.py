@@ -13,25 +13,11 @@ def register_in(router):
     )
     router.register(r'support-users', views.SupportUserViewSet, basename='support-user')
     router.register(
-        r'support-offerings', views.OfferingViewSet, basename='support-offering'
-    )
-    router.register(
         r'support-attachments', views.AttachmentViewSet, basename='support-attachment'
     )
     router.register(
         r'support-templates', views.TemplateViewSet, basename='support-template'
     )
-    router.register(
-        r'support-offering-templates',
-        views.OfferingTemplateViewSet,
-        basename='support-offering-template',
-    )
-    router.register(
-        r'support-offering-plans',
-        views.OfferingPlanViewSet,
-        basename='support-offering-plan',
-    )
-
     router.register(
         r'support-feedbacks', views.FeedbackViewSet, basename='support-feedback',
     )

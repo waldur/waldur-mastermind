@@ -139,7 +139,8 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
         if response.status_code != status.HTTP_201_CREATED:
             raise serializers.ValidationError(response.data)
 
-        return self.get_scope_from_response(response)
+        if response.data:
+            return self.get_scope_from_response(response)
 
     def get_serializer_class(self):
         """

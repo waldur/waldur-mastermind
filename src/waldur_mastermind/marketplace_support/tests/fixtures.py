@@ -24,21 +24,15 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
 
     @cached_property
     def marketplace_offering(self):
-        offering = marketplace_factories.OfferingFactory(
+        return marketplace_factories.OfferingFactory(
             customer=self.provider.customer, type=PLUGIN_NAME,
         )
-        offering.scope = self.offering.template
-        offering.save()
-        return offering
 
     @cached_property
     def resource(self):
-        resource = marketplace_factories.ResourceFactory(
+        return marketplace_factories.ResourceFactory(
             offering=self.marketplace_offering, project=self.project, plan=self.plan
         )
-        resource.scope = self.offering
-        resource.save()
-        return resource
 
     @cached_property
     def plan(self):

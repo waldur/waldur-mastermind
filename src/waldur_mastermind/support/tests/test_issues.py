@@ -557,12 +557,6 @@ class IssueDeleteTest(base.BaseTest):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
-    def test_user_can_not_delete_issue_if_related_offering_exists(self):
-        factories.OfferingFactory(issue=self.issue)
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
 
 @ddt
 class IssueCommentTest(base.BaseTest):

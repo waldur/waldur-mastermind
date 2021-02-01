@@ -12,6 +12,7 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks, utils
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import utils as test_utils
+from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.support.tests.base import override_support_settings
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
@@ -599,6 +600,29 @@ class ResourceNotificationTest(test.APITransactionTestCase):
             mock_tasks.notify_about_resource_change.delay.assert_not_called()
 
 
+class ResourceUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_url(self.resource)
+
+    def make_request(self, user):
+        self.client.force_authenticate(user)
+        payload = {'name': 'new name', 'description': 'new description'}
+        return self.client.put(self.url, payload)
+
+    def test_authorized_user_can_update_resource(self):
+        response = self.make_request(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.name, 'new name')
+        self.assertEqual(self.resource.description, 'new description')
+
+    def test_unauthorized_user_can_not_update_resource(self):
+        response = self.make_request(self.fixture.user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):
     def setUp(self):
         plugins.manager.register(
@@ -805,3 +829,61 @@ class ResourceMoveTest(test.APITransactionTestCase):
             },
         )
         self.assertEqual(self.resource.project, self.project)
+
+
+class ResourceBackendIDTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.resource = factories.ResourceFactory(project=self.project)
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, action='set_backend_id'
+        )
+
+    def make_request(self, role):
+        self.client.force_authenticate(role)
+        payload = {'backend_id': 'new_backend_id'}
+        return self.client.post(self.url, payload)
+
+    def test_staff_can_set_backend_id_of_resource(self):
+        response = self.make_request(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.backend_id, 'new_backend_id')
+
+    def test_admin_can_not_set_backend_id_of_resource(self):
+        response = self.make_request(self.fixture.admin)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ResourceReportTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.resource = factories.ResourceFactory(project=self.project)
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, action='submit_report'
+        )
+        self.valid_report = [{'header': 'Section header', 'body': 'Section body'}]
+
+    def make_request(self, role, payload):
+        self.client.force_authenticate(role)
+        return self.client.post(self.url, {'report': payload})
+
+    def test_staff_can_submit_report(self):
+        response = self.make_request(self.fixture.staff, self.valid_report)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.report, self.valid_report)
+
+    def test_admin_can_not_submit_report(self):
+        response = self.make_request(self.fixture.admin, self.valid_report)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_report_should_contain_at_least_one_section(self):
+        response = self.make_request(self.fixture.staff, [])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_report_section_should_contain_header_and_body(self):
+        response = self.make_request(self.fixture.staff, [1, 2])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

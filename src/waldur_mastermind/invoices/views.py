@@ -20,7 +20,6 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.support import models as support_models
 
 from . import filters, log, models, serializers, tasks
 
@@ -141,11 +140,6 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 service_category_title = offering.category.title
                 service_provider_name = customer.name
                 service_provider_uuid = customer.serviceprovider.uuid.hex
-            elif isinstance(item.scope, support_models.Offering):
-                offering = item.scope.template
-                service_category_title = 'Request'
-                service_provider_name = ''
-                service_provider_uuid = ''
             else:
                 continue
 
