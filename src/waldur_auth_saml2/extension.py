@@ -59,12 +59,12 @@ class SAML2Extension(WaldurExtension):
             'categories': [COC],
             # attributes required by CoC
             # https://wiki.refeds.org/display/CODE/SAML+2+Profile+for+the+Data+Protection+Code+of+Conduct
-            'privacy_statement_url': 'http://example.com/#/privacy-policy/',
+            'privacy_statement_url': 'http://example.com/privacy-policy/',
             'display_name': 'Service provider display name',
             'description': 'Service provider description',
             # mdpi attributes
-            'registration_policy': 'http://example.com/#/registration-policy/',
-            'registration_authority': 'http://example.com/#/registration-authority/',
+            'registration_policy': 'http://example.com/registration-policy/',
+            'registration_authority': 'http://example.com/registration-authority/',
             'registration_instant': datetime.datetime(2017, 1, 1).isoformat(),
             'ENABLE_SINGLE_LOGOUT': False,
             'ALLOW_TO_SELECT_IDENTITY_PROVIDER': True,
