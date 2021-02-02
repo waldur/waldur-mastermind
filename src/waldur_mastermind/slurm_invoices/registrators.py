@@ -17,9 +17,18 @@ logger = logging.getLogger(__name__)
 
 class AllocationRegistrator(registrators.BaseRegistrator):
     def get_sources(self, customer):
-        return slurm_models.Allocation.objects.filter(
-            service_project_link__project__customer=customer
-        ).distinct()
+        return (
+            slurm_models.Allocation.objects.filter(
+                service_project_link__project__customer=customer,
+            )
+            .exclude(
+                state__in=[
+                    slurm_models.Allocation.States.CREATING,
+                    slurm_models.Allocation.States.DELETING,
+                ]
+            )
+            .distinct()
+        )
 
     def get_customer(self, source):
         return source.service_project_link.project.customer
