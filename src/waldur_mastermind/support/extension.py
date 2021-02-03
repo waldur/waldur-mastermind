@@ -40,7 +40,10 @@ class SupportExtension(WaldurExtension):
                 # 'project_field': 'Waldur project',
                 # 'affected_resource_field': 'Affected resource',
                 # 'template_field': 'Waldur template',
-                'summary': '{{issue.summary}}',
+                'summary': '{% if issue.customer.abbreviation %}'
+                '{{issue.customer.abbreviation}}: '
+                '{% endif %}'
+                '{{issue.summary}}',
                 'description': (
                     '{{issue.description}}\n\n'
                     '---\n'
