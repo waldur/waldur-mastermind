@@ -27,3 +27,7 @@ class SlurmFixture(ProjectFixture):
         return factories.AllocationUsageFactory(
             allocation=self.allocation, month=now.month, year=now.year
         )
+
+    @cached_property
+    def association(self):
+        return factories.AssociationFactory(allocation=self.allocation)

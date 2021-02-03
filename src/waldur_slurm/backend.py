@@ -175,6 +175,8 @@ class SlurmBackend(ServiceBackend):
         limits = self.get_allocation_limits(account)
         self._update_limits(allocation, limits)
 
+        self._update_allocation_associations(allocation)
+
     def get_usage_report(self, accounts):
         report = {}
         lines = self.client.get_usage_report(accounts)
@@ -297,5 +299,19 @@ class SlurmBackend(ServiceBackend):
         )
         return '%s%s' % (prefix, key)
 
-    def list_allocation_users(self, allocation):
-        return self.client.list_account_users(allocation.backend_id)
+    def _update_allocation_associations(self, allocation):
+        backend_usernames = self.client.list_account_users(allocation.backend_id)
+
+        local_usernames = [
+            association.username for association in allocation.associations.all()
+        ]
+        stale_usernames = set(local_usernames) - set(backend_usernames)
+        models.Association.objects.filter(
+            allocation=allocation, username__in=stale_usernames
+        ).delete()
+        new_usernames = set(backend_usernames) - set(local_usernames)
+
+        for username in new_usernames:
+            models.Association.objects.create(
+                allocation=allocation, username=username,
+            )

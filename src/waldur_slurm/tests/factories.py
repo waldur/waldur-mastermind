@@ -94,3 +94,22 @@ class AllocationUsageFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('slurm-allocation-usage-list')
+
+
+class AssociationFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Association
+
+    allocation = factory.SubFactory(AllocationFactory)
+
+    @classmethod
+    def get_url(cls, association=None):
+        if association is None:
+            association = AssociationFactory()
+        return 'http://testserver' + reverse(
+            'slurm-association-detail', kwargs={'uuid': association.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('slurm-association-list')

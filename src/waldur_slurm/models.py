@@ -104,6 +104,13 @@ class AllocationUsage(slurm_mixins.UsageMixin, core_models.UuidMixin):
         return self.__str__()
 
 
+class Association(core_models.UuidMixin):
+    allocation = models.ForeignKey(
+        to=Allocation, on_delete=models.CASCADE, related_name='associations'
+    )
+    username = models.CharField(max_length=128)
+
+
 class AllocationUserUsage(slurm_mixins.UsageMixin):
     """
     Allocation usage per user. This model is responsible for the allocation usage definition for particular user.

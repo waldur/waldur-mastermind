@@ -186,3 +186,19 @@ class AllocationUserUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin)
             },
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail',},
         }
+
+
+class AssociationSerializer(rf_serializers.HyperlinkedModelSerializer):
+    allocation = rf_serializers.HyperlinkedRelatedField(
+        queryset=models.Allocation.objects.all(),
+        view_name='slurm-allocation-detail',
+        lookup_field='uuid',
+    )
+
+    class Meta:
+        model = models.Association
+        fields = (
+            'uuid',
+            'username',
+            'allocation',
+        )

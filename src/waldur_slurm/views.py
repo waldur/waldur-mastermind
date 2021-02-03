@@ -60,6 +60,15 @@ class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.AllocationUserUsageFilter
 
 
+class AssociationViewSet(viewsets.ReadOnlyModelViewSet):
+    lookup_field = 'uuid'
+    queryset = models.Association.objects.all()
+    serializer_class = serializers.AssociationSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.AssociationFilter
+
+
 def get_project_allocation_count(project):
     return project.quotas.get(name='nc_allocation_count').usage
 
