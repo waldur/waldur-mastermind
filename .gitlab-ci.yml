@@ -1,0 +1,25 @@
+include:
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/stages.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/test/check-merge-compatibility.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/release/sync-to-github.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/release/python-module-release.yml"
+
+image: "themattrix/tox:latest"
+
+variables:
+  GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/ansible-waldur-module.git"
+  GITHUB_WALDUR_REPO_URL: "git@github.com:waldur/ansible-waldur-module.git"
+
+Test current configuration:
+  stage: test
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - tox

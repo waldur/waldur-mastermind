@@ -133,6 +133,38 @@ class WaldurClient(object):
 
         return response.json()
 
+    def _get_paginated_data(self, url, **kwargs):
+        params = dict(headers=self.headers)
+        params.update(kwargs)
+        params['page_size'] = 200
+
+        try:
+            response = requests.get(url, **params)
+        except requests.exceptions.RequestException as error:
+            raise WaldurClientException(six.text_type(error))
+
+        if response.status_code != 200:
+            error = self._parse_error(response)
+            raise WaldurClientException(error)
+        result = response.json()
+        while 'next' in response.headers['Link']:
+            if 'prev' in response.headers['Link']:
+                next_url = response.headers['Link'].split(', ')[2].split('; ')[0][1:-1]
+            else:  # First page case
+                next_url = response.headers['Link'].split(', ')[1].split('; ')[0][1:-1]
+            try:
+                response = requests.get(next_url, **params)
+            except requests.exceptions.RequestException as error:
+                raise WaldurClientException(six.text_type(error))
+
+            if response.status_code != 200:
+                error = self._parse_error(response)
+                raise WaldurClientException(error)
+
+            result += response.json()
+
+        return result
+
     def _get(self, url, valid_states, **kwargs):
         return self._make_request('get', url, valid_states, 1, **kwargs)
 
@@ -197,6 +229,10 @@ class WaldurClient(object):
         if extra:
             payload.update(extra)
         return self._query_resource(endpoint, payload)
+
+    def _query_resource_list(self, endpoint, query_params):
+        url = self._build_url(endpoint)
+        return self._get_paginated_data(url, params=query_params)
 
     def _get_resource(self, endpoint, value, extra=None):
         """
@@ -308,6 +344,12 @@ class WaldurClient(object):
             'tenant_uuid': tenant_uuid,
         }
         return self._query_resource(self.Endpoints.TenantSecurityGroup, query)
+
+    def _get_tenant_security_groups(self, tenant_uuid):
+        query = {
+            'tenant_uuid': tenant_uuid
+        }
+        return self._query_resource_list(self.Endpoints.TenantSecurityGroup, query)
 
     def _is_resource_ready(self, endpoint, uuid):
         resource = self._query_resource_by_uuid(endpoint, uuid)
@@ -435,6 +477,10 @@ class WaldurClient(object):
             pass
 
         return security_group
+
+    def list_security_group(self, tenant):
+        tenant = self._get_tenant(tenant)
+        return self._get_tenant_security_groups(tenant['uuid'])
 
     def delete_security_group(self, uuid):
         return self._delete_resource(self.Endpoints.TenantSecurityGroup, uuid)
@@ -1267,7 +1313,7 @@ def waldur_full_argument_spec(**kwargs):
 def waldur_resource_argument_spec(**kwargs):
     spec = dict(
         name=dict(required=True, type='str'),
-        description=dict(type='str', default=None),
+        description=dict(type='str', default=''),
         state=dict(default='present', choices=['absent', 'present']),
         tags=dict(type='list', default=None),
     )
