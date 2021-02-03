@@ -22,13 +22,17 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
             return models.Resource.objects.none()
 
-        return models.Resource.objects.filter(
-            project__customer=customer, offering__type=PACKAGE_TYPE
-        ).exclude(
-            state__in=[
-                models.Resource.States.CREATING,
-                models.Resource.States.TERMINATED,
-            ]
+        return (
+            models.Resource.objects.filter(
+                project__customer=customer, offering__type=PACKAGE_TYPE
+            )
+            .exclude(
+                state__in=[
+                    models.Resource.States.CREATING,
+                    models.Resource.States.TERMINATED,
+                ]
+            )
+            .distinct()
         )
 
     def _create_item(self, source, invoice, start, end):

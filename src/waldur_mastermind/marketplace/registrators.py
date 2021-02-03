@@ -44,11 +44,18 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         )
 
     def get_sources(self, customer):
-        return marketplace_models.Resource.objects.filter(
-            offering__type=self.plugin_name,
-            state=ResourceStates.OK,
-            project__customer=customer,
-        ).distinct()
+        return (
+            marketplace_models.Resource.objects.filter(
+                offering__type=self.plugin_name, project__customer=customer,
+            )
+            .exclude(
+                state__in=[
+                    marketplace_models.Resource.States.CREATING,
+                    marketplace_models.Resource.States.TERMINATED,
+                ]
+            )
+            .distinct()
+        )
 
     def get_customer(self, source):
         project = Project.all_objects.get(id=source.project_id)

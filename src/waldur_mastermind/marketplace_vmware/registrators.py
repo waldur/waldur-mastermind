@@ -20,8 +20,12 @@ class VirtualMachineRegistrator(BaseRegistrator):
             vmware_models.VirtualMachine.objects.filter(
                 service_project_link__project__customer=customer
             )
-            .exclude(backend_id=None)
-            .exclude(backend_id='')
+            .exclude(
+                state__in=[
+                    vmware_models.VirtualMachine.States.CREATING,
+                    vmware_models.VirtualMachine.States.DELETING,
+                ]
+            )
             .distinct()
         )
 
