@@ -241,7 +241,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            models.Issue.objects.filter(summary=payload['summary']).exists()
+            models.Issue.objects.filter(customer=self.fixture.customer).exists()
         )
 
     @data('admin', 'manager', 'user')
@@ -271,7 +271,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            models.Issue.objects.filter(summary=payload['summary']).exists()
+            models.Issue.objects.filter(customer=self.fixture.customer).exists()
         )
 
     @data('user')
@@ -303,7 +303,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            models.Issue.objects.filter(summary=payload['summary']).exists()
+            models.Issue.objects.filter(customer=self.fixture.customer).exists()
         )
 
     @data('user')
@@ -443,6 +443,24 @@ class IssueCreateTest(IssueCreateBaseTest):
 
     def test_do_not_create_confirmation_comment_if_template_does_not_exist(self):
         self._create_confirmation_comment(None)
+
+    def test_issue_summary_includes_customer_abbreviation(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_payload(
+            customer=structure_factories.CustomerFactory.get_url(self.fixture.customer),
+            is_reported_manually=True,
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Issue.objects.filter(customer=self.fixture.customer).exists()
+        )
+        issue = models.Issue.objects.get(customer=self.fixture.customer)
+        self.assertEqual(
+            issue.summary, '%s: test_issue' % self.fixture.customer.abbreviation
+        )
 
     def _create_confirmation_comment(self, expected_body):
         user = self.fixture.staff
