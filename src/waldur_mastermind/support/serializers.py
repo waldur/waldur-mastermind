@@ -528,3 +528,23 @@ class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
 
         attrs['issue'] = issue
         return attrs
+
+
+class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
+    issue = serializers.HyperlinkedRelatedField(
+        view_name='support-issue-detail',
+        lookup_field='uuid',
+        queryset=models.Issue.objects.all(),
+    )
+
+    class Meta:
+        model = models.Feedback
+        fields = (
+            'uuid',
+            'created',
+            'modified',
+            'state',
+            'evaluation',
+            'comment',
+            'issue',
+        )
