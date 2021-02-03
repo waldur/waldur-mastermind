@@ -27,7 +27,7 @@ allocation1|cpu=400,mem=100M,gres/gpu=120
 allocation1|
 """
 
-VALID_USERS = """
+VALID_USERS_ASSOCIATIONS = """
 allocation1|
 allocation1|user1
 allocation1|user2
@@ -209,9 +209,18 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.ram_limit, ram_limit_old)
 
     @mock.patch('subprocess.check_output')
-    def test_get_allocation_users(self, check_output):
-        check_output.return_value = VALID_USERS.replace('allocation1', self.account)
+    def test_allocation_associations(self, check_output):
+        check_output.return_value = VALID_USERS_ASSOCIATIONS.replace(
+            'allocation1', self.account
+        )
+
+        stale_association = factories.AssociationFactory(
+            allocation=self.allocation, username='user4'
+        )
 
         backend = self.allocation.get_backend()
-        users = backend.list_allocation_users(self.allocation)
-        self.assertEqual(3, len(users))
+        backend._update_allocation_associations(self.allocation)
+
+        self.allocation.refresh_from_db()
+        self.assertEqual(3, self.allocation.associations.count())
+        self.assertNotIn(stale_association, self.allocation.associations.all())

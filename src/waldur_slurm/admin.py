@@ -14,6 +14,7 @@ from .models import (
     Allocation,
     AllocationUsage,
     AllocationUserUsage,
+    Association,
     SlurmService,
     SlurmServiceProjectLink,
 )
@@ -89,11 +90,11 @@ class AllocationUsageAdmin(admin.ModelAdmin):
 
 
 class AllocationUserUsageAdmin(admin.ModelAdmin):
-    list_display = admin.ModelAdmin.list_display + (
-        'allocation_usage',
-        'user',
-        'username',
-    )
+    list_display = admin.ModelAdmin.list_display + ('allocation_usage', 'user',)
+
+
+class AssociationAdmin(admin.ModelAdmin):
+    list_display = admin.ModelAdmin.list_display + ('allocation', 'username',)
 
 
 admin.site.register(SlurmService, structure_admin.ServiceAdmin)
@@ -101,3 +102,4 @@ admin.site.register(SlurmServiceProjectLink, structure_admin.ServiceProjectLinkA
 admin.site.register(Allocation, AllocationAdmin)
 admin.site.register(AllocationUsage, AllocationUsageAdmin)
 admin.site.register(AllocationUserUsage, AllocationUserUsageAdmin)
+admin.site.register(Association, AssociationAdmin)
