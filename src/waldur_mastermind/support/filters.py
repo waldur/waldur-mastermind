@@ -156,6 +156,25 @@ class FeedbackFilter(django_filters.FilterSet):
     )
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
 
-    class Meta:
-        model = models.Feedback
-        fields = ('issue', 'issue_uuid')
+    user = core_filters.URLFilter(
+        view_name='user-detail', field_name='issue__caller__uuid'
+    )
+    user_uuid = django_filters.UUIDFilter(field_name='issue__caller__uuid')
+
+    created_before = django_filters.IsoDateTimeFilter(
+        field_name="created", lookup_expr="lte"
+    )
+    created_after = django_filters.IsoDateTimeFilter(
+        field_name="created", lookup_expr="gte"
+    )
+
+    evaluation = core_filters.MappedMultipleChoiceFilter(
+        choices=[
+            (representation, representation)
+            for db_value, representation in models.Feedback.Evaluation.CHOICES
+        ],
+        choice_mappings={
+            representation: db_value
+            for db_value, representation in models.Feedback.Evaluation.CHOICES
+        },
+    )

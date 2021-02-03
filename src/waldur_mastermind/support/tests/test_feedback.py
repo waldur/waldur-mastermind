@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import mock
 from ddt import data, ddt
 from django.core import mail, signing
@@ -128,3 +130,74 @@ class FeedbackReportTest(base.BaseTest):
             url_average = reverse('support-feedback-average-report')
             response = self.client.get(url_average)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class FeedbackGetTest(base.BaseTest):
+    def test_feedback_get(self):
+        feedback = self.fixture.feedback
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(factories.FeedbackFactory.get_url(feedback))
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(feedback.uuid.hex, response.data['uuid'])
+
+    def test_feedback_get_is_not_allowed_for_regular_user(self):
+        feedback = self.fixture.feedback
+
+        self.client.force_login(self.fixture.user)
+        response = self.client.get(factories.FeedbackFactory.get_url(feedback))
+
+        self.assertEqual(403, response.status_code)
+
+    def test_feedback_filtering_by_issue(self):
+        issue = self.fixture.issue
+        feedback = self.fixture.feedback
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'issue_uuid': issue.uuid.hex}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([feedback.uuid.hex], [item['uuid'] for item in response.data])
+
+    def test_feedback_filtering_by_user(self):
+        user = self.fixture.issue.caller
+        feedback = self.fixture.feedback
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'user_uuid': user.uuid.hex}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([feedback.uuid.hex], [item['uuid'] for item in response.data])
+
+    def test_feedback_filtering_by_evaluation(self):
+        feedback = self.fixture.feedback
+        feedback.evaluation = 2
+        feedback.save()
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'evaluation': 'Negative'}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            models.Feedback.objects.filter(evaluation=2).count(), len(response.data)
+        )
+        self.assertIn(feedback.uuid.hex, [item['uuid'] for item in response.data])
+
+    def test_feedback_filtering_by_time(self):
+        feedback = self.fixture.feedback
+        time = feedback.created + timedelta(seconds=1)
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'created_before': time}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(feedback.uuid.hex, [item['uuid'] for item in response.data])

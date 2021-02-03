@@ -11,6 +11,7 @@ from rest_framework import permissions, response, status, views, viewsets
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 
@@ -218,11 +219,22 @@ class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
 
 
 class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
-    disabled_actions = ['update', 'partial_update', 'destroy', 'list', 'retrieve']
+    lookup_field = 'uuid'
+    queryset = models.Feedback.objects.all()
+    disabled_actions = ['update', 'partial_update', 'destroy']
     permission_classes = (core_permissions.ActionsPermission,)
     create_permissions = ()
-    serializer_class = serializers.CreateFeedbackSerializer
+    create_serializer_class = serializers.CreateFeedbackSerializer
+    serializer_class = serializers.FeedbackSerializer
     create_executor = executors.FeedbackExecutor
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.FeedbackFilter
+
+    def is_staff_or_support(request, view, obj=None):
+        if not request.user.is_staff and not request.user.is_support:
+            raise rf_exceptions.PermissionDenied()
+
+    list_permissions = retrieve_permissions = [is_staff_or_support]
 
 
 class FeedbackReportViewSet(views.APIView):
