@@ -531,11 +531,8 @@ class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    issue = serializers.HyperlinkedRelatedField(
-        view_name='support-issue-detail',
-        lookup_field='uuid',
-        queryset=models.Issue.objects.all(),
-    )
+    issue_uuid = serializers.ReadOnlyField(source='issue.uuid')
+    user_name = serializers.ReadOnlyField(source='issue.caller.full_name')
 
     class Meta:
         model = models.Feedback
@@ -546,5 +543,6 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
             'state',
             'evaluation',
             'comment',
-            'issue',
+            'issue_uuid',
+            'user_name',
         )
