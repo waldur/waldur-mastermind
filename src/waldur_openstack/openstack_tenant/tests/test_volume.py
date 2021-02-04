@@ -63,7 +63,7 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
         return self.client.post(url, {'disk_size': new_size})
 
     @data('admin', 'manager')
-    def test_user_can_resize_size_of_volume_he_has_access_to(self, user):
+    def test_user_can_extend_volume_he_has_access_to(self, user):
         new_size = self.volume.size + 1024
 
         response = self.extend_disk(getattr(self, user), new_size)
@@ -587,6 +587,7 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         self.volume.save()
         self.new_type = factories.VolumeTypeFactory(
             settings=self.fixture.openstack_tenant_service_settings,
+            backend_id='new_volume_type_id',
         )
 
     def retype_volume(self, user, new_type):
@@ -597,21 +598,21 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         )
 
     @data('admin', 'manager')
-    def test_user_can_resize_size_of_volume_he_has_access_to(self, user):
+    def test_user_can_retype_volume_he_has_access_to(self, user):
         response = self.retype_volume(getattr(self, user), self.new_type)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         self.volume.refresh_from_db()
         self.assertEqual(self.volume.type, self.new_type)
 
-    def test_user_can_not_extend_volume_if_volume_operation_is_performed(self):
+    def test_user_can_not_retype_volume_if_volume_operation_is_performed(self):
         self.volume.state = models.Volume.States.UPDATING
         self.volume.save()
 
         response = self.retype_volume(self.admin, self.new_type)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    def test_user_can_not_extend_volume_if_volume_is_in_erred_state(self):
+    def test_user_can_not_retype_volume_if_it_is_in_erred_state(self):
         self.volume.state = models.Instance.States.ERRED
         self.volume.save()
 
@@ -634,7 +635,7 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
             self.volume.size / 1024, scope.quotas.get(name=new_type_key).usage
         )
 
-    def test_when_volume_is_extended_volume_type_quota_for_shared_tenant_is_updated(
+    def test_when_volume_is_retyped_volume_type_quota_for_shared_tenant_is_updated(
         self,
     ):
         # Arrange
