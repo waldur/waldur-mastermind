@@ -30,8 +30,6 @@ class UserFilterMixin:
         raise NotImplementedError()
 
 
-class PriceEstimateManager(
-    core_managers.GenericKeyMixin, UserFilterMixin, django_models.Manager
-):
+class PriceEstimateManager(core_managers.GenericKeyMixin, django_models.Manager):
     def get_available_models(self):
         return self.model.get_estimated_models()

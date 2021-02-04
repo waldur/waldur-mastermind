@@ -7,12 +7,6 @@ class BillingExtension(WaldurExtension):
         return 'waldur_mastermind.billing'
 
     @staticmethod
-    def rest_urls():
-        from .urls import register_in
-
-        return register_in
-
-    @staticmethod
     def django_urls():
         from .urls import urlpatterns
 

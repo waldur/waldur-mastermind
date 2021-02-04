@@ -2,22 +2,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import OuterRef, Subquery
 from rest_framework.filters import BaseFilterBackend
 
-from waldur_core.core import filters as core_filters
 from waldur_core.core.utils import get_ordering, order_with_nulls
-from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import utils as invoice_utils
 
 from . import models
-
-
-class PriceEstimateScopeFilterBackend(core_filters.GenericKeyFilterBackend):
-    def get_related_models(self):
-        return models.PriceEstimate.get_estimated_models()
-
-    def get_field_name(self):
-        return 'scope'
 
 
 class CustomerEstimatedCostFilter(BaseFilterBackend):
@@ -52,7 +42,3 @@ class CustomerCurrentCostFilter(BaseFilterBackend):
             current_cost=Subquery(invoices.values('current_cost')[:1])
         )
         return order_with_nulls(queryset, order_by)
-
-
-structure_filters.ExternalCustomerFilterBackend.register(CustomerEstimatedCostFilter())
-structure_filters.ExternalCustomerFilterBackend.register(CustomerCurrentCostFilter())

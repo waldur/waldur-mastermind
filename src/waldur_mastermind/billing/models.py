@@ -5,17 +5,14 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
-from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoices_utils
 
-from . import exceptions, managers
+from . import managers
 
 
-class PriceEstimate(
-    logging_models.AlertThresholdMixin, core_models.UuidMixin, models.Model
-):
+class PriceEstimate(core_models.UuidMixin, models.Model):
     content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'
     )
@@ -28,19 +25,6 @@ class PriceEstimate(
     total = models.FloatField(
         default=0, help_text=_('Predicted price for scope for current month.')
     )
-    limit = models.FloatField(
-        default=-1,
-        help_text=_(
-            'Price limit of a scope object in current month. ' '-1 means no limit.'
-        ),
-    )
-
-    def is_over_threshold(self):  # For AlertThresholdMixin
-        return self.total > self.threshold
-
-    def validate_limit(self):
-        if self.limit != -1 and self.total > self.limit:
-            raise exceptions.PriceEstimateLimitExceeded(self)
 
     @classmethod
     def get_estimated_models(cls):

@@ -6,7 +6,6 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
-from waldur_mastermind.common import exceptions
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
@@ -294,29 +293,5 @@ class OpenStackPackageChangeSerializer(
                 raise serializers.ValidationError(
                     msg.format(component.get_type_display())
                 )
-
-        # check price estimate limits
-        try:
-            # Creating and deleting of a package are necessary because of validator
-            # waldur_mastermind.billing.models.PriceEstimate.validate_limit
-            # which will be called only after calls of the handlers.
-            # But creating and deleting of a package is not allowed here,
-            # they are allowed only after backend request so here use a transaction rollback.
-            package_id = package.id
-            with transaction.atomic():
-                service_settings = package.service_settings
-                tenant = package.tenant
-
-                package.delete()
-                models.OpenStackPackage.objects.create(
-                    template=new_template,
-                    service_settings=service_settings,
-                    tenant=tenant,
-                )
-                raise exceptions.TransactionRollback()
-        except exceptions.TransactionRollback:
-            # package.delete() sets pk in None,
-            # and core_utils.deserialize_instance(serialized_old_package) doesn't work
-            package.pk = package_id
 
         return attrs
