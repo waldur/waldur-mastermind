@@ -29,6 +29,17 @@ class EventFactory(factory.DjangoModelFactory):
     def get_list_url(cls):
         return 'http://testserver' + reverse('event-list')
 
+    @classmethod
+    def get_stats_list_url(cls):
+        return 'http://testserver' + reverse('events-stats-list')
+
+
+class FeedFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Feed
+
+    event = factory.SubFactory(EventFactory)
+
 
 class WebHookFactory(factory.DjangoModelFactory):
     class Meta:
