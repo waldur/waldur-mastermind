@@ -161,10 +161,10 @@ class FeedbackFilter(django_filters.FilterSet):
     )
     user_uuid = django_filters.UUIDFilter(field_name='issue__caller__uuid')
 
-    created_before = django_filters.IsoDateTimeFilter(
+    created_before = django_filters.DateTimeFilter(
         field_name="created", lookup_expr="lte"
     )
-    created_after = django_filters.IsoDateTimeFilter(
+    created_after = django_filters.DateTimeFilter(
         field_name="created", lookup_expr="gte"
     )
 
@@ -178,3 +178,7 @@ class FeedbackFilter(django_filters.FilterSet):
             for db_value, representation in models.Feedback.Evaluation.CHOICES
         },
     )
+
+    issue_key = django_filters.CharFilter(field_name='issue__key')
+
+    user_full_name = django_filters.CharFilter(field_name='issue__caller__full_name')
