@@ -143,7 +143,7 @@ class FeedbackGetTest(base.BaseTest):
         self.assertEqual(feedback.uuid.hex, response.data['uuid'])
         self.assertIn('issue_uuid', response.data)
         self.assertIn('issue_key', response.data)
-        self.assertIn('user_name', response.data)
+        self.assertIn('user_full_name', response.data)
 
     def test_feedback_get_is_not_allowed_for_regular_user(self):
         feedback = self.fixture.feedback
@@ -195,12 +195,51 @@ class FeedbackGetTest(base.BaseTest):
 
     def test_feedback_filtering_by_time(self):
         feedback = self.fixture.feedback
-        time = feedback.created + timedelta(seconds=1)
+        time = feedback.created + timedelta(days=1)
 
         self.client.force_login(self.fixture.staff)
         response = self.client.get(
-            factories.FeedbackFactory.get_list_url(), {'created_before': time}
+            factories.FeedbackFactory.get_list_url(),
+            {'created_before': time.strftime('%Y-%m-%d')},
         )
 
         self.assertEqual(200, response.status_code)
         self.assertIn(feedback.uuid.hex, [item['uuid'] for item in response.data])
+
+    def test_feedback_filtering_by_issue_key(self):
+        feedback = self.fixture.feedback
+        issue_key = feedback.issue.key
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'issue_key': issue_key}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(feedback.uuid.hex, [item['uuid'] for item in response.data])
+
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'issue_key': 'other_key'}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn(feedback.uuid.hex, [item['uuid'] for item in response.data])
+
+    def test_feedback_filtering_by_caller_full_name(self):
+        feedback = self.fixture.feedback
+        full_name = feedback.issue.caller.full_name
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'user_full_name': full_name}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(feedback.uuid.hex, [item['uuid'] for item in response.data])
+
+        response = self.client.get(
+            factories.FeedbackFactory.get_list_url(), {'user_full_name': 'other_name'}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn(feedback.uuid.hex, [item['uuid'] for item in response.data])
