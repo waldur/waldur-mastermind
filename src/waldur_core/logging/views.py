@@ -1,3 +1,4 @@
+from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, mixins, permissions, response, status, viewsets
 
@@ -197,3 +198,31 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         return SummaryQuerySet(models.BaseHook.get_all_models())
+
+
+class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.Event.objects.all()
+    filter_backends = (filters.EventFilterBackend,)
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        aggregated_result = (
+            queryset.values('created__year', 'created__month')
+            .annotate(count=Count('*'))
+            .order_by('created__year', 'created__month')
+        )
+        paginated_result = self.paginate_queryset(aggregated_result)
+        final_result = [
+            {
+                'year': item['created__year'],
+                'month': item['created__month'],
+                'count': item['count'],
+            }
+            for item in paginated_result
+        ]
+
+        return self.get_paginated_response(final_result)
+
+    def retrieve(self, request, *args, **kwargs):
+        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)

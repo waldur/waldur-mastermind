@@ -9,6 +9,7 @@ def register_in(router):
     router.register(r'hooks-push', views.PushHookViewSet, basename='pushhook')
     router.register(r'hooks-email', views.EmailHookViewSet, basename='emailhook')
     router.register(r'hooks', views.HookSummary, basename='hooks')
+    router.register(r'events-stats', views.EventsStatsViewSet, basename='events-stats')
 
 
 events_count_history = views.EventViewSet.as_view({'get': 'count_history'})
