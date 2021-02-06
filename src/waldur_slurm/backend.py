@@ -32,6 +32,13 @@ class SlurmBackend(ServiceBackend):
         )
 
     def pull_resources(self):
+        for allocation in self.get_allocation_queryset().filter(
+            state=models.Allocation.States.OK
+        ):
+            try:
+                self.pull_allocation(allocation)
+            except Exception as e:
+                logger.error('Error while pulling allocation [%s]: %s', allocation, e)
         self.sync_usage()
 
     def ping(self, raise_exception=False):
