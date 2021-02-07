@@ -35,8 +35,9 @@ chmod 750 /var/lib/waldur/
 chown -R waldur:waldur /var/lib/waldur/
 
 if [[ -f "/etc/waldur/id_rsa" ]] ; then
-  # assure that ssh private is owned by waldur
-  chown waldur:waldur /etc/waldur/id_rsa
+  # assure that ssh private is owned by waldur and not modify permissions of the original key
+  cp -cf /etc/waldur/id_rsa /var/lib/waldur/id_rsa
+  chown waldur:waldur /var/lib/waldur/id_rsa
 fi
 
 echo "INFO: Spawning $@"
