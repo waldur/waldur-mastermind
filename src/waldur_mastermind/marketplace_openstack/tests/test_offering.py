@@ -27,9 +27,9 @@ from waldur_mastermind.marketplace_openstack.utils import (
     merge_plans,
 )
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
+from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
 
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
 from .utils import BaseOpenStackTest, override_plugin_settings
@@ -38,7 +38,7 @@ from .utils import BaseOpenStackTest, override_plugin_settings
 class VpcExternalFilterTest(BaseOpenStackTest):
     def setUp(self):
         super(VpcExternalFilterTest, self).setUp()
-        self.fixture = package_fixtures.OpenStackFixture()
+        self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             category=self.tenant_category
         )
@@ -65,7 +65,7 @@ class VpcExternalFilterTest(BaseOpenStackTest):
 
 class TemplateOfferingTest(BaseOpenStackTest):
     def test_template_for_plan_is_created(self):
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -116,7 +116,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
 
     def test_when_plan_is_archived_template_is_updated(self):
         # Arrange
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -133,7 +133,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
 
     def test_when_plan_is_unarchived_template_is_updated(self):
         # Arrange
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -150,7 +150,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
 
     def test_when_plan_name_is_updated_template_is_updated(self):
         # Arrange
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -167,7 +167,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
 
     def test_when_template_is_archived_plan_is_updated(self):
         # Arrange
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -185,7 +185,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
 
     def test_when_template_is_unarchived_template_is_updated(self):
         # Arrange
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -203,7 +203,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
 
     def test_when_template_name_is_updated_template_is_synchronized(self):
         # Arrange
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )
@@ -326,7 +326,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
     def test_offering_is_not_created_if_tenant_is_not_created_via_marketplace(
         self, offering_type
     ):
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
             service_project_link=fixture.openstack_spl,
             state=openstack_models.Tenant.States.CREATING,
@@ -349,7 +349,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         self.assertEqual(offering.state, marketplace_models.Offering.States.ARCHIVED)
 
     def trigger_offering_creation(self):
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
             service_project_link=fixture.openstack_spl,
             state=openstack_models.Tenant.States.CREATING,
@@ -364,7 +364,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
 
 class MergePlansTest(test.APITransactionTestCase):
     def setUp(self):
-        fixture = package_fixtures.OpenStackFixture()
+        fixture = OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PACKAGE_TYPE, scope=fixture.openstack_service_settings
         )

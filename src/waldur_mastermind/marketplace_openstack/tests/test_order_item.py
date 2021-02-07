@@ -11,11 +11,13 @@ from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import create_offering_components
-from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
+from waldur_mastermind.marketplace_openstack.tests import factories as package_factories
+from waldur_mastermind.marketplace_openstack.tests import fixtures as package_fixtures
+from waldur_mastermind.marketplace_openstack.tests.utils import (
+    BaseOpenStackTest,
+    run_openstack_package_change_executor,
+)
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages.tests import factories as package_factories
-from waldur_mastermind.packages.tests import fixtures as package_fixtures
-from waldur_mastermind.packages.tests import utils as package_utils
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
@@ -333,7 +335,6 @@ class TenantDeleteTest(TenantMutateTest):
 
 
 @ddt
-@package_utils.override_plugin_settings(BILLING_ENABLED=True)
 class TenantUpdateTest(TenantMutateTest):
     def setUp(self):
         super(TenantUpdateTest, self).setUp()
@@ -374,9 +375,7 @@ class TenantUpdateTest(TenantMutateTest):
         )
         self.assertEqual(self.resource.plan, self.plan)
 
-        package_utils.run_openstack_package_change_executor(
-            self.package, self.new_template
-        )
+        run_openstack_package_change_executor(self.package, self.new_template)
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
         self.assertEqual(

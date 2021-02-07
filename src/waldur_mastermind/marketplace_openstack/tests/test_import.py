@@ -14,8 +14,8 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_TYPE,
     VOLUME_TYPE,
 )
+from waldur_mastermind.marketplace_openstack.tests import fixtures as package_fixtures
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )

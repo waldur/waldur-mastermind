@@ -6,9 +6,6 @@ from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests.factories import TenantFactory
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
-
-from . import factories
 
 
 class OpenStackFixture(ProjectFixture):
@@ -39,30 +36,4 @@ class OpenStackFixture(ProjectFixture):
         return TenantFactory(
             service_project_link=self.openstack_spl,
             state=openstack_models.Tenant.States.OK,
-        )
-
-
-class PackageFixture(OpenStackFixture):
-    @cached_property
-    def openstack_template(self):
-        return factories.PackageTemplateFactory(
-            service_settings=self.openstack_service_settings
-        )
-
-    @cached_property
-    def openstack_package(self):
-        return factories.OpenStackPackageFactory(
-            tenant=self.openstack_tenant,
-            template=self.openstack_template,
-            service_settings=structure_factories.ServiceSettingsFactory(
-                customer=self.customer,
-                type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
-                scope=self.openstack_tenant,
-                options={
-                    'availability_zone': self.openstack_tenant.availability_zone,
-                    'tenant_id': self.openstack_tenant.backend_id,
-                    'external_network_id': self.openstack_tenant.external_network_id,
-                    'internal_network_id': self.openstack_tenant.internal_network_id,
-                },
-            ),
         )

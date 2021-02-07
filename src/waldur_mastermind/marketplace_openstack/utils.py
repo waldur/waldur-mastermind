@@ -25,8 +25,8 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_TYPE,
     VOLUME_TYPE,
 )
+from waldur_mastermind.marketplace_openstack.serializers import _apply_quotas
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages.serializers import _apply_quotas
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps

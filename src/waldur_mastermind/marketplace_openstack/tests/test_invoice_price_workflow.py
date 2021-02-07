@@ -1,4 +1,5 @@
 import decimal
+import unittest
 from calendar import monthrange
 from datetime import datetime
 
@@ -14,22 +15,18 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.marketplace_openstack import views as packages_views
+from waldur_mastermind.marketplace_openstack.tests import (
+    factories as packages_factories,
+)
+from waldur_mastermind.marketplace_openstack.tests import fixtures as package_fixtures
 from waldur_mastermind.marketplace_support.tests import fixtures as fixtures
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages import views as packages_views
-from waldur_mastermind.packages.tests import factories as packages_factories
-from waldur_mastermind.packages.tests import fixtures as package_fixtures
-from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
 
-@override_plugin_settings(BILLING_ENABLED=True)
-class BaseInvoicePriceWorkflowTest(test.APITransactionTestCase):
-    pass
-
-
-class InvoicePriceWorkflowTest(BaseInvoicePriceWorkflowTest):
+class InvoicePriceWorkflowTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceSupportApprovedFixture()
 
@@ -40,6 +37,7 @@ class InvoicePriceWorkflowTest(BaseInvoicePriceWorkflowTest):
         )
         return template
 
+    @unittest.skip('The package plugin is not supported yet.')
     def test_package_price_is_calculated_properly_if_it_was_used_only_for_one_day(self):
         cheap_package_template = self.create_package_template(component_price=10)
         medium_package_template = self.create_package_template(component_price=15)
@@ -211,7 +209,7 @@ class InvoicePriceWorkflowTest(BaseInvoicePriceWorkflowTest):
         return resource, invoice_item, expected_price
 
 
-class InvoicePriceAfterHalfMonthTest(BaseInvoicePriceWorkflowTest):
+class InvoicePriceAfterHalfMonthTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = package_fixtures.PackageFixture()
 
@@ -227,6 +225,7 @@ class InvoicePriceAfterHalfMonthTest(BaseInvoicePriceWorkflowTest):
             'template': template.uuid.hex,
         }
 
+    @unittest.skip('The package plugin is not supported yet.')
     def test_new_invoice_is_created_in_new_month_after_half_month_of_usage(self):
         """
         Tests that invoices are created and updated according to the current state of customer's package.
