@@ -27,7 +27,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.marketplace_openstack.registrators import (
-            MarketplaceItemRegistrator,
+            OpenStackRegistrator,
         )
         from waldur_mastermind.packages import models as package_models
 
@@ -218,7 +218,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         registrators.RegistrationManager.add_registrator(
-            PACKAGE_TYPE, MarketplaceItemRegistrator,
+            PACKAGE_TYPE, OpenStackRegistrator,
         )
 
         marketplace_signals.resource_creation_succeeded.connect(
@@ -228,11 +228,18 @@ class MarketplaceOpenStackConfig(AppConfig):
             'update_invoice_when_resource_is_created',
         )
 
-        marketplace_signals.limit_update_succeeded.connect(
-            handlers.update_invoice_when_resource_is_updated,
+        marketplace_signals.resource_limit_update_succeeded.connect(
+            handlers.update_invoice_when_limits_are_updated,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
-            'update_invoice_when_resource_is_updated',
+            'update_invoice_when_limits_are_updated',
+        )
+
+        marketplace_signals.resource_plan_switch_succeeded.connect(
+            handlers.update_invoice_when_plan_is_switched,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+            'update_invoice_when_plan_is_switched',
         )
 
         marketplace_signals.resource_deletion_succeeded.connect(

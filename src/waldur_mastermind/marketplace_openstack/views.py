@@ -7,9 +7,8 @@ from rest_framework.decorators import action
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
-
-from . import executors, models, serializers
-from .log import event_logger
+from waldur_mastermind.marketplace_openstack import executors, serializers
+from waldur_mastermind.packages import models
 
 
 class OpenStackPackageViewSet(core_views.ActionsViewSet):
@@ -53,17 +52,6 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         new_template = serializer.validated_data['template']
         service_settings = package.service_settings
         tenant = package.tenant
-
-        event_logger.openstack_package.info(
-            'Tenant package change has been scheduled. '
-            'Old value: %s, new value: {package_template_name}' % package.template.name,
-            event_type='openstack_package_change_scheduled',
-            event_context={
-                'tenant': tenant,
-                'package_template_name': new_template.name,
-                'service_settings': service_settings,
-            },
-        )
 
         executors.OpenStackPackageChangeExecutor.execute(
             tenant,

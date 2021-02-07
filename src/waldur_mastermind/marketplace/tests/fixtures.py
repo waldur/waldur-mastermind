@@ -66,5 +66,5 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def resource(self) -> marketplace_models.Resource:
         return marketplace_factories.ResourceFactory(
-            offering=self.offering, plan=self.plan,
+            offering=self.offering, plan=self.plan, project=self.project
         )

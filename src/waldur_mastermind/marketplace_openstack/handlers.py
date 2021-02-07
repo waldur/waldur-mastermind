@@ -539,26 +539,23 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
 
 
 def update_invoice_when_resource_is_created(sender, instance, **kwargs):
-    if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
-        return
-
     if instance.offering.type == PACKAGE_TYPE:
         registrators.RegistrationManager.register(instance)
 
 
-def update_invoice_when_resource_is_updated(sender, order_item, **kwargs):
-    if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
-        return
-
+def update_invoice_when_limits_are_updated(sender, order_item, **kwargs):
     if order_item.offering.type == PACKAGE_TYPE:
         registrators.RegistrationManager.terminate(order_item.resource)
         registrators.RegistrationManager.register(order_item.resource)
 
 
-def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
-    if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
-        return
+def update_invoice_when_plan_is_switched(sender, instance, **kwargs):
+    if instance.offering.type == PACKAGE_TYPE:
+        registrators.RegistrationManager.terminate(instance)
+        registrators.RegistrationManager.register(instance)
 
+
+def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
     if instance.offering.type == PACKAGE_TYPE:
         registrators.RegistrationManager.terminate(instance)
 

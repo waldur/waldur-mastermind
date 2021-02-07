@@ -3,8 +3,8 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import processors, signals
+from waldur_mastermind.marketplace_openstack import views as package_views
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack_tenant import views as tenant_views
@@ -93,7 +93,7 @@ class TenantUpdateProcessor(processors.UpdateResourceProcessor):
     def update_limits_process(self, user):
         scope = self.order_item.resource.scope
         if not scope or not isinstance(scope, openstack_models.Tenant):
-            signals.limit_update_failed.send(
+            signals.resource_limit_update_failed.send(
                 sender=self.order_item.resource.__class__,
                 order_item=self.order_item,
                 message='Limit updating is available only for tenants.',

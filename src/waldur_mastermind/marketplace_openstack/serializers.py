@@ -6,12 +6,11 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_mastermind.packages import models
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
-
-from . import models
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):

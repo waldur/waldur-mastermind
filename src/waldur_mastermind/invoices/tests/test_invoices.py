@@ -24,8 +24,6 @@ from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support.tests.fixtures import (
     MarketplaceSupportApprovedFixture,
 )
-from waldur_mastermind.packages.tests import fixtures as packages_fixtures
-from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
 from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
@@ -127,18 +125,16 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         )
 
 
-@override_plugin_settings(BILLING_ENABLED=True)
 class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice = self.fixture.invoice
-        self.package = self.fixture.openstack_package
+        self.invoice_item = self.fixture.invoice_item
 
     def test_project_name_and_uuid_is_rendered_for_invoice_item(self):
         self.check_invoice_item()
 
     def test_when_project_is_deleted_invoice_item_is_present(self):
-        self.fixture.openstack_tenant.delete()
         self.fixture.project.delete()
         self.check_invoice_item()
 
@@ -167,37 +163,6 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         item = response.data['items'][0]
         self.assertEqual(item['project_name'], project_name)
         self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
-
-
-@override_plugin_settings(BILLING_ENABLED=True)
-class OpenStackInvoiceItemTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = packages_fixtures.PackageFixture()
-        self.package = self.fixture.openstack_package
-        self.item = models.InvoiceItem.objects.get(scope=self.package)
-
-    def check_output(self):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
-        item = response.data['items'][0]
-        self.assertEqual(item['details']['tenant_name'], self.package.tenant.name)
-        self.assertEqual(item['details']['tenant_uuid'], self.package.tenant.uuid.hex)
-        self.assertEqual(item['details']['template_name'], self.package.template.name)
-        self.assertEqual(
-            item['details']['template_uuid'], self.package.template.uuid.hex
-        )
-        self.assertEqual(
-            item['details']['template_category'],
-            self.package.template.get_category_display(),
-        )
-
-    def test_details_are_rendered_if_package_exists(self):
-        self.check_output()
-
-    def test_details_are_rendered_if_package_has_been_deleted(self):
-        self.package.delete()
-        self.item.refresh_from_db()
-        self.check_output()
 
 
 class InvoiceItemTest(test.APITransactionTestCase):

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rest_framework import test
 
-from . import fixtures
+from waldur_mastermind.marketplace_openstack.tests import fixtures
 
 
 class PackageTemplatePriceTest(test.APITransactionTestCase):

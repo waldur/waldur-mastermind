@@ -19,7 +19,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
     factor = serializers.ReadOnlyField(source='get_factor')
     measured_unit = serializers.ReadOnlyField(source='get_measured_unit')
-
+    details = serializers.JSONField()
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.SerializerMethodField()
 
@@ -42,23 +42,6 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'project_uuid',
             'scope_type',
             'scope_uuid',
-        )
-
-    def get_scope_type(self, item):
-        # It should be implemented by inherited class
-        return
-
-    def get_scope_uuid(self, item):
-        # It should be implemented by inherited class
-        return
-
-
-class GenericItemSerializer(InvoiceItemSerializer):
-    details = serializers.JSONField()
-
-    class Meta(InvoiceItemSerializer.Meta):
-        model = models.InvoiceItem
-        fields = InvoiceItemSerializer.Meta.fields + (
             'quantity',
             'details',
             'usage_days',
@@ -142,7 +125,7 @@ class InvoiceSerializer(
 
     def get_items(self, invoice):
         items = utils.filter_invoice_items(invoice.items.all())
-        serializer = GenericItemSerializer(items, many=True, context=self.context)
+        serializer = InvoiceItemSerializer(items, many=True, context=self.context)
         return serializer.data
 
 

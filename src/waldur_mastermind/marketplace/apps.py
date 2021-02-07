@@ -96,16 +96,16 @@ class MarketplaceConfig(AppConfig):
             'close_resource_plan_period_when_resource_is_terminated',
         )
 
-        marketplace_signals.limit_update_succeeded.connect(
+        marketplace_signals.resource_limit_update_succeeded.connect(
             handlers.limit_update_succeeded,
             sender=models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace.limit_update_succeeded',
+            dispatch_uid='waldur_mastermind.marketplace.resource_limit_update_succeeded',
         )
 
-        marketplace_signals.limit_update_failed.connect(
+        marketplace_signals.resource_limit_update_failed.connect(
             handlers.limit_update_failed,
             sender=models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace.limit_update_failed',
+            dispatch_uid='waldur_mastermind.marketplace.resource_limit_update_failed',
         )
 
         for resource_serializer in SupportedServices.get_resource_serializers():

@@ -7,7 +7,6 @@ from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
-from waldur_mastermind.packages.tests.utils import override_plugin_settings
 
 
 @freeze_time('2018-11-01')
@@ -94,7 +93,6 @@ class DowntimeValidationTest(test.APITransactionTestCase):
 
 
 @freeze_time('2018-11-01')
-@override_plugin_settings(BILLING_ENABLED=True)
 class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE,)

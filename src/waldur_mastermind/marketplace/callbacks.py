@@ -104,10 +104,10 @@ def resource_update_succeeded(resource, validate=False):
         resource.plan = order_item.plan
         resource.init_cost()
         resource.save(update_fields=['plan', 'cost'])
+        signals.resource_plan_switch_succeeded.send(models.Resource, instance=resource)
 
         create_resource_plan_period(resource)
 
-    signals.resource_update_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_update_succeeded(resource)
     return order_item
 

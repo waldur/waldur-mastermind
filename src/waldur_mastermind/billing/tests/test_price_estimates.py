@@ -7,15 +7,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.billing import models
-from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices.tests import factories as invoice_factories
-from waldur_mastermind.marketplace_support.tests import (
-    fixtures as marketplace_support_fixtures,
-)
-from waldur_mastermind.packages import views as packages_views
-from waldur_mastermind.packages.tests import factories as packages_factories
-from waldur_mastermind.packages.tests import fixtures as packages_fixtures
-from waldur_mastermind.packages.tests.utils import override_plugin_settings
 
 
 class PriceEstimateSignalsTest(test.APITransactionTestCase):
@@ -123,38 +115,30 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time('2017-01-01')
-@override_plugin_settings(BILLING_ENABLED=True)
 class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
     @data('project', 'customer')
-    def test_when_openstack_package_is_created_total_is_updated(self, scope):
-        fixture = packages_fixtures.PackageFixture()
-        package = fixture.openstack_package
-        estimate = models.PriceEstimate.objects.get(scope=getattr(fixture, scope))
+    def test_when_invoice_item_is_created_total_is_updated(self, scope):
+        invoice = invoice_factories.InvoiceFactory(customer=self.fixture.customer)
+        invoice_factories.InvoiceItemFactory(
+            invoice=invoice, project=self.fixture.project, unit_price=10
+        )
+        estimate = models.PriceEstimate.objects.get(scope=getattr(self.fixture, scope))
         self.assertAlmostEqual(
-            decimal.Decimal(estimate.total),
-            decimal.Decimal(package.template.price * 31),
+            decimal.Decimal(estimate.total), decimal.Decimal(10 * 31),
         )
-
-    def test_when_openstack_package_is_extended_project_total_is_updated(self):
-        fixture = packages_fixtures.PackageFixture()
-        package = fixture.openstack_package
-        new_template = packages_factories.PackageTemplateFactory(
-            service_settings=fixture.openstack_service_settings
-        )
-
-        view = packages_views.OpenStackPackageViewSet.as_view({'post': 'change'})
-        response = common_utils.create_request(
-            view,
-            fixture.owner,
-            {'template': new_template.uuid.hex, 'package': package.uuid.hex,},
-        )
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     @data('project', 'customer')
-    def test_when_offering_is_created_total_is_updated(self, scope):
-        fixture = marketplace_support_fixtures.MarketplaceSupportApprovedFixture()
-        resource = fixture.resource
-        resource.set_state_ok()
-        resource.save()
-        estimate = models.PriceEstimate.objects.get(scope=getattr(fixture, scope))
-        self.assertEqual(estimate.total, fixture.plan_component.price)
+    def test_when_invoice_item_is_updated_total_is_updated_too(self, scope):
+        invoice = invoice_factories.InvoiceFactory(customer=self.fixture.customer)
+        invoice_item = invoice_factories.InvoiceItemFactory(
+            invoice=invoice, project=self.fixture.project, unit_price=10
+        )
+        invoice_item.unit_price = 11
+        invoice_item.save(update_fields=['unit_price'])
+        estimate = models.PriceEstimate.objects.get(scope=getattr(self.fixture, scope))
+        self.assertAlmostEqual(
+            decimal.Decimal(estimate.total), decimal.Decimal(11 * 31),
+        )

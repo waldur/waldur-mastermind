@@ -207,13 +207,13 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
                     self.order_item.offering.type,
                 )
             except Exception as e:
-                signals.limit_update_failed.send(
+                signals.resource_limit_update_failed.send(
                     sender=self.order_item.resource.__class__,
                     order_item=self.order_item,
                     error_message=str(e),
                 )
             else:
-                signals.limit_update_succeeded.send(
+                signals.resource_limit_update_succeeded.send(
                     sender=self.order_item.resource.__class__,
                     order_item=self.order_item,
                 )

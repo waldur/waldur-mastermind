@@ -7,17 +7,18 @@ from rest_framework.reverse import reverse
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
+from waldur_mastermind.marketplace_openstack import views as packages_views
+from waldur_mastermind.marketplace_openstack.tests import factories, fixtures
+from waldur_mastermind.marketplace_openstack.tests.utils import (
+    run_openstack_package_change_executor,
+)
 from waldur_mastermind.packages import models
-from waldur_mastermind.packages import views as packages_views
-from waldur_mastermind.packages.tests import factories, fixtures, utils
-from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 
 
 @ddt
-@override_plugin_settings(BILLING_ENABLED=True)
 class OpenStackPackageCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.PackageFixture()
@@ -154,7 +155,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
     def _request_with_skip_connection_extnet(self, skip_connection_extnet=False):
         payload = self.get_valid_payload()
         payload['skip_connection_extnet'] = skip_connection_extnet
-        patch = mock.patch('waldur_mastermind.packages.views.executors')
+        patch = mock.patch('waldur_mastermind.marketplace_openstack.views.executors')
         mock_executors = patch.start()
         common_utils.create_request(self.view, self.fixture.staff, payload)
         transmitted_skip = mock_executors.OpenStackPackageCreateExecutor.execute.call_args[
@@ -167,7 +168,6 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-@override_plugin_settings(BILLING_ENABLED=True)
 class OpenStackPackageChangeTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.PackageFixture()
@@ -350,24 +350,6 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         new_component.amount = new_limit
         new_component.save(update_fields=['amount'])
 
-    @mock.patch('waldur_mastermind.packages.views.event_logger')
-    def test_logger_called_when_package_change_scheduled(self, logger_mock):
-        common_utils.create_request(
-            self.view, self.fixture.staff, self.get_valid_payload()
-        )
-
-        logger_mock.openstack_package.info.assert_called_once_with(
-            'Tenant package change has been scheduled. '
-            'Old value: %s, new value: {package_template_name}'
-            % self.fixture.openstack_package.template.name,
-            event_type='openstack_package_change_scheduled',
-            event_context={
-                'tenant': self.package.tenant,
-                'package_template_name': self.new_template.name,
-                'service_settings': self.package.service_settings,
-            },
-        )
-
     # Helper methods
     def get_valid_payload(self, template=None, package=None):
         return {
@@ -376,4 +358,4 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         }
 
     def run_success_task(self):
-        utils.run_openstack_package_change_executor(self.package, self.new_template)
+        run_openstack_package_change_executor(self.package, self.new_template)
