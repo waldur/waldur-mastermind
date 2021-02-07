@@ -36,7 +36,7 @@ chown -R waldur:waldur /var/lib/waldur/
 
 if [[ -f "/etc/waldur/id_rsa" ]] ; then
   # assure that ssh private is owned by waldur and not modify permissions of the original key
-  cp -cf /etc/waldur/id_rsa /var/lib/waldur/id_rsa
+  cp -vf /etc/waldur/id_rsa /var/lib/waldur/id_rsa
   chown waldur:waldur /var/lib/waldur/id_rsa
 fi
 
