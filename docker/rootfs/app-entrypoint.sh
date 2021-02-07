@@ -30,8 +30,14 @@ if [[ ! -d "/var/lib/waldur/media" ]] ; then
   echo "INFO: Create media assets directory"
   mkdir -p /var/lib/waldur/media/
 fi
+
 chmod 750 /var/lib/waldur/
 chown -R waldur:waldur /var/lib/waldur/
+
+if [[ -f "/etc/waldur/id_rsa" ]] ; then
+  # assure that ssh private is owned by waldur
+  chown waldur:waldur /etc/waldur/id_rsa
+fi
 
 echo "INFO: Spawning $@"
 exec /tini -- "$@"
