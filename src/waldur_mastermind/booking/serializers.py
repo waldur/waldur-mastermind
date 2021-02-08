@@ -78,8 +78,26 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
 
 
 class BookingSerializer(serializers.Serializer):
+    created_by_full_name = serializers.SerializerMethodField()
     start = serializers.DateTimeField()
     end = serializers.DateTimeField()
+
+    def get_created_by_full_name(self, booking):
+        order_item = booking.order_item
+        user = self.context['request'].user
+        user_customers = set(
+            user.customerpermission_set.filter(is_active=True).values_list(
+                'customer', flat=True
+            )
+        )
+        creator_customers = set(
+            order_item.order.created_by.customerpermission_set.filter(
+                is_active=True
+            ).values_list('customer', flat=True)
+        )
+
+        if user_customers & creator_customers:
+            return order_item.order.created_by.full_name
 
 
 class OfferingSerializer(marketplace_serializers.OfferingDetailsSerializer):
