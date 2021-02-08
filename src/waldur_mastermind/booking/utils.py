@@ -184,4 +184,8 @@ def sort_attributes_schedules(attributes):
     if not schedules:
         return
 
+    for s in schedules:
+        s['start'] = parse_datetime(s['start']).astimezone(timezone.utc).isoformat()
+        s['end'] = parse_datetime(s['end']).astimezone(timezone.utc).isoformat()
+
     attributes['schedules'] = sorted(schedules, key=lambda schedule: schedule['start'])
