@@ -177,5 +177,7 @@ class OfferingBookingsViewSet(views.APIView):
         offerings = models.Offering.objects.all().filter_for_user(request.user)
         offering = get_object_or_404(offerings, uuid=uuid)
         bookings = get_offering_bookings(offering)
-        serializer = serializers.BookingSerializer(instance=bookings, many=True)
+        serializer = serializers.BookingSerializer(
+            instance=bookings, many=True, context={'request': request}
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)

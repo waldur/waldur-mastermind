@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class TimePeriod:
-    def __init__(self, start, end, period_id=None, location=None, attendees=None):
+    def __init__(
+        self, start, end, period_id=None, location=None, attendees=None, order_item=None
+    ):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)
 
@@ -29,6 +31,7 @@ class TimePeriod:
         self.id = period_id and re.sub(reg_exp, '', period_id)
         self.location = location
         self.attendees = attendees or []
+        self.order_item = order_item
 
         if not isinstance(self.attendees, collections.Sequence):
             self.attendees = [self.attendees]
@@ -89,6 +92,7 @@ def get_offering_bookings(offering):
                             period.get('id'),
                             attendees=attendees,
                             location=location,
+                            order_item=order_item,
                         )
                     )
 
