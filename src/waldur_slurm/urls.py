@@ -9,7 +9,7 @@ def register_in(router):
         basename='slurm-spl',
     )
     router.register(
-        r'slurm-allocation', views.AllocationViewSet, basename='slurm-allocation'
+        r'slurm-allocations', views.AllocationViewSet, basename='slurm-allocation'
     )
     router.register(
         r'slurm-allocation-usage',
@@ -22,5 +22,5 @@ def register_in(router):
         basename='slurm-allocation-user-usage',
     )
     router.register(
-        r'slurm-association', views.AssociationViewSet, basename='slurm-association',
+        r'slurm-associations', views.AssociationViewSet, basename='slurm-association',
     )
