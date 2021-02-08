@@ -20,7 +20,12 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
             attributes={
                 'name': 'item_name',
                 'description': 'Description',
-                'schedules': [{'start': None, 'end': None}],
+                'schedules': [
+                    {
+                        'start': '2021-02-05T10:00:00.000000+00:00',
+                        'end': '2021-02-05T15:00:00.000000+00:00',
+                    }
+                ],
             },
         )
 
