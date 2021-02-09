@@ -534,6 +534,7 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
     issue_uuid = serializers.ReadOnlyField(source='issue.uuid')
     issue_key = serializers.ReadOnlyField(source='issue.key')
     user_full_name = serializers.ReadOnlyField(source='issue.caller.full_name')
+    issue_summary = serializers.ReadOnlyField(source='issue.summary')
 
     class Meta:
         model = models.Feedback
@@ -547,4 +548,5 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
             'issue_uuid',
             'user_full_name',
             'issue_key',
+            'issue_summary',
         )
