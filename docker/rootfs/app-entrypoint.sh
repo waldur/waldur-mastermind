@@ -40,9 +40,9 @@ if [[ -f "/etc/waldur/id_rsa" ]] ; then
   chown waldur:waldur /var/lib/waldur/id_rsa
 fi
 
-if [[ -f "/etc/waldur/sp.pem" ]] ; then
+if [[ -f "/etc/waldur/saml2/sp.pem" ]] ; then
   # assure that signing private is owned by waldur and avoid modifying permissions of the original key
-  cp -vf /etc/waldur/sp.pem /var/lib/waldur/sp.pem
+  cp -vf /etc/waldur/saml2/sp.pem /var/lib/waldur/sp.pem
   chown waldur:waldur /var/lib/waldur/sp.pem
 fi
 
