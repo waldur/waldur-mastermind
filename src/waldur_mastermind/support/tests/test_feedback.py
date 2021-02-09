@@ -144,6 +144,7 @@ class FeedbackGetTest(base.BaseTest):
         self.assertIn('issue_uuid', response.data)
         self.assertIn('issue_key', response.data)
         self.assertIn('user_full_name', response.data)
+        self.assertIn('issue_summary', response.data)
 
     def test_feedback_get_is_not_allowed_for_regular_user(self):
         feedback = self.fixture.feedback
