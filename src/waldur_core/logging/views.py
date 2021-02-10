@@ -210,7 +210,7 @@ class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
         aggregated_result = (
             queryset.values('created__year', 'created__month')
             .annotate(count=Count('*'))
-            .order_by('created__year', 'created__month')
+            .order_by('-created__year', '-created__month')
         )
         paginated_result = self.paginate_queryset(aggregated_result)
         final_result = [

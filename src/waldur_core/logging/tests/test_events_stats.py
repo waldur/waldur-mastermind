@@ -29,8 +29,8 @@ class EventsStatsGetTest(test.APITransactionTestCase):
         self.assertEqual(2, len(response.data))
         self.assertEqual(
             [
-                {'year': 2021, 'month': 1, 'count': 4},
                 {'year': 2021, 'month': 2, 'count': 1},
+                {'year': 2021, 'month': 1, 'count': 4},
             ],
             response.data,
         )
@@ -42,8 +42,8 @@ class EventsStatsGetTest(test.APITransactionTestCase):
         self.assertEqual(2, len(response.data))
         self.assertEqual(
             [
-                {'year': 2021, 'month': 1, 'count': 1},
                 {'year': 2021, 'month': 2, 'count': 1},
+                {'year': 2021, 'month': 1, 'count': 1},
             ],
             response.data,
         )
