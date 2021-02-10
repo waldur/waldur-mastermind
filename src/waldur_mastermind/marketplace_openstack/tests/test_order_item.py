@@ -11,13 +11,8 @@ from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import create_offering_components
-from waldur_mastermind.marketplace_openstack.tests import factories as package_factories
 from waldur_mastermind.marketplace_openstack.tests import fixtures as package_fixtures
-from waldur_mastermind.marketplace_openstack.tests.utils import (
-    BaseOpenStackTest,
-    run_openstack_package_change_executor,
-)
-from waldur_mastermind.packages import models as package_models
+from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
@@ -32,9 +27,9 @@ from waldur_openstack.openstack_tenant.tests import (
 from .. import (
     CORES_TYPE,
     INSTANCE_TYPE,
-    PACKAGE_TYPE,
     RAM_TYPE,
     STORAGE_TYPE,
+    TENANT_TYPE,
     VOLUME_TYPE,
 )
 
@@ -47,8 +42,8 @@ def process_order(order, user):
 
 class TenantGetTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = package_fixtures.PackageFixture()
-        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.fixture = package_fixtures.MarketplaceOpenStackFixture()
+        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
         self.order = marketplace_factories.OrderFactory(project=self.fixture.project)
         self.order_item = marketplace_factories.OrderItemFactory(
             order=self.order,
@@ -76,15 +71,13 @@ class TenantGetTest(test.APITransactionTestCase):
 class TenantCreateTest(BaseOpenStackTest):
     def setUp(self):
         super(TenantCreateTest, self).setUp()
-        self.fixture = package_fixtures.PackageFixture()
+        self.fixture = package_fixtures.MarketplaceOpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.openstack_service_settings,
-            type=PACKAGE_TYPE,
+            type=TENANT_TYPE,
             state=marketplace_models.Offering.States.ACTIVE,
         )
-        self.plan = marketplace_factories.PlanFactory(
-            scope=self.fixture.openstack_template, offering=self.offering
-        )
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
 
     @data('staff', 'owner', 'manager', 'admin')
     def test_when_order_is_created_items_are_validated(self, user):
@@ -202,7 +195,7 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertTrue(isinstance(order_item.resource.scope, openstack_models.Tenant))
 
     def test_order_item_set_state_done(self):
-        tenant = package_factories.OpenStackPackageFactory().tenant
+        tenant = openstack_factories.TenantFactory()
         resource = marketplace_factories.ResourceFactory(scope=tenant)
 
         order_item = marketplace_factories.OrderItemFactory(resource=resource)
@@ -273,12 +266,10 @@ class TenantCreateTest(BaseOpenStackTest):
 class TenantMutateTest(test.APITransactionTestCase):
     def setUp(self):
         super(TenantMutateTest, self).setUp()
-        self.fixture = package_fixtures.PackageFixture()
-        self.tenant = self.fixture.openstack_package.tenant
-        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
-        self.plan = marketplace_factories.PlanFactory(
-            offering=self.offering, scope=self.fixture.openstack_template
-        )
+        self.fixture = package_fixtures.MarketplaceOpenStackFixture()
+        self.tenant = self.fixture.openstack_tenant
+        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         self.resource = marketplace_factories.ResourceFactory(
             scope=self.tenant,
             offering=self.offering,
@@ -327,88 +318,6 @@ class TenantDeleteTest(TenantMutateTest):
         self.assertRaises(ObjectDoesNotExist, self.tenant.refresh_from_db)
 
     def trigger_deletion(self):
-        process_order(self.order_item.order, self.fixture.staff)
-
-        self.order_item.refresh_from_db()
-        self.resource.refresh_from_db()
-        self.tenant.refresh_from_db()
-
-
-@ddt
-class TenantUpdateTest(TenantMutateTest):
-    def setUp(self):
-        super(TenantUpdateTest, self).setUp()
-        self.resource.state = marketplace_models.Resource.States.OK
-        self.resource.save()
-
-        self.new_template = package_factories.PackageTemplateFactory(
-            service_settings=self.fixture.openstack_service_settings
-        )
-        self.new_plan = marketplace_factories.PlanFactory(
-            offering=self.offering, scope=self.new_template,
-        )
-        self.order_item = marketplace_factories.OrderItemFactory(
-            resource=self.resource,
-            plan=self.new_plan,
-            type=marketplace_models.RequestTypeMixin.Types.UPDATE,
-        )
-        self.package = self.fixture.openstack_package
-
-    @data('staff', 'owner', 'manager', 'admin')
-    def test_user_can_create_order_item(self, user):
-        self.order_item.delete()
-        url = marketplace_factories.ResourceFactory.get_url(
-            resource=self.resource, action='switch_plan'
-        )
-        payload = {'plan': marketplace_factories.PlanFactory.get_url(self.new_plan)}
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_update_is_scheduled(self):
-        self.trigger_update()
-        self.assertEqual(
-            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
-        )
-        self.assertEqual(
-            self.resource.state, marketplace_models.Resource.States.UPDATING
-        )
-        self.assertEqual(self.resource.plan, self.plan)
-
-        run_openstack_package_change_executor(self.package, self.new_template)
-        self.order_item.refresh_from_db()
-        self.resource.refresh_from_db()
-        self.assertEqual(
-            self.order_item.state, marketplace_models.OrderItem.States.DONE
-        )
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
-        self.assertEqual(self.resource.plan, self.new_plan)
-
-        package = package_models.OpenStackPackage.objects.get(tenant=self.tenant)
-        self.assertEqual(package.template, self.new_template)
-
-    def test_update_is_completed(self):
-        self.trigger_update()
-
-        self.tenant.schedule_updating()
-        self.tenant.save()
-
-        self.tenant.begin_updating()
-        self.tenant.save()
-
-        self.tenant.set_ok()
-        self.tenant.save()
-
-        self.order_item.refresh_from_db()
-        self.resource.refresh_from_db()
-
-        self.assertEqual(
-            self.order_item.state, marketplace_models.OrderItem.States.DONE
-        )
-        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
-        self.assertEqual(self.resource.plan, self.new_plan)
-
-    def trigger_update(self):
         process_order(self.order_item.order, self.fixture.staff)
 
         self.order_item.refresh_from_db()
@@ -729,7 +638,7 @@ class VolumeDeleteTest(test.APITransactionTestCase):
 class TenantUpdateLimitTestBase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
-        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         self.resource = marketplace_factories.ResourceFactory(
             offering=self.offering,

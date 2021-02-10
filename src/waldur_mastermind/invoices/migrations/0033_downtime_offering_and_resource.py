@@ -34,15 +34,4 @@ class Migration(migrations.Migration):
                 to='marketplace.Resource',
             ),
         ),
-        migrations.AlterField(
-            model_name='servicedowntime',
-            name='package',
-            field=models.ForeignKey(
-                blank=True,
-                editable=False,
-                null=True,
-                on_delete=django.db.models.deletion.CASCADE,
-                to='packages.OpenStackPackage',
-            ),
-        ),
     ]

@@ -6,7 +6,7 @@ from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
+from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 
 
 @freeze_time('2018-11-01')
@@ -95,7 +95,7 @@ class DowntimeValidationTest(test.APITransactionTestCase):
 @freeze_time('2018-11-01')
 class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE,)
+        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE,)
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering
         )
@@ -182,7 +182,7 @@ class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    def test_compensation_is_not_created_if_item_does_not_have_package(self):
+    def test_compensation_is_not_created_if_item_does_not_have_scope(self):
         self.item.scope = None
         self.item.save()
         models.ServiceDowntime.objects.create(

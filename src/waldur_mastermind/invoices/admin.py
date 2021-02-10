@@ -1,6 +1,5 @@
 from django.conf.urls import url
 from django.contrib import admin
-from django.forms import ModelChoiceField
 from django.forms.models import ModelForm
 from django.forms.widgets import CheckboxInput
 from django.http import HttpResponse
@@ -154,22 +153,12 @@ class InvoiceAdmin(
     create_pdf_for_all.name = _('Create PDF for all invoices')
 
 
-class PackageChoiceField(ModelChoiceField):
-    def label_from_instance(self, obj):
-        return '%s > %s > %s' % (
-            obj.tenant.service_project_link.project.customer,
-            obj.tenant.service_project_link.project.name,
-            obj.tenant.name,
-        )
-
-
 class ServiceDowntimeAdmin(admin.ModelAdmin):
     list_display = (
         'get_customer',
         'get_project',
         'offering',
         'resource',
-        'get_package',
         'start',
         'end',
     )
@@ -190,25 +179,13 @@ class ServiceDowntimeAdmin(admin.ModelAdmin):
         if downtime.resource:
             return downtime.resource.customer
 
-        if downtime.package:
-            return downtime.package.tenant.service_project_link.project.customer
-
     get_customer.short_description = _('Organization')
 
     def get_project(self, downtime):
         if downtime.resource:
             return downtime.resource.project
 
-        if downtime.package:
-            return downtime.package.tenant.service_project_link.project
-
     get_project.short_description = _('Project')
-
-    def get_package(self, downtime):
-        if downtime.package:
-            return downtime.package.tenant.name
-
-    get_package.short_description = _('Package')
 
 
 class PaymentProfileAdminForm(ModelForm):

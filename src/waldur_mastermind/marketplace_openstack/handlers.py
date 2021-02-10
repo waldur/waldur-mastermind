@@ -1,9 +1,8 @@
-import decimal
 import logging
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core import utils as core_utils
@@ -11,154 +10,14 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import get_resource_state
-from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import (
-    INSTANCE_TYPE,
-    PACKAGE_TYPE,
-    RAM_TYPE,
-    STORAGE_TYPE,
-    VOLUME_TYPE,
-    tasks,
-    utils,
-)
+from . import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE, tasks, utils
 
 logger = logging.getLogger(__name__)
 States = marketplace_models.Resource.States
-
-
-def create_template_for_plan(sender, instance, created=False, **kwargs):
-    plan = instance
-
-    if plan.scope:
-        return
-
-    if not created:
-        return
-
-    if plan.offering.type != PACKAGE_TYPE:
-        return
-
-    if not isinstance(plan.offering.scope, structure_models.ServiceSettings):
-        logger.warning(
-            'Skipping plan synchronization because offering scope is not service settings. '
-            'Plan ID: %s',
-            plan.id,
-        )
-        return
-
-    if plan.offering.scope.type != OpenStackConfig.service_name:
-        logger.warning(
-            'Skipping plan synchronization because service settings type is not OpenStack. '
-            'Plan ID: %s',
-            plan.id,
-        )
-        return
-
-    with transaction.atomic():
-        template = package_models.PackageTemplate.objects.create(
-            service_settings=plan.offering.scope,
-            name=plan.name,
-            description=plan.description,
-            product_code=plan.product_code,
-            article_code=plan.article_code,
-            unit=plan.unit,
-        )
-        plan.scope = template
-        plan.save()
-
-
-PLAN_FIELDS = {'name', 'archived', 'product_code', 'article_code'}
-
-
-def update_template_for_plan(sender, instance, created=False, **kwargs):
-    plan = instance
-
-    if plan.offering.type != PACKAGE_TYPE:
-        return
-
-    if created:
-        return
-
-    update_fields = set(plan.tracker.changed()) & PLAN_FIELDS
-    if not update_fields:
-        return
-
-    if not plan.scope:
-        return
-
-    template = plan.scope
-    for field in update_fields:
-        setattr(template, field, getattr(plan, field))
-    template.save(update_fields=update_fields)
-
-
-def update_plan_for_template(sender, instance, created=False, **kwargs):
-    template = instance
-
-    if created:
-        return
-
-    update_fields = set(template.tracker.changed()) & PLAN_FIELDS
-    if not update_fields:
-        return
-
-    try:
-        plan = marketplace_models.Plan.objects.get(scope=template)
-    except (ObjectDoesNotExist, MultipleObjectsReturned):
-        return
-
-    for field in update_fields:
-        setattr(plan, field, getattr(template, field))
-    plan.save(update_fields=update_fields)
-
-
-def synchronize_plan_component(sender, instance, created=False, **kwargs):
-    component = instance
-
-    if not created and not set(instance.tracker.changed()) & {'amount', 'price'}:
-        return
-
-    if component.plan.offering.type != PACKAGE_TYPE:
-        return
-
-    template = component.plan.scope
-    if not template:
-        logger.warning(
-            'Skipping plan component synchronization because offering does not have scope. '
-            'Offering ID: %s',
-            component.plan.offering.id,
-        )
-        return
-
-    amount = component.amount
-    price = component.price
-
-    # In marketplace RAM and storage is stored in GB, but in package plugin it is stored in MB.
-    if component.component.type in (RAM_TYPE, STORAGE_TYPE):
-        amount = amount * 1024
-        price = decimal.Decimal(price) / decimal.Decimal(1024.0)
-
-    package_component = package_models.PackageComponent.objects.filter(
-        template=template, type=component.component.type
-    ).first()
-
-    if package_component:
-        package_component.amount = amount
-        package_component.price = price
-        package_component.save(update_fields=['amount', 'price'])
-
-    elif created:
-        package_models.PackageComponent.objects.create(
-            template=template,
-            type=component.component.type,
-            amount=amount,
-            price=price,
-        )
 
 
 def create_offering_from_tenant(sender, instance, created=False, **kwargs):
@@ -488,7 +347,7 @@ def create_marketplace_resource_for_imported_resources(
 
     if isinstance(instance, openstack_models.Tenant):
         offering = offering or utils.get_offering(
-            PACKAGE_TYPE, instance.service_settings
+            TENANT_TYPE, instance.service_settings
         )
 
         if not offering:
@@ -539,24 +398,24 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
 
 
 def update_invoice_when_resource_is_created(sender, instance, **kwargs):
-    if instance.offering.type == PACKAGE_TYPE:
+    if instance.offering.type == TENANT_TYPE:
         registrators.RegistrationManager.register(instance)
 
 
 def update_invoice_when_limits_are_updated(sender, order_item, **kwargs):
-    if order_item.offering.type == PACKAGE_TYPE:
+    if order_item.offering.type == TENANT_TYPE:
         registrators.RegistrationManager.terminate(order_item.resource)
         registrators.RegistrationManager.register(order_item.resource)
 
 
 def update_invoice_when_plan_is_switched(sender, instance, **kwargs):
-    if instance.offering.type == PACKAGE_TYPE:
+    if instance.offering.type == TENANT_TYPE:
         registrators.RegistrationManager.terminate(instance)
         registrators.RegistrationManager.register(instance)
 
 
 def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
-    if instance.offering.type == PACKAGE_TYPE:
+    if instance.offering.type == TENANT_TYPE:
         registrators.RegistrationManager.terminate(instance)
 
 
@@ -608,7 +467,7 @@ def synchronize_limits_when_storage_mode_is_switched(
     if created:
         return
 
-    if offering.type != PACKAGE_TYPE:
+    if offering.type != TENANT_TYPE:
         return
 
     if not offering.tracker.has_changed('plugin_options'):

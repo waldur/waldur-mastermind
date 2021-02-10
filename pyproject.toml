@@ -137,7 +137,6 @@ waldur_marketplace_vmware = "waldur_mastermind.marketplace_vmware.extension:Mark
 waldur_marketplace_waldur = "waldur_mastermind.marketplace_waldur.extension:MarketplaceWaldurExtension"
 waldur_openstack = "waldur_openstack.openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack.openstack_tenant.extension:OpenStackTenantExtension"
-waldur_packages = "waldur_mastermind.packages.extension:PackagesExtension"
 waldur_notifications = "waldur_mastermind.notifications.extension:NotificationsExtension"
 waldur_paypal = "waldur_paypal.extension:PayPalExtension"
 waldur_rancher = "waldur_rancher.extension:RancherExtension"

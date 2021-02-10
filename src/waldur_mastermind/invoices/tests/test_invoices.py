@@ -19,7 +19,7 @@ from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.invoices.tests import utils as test_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
+from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support.tests.fixtures import (
     MarketplaceSupportApprovedFixture,
@@ -258,7 +258,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.provider_2 = marketplace_factories.ServiceProviderFactory()
 
         self.offering = marketplace_factories.OfferingFactory(
-            type=PACKAGE_TYPE, customer=self.provider.customer
+            type=TENANT_TYPE, customer=self.provider.customer
         )
 
         self.offering_component = marketplace_factories.OfferingComponentFactory(
@@ -272,7 +272,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
 
         self.offering_2 = marketplace_factories.OfferingFactory(
-            type=PACKAGE_TYPE, customer=self.provider_2.customer
+            type=TENANT_TYPE, customer=self.provider_2.customer
         )
 
         self.offering_component_2 = marketplace_factories.OfferingComponentFactory(

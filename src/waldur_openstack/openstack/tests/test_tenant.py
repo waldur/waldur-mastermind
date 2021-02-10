@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.structure.models import PrivateServiceSettings, ServiceSettings
+from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import executors, models
 from waldur_openstack.openstack.models import Tenant
@@ -424,20 +424,6 @@ class TenantUpdateTest(BaseTenantActionsTest):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.get_url(), dict(name='new valid tenant name'))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    @patch('waldur_openstack.openstack.executors.core_tasks.BackendMethodTask')
-    def test_update_service_setting_options_if_updated_scope(self, mock_core_tasks):
-        tenant_service_setting = PrivateServiceSettings.objects.get(
-            scope=self.fixture.tenant
-        )
-        NEW_EXTERNAL_NETWORK_ID = 'new_external_network_id'
-        self.fixture.tenant.external_network_id = NEW_EXTERNAL_NETWORK_ID
-        self.fixture.tenant.save()
-        tenant_service_setting.refresh_from_db()
-        self.assertEqual(
-            tenant_service_setting.get_option('external_network_id'),
-            NEW_EXTERNAL_NETWORK_ID,
-        )
 
     def test_updating_openstack_tenant_name_should_lead_to_update_of_a_provider_name(
         self,

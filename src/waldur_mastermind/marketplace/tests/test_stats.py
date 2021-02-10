@@ -12,7 +12,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.tests import factories, helpers
-from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
+from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
@@ -29,7 +29,7 @@ class StatsBaseTest(test.APITransactionTestCase):
 
         self.offering = factories.OfferingFactory(
             category=self.category,
-            type=PACKAGE_TYPE,
+            type=TENANT_TYPE,
             state=models.Offering.States.ACTIVE,
         )
         self.offering_component = factories.OfferingComponentFactory(
@@ -276,7 +276,7 @@ class ComponentStatsTest(StatsBaseTest):
                 'resource_name': item.scope.name,
                 'resource_uuid': item.scope.uuid.hex,
                 'offering_name': self.offering.name,
-                'offering_type': PACKAGE_TYPE,
+                'offering_type': TENANT_TYPE,
                 'offering_uuid': self.offering.uuid.hex,
             },
         )

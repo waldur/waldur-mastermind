@@ -1,23 +1,23 @@
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.fixtures import ServiceFixture
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import MoveResourceException, move_resource
-from waldur_openstack.openstack.tests import factories as openstack_factories
 
 
-class CommandTest(test.APITransactionTestCase):
+class MoveResourceCommandTest(test.APITransactionTestCase):
     def setUp(self):
-        self.tenant = openstack_factories.TenantFactory()
-        self.project = self.tenant.service_project_link.project
+        self.fixture = ServiceFixture()
+        self.project = self.fixture.project
         self.resource = marketplace_factories.ResourceFactory(project=self.project)
-        self.resource.scope = self.tenant
+        self.resource.scope = self.fixture.volume
         self.resource.save()
         resource_offering = self.resource.offering
         resource_offering.allowed_customers.add(self.project.customer)
-        resource_offering.scope = self.tenant
+        resource_offering.scope = self.fixture.volume
         resource_offering.save()
         self.order = marketplace_factories.OrderFactory(project=self.project)
         marketplace_factories.OrderItemFactory(resource=self.resource, order=self.order)
@@ -46,7 +46,7 @@ class CommandTest(test.APITransactionTestCase):
         self.assertEqual(self.target_invoice.items.count(), 0)
         move_resource(self.resource, self.new_project)
 
-        self.tenant.refresh_from_db()
+        self.fixture.volume.refresh_from_db()
         self.order.refresh_from_db()
         self.resource.refresh_from_db()
         self.assertTrue(
@@ -55,7 +55,9 @@ class CommandTest(test.APITransactionTestCase):
         self.assertFalse(
             self.project.customer in self.resource.offering.allowed_customers.all()
         )
-        self.assertEqual(self.tenant.service_project_link.project, self.new_project)
+        self.assertEqual(
+            self.fixture.volume.service_project_link.project, self.new_project
+        )
         self.assertEqual(self.order.project, self.new_project)
         self.assertEqual(self.resource.project, self.new_project)
         self.assertEqual(self.start_invoice.items.count(), 0)
@@ -89,10 +91,12 @@ class CommandTest(test.APITransactionTestCase):
             state=invoices_models.Invoice.States.PENDING,
         )
 
-        self.tenant.refresh_from_db()
+        self.fixture.volume.refresh_from_db()
         self.order.refresh_from_db()
         self.resource.refresh_from_db()
-        self.assertEqual(self.tenant.service_project_link.project, self.new_project)
+        self.assertEqual(
+            self.fixture.volume.service_project_link.project, self.new_project
+        )
         self.assertEqual(self.order.project, self.new_project)
         self.assertEqual(self.resource.project, self.new_project)
         self.assertEqual(self.start_invoice.items.count(), 0)

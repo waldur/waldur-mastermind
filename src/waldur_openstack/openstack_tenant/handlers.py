@@ -517,7 +517,7 @@ def update_service_settings(sender, instance, created=False, **kwargs):
     tenant = instance
 
     if created or not (
-        set(['external_network_id', 'name', 'backend_id'])
+        {'name', 'backend_id', 'internal_network_id', 'external_network_id'}
         & set(tenant.tracker.changed())
     ):
         return
@@ -531,10 +531,29 @@ def update_service_settings(sender, instance, created=False, **kwargs):
     except structure_models.ServiceSettings.MultipleObjectsReturned:
         return
     else:
+        service_settings.options['internal_network_id'] = tenant.internal_network_id
         service_settings.options['external_network_id'] = tenant.external_network_id
         service_settings.options['tenant_id'] = tenant.backend_id
         service_settings.name = tenant.name
         service_settings.save()
+
+
+def mark_private_settings_as_erred_if_tenant_creation_failed(
+    sender, instance, name, source, target, **kwargs
+):
+    if target == StateMixin.States.ERRED and source == StateMixin.States.CREATING:
+        try:
+            service_settings = structure_models.ServiceSettings.objects.get(
+                scope=instance, type=apps.OpenStackTenantConfig.service_name
+            )
+        except structure_models.ServiceSettings.DoesNotExist:
+            return
+        except structure_models.ServiceSettings.MultipleObjectsReturned:
+            return
+        else:
+            service_settings.set_erred()
+            service_settings.error_message = 'Failed to create tenant: %s.' % instance
+            service_settings.save(update_fields=['state', 'error_message'])
 
 
 def sync_private_settings_quotas_with_tenant_quotas(

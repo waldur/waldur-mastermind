@@ -19,7 +19,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('contenttypes', '0002_remove_content_type_name'),
         ('structure', '0001_squashed_0054'),
-        ('packages', '0001_squashed_0015'),
     ]
 
     operations = [
@@ -225,13 +224,6 @@ class Migration(migrations.Migration):
                     models.DateTimeField(
                         default=django.utils.timezone.now,
                         help_text='Date and time when downtime has ended.',
-                    ),
-                ),
-                (
-                    'package',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='packages.OpenStackPackage',
                     ),
                 ),
             ],
