@@ -29,7 +29,6 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace_openstack.registrators import (
             OpenStackRegistrator,
         )
-        from waldur_mastermind.packages import models as package_models
 
         from . import (
             filters,
@@ -37,7 +36,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             processors,
             INSTANCE_TYPE,
             VOLUME_TYPE,
-            PACKAGE_TYPE,
+            TENANT_TYPE,
             RAM_TYPE,
             CORES_TYPE,
             STORAGE_TYPE,
@@ -68,33 +67,9 @@ class MarketplaceOpenStackConfig(AppConfig):
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
-        signals.post_save.connect(
-            handlers.create_template_for_plan,
-            sender=marketplace_models.Plan,
-            dispatch_uid='waldur_mastermind.marketplace_openstack.create_template_for_plan',
-        )
-
-        signals.post_save.connect(
-            handlers.update_template_for_plan,
-            sender=marketplace_models.Plan,
-            dispatch_uid='waldur_mastermind.marketplace_openstack.update_template_for_plan',
-        )
-
-        signals.post_save.connect(
-            handlers.update_plan_for_template,
-            sender=package_models.PackageTemplate,
-            dispatch_uid='waldur_mastermind.marketplace_openstack.update_plan_for_template',
-        )
-
-        signals.post_save.connect(
-            handlers.synchronize_plan_component,
-            sender=marketplace_models.PlanComponent,
-            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_plan_component',
-        )
-
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(
-            offering_type=PACKAGE_TYPE,
+            offering_type=TENANT_TYPE,
             create_resource_processor=processors.TenantCreateProcessor,
             update_resource_processor=processors.TenantUpdateProcessor,
             delete_resource_processor=processors.TenantDeleteProcessor,
@@ -218,7 +193,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         registrators.RegistrationManager.add_registrator(
-            PACKAGE_TYPE, OpenStackRegistrator,
+            TENANT_TYPE, OpenStackRegistrator,
         )
 
         marketplace_signals.resource_creation_succeeded.connect(

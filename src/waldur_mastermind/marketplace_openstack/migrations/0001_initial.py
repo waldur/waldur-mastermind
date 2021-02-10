@@ -24,7 +24,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('marketplace', '0001_squashed_0093'),
-        ('packages', '0001_squashed_0015'),
     ]
 
     operations = [migrations.RunPython(migrate_components)]

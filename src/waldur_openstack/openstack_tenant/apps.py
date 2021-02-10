@@ -205,6 +205,12 @@ class OpenStackTenantConfig(AppConfig):
             dispatch_uid='openstack_tenant.handlers.update_service_settings',
         )
 
+        fsm_signals.post_transition.connect(
+            handlers.mark_private_settings_as_erred_if_tenant_creation_failed,
+            sender=Tenant,
+            dispatch_uid='openstack_tenant.handlers.mark_private_settings_as_erred_if_tenant_creation_failed',
+        )
+
         signals.post_save.connect(
             handlers.copy_flavor_exclude_regex_to_openstacktenant_service_settings,
             sender=ServiceSettings,

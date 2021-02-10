@@ -6,9 +6,9 @@ from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
-    PACKAGE_TYPE,
     RAM_TYPE,
     STORAGE_TYPE,
+    TENANT_TYPE,
 )
 
 
@@ -19,7 +19,7 @@ class OpenStackRegistrator(BaseRegistrator):
     def get_sources(self, customer):
         return (
             models.Resource.objects.filter(
-                project__customer=customer, offering__type=PACKAGE_TYPE
+                project__customer=customer, offering__type=TENANT_TYPE
             )
             .exclude(
                 state__in=[

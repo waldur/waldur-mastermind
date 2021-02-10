@@ -43,7 +43,6 @@ class CustomMenu(Menu):
     """
 
     IAAS_CLOUDS = (
-        'waldur_mastermind.packages.*',
         'waldur_azure.*',
         'waldur_openstack.*',
         'waldur_aws.*',
@@ -75,7 +74,6 @@ class CustomMenu(Menu):
 
     MARKETPLACE = (
         'waldur_mastermind.marketplace.*',
-        'waldur_mastermind.marketplace_packages.*',
         'waldur_mastermind.marketplace_support.*',
         'waldur_pid.*',
     )

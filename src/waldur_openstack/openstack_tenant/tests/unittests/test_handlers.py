@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from waldur_core.core.models import StateMixin
 from waldur_core.structure import models as structure_models
+from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant import apps, models
 from waldur_openstack.openstack_tenant.tests import factories
@@ -219,6 +220,49 @@ class TenantChangeCredentialsTest(TestCase):
         service_settings.refresh_from_db()
         self.assertEqual(service_settings.password, new_password)
         self.assertEqual(service_settings.username, new_username)
+
+
+class UpdateTenantSettingsTest(TestCase):
+    def setUp(self) -> None:
+        self.tenant: Tenant = openstack_factories.TenantFactory()
+        self.service_settings = structure_models.ServiceSettings.objects.get(
+            scope=self.tenant, type=apps.OpenStackTenantConfig.service_name
+        )
+
+    def test_update_service_setting_external_network_id_if_updated_scope(self):
+        NEW_EXTERNAL_NETWORK_ID = 'new_external_network_id'
+        self.tenant.external_network_id = NEW_EXTERNAL_NETWORK_ID
+        self.tenant.save()
+        self.service_settings.refresh_from_db()
+        self.assertEqual(
+            self.service_settings.get_option('external_network_id'),
+            NEW_EXTERNAL_NETWORK_ID,
+        )
+
+    def test_update_service_setting_internal_network_id_if_updated_scope(self):
+        NEW_INTERNAL_NETWORK_ID = 'new_internal_network_id'
+        self.tenant.internal_network_id = NEW_INTERNAL_NETWORK_ID
+        self.tenant.save()
+        self.service_settings.refresh_from_db()
+        self.assertEqual(
+            self.service_settings.get_option('internal_network_id'),
+            NEW_INTERNAL_NETWORK_ID,
+        )
+
+    def test_mark_settings_as_erred_if_tenant_was_not_created(self):
+        # Arrange
+        self.tenant.state = StateMixin.States.CREATING
+        self.tenant.save()
+        self.service_settings.state = StateMixin.States.CREATING
+        self.service_settings.save()
+
+        # Act
+        self.tenant.set_erred()
+        self.tenant.save()
+
+        # Assert
+        self.service_settings.refresh_from_db()
+        self.assertEqual(self.service_settings.state, StateMixin.States.ERRED)
 
 
 class ConfigDriveUpdateTest(TestCase):

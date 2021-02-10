@@ -28,7 +28,6 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.packages import models as package_models
 
 from . import managers, utils
 
@@ -323,7 +322,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     @property
     def usage_days(self):
         """
-        Returns the number of days package was used from the time
+        Returns the number of days resource was used from the time
         it was purchased or from the start of current month
         """
         full_days = utils.get_full_days(self.start, self.end)
@@ -373,24 +372,12 @@ def get_default_downtime_start():
 
 
 class ServiceDowntime(models.Model):
-    """
-    Currently this model is restricted to OpenStack package only.
-    It is expected that implementation would be generalized to support other resources as well.
-    """
-
     start = models.DateTimeField(
         default=get_default_downtime_start,
         help_text=_('Date and time when downtime has started.'),
     )
     end = models.DateTimeField(
         default=timezone.now, help_text=_('Date and time when downtime has ended.')
-    )
-    package = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=package_models.OpenStackPackage,
-        blank=True,
-        null=True,
-        editable=False,
     )
     offering = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -453,9 +440,7 @@ class ServiceDowntime(models.Model):
         return Q(left | right | inside | outside)
 
     def _validate_intersection(self):
-        qs = ServiceDowntime.objects.filter(
-            self.get_intersection_subquery(), package=self.package
-        )
+        qs = ServiceDowntime.objects.filter(self.get_intersection_subquery())
         if qs.exists():
             ids = ', '.join(str(item.id) for item in qs)
             raise ValidationError(
@@ -548,13 +533,6 @@ class InvoiceItemAdjuster:
 
     @property
     def invoice_items(self):
-        # TODO: Remove temporary workaround for OpenStack package
-        if isinstance(self.source, package_models.OpenStackPackage):
-            return InvoiceItem.objects.filter(
-                invoice=self.invoice,
-                content_type=self.content_type,
-                details__tenant_name=self.source.tenant.name,
-            )
         return InvoiceItem.objects.filter(
             invoice=self.invoice,
             content_type=self.content_type,

@@ -1,10 +1,13 @@
 from unittest import mock
 
+from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.signals import resource_limit_update_succeeded
@@ -18,13 +21,13 @@ from waldur_mastermind.marketplace_openstack import (
 )
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
 
-from .. import PACKAGE_TYPE
+from .. import TENANT_TYPE
 
 
 @freeze_time('2019-09-10')
 class BaseTenantInvoiceTest(test.APITransactionTestCase):
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
         self.limits = {
             RAM_TYPE: 1 * 1024,
             CORES_TYPE: 2,
@@ -203,6 +206,59 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
             customer=resource.project.customer
         )
         self.assertEqual(invoice.price, old_plan_total + new_plan_total)
+
+    def test_price_is_calculated_properly_if_it_was_used_only_for_one_day(self):
+        date = timezone.datetime(2017, 1, 26)
+        month_end = timezone.datetime(2017, 1, 31, 23, 59, 59)
+        full_days = get_full_days(date, month_end)
+
+        low_prices = {
+            RAM_TYPE: 5,
+            CORES_TYPE: 10,
+            STORAGE_TYPE: 1,
+        }
+        high_prices = {
+            RAM_TYPE: 50,
+            CORES_TYPE: 500,
+            STORAGE_TYPE: 5,
+        }
+
+        # at first user has bought cheap package
+        with freeze_time(date):
+            resource = self.create_resource(low_prices, self.limits)
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=resource.project.customer
+        )
+        cheap_item = invoice.items.get(scope=resource)
+        self.assertEqual(
+            cheap_item.unit_price, self.get_unit_price(low_prices, self.limits)
+        )
+        self.assertEqual(cheap_item.usage_days, full_days)
+
+        # later at the same day he switched to the expensive one
+        with freeze_time(date + timezone.timedelta(hours=2)):
+            self.switch_plan(resource, high_prices)
+
+        expensive_item = invoice.items.get(scope=resource)
+        self.assertEqual(
+            expensive_item.unit_price, self.get_unit_price(high_prices, self.limits)
+        )
+        self.assertEqual(expensive_item.usage_days, full_days)
+
+        # at last he switched to the medium one
+        with freeze_time(date + timezone.timedelta(hours=4)):
+            self.switch_plan(resource, self.prices)
+
+        medium_item = invoice.items.filter(scope=resource).last()
+        # medium item usage days should start from tomorrow,
+        # because expensive item should be calculated for current day
+        self.assertEqual(medium_item.usage_days, full_days - 1)
+        # expensive item should be calculated for one day
+        expensive_item.refresh_from_db()
+
+        # cheap item price should not exits
+        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
 
     def test_when_resource_is_deleted_invoice_is_updated(self):
         resource = self.create_resource(self.prices, self.limits)
