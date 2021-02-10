@@ -110,6 +110,9 @@ class Association(core_models.UuidMixin):
     )
     username = models.CharField(max_length=128)
 
+    def __str__(self):
+        return '%s <-> %s' % (self.allocation.name, self.username)
+
 
 class AllocationUserUsage(slurm_mixins.UsageMixin):
     """
