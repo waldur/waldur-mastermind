@@ -52,15 +52,9 @@ class SlurmBackend(ServiceBackend):
             return True
 
     def add_new_users(self, allocation):
-        freeipa_profiles = {
-            profile.user: profile.username
-            for profile in freeipa_models.Profile.objects.all()
-        }
-
-        for user in allocation.service_project_link.project.customer.get_users():
-            username = freeipa_profiles.get(user)
-            if username:
-                self.add_user(allocation, username.lower())
+        users = allocation.service_project_link.project.customer.get_users()
+        for profile in freeipa_models.Profile.objects.all(user__in=users):
+            self.add_user(allocation, profile.username.lower())
 
     def create_allocation(self, allocation):
         project = allocation.service_project_link.project
