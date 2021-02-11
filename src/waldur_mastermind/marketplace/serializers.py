@@ -1540,12 +1540,14 @@ class CartItemSerializer(BaseRequestSerializer):
                 if issubclass(processor_class, CreateResourceProcessor):
                     processor = processor_class(order_item)
                     post_data = processor.get_post_data()
-                    serializer = processor.get_serializer_class()(
-                        data=post_data, context=self.context
-                    )
-                    serializer.is_valid(raise_exception=True)
-                    serializer.save()
-                    raise exceptions.TransactionRollback()
+                    serializer_class = processor.get_serializer_class()
+                    if serializer_class:
+                        serializer = serializer_class(
+                            data=post_data, context=self.context
+                        )
+                        serializer.is_valid(raise_exception=True)
+                        serializer.save()
+                        raise exceptions.TransactionRollback()
         except exceptions.TransactionRollback:
             pass
 
