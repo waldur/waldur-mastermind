@@ -37,7 +37,8 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
     @cached_property
     def plan(self):
         return marketplace_factories.PlanFactory(
-            unit=marketplace_models.Plan.Units.PER_MONTH
+            unit=marketplace_models.Plan.Units.PER_MONTH,
+            offering=self.marketplace_offering,
         )
 
     @cached_property

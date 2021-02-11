@@ -1375,7 +1375,9 @@ class BaseItemSerializer(
             validate_plan(plan)
 
         if offering.options:
-            validate_options(offering.options['options'], attrs.get('attributes'))
+            validate_options(
+                offering.options.get('options', {}), attrs.get('attributes')
+            )
 
         limits = attrs.get('limits')
         if limits:

@@ -148,7 +148,7 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
         This method should return DRF serializer class which
         validates request data to provision new resources.
         """
-        raise NotImplementedError
+        return None
 
     def get_viewset(self):
         """
@@ -185,9 +185,10 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
     def validate_request(self, request):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
-        context = {'request': request, 'skip_permission_check': True}
-        serializer = serializer_class(data=post_data, context=context)
-        serializer.is_valid(raise_exception=True)
+        if serializer_class:
+            context = {'request': request, 'skip_permission_check': True}
+            serializer = serializer_class(data=post_data, context=context)
+            serializer.is_valid(raise_exception=True)
 
     def process_order_item(self, user):
         """We need to overwrite process order item because two cases exist:
@@ -260,7 +261,7 @@ class UpdateResourceProcessor(AbstractUpdateResourceProcessor):
         This method should return DRF serializer class which
         validates request data to update existing resource.
         """
-        raise NotImplementedError
+        return None
 
     def get_view(self):
         """
