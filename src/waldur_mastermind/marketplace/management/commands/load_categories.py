@@ -358,9 +358,14 @@ def populate_category(category_code, category, sections):
 
 def load_category(category_short):
     category_name, category_description = available_categories[category_short]
-    new_category, _ = Category.objects.get_or_create(
-        title=category_name, description=category_description
-    )
+    args = dict(title=category_name, description=category_description)
+
+    if category_name == 'vm':
+        args['default_vm_category'] = True
+    if category_name == 'storage':
+        args['default_volume_category'] = True
+
+    new_category, _ = Category.objects.get_or_create(**args)
     category_icon = '%s.svg' % category_short
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
     new_category.icon.save(category_icon, File(open(path + category_icon, 'rb')))
