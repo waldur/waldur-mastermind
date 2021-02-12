@@ -60,4 +60,9 @@ urlpatterns = [
         r'^api/marketplace-checklists/(?P<checklist_uuid>[a-f0-9]+)/user/(?P<user_uuid>[a-f0-9]+)/answers/$',
         views.UserAnswersListView.as_view({'get': 'list'}),
     ),
+    url(
+        r'^api/users/(?P<user_uuid>[a-f0-9]+)/marketplace-checklist-stats/$',
+        views.UserStatsView.as_view(),
+        name='marketplace-checklist-user-stats',
+    ),
 ]

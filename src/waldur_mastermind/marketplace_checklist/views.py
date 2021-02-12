@@ -266,3 +266,21 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
         return Response(
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
+
+
+class UserStatsView(APIView):
+    def get(self, request, user_uuid, format=None):
+        visible_users = filter_visible_users(User.objects.all(), self.request.user)
+        user = get_object_or_404(visible_users, uuid=user_uuid)
+        visible_checklists = filter_checklists_by_roles(
+            models.Checklist.objects.all(), user
+        )
+        total_count = models.Question.objects.filter(
+            checklist__in=visible_checklists
+        ).count()
+        correct_count = models.Answer.objects.filter(
+            value=F('question__correct_answer'),
+            question__checklist__in=visible_checklists,
+            user=user,
+        ).count()
+        return Response({'score': get_score(correct_count, total_count)})
