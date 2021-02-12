@@ -5,8 +5,6 @@ class MarketplaceOpenStackExtension(WaldurExtension):
     class Settings:
         WALDUR_MARKETPLACE_OPENSTACK = {
             'TENANT_CATEGORY_UUID': None,
-            'INSTANCE_CATEGORY_UUID': None,
-            'VOLUME_CATEGORY_UUID': None,
             'AUTOMATICALLY_CREATE_PRIVATE_OFFERING': True,
         }
 
@@ -18,8 +16,6 @@ class MarketplaceOpenStackExtension(WaldurExtension):
     def get_public_settings():
         return [
             'TENANT_CATEGORY_UUID',
-            'INSTANCE_CATEGORY_UUID',
-            'VOLUME_CATEGORY_UUID',
         ]
 
     @staticmethod

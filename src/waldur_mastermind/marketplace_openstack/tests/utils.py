@@ -11,8 +11,12 @@ class BaseOpenStackTest(test.APITransactionTestCase):
     def setUp(self):
         super(BaseOpenStackTest, self).setUp()
         self.tenant_category = marketplace_factories.CategoryFactory(title='Tenant')
-        self.instance_category = marketplace_factories.CategoryFactory(title='Instance')
-        self.volume_category = marketplace_factories.CategoryFactory(title='Volume')
+        self.instance_category = marketplace_factories.CategoryFactory(
+            title='Instance', default_vm_category=True
+        )
+        self.volume_category = marketplace_factories.CategoryFactory(
+            title='Volume', default_volume_category=True
+        )
 
         self.decorator = override_plugin_settings(
             TENANT_CATEGORY_UUID=self.tenant_category.uuid.hex,

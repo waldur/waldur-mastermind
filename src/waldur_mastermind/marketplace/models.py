@@ -98,6 +98,26 @@ class ServiceProvider(
         super(ServiceProvider, self).save(*args, **kwargs)
 
 
+def validate_vm_category_flag(value):
+    if value:
+        category = Category.objects.filter(default_vm_category=True).first()
+        if category:
+            raise ValidationError(
+                _('%(category)s is already default VM category.'),
+                params={'category': category},
+            )
+
+
+def validate_volume_category_flag(value):
+    if value:
+        category = Category.objects.filter(default_volume_category=True).first()
+        if category:
+            raise ValidationError(
+                _('%(category)s is already default Volume category.'),
+                params={'category': category},
+            )
+
+
 class Category(core_models.UuidMixin, quotas_models.QuotaModelMixin, TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
@@ -108,6 +128,21 @@ class Category(core_models.UuidMixin, quotas_models.QuotaModelMixin, TimeStamped
     )
     description = models.TextField(blank=True)
     backend_id = models.CharField(max_length=255, blank=True)
+
+    default_vm_category = models.BooleanField(
+        default=False,
+        help_text=_(
+            'Set to "true" if this category is for OpenStack VM. Only one category can have "true" value.'
+        ),
+        validators=[validate_vm_category_flag],
+    )
+    default_volume_category = models.BooleanField(
+        default=False,
+        help_text=_(
+            'Set to true if this category is for OpenStack Volume. Only one category can have "true" value.'
+        ),
+        validators=[validate_volume_category_flag],
+    )
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         offering_count = quotas_fields.QuotaField(is_backend=True)

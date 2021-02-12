@@ -37,9 +37,7 @@ def get_offering_name_for_instance(tenant):
 
 
 def get_offering_category_for_instance():
-    return marketplace_models.Category.objects.get(
-        uuid=settings.WALDUR_MARKETPLACE_OPENSTACK['INSTANCE_CATEGORY_UUID']
-    )
+    return marketplace_models.Category.objects.get(default_vm_category=True)
 
 
 def get_offering_name_for_volume(tenant):
@@ -47,9 +45,7 @@ def get_offering_name_for_volume(tenant):
 
 
 def get_offering_category_for_volume():
-    return marketplace_models.Category.objects.get(
-        uuid=settings.WALDUR_MARKETPLACE_OPENSTACK['VOLUME_CATEGORY_UUID']
-    )
+    return marketplace_models.Category.objects.get(default_volume_category=True)
 
 
 def get_category_and_name_for_offering_type(offering_type, service_settings):
