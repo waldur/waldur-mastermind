@@ -82,10 +82,14 @@ Run unit tests:
         git merge --no-ff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME
       fi
     - gitlab-ci-test/waldur-test
+    - coverage xml
+    - coverage report
+  coverage: '/TOTAL.+ ([0-9]{1,3}%)/'
   artifacts:
     when: always
     reports:
       junit: report.xml
+      cobertura: coverage.xml
   parallel: 10
 
 Build docker image for tests:

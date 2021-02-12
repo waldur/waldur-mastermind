@@ -32,5 +32,6 @@ pytest \
     --test-group-random-seed=12345 \
     --reuse-db \
     --junitxml=report.xml \
+    --cov=src/ \
     --ds=waldur_mastermind.test_settings \
     src
