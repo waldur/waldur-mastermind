@@ -321,14 +321,14 @@ class SecurityGroupRuleSerializer(
                     raise serializers.ValidationError(
                         _('"from_port" should be less or equal to "to_port"')
                     )
-            if from_port is not None and from_port < 1:
+            if from_port is not None and from_port != -1 and from_port < 1:
                 raise serializers.ValidationError(
                     {
                         'from_port': _('Value should be in range [1, 65535], found %d')
                         % from_port
                     }
                 )
-            if to_port is not None and to_port < 1:
+            if to_port is not None and to_port != -1 and to_port < 1:
                 raise serializers.ValidationError(
                     {
                         'to_port': _('Value should be in range [1, 65535], found %d')
