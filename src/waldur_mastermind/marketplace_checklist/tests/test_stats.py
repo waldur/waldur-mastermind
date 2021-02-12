@@ -35,6 +35,13 @@ class ChecklistStatsTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         return self.client.get(url).data
 
+    def get_user_stats(self, user):
+        url = reverse(
+            'marketplace-checklist-user-stats', kwargs={'user_uuid': user.uuid.hex,},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.get(url).data['score']
+
     def test_customer_stats(self):
         stats = self.get_customer_stats()
         self.assertEqual(
@@ -52,6 +59,14 @@ class ChecklistStatsTest(test.APITransactionTestCase):
                 },
             ],
         )
+
+    def test_user_stats_when_all_answers_are_correct(self):
+        stats = self.get_user_stats(self.fixture.manager)
+        self.assertEqual(stats, 100)
+
+    def test_user_stats_when_there_are_no_correct_answers(self):
+        stats = self.get_user_stats(self.fixture.admin)
+        self.assertEqual(stats, 0)
 
 
 class AnswerTest(test.APITransactionTestCase):
