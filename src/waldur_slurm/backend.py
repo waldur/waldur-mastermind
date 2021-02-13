@@ -53,7 +53,7 @@ class SlurmBackend(ServiceBackend):
 
     def add_new_users(self, allocation):
         users = allocation.service_project_link.project.customer.get_users()
-        for profile in freeipa_models.Profile.objects.all(user__in=users):
+        for profile in freeipa_models.Profile.objects.filter(user__in=users):
             self.add_user(allocation, profile.username.lower())
 
     def create_allocation(self, allocation):
