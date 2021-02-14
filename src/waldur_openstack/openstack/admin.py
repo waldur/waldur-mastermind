@@ -4,7 +4,7 @@ from django.forms import ModelForm
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 
-from waldur_core.core.admin import ExecutorAdminAction, JsonWidget, PasswordWidget
+from waldur_core.core.admin import ExecutorAdminAction, PasswordWidget
 from waldur_core.quotas.admin import QuotaInline
 from waldur_core.structure import admin as structure_admin
 
@@ -44,7 +44,6 @@ class ServiceProjectLinkAdmin(structure_admin.ServiceProjectLinkAdmin):
 class TenantAdminForm(ModelForm):
     class Meta:
         widgets = {
-            'extra_configuration': JsonWidget(),
             'user_password': PasswordWidget(),
         }
 

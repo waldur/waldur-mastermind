@@ -2124,13 +2124,6 @@ class BasePropertySerializer(
         model = NotImplemented
 
 
-class PrivateCloudSerializer(BaseResourceSerializer):
-    extra_configuration = serializers.JSONField(read_only=True)
-
-    class Meta(BaseResourceSerializer.Meta):
-        fields = BaseResourceSerializer.Meta.fields + ('extra_configuration',)
-
-
 class DivisionSerializer(serializers.HyperlinkedModelSerializer):
     type = serializers.ReadOnlyField(source='type.name')
     parent_uuid = serializers.ReadOnlyField(source='parent.uuid')

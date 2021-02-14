@@ -306,9 +306,6 @@ class Tenant(structure_models.PrivateCloud):
     def get_backend(self):
         return self.service_project_link.service.get_backend(tenant_id=self.backend_id)
 
-    def get_log_fields(self):
-        return super(Tenant, self).get_log_fields() + ('extra_configuration',)
-
     @classmethod
     def get_backend_fields(cls):
         return super(Tenant, cls).get_backend_fields() + (

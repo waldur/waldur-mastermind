@@ -1348,11 +1348,6 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResou
 class PrivateCloud(
     quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin, NewResource
 ):
-    extra_configuration = JSONField(
-        default=dict,
-        help_text=_('Configuration details that are not represented on backend.'),
-    )
-
     class Meta:
         abstract = True
 
