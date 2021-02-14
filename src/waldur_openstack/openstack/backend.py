@@ -658,7 +658,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self._pull_networks(tenants)
 
     def pull_tenant_networks(self, tenant):
-        return self._pull_networks([tenant])
+        self._pull_networks([tenant])
 
     def _pull_networks(self, tenants):
         tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
@@ -1733,7 +1733,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def import_tenant_networks(self, tenant):
-        networks = self.pull_tenant_networks(tenant)
+        networks = self._pull_networks([tenant])
         if networks:
             # XXX: temporary fix - right now backend logic is based on statement "one tenant has one network"
             # We need to fix this in the future.
