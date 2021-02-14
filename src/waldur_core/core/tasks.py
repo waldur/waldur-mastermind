@@ -1,4 +1,5 @@
 import logging
+import traceback
 from uuid import uuid4
 
 from celery.task import Task as CeleryTask
@@ -249,14 +250,22 @@ class ErrorMessageTask(Task):
 
     def save_error_message(self, instance):
         if isinstance(instance, models.ErrorMessageMixin):
-            instance.error_message = self.result.result or ''
-            instance.error_traceback = str(self.result.traceback)
+            try:
+                error_message = self.result.result or ''
+                error_traceback = str(self.result.traceback)
+            except AttributeError as ex:
+                error_message = f'Internal error: {ex.message}'
+                error_traceback = traceback.format_exc()
+
+            instance.error_message = error_message
+            instance.error_traceback = error_traceback
+
             instance.save(update_fields=['error_message', 'error_traceback'])
             # log exception if instance is not already ERRED.
             if instance.state != models.StateMixin.States.ERRED:
                 message = 'Instance: %s.\n' % utils.serialize_instance(instance)
-                message += 'Error: %s.\n' % self.result.result
-                message += self.result.traceback
+                message += 'Error: %s.\n' % error_message
+                message += error_traceback
                 logger.exception(message)
 
     def execute(self, instance):
