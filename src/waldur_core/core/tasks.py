@@ -204,7 +204,7 @@ class BackendMethodTask(RuntimeStateChangeTask, StateTransitionTask):
 
     def execute(self, instance, backend_method, *args, **kwargs):
         backend = self.get_backend(instance)
-        return getattr(backend, backend_method)(instance, *args, **kwargs)
+        getattr(backend, backend_method)(instance, *args, **kwargs)
 
 
 class IndependentBackendMethodTask(BackendMethodTask):
@@ -212,7 +212,7 @@ class IndependentBackendMethodTask(BackendMethodTask):
 
     def execute(self, instance, backend_method, *args, **kwargs):
         backend = self.get_backend(instance)
-        return getattr(backend, backend_method)(*args, **kwargs)
+        getattr(backend, backend_method)(*args, **kwargs)
 
 
 class DeletionTask(Task):
