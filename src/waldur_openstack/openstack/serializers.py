@@ -631,7 +631,7 @@ def validate_private_subnet_cidr(value):
     validate_private_cidr(value, 24)
 
 
-class TenantSerializer(structure_serializers.PrivateCloudSerializer):
+class TenantSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='openstack-detail',
@@ -651,9 +651,9 @@ class TenantSerializer(structure_serializers.PrivateCloudSerializer):
         write_only=True,
     )
 
-    class Meta(structure_serializers.PrivateCloudSerializer.Meta):
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Tenant
-        fields = structure_serializers.PrivateCloudSerializer.Meta.fields + (
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'availability_zone',
             'internal_network_id',
             'external_network_id',
@@ -664,11 +664,11 @@ class TenantSerializer(structure_serializers.PrivateCloudSerializer):
             'default_volume_type_name',
         )
         read_only_fields = (
-            structure_serializers.PrivateCloudSerializer.Meta.read_only_fields
+            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + ('internal_network_id', 'external_network_id',)
         )
         protected_fields = (
-            structure_serializers.PrivateCloudSerializer.Meta.protected_fields
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
             + ('user_username', 'subnet_cidr', 'user_password',)
         )
 
