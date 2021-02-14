@@ -801,7 +801,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
 
                 try:
-                    subnet = network.subnets.get(backend_id=imported_subnet.backend_id)
+                    subnet = models.SubNet.objects.get(
+                        network=network, backend_id=imported_subnet.backend_id
+                    )
                 except models.SubNet.DoesNotExist:
                     imported_subnet.save()
                     subnet = imported_subnet
