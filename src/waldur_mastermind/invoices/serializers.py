@@ -19,6 +19,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
     factor = serializers.ReadOnlyField(source='get_factor')
     measured_unit = serializers.ReadOnlyField(source='get_measured_unit')
+    resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     details = serializers.JSONField()
 
     class Meta:
@@ -42,6 +43,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'details',
             'usage_days',
             'resource',
+            'resource_uuid',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
