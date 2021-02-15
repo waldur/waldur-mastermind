@@ -203,7 +203,6 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
 class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Event.objects.all()
     filter_backends = (filters.EventFilterBackend,)
-    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
