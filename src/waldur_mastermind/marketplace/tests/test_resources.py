@@ -4,6 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
@@ -621,6 +622,18 @@ class ResourceUpdateTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_update_resource(self):
         response = self.make_request(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_renaming_of_resource_should_generate_audit_log(self):
+        old_name = self.resource.name
+        response = self.make_request(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                message='Marketplace resource %s has been renamed. Old name: %s.'
+                % (self.resource.name, old_name)
+            ).exists()
+        )
 
 
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):
