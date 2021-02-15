@@ -526,3 +526,15 @@ def enable_service_settings_when_not_archived(
         return
 
     enable_nonempty_service_settings(instance)
+
+
+def resource_has_been_renamed(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if not instance.tracker.has_changed('name'):
+        return
+
+    log.log_marketplace_resource_renamed(
+        instance, instance.tracker.previous('name') or ''
+    )

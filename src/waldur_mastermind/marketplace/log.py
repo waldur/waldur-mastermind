@@ -31,6 +31,7 @@ class MarketplaceOrderLogger(EventLogger):
 
 class MarketplaceResourceLogger(EventLogger):
     resource = models.Resource
+    old_name = str
 
     def process(
         self, level, message_template, event_type='undefined', event_context=None
@@ -87,7 +88,9 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_terminate_failed',
             'marketplace_resource_update_limits_succeeded',
             'marketplace_resource_update_limits_failed',
+            'marketplace_resource_renamed',
         )
+        nullable_fields = ['old_name']
 
     @staticmethod
     def get_scopes(event_context):
@@ -351,4 +354,18 @@ def log_offering_permission_updated(permission, user):
 
     event_logger.marketplace_offering_permission.info(
         template % context, event_type='role_updated', event_context=event_context,
+    )
+
+
+def log_marketplace_resource_renamed(resource, old_name):
+    event_context = {
+        'old_name': old_name,
+        'resource': resource,
+    }
+
+    event_logger.marketplace_resource.info(
+        'Marketplace resource {resource_name} has been renamed.'
+        ' Old name: {old_name}.',
+        event_type='marketplace_resource_renamed',
+        event_context=event_context,
     )
