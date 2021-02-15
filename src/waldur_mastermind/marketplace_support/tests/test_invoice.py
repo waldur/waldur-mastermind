@@ -94,7 +94,7 @@ class InvoicesTest(InvoicesBaseTest):
         self.order_item.resource.save()
 
         for item in invoices_models.InvoiceItem.objects.filter(
-            scope=self.order_item.resource
+            resource=self.order_item.resource
         ):
             self.assertEqual(item.end, timezone.now())
 

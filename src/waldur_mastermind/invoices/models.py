@@ -7,8 +7,6 @@ from datetime import timedelta
 from io import BytesIO
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -192,13 +190,13 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     invoice = models.ForeignKey(
         on_delete=models.CASCADE, to=Invoice, related_name='items'
     )
-    content_type = models.ForeignKey(
-        on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'
-    )
-    object_id = models.PositiveIntegerField(null=True)
     quantity = models.PositiveIntegerField(default=0)
-
-    scope = GenericForeignKey('content_type', 'object_id')
+    resource = models.ForeignKey(
+        on_delete=models.PROTECT,
+        to=marketplace_models.Resource,
+        related_name='invoice_items',
+        null=True,
+    )
     name = models.TextField(default='')
     details = JSONField(
         default=dict, blank=True, help_text=_('Stores data about scope')
@@ -290,13 +288,13 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         plural = self.get_factor() > 1
 
         if self.unit == self.Units.QUANTITY:
-            if not self.scope:
+            if not self.resource or not self.resource.scope:
                 return ''
 
-            if getattr(self.scope, 'content_type', None):
-                meta = self.scope.content_type.model_class()._meta
+            if getattr(self.resource.scope, 'content_type', None):
+                meta = self.resource.scope.content_type.model_class()._meta
             else:
-                meta = self.scope._meta
+                meta = self.resource.scope._meta
             return (
                 str(meta.verbose_name_plural).lower()
                 if plural
@@ -527,17 +525,9 @@ class InvoiceItemAdjuster:
         self.unit_price = unit_price
         self.unit = unit
 
-    @cached_property
-    def content_type(self):
-        return ContentType.objects.get_for_model(self.source)
-
     @property
     def invoice_items(self):
-        return InvoiceItem.objects.filter(
-            invoice=self.invoice,
-            content_type=self.content_type,
-            object_id=self.source.pk,
-        )
+        return InvoiceItem.objects.filter(invoice=self.invoice, resource=self.source,)
 
     @cached_property
     def old_item(self):
@@ -645,7 +635,7 @@ def adjust_invoice_items(invoice, source, start, unit_price, unit):
     When resource configuration is switched, old invoice item
     is terminated and new invoice item is created.
     In order to avoid double counting we should ensure that
-    there're no overlapping invoice items for the same scope.
+    there're no overlapping invoice items for the same resource.
 
     By default daily prorate is used even if plan is monthly or half-monthly.
     Two notable exceptions are:

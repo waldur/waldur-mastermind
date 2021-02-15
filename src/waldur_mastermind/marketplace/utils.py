@@ -8,7 +8,6 @@ from io import BytesIO
 import pdfkit
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
@@ -531,10 +530,7 @@ def get_offering_component_stats(offering, active_customers, start, end):
             .isoformat()
         )
         invoice_items = invoice_models.InvoiceItem.objects.filter(
-            content_type_id=ContentType.objects.get_for_model(models.Resource).id,
-            object_id__in=resources_ids,
-            invoice__year=year,
-            invoice__month=month,
+            resource_id__in=resources_ids, invoice__year=year, invoice__month=month,
         )
 
         for item in invoice_items:
@@ -549,13 +545,6 @@ def get_offering_component_stats(offering, active_customers, start, end):
                 limits.update(usages)
 
                 for limit, usage in limits.items():
-
-                    if not isinstance(item.scope, models.Resource):
-                        logger.error(
-                            'Invoice item scope %s is not resource object.' % item.id
-                        )
-                        continue
-
                     components = offering.estimated_components
 
                     try:
@@ -724,7 +713,7 @@ def move_resource(resource, project):
         order.save(update_fields=['project'])
 
     for invoice_item in invoice_models.InvoiceItem.objects.filter(
-        scope=resource,
+        resource=resource,
         invoice__state=invoice_models.Invoice.States.PENDING,
         project=old_project,
     ):

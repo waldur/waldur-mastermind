@@ -1,7 +1,6 @@
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.slurm_invoices import registrators as slurm_registrators
 
@@ -31,8 +30,8 @@ def update_invoice_item_on_allocation_usage_update(
         end = core_utils.month_end(start)
         registrator = slurm_registrators.AllocationRegistrator()
         customer = registrator.get_customer(allocation)
-        invoice = invoice_models.Invoice.objects.get(
-            customer=customer, month=start.month, year=start.year,
+        invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
+            customer, core_utils.month_start(timezone.now())
         )
 
         registrator.create_or_update_items(

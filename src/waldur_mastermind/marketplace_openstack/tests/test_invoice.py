@@ -111,7 +111,7 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
 class TenantInvoiceTest(BaseTenantInvoiceTest):
     def test_when_resource_is_created_invoice_is_updated(self):
         resource = self.create_resource(self.prices, self.limits)
-        invoice_item = invoices_models.InvoiceItem.objects.get(scope=resource)
+        invoice_item = invoices_models.InvoiceItem.objects.get(resource=resource)
         expected_price = self.get_unit_price(self.prices, self.limits)
         self.assertEqual(invoice_item.unit_price, expected_price)
 
@@ -127,7 +127,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
         with freeze_time('2017-01-10'):
             self.update_resource_limits(resource, new_limits)
 
-        invoice_items = invoices_models.InvoiceItem.objects.filter(scope=resource)
+        invoice_items = invoices_models.InvoiceItem.objects.filter(resource=resource)
 
         self.assertEqual(invoice_items.count(), 2)
         self.assertNotEqual(
@@ -230,7 +230,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
         invoice = invoices_models.Invoice.objects.get(
             customer=resource.project.customer
         )
-        cheap_item = invoice.items.get(scope=resource)
+        cheap_item = invoice.items.get(resource=resource)
         self.assertEqual(
             cheap_item.unit_price, self.get_unit_price(low_prices, self.limits)
         )
@@ -240,7 +240,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
         with freeze_time(date + timezone.timedelta(hours=2)):
             self.switch_plan(resource, high_prices)
 
-        expensive_item = invoice.items.get(scope=resource)
+        expensive_item = invoice.items.get(resource=resource)
         self.assertEqual(
             expensive_item.unit_price, self.get_unit_price(high_prices, self.limits)
         )
@@ -250,7 +250,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
         with freeze_time(date + timezone.timedelta(hours=4)):
             self.switch_plan(resource, self.prices)
 
-        medium_item = invoice.items.filter(scope=resource).last()
+        medium_item = invoice.items.filter(resource=resource).last()
         # medium item usage days should start from tomorrow,
         # because expensive item should be calculated for current day
         self.assertEqual(medium_item.usage_days, full_days - 1)
@@ -264,7 +264,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
         resource = self.create_resource(self.prices, self.limits)
         with freeze_time('2019-09-18'):
             self.delete_resource(resource)
-        invoice_item = invoices_models.InvoiceItem.objects.get(scope=resource)
+        invoice_item = invoices_models.InvoiceItem.objects.get(resource=resource)
         self.assertEqual(invoice_item.end.day, 18)
 
 
@@ -311,7 +311,7 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), 100 * 1024)
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
-            scope=self.resource
+            resource=self.resource
         ).last()
         self.assertTrue('102400 GB gpfs storage' in invoice_item.name)
 
@@ -329,7 +329,7 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), None)
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
-            scope=self.resource
+            resource=self.resource
         ).last()
         self.assertTrue('30 GB storage' in invoice_item.name)
 

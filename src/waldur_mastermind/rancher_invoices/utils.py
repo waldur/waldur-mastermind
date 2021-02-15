@@ -1,7 +1,6 @@
 import datetime
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db.models import Q
 
@@ -100,7 +99,7 @@ def component_usage_register(component_usage):
     try:
         plan_component = plan.components.get(component=offering_component)
         item = invoice_models.InvoiceItem.objects.get(
-            scope=component_usage.resource.scope,
+            resource=component_usage.resource,
             details__plan_period_id=plan_period.id,
             details__plan_component_id=plan_component.id,
             invoice__year=component_usage.billing_period.year,
@@ -137,9 +136,8 @@ def component_usage_register(component_usage):
         )
 
         invoice_models.InvoiceItem.objects.create(
-            content_type=ContentType.objects.get_for_model(cluster),
-            object_id=cluster.id,
-            project=cluster.project,
+            resource=component_usage.resource,
+            project=component_usage.resource.project,
             invoice=invoice,
             start=start,
             end=end,

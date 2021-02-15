@@ -1120,6 +1120,10 @@ class Resource(
     def get_scope_type(cls):
         return 'Marketplace.Resource'
 
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-resource'
+
     def __str__(self):
         if self.name:
             return f'{self.name} ({self.offering.name})'

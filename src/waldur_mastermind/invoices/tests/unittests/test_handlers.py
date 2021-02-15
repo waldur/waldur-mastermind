@@ -76,7 +76,7 @@ class MoveProjectInvoiceTest(TransactionTestCase):
     def test_delete_invoice_items_if_project_customer_has_been_changed(self):
         fixture = fixtures.InvoiceFixture()
         invoice_item = fixture.invoice_item
-        invoice_item.scope = fixture.resource
+        invoice_item.resource = fixture.resource
         invoice_item.save()
 
         new_customer = structure_factories.CustomerFactory()
@@ -87,10 +87,12 @@ class MoveProjectInvoiceTest(TransactionTestCase):
             create,
         ) = registrators.RegistrationManager.get_or_create_invoice(new_customer, date)
         self.assertFalse(
-            new_customer_invoice.items.filter(scope=fixture.resource).exists()
+            new_customer_invoice.items.filter(resource=fixture.resource).exists()
         )
         move_project(fixture.resource.project, new_customer)
-        self.assertFalse(fixture.invoice.items.filter(scope=fixture.resource).exists())
+        self.assertFalse(
+            fixture.invoice.items.filter(resource=fixture.resource).exists()
+        )
         self.assertTrue(
-            new_customer_invoice.items.filter(scope=fixture.resource).exists()
+            new_customer_invoice.items.filter(resource=fixture.resource).exists()
         )

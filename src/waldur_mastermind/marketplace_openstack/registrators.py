@@ -2,8 +2,8 @@ import decimal
 
 from waldur_mastermind.common.utils import mb_to_gb
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace_openstack import (
 )
 
 
-class OpenStackRegistrator(BaseRegistrator):
+class OpenStackRegistrator(MarketplaceRegistrator):
     def get_customer(self, source):
         return source.project.customer
 
@@ -47,8 +47,9 @@ class OpenStackRegistrator(BaseRegistrator):
             invoice, source, start, unit_price, source.plan.unit
         )
 
-        item = invoices_models.InvoiceItem.objects.create(
-            scope=source,
+        invoices_models.InvoiceItem.objects.create(
+            name=self.get_name(source),
+            resource=source,
             project=source.project,
             unit_price=unit_price,
             unit=source.plan.unit,
@@ -59,7 +60,6 @@ class OpenStackRegistrator(BaseRegistrator):
             end=end,
             details=details,
         )
-        self.init_details(item)
 
     def format_storage_description(self, source):
         if STORAGE_TYPE in source.limits:

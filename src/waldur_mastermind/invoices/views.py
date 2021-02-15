@@ -19,7 +19,6 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.common.utils import quantize_price
-from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import filters, log, models, serializers, tasks
 
@@ -130,18 +129,15 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         offerings = {}
 
         for item in invoice.items.all():
-            if not item.scope:
+            if not item.resource:
                 continue
 
-            if isinstance(item.scope, marketplace_models.Resource):
-                resource = item.scope
-                offering = resource.offering
-                customer = offering.customer
-                service_category_title = offering.category.title
-                service_provider_name = customer.name
-                service_provider_uuid = customer.serviceprovider.uuid.hex
-            else:
-                continue
+            resource = item.resource
+            offering = resource.offering
+            customer = offering.customer
+            service_category_title = offering.category.title
+            service_provider_name = customer.name
+            service_provider_uuid = customer.serviceprovider.uuid.hex
 
             if offering.uuid.hex not in offerings.keys():
                 offerings[offering.uuid.hex] = {

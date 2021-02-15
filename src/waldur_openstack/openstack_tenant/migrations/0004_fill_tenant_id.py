@@ -22,6 +22,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('openstack_tenant', '0003_extend_description_limits'),
+        ('openstack', '0001_squashed_0042'),
     ]
 
     operations = [

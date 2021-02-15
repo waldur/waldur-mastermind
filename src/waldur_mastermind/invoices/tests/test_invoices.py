@@ -3,7 +3,6 @@ from decimal import Decimal
 from unittest import mock
 
 from ddt import data, ddt
-from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.test import override_settings
 from django.utils.translation import ugettext_lazy as _
@@ -21,9 +20,6 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.marketplace_support.tests.fixtures import (
-    MarketplaceSupportApprovedFixture,
-)
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
 from waldur_slurm.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
@@ -173,8 +169,13 @@ class InvoiceItemTest(test.APITransactionTestCase):
         )
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.scope = self.fixture.allocation
+        self.resource = marketplace_factories.ResourceFactory(
+            project=self.fixture.project,
+        )
+        self.resource.scope = self.fixture.allocation
+        self.resource.save()
         self.usage = self.fixture.allocation_usage
-        self.items = models.InvoiceItem.objects.filter(scope=self.scope)
+        self.items = models.InvoiceItem.objects.filter(resource=self.resource)
         for item in self.items:
             item.unit = models.InvoiceItem.Units.QUANTITY
             item.quantity = 10
@@ -188,8 +189,9 @@ class InvoiceItemTest(test.APITransactionTestCase):
         response_items = response.data['items']
         self.assertNotEqual(len(response_items), 0)
         for response_item in response_items:
-            self.assertEqual(response_item['scope_type'], 'SLURM.Allocation')
-            self.assertEqual(response_item['scope_uuid'], self.scope.uuid.hex)
+            self.assertEqual(
+                response_item['details']['scope_uuid'], self.scope.uuid.hex
+            )
             self.assertTrue(self.scope.name in response_item['name'])
 
     def test_details_are_rendered_if_scope_exists(self):
@@ -200,23 +202,6 @@ class InvoiceItemTest(test.APITransactionTestCase):
         for item in self.items:
             item.refresh_from_db()
         self.check_output()
-
-    def test_scope_type_is_rendered_for_support_request(self):
-        fixture = MarketplaceSupportApprovedFixture()
-        invoice = factories.InvoiceFactory(customer=fixture.customer)
-        models.InvoiceItem.objects.create(
-            scope=fixture.resource,
-            invoice=invoice,
-            unit=models.InvoiceItem.Units.QUANTITY,
-            quantity=10,
-            unit_price=10,
-        )
-        url = factories.InvoiceFactory.get_url(invoice)
-
-        self.client.force_authenticate(fixture.owner)
-        response = self.client.get(url)
-        item = response.data['items'][0]
-        self.assertEqual(item['scope_type'], 'Marketplace.Resource')
 
     def test_invoice_item_measured_unit(self):
         item = factories.InvoiceItemFactory(
@@ -247,7 +232,10 @@ class InvoiceItemTest(test.APITransactionTestCase):
         self.assertEqual(item.get_measured_unit(), _('percents from a month'))
 
         item.unit = UnitPriceMixin.Units.QUANTITY
-        item.scope = slurm_factories.AllocationFactory()
+        resource = marketplace_factories.ResourceFactory(project=self.fixture.project,)
+        resource.scope = slurm_factories.AllocationFactory()
+        resource.save()
+        item.resource = resource
         item.save()
         self.assertEqual(item.get_measured_unit(), _('allocations'))
 
@@ -360,10 +348,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                         item.total
                         for item in models.InvoiceItem.objects.filter(
                             invoice=invoice,
-                            object_id__in=[self.resource_1.id, self.resource_2.id],
-                            content_type=ContentType.objects.get_for_model(
-                                marketplace_models.Resource
-                            ),
+                            resource_id__in=[self.resource_1.id, self.resource_2.id],
                         )
                     ]
                 ),
@@ -384,11 +369,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                     [
                         item.total
                         for item in models.InvoiceItem.objects.filter(
-                            invoice=invoice,
-                            object_id__in=[self.resource_3.id],
-                            content_type=ContentType.objects.get_for_model(
-                                marketplace_models.Resource
-                            ),
+                            invoice=invoice, resource_id__in=[self.resource_3.id],
                         )
                     ]
                 ),
@@ -409,7 +390,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                 'uuid': self.marketplace_support_offering.uuid.hex,
                 'offering_name': self.marketplace_support_offering.name,
                 'aggregated_cost': models.InvoiceItem.objects.get(
-                    invoice=invoice, object_id=self.resource_4.id,
+                    invoice=invoice, resource_id=self.resource_4.id,
                 ).price,
                 'service_category_title': self.marketplace_support_offering.category.title,
                 'service_provider_name': self.offering.customer.name,

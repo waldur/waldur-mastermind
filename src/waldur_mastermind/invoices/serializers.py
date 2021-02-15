@@ -20,8 +20,6 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     factor = serializers.ReadOnlyField(source='get_factor')
     measured_unit = serializers.ReadOnlyField(source='get_measured_unit')
     details = serializers.JSONField()
-    scope_type = serializers.SerializerMethodField()
-    scope_uuid = serializers.SerializerMethodField()
 
     class Meta:
         model = models.InvoiceItem
@@ -40,23 +38,18 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'article_code',
             'project_name',
             'project_uuid',
-            'scope_type',
-            'scope_uuid',
             'quantity',
             'details',
             'usage_days',
+            'resource',
         )
-
-    def get_scope_type(self, item):
-        try:
-            return item.content_type.model_class().get_scope_type()
-        except AttributeError:
-            return None
-
-    def get_scope_uuid(self, item):
-        if item.scope:
-            return item.scope.uuid.hex
-        return item.details.get('scope_uuid')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'resource': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-resource-detail',
+            },
+        }
 
 
 class InvoiceSerializer(
