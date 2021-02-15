@@ -18,6 +18,7 @@ def fill_resource_field(apps, schema_editor):
     InvoiceItem = apps.get_model('invoices', 'InvoiceItem')
     Resource = apps.get_model('marketplace', 'Resource')
     ContentType = apps.get_model('contenttypes', 'ContentType')
+    Tenant = apps.get_model('openstack', 'Tenant')
 
     class Units:
         PER_MONTH = 'month'
@@ -79,15 +80,23 @@ def fill_resource_field(apps, schema_editor):
             item.resource_id = item.object_id
         else:
             try:
-                resource = Resource.objects.get(
-                    content_type_id=item.content_type_id, object_id=item.object_id
-                )
+                if item.details.get('tenant_uuid'):
+                    tenant = Tenant.objects.get(uuid=item.details['tenant_uuid'])
+                    resource = Resource.objects.get(
+                        content_type=ContentType.objects.get_for_model(Tenant),
+                        object_id=tenant.id,
+                    )
+                else:
+                    resource = Resource.objects.get(
+                        content_type_id=item.content_type_id, object_id=item.object_id
+                    )
                 item.resource_id = resource.id
             except (ObjectDoesNotExist, MultipleObjectsReturned):
                 # If the relevant resource is not found
                 if not price(item):
                     logger.warning(
-                        'An invoice item with ID: %s has been deleted. Invoice: %d.%d',
+                        'An invoice item with ID: %s has been deleted as its price is 0 and item is not connected with any resource. Invoice: %s %d.%d',
+                        item.name,
                         item.id,
                         item.invoice.year,
                         item.invoice.month,
@@ -101,14 +110,16 @@ def fill_resource_field(apps, schema_editor):
                     # A item scope is defined, but the relevant resource is not found.
                     # Delete this if this is deprecated invoice items.
                     logger.warning(
-                        'An invoice item with ID: %s has been deleted. Invoice: %d.%d',
+                        'An invoice item with ID: %s is skipped as its scope is not found. Invoice: %s %d.%d',
+                        item.name,
                         item.id,
                         item.invoice.year,
                         item.invoice.month,
                     )
-                    item.delete()
+                    pass
                 elif (
-                    not apps.get_model(
+                    item.content_type.app_label == 'packages'
+                    or not apps.get_model(
                         item.content_type.app_label, item.content_type.model
                     )
                     .objects.filter(pk=item.object_id)
