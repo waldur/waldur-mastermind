@@ -1,6 +1,5 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import signals
 from django.utils import timezone
 
@@ -30,11 +29,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         :return: invoice item, item's list (or another iterable object, f.e. tuple or queryset) or None
         """
 
-        model_type = ContentType.objects.get_for_model(source)
         return list(
             invoice_models.InvoiceItem.objects.filter(
-                content_type=model_type,
-                object_id=source.id,
+                resource=source,
                 invoice__customer=self.get_customer(source),
                 invoice__state=invoice_models.Invoice.States.PENDING,
                 invoice__year=now.year,
@@ -106,8 +103,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 invoice_models.InvoiceItem.objects.create(
                     name=self.get_name(resource) + ' / ' + offering_component.name,
                     details=self.get_component_details(resource, plan_component),
-                    content_type=ContentType.objects.get_for_model(resource),
-                    object_id=resource.id,
+                    resource=resource,
                     project=resource.project,
                     invoice=invoice,
                     start=start,
@@ -207,7 +203,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         try:
             plan_component = plan.components.get(component=offering_component)
             item = invoice_models.InvoiceItem.objects.get(
-                scope=component_usage.resource,
+                resource=component_usage.resource,
                 details__plan_period_id=plan_period.id,
                 details__plan_component_id=plan_component.id,
                 invoice__year=component_usage.billing_period.year,
@@ -240,10 +236,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             )
 
             invoice_models.InvoiceItem.objects.create(
-                content_type=ContentType.objects.get_for_model(
-                    component_usage.resource
-                ),
-                object_id=component_usage.resource.id,
+                resource=resource,
                 project=resource.project,
                 invoice=invoice,
                 start=start,

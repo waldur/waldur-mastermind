@@ -1,17 +1,18 @@
 import logging
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.permissions import _get_project
 from waldur_mastermind.common.utils import mb_to_gb
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_vmware import models as vmware_models
 
 logger = logging.getLogger(__name__)
 
 
-class VirtualMachineRegistrator(BaseRegistrator):
+class VirtualMachineRegistrator(MarketplaceRegistrator):
     def get_customer(self, source):
         return source.service_project_link.project.customer
 
@@ -71,12 +72,12 @@ class VirtualMachineRegistrator(BaseRegistrator):
         total_price = cores_price + ram_price + disk_price
 
         start = invoices_models.adjust_invoice_items(
-            invoice, source, start, total_price, plan.unit
+            invoice, resource, start, total_price, plan.unit
         )
 
         details = self.get_details(source)
-        item = invoices_models.InvoiceItem.objects.create(
-            scope=source,
+        invoices_models.InvoiceItem.objects.create(
+            resource=resource,
             project=_get_project(source),
             unit_price=total_price,
             unit=plan.unit,
@@ -87,7 +88,6 @@ class VirtualMachineRegistrator(BaseRegistrator):
             end=end,
             details=details,
         )
-        self.init_details(item)
 
     def get_name(self, source):
         return '{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(
@@ -106,3 +106,16 @@ class VirtualMachineRegistrator(BaseRegistrator):
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)
         return details
+
+    def _find_item(self, source, now):
+        resource = marketplace_models.Resource.objects.get(scope=source)
+        return list(
+            invoices_models.InvoiceItem.objects.filter(
+                resource=resource,
+                invoice__customer=self.get_customer(source),
+                invoice__state=invoices_models.Invoice.States.PENDING,
+                invoice__year=now.year,
+                invoice__month=now.month,
+                end=core_utils.month_end(now),
+            )
+        )

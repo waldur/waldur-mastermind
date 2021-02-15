@@ -30,7 +30,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             utils.get_full_days(start_date, end_date)
             * self.fixture.plan_component.price
         )
-        invoice_item = models.InvoiceItem.objects.get(scope=self.fixture.resource)
+        invoice_item = models.InvoiceItem.objects.get(resource=self.fixture.resource)
         self.assertEqual(invoice_item.price, expected_price)
 
     def test_invoice_item_with_monthly_price(self):
@@ -47,7 +47,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         factor = quantize_price(decimal.Decimal(use_days) / month_days)
         expected_price = self.fixture.plan_component.price * factor
 
-        invoice_item = models.InvoiceItem.objects.get(scope=resource)
+        invoice_item = models.InvoiceItem.objects.get(resource=resource)
         self.assertEqual(invoice_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
@@ -65,7 +65,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             1 + (16 - start_date.day) / decimal.Decimal(month_days / 2)
         )
         expected_price = self.fixture.plan_component.price * factor
-        invoice_item = models.InvoiceItem.objects.get(scope=resource)
+        invoice_item = models.InvoiceItem.objects.get(resource=resource)
         self.assertEqual(invoice_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_start_in_second_half(self):
@@ -79,7 +79,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             resource.save()
 
         expected_price = self.fixture.plan_component.price
-        invoice_item = models.InvoiceItem.objects.get(scope=resource)
+        invoice_item = models.InvoiceItem.objects.get(resource=resource)
         self.assertEqual(invoice_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_end_in_first_half(self):
@@ -126,7 +126,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         with freeze_time(start_date):
             resource.set_state_ok()
             resource.save()
-            invoice_item = models.InvoiceItem.objects.get(scope=resource)
+            invoice_item = models.InvoiceItem.objects.get(resource=resource)
 
         with freeze_time(end_date):
             resource.set_state_terminating()

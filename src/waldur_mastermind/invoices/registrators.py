@@ -12,12 +12,10 @@ RegistrationManager represents the highest level of business logic and should be
 used for invoice items registration and termination.
 Registrators defines items creation and termination logic for each invoice item.
 """
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 
@@ -66,23 +64,10 @@ class BaseRegistrator:
         :return: invoice item, item's list (or another iterable object, f.e. tuple or queryset) or None
         """
 
-        model_type = ContentType.objects.get_for_model(source)
-        result = invoices_models.InvoiceItem.objects.filter(
-            content_type=model_type,
-            object_id=source.id,
-            invoice__customer=self.get_customer(source),
-            invoice__state=invoices_models.Invoice.States.PENDING,
-            invoice__year=now.year,
-            invoice__month=now.month,
-            end=core_utils.month_end(now),
-        ).first()
-        return result
+        raise NotImplementedError()
 
     def init_details(self, item):
-        item.name = self.get_name(item.scope)
-        item.details.update(self.get_details(item.scope))
-        item.details['scope_uuid'] = item.scope.uuid.hex
-        item.save(update_fields=['name', 'details'])
+        raise NotImplementedError()
 
     def get_name(self, source):
         return source.name

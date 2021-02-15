@@ -143,19 +143,19 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
 
 @transaction.atomic()
 def adjust_openstack_items_for_downtime(downtime):
-    scopes = []
+    resources = []
 
     if downtime.offering:
-        scopes.extend(
+        resources.extend(
             list(marketplace_models.Resource.objects.filter(offering=downtime.offering))
         )
 
     if downtime.resource:
-        scopes.append(downtime.resource)
+        resources.append(downtime.resource)
 
-    for scope in scopes:
+    for resource in resources:
         items = models.InvoiceItem.objects.filter(
-            downtime.get_intersection_subquery(), scope=scope,
+            downtime.get_intersection_subquery(), resource=resource,
         )
 
         for item in items:

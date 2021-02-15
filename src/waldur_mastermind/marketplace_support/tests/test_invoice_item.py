@@ -3,7 +3,6 @@ from calendar import monthrange
 from decimal import Decimal
 
 import pytz
-from django.contrib.contenttypes.models import ContentType
 from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun.api import freeze_time
@@ -46,7 +45,7 @@ class ResourceCreationInvoiceTest(BaseSupportInvoiceTest):
         self.resource.save()
         self.assertEqual(models.Invoice.objects.count(), 1)
         invoice = models.Invoice.objects.first()
-        self.assertTrue(invoice.items.filter(scope=self.resource).exists())
+        self.assertTrue(invoice.items.filter(resource=self.resource).exists())
 
     def test_invoice_is_not_created_for_pending_resource(self):
         pending_resource = marketplace_factories.ResourceFactory(
@@ -58,8 +57,8 @@ class ResourceCreationInvoiceTest(BaseSupportInvoiceTest):
 
         self.assertEqual(models.Invoice.objects.count(), 1)
         invoice = models.Invoice.objects.first()
-        self.assertTrue(invoice.items.filter(scope=self.resource).exists())
-        self.assertFalse(invoice.items.filter(scope=pending_resource).exists())
+        self.assertTrue(invoice.items.filter(resource=self.resource).exists())
+        self.assertFalse(invoice.items.filter(resource=pending_resource).exists())
 
     def test_existing_invoice_is_updated_on_resource_creation(self):
         start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
@@ -74,7 +73,7 @@ class ResourceCreationInvoiceTest(BaseSupportInvoiceTest):
             self.resource.save()
 
         self.assertEqual(models.Invoice.objects.count(), 1)
-        self.assertTrue(invoice.items.filter(scope=self.resource).exists())
+        self.assertTrue(invoice.items.filter(resource=self.resource).exists())
         expected_price = self.plan_component.price * factor
         self.assertEqual(invoice.price, Decimal(expected_price))
 
@@ -128,16 +127,11 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
             )
 
     def get_invoice_items(self, invoice):
-        resource_model_type = ContentType.objects.get_for_model(
-            marketplace_models.Resource
-        )
         resources_ids = marketplace_models.Resource.objects.filter(
             offering__type=PLUGIN_NAME
         ).values_list('id', flat=True)
         return models.InvoiceItem.objects.filter(
-            invoice=invoice,
-            content_type=resource_model_type,
-            object_id__in=resources_ids,
+            invoice=invoice, resource_id__in=resources_ids,
         )
 
 

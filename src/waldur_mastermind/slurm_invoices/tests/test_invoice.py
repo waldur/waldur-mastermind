@@ -8,7 +8,9 @@ from freezegun import freeze_time
 
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import utils as invoices_utils
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.plugins import manager
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_mastermind.slurm_invoices import models
 from waldur_slurm import models as slurm_models
@@ -19,6 +21,17 @@ from waldur_slurm.tests import fixtures as slurm_fixtures
 class InvoicesTest(TestCase):
     def setUp(self):
         self.fixture = slurm_fixtures.SlurmFixture()
+        self.package = models.SlurmPackage.objects.create(
+            service_settings=self.fixture.service.settings
+        )
+        self.package.cpu_price = Decimal(0.400)
+        self.package.gpu_price = Decimal(0.200)
+        self.package.ram_price = Decimal(0.100)
+        self.package.save()
+        self.package.refresh_from_db()
+        resource = marketplace_factories.ResourceFactory(project=self.fixture.project)
+        resource.scope = self.fixture.allocation
+        resource.save()
 
     def get_expected_quantity(self, usage, component_type):
         usage = getattr(usage, component_type + '_usage')
@@ -30,17 +43,16 @@ class InvoicesTest(TestCase):
 
     def test_invoice_item_is_not_created_if_package_does_not_exist(self):
         with self.assertRaises(ObjectDoesNotExist):
-            invoice_models.InvoiceItem.objects.get(scope=self.fixture.allocation)
+            resource = marketplace_models.Resource.objects.get(
+                scope=self.fixture.allocation
+            )
+            invoice_models.InvoiceItem.objects.get(resource=resource)
 
     def test_invoice_item_is_not_created_if_usage_does_not_exist(self):
-        models.SlurmPackage.objects.create(
-            service_settings=self.fixture.service.settings
-        )
         invoice_items = self.get_invoice_items()
         self.assertEqual(len(invoice_items), 0)
 
     def test_invoice_item_price_is_updated_when_allocation_usage_is_changed(self):
-        package = self.create_package()
         allocation_usage = self.update_usage()
         invoice_items = self.get_invoice_items()
         self.assertEqual(len(invoice_items), self.get_component_number())
@@ -50,18 +62,17 @@ class InvoicesTest(TestCase):
             if item_type == 'ram':
                 expected_price = (
                     int(math.ceil(1.0 * allocation_usage.ram_usage / 1024 / 60))
-                    * package.ram_price
+                    * self.package.ram_price
                 )
             else:
                 usage = item_type + '_usage'
                 price = item_type + '_price'
                 expected_price = int(
                     math.ceil(1.0 * getattr(allocation_usage, usage) / 60)
-                ) * getattr(package, price)
+                ) * getattr(self.package, price)
             self.assertEqual(invoice_item.price, expected_price)
 
     def test_when_allocation_is_cancelled_invoice_item_is_terminated(self):
-        self.create_package()
         allocation_usage = self.update_usage()
         allocation = allocation_usage.allocation
 
@@ -84,7 +95,6 @@ class InvoicesTest(TestCase):
             )
 
     def test_invoice_item_name_format(self):
-        self.create_package()
         allocation = self.fixture.allocation
         invoice_items = self.get_invoice_items()
         self.update_usage()
@@ -100,7 +110,6 @@ class InvoicesTest(TestCase):
             self.assertEqual(invoice_item.name, expected_name)
 
     def test_invoice_item_quantity(self):
-        self.create_package()
         invoice_items = self.get_invoice_items()
 
         self.assertEqual(len(invoice_items), 0)
@@ -119,7 +128,6 @@ class InvoicesTest(TestCase):
             )
 
     def test_invoice_items_partial_creation(self):
-        self.create_package()
         allocation_usage = self.update_usage(gpu_usage=0)
         used_components = self.get_component_details()
         used_components.pop('gpu')
@@ -150,7 +158,6 @@ class InvoicesTest(TestCase):
             )
 
     def test_invoice_item_usages_reset_for_new_month(self):
-        self.create_package()
         with freeze_time('2020-05-31'):
             self.update_usage()
             invoice_items = self.get_invoice_items()
@@ -162,17 +169,6 @@ class InvoicesTest(TestCase):
                 end=invoices_utils.get_current_month_end(),
             )
             self.assertEqual(len(invoice_items), 0)  # Because new month starts
-
-    def create_package(self):
-        package = models.SlurmPackage.objects.create(
-            service_settings=self.fixture.service.settings
-        )
-        package.cpu_price = Decimal(0.400)
-        package.gpu_price = Decimal(0.200)
-        package.ram_price = Decimal(0.100)
-        package.save()
-        package.refresh_from_db()
-        return package
 
     def update_usage(self, cpu_usage=6001, gpu_usage=12001, ram_usage=2048):
         allocation = self.fixture.allocation
@@ -203,7 +199,10 @@ class InvoicesTest(TestCase):
         return allocation_usage
 
     def get_invoice_items(self):
-        return invoice_models.InvoiceItem.objects.filter(scope=self.fixture.allocation)
+        resource = marketplace_models.Resource.objects.get(
+            scope=self.fixture.allocation
+        )
+        return invoice_models.InvoiceItem.objects.filter(resource=resource)
 
     def get_component_details(self):
         return {

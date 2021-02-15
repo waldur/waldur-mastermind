@@ -109,7 +109,7 @@ class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
             plan=self.plan,
         )
         tasks.create_monthly_invoices()
-        self.item = models.InvoiceItem.objects.get(object_id=self.resource.id)
+        self.item = models.InvoiceItem.objects.get(resource_id=self.resource.id)
         self.item.start = parse_datetime('2018-10-11')
         self.item.end = parse_datetime('2018-10-15')
         self.item.save()
@@ -178,12 +178,12 @@ class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
         )
         self.assertFalse(
             models.InvoiceItem.objects.filter(
-                scope__isnull=True, details__icontains='compensation'
+                resource__isnull=True, details__icontains='compensation'
             ).exists()
         )
 
     def test_compensation_is_not_created_if_item_does_not_have_scope(self):
-        self.item.scope = None
+        self.item.resource = None
         self.item.save()
         models.ServiceDowntime.objects.create(
             resource=self.resource,
@@ -192,7 +192,7 @@ class ResourceDowntimeAdjustmentTest(test.APITransactionTestCase):
         )
         self.assertFalse(
             models.InvoiceItem.objects.filter(
-                scope__isnull=True, details__icontains='compensation'
+                resource__isnull=True, details__icontains='compensation'
             ).exists()
         )
 

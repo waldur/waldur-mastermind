@@ -43,7 +43,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(1, invoice.items.count())
 
         item = invoice.items.get()
-        self.assertEqual(item.scope, self.vm)
+        self.assertEqual(item.resource.scope, self.vm)
 
     def test_when_disk_is_created_invoice_total_is_increased(self):
         # Arrange

@@ -808,7 +808,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
             state=invoices_models.Invoice.States.PENDING,
         )
         invoices_factories.InvoiceItemFactory(
-            invoice=start_invoice, project=self.project, scope=self.resource,
+            invoice=start_invoice, project=self.project, resource=self.resource,
         )
 
         invoices_factories.InvoiceFactory(

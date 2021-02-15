@@ -1,10 +1,9 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
-
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
@@ -40,17 +39,20 @@ class AllocationRegistrator(registrators.BaseRegistrator):
         :param now: date of invoice with invoice items.
         :return: list of invoice items related to allocation (source)
         """
-        model_type = ContentType.objects.get_for_model(source)
-        result = invoice_models.InvoiceItem.objects.filter(
-            content_type=model_type,
-            object_id=source.id,
-            invoice__customer=self.get_customer(source),
-            invoice__state=invoice_models.Invoice.States.PENDING,
-            invoice__year=now.year,
-            invoice__month=now.month,
-            end=core_utils.month_end(now),
-        )
-        return result
+        allocation = source
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=allocation)
+            result = invoice_models.InvoiceItem.objects.filter(
+                resource_id=resource.id,
+                invoice__customer=self.get_customer(allocation),
+                invoice__state=invoice_models.Invoice.States.PENDING,
+                invoice__year=now.year,
+                invoice__month=now.month,
+                end=core_utils.month_end(now),
+            )
+            return result
+        except marketplace_models.Resource.DoesNotExist:
+            return
 
     def _create_item(self, source, invoice, start, end):
         allocation = source
@@ -77,6 +79,7 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             ):
                 existing_item = (
                     self._find_item(allocation, start)
+                    and self._find_item(allocation, start)
                     .filter(details__type=component_type)
                     .first()
                 )
@@ -99,27 +102,37 @@ class AllocationRegistrator(registrators.BaseRegistrator):
     def create_single_item(
         self, allocation, package, component, component_usage, invoice, start, end
     ):
-        item = invoice_models.InvoiceItem.objects.create(
-            scope=allocation,
-            project=allocation.service_project_link.project,
-            unit_price=getattr(package, component.type + '_price'),
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
-            quantity=utils.get_usage_quantity(component_usage, component.type),
-            product_code=package.product_code,
-            article_code=package.article_code,
-            invoice=invoice,
-            start=start,
-            end=end,
-        )
-        item.name = '%s (%s %s)' % (
-            self.get_name(item.scope),
-            component.name,
-            component.measured_unit,
-        )
-        details = self.get_details(allocation)
-        details.update({'type': component.type})
-        item.details.update(details)
-        item.save(update_fields=['name', 'details'])
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=allocation)
+            item = invoice_models.InvoiceItem.objects.create(
+                resource=resource,
+                project=allocation.service_project_link.project,
+                unit_price=getattr(package, component.type + '_price'),
+                unit=invoice_models.InvoiceItem.Units.QUANTITY,
+                quantity=utils.get_usage_quantity(component_usage, component.type),
+                product_code=package.product_code,
+                article_code=package.article_code,
+                invoice=invoice,
+                start=start,
+                end=end,
+            )
+            item.name = '%s (%s %s)' % (
+                self.get_name(allocation),
+                component.name,
+                component.measured_unit,
+            )
+            details = self.get_details(allocation)
+            details.update({'type': component.type})
+            item.details.update(details)
+            item.save(update_fields=['name', 'details'])
+        except marketplace_models.Resource.DoesNotExist:
+            logger.warning(
+                'Skipping SLURM item invoice creation because '
+                'marketplace resource is not available for SLURM allocation. '
+                'SLURM allocation ID: %s',
+                allocation.id,
+            )
+            return
 
     def get_package(self, allocation):
         service_settings = allocation.service_project_link.service.settings

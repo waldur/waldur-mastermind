@@ -10,7 +10,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
-from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.tests import factories, helpers
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -253,7 +253,7 @@ class ComponentStatsTest(StatsBaseTest):
         invoice = invoices_models.Invoice.objects.get(
             year=2020, month=3, customer=self.resource.project.customer
         )
-        return invoice.items.filter(object_id=self.resource.id)
+        return invoice.items.filter(resource_id=self.resource.id)
 
     def test_item_details(self):
         component = factories.OfferingComponentFactory(
@@ -272,9 +272,8 @@ class ComponentStatsTest(StatsBaseTest):
             {
                 'limits': self.resource.limits,
                 'usages': {usage.component.type: usage.usage},
-                'scope_uuid': item.scope.uuid.hex,
-                'resource_name': item.scope.name,
-                'resource_uuid': item.scope.uuid.hex,
+                'resource_name': item.resource.name,
+                'resource_uuid': item.resource.uuid.hex,
                 'offering_name': self.offering.name,
                 'offering_type': TENANT_TYPE,
                 'offering_uuid': self.offering.uuid.hex,
@@ -364,53 +363,6 @@ class ComponentStatsTest(StatsBaseTest):
             ],
         )
 
-    def test_migration(self):
-        item = self._create_items().first()
-        details = utils.get_offering_details(self.resource.offering)
-        details['resource_name'] = self.resource.name
-        details['resource_uuid'] = self.resource.uuid.hex
-        details['scope_uuid'] = self.resource.uuid.hex
-        details['limits'] = self.resource.limits
-        details['usages'] = {}
-        self.assertEqual(item.details, details)
-
-        migration = __import__(
-            'waldur_mastermind.marketplace.migrations.0024_init_invoice_items_details_from_order_item',
-            fromlist=['init_invoice_items_details_from_order_item'],
-        )
-        func = migration.init_invoice_items_details_from_order_item
-
-        class Apps(object):
-            @staticmethod
-            def get_model(app, klass):
-                if klass == 'OrderItem':
-                    return models.OrderItem
-
-                if klass == 'ComponentUsage':
-                    return models.ComponentUsage
-
-                if klass == 'InvoiceItem':
-                    return invoices_models.InvoiceItem
-
-                if klass == 'Resource':
-                    return models.Resource
-
-        mock_apps = Apps()
-        component = factories.OfferingComponentFactory(
-            offering=self.resource.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='storage',
-        )
-        usage = factories.ComponentUsageFactory(
-            resource=item.scope,
-            billing_period=core_utils.month_start(timezone.now()),
-            component=component,
-        )
-        func(mock_apps, None)
-        item.refresh_from_db()
-        details['usages'] = {usage.component.type: usage.usage}
-        self.assertEqual(item.details, details)
-
     def test_handler(self):
         self.resource.offering.type = PLUGIN_NAME
         self.resource.offering.save()
@@ -433,7 +385,7 @@ class ComponentStatsTest(StatsBaseTest):
             plan=self.plan,
             start=core_utils.month_start(timezone.now()),
         )
-        usage = factories.ComponentUsageFactory(
+        factories.ComponentUsageFactory(
             resource=self.resource,
             billing_period=core_utils.month_start(timezone.now()),
             component=new_component,
@@ -444,59 +396,28 @@ class ComponentStatsTest(StatsBaseTest):
         result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
         component_cores = self.resource.offering.components.get(type='cores')
         component_storage = self.resource.offering.components.get(type='storage')
+        self.assertEqual(len(result.data), 2)
         self.assertEqual(
-            result.data,
-            [
-                {
-                    'description': component_cores.description,
-                    'measured_unit': component_cores.measured_unit,
-                    'name': component_cores.name,
-                    'period': '2020-03',
-                    'date': '2020-03-31T00:00:00+00:00',
-                    'type': component_cores.type,
-                    'usage': 31,  # days in March of 1 core usage with per-day plan
-                },
-                {
-                    'description': component_storage.description,
-                    'measured_unit': component_storage.measured_unit,
-                    'name': component_storage.name,
-                    'period': '2020-03',
-                    'date': '2020-03-31T00:00:00+00:00',
-                    'type': component_storage.type,
-                    'usage': float(
-                        decimal.Decimal(usage.usage)
-                        / decimal.Decimal(
-                            self.resource.offering.component_factors.get(
-                                component_storage.type, 1
-                            )
-                        )
-                    ),
-                },
-            ],
+            [r for r in result.data if r['type'] == component_cores.type][0],
+            {
+                'description': component_cores.description,
+                'measured_unit': component_cores.measured_unit,
+                'name': component_cores.name,
+                'period': '2020-03',
+                'date': '2020-03-31T00:00:00+00:00',
+                'type': component_cores.type,
+                'usage': 31,  # days in March of 1 core usage with per-day plan
+            },
         )
-
-    def test_migration_0030_offering_data_to_invoice_item_details(self):
-        item = self._create_items().first()
-        item.details = {}
-        item.save()
-        details = utils.get_offering_details(self.resource.offering)
-
-        migration = __import__(
-            'waldur_mastermind.marketplace.migrations.0030_offering_data_to_invoice_item_details',
-            fromlist=['offering_data'],
+        self.assertEqual(
+            [r for r in result.data if r['type'] == component_storage.type][0],
+            {
+                'description': component_storage.description,
+                'measured_unit': component_storage.measured_unit,
+                'name': component_storage.name,
+                'period': '2020-03',
+                'date': '2020-03-31T00:00:00+00:00',
+                'type': component_storage.type,
+                'usage': 2,
+            },
         )
-        func = migration.offering_data
-
-        class Apps(object):
-            @staticmethod
-            def get_model(app, klass):
-                if klass == 'InvoiceItem':
-                    return invoices_models.InvoiceItem
-
-                if klass == 'Resource':
-                    return models.Resource
-
-        mock_apps = Apps()
-        func(mock_apps, None)
-        item.refresh_from_db()
-        self.assertEqual(item.details, details)
