@@ -69,7 +69,8 @@ class CreateInvoiceTest(TestCase):
 
     def test_invoice_is_created(self):
         invoice = self._get_valid_invoice()
-        invoice.items = self._generate_invoice_items(2)
+        invoice.items = mock.MagicMock()
+        invoice.items.all.return_value = self._generate_invoice_items(2)
         self.assertEqual(models.Invoice.objects.count(), 0)
 
         handlers.create_invoice(

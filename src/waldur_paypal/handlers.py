@@ -39,7 +39,7 @@ def create_invoice(sender, invoice, issuer_details, **kwargs):
     if not invoice.items:
         return
 
-    price = sum([item.price for item in invoice.items])
+    price = sum([item.price for item in invoice.items.all()])
 
     if not price:
         return
@@ -68,7 +68,7 @@ def create_invoice(sender, invoice, issuer_details, **kwargs):
 
     paypal_invoice.save()
 
-    for item in invoice.items:
+    for item in invoice.items.all():
         models.InvoiceItem.objects.create(
             invoice=paypal_invoice,
             price=item.price,
