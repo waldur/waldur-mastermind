@@ -492,11 +492,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         )
 
     def _log_security_group_rule_pulled(self, rule):
-        event_logger.openstack_security_group_rule.info(
-            'Security group rule %s has been pulled from backend.' % str(rule),
-            event_type='openstack_security_group_rule_pulled',
-            event_context={'security_group_rule': rule},
-        )
+        logger.debug('Security group rule %s has been pulled from backend.', str(rule))
 
     def _log_security_group_rule_cleaned(self, rule):
         event_logger.openstack_security_group_rule.info(
