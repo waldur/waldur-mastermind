@@ -72,7 +72,6 @@ class SecurityGroupRuleLogger(EventLogger):
             'openstack_security_group_rule_imported',
             'openstack_security_group_rule_created',
             'openstack_security_group_rule_updated',
-            'openstack_security_group_rule_pulled',
             'openstack_security_group_rule_deleted',
             'openstack_security_group_rule_cleaned',
         )
