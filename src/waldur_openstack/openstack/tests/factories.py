@@ -150,6 +150,7 @@ class SecurityGroupRuleFactory(factory.DjangoModelFactory):
         model = models.SecurityGroupRule
 
     security_group = factory.SubFactory(SecurityGroupFactory)
+    backend_id = factory.Sequence(lambda n: 'security_group-rule-id%s' % n)
     protocol = models.SecurityGroupRule.TCP
     from_port = factory.fuzzy.FuzzyInteger(1, 30000)
     to_port = factory.fuzzy.FuzzyInteger(30000, 65535)
