@@ -60,6 +60,55 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
             ).exists()
         )
 
+    def test_when_security_group_is_created_remote_group_is_filled(self):
+        group1 = openstack_factories.SecurityGroupFactory(
+            tenant=self.tenant, state=StateMixin.States.CREATING
+        )
+        group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+
+        openstack_security_rule = openstack_factories.SecurityGroupRuleFactory(
+            security_group=group1, remote_group=group2
+        )
+
+        group1.set_ok()
+        group1.save()
+
+        self.assertTrue(
+            models.SecurityGroupRule.objects.filter(
+                backend_id=openstack_security_rule.backend_id,
+                security_group__backend_id=group1.backend_id,
+                remote_group__backend_id=group2.backend_id,
+            ).exists()
+        )
+
+    def test_when_group_is_imported_remote_group_is_imported_too(self):
+        group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        rule = openstack_factories.SecurityGroupRuleFactory(
+            security_group=group1, remote_group=group2
+        )
+        self.assertTrue(
+            models.SecurityGroupRule.objects.filter(
+                backend_id=rule.backend_id,
+                security_group__backend_id=group1.backend_id,
+                remote_group__backend_id=group2.backend_id,
+            ).exists()
+        )
+
+    def test_when_rule_is_updated_remote_group_is_synced(self):
+        group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        rule = openstack_factories.SecurityGroupRuleFactory(security_group=group1)
+        rule.remote_group = group2
+        rule.save(update_fields=['remote_group'])
+        self.assertTrue(
+            models.SecurityGroupRule.objects.filter(
+                backend_id=rule.backend_id,
+                security_group__backend_id=group1.backend_id,
+                remote_group__backend_id=group2.backend_id,
+            ).exists()
+        )
+
     def test_security_group_update(self):
         openstack_security_group = openstack_factories.SecurityGroupFactory(
             tenant=self.tenant,

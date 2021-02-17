@@ -359,6 +359,23 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
             for rule in openstack_security_group.rules.iterator()
         ]
 
+    def pull_remote_group(self, group_property, group_resource, service_settings):
+        for rule_resource in group_resource.rules.exclude(remote_group=None):
+            try:
+                remote_group = models.SecurityGroup.objects.get(
+                    settings=service_settings,
+                    backend_id=rule_resource.remote_group.backend_id,
+                )
+                rule_property = models.SecurityGroupRule.objects.get(
+                    security_group=group_property, backend_id=rule_resource.backend_id
+                )
+            except django_exceptions.ObjectDoesNotExist:
+                continue
+            else:
+                if rule_property.remote_group != remote_group:
+                    rule_property.remote_group = remote_group
+                    rule_property.save(update_fields=['remote_group'])
+
     def create_service_property(self, resource, settings):
         service_property, _ = super(SecurityGroupHandler, self).create_service_property(
             resource, settings
@@ -366,6 +383,7 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
         if resource.rules.count() > 0:
             group_rules = self.map_rules(service_property, resource)
             service_property.rules.bulk_create(group_rules)
+        self.pull_remote_group(service_property, resource, settings)
         return service_property
 
     def update_service_property(self, resource, settings):
@@ -613,13 +631,15 @@ def delete_volume_type_quotas_from_private_service_settings(sender, instance, **
     Quota.objects.filter(scope__in=private_settings, name=quota.name).delete()
 
 
-def update_remote_group_when_rule_is_updated(sender, instance, **kwargs):
-    if not instance.tracker.has_changed('remote_group_id'):
+def update_remote_group_when_rule_is_updated(sender, instance, created=False, **kwargs):
+    rule = instance
+
+    if not created and not rule.tracker.has_changed('remote_group_id'):
         return
 
     try:
         service_settings = structure_models.ServiceSettings.objects.get(
-            scope=instance.security_group.tenant,
+            scope=rule.security_group.tenant,
             type=apps.OpenStackTenantConfig.service_name,
         )
     except (
@@ -630,20 +650,34 @@ def update_remote_group_when_rule_is_updated(sender, instance, **kwargs):
 
     try:
         security_group = models.SecurityGroup.objects.get(
-            settings=service_settings, backend_id=instance.security_group.backend_id
+            settings=service_settings, backend_id=rule.security_group.backend_id
         )
     except django_exceptions.ObjectDoesNotExist:
         return
 
-    remote_group_id = None
-    if instance.remote_group:
+    remote_group = None
+    if rule.remote_group:
         try:
-            remote_group_id = models.SecurityGroup.objects.get(
-                settings=service_settings, backend_id=instance.remote_group.backend_id
-            ).id
+            remote_group = models.SecurityGroup.objects.get(
+                settings=service_settings, backend_id=rule.remote_group.backend_id
+            )
         except django_exceptions.ObjectDoesNotExist:
             pass
 
-    models.SecurityGroupRule.objects.filter(
-        security_group=security_group, backend_id=instance.backend_id
-    ).update(remote_group_id=remote_group_id)
+    if created:
+        models.SecurityGroupRule.objects.create(
+            ethertype=rule.ethertype,
+            direction=rule.direction,
+            protocol=rule.protocol,
+            from_port=rule.from_port,
+            to_port=rule.to_port,
+            cidr=rule.cidr,
+            description=rule.description,
+            backend_id=rule.backend_id,
+            security_group=security_group,
+            remote_group=remote_group,
+        )
+    else:
+        models.SecurityGroupRule.objects.filter(
+            security_group=security_group, backend_id=rule.backend_id
+        ).update(remote_group=remote_group)
