@@ -111,7 +111,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             raise ServiceBackendError(
-                'Issue is not created because corresponding request type is not found.'
+                f'Issue is not created because request type is not found for issue type {issue.type}.'
             )
 
         args['requestTypeId'] = (
