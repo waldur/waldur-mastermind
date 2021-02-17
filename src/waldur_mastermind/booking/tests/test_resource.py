@@ -342,7 +342,7 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(3, len(response.data))
 
-    @data('owner', 'service_manager')
+    @data('offering_owner', 'offering_service_manager')
     def test_user_can_get_only_his_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -355,3 +355,26 @@ class ResourceGetTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+    def test_connected_customer_uuid_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {'connected_customer_uuid': self.resource_1.offering.customer.uuid.hex},
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(self.resource_1.uuid.hex, response.data[0]['uuid'])
+        self.assertEqual(
+            self.resource_1.offering.customer.uuid, response.data[0]['provider_uuid']
+        )
+
+        response = self.client.get(
+            self.url,
+            {'connected_customer_uuid': self.resource_3.project.customer.uuid.hex},
+        )
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(self.resource_3.uuid.hex, response.data[0]['uuid'])
+        self.assertEqual(
+            self.resource_3.project.customer.uuid, response.data[0]['customer_uuid']
+        )
