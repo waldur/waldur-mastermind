@@ -77,7 +77,18 @@ def fill_resource_field(apps, schema_editor):
         select={'object_id': 'object_id', 'content_type_id': 'content_type_id'}
     ).all():
         if item.content_type_id == ContentType.objects.get_for_model(Resource).id:
-            item.resource_id = item.object_id
+            try:
+                resource = Resource.objects.get(id=item.object_id)
+                item.resource_id = resource.id
+                item.save()
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                logger.warning(
+                    'An invoice item with ID: %d linked with a non-existent resource. Invoice: %d %d.%d',
+                    item.id,
+                    item.invoice.id,
+                    item.invoice.year,
+                    item.invoice.month,
+                )
         else:
             try:
                 if item.details.get('tenant_uuid'):
