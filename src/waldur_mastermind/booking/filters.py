@@ -2,7 +2,7 @@ import collections
 
 from django.core import exceptions as django_exceptions
 from django.db.models import Q
-from django_filters import OrderingFilter
+from django_filters import OrderingFilter, UUIDFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
 from waldur_core.structure import models as structure_models
@@ -80,3 +80,9 @@ class SchedulesOrderingFilter(OrderingFilter):
 
 class BookingResourceFilter(ResourceFilter):
     o = SchedulesOrderingFilter(fields=('name', 'created', 'type'))
+    connected_customer_uuid = UUIDFilter(method='filter_connected_customer')
+
+    def filter_connected_customer(self, queryset, name, value):
+        return queryset.filter(
+            Q(project__customer__uuid=value,) | Q(offering__customer__uuid=value,)
+        )
