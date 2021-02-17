@@ -675,30 +675,27 @@ class MoveResourceException(Exception):
 
 
 @transaction.atomic
-def move_resource(resource, project):
+def move_resource(resource: models.Resource, project):
     if project.customer.blocked:
         raise rf_exceptions.ValidationError('New customer must be not blocked')
 
     old_project = resource.project
 
     if old_project.customer != project.customer:
-        linked_offerings = models.Offering.objects.filter(
-            scope=resource.scope, allowed_customers__in=[old_project.customer],
-        )
-
-        for offering in linked_offerings:
-            offering.allowed_customers.remove(old_project.customer)
-            offering.allowed_customers.add(project.customer)
+        offering = resource.offering
+        offering.allowed_customers.remove(old_project.customer)
+        offering.allowed_customers.add(project.customer)
 
     resource.project = project
     resource.save(update_fields=['project'])
 
-    spl, _ = resource.scope.service_project_link._meta.model.objects.get_or_create(
-        service=resource.scope.service_project_link.service, project=project,
-    )
+    if resource.scope:
+        spl, _ = resource.scope.service_project_link._meta.model.objects.get_or_create(
+            service=resource.scope.service_project_link.service, project=project,
+        )
 
-    resource.scope.service_project_link = spl
-    resource.scope.save(update_fields=['service_project_link'])
+        resource.scope.service_project_link = spl
+        resource.scope.save(update_fields=['service_project_link'])
 
     order_ids = resource.orderitem_set.values_list('order_id', flat=True)
     for order in models.Order.objects.filter(pk__in=order_ids):
