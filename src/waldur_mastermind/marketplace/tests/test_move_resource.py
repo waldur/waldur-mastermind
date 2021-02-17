@@ -17,7 +17,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
         self.resource.save()
         resource_offering = self.resource.offering
         resource_offering.allowed_customers.add(self.project.customer)
-        resource_offering.scope = self.fixture.volume
+        resource_offering.scope = self.fixture.service_settings
         resource_offering.save()
         self.order = marketplace_factories.OrderFactory(project=self.project)
         marketplace_factories.OrderItemFactory(resource=self.resource, order=self.order)
@@ -101,3 +101,22 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.project, self.new_project)
         self.assertEqual(self.start_invoice.items.count(), 0)
         self.assertEqual(target_invoice.items.count(), 1)
+
+    def test_move_request_based_resource(self):
+        self.resource.scope = None
+        self.resource.save()
+
+        move_resource(self.resource, self.new_project)
+        self.fixture.volume.refresh_from_db()
+        self.order.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.assertTrue(
+            self.new_project.customer in self.resource.offering.allowed_customers.all()
+        )
+        self.assertFalse(
+            self.project.customer in self.resource.offering.allowed_customers.all()
+        )
+        self.assertEqual(self.order.project, self.new_project)
+        self.assertEqual(self.resource.project, self.new_project)
+        self.assertEqual(self.start_invoice.items.count(), 0)
+        self.assertEqual(self.target_invoice.items.count(), 1)
