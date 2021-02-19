@@ -283,7 +283,8 @@ def send_request_to_waldur(client, module):
 
         if 'cidr' in rule and 'remote_group' in rule:
             module.fail_json(
-                msg='Either cidr or remote_group must be specified, not both.')
+                msg='Either cidr or remote_group must be specified, not both.'
+            )
 
         if 'remote_group' in rule:
             remote_group = client.get_security_group(tenant, rule['remote_group'])
@@ -312,8 +313,8 @@ def send_request_to_waldur(client, module):
         else:
             if rule['direction'] not in ['ingress', 'egress']:
                 module.fail_json(
-                    msg='Invalid direction %s expected ingress or egress' %
-                        rule['direction']
+                    msg='Invalid direction %s expected ingress or egress'
+                    % rule['direction']
                 )
 
     security_group = client.get_security_group(tenant, name)
@@ -321,13 +322,36 @@ def send_request_to_waldur(client, module):
 
     if security_group:
         if present:
-            if security_group['description'] != description:
-                client.update_security_group_description(security_group, description)
-                has_changed = True
+            rules_comp = [
+                {
+                    k: v
+                    for k, v in rule.items()
+                    if k
+                    in [
+                        'from_port',
+                        'to_port',
+                        'cidr',
+                        'protocol',
+                        'direction',
+                        'description',
+                        'ethertype',
+                    ]
+                }
+                for rule in security_group['rules']
+            ]
+            if security_group['description'] == description and rules_comp == rules:
+                has_changed = False
+            else:
 
-            if security_group['rules'] != rules:
-                client.update_security_group_rules(security_group, rules)
-                has_changed = True
+                if security_group['description'] != description:
+                    client.update_security_group_description(
+                        security_group, description
+                    )
+                    has_changed = True
+
+                if security_group['rules'] != rules:
+                    client.update_security_group_rules(security_group, rules)
+                    has_changed = True
         else:
             client.delete_security_group(security_group['uuid'])
             has_changed = True
