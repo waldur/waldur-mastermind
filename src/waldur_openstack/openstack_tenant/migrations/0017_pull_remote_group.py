@@ -7,11 +7,16 @@ def pull_remote_group(apps, schema_editor):
     SecurityGroupProperty = apps.get_model('openstack_tenant', 'SecurityGroup')
     SecurityGroupRuleProperty = apps.get_model('openstack_tenant', 'SecurityGroupRule')
     ServiceSettings = apps.get_model('structure', 'ServiceSettings')
+    Tenant = apps.get_model('openstack', 'Tenant')
+    ContentType = apps.get_model('contenttypes', 'ContentType')
+    content_type = ContentType.objects.get_for_model(Tenant)
 
     for rule_resource in SecurityGroupRuleResource.objects.exclude(remote_group=None):
         try:
             service_settings = ServiceSettings.objects.get(
-                scope=rule_resource.security_group.tenant, type='OpenStackTenant'
+                type='OpenStackTenant',
+                content_type=content_type,
+                object_id=rule_resource.security_group.tenant_id,
             )
             security_group = SecurityGroupProperty.objects.get(
                 settings=service_settings,
