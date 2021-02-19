@@ -184,6 +184,30 @@ class RequestCreateTest(BaseTest):
             mock.ANY, 'template_confirmation_comment'
         )
 
+    def test_set_creation_ticket_id_as_backend_id_of_resource(self):
+        def mock_create_issue(issue):
+            issue.backend_id = 'WAL TEST'
+            issue.save()
+
+        self.mock_get_active_backend().create_issue = mock_create_issue
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PLUGIN_NAME, options={'order': []}
+        )
+
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=offering,
+            attributes={'name': 'item_name', 'description': 'Description'},
+        )
+
+        serialized_order = core_utils.serialize_instance(order_item.order)
+        serialized_user = core_utils.serialize_instance(fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
+        resource = marketplace_models.Resource.objects.get(name='item_name')
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        self.assertEqual(issue.backend_id, resource.backend_id)
+
 
 @freeze_time('2019-01-01')
 class RequestActionBaseTest(BaseTest):
