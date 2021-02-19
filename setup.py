@@ -31,6 +31,7 @@ setup(
         'waldur_os_floating_ip',
         'waldur_os_instance_volume',
         'waldur_os_security_group',
+        'waldur_os_security_group_gather_facts',
         'waldur_os_snapshot',
         'waldur_batch_allocation',
         'waldur_batch_offering',
