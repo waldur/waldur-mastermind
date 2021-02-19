@@ -2,7 +2,6 @@
 # has to be a full import due to Ansible 2.0 compatibility
 from ipaddress import AddressValueError, IPv4Interface, IPv6Interface, NetmaskValueError
 
-import six
 from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import (
@@ -378,16 +377,14 @@ def main():
         project=dict(type='str', required=False),
         tenant=dict(type='str', required=True),
     )
-    module = AnsibleModule(
-        argument_spec=fields,
-    )
+    module = AnsibleModule(argument_spec=fields,)
 
     client = waldur_client_from_module(module)
 
     try:
         has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as e:
-        module.fail_json(msg=six.text_type(e))
+        module.fail_json(msg=str(e))
     else:
         module.exit_json(changed=has_changed)
 
