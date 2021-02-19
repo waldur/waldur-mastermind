@@ -20,7 +20,7 @@ class BatchAllocationMakingTest(unittest.TestCase):
             'gpu_hours': 50,
             'ram_gb': 60,
             'name': 'Alloc',
-            'description': 'Sample allocation'
+            'description': 'Sample allocation',
         }
         module.check_mode = False
         self.module = module
