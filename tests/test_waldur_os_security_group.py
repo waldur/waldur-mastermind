@@ -21,6 +21,21 @@ def group_side_effect(*args, **kwargs):
             ],
         }
 
+    if args[1] == 'ssh':
+        return {
+            'url': 'api/124',
+            'description': 'descr',
+            'rules': [
+                {
+                    'from_port': '80',
+                    'to_port': '80',
+                    'remote_group': 'api/123',
+                    'protocol': 'tcp',
+                    'direction': 'ingress',
+                }
+            ],
+        }
+
 
 def fail_side_effect(*args, **kwargs):
     raise Exception(kwargs['msg'])
@@ -261,13 +276,14 @@ class SecurityGroupCreateTest(unittest.TestCase):
         self.check_unsuccessful_function_call('Invalid direction .')
 
     def test_group_creation_if_group_already_exists(self):
-        self.module.params['name'] = 'web'
+        self.module.params['name'] = 'ssh'
         self.module.params['rules'] = [
             {
                 'from_port': '80',
                 'to_port': '80',
-                'cidr': '192.168.0.0/28',
+                'remote_group': 'web',
                 'protocol': 'tcp',
+                'direction': 'ingress',
             }
         ]
 
