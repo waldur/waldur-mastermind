@@ -334,6 +334,7 @@ def send_request_to_waldur(client, module):
                         'direction',
                         'description',
                         'ethertype',
+                        'remote_group',
                     ]
                 }
                 for rule in security_group['rules']
