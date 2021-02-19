@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-import six
 from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import (
@@ -124,7 +123,7 @@ def main():
             interval=module.params['interval'],
         )
     except WaldurClientException as e:
-        module.fail_json(msg=six.text_type(e))
+        module.fail_json(msg=str(e))
     else:
         module.exit_json(meta=response)
 

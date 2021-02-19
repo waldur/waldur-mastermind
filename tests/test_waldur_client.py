@@ -1,9 +1,9 @@
 import json
 import unittest
 import uuid
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import responses
-from six.moves.urllib.parse import parse_qs, urlencode, urlparse
 
 from waldur_client import WaldurClient, WaldurClientException
 
@@ -45,12 +45,7 @@ class InstanceCreateBaseTest(BaseWaldurClientTest):
         self.params = {
             'name': 'instance',
             'project': 'project',
-            'networks': [
-                {
-                    'subnet': 'subnet',
-                    'floating_ip': 'auto',
-                }
-            ],
+            'networks': [{'subnet': 'subnet', 'floating_ip': 'auto',}],
             'security_groups': ['web'],
             'flavor': 'flavor',
             'image': 'image',
@@ -475,12 +470,7 @@ class SecurityGroupTest(BaseWaldurClientTest):
         'uuid': '59e46d029a79473779915a22',
         'state': 'OK',
         'rules': [
-            {
-                'to_port': 10,
-                'from_port': 20,
-                'cidr': '0.0.0.0/24',
-                'protocol': 'tcp',
-            }
+            {'to_port': 10, 'from_port': 20, 'cidr': '0.0.0.0/24', 'protocol': 'tcp',}
         ],
     }
 

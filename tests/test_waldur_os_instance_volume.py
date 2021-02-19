@@ -1,6 +1,5 @@
 import unittest
-
-import mock
+from unittest import mock
 
 import waldur_os_instance_volume
 

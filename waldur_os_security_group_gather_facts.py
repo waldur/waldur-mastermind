@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-import six
 from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import WaldurClientException, waldur_client_from_module
@@ -86,7 +85,7 @@ def main():
     try:
         security_groups = send_request_to_waldur(client, module)
     except WaldurClientException as e:
-        module.fail_json(msg=six.text_type(e))
+        module.fail_json(msg=str(e))
     else:
 
         module.exit_json(security_groups=security_groups)

@@ -1,10 +1,9 @@
 import json
 import time
+from urllib.parse import urlencode, urljoin
 from uuid import UUID
 
 import requests
-import six
-from six.moves.urllib.parse import urlencode, urljoin
 
 
 def is_uuid(value):
@@ -113,7 +112,9 @@ class WaldurClient(object):
 
     def _make_request(self, method, url, valid_states, retry_count=3, **kwargs):
         if retry_count == 0:
-            raise WaldurClientException('Reached a limit of retries for the operation: %s %s' % (method, url))
+            raise WaldurClientException(
+                'Reached a limit of retries for the operation: %s %s' % (method, url)
+            )
 
         params = dict(headers=self.headers)
         params.update(kwargs)
@@ -121,13 +122,15 @@ class WaldurClient(object):
         try:
             response = getattr(requests, method)(url, **params)
         except requests.exceptions.RequestException as error:
-            raise WaldurClientException(six.text_type(error))
+            raise WaldurClientException(str(error))
 
         if response.status_code not in valid_states:
             # a special treatment for 409 response, which can be due to async operations
             if response.status_code == 409:
                 time.sleep(2)  # wait for things to calm down
-                return self._make_request(method, url, valid_states, retry_count - 1, **kwargs)
+                return self._make_request(
+                    method, url, valid_states, retry_count - 1, **kwargs
+                )
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
@@ -141,7 +144,7 @@ class WaldurClient(object):
         try:
             response = requests.get(url, **params)
         except requests.exceptions.RequestException as error:
-            raise WaldurClientException(six.text_type(error))
+            raise WaldurClientException(str(error))
 
         if response.status_code != 200:
             error = self._parse_error(response)
@@ -155,7 +158,7 @@ class WaldurClient(object):
             try:
                 response = requests.get(next_url, **params)
             except requests.exceptions.RequestException as error:
-                raise WaldurClientException(six.text_type(error))
+                raise WaldurClientException(str(error))
 
             if response.status_code != 200:
                 error = self._parse_error(response)
@@ -346,9 +349,7 @@ class WaldurClient(object):
         return self._query_resource(self.Endpoints.TenantSecurityGroup, query)
 
     def _get_tenant_security_groups(self, tenant_uuid):
-        query = {
-            'tenant_uuid': tenant_uuid
-        }
+        query = {'tenant_uuid': tenant_uuid}
         return self._query_resource_list(self.Endpoints.TenantSecurityGroup, query)
 
     def _is_resource_ready(self, endpoint, uuid):

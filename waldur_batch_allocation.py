@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from ansible.module_utils.basic import AnsibleModule, text_type
+from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import WaldurClientException, waldur_client_from_module
 
@@ -35,18 +35,6 @@ options:
     description:
       - The name or UUID of the marketplace plan.
     required: true
-  cpu_hours:
-    description:
-      - The requested number of CPU hours
-    required: true
-  gpu_hours:
-    description:
-      - The requested number of GPU hours
-    required: true
-  ram_gb:
-    description:
-      - The requested number of RAM capacity (GB)
-    required: true
   name:
     description:
       - The name of allocation
@@ -69,9 +57,6 @@ EXAMPLES = '''
       project: Project
       offering: Offering name
       plan: Plan name
-      cpu_hours: 1
-      gpu_hours: 1
-      ram_gb: 1
       name: Sample name
       description: Sample description
 '''
@@ -86,20 +71,15 @@ def format_params(params):
 
     plan = params['plan']
 
-    limits = {'cpu': params['cpu_hours'], 'gpu': params['gpu_hours'],
-              'ram': params['ram_gb']}
-
     attributes = {'name': params['name'], 'description': params['description']}
 
-    return project, offering, plan, attributes, limits
+    return project, offering, plan, attributes
 
 
 def send_request_to_waldur(client, module):
-    project, offering, plan, attributes, limits = format_params(module.params)
+    project, offering, plan, attributes = format_params(module.params)
 
-    response = client.create_marketplace_order(
-        project, offering, plan, attributes, limits
-    )
+    response = client.create_marketplace_order(project, offering, plan, attributes)
     order_item = response['items'][0]
     return order_item, True
 
@@ -124,7 +104,7 @@ def main():
     try:
         order_item, has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as e:
-        module.fail_json(msg=text_type(e))
+        module.fail_json(msg=str(e))
     else:
         module.exit_json(order=order_item, changed=has_changed)
 

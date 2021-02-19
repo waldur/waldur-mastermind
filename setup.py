@@ -4,11 +4,9 @@ from setuptools import setup
 
 install_requires = [
     'requests>=2.6.0',
-    'six>=1.9.0',
 ]
 
 tests_requires = [
-    'mock>=1.0.1',
     'responses>=0.5.0',
 ]
 
