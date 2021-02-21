@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
-import six
 import yaml
 from ansible.module_utils.basic import AnsibleModule, to_text
 
@@ -122,7 +121,7 @@ def send_request_to_waldur(client, module):
     def get_file_content(path):
         if path:
             value = yaml.safe_load(path)
-            if isinstance(value, six.string_types):
+            if isinstance(value, str):
                 with open(value) as f:
                     return yaml.safe_load(f.read())
             else:
@@ -156,7 +155,7 @@ def main():
     except (IOError, OSError) as e:
         module.fail_json(msg="Unable to open file: %s" % to_text(e))
     except WaldurClientException as e:
-        module.fail_json(msg=six.text_type(e))
+        module.fail_json(msg=str(e))
     else:
         module.exit_json(order_item=order_item, changed=has_changed)
 

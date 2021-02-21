@@ -14,7 +14,7 @@ variables:
   GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/ansible-waldur-module.git"
   GITHUB_WALDUR_REPO_URL: "git@github.com:waldur/ansible-waldur-module.git"
 
-Test current configuration:
+Run unit tests:
   stage: test
   interruptible: true
   rules:

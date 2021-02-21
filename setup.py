@@ -4,18 +4,16 @@ from setuptools import setup
 
 install_requires = [
     'requests>=2.6.0',
-    'six>=1.9.0',
 ]
 
 tests_requires = [
-    'mock>=1.0.1',
     'responses>=0.5.0',
 ]
 
 
 setup(
     name='ansible-waldur-module',
-    version='1.0.8',
+    version='1.0.9',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='https://waldur.com',

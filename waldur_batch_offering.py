@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from ansible.module_utils.basic import AnsibleModule, text_type
+from ansible.module_utils.basic import AnsibleModule
 
 from waldur_client import WaldurClientException, waldur_client_from_module
 
@@ -135,11 +135,20 @@ EXAMPLES = '''
 
 
 def format_params(params):
-    excluded_keys = ['batch_service', 'hostname', 'username', 'default_account',
-                     'port', 'gateway', 'type', 'provider']
+    excluded_keys = [
+        'batch_service',
+        'hostname',
+        'username',
+        'default_account',
+        'port',
+        'gateway',
+        'type',
+        'provider',
+    ]
 
-    formatted_params = {k: v for (k, v) in params.items() if v and
-                        k not in excluded_keys}
+    formatted_params = {
+        k: v for (k, v) in params.items() if v and k not in excluded_keys
+    }
 
     formatted_params['type'] = 'SlurmInvoices.SlurmPackage'
 
@@ -213,7 +222,7 @@ def main():
 
         module.exit_json(offering=offering, changed=changed)
     except WaldurClientException as e:
-        module.fail_json(msg=text_type(e))
+        module.fail_json(msg=str(e))
 
 
 if __name__ == '__main__':
