@@ -160,19 +160,17 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
 
 
 class MeasuredUnitTest(test.APITransactionTestCase):
-    def get_invoice_item(self, unit, details=None):
+    def get_invoice_item(self, unit, measured_unit=''):
         return factories.InvoiceItemFactory(
             start=datetime.date(year=2020, month=12, day=1),
             end=datetime.date(year=2020, month=12, day=10),
             quantity=2,
             unit=unit,
-            details=details or {},
+            measured_unit=measured_unit,
         )
 
     def test_offering_component(self):
-        item = self.get_invoice_item(
-            UnitPriceMixin.Units.PER_DAY, {'offering_component_measured_unit': 'kG'}
-        )
+        item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY, 'kG')
         self.assertEqual(item.get_measured_unit(), _('kG'))
 
     def test_days(self):
