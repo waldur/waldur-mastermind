@@ -404,7 +404,13 @@ class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
 
 def validate_duplicate_security_group_rules(rules):
     values = rules.values_list(
-        'ethertype', 'direction', 'protocol', 'from_port', 'to_port', 'cidr'
+        'ethertype',
+        'direction',
+        'protocol',
+        'from_port',
+        'to_port',
+        'cidr',
+        'remote_group',
     )
     if len(set(values)) != len(values):
         raise serializers.ValidationError(
