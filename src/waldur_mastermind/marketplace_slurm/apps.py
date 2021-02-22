@@ -13,20 +13,9 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
         from waldur_slurm import models as slurm_models
         from waldur_slurm.apps import SlurmConfig
+        from . import handlers, processor, registrators as slurm_registrators
 
-        from . import handlers, processor
-
-        signals.post_save.connect(
-            handlers.synchronize_slurm_package,
-            sender=marketplace_models.PlanComponent,
-            dispatch_uid='waldur_mastermind.marketplace_slurm.synchronize_slurm_package',
-        )
-
-        signals.post_save.connect(
-            handlers.create_slurm_usage,
-            sender=slurm_models.AllocationUsage,
-            dispatch_uid='waldur_mastermind.marketplace_slurm.create_slurm_usage',
-        )
+        slurm_registrators.SlurmRegistrator.connect()
 
         signals.post_save.connect(
             handlers.update_component_quota,

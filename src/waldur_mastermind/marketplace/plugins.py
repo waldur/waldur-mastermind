@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from waldur_core.structure import SupportedServices
 
@@ -78,7 +79,7 @@ class PluginManager:
         """
         return self.backends.get(offering_type, {}).get('service_type')
 
-    def get_components(self, offering_type):
+    def get_components(self, offering_type: str) -> List[Component]:
         """
         Return a list of components for given offering_type.
         :param offering_type: offering type name

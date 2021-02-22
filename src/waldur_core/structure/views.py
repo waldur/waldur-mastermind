@@ -1338,10 +1338,6 @@ class ProjectCountersView(BaseCounterView):
 
         {
             "users": 0,
-            "apps": 0,
-            "vms": 1,
-            "private_clouds": 1,
-            "storages": 2,
         }
     """
 
@@ -1356,25 +1352,9 @@ class ProjectCountersView(BaseCounterView):
 
     def get_fields(self):
         fields = {
-            'vms': self.get_vms,
-            'apps': self.get_apps,
-            'private_clouds': self.get_private_clouds,
-            'storages': self.get_storages,
             'users': self.get_users,
         }
         return fields
-
-    def get_vms(self):
-        return self._total_count(models.VirtualMachine.get_all_models())
-
-    def get_apps(self):
-        return self._total_count(models.ApplicationMixin.get_all_models())
-
-    def get_private_clouds(self):
-        return self._total_count(models.PrivateCloud.get_all_models())
-
-    def get_storages(self):
-        return self._total_count(models.Storage.get_all_models())
 
     def get_users(self):
         return self.object.get_users().count()

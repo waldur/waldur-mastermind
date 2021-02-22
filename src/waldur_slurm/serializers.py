@@ -9,7 +9,6 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_freeipa import models as freeipa_models
-from waldur_slurm import mixins as slurm_mixins
 
 from . import models
 
@@ -145,44 +144,26 @@ class AllocationSerializer(
         return attrs
 
 
-class AllocationUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
-    class Meta(slurm_mixins.AllocationUsageSerializerMixin.Meta):
-        model = models.AllocationUsage
-        lookup_field = 'uuid'
-        fields = (
-            'url',
-            'uuid',
-            'allocation',
-        ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
-        extra_kwargs = {
-            'url': {
-                'lookup_field': 'uuid',
-                'view_name': 'slurm-allocation-usage-detail',
-            },
-            'allocation': {
-                'lookup_field': 'uuid',
-                'view_name': 'slurm-allocation-detail',
-            },
-        }
-
-
-class AllocationUserUsageSerializer(slurm_mixins.AllocationUsageSerializerMixin):
+class AllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
     full_name = rf_serializers.ReadOnlyField(source='user.full_name')
-    month = rf_serializers.ReadOnlyField(source='allocation_usage.month')
-    year = rf_serializers.ReadOnlyField(source='allocation_usage.year')
 
-    class Meta(slurm_mixins.AllocationUsageSerializerMixin.Meta):
+    class Meta:
         model = models.AllocationUserUsage
         fields = (
-            'allocation_usage',
+            'cpu_usage',
+            'ram_usage',
+            'gpu_usage',
+            'month',
+            'year',
+            'allocation',
             'user',
             'username',
             'full_name',
-        ) + slurm_mixins.AllocationUsageSerializerMixin.Meta.fields
+        )
         extra_kwargs = {
-            'allocation_usage': {
+            'allocation': {
                 'lookup_field': 'uuid',
-                'view_name': 'slurm-allocation-usage-detail',
+                'view_name': 'slurm-allocation-detail',
             },
             'user': {'lookup_field': 'uuid', 'view_name': 'user-detail',},
         }

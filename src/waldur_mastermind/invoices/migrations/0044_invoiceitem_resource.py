@@ -169,7 +169,6 @@ class Migration(migrations.Migration):
         ('support', '0010_error_traceback'),
         ('openstack', '0021_port_device_info'),
         ('openstack_tenant', '0016_internalip_device_info'),
-        ('slurm_invoices', '0005_remove_broken_invoice_items_for_10_2020'),
     ]
 
     operations = [

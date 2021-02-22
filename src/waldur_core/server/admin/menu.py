@@ -48,7 +48,6 @@ class CustomMenu(Menu):
         'waldur_aws.*',
         'waldur_digitalocean.*',
         'waldur_slurm.*',
-        'waldur_mastermind.slurm_invoices.*',
         'waldur_vmware.*',
         'waldur_rancher.*',
     )

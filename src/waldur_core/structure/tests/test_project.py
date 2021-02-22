@@ -474,15 +474,13 @@ class ProjectCountersListTest(test.APITransactionTestCase):
         self.admin = self.fixture.admin
         self.manager = self.fixture.manager
         self.project = self.fixture.project
-        self.service = self.fixture.service
-        self.resource = self.fixture.resource
         self.url = factories.ProjectFactory.get_url(self.project, action='counters')
 
     def test_user_can_get_project_counters(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(self.url, {'fields': ['users', 'apps', 'vms']})
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'users': 2, 'apps': 0, 'vms': 1})
+        self.assertEqual(response.data, {'users': 2})
 
     def test_additional_counters_could_be_registered(self):
         views.ProjectCountersView.register_counter('test', lambda project: 100)
