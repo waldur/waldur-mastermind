@@ -232,16 +232,20 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
                 'name': 'https',
                 'rules': [
                     {
+                        'direction': 'ingress',
                         'protocol': 'tcp',
                         'from_port': 8001,
                         'to_port': 8001,
                         'cidr': '1.1.1.1/1',
+                        'remote_group': 'https://example.com/api/openstack-security-groups/45754c360acd4982b79aa6830c9e86cc/',
                     },
                     {
+                        'direction': 'ingress',
                         'protocol': 'tcp',
                         'from_port': 8001,
                         'to_port': 8001,
                         'cidr': '1.1.1.1/1',
+                        'remote_group': 'https://example.com/api/openstack-security-groups/45754c360acd4982b79aa6830c9e86cc/',
                     },
                 ],
             },
