@@ -111,6 +111,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     unit_price=unit_price,
                     unit=unit,
                     quantity=quantity,
+                    measured_unit=plan_component.component.measured_unit,
                     product_code=offering_component.product_code or plan.product_code,
                     article_code=offering_component.article_code or plan.article_code,
                 )
@@ -135,7 +136,6 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             'plan_component_id': plan_component.id,
             'offering_component_type': plan_component.component.type,
             'offering_component_name': plan_component.component.name,
-            'offering_component_measured_unit': plan_component.component.measured_unit,
         }
 
     def get_name(self, resource):

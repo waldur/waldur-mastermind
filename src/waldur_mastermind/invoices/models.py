@@ -191,6 +191,9 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         on_delete=models.CASCADE, to=Invoice, related_name='items'
     )
     quantity = models.PositiveIntegerField(default=0)
+    measured_unit = models.CharField(
+        max_length=30, help_text=_('Unit of measurement, for example, GB.'), blank=True
+    )
     resource = models.ForeignKey(
         on_delete=models.PROTECT,
         to=marketplace_models.Resource,
@@ -281,8 +284,8 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             return quantize_price(decimal.Decimal(use_days) / month_days)
 
     def get_measured_unit(self):
-        if 'offering_component_measured_unit' in self.details.keys():
-            return self.details.get('offering_component_measured_unit')
+        if self.measured_unit:
+            return self.measured_unit
 
         plural = self.get_factor() > 1
 
