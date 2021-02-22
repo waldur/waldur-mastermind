@@ -209,7 +209,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 invoice__year=component_usage.billing_period.year,
                 invoice__month=component_usage.billing_period.month,
             )
-            item.quantity = component_usage.usage
+            item.quantity = cls.convert_usage_quantity(
+                component_usage.usage, offering_component
+            )
             item.unit_price = plan_component.price
             item.save()
         except invoice_models.InvoiceItem.DoesNotExist:
@@ -243,7 +245,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 end=end,
                 details=details,
                 unit_price=plan_component.price,
-                quantity=component_usage.usage,
+                quantity=cls.convert_usage_quantity(
+                    component_usage.usage, offering_component.type
+                ),
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
                 product_code=offering_component.product_code or plan.product_code,
                 article_code=offering_component.article_code or plan.article_code,
@@ -263,6 +267,10 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 component_usage.resource.object_id,
                 component_usage.date,
             )
+
+    @classmethod
+    def convert_usage_quantity(cls, usage, component_type: str):
+        return usage
 
     @classmethod
     def connect(cls):

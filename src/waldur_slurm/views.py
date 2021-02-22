@@ -34,15 +34,6 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
     update_executor = executors.AllocationUpdateExecutor
 
 
-class AllocationUsageViewSet(viewsets.ReadOnlyModelViewSet):
-    lookup_field = 'uuid'
-    queryset = models.AllocationUsage.objects.all()
-    serializer_class = serializers.AllocationUsageSerializer
-    permission_classes = (permissions.IsAuthenticated,)
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filterset_class = filters.AllocationUsageFilter
-
-
 class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.AllocationUserUsage.objects.all()
     serializer_class = serializers.AllocationUserUsageSerializer
@@ -58,12 +49,3 @@ class AssociationViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.AssociationFilter
-
-
-def get_project_allocation_count(project):
-    return project.quotas.get(name='nc_allocation_count').usage
-
-
-structure_views.ProjectCountersView.register_counter(
-    'slurm', get_project_allocation_count
-)

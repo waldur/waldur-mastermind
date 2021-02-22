@@ -70,32 +70,6 @@ class AllocationFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('slurm-allocation-list')
 
 
-class AllocationUsageFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.AllocationUsage
-
-    allocation = factory.SubFactory(AllocationFactory)
-
-    year = factory.Iterator(range(2012, 2016))
-    month = factory.Iterator(range(1, 13))
-
-    cpu_usage = fuzzy.FuzzyInteger(1000, 8000, step=100)
-    gpu_usage = fuzzy.FuzzyInteger(1000, 8000, step=100)
-    ram_usage = fuzzy.FuzzyInteger(100, 1000, step=100)
-
-    @classmethod
-    def get_url(cls, allocation_usage=None):
-        if allocation_usage is None:
-            allocation_usage = AllocationUsageFactory()
-        return 'http://testserver' + reverse(
-            'slurm-allocation-usage-detail', kwargs={'uuid': allocation_usage.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-allocation-usage-list')
-
-
 class AssociationFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Association

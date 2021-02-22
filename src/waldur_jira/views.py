@@ -122,12 +122,3 @@ class WebHookReceiverViewSet(generics.CreateAPIView):
             # Throw validation errors to the logs
             logger.error("Can't parse JIRA WebHook request: %s" % e)
             raise
-
-
-def get_jira_projects_count(project):
-    return project.quotas.get(name='nc_jira_project_count').usage
-
-
-structure_views.ProjectCountersView.register_counter(
-    'jira-projects', get_jira_projects_count
-)

@@ -13,7 +13,11 @@ class ChecklistStatsTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ServiceFixture()
         self.customer = self.fixture.customer
         self.project_1 = self.fixture.project
+        self.project_1.name = 'Project 1'
+        self.project_1.save()
         self.project_2 = structure_factories.ProjectFactory(customer=self.customer)
+        self.project_2.name = 'Project 2'
+        self.project_2.save()
         self.checklist = factories.ChecklistFactory()
         self.question1 = factories.QuestionFactory(checklist=self.checklist)
         self.question2 = factories.QuestionFactory(checklist=self.checklist)

@@ -1993,6 +1993,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             'customer_name',
             'customer_uuid',
             'recurring',
+            'billing_period',
         )
 
 

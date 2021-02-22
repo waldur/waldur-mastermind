@@ -27,7 +27,7 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import managers, utils
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,6 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     project_name = models.CharField(max_length=150, blank=True)
     project_uuid = models.CharField(max_length=32, blank=True)
 
-    objects = managers.InvoiceItemManager()
     tracker = FieldTracker()
 
     @property

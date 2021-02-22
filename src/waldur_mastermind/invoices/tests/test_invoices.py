@@ -12,6 +12,7 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models, tasks, utils
 from waldur_mastermind.invoices.tests import factories, fixtures
@@ -20,9 +21,6 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.slurm_invoices.tests import factories as slurm_invoices_factories
-from waldur_slurm.tests import factories as slurm_factories
-from waldur_slurm.tests import fixtures as slurm_fixtures
 
 
 @ddt
@@ -161,79 +159,44 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
 
 
-class InvoiceItemTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = slurm_fixtures.SlurmFixture()
-        self.package = slurm_invoices_factories.SlurmPackageFactory(
-            service_settings=self.fixture.service.settings
-        )
-        self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
-        self.scope = self.fixture.allocation
-        self.resource = marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
-        )
-        self.resource.scope = self.fixture.allocation
-        self.resource.save()
-        self.usage = self.fixture.allocation_usage
-        self.items = models.InvoiceItem.objects.filter(resource=self.resource)
-        for item in self.items:
-            item.unit = models.InvoiceItem.Units.QUANTITY
-            item.quantity = 10
-            item.unit_price = 10
-            item.save()
-
-    def check_output(self):
-        self.client.force_authenticate(self.fixture.owner)
-        invoice = self.items[0].invoice
-        response = self.client.get(factories.InvoiceFactory.get_url(invoice))
-        response_items = response.data['items']
-        self.assertNotEqual(len(response_items), 0)
-        for response_item in response_items:
-            self.assertEqual(
-                response_item['details']['scope_uuid'], self.scope.uuid.hex
-            )
-            self.assertTrue(self.scope.name in response_item['name'])
-
-    def test_details_are_rendered_if_scope_exists(self):
-        self.check_output()
-
-    def test_details_are_rendered_if_scope_has_been_deleted(self):
-        self.scope.delete()
-        for item in self.items:
-            item.refresh_from_db()
-        self.check_output()
-
-    def test_invoice_item_measured_unit(self):
-        item = factories.InvoiceItemFactory(
+class MeasuredUnitTest(test.APITransactionTestCase):
+    def get_invoice_item(self, unit, details=None):
+        return factories.InvoiceItemFactory(
             start=datetime.date(year=2020, month=12, day=1),
             end=datetime.date(year=2020, month=12, day=10),
             quantity=2,
-            unit=UnitPriceMixin.Units.PER_DAY,
-            details={'offering_component_measured_unit': 'kG'},
+            unit=unit,
+            details=details or {},
         )
-        # Get measured unit if it was set in a plugin from component info.
+
+    def test_offering_component(self):
+        item = self.get_invoice_item(
+            UnitPriceMixin.Units.PER_DAY, {'offering_component_measured_unit': 'kG'}
+        )
         self.assertEqual(item.get_measured_unit(), _('kG'))
 
-        # Get measured unit if it wasn't set in a plugin
-        item.details = {}
-        item.save()
+    def test_days(self):
+        item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY)
         self.assertEqual(item.get_measured_unit(), _('days'))
 
-        item.unit = UnitPriceMixin.Units.PER_HOUR
-        item.save()
+    def test_hours(self):
+        item = self.get_invoice_item(UnitPriceMixin.Units.PER_HOUR)
         self.assertEqual(item.get_measured_unit(), _('hours'))
 
-        item.unit = UnitPriceMixin.Units.PER_HALF_MONTH
-        item.save()
+    def test_half_month(self):
+        item = self.get_invoice_item(UnitPriceMixin.Units.PER_HALF_MONTH)
         self.assertEqual(item.get_measured_unit(), _('percents from half a month'))
 
-        item.unit = UnitPriceMixin.Units.PER_MONTH
-        item.save()
+    def test_month(self):
+        item = self.get_invoice_item(UnitPriceMixin.Units.PER_MONTH)
         self.assertEqual(item.get_measured_unit(), _('percents from a month'))
 
-        item.unit = UnitPriceMixin.Units.QUANTITY
-        resource = marketplace_factories.ResourceFactory(project=self.fixture.project,)
-        resource.scope = slurm_factories.AllocationFactory()
+    def test_quantity(self):
+        from waldur_slurm.tests.factories import AllocationFactory
+
+        item = self.get_invoice_item(UnitPriceMixin.Units.QUANTITY)
+        resource = marketplace_factories.ResourceFactory()
+        resource.scope = AllocationFactory()
         resource.save()
         item.resource = resource
         item.save()
@@ -401,7 +364,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
 
 class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = slurm_fixtures.SlurmFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.url = structure_factories.CustomerFactory.get_url(self.fixture.customer)
 

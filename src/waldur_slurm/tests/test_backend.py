@@ -67,12 +67,8 @@ class BackendTest(TestCase):
         backend = self.allocation.get_backend()
         backend.sync_usage()
 
-        allocation_usage = models.AllocationUsage.objects.get(
-            allocation=self.allocation, year=2017, month=10,
-        )
-
         user1_allocation_usage = models.AllocationUserUsage.objects.get(
-            allocation_usage=allocation_usage, user=user1
+            allocation=self.allocation, year=2017, month=10, user=user1
         )
 
         self.assertEqual(user1_allocation_usage.cpu_usage, 1)
@@ -80,7 +76,7 @@ class BackendTest(TestCase):
         self.assertEqual(user1_allocation_usage.ram_usage, 51200)
 
         user2_allocation_usage = models.AllocationUserUsage.objects.get(
-            allocation_usage=allocation_usage, user=user2
+            allocation=self.allocation, year=2017, month=10, user=user2
         )
         self.assertEqual(user2_allocation_usage.cpu_usage, 2 * 2 * 2)
         self.assertEqual(user2_allocation_usage.gpu_usage, 2 * 2 * 2)
@@ -158,7 +154,6 @@ class BackendTest(TestCase):
 
         self.assertEqual(result_name, final_correct_name)
 
-    @freeze_time('2020-02-01')
     @mock.patch('subprocess.check_output')
     def test_allocation_zero_usage_created(self, check_output):
         association = f"{self.account}|cpu=400,mem=100M,gres/gpu=120"
@@ -174,15 +169,6 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.cpu_usage, 0)
             self.assertEqual(self.allocation.gpu_usage, 0)
             self.assertEqual(self.allocation.ram_usage, 0)
-
-            year = 2020
-            month = 2
-            allocation_usage = models.AllocationUsage.objects.get(
-                allocation=self.allocation, year=year, month=month
-            )
-            self.assertEqual(allocation_usage.cpu_usage, 0)
-            self.assertEqual(allocation_usage.gpu_usage, 0)
-            self.assertEqual(allocation_usage.ram_usage, 0)
 
     @mock.patch('subprocess.check_output')
     def test_allocation_limits_are_not_changed_after_if_association_lines_are_invalid(

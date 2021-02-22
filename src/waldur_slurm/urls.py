@@ -12,11 +12,6 @@ def register_in(router):
         r'slurm-allocations', views.AllocationViewSet, basename='slurm-allocation'
     )
     router.register(
-        r'slurm-allocation-usage',
-        views.AllocationUsageViewSet,
-        basename='slurm-allocation-usage',
-    )
-    router.register(
         r'slurm-allocation-user-usage',
         views.AllocationUserUsageViewSet,
         basename='slurm-allocation-user-usage',
