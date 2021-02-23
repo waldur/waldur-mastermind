@@ -20,6 +20,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     factor = serializers.ReadOnlyField(source='get_factor')
     measured_unit = serializers.ReadOnlyField(source='get_measured_unit')
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
+    resource_name = serializers.ReadOnlyField(source='resource.name')
     details = serializers.JSONField()
 
     class Meta:
@@ -44,6 +45,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'usage_days',
             'resource',
             'resource_uuid',
+            'resource_name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
