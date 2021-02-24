@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db.models import signals
 
 
 class MarketplaceRancherConfig(AppConfig):
@@ -13,7 +14,9 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_rancher.apps import RancherConfig
         from waldur_rancher import models as rancher_models
 
-        from . import handlers, PLUGIN_NAME, processors
+        from . import handlers, PLUGIN_NAME, processors, registrators
+
+        registrators.RancherRegistrator.connect()
 
         USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(
@@ -40,4 +43,10 @@ class MarketplaceRancherConfig(AppConfig):
             sender=rancher_models.Cluster,
             dispatch_uid='waldur_mastermind.marketplace_rancher.'
             'create_resource_for_imported_cluster',
+        )
+
+        signals.post_save.connect(
+            handlers.update_node_usage,
+            sender=rancher_models.Node,
+            dispatch_uid='support_invoices.handlers.update_node_usage',
         )
