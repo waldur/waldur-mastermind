@@ -268,6 +268,26 @@ EXAMPLES = '''
 '''
 
 
+def compare_rules(local_rules, remote_rules):
+    if len(local_rules) != len(remote_rules):
+        return False
+    for i in range(len(local_rules)):
+        local_rule = local_rules[i]
+        remote_rule = remote_rules[i].copy()
+        if 'remote_group' in local_rule:
+            if 'cidr' in remote_rule:
+                remote_rule.pop('cidr')
+            if 'ethertype' in remote_rule:
+                remote_rule.pop('ethertype')
+        else:
+            if 'remote_group' in remote_rule:
+                remote_rule.pop('remote_group')
+        if local_rule != remote_rule:
+            return False
+
+    return True
+
+
 def send_request_to_waldur(client, module):
     has_changed = False
     project = module.params.get('project')
@@ -339,7 +359,9 @@ def send_request_to_waldur(client, module):
                 }
                 for rule in security_group['rules']
             ]
-            if security_group['description'] == description and rules_comp == rules:
+            if security_group['description'] == description and compare_rules(
+                rules, rules_comp
+            ):
                 has_changed = False
             else:
 
