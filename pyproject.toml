@@ -140,7 +140,6 @@ waldur_openstack_tenant = "waldur_openstack.openstack_tenant.extension:OpenStack
 waldur_notifications = "waldur_mastermind.notifications.extension:NotificationsExtension"
 waldur_paypal = "waldur_paypal.extension:PayPalExtension"
 waldur_rancher = "waldur_rancher.extension:RancherExtension"
-waldur_rancher_invoices = "waldur_mastermind.rancher_invoices.extension:RancherInvoicesExtension"
 waldur_slurm = "waldur_slurm.extension:SlurmExtension"
 waldur_support = "waldur_mastermind.support.extension:SupportExtension"
 waldur_vmware = "waldur_vmware.extension:VMwareExtension"
