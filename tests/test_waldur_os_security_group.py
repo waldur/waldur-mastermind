@@ -3,38 +3,37 @@ from unittest import mock
 
 import waldur_os_security_group
 
-
-def group_side_effect(*args, **kwargs):
-    if args[1] == 'web':
-        return {
-            'url': 'api/123',
-            'description': 'descr',
-            'rules': [
-                {
-                    'from_port': '80',
-                    'to_port': '80',
-                    'cidr': '192.168.0.0/28',
-                    'protocol': 'tcp',
-                    'direction': 'ingress',
-                    'ethertype': 'IPv4',
-                }
-            ],
+WEB = {
+    'url': 'api/123',
+    'description': 'descr',
+    'rules': [
+        {
+            'from_port': '80',
+            'to_port': '80',
+            'cidr': '192.168.0.0/28',
+            'protocol': 'tcp',
+            'direction': 'ingress',
+            'ethertype': 'IPv4',
+            'remote_group': None,
         }
+    ],
+}
 
-    if args[1] == 'ssh':
-        return {
-            'url': 'api/124',
-            'description': 'descr',
-            'rules': [
-                {
-                    'from_port': '80',
-                    'to_port': '80',
-                    'remote_group': 'api/123',
-                    'protocol': 'tcp',
-                    'direction': 'ingress',
-                }
-            ],
+SSH = {
+    'url': 'api/124',
+    'description': 'descr',
+    'rules': [
+        {
+            'from_port': '80',
+            'to_port': '80',
+            'remote_group': 'api/123',
+            'protocol': 'tcp',
+            'direction': 'ingress',
+            'cidr': None,
+            'ethertype': 'IPv4',
         }
+    ],
+}
 
 
 def fail_side_effect(*args, **kwargs):
@@ -70,9 +69,7 @@ class SecurityGroupCreateTest(unittest.TestCase):
         module.check_mode = False
         self.module = module
 
-        client = mock.Mock()
-        client.get_security_group.side_effect = group_side_effect
-        self.client = client
+        self.client = mock.Mock()
 
     def check_successful_function_call(self):
         has_changed = waldur_os_security_group.send_request_to_waldur(
@@ -104,6 +101,8 @@ class SecurityGroupCreateTest(unittest.TestCase):
                 'protocol': 'tcp',
             }
         ]
+
+        self.client.get_security_group.side_effect = [WEB, None]
 
         self.create_sg_call_kwargs['rules'].append(
             {
@@ -138,6 +137,8 @@ class SecurityGroupCreateTest(unittest.TestCase):
             }
         ]
 
+        self.client.get_security_group.return_value = None
+
         self.create_sg_call_kwargs['rules'].append(
             {
                 'from_port': '80',
@@ -161,6 +162,8 @@ class SecurityGroupCreateTest(unittest.TestCase):
                 'ethertype': 'IPv6',
             }
         ]
+
+        self.client.get_security_group.return_value = None
 
         self.create_sg_call_kwargs['rules'].append(
             {
@@ -225,6 +228,8 @@ class SecurityGroupCreateTest(unittest.TestCase):
             }
         ]
 
+        self.client.get_security_group.return_value = None
+
         self.create_sg_call_kwargs['rules'].append(
             {
                 'from_port': '80',
@@ -248,6 +253,8 @@ class SecurityGroupCreateTest(unittest.TestCase):
                 'direction': 'egress',
             }
         ]
+
+        self.client.get_security_group.return_value = None
 
         self.create_sg_call_kwargs['rules'].append(
             {
@@ -287,8 +294,82 @@ class SecurityGroupCreateTest(unittest.TestCase):
             }
         ]
 
+        self.client.get_security_group.side_effect = [WEB, SSH]
+
         has_changed = waldur_os_security_group.send_request_to_waldur(
             self.client, self.module
         )
 
         self.assertFalse(has_changed)
+
+    def test_security_group_rules_comparison_with_cidr_positive(self):
+        local_rules = [
+            {
+                'from_port': '80',
+                'to_port': '80',
+                'cidr': '192.168.0.0/28',
+                'protocol': 'tcp',
+                'direction': 'ingress',
+                'ethertype': 'IPv4',
+            }
+        ]
+
+        remote_rules = WEB['rules']
+
+        self.assertTrue(
+            waldur_os_security_group.compare_rules(local_rules, remote_rules)
+        )
+
+    def test_security_group_rules_with_remote_link_comparison_positive(self):
+        local_rules = [
+            {
+                'from_port': '80',
+                'to_port': '80',
+                'remote_group': 'api/123',
+                'protocol': 'tcp',
+                'direction': 'ingress',
+                'ethertype': 'IPv4',
+            }
+        ]
+
+        remote_rules = SSH['rules']
+
+        self.assertFalse(
+            waldur_os_security_group.compare_rules(local_rules, remote_rules)
+        )
+
+    def test_security_group_rules_comparison_with_cidr_negative(self):
+        local_rules = [
+            {
+                'from_port': '81',
+                'to_port': '81',
+                'cidr': '192.168.0.0/28',
+                'protocol': 'tcp',
+                'direction': 'ingress',
+                'ethertype': 'IPv4',
+            }
+        ]
+
+        remote_rules = WEB['rules']
+
+        self.assertFalse(
+            waldur_os_security_group.compare_rules(local_rules, remote_rules)
+        )
+
+    def test_security_group_rules_with_remote_link_comparison_negative(self):
+        local_rules = [
+            {
+                'from_port': '80',
+                'to_port': '80',
+                'remote_group': 'api/124',
+                'protocol': 'tcp',
+                'direction': 'ingress',
+                'ethertype': 'IPv4',
+            }
+        ]
+
+        remote_rules = SSH['rules']
+
+        self.assertFalse(
+            waldur_os_security_group.compare_rules(local_rules, remote_rules)
+        )
