@@ -1347,6 +1347,10 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'security_groups', 'security_groups__rules', 'volumes',
         )
 
+    def validate_name(self, name):
+        _validate_instance_name(name)
+        return name
+
     def validate(self, attrs):
         attrs = super(InstanceSerializer, self).validate(attrs)
 
@@ -1391,7 +1395,6 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         _validate_instance_floating_ips(
             attrs.get('floating_ips', []), settings, subnets
         )
-        _validate_instance_name(attrs.get('name'))
 
         availability_zone = attrs.get('availability_zone')
         if availability_zone and availability_zone.settings != settings:
