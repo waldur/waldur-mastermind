@@ -2,6 +2,7 @@ import json
 import logging
 from collections import defaultdict
 
+import bleach
 import pyvat
 from django.conf import settings
 from django.contrib import auth
@@ -303,6 +304,9 @@ class ProjectSerializer(
             for link in links:
                 services[link.project_id].append(link)
         return services
+
+    def validate_description(self, value):
+        return bleach.clean(value.strip())
 
 
 class CustomerSerializer(

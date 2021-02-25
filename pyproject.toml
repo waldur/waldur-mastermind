@@ -91,6 +91,7 @@ google-api-python-client = "^1.12.5"
 google-auth-httplib2 = "^0.0.4"
 google-auth-oauthlib = "^0.4.2"
 django-health-check = "^3.16.2"
+bleach = "^3.3.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"
