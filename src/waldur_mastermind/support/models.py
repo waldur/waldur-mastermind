@@ -107,6 +107,11 @@ class Issue(
         null=True,
         on_delete=models.PROTECT,
     )
+    feedback_request = models.BooleanField(
+        blank=True,
+        default=True,
+        help_text='Request feedback from the issue creator after resolution of the issue',
+    )
 
     tracker = FieldTracker()
 

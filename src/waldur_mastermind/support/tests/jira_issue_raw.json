@@ -10,6 +10,13 @@
       "name": "Time to resolution"
     },
     "customfield_10116": null,
+    "customfield_10216": [
+      {
+        "self": "https://example.net/rest/api/2/customFieldOption/10305",
+        "value": "yes",
+        "id": "10305"
+      }
+    ],
     "customfield_10141": {
       "completedCycles": [],
       "_links": {

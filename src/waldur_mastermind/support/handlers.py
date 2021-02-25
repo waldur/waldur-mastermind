@@ -146,7 +146,11 @@ def create_feedback_if_issue_has_been_resolved(
     if created:
         return
 
-    if not issue.tracker.has_changed('status') or not issue.resolved:
+    if (
+        not issue.tracker.has_changed('status')
+        or not issue.resolved
+        or not issue.feedback_request
+    ):
         return
 
     serialized_issue = core_utils.serialize_instance(issue)
