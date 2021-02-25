@@ -499,6 +499,25 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
+@ddt
+class InstanceUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.instance = self.fixture.instance
+        self.url = factories.InstanceFactory.get_url(self.instance)
+        self.client.force_authenticate(user=self.fixture.owner)
+
+    @data('kt-experimental-ubuntu-18.04', 'vm_name')
+    def test_update_instance_with_invalid_name(self, name):
+        response = self.client.put(self.url, {'name': name})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('test', 'vm-name', 'vm', 'VM')
+    def test_update_instance_with_valid_name(self, name):
+        response = self.client.put(self.url, {'name': name})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
 class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def setUp(self):
         super(InstanceDeleteTest, self).setUp()
@@ -854,7 +873,7 @@ class InstanceUpdateInternalIPsSetTest(test.APITransactionTestCase):
             self.instance.internal_ips_set.filter(subnet=subnet_to_connect).exists()
         )
 
-    def test_user_cannot_add_intenal_ip_from_different_settings(self):
+    def test_user_cannot_add_internal_ip_from_different_settings(self):
         subnet = factories.SubNetFactory()
 
         response = self.client.post(
