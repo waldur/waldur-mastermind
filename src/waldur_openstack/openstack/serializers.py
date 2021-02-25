@@ -677,6 +677,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
             + ('user_username', 'subnet_cidr', 'user_password',)
         )
+        extra_kwargs = {'name': {'max_length': 64}}
 
     def get_fields(self):
         fields = super(TenantSerializer, self).get_fields()
