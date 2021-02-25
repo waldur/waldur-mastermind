@@ -68,8 +68,6 @@ class SupportExtension(WaldurExtension):
                 'satisfaction_field': 'Customer satisfaction',
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
-            # TODO: OFFERINGS is a deprecated attribute, to be cleaned up after removal of squashed migrations
-            'OFFERINGS': {},
             'EXCLUDED_ATTACHMENT_TYPES': [],
         }
 
