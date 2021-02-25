@@ -122,11 +122,14 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         )
 
         self.impact_field_id = 'customfield_10116'
+        self.request_feedback = 'customfield_10216'
         self.first_response_sla = timezone.now()
 
         def side_effect(arg):
             if arg == 'Impact':
                 return self.impact_field_id
+            elif arg == 'Request feedback':
+                return self.request_feedback
 
         self.backend = ServiceDeskBackend()
         self.backend.get_backend_issue = mock.Mock(return_value=self.backend_issue)
@@ -209,6 +212,15 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         synchronizer = CommentSynchronizer(self.backend, self.issue, self.backend_issue)
         synchronizer.perform_update()
         self.assertEqual(self.issue.comments.count(), 0)
+
+    def test_update_issue_feedback_request_field(self):
+        self.update_issue_from_jira()
+        self.assertEqual(self.issue.feedback_request, True)
+
+        setattr(self.backend_issue.fields, self.request_feedback, None)
+        self.update_issue_from_jira()
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.feedback_request, False)
 
 
 class TestUpdateCommentFromJira(APITransactionTestCase):

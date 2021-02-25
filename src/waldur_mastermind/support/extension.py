@@ -66,6 +66,7 @@ class SupportExtension(WaldurExtension):
                     '{% endif %}'
                 ),
                 'satisfaction_field': 'Customer satisfaction',
+                'request_feedback': 'Request feedback',  # a field of checkbox type and with a single option 'yes'.
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
             # TODO: OFFERINGS is a deprecated attribute, to be cleaned up after removal of squashed migrations
