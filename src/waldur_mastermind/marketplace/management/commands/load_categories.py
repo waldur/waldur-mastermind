@@ -364,6 +364,8 @@ def load_category(category_short):
         args['default_vm_category'] = True
     if category_name == 'storage':
         args['default_volume_category'] = True
+    if category_name == 'vpc':
+        args['default_tenant_category'] = True
 
     new_category, _ = Category.objects.get_or_create(**args)
     category_icon = '%s.svg' % category_short

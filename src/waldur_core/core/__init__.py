@@ -73,3 +73,9 @@ class WaldurExtension:
         """ Return extension public settings
         :return: list """
         return []
+
+    @staticmethod
+    def get_dynamic_settings():
+        """ Return extension public dynamic settings
+        :return: dict """
+        return {}

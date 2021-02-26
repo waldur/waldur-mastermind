@@ -1,6 +1,8 @@
 from django.conf import settings as django_settings
+from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_core.core import filters as core_filters
+from waldur_mastermind.marketplace.models import Category
 
 
 class VpcExternalFilter(core_filters.BaseFilterBackend):
@@ -9,7 +11,9 @@ class VpcExternalFilter(core_filters.BaseFilterBackend):
             return queryset
         if not django_settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']:
             return queryset
-        category_uuid = django_settings.WALDUR_MARKETPLACE_OPENSTACK[
-            'TENANT_CATEGORY_UUID'
-        ]
-        return queryset.exclude(category__uuid=category_uuid)
+        try:
+            category_uuid = Category.objects.get(default_tenant_category=True).uuid
+        except ObjectDoesNotExist:
+            return queryset
+        else:
+            return queryset.exclude(category__uuid=category_uuid)

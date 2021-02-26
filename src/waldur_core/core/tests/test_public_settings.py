@@ -21,6 +21,10 @@ class TestPublicSettings(TestCase):
             def get_public_settings():
                 return ['INFO']
 
+            @staticmethod
+            def get_dynamic_settings():
+                return {'DYN': 'dynamic'}
+
         extensions = {
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},
@@ -60,6 +64,7 @@ class TestPublicSettings(TestCase):
     def test_if_field_in_get_public_settings_it_value_must_by_in_response(self):
         response = views.get_public_settings()
         self.assertTrue('INFO' in response['WALDUR_EXTENSION_3'])
+        self.assertTrue('DYN' in response['WALDUR_EXTENSION_3'])
 
     def test_if_field_not_in_get_public_settings_it_value_not_to_be_in_response(self):
         response = views.get_public_settings()

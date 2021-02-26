@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import exceptions
@@ -27,9 +26,7 @@ TenantQuotas = openstack_models.Tenant.Quotas
 
 
 def get_offering_category_for_tenant():
-    return marketplace_models.Category.objects.get(
-        uuid=settings.WALDUR_MARKETPLACE_OPENSTACK['TENANT_CATEGORY_UUID']
-    )
+    return marketplace_models.Category.objects.get(default_tenant_category=True)
 
 
 def get_offering_name_for_instance(tenant):

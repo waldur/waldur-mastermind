@@ -366,6 +366,9 @@ def get_public_settings():
                 except KeyError:
                     pass
 
+            for s, v in ext.get_dynamic_settings().items():
+                public_settings[settings_name][s] = v
+
     return public_settings
 
 
