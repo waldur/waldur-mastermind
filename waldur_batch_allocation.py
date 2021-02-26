@@ -91,9 +91,6 @@ def main():
         'project': {'required': True, 'type': 'str'},
         'offering': {'required': True, 'type': 'str'},
         'plan': {'required': True, 'type': 'str'},
-        'cpu_hours': {'required': True, 'type': 'int'},
-        'gpu_hours': {'required': True, 'type': 'int'},
-        'ram_gb': {'required': True, 'type': 'int'},
         'name': {'required': True, 'type': 'str'},
         'description': {'required': True, 'type': 'str'},
     }
