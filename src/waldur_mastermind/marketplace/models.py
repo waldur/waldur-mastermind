@@ -118,6 +118,16 @@ def validate_volume_category_flag(value):
             )
 
 
+def validate_tenant_category_flag(value):
+    if value:
+        category = Category.objects.filter(default_tenant_category=True).first()
+        if category:
+            raise ValidationError(
+                _('%(category)s is already default Tenant category.'),
+                params={'category': category},
+            )
+
+
 class Category(core_models.UuidMixin, quotas_models.QuotaModelMixin, TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
@@ -142,6 +152,13 @@ class Category(core_models.UuidMixin, quotas_models.QuotaModelMixin, TimeStamped
             'Set to true if this category is for OpenStack Volume. Only one category can have "true" value.'
         ),
         validators=[validate_volume_category_flag],
+    )
+    default_tenant_category = models.BooleanField(
+        default=False,
+        help_text=_(
+            'Set to true if this category is for OpenStack Tenant. Only one category can have "true" value.'
+        ),
+        validators=[validate_tenant_category_flag],
     )
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
