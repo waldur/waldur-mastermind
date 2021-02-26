@@ -433,6 +433,7 @@ class WaldurSchemaView(APIView):
     def get(self, request):
         if request.user.is_anonymous:
             request.user = User(
+                id=0,
                 username='API docs user',
                 email='api_docs_user@example.com',
                 is_staff=True,
