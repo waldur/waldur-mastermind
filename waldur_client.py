@@ -64,7 +64,6 @@ class WaldurClient(object):
         TenantSecurityGroup = 'openstack-security-groups'
         Volume = 'openstacktenant-volumes'
         VolumeType = 'openstacktenant-volume-types'
-        OpenStackPackage = 'openstack-packages'
         MarketplaceOffering = 'marketplace-offerings'
         MarketplacePlan = 'marketplace-plans'
         MarketplaceOrder = 'marketplace-orders'
