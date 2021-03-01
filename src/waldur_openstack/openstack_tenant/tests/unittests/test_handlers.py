@@ -95,6 +95,36 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
             ).exists()
         )
 
+    def test_rule_without_backend_id_is_skipped_when_group_is_imported(self):
+        group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        rule = openstack_factories.SecurityGroupRuleFactory(
+            security_group=group1, remote_group=group2, backend_id=''
+        )
+        self.assertFalse(
+            models.SecurityGroupRule.objects.filter(
+                backend_id=rule.backend_id,
+                security_group__backend_id=group1.backend_id,
+                remote_group__backend_id=group2.backend_id,
+            ).exists()
+        )
+
+    def test_rule_without_backend_id_is_synced_when_backend_id_is_assigned(self):
+        group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        rule = openstack_factories.SecurityGroupRuleFactory(
+            security_group=group1, remote_group=group2, backend_id=''
+        )
+        rule.backend_id = 'valid_backend_id'
+        rule.save()
+        self.assertTrue(
+            models.SecurityGroupRule.objects.filter(
+                backend_id=rule.backend_id,
+                security_group__backend_id=group1.backend_id,
+                remote_group__backend_id=group2.backend_id,
+            ).exists()
+        )
+
     def test_when_rule_is_updated_remote_group_is_synced(self):
         group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
@@ -102,6 +132,21 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         rule.remote_group = group2
         rule.save(update_fields=['remote_group'])
         self.assertTrue(
+            models.SecurityGroupRule.objects.filter(
+                backend_id=rule.backend_id,
+                security_group__backend_id=group1.backend_id,
+                remote_group__backend_id=group2.backend_id,
+            ).exists()
+        )
+
+    def test_rule_without_backend_id_is_skipped_when_remote_group_is_changed(self):
+        group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        rule = openstack_factories.SecurityGroupRuleFactory(security_group=group1)
+        rule.remote_group = group2
+        rule.backend_id = ''
+        rule.save()
+        self.assertFalse(
             models.SecurityGroupRule.objects.filter(
                 backend_id=rule.backend_id,
                 security_group__backend_id=group1.backend_id,

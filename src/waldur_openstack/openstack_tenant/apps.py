@@ -152,9 +152,10 @@ class OpenStackTenantConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            handlers.update_remote_group_when_rule_is_updated,
+            handlers.sync_security_group_rule_property_when_resource_is_updated_or_created,
             sender=SecurityGroupRule,
-            dispatch_uid='openstack_tenant.handlers.update_remote_group_when_rule_is_updated',
+            dispatch_uid='openstack_tenant.handlers.'
+            'sync_security_group_rule_property_when_resource_is_updated_or_created',
         )
 
         signals.post_save.connect(

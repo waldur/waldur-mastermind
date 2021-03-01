@@ -3,6 +3,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 
 from waldur_core.core.models import StateMixin
 from waldur_core.quotas.models import Quota
@@ -356,11 +357,14 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
                 backend_id=rule.backend_id,
                 security_group=security_group,
             )
-            for rule in openstack_security_group.rules.iterator()
+            for rule in openstack_security_group.rules.exclude(backend_id='')
         ]
 
     def pull_remote_group(self, group_property, group_resource, service_settings):
-        for rule_resource in group_resource.rules.exclude(remote_group=None):
+        # Skip rules with empty backend ID (ie rules being created)
+        for rule_resource in group_resource.rules.exclude(
+            Q(remote_group=None) | Q(backend_id='')
+        ):
             try:
                 remote_group = models.SecurityGroup.objects.get(
                     settings=service_settings,
@@ -631,11 +635,10 @@ def delete_volume_type_quotas_from_private_service_settings(sender, instance, **
     Quota.objects.filter(scope__in=private_settings, name=quota.name).delete()
 
 
-def update_remote_group_when_rule_is_updated(sender, instance, created=False, **kwargs):
+def sync_security_group_rule_property_when_resource_is_updated_or_created(
+    sender, instance, created=False, **kwargs
+):
     rule = instance
-
-    if not created and not rule.tracker.has_changed('remote_group_id'):
-        return
 
     try:
         service_settings = structure_models.ServiceSettings.objects.get(
@@ -655,8 +658,11 @@ def update_remote_group_when_rule_is_updated(sender, instance, created=False, **
     except django_exceptions.ObjectDoesNotExist:
         return
 
+    if not rule.backend_id:
+        return
+
     remote_group = None
-    if rule.remote_group:
+    if rule.remote_group and rule.remote_group.backend_id:
         try:
             remote_group = models.SecurityGroup.objects.get(
                 settings=service_settings, backend_id=rule.remote_group.backend_id
@@ -664,8 +670,10 @@ def update_remote_group_when_rule_is_updated(sender, instance, created=False, **
         except django_exceptions.ObjectDoesNotExist:
             pass
 
-    if created:
-        models.SecurityGroupRule.objects.create(
+    models.SecurityGroupRule.objects.update_or_create(
+        security_group=security_group,
+        backend_id=rule.backend_id,
+        defaults=dict(
             ethertype=rule.ethertype,
             direction=rule.direction,
             protocol=rule.protocol,
@@ -673,11 +681,6 @@ def update_remote_group_when_rule_is_updated(sender, instance, created=False, **
             to_port=rule.to_port,
             cidr=rule.cidr,
             description=rule.description,
-            backend_id=rule.backend_id,
-            security_group=security_group,
             remote_group=remote_group,
-        )
-    else:
-        models.SecurityGroupRule.objects.filter(
-            security_group=security_group, backend_id=rule.backend_id
-        ).update(remote_group=remote_group)
+        ),
+    )
