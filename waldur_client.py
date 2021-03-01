@@ -635,9 +635,9 @@ class WaldurClient(object):
     def get_marketplace_resource_scope(self, name, offering_type, project=None):
         """Get marketplace resource scope. Depending on the offering type scope type can be different.
 
-            :param name: name of the scope.
-            :param offering_type: marketplace offering type.
-            :param project: project UUID or name.
+        :param name: name of the scope.
+        :param offering_type: marketplace offering type.
+        :param project: project UUID or name.
         """
 
         if not is_uuid(name) and not project:
@@ -683,8 +683,8 @@ class WaldurClient(object):
     def get_instance_via_marketplace(self, name, project=None):
         """Get an openstack instance via marketplace.
 
-            :param name: name of the instance.
-            :param project: project UUID or name.
+        :param name: name of the instance.
+        :param project: project UUID or name.
         """
         resource, instance = self.get_marketplace_resource_scope(
             name, 'OpenStackTenant.Instance', project
@@ -694,8 +694,8 @@ class WaldurClient(object):
     def get_volume_via_marketplace(self, name, project=None):
         """Get an openstack volume via marketplace.
 
-            :param name: name of the volume.
-            :param project: project UUID or name.
+        :param name: name of the volume.
+        :param project: project UUID or name.
         """
         resource, instance = self.get_marketplace_resource_scope(
             name, 'OpenStackTenant.Volume', project
@@ -1102,7 +1102,7 @@ class WaldurClient(object):
 
         :param name: name of the instance.
         :param description: description of the instance.
-        :param provider: uuid or name of the provider to use.
+        :param offering: the name or UUID of the offering
         :param project: uuid or name of the project to add the instance.
         :param networks: a list of networks to attach instance to.
         :param flavor: uuid or name of the flavor to use.
@@ -1223,9 +1223,9 @@ class WaldurClient(object):
 
         :param name: name of the volume.
         :param project: uuid or name of the project to add the volume to.
-        :param provider: uuid or name of the provider to use.
+        :param offering: the name or UUID of the offering
         :param size: size of the volume in GBs.
-        :param type: uuid or name of volume type.
+        :param volume_type: uuid or name of volume type.
         :param description: arbitrary text.
         :param tags: list of tags to add to the volume.
         :param wait: defines whether the client has to wait for volume provisioning.
