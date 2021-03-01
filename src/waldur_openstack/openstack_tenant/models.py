@@ -103,6 +103,9 @@ class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProper
 
 
 class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
+    class Meta:
+        unique_together = ('security_group', 'backend_id')
+
     security_group = models.ForeignKey(
         on_delete=models.CASCADE, to=SecurityGroup, related_name='rules'
     )
