@@ -9,7 +9,10 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.utils import get_resource_state
+from waldur_mastermind.marketplace.utils import (
+    get_invoice_item_for_component_usage,
+    get_resource_state,
+)
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -373,6 +376,26 @@ def import_resource_metadata_when_resource_is_created(
 
     if isinstance(instance.scope, openstack_tenant_models.Instance):
         utils.import_instance_metadata(instance)
+
+
+def add_component_usage(sender, instance, created=False, **kwargs):
+    component_usage = instance
+
+    if not created and not component_usage.tracker.has_changed('usage'):
+        return
+
+    if not isinstance(component_usage.resource, marketplace_models.Resource):
+        return
+
+    if component_usage.resource.offering.type != TENANT_TYPE:
+        return
+
+    item = get_invoice_item_for_component_usage(component_usage)
+    if item:
+        usages = item.details.get('usages', {})
+        usages[component_usage.component.type] = component_usage.usage
+        item.details['usages'] = usages
+        item.save()
 
 
 def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):

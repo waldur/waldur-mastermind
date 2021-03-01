@@ -10,6 +10,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils
 
 logger = logging.getLogger(__name__)
 
@@ -200,28 +201,20 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             return
         plan = plan_period.plan
 
-        try:
-            plan_component = plan.components.get(component=offering_component)
-            item = invoice_models.InvoiceItem.objects.get(
-                resource=component_usage.resource,
-                details__plan_period_id=plan_period.id,
-                details__plan_component_id=plan_component.id,
-                invoice__year=component_usage.billing_period.year,
-                invoice__month=component_usage.billing_period.month,
-            )
+        item = utils.get_invoice_item_for_component_usage(component_usage)
+        if item:
             item.quantity = cls.convert_usage_quantity(
-                component_usage.usage, offering_component
+                component_usage.usage, offering_component.type
             )
-            item.unit_price = plan_component.price
             item.save()
-        except invoice_models.InvoiceItem.DoesNotExist:
+        else:
+            plan_component = plan.components.get(component=offering_component)
             customer = resource.project.customer
             invoice, created = registrators.RegistrationManager.get_or_create_invoice(
                 customer, component_usage.date
             )
 
             details = cls.get_component_details(resource, plan_component)
-            details['plan_period_id'] = plan_period.id
 
             month_start = core_utils.month_start(component_usage.date)
             month_end = core_utils.month_end(component_usage.date)
@@ -249,23 +242,10 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     component_usage.usage, offering_component.type
                 ),
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
+                measured_unit=offering_component.measured_unit,
                 product_code=offering_component.product_code or plan.product_code,
                 article_code=offering_component.article_code or plan.article_code,
                 name=resource.name + ' / ' + offering_component.name,
-            )
-
-        except marketplace_models.PlanComponent.DoesNotExist:
-            logger.warning(
-                'Plan component for usage component %s is not found.',
-                component_usage.id,
-            )
-        except invoice_models.InvoiceItem.MultipleObjectsReturned:
-            logger.warning(
-                'Skipping the invoice item unit price update '
-                'because multiple InvoiceItem objects found. Scope: %s %s, date: %s.',
-                component_usage.resource.content_type,
-                component_usage.resource.object_id,
-                component_usage.date,
             )
 
     @classmethod

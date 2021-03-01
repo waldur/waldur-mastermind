@@ -740,3 +740,32 @@ def move_resource(resource: models.Resource, project):
 
         start_invoice.update_current_cost()
         target_invoice.update_current_cost()
+
+
+def get_invoice_item_for_component_usage(component_usage):
+    if not component_usage.plan_period:
+        # Field plan_period is optional if component_usage is not connected with billing
+        return
+    else:
+        if component_usage.plan_period.end:
+            plan_period_end = component_usage.plan_period.end
+        else:
+            plan_period_end = core_utils.month_end(component_usage.billing_period)
+
+        if component_usage.plan_period.start:
+            plan_period_start = component_usage.plan_period.start
+        else:
+            plan_period_start = component_usage.billing_period
+
+    try:
+        item = invoice_models.InvoiceItem.objects.get(
+            invoice__year=component_usage.billing_period.year,
+            invoice__month=component_usage.billing_period.month,
+            resource=component_usage.resource,
+            start__gte=plan_period_start,
+            end__lte=plan_period_end,
+            details__offering_component_type=component_usage.component.type,
+        )
+        return item
+    except invoice_models.InvoiceItem.DoesNotExist:
+        pass

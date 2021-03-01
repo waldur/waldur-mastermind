@@ -9,7 +9,6 @@ from django.utils.timezone import now
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, CustomerRole, Project
-from waldur_mastermind.invoices import models as invoices_models
 
 from . import callbacks, log, models, tasks, utils
 
@@ -341,46 +340,6 @@ def limit_update_failed(sender, order_item, error_message, **kwargs):
         error_message,
     )
     log.log_resource_limit_update_failed(resource)
-
-
-def add_component_usage(sender, instance, created=False, **kwargs):
-    component_usage = instance
-
-    if not created and not component_usage.tracker.has_changed('usage'):
-        return
-
-    if not isinstance(component_usage.resource, models.Resource):
-        return
-
-    if not component_usage.plan_period:
-        # Field plan_period is optional if component_usage is not connected with billing
-        return
-    else:
-        if component_usage.plan_period.end:
-            plan_period_end = component_usage.plan_period.end
-        else:
-            plan_period_end = core_utils.month_end(component_usage.billing_period)
-
-        if component_usage.plan_period.start:
-            plan_period_start = component_usage.plan_period.start
-        else:
-            plan_period_start = component_usage.billing_period
-
-    try:
-        item = invoices_models.InvoiceItem.objects.get(
-            invoice__year=component_usage.billing_period.year,
-            invoice__month=component_usage.billing_period.month,
-            resource=component_usage.resource,
-            start__gte=plan_period_start,
-            end__lte=plan_period_end,
-            details__offering_component_type=component_usage.component.type,
-        )
-        usages = item.details.get('usages', {})
-        usages[component_usage.component.type] = component_usage.usage
-        item.details['usages'] = usages
-        item.save()
-    except invoices_models.InvoiceItem.DoesNotExist:
-        pass
 
 
 def log_offering_permission_granted(

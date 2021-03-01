@@ -114,12 +114,6 @@ class MarketplaceConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            handlers.add_component_usage,
-            sender=models.ComponentUsage,
-            dispatch_uid='waldur_mastermind.marketplace.add_component_usage',
-        )
-
-        signals.post_save.connect(
             handlers.disable_archived_service_settings_without_existing_resource,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.disable_archived_service_settings_without_existing_resource',
