@@ -421,24 +421,6 @@ python-dateutil = "*"
 test = ["pytz"]
 
 [[package]]
-name = "crudini"
-version = "0.9.3"
-description = ""
-category = "main"
-optional = false
-python-versions = "*"
-develop = false
-
-[package.dependencies]
-iniparse = ">=0.3.2"
-
-[package.source]
-type = "git"
-url = "https://github.com/pixelb/crudini"
-reference = "0.9.3"
-resolved_reference = "235aa6e4f3f0bd26daa452300ab3a56a89730f9e"
-
-[[package]]
 name = "cryptography"
 version = "2.9.2"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -1050,17 +1032,6 @@ six = ">=1.10.0"
 
 [package.extras]
 test = ["mock", "nose", "nose-cov", "requests-mock"]
-
-[[package]]
-name = "iniparse"
-version = "0.5"
-description = "Accessing and Modifying INI files"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-six = "*"
 
 [[package]]
 name = "iptools"
@@ -2533,7 +2504,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "6027623bf75b3cf89675f4ba8a68c7c080e8da4d7660f0841c78427337637b49"
+content-hash = "c9ff8bb61aaaedd1bf4f89225ea3c0621189c56f630b044035d68daac86f785f"
 
 [metadata.files]
 adal = [
@@ -2731,7 +2702,6 @@ coverage = [
 croniter = [
     {file = "croniter-0.3.5.zip", hash = "sha256:ecd5cda855668ae11ed5ea341e9c2145bbab88bfd0763666951cfe15bab23f50"},
 ]
-crudini = []
 cryptography = [
     {file = "cryptography-2.9.2-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:daf54a4b07d67ad437ff239c8a4080cfd1cc7213df57d33c97de7b4738048d5e"},
     {file = "cryptography-2.9.2-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:3b3eba865ea2754738616f87292b7f29448aec342a7c720956f8083d252bf28b"},
@@ -2961,11 +2931,6 @@ importlib-metadata = [
 influxdb = [
     {file = "influxdb-5.0.0-py2.py3-none-any.whl", hash = "sha256:43b2fde195ee2302cfa87c8a0e1d29429f175ed584516d02e04f9b2c3c2ac2ad"},
     {file = "influxdb-5.0.0.tar.gz", hash = "sha256:6adba2ddfd5781a06b5204339e679d66645bf6cc2b7f493eb9d7c8986d714e80"},
-]
-iniparse = [
-    {file = "iniparse-0.5-py2-none-any.whl", hash = "sha256:88ca60473b1637055a937933d48840be1b1b6835f381a6158ef118a532583675"},
-    {file = "iniparse-0.5-py3-none-any.whl", hash = "sha256:db6ef1d8a02395448e0e7b17ac0aa28b8d338b632bbd1ffca08c02ddae32cf97"},
-    {file = "iniparse-0.5.tar.gz", hash = "sha256:932e5239d526e7acb504017bb707be67019ac428a6932368e6851691093aa842"},
 ]
 iptools = [
     {file = "iptools-0.6.1-py2.py3-none-any.whl", hash = "sha256:a362d87be06678786c10a1e8519fe31e9062856b463a43ad5e3fe6e1cde8fa10"},

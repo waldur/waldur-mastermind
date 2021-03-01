@@ -80,7 +80,6 @@ requests = "2.20.0"
 scrypt = "0.8.6"
 sentry-sdk = "0.13.1"
 sqlparse = "0.2.4"
-crudini = { git = "https://github.com/pixelb/crudini", tag = "0.9.3" }
 python-freeipa = "0.2.5"
 django-modeltranslation = "^0.15"
 django-storages = "^1.9.1"
