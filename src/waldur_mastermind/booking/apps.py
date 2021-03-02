@@ -23,6 +23,7 @@ class BookingConfig(AppConfig):
             create_resource_processor=processors.BookingCreateProcessor,
             delete_resource_processor=processors.BookingDeleteProcessor,
             change_attributes_for_view=utils.change_attributes_for_view,
+            is_in_notifications_whitelist=True,
         )
 
         booking_registrators.BookingRegistrator.connect()

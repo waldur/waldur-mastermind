@@ -210,8 +210,15 @@ def get_info_about_missing_usage_reports():
     now = timezone.now()
     billing_period = core_utils.month_start(now)
 
+    whitelist_types = [
+        offering_type
+        for offering_type in plugins.manager.get_offering_types()
+        if plugins.manager.is_in_notifications_whitelist(offering_type)
+    ]
+
     offering_ids = models.OfferingComponent.objects.filter(
-        billing_type=models.OfferingComponent.BillingTypes.USAGE
+        billing_type=models.OfferingComponent.BillingTypes.USAGE,
+        offering__type__in=whitelist_types,
     ).values_list('offering_id', flat=True)
     resource_with_usages = models.ComponentUsage.objects.filter(
         billing_period=billing_period
