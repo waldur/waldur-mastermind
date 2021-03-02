@@ -17,6 +17,8 @@ from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import fixtures
@@ -31,6 +33,12 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         super(InvoicesBaseTest, self).setUp()
         self.fixture = fixtures.SupportFixture()
         self.order_item = self.fixture.order_item
+        support_factories.IssueStatusFactory(
+            name='done', type=support_models.IssueStatus.Types.RESOLVED
+        )
+        support_factories.IssueStatusFactory(
+            name='canceled', type=support_models.IssueStatus.Types.CANCELED
+        )
 
     def order_item_process(self, order_item):
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -40,6 +48,8 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         order_item.refresh_from_db()
         order_item.order.approve()
         order_item.order.save()
+        self.issue = order_item.resource.scope
+        self.issue.set_resolved()
 
     def get_invoice(self):
         date = datetime.date.today()
@@ -160,7 +170,11 @@ class UsagesTest(InvoicesBaseTest):
         self.fixture.update_plan_prices()
 
         self.order_item_process(self.order_item)
-        self.resource = self.order_item.resource
+
+        # We get new resource because self.order_item.resource.refresh_from_db() updates tracker.changed()
+        self.resource = marketplace_models.Resource.objects.get(
+            pk=self.order_item.resource.pk
+        )
         self.invoice = self.get_invoice()
 
     @freeze_time('2018-01-15')
@@ -214,8 +228,10 @@ class UsagesTest(InvoicesBaseTest):
 
     @freeze_time('2018-01-15')
     def test_case_when_usage_is_reported_for_new_plan(self):
+        self.assertEqual(self.invoice.items.count(), 1)
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._switch_plan()
+        self.assertEqual(self.invoice.items.count(), 2)
         fixed_price = (
             Decimal(self.fixture.plan.unit_price) * quantize_price(Decimal(15 / 31.0))
         ) + (

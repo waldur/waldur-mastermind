@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class IssueViewSet(core_views.ActionsViewSet):
     def create(self, request, *args, **kwargs):
         order_item = marketplace_models.OrderItem.objects.get(uuid=request.data['uuid'])
-        utils.create_issue(
+        issue = utils.create_issue(
             order_item,
             summary=f'Request for {order_item.offering.name}',
             description=utils.format_create_description(order_item),
@@ -21,7 +21,7 @@ class IssueViewSet(core_views.ActionsViewSet):
                 'template_confirmation_comment'
             ),
         )
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(status=status.HTTP_201_CREATED, data={'uuid': issue.uuid.hex})
 
     def update(self, request, *args, **kwargs):
         order_item = marketplace_models.OrderItem.objects.get(uuid=request.data['uuid'])
