@@ -116,8 +116,7 @@ def create_invoice_pdf(invoice):
     )
     html = render_to_string('invoices/invoice.html', context)
     pdf = pdfkit.from_string(html, False)
-    invoice.file = str(base64.b64encode(pdf), 'utf-8')
-    invoice.save()
+    return pdf
 
 
 def get_price_per_day(price, unit):

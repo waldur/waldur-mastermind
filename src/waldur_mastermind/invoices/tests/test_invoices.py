@@ -14,7 +14,7 @@ from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
-from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.invoices.tests import utils as test_utils
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -412,41 +412,6 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-
-@ddt
-class InvoicePDFTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.invoice = factories.InvoiceFactory()
-
-    @mock.patch('waldur_mastermind.invoices.utils.pdfkit')
-    def test_create_invoice_pdf(self, mock_pdfkit):
-        mock_pdfkit.from_string.return_value = b'pdf_content'
-        utils.create_invoice_pdf(self.invoice)
-        self.assertTrue(self.invoice.has_file())
-
-    @mock.patch('waldur_mastermind.invoices.handlers.tasks')
-    def test_create_invoice_pdf_is_not_called_if_invoice_cost_has_not_been_changed(
-        self, mock_tasks
-    ):
-        with freeze_time('2019-01-02'):
-            invoice = factories.InvoiceFactory()
-            factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
-            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
-            invoice.update_current_cost()
-            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
-
-    @mock.patch('waldur_mastermind.invoices.handlers.tasks')
-    def test_create_invoice_pdf_is_called_if_invoice_cost_has_been_changed(
-        self, mock_tasks
-    ):
-        with freeze_time('2019-01-02'):
-            invoice = factories.InvoiceFactory()
-            factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
-            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
-            factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
-            invoice.update_current_cost()
-            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 2)
 
 
 @ddt

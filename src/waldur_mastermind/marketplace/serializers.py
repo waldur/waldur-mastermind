@@ -1716,9 +1716,6 @@ class OrderSerializer(
     file = serializers.SerializerMethodField()
 
     def get_file(self, obj):
-        if not obj.has_file():
-            return None
-
         return reverse(
             'marketplace-order-pdf',
             kwargs={'uuid': obj.uuid.hex},

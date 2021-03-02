@@ -111,9 +111,6 @@ class InvoiceSerializer(
         }
 
     def get_file(self, obj):
-        if not obj.has_file():
-            return None
-
         return reverse(
             'invoice-pdf',
             kwargs={'uuid': obj.uuid.hex},

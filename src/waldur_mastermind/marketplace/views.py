@@ -12,7 +12,7 @@ from django.db.models import (
     Q,
     Subquery,
 )
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -585,10 +585,9 @@ class OrderViewSet(BaseMarketplaceView):
     @action(detail=True)
     def pdf(self, request, uuid=None):
         order = self.get_object()
-        if not order.has_file():
-            raise Http404()
 
-        file_response = HttpResponse(order.file, content_type='application/pdf')
+        file = utils.create_order_pdf(order)
+        file_response = HttpResponse(file, content_type='application/pdf')
         filename = order.get_filename()
         file_response[
             'Content-Disposition'

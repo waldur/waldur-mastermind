@@ -1,6 +1,4 @@
-import base64
 from decimal import Decimal
-from io import BytesIO
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -886,7 +884,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         max_digits=22, decimal_places=10, null=True, blank=True
     )
     tracker = FieldTracker()
-    _file = models.TextField(blank=True, editable=False)
 
     class Permissions:
         customer_path = 'project__customer'
@@ -948,21 +945,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             users = order_admins if not users else users.union(order_admins)
 
         return users and users.distinct()
-
-    @property
-    def file(self):
-        if not self._file:
-            return
-
-        content = base64.b64decode(self._file)
-        return BytesIO(content)
-
-    @file.setter
-    def file(self, value):
-        self._file = value
-
-    def has_file(self):
-        return bool(self._file)
 
     def get_filename(self):
         return 'marketplace_order_{}.pdf'.format(self.uuid)

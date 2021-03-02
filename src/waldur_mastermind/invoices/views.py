@@ -1,18 +1,16 @@
 import datetime
 import decimal
 
-from celery import chain
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
 from django.db.models import Sum
-from django.http import Http404, HttpResponse
+from django.http import HttpResponse
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
@@ -20,7 +18,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.common.utils import quantize_price
 
-from . import filters, log, models, serializers, tasks
+from . import filters, log, models, serializers, tasks, utils
 
 
 class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
@@ -43,11 +41,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     @action(detail=True, methods=['post'])
     def send_notification(self, request, uuid=None):
         invoice = self.get_object()
-        serialized_invoice = core_utils.serialize_instance(invoice)
-        chain(
-            tasks.create_invoice_pdf.si(serialized_invoice),
-            tasks.send_invoice_notification.si(invoice.uuid.hex),
-        )()
+        tasks.send_invoice_notification.delay(invoice.uuid.hex)
 
         return Response(
             {
@@ -64,11 +58,9 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     @action(detail=True)
     def pdf(self, request, uuid=None):
         invoice = self.get_object()
-        if not invoice.has_file():
-            tasks.create_invoice_pdf.delay(core_utils.serialize_instance(invoice))
-            raise Http404()
 
-        file_response = HttpResponse(invoice.file, content_type='application/pdf')
+        file = utils.create_invoice_pdf(invoice)
+        file_response = HttpResponse(file, content_type='application/pdf')
         filename = invoice.get_filename()
         file_response[
             'Content-Disposition'

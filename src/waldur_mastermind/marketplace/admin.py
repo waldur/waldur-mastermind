@@ -3,12 +3,12 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
 from django.http import HttpResponse
-from django.shortcuts import redirect
 from django.urls import resolve, reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
 from modeltranslation import admin as modeltranslation_admin
+from rest_framework.reverse import reverse as rest_reverse
 from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
@@ -32,7 +32,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
 
-from . import executors, models, tasks
+from . import executors, models, utils
 
 
 class GoogleCredentialsAdminForm(ModelForm):
@@ -456,9 +456,7 @@ class OrderAdmin(
     inlines = [OrderItemInline]
 
     def get_extra_actions(self):
-        return [
-            self.create_pdf_for_all,
-        ]
+        return []
 
     def get_urls(self):
         my_urls = [
@@ -469,15 +467,11 @@ class OrderAdmin(
         ]
         return my_urls + super(OrderAdmin, self).get_urls()
 
-    def create_pdf_for_all(self, request):
-        tasks.create_pdf_for_all.delay()
-        message = _('PDF creation has been scheduled')
-        self.message_user(request, message)
-        return redirect(reverse('admin:marketplace_order_changelist'))
-
     def pdf_file_view(self, request, pk=None):
         order = models.Order.objects.get(id=pk)
-        file_response = HttpResponse(order.file, content_type='application/pdf')
+
+        file = utils.create_order_pdf(order)
+        file_response = HttpResponse(file, content_type='application/pdf')
         filename = order.get_filename()
         file_response[
             'Content-Disposition'
@@ -485,12 +479,9 @@ class OrderAdmin(
         return file_response
 
     def pdf_file(self, obj):
-        if not obj.file:
-            return ''
+        pdf_ref = rest_reverse('marketplace-order-pdf', kwargs={'uuid': obj.uuid.hex},)
 
-        return format_html('<a href="./pdf_file">download</a>')
-
-    create_pdf_for_all.name = _('Create PDF for all orders')
+        return format_html('<a href="%s">download</a>' % pdf_ref)
 
 
 class ResourceForm(ModelForm):

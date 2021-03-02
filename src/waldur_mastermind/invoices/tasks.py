@@ -1,10 +1,9 @@
-import base64
 import logging
 from csv import DictWriter
 from io import StringIO
 
 import pdfkit
-from celery import chain, shared_task
+from celery import shared_task
 from django.conf import settings
 from django.db.models import Q
 from django.template.loader import render_to_string
@@ -48,13 +47,11 @@ def create_monthly_invoices():
         send_invoice_report.delay()
 
     if settings.WALDUR_INVOICES['SEND_CUSTOMER_INVOICES']:
-        chain(create_pdf_for_new_invoices.si(), send_new_invoices_notification.si())()
-    else:
-        create_pdf_for_new_invoices.delay()
+        send_new_invoices_notification.delay()
 
 
 @shared_task(name='invoices.send_invoice_notification')
-def send_invoice_notification(invoice_uuid):
+def send_invoice_notification(invoice_uuid, attach_file=True):
     """ Sends email notification with invoice link to customer owners """
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
     link_template = settings.WALDUR_INVOICES['INVOICE_LINK_TEMPLATE']
@@ -81,17 +78,18 @@ def send_invoice_notification(invoice_uuid):
     }
 
     emails = [owner.email for owner in invoice.customer.get_owners()]
+
     filename = None
     attachment = None
     content_type = None
 
-    if invoice._file:
+    if attach_file:
         filename = '%s_%s_%s.pdf' % (
             settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
             invoice.year,
             invoice.month,
         )
-        attachment = base64.b64decode(invoice._file)
+        attachment = utils.create_invoice_pdf(invoice)
         content_type = 'application/pdf'
 
     logger.debug(
@@ -186,25 +184,6 @@ def update_invoices_current_cost():
 
 
 @shared_task
-def create_invoice_pdf(serialized_invoice):
-    invoice = core_utils.deserialize_instance(serialized_invoice)
-    utils.create_invoice_pdf(invoice)
-
-
-@shared_task
-def create_pdf_for_all_invoices():
-    for invoice in models.Invoice.objects.all():
-        utils.create_invoice_pdf(invoice)
-
-
-@shared_task
-def create_pdf_for_new_invoices():
-    date = timezone.now()
-    for invoice in models.Invoice.objects.filter(year=date.year, month=date.month):
-        utils.create_invoice_pdf(invoice)
-
-
-@shared_task
 def send_new_invoices_notification():
     date = timezone.now()
 
@@ -216,7 +195,7 @@ def send_new_invoices_notification():
     for invoice in models.Invoice.objects.filter(
         year=date.year, month=date.month
     ).exclude(customer_id__in=fixed_price_profiles):
-        send_invoice_notification.delay(invoice.uuid.hex)
+        send_invoice_notification.delay(invoice.uuid.hex, attach_file=False)
 
 
 @shared_task(name='invoices.send_notifications_about_upcoming_ends')

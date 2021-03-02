@@ -30,7 +30,6 @@ def approve_order(order, user):
     transaction.on_commit(
         lambda: process_order.delay(serialized_order, serialized_user)
     )
-    transaction.on_commit(lambda: create_order_pdf.delay(order.pk))
 
 
 @shared_task(name='marketplace.process_order')
@@ -68,18 +67,6 @@ def notify_about_resource_change(event_type, context, resource_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     emails = resource.project.get_users().values_list('email', flat=True)
     core_utils.broadcast_mail('marketplace', event_type, context, emails)
-
-
-@shared_task
-def create_order_pdf(order_id):
-    order = models.Order.objects.get(pk=order_id)
-    utils.create_order_pdf(order)
-
-
-@shared_task
-def create_pdf_for_all():
-    for order in models.Order.objects.all():
-        utils.create_order_pdf(order)
 
 
 def filter_aggregate_by_scope(queryset, scope):
