@@ -36,6 +36,7 @@ class MarketplaceSupportConfig(AppConfig):
             update_resource_processor=processor.UpdateRequestProcessor,
             delete_resource_processor=processor.DeleteRequestProcessor,
             can_terminate_order_item=True,
+            is_in_notifications_whitelist=True,
         )
 
         core_signals.pre_serializer_fields.connect(

@@ -62,6 +62,8 @@ class PluginManager:
         :key get_filtered_components: optional function to filter out enabled offering components.
         :key change_attributes_for_view: optional function to change the display of attributes in a view. An attributes
         of offering do not change.
+        :key is_in_notifications_whitelist: optional boolean indicated whether usage notifications
+        should be sent to a customer.
         """
         self.backends[offering_type] = kwargs
 
@@ -160,6 +162,12 @@ class PluginManager:
         Return a function for attributes showing.
         """
         return self.backends.get(offering_type, {}).get('change_attributes_for_view')
+
+    def is_in_notifications_whitelist(self, offering_type):
+        return (
+            self.backends.get(offering_type, {}).get('is_in_notifications_whitelist')
+            or False
+        )
 
 
 manager = PluginManager()

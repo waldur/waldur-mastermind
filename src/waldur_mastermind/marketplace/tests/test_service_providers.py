@@ -254,7 +254,9 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         self.service_provider = factories.ServiceProviderFactory(
             customer=self.fixture.customer
         )
-        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type='Support.OfferingTemplate'
+        )
         self.component = factories.OfferingComponentFactory(
             billing_type=models.OfferingComponent.BillingTypes.USAGE, offering=offering
         )
