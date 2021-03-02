@@ -21,6 +21,9 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         except support_models.Issue.DoesNotExist:
             pass
 
+    def get_resource_model(self):
+        return support_models.Issue
+
 
 class DeleteRequestProcessor(processors.DeleteResourceProcessor):
     viewset = IssueViewSet

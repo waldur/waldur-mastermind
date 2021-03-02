@@ -275,7 +275,11 @@ def create_resource_of_volume_if_instance_created(
 ):
     resource = instance
 
-    if not created or not resource.scope or not resource.offering.scope:
+    if (
+        not created
+        or not resource.scope
+        or not getattr(resource.offering, 'scope', None)
+    ):
         return
 
     if resource.offering.type != INSTANCE_TYPE:
@@ -283,7 +287,9 @@ def create_resource_of_volume_if_instance_created(
 
     instance = resource.scope
 
-    volume_offering = utils.get_offering(VOLUME_TYPE, resource.offering.scope)
+    volume_offering = utils.get_offering(
+        VOLUME_TYPE, getattr(resource.offering, 'scope', None)
+    )
     if not volume_offering:
         return
 

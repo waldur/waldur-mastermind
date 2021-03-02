@@ -17,7 +17,7 @@ ItemTypes = marketplace_models.OrderItem.Types
 
 RESOURCE_CALLBACKS = {
     (ItemTypes.CREATE, True): callbacks.resource_creation_succeeded,
-    (ItemTypes.CREATE, False): callbacks.resource_creation_failed,
+    (ItemTypes.CREATE, False): callbacks.resource_creation_canceled,
     (ItemTypes.UPDATE, True): callbacks.resource_update_succeeded,
     (ItemTypes.UPDATE, False): callbacks.resource_update_failed,
     (ItemTypes.TERMINATE, True): callbacks.resource_deletion_succeeded,

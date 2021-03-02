@@ -82,18 +82,19 @@ class IssueStatusHandlerTest(BaseTest):
         self.fixture.order.refresh_from_db()
         self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
 
-    def test_order_item_is_erred_when_resource_creation_issue_is_failed(self):
+    def test_order_item_is_terminated_when_resource_creation_issue_is_canceled(self):
         self.fixture.issue.status = self.fixture.fail_issue_status.name
         self.fixture.issue.save()
 
         self.fixture.order_item.refresh_from_db()
         self.assertEqual(
-            self.fixture.order_item.state, marketplace_models.OrderItem.States.ERRED
+            self.fixture.order_item.state,
+            marketplace_models.OrderItem.States.TERMINATED,
         )
 
         self.fixture.resource.refresh_from_db()
         self.assertEqual(
-            self.fixture.resource.state, marketplace_models.Resource.States.ERRED
+            self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
         )
 
         self.fixture.order.refresh_from_db()
