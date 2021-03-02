@@ -32,12 +32,6 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_invoice_pdf,
-            sender=models.Invoice,
-            dispatch_uid='waldur_mastermind.invoices.update_invoice_pdf',
-        )
-
-        signals.post_save.connect(
             handlers.set_project_name_on_invoice_item_creation,
             sender=models.InvoiceItem,
             dispatch_uid='waldur_mastermind.invoices.set_project_name_on_invoice_item_creation',

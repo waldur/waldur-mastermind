@@ -7,12 +7,13 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
+from rest_framework.reverse import reverse as rest_reverse
 from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
 
-from . import executors, models, tasks
+from . import models, tasks, utils
 
 
 class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.StackedInline):
@@ -89,12 +90,6 @@ class InvoiceAdmin(
 
     payment_type.short_description = _('Payment type')
 
-    class CreatePDFAction(core_admin.ExecutorAdminAction):
-        executor = executors.InvoicePDFCreateExecutor
-        short_description = _('Create PDF')
-
-    create_pdf = CreatePDFAction()
-
     def get_urls(self):
         my_urls = [
             url(
@@ -106,7 +101,9 @@ class InvoiceAdmin(
 
     def pdf_file_view(self, request, pk=None):
         invoice = models.Invoice.objects.get(id=pk)
-        file_response = HttpResponse(invoice.file, content_type='application/pdf')
+
+        file = utils.create_invoice_pdf(invoice)
+        file_response = HttpResponse(file, content_type='application/pdf')
         filename = invoice.get_filename()
         file_response[
             'Content-Disposition'
@@ -114,10 +111,9 @@ class InvoiceAdmin(
         return file_response
 
     def pdf_file(self, obj):
-        if not obj.file:
-            return ''
+        pdf_ref = rest_reverse('invoice-pdf', kwargs={'uuid': obj.uuid.hex},)
 
-        return format_html('<a href="./pdf_file">download</a>')
+        return format_html('<a href="%s">download</a>' % pdf_ref)
 
     pdf_file.short_description = "File"
 
@@ -125,7 +121,6 @@ class InvoiceAdmin(
         return [
             self.send_invoice_report,
             self.update_current_cost,
-            self.create_pdf_for_all,
         ]
 
     def send_invoice_report(self, request):
@@ -143,14 +138,6 @@ class InvoiceAdmin(
         return redirect(reverse('admin:invoices_invoice_changelist'))
 
     send_invoice_report.short_description = _('Update current cost for invoices')
-
-    def create_pdf_for_all(self, request):
-        tasks.create_pdf_for_all_invoices.delay()
-        message = _('PDF creation has been scheduled')
-        self.message_user(request, message)
-        return redirect(reverse('admin:invoices_invoice_changelist'))
-
-    create_pdf_for_all.name = _('Create PDF for all invoices')
 
 
 class ServiceDowntimeAdmin(admin.ModelAdmin):

@@ -13,7 +13,7 @@ from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import log, models, registrators, tasks
+from . import log, models, registrators
 
 logger = logging.getLogger(__name__)
 
@@ -200,19 +200,6 @@ def downtime_has_been_deleted(sender, instance, **kwargs):
     models.InvoiceItem.objects.filter(
         invoice__state=models.Invoice.States.PENDING, details__downtime_id=instance.id
     ).delete()
-
-
-def update_invoice_pdf(sender, instance, created=False, **kwargs):
-    if created:
-        return
-
-    invoice = instance
-
-    if not invoice.tracker.has_changed('current_cost'):
-        return
-
-    serialized_invoice = core_utils.serialize_instance(invoice)
-    tasks.create_invoice_pdf.delay(serialized_invoice)
 
 
 def projects_customer_has_been_changed(

@@ -1,10 +1,8 @@
-import base64
 import datetime
 import decimal
 import logging
 from calendar import monthrange
 from datetime import timedelta
-from io import BytesIO
 
 from django.conf import settings
 from django.contrib.postgres.fields import JSONField
@@ -94,7 +92,6 @@ class Invoice(core_models.UuidMixin, models.Model):
         blank=True,
         help_text=_('Date then invoice moved from state pending to created.'),
     )
-    _file = models.TextField(blank=True, editable=False)
 
     tracker = FieldTracker()
 
@@ -158,21 +155,6 @@ class Invoice(core_models.UuidMixin, models.Model):
 
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
-
-    @property
-    def file(self):
-        if not self._file:
-            return
-
-        content = base64.b64decode(self._file)
-        return BytesIO(content)
-
-    @file.setter
-    def file(self, value):
-        self._file = value
-
-    def has_file(self):
-        return bool(self._file)
 
     def get_filename(self):
         return 'invoice_{}.pdf'.format(self.uuid)
