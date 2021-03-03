@@ -213,6 +213,47 @@ class VolumeAttachTestCase(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
 
+class VolumeDetachTestCase(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.volume = self.fixture.volume
+        self.instance = self.fixture.instance
+        self.url = factories.VolumeFactory.get_url(self.volume, action='detach')
+
+    def get_response(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        return self.client.post(self.url)
+
+    def test_user_can_detach_volume(self):
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'in-use'
+        self.volume.bootable = False
+        self.volume.instance = self.instance
+        self.volume.save()
+
+        response = self.get_response()
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
+    def test_user_cannot_detach_bootable_volume(self):
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'in-use'
+        self.volume.bootable = True
+        self.volume.instance = self.instance
+        self.volume.save()
+
+        response = self.get_response()
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+
+    def test_user_cannot_detach_unattached_volume(self):
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'in-use'
+        self.volume.bootable = False
+        self.volume.save()
+
+        response = self.get_response()
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+
+
 class VolumeSnapshotTestCase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
