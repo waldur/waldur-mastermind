@@ -230,6 +230,12 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
                 _('Volume cannot be bootable.')
             )
 
+    def _is_volume_attached(volume):
+        if not volume.instance:
+            raise core_exceptions.IncorrectStateException(
+                _('Volume is not attached to an instance.')
+            )
+
     def _is_volume_instance_shutoff(volume):
         if (
             volume.instance
@@ -325,6 +331,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 
     detach_validators = [
         _is_volume_bootable,
+        _is_volume_attached,
         core_validators.RuntimeStateValidator('in-use'),
         core_validators.StateValidator(models.Volume.States.OK),
     ]
