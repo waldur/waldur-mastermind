@@ -150,6 +150,7 @@ def create_feedback_if_issue_has_been_resolved(
         not issue.tracker.has_changed('status')
         or not issue.resolved
         or not issue.feedback_request
+        or models.IssueStatus.check_success_status(issue.tracker.previous('status'))
     ):
         return
 
