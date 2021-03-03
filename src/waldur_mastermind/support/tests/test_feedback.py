@@ -67,21 +67,37 @@ class FeedbackCreateTest(base.BaseTest):
 
 
 class FeedbackNotificationTest(base.BaseTest):
+    def setUp(self):
+        super(FeedbackNotificationTest, self).setUp()
+        factories.IssueStatusFactory(
+            name='resolved', type=models.IssueStatus.Types.RESOLVED
+        )
+        factories.IssueStatusFactory(
+            name='closed', type=models.IssueStatus.Types.RESOLVED
+        )
+        factories.IssueStatusFactory(
+            name='canceled', type=models.IssueStatus.Types.CANCELED
+        )
+
     @mock.patch(
         'waldur_mastermind.support.handlers.tasks.send_issue_feedback_notification'
     )
     @override_settings(ISSUE_FEEDBACK_ENABLE=True)
     def test_feedback_notification(self, mock_tasks):
-        factories.IssueStatusFactory(
-            name='resolved', type=models.IssueStatus.Types.RESOLVED
-        )
-        factories.IssueStatusFactory(
-            name='canceled', type=models.IssueStatus.Types.CANCELED
-        )
         issue = factories.IssueFactory()
         issue.set_resolved()
         serialized_issue = core_utils.serialize_instance(issue)
         mock_tasks.delay.assert_called_once_with(serialized_issue)
+
+    @mock.patch(
+        'waldur_mastermind.support.handlers.tasks.send_issue_feedback_notification'
+    )
+    @override_settings(ISSUE_FEEDBACK_ENABLE=True)
+    def test_feedback_notification_does_not_send_twice(self, mock_tasks):
+        issue = factories.IssueFactory(status='resolved')
+        issue.status = 'closed'
+        issue.save()
+        mock_tasks.delay.assert_not_called()
 
     def test_feedback_notification_text(self):
         issue = factories.IssueFactory()
