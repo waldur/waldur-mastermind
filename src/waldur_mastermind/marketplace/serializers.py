@@ -1,7 +1,6 @@
 import datetime
 import logging
 
-import bleach
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -26,6 +25,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
+from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.media.serializers import ProtectedFileField, ProtectedImageField
@@ -256,7 +256,7 @@ class BasePlanSerializer(
         return {item.component.type: item.amount for item in plan.components.all()}
 
     def validate_description(self, value):
-        return bleach.clean(value)
+        return clean_html(value)
 
 
 class PlanDetailsSerializer(BasePlanSerializer):
@@ -812,16 +812,16 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         return offering_type
 
     def validate_terms_of_service(self, value):
-        return bleach.clean(value.strip())
+        return clean_html(value.strip())
 
     def validate_description(self, value):
-        return bleach.clean(value.strip())
+        return clean_html(value.strip())
 
     def validate_full_description(self, value):
-        return bleach.clean(value.strip())
+        return clean_html(value.strip())
 
     def validate_vendor_details(self, value):
-        return bleach.clean(value.strip())
+        return clean_html(value.strip())
 
     def _validate_attributes(self, attrs):
         category = attrs.get('category')

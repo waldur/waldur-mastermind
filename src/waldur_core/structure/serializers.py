@@ -2,7 +2,6 @@ import json
 import logging
 from collections import defaultdict
 
-import bleach
 import pyvat
 from django.conf import settings
 from django.contrib import auth
@@ -20,6 +19,7 @@ from rest_framework.reverse import reverse
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.monitoring.serializers import MonitoringSerializerMixin
@@ -306,7 +306,7 @@ class ProjectSerializer(
         return services
 
     def validate_description(self, value):
-        return bleach.clean(value.strip())
+        return clean_html(value.strip())
 
 
 class CustomerSerializer(
