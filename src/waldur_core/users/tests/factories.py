@@ -27,9 +27,6 @@ class ProjectInvitationFactory(InvitationBaseFactory):
     customer = factory.SelfAttribute('project.customer')
     project = factory.SubFactory(structure_factories.ProjectFactory)
     project_role = structure_models.ProjectRole.MANAGER
-    link_template = factory.Sequence(
-        lambda n: 'http://testinvitation%1.com/project/{uuid}' % n
-    )
     email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
 
     @classmethod
@@ -45,9 +42,6 @@ class CustomerInvitationFactory(InvitationBaseFactory):
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     customer_role = structure_models.CustomerRole.OWNER
-    link_template = factory.Sequence(
-        lambda n: 'http://testinvitation%1.com/customer/{uuid}' % n
-    )
     email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
 
     @classmethod

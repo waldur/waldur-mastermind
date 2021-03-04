@@ -70,13 +70,6 @@ class Invitation(
     state = models.CharField(
         max_length=10, choices=State.CHOICES, default=State.PENDING
     )
-    link_template = models.CharField(
-        max_length=255,
-        help_text=_(
-            'The template must include {uuid} parameter '
-            'e.g. http://example.com/invitation/{uuid}'
-        ),
-    )
     email = models.EmailField(
         help_text=_(
             'Invitation link will be sent to this email. Note that user can accept '

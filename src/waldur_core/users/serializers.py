@@ -41,7 +41,6 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             'url',
             'uuid',
-            'link_template',
             'email',
             'civil_number',
             'project',
@@ -70,12 +69,6 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         }
 
     def validate(self, attrs):
-        link_template = attrs['link_template']
-        if '{uuid}' not in link_template:
-            raise serializers.ValidationError(
-                {'link_template': _("Link template must include '{uuid}' parameter.")}
-            )
-
         project = attrs.get('project')
         customer = attrs.get('customer')
 
