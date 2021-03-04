@@ -222,19 +222,6 @@ class InvitationCreateTest(BaseInvitationTest):
             {'detail': 'You do not have permission to perform this action.'},
         )
 
-    def test_user_cannot_create_invitation_with_invalid_link_template(self):
-        self.client.force_authenticate(user=self.staff)
-        payload = self._get_valid_project_invitation_payload(self.project_invitation)
-        payload['link_template'] = '/invalid/link'
-        response = self.client.post(
-            factories.ProjectInvitationFactory.get_list_url(), data=payload
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data,
-            {'link_template': ["Link template must include '{uuid}' parameter."]},
-        )
-
     def test_user_cannot_create_invitation_for_project_and_customer_simultaneously(
         self,
     ):
@@ -332,7 +319,6 @@ class InvitationCreateTest(BaseInvitationTest):
         invitation = invitation or factories.ProjectInvitationFactory.build()
         return {
             'email': invitation.email,
-            'link_template': invitation.link_template,
             'project': structure_factories.ProjectFactory.get_url(invitation.project),
             'project_role': project_role or structure_models.ProjectRole.ADMINISTRATOR,
         }
@@ -343,7 +329,6 @@ class InvitationCreateTest(BaseInvitationTest):
         invitation = invitation or factories.CustomerInvitationFactory.build()
         return {
             'email': invitation.email,
-            'link_template': invitation.link_template,
             'customer': structure_factories.CustomerFactory.get_url(
                 invitation.customer
             ),
@@ -442,6 +427,10 @@ class InvitationSendTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(self.customer_invitation.email, mail.outbox[0].to[0])
+        link = settings.WALDUR_CORE['INVITATION_LINK_TEMPLATE'].format(
+            uuid=self.customer_invitation.uuid.hex
+        )
+        self.assertTrue(link in mail.outbox[0].body)
 
     @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
     def test_owner_can_not_send_customer_invitation_if_settings_are_tweaked(self):
