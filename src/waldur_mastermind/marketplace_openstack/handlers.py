@@ -431,12 +431,14 @@ def update_invoice_when_resource_is_created(sender, instance, **kwargs):
         registrators.RegistrationManager.register(instance)
 
 
+@transaction.atomic
 def update_invoice_when_limits_are_updated(sender, order_item, **kwargs):
     if order_item.offering.type == TENANT_TYPE:
         registrators.RegistrationManager.terminate(order_item.resource)
         registrators.RegistrationManager.register(order_item.resource)
 
 
+@transaction.atomic
 def update_invoice_when_plan_is_switched(sender, instance, **kwargs):
     if instance.offering.type == TENANT_TYPE:
         registrators.RegistrationManager.terminate(instance)
