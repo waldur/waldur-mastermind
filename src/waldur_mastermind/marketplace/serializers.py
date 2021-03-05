@@ -874,6 +874,14 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 for component in plugins.manager.get_components(offering_type)
                 if component.billing_type == models.OfferingComponent.BillingTypes.FIXED
             }
+            if self.instance:
+                fixed_types.update(
+                    set(
+                        self.instance.components.filter(
+                            billing_type=models.OfferingComponent.BillingTypes.FIXED
+                        ).values_list('type', flat=True)
+                    )
+                )
 
         elif custom_components:
             valid_types = {component['type'] for component in custom_components}
