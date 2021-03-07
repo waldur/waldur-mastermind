@@ -564,6 +564,24 @@ python-versions = ">=3.5"
 Django = ">=2.0"
 
 [[package]]
+name = "django-dbtemplates"
+version = "3.0.post13+g012fe06"
+description = "Template loader for templates stored in the database"
+category = "main"
+optional = false
+python-versions = "*"
+develop = false
+
+[package.dependencies]
+django-appconf = ">=0.4"
+
+[package.source]
+type = "git"
+url = "https://github.com/jazzband/django-dbtemplates.git"
+reference = "master"
+resolved_reference = "012fe061a82dd35139b3d27c8f8af3877c96a38e"
+
+[[package]]
 name = "django-filter"
 version = "2.2.0"
 description = "Django-filter is a reusable Django application for allowing users to filter querysets dynamically."
@@ -2504,7 +2522,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "c9ff8bb61aaaedd1bf4f89225ea3c0621189c56f630b044035d68daac86f785f"
+content-hash = "6c9010aec2fac95b08959a5d2952ef61ab1dbc8213f0847321c85915c5466443"
 
 [metadata.files]
 adal = [
@@ -2771,6 +2789,7 @@ django-cors-headers = [
     {file = "django-cors-headers-3.4.0.tar.gz", hash = "sha256:f5218f2f0bb1210563ff87687afbf10786e080d8494a248e705507ebd92d7153"},
     {file = "django_cors_headers-3.4.0-py3-none-any.whl", hash = "sha256:5240062ef0b16668ce8a5f43324c388d65f5439e1a30e22c38684d5ddaff0d15"},
 ]
+django-dbtemplates = []
 django-filter = [
     {file = "django-filter-2.2.0.tar.gz", hash = "sha256:c3deb57f0dd7ff94d7dce52a047516822013e2b441bed472b722a317658cfd14"},
     {file = "django_filter-2.2.0-py3-none-any.whl", hash = "sha256:558c727bce3ffa89c4a7a0b13bc8976745d63e5fd576b3a9a851650ef11c401b"},
@@ -3241,6 +3260,8 @@ pillow = [
     {file = "Pillow-7.2.0-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:5e51ee2b8114def244384eda1c82b10e307ad9778dac5c83fb0943775a653cd8"},
     {file = "Pillow-7.2.0-cp38-cp38-win32.whl", hash = "sha256:725aa6cfc66ce2857d585f06e9519a1cc0ef6d13f186ff3447ab6dff0a09bc7f"},
     {file = "Pillow-7.2.0-cp38-cp38-win_amd64.whl", hash = "sha256:a060cf8aa332052df2158e5a119303965be92c3da6f2d93b6878f0ebca80b2f6"},
+    {file = "Pillow-7.2.0-pp36-pypy36_pp73-macosx_10_10_x86_64.whl", hash = "sha256:9c87ef410a58dd54b92424ffd7e28fd2ec65d2f7fc02b76f5e9b2067e355ebf6"},
+    {file = "Pillow-7.2.0-pp36-pypy36_pp73-manylinux2010_x86_64.whl", hash = "sha256:e901964262a56d9ea3c2693df68bc9860b8bdda2b04768821e4c44ae797de117"},
     {file = "Pillow-7.2.0-pp36-pypy36_pp73-win32.whl", hash = "sha256:25930fadde8019f374400f7986e8404c8b781ce519da27792cbe46eabec00c4d"},
     {file = "Pillow-7.2.0.tar.gz", hash = "sha256:97f9e7953a77d5a70f49b9a48da7776dc51e9b738151b22dacf101641594a626"},
 ]

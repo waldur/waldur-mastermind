@@ -30,6 +30,9 @@ MEDIA_ROOT = '/media_root/'
 MEDIA_URL = '/media/'
 
 ALLOWED_HOSTS = []
+SITE_ID = 1
+DBTEMPLATES_USE_REVERSION = True
+DBTEMPLATES_USE_CODEMIRROR = True
 
 # Application definition
 INSTALLED_APPS = (
@@ -39,6 +42,7 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.humanize',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
 
     'waldur_core.landing',
     'waldur_core.logging',
@@ -68,6 +72,7 @@ INSTALLED_APPS = (
     'health_check.storage',
     'health_check.contrib.migrations',
     'health_check.contrib.celery_ping',
+    'dbtemplates',
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
@@ -136,7 +141,7 @@ ANONYMOUS_USER_ID = None
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'src', 'waldur_core', 'templates')],
+        'DIRS': (os.path.join(BASE_DIR, 'src', 'waldur_core', 'templates'),),
         'OPTIONS': {
             'context_processors': (
                 'django.template.context_processors.debug',
@@ -148,10 +153,11 @@ TEMPLATES = [
                 'django.template.context_processors.static',
                 'django.template.context_processors.tz',
             ),
-            'loaders': (
+            'loaders': ADMIN_TEMPLATE_LOADERS + (
+                'dbtemplates.loader.Loader',
                 'django.template.loaders.filesystem.Loader',
                 'django.template.loaders.app_directories.Loader',
-            ) + ADMIN_TEMPLATE_LOADERS,  # noqa: F405
+            ),  # noqa: F405
         },
     },
 ]

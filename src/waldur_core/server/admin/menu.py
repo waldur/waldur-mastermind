@@ -82,6 +82,7 @@ class CustomMenu(Menu):
         'rest_framework.authtoken.*',
         'waldur_core.core.*',
         'waldur_core.structure.*',
+        'django.contrib.sites.*',
     )
 
     def __init__(self, **kwargs):

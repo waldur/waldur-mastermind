@@ -91,6 +91,7 @@ google-auth-httplib2 = "^0.0.4"
 google-auth-oauthlib = "^0.4.2"
 django-health-check = "^3.16.2"
 bleach = "^3.3.0"
+django-dbtemplates = {git = "https://github.com/jazzband/django-dbtemplates.git"}
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"
