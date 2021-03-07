@@ -44,6 +44,10 @@ class TestAdminEndpoints(TestCase):
 
     def test_changelist_urls_can_be_queried(self):
         for model in admin.site._registry:
+            # skip test for utility app sites that we do not expose in admin
+            if model._meta.app_label == 'sites':
+                continue
+
             url = self._reverse_url(
                 '%s_%s_changelist' % (model._meta.app_label, model._meta.model_name)
             )
@@ -52,6 +56,9 @@ class TestAdminEndpoints(TestCase):
 
     def test_add_urls_can_be_queried(self):
         for model in admin.site._registry:
+            # skip test for utility app sites that we do not expose in admin
+            if model._meta.app_label == 'sites':
+                continue
             model_fullname = '%s_%s' % (model._meta.app_label, model._meta.model_name)
             url = self._reverse_url('%s_add' % model_fullname)
             response = self.client.get(url)
