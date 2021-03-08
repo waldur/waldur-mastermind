@@ -136,10 +136,9 @@ class WaldurClient(object):
 
         return response.json()
 
-    def _get_paginated_data(self, url, **kwargs):
+    def _get_all(self, url, **kwargs):
         params = dict(headers=self.headers)
         params.update(kwargs)
-        params['page_size'] = 200
 
         try:
             response = requests.get(url, **params)
@@ -150,6 +149,8 @@ class WaldurClient(object):
             error = self._parse_error(response)
             raise WaldurClientException(error)
         result = response.json()
+        if 'Link' not in response.headers:
+            return result
         while 'next' in response.headers['Link']:
             if 'prev' in response.headers['Link']:
                 next_url = response.headers['Link'].split(', ')[2].split('; ')[0][1:-1]
@@ -235,7 +236,8 @@ class WaldurClient(object):
 
     def _query_resource_list(self, endpoint, query_params):
         url = self._build_url(endpoint)
-        return self._get_paginated_data(url, params=query_params)
+        query_params.setdefault('page_size', 200)
+        return self._get_all(url, params=query_params)
 
     def _get_resource(self, endpoint, value, extra=None):
         """
