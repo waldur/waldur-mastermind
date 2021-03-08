@@ -70,6 +70,7 @@ class WaldurClient(object):
         MarketplaceResources = 'marketplace-resources'
         MarketplaceCategories = 'marketplace-categories'
         Customers = 'customers'
+        Invoice = 'invoices'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -980,29 +981,12 @@ class WaldurClient(object):
         :param attributes: order item attributes.
         :param limits: order item limits.
         """
-        project_url = self._get_project(project)['url']
-        offering_url = self._get_offering(offering, project)['url']
-
-        attributes = attributes or {}
-        limits = limits or {}
-        order_item = {
-            'offering': offering_url,
-            'attributes': attributes,
-            'limits': limits,
-        }
-
-        if plan:
-            plan_url = self._get_plan(plan)['url']
-            order_item['plan'] = plan_url
-
-        # TODO: replace with checkbox data from frontend
-        order_item['accepting_terms_of_service'] = True
-
-        payload = {
-            'project': project_url,
-            'items': [order_item],
-        }
-        return self._create_resource(self.Endpoints.MarketplaceOrder, payload=payload)
+        project_uuid = self._get_project(project)['uuid']
+        offering_uuid = self._get_offering(offering, project)['uuid']
+        plan_uuid = plan and self._get_plan(plan)['uuid']
+        return self.marketplace_resource_create(
+            project_uuid, offering_uuid, plan_uuid, attributes, limits
+        )
 
     def _create_scope_via_marketplace(
         self,
@@ -1186,14 +1170,8 @@ class WaldurClient(object):
         return instance
 
     def _delete_scope_via_marketplace(self, scope_uuid, offering_type, options=None):
-        if options:
-            options = {'attributes': options}
         resource, scope = self.get_marketplace_resource_scope(scope_uuid, offering_type)
-        url = self._build_resource_url(
-            self.Endpoints.MarketplaceResources, resource['uuid'], action='terminate'
-        )
-        order_uuid = self._post(url, valid_states=[200], json=options)['order_uuid']
-        return order_uuid
+        return self.marketplace_resource_terminate(resource['uuid'], options)
 
     def delete_instance_via_marketplace(self, instance_uuid, **kwargs):
         """
@@ -1296,6 +1274,77 @@ class WaldurClient(object):
             )
 
             return resource, True
+
+    def list_customers(self, **kwargs):
+        return self._query_resource_list(self.Endpoints.Customers, **kwargs)
+
+    def list_projects(self, **kwargs):
+        return self._query_resource_list(self.Endpoints.Project, **kwargs)
+
+    def create_project(self, customer_uuid, name):
+        payload = {
+            'name': name,
+            'customer': self._build_resource_url(
+                self.Endpoints.Customers, customer_uuid
+            ),
+        }
+        return self._create_resource(self.Endpoints.Project, payload=payload)
+
+    def list_marketplace_offerings(self, **kwargs):
+        return self._query_resource_list(self.Endpoints.MarketplaceOffering, **kwargs)
+
+    def get_marketplace_offering(self, offering_uuid):
+        return self._query_resource_by_uuid(
+            self.Endpoints.MarketplaceOffering, offering_uuid
+        )
+
+    def marketplace_resource_create(
+        self, project_uuid, offering_uuid, plan_uuid=None, attributes=None, limits=None
+    ):
+        attributes = attributes or {}
+        limits = limits or {}
+        order_item = {
+            'offering': self._build_resource_url(
+                self.Endpoints.MarketplaceOffering, offering_uuid
+            ),
+            'attributes': attributes,
+            'limits': limits,
+        }
+
+        if plan_uuid:
+            order_item['plan'] = (
+                self._build_resource_url(self.Endpoints.MarketplacePlan, plan_uuid),
+            )
+
+        # TODO: replace with checkbox data from frontend
+        order_item['accepting_terms_of_service'] = True
+
+        payload = {
+            'project': self._build_resource_url(self.Endpoints.Project, project_uuid),
+            'items': [order_item],
+        }
+        return self._create_resource(self.Endpoints.MarketplaceOrder, payload=payload)
+
+    def marketplace_resource_update_limits(self, resource_uuid, limits):
+        payload = {'limits': limits}
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource_uuid, action='update_limits'
+        )
+        return self._post(url, valid_states=[200], json=payload)['order_uuid']
+
+    def marketplace_resource_terminate(self, resource_uuid, options=None):
+        if options:
+            options = {'attributes': options}
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource_uuid, action='terminate'
+        )
+        return self._post(url, valid_states=[200], json=options)['order_uuid']
+
+    def get_invoice_for_customer(self, customer_uuid, year, month):
+        return self._query_resource(
+            self.Endpoints.Invoice,
+            {'customer_uuid': customer_uuid, 'year': year, 'month': month},
+        )
 
 
 def waldur_full_argument_spec(**kwargs):
