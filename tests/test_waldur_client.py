@@ -256,7 +256,7 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
         self.assertEqual(
             actual,
             {
-                'project': 'url_project',
+                'project': self._get_url('projects/uuid_project'),
                 'items': [
                     {
                         'accepting_terms_of_service': True,
@@ -272,7 +272,9 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
                             'flavor': 'url_flavor',
                             'security_groups': [{'url': 'url_security_groups'}],
                         },
-                        'offering': 'url_offering',
+                        'offering': self._get_url(
+                            'marketplace-offerings/uuid_offering'
+                        ),
                         'limits': {},
                     }
                 ],
@@ -597,3 +599,46 @@ class VolumeAttachTest(BaseWaldurClientTest):
             'device': '/dev/vdb',
         }
         self.assertEqual(expected, actual)
+
+
+@responses.activate
+class TestPaginatedList(BaseWaldurClientTest):
+    def test_without_links(self):
+        responses.add(
+            responses.GET, self._get_url('customers'), json=[{'name': 'Customer 1'}]
+        )
+        result = self.client.list_customers()
+        self.assertEqual(result, [{'name': 'Customer 1'}])
+
+    def test_list_single_page(self):
+        responses.add(
+            responses.GET,
+            self._get_url('customers'),
+            json=[{'name': 'Customer 1'}],
+            headers={
+                'Link': '<http://example.com:8000/api/customers/>; rel="first", <http://example.com:8000/api/customers/>; rel="last"'
+            },
+        )
+        result = self.client.list_customers()
+        self.assertEqual(result, [{'name': 'Customer 1'}])
+
+    def test_list_multiple_pages(self):
+        responses.add(
+            responses.GET,
+            self._get_url('customers'),
+            json=[{'name': 'Customer 1'}],
+            headers={
+                'Link': '<http://example.com:8000/api/customers/>; rel="first", <http://example.com:8000/api/customers/?page=2>; rel="last"'
+            },
+        )
+        responses.add(
+            responses.GET,
+            self._get_url('customers'),
+            json=[{'name': 'Customer 2'}],
+            headers={
+                'Link': '<http://example.com:8000/api/customers/?page=2>; rel="first", <http://example.com:8000/api/customers/?page=2>; rel="last"'
+            },
+        )
+
+        result = self.client.list_customers()
+        self.assertEqual(result, [{'name': 'Customer 1'}, {'name': 'Customer 2'}])
