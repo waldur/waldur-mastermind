@@ -73,8 +73,6 @@ class SupportExtension(WaldurExtension):
         }
 
         SUPPRESS_NOTIFICATION_EMAILS = False
-        ISSUE_LINK_TEMPLATE = 'https://www.example.com/support/issue/{uuid}/'
-        ISSUE_FEEDBACK_LINK_TEMPLATE = 'https://www.example.com/support/feedback/?token={token}&evaluation={evaluation}'
         ISSUE_FEEDBACK_ENABLE = False
         # Measured in days
         ISSUE_FEEDBACK_TOKEN_PERIOD = 7

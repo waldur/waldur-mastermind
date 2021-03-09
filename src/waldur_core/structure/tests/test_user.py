@@ -1,7 +1,6 @@
 import unittest
 from unittest import mock
 
-from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -9,6 +8,7 @@ from rest_framework import status, test
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.utils import format_homeport_link
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.serializers import PasswordSerializer
 from waldur_core.structure.tests import factories, fixtures
@@ -730,8 +730,8 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         request_serialized = core_utils.serialize_instance(self.user.changeemailrequest)
         tasks.send_change_email_notification(request_serialized)
 
-        link = settings.WALDUR_CORE['EMAIL_CHANGE_URL'].format(
-            code=self.user.changeemailrequest.uuid.hex
+        link = format_homeport_link(
+            'user_email_change/{code}/', code=self.user.changeemailrequest.uuid.hex
         )
         context = {'request': self.user.changeemailrequest, 'link': link}
         mock_mail.assert_called_once_with(

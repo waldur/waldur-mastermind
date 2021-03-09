@@ -1,8 +1,8 @@
 from ddt import data, ddt
-from django.conf import settings
 from django.core import mail
 from rest_framework import status, test
 
+from waldur_core.core.utils import format_homeport_link
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models, tasks, utils
@@ -286,8 +286,8 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             mail.outbox[0].subject, 'Reminder about missing usage reports.'
         )
         self.assertTrue('My resource' in mail.outbox[0].body)
-        link_template = settings.WALDUR_MARKETPLACE['PUBLIC_RESOURCES_LINK_TEMPLATE']
-        public_resources_url = link_template.format(
-            organization_uuid=self.fixture.customer.uuid
+        public_resources_url = format_homeport_link(
+            'organizations/{organization_uuid}/marketplace-public-resources/',
+            organization_uuid=self.fixture.customer.uuid,
         )
         self.assertTrue(public_resources_url in mail.outbox[0].body)

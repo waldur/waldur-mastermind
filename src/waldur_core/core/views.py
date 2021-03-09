@@ -28,6 +28,7 @@ from waldur_core.core import WaldurExtension, permissions
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import AuthTokenSerializer
+from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging.loggers import event_logger
 
 logger = logging.getLogger(__name__)
@@ -385,22 +386,23 @@ def redirect_with(url_template, **kwargs):
 
 
 def login_completed(token, method='default'):
-    url_template = settings.WALDUR_CORE['LOGIN_COMPLETED_URL']
-    url = url_template.format(token=token, method=method)
+    url = format_homeport_link(
+        'login_completed/{token}/{method}/', token=token, method=method
+    )
     return HttpResponseRedirect(url)
 
 
 def login_failed(message):
-    url_template = settings.WALDUR_CORE['LOGIN_FAILED_URL']
+    url_template = format_homeport_link('login_failed/')
     return redirect_with(url_template, message=message)
 
 
 def logout_completed():
-    return HttpResponseRedirect(settings.WALDUR_CORE['LOGOUT_COMPLETED_URL'])
+    return HttpResponseRedirect(format_homeport_link('logout_completed/'))
 
 
 def logout_failed(message):
-    url_template = settings.WALDUR_CORE['LOGOUT_FAILED_URL']
+    url_template = format_homeport_link('logout_failed/')
     return redirect_with(url_template, message=message)
 
 

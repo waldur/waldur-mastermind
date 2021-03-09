@@ -16,7 +16,6 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
-from waldur_mastermind.invoices.tests import utils as test_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
@@ -76,9 +75,6 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_settings(task_always_eager=True)
-    @test_utils.override_invoices_settings(
-        INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}'
-    )
     def test_notification_email_is_rendered(self):
         # Arrange
         self.fixture.owner
@@ -91,21 +87,6 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue('invoice' in mail.outbox[0].subject)
         self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
-
-    @override_settings(task_always_eager=True)
-    @test_utils.override_invoices_settings(
-        INVOICE_LINK_TEMPLATE='http://example.com/invoice/'
-    )
-    def test_user_cannot_send_invoice_notification_with_invalid_link_template(self):
-        # Arrange
-        self.fixture.owner
-
-        # Act
-        self.client.force_authenticate(self.fixture.staff)
-        self.client.post(self.url)
-
-        # Assert
-        self.assertEqual(len(mail.outbox), 0)
 
     def test_user_cannot_send_invoice_notification_in_invalid_state(self):
         self.fixture.invoice.state = models.Invoice.States.PENDING

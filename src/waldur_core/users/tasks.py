@@ -8,7 +8,7 @@ from django.utils import timezone
 from python_freeipa import exceptions as freeipa_exceptions
 
 from waldur_core.core import models as core_models
-from waldur_core.core.utils import broadcast_mail, pwgen
+from waldur_core.core.utils import broadcast_mail, format_homeport_link, pwgen
 from waldur_core.users import models, utils
 from waldur_core.users.utils import generate_safe_username
 
@@ -37,9 +37,7 @@ def send_invitation_created(invitation_uuid, sender):
     """
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
     context = utils.get_invitation_context(invitation, sender)
-    context['link'] = settings.WALDUR_CORE['INVITATION_LINK_TEMPLATE'].format(
-        uuid=invitation_uuid
-    )
+    context['link'] = utils.get_invitation_link(invitation_uuid)
 
     logger.debug(
         'About to send invitation to {email} to join {name} {type} as {role}'.format(
@@ -67,10 +65,8 @@ def send_invitation_requested(invitation_uuid, sender):
     ).exclude(email='')
     for user in staff_users:
         token = utils.get_invitation_token(invitation, user)
-        approve_link = settings.WALDUR_CORE['INVITATION_APPROVE_URL'].format(
-            token=token
-        )
-        reject_link = settings.WALDUR_CORE['INVITATION_REJECT_URL'].format(token=token)
+        approve_link = format_homeport_link('invitation_approve/{token}/', token=token)
+        reject_link = format_homeport_link('invitation_reject/{token}/', token=token)
         context = dict(
             approve_link=approve_link, reject_link=reject_link, **base_context
         )
@@ -110,9 +106,7 @@ def get_or_create_user(invitation_uuid, sender):
         context = utils.get_invitation_context(invitation, sender)
         context['username'] = username
         context['password'] = password
-        context['link'] = settings.WALDUR_CORE['INVITATION_LINK_TEMPLATE'].format(
-            uuid=invitation_uuid
-        )
+        context['link'] = utils.get_invitation_link(invitation_uuid)
         broadcast_mail('users', 'invitation_approved', context, [invitation.email])
     else:
         send_invitation_created(invitation_uuid, sender)

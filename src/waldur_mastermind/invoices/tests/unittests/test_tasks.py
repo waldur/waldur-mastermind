@@ -12,7 +12,6 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models, tasks, utils
 from waldur_mastermind.invoices.tests import factories, fixtures
-from waldur_mastermind.invoices.tests import utils as test_utils
 
 
 class CreateMonthlyInvoiceTest(TestCase):
@@ -90,9 +89,6 @@ class CheckAccountingStartDateTest(TestCase):
 
 
 @override_settings(task_always_eager=True)
-@test_utils.override_invoices_settings(
-    INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}'
-)
 class NotificationTest(TestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()

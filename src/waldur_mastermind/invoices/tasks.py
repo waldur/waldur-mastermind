@@ -54,27 +54,12 @@ def create_monthly_invoices():
 def send_invoice_notification(invoice_uuid, attach_file=True):
     """ Sends email notification with invoice link to customer owners """
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
-    link_template = settings.WALDUR_INVOICES['INVOICE_LINK_TEMPLATE']
-
-    if not link_template:
-        logger.error(
-            'INVOICE_LINK_TEMPLATE is not set. '
-            'Sending of invoice notification is not available.'
-        )
-        return
-
-    if '{uuid}' not in link_template:
-        logger.error(
-            'INVOICE_LINK_TEMPLATE must include \'{uuid}\' parameter. '
-            'Sending of invoice notification is not available.'
-        )
-        return
 
     context = {
         'month': invoice.month,
         'year': invoice.year,
         'customer': invoice.customer.name,
-        'link': link_template.format(uuid=invoice_uuid),
+        'link': core_utils.format_homeport_link('invoice/{uuid}', uuid=invoice_uuid),
     }
 
     emails = [owner.email for owner in invoice.customer.get_owners()]

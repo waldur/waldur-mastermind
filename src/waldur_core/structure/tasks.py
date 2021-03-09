@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.db.utils import DatabaseError
@@ -303,7 +302,9 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
 @shared_task
 def send_change_email_notification(request_serialized):
     request = core_utils.deserialize_instance(request_serialized)
-    link = settings.WALDUR_CORE['EMAIL_CHANGE_URL'].format(code=request.uuid.hex)
+    link = core_utils.format_homeport_link(
+        'user_email_change/{code}/', code=request.uuid.hex
+    )
     context = {'request': request, 'link': link}
     core_utils.broadcast_mail(
         'structure', 'change_email_request', context, [request.email]

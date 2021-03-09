@@ -15,7 +15,7 @@ from waldur_core.structure import signals
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
-from waldur_core.users.utils import get_invitation_token
+from waldur_core.users.utils import get_invitation_link, get_invitation_token
 
 
 class BaseInvitationTest(test.APITransactionTestCase):
@@ -427,9 +427,7 @@ class InvitationSendTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(self.customer_invitation.email, mail.outbox[0].to[0])
-        link = settings.WALDUR_CORE['INVITATION_LINK_TEMPLATE'].format(
-            uuid=self.customer_invitation.uuid.hex
-        )
+        link = get_invitation_link(self.customer_invitation.uuid.hex)
         self.assertTrue(link in mail.outbox[0].body)
 
     @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)

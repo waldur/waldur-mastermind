@@ -7,6 +7,7 @@ from django.utils.translation import ugettext_lazy as _
 from jira import JIRAError
 from rest_framework import exceptions as rf_exceptions
 
+from waldur_core.core.utils import format_homeport_link
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import get_order_item_url
 from waldur_mastermind.support import backend as support_backend
@@ -25,9 +26,10 @@ def get_order_item_issue(order_item):
 
 
 def get_request_link(resource: marketplace_models.Resource):
-    link_template = settings.WALDUR_MARKETPLACE_SUPPORT['REQUEST_LINK_TEMPLATE']
-    return link_template.format(
-        project_uuid=resource.project.uuid, request_uuid=resource.uuid
+    return format_homeport_link(
+        'projects/{project_uuid}/support/{request_uuid}/',
+        project_uuid=resource.project.uuid,
+        request_uuid=resource.uuid,
     )
 
 
