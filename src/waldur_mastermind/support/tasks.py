@@ -12,6 +12,7 @@ from django.template.loader import get_template
 from waldur_core.core import utils as core_utils
 
 from . import backend, models
+from .utils import get_feedback_link
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,9 @@ def _send_email(
         receiver = issue.caller
 
     context = {
-        'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid),
+        'issue_url': core_utils.format_homeport_link(
+            'support/issue/{uuid}/', uuid=issue.uuid
+        ),
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
         'issue': issue,
     }
@@ -196,16 +199,9 @@ def send_issue_feedback_notification(serialized_issue):
     signer = signing.TimestampSigner()
     token = signer.sign(issue.uuid.hex)
     extra_context = {
-        'feedback_link': settings.ISSUE_FEEDBACK_LINK_TEMPLATE.format(
-            token=token, evaluation=''
-        ),
+        'feedback_link': get_feedback_link(token),
         'feedback_links': [
-            {
-                'label': value,
-                'link': settings.ISSUE_FEEDBACK_LINK_TEMPLATE.format(
-                    token=token, evaluation=key
-                ),
-            }
+            {'label': value, 'link': get_feedback_link(token, key),}
             for (key, value) in models.Feedback.Evaluation.CHOICES
         ],
     }

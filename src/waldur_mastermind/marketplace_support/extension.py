@@ -4,7 +4,6 @@ from waldur_core.core import WaldurExtension
 class MarketplaceSupportExtension(WaldurExtension):
     class Settings:
         WALDUR_MARKETPLACE_SUPPORT = {
-            'REQUEST_LINK_TEMPLATE': 'https://www.example.com/projects/{project_uuid}/support/{request_uuid}/',
             'CREATE_RESOURCE_TEMPLATE': (
                 '{% load waldur_marketplace %}'
                 '\n[Order item|{{order_item_url}}].'

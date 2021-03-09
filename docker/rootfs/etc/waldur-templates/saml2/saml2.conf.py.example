@@ -45,7 +45,7 @@ WALDUR_AUTH_SAML2.update({
 
     # attributes required by CoC
     # https://wiki.refeds.org/display/CODE/SAML+2+Profile+for+the+Data+Protection+Code+of+Conduct
-    'privacy_statement_url': 'http://example.com/#/privacy-policy/',
+    'privacy_statement_url': 'http://example.com/privacy-policy/',
     'display_name': 'Service provider display name',
     'description': 'Service provider description',
 

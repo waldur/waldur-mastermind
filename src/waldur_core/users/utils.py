@@ -149,3 +149,7 @@ def get_or_create_profile(user, username, password):
     except freeipa_exceptions.DuplicateEntry:
         pass
     return profile, True
+
+
+def get_invitation_link(uuid):
+    return core_utils.format_homeport_link('invitation/{uuid}/', uuid=uuid)

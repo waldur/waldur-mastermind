@@ -438,3 +438,8 @@ def get_lat_lon_from_address(address):
 
     if location:
         return location.latitude, location.longitude
+
+
+def format_homeport_link(format_str='', **kwargs):
+    link = settings.WALDUR_CORE['HOMEPORT_URL'] + format_str
+    return link.format(**kwargs)

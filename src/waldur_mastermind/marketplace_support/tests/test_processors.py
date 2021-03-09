@@ -3,7 +3,6 @@ from decimal import Decimal
 
 import mock
 from ddt import data, ddt
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.template import Context, Template
@@ -98,8 +97,8 @@ class RequestCreateTest(BaseTest):
             marketplace_models.Resource.objects.filter(name='item_name').exists()
         )
         issue = get_order_item_issue(order_item)
-        link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-        order_item_url = link_template.format(
+        order_item_url = core_utils.format_homeport_link(
+            'projects/{project_uuid}/marketplace-order-item-details/{order_item_uuid}/',
             order_item_uuid=order_item.uuid.hex,
             project_uuid=order_item.order.project.uuid,
         )

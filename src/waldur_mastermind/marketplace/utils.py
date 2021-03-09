@@ -186,9 +186,10 @@ def format_list(resources):
 
 
 def get_order_item_url(order_item):
-    link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-    return link_template.format(
-        order_item_uuid=order_item.uuid.hex, project_uuid=order_item.order.project.uuid
+    return core_utils.format_homeport_link(
+        'projects/{project_uuid}/marketplace-order-item-details/{order_item_uuid}/',
+        order_item_uuid=order_item.uuid.hex,
+        project_uuid=order_item.order.project.uuid,
     )
 
 
@@ -242,8 +243,10 @@ def get_info_about_missing_usage_reports():
 
 
 def get_public_resources_url(customer):
-    link_template = settings.WALDUR_MARKETPLACE['PUBLIC_RESOURCES_LINK_TEMPLATE']
-    return link_template.format(organization_uuid=customer.uuid)
+    return core_utils.format_homeport_link(
+        'organizations/{organization_uuid}/marketplace-public-resources/',
+        organization_uuid=customer.uuid,
+    )
 
 
 def validate_limits(limits, offering):
