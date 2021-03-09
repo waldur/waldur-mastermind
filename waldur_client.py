@@ -1283,12 +1283,13 @@ class WaldurClient(object):
     def list_projects(self, **kwargs):
         return self._query_resource_list(self.Endpoints.Project, **kwargs)
 
-    def create_project(self, customer_uuid, name):
+    def create_project(self, customer_uuid, name, backend_id=None):
         payload = {
             'name': name,
             'customer': self._build_resource_url(
                 self.Endpoints.Customers, customer_uuid
             ),
+            'backend_id': backend_id,
         }
         return self._create_resource(self.Endpoints.Project, payload=payload)
 
