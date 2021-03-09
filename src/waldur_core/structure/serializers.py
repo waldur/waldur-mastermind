@@ -216,7 +216,6 @@ class ProjectSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
-    services = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Project
@@ -231,10 +230,10 @@ class ProjectSerializer(
             'customer_abbreviation',
             'description',
             'quotas',
-            'services',
             'created',
             'type',
             'type_name',
+            'backend_id',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -245,6 +244,7 @@ class ProjectSerializer(
             'customer': ('uuid', 'name', 'native_name', 'abbreviation'),
             'type': ('name',),
         }
+        protected_fields = ('backend_id',)
 
     @staticmethod
     def eager_load(queryset, request=None):
@@ -266,44 +266,6 @@ class ProjectSerializer(
 
     def get_filtered_field_names(self):
         return ('customer',)
-
-    def get_services(self, project):
-        if 'services' not in self.context:
-            self.context['services'] = self.get_services_map()
-        services = self.context['services'][project.pk]
-
-        serializer = NestedServiceProjectLinkSerializer(
-            services,
-            many=True,
-            read_only=True,
-            context={'request': self.context['request']},
-        )
-        return serializer.data
-
-    def get_services_map(self):
-        services = defaultdict(list)
-        related_fields = (
-            'id',
-            'service__settings__state',
-            'project_id',
-            'service__uuid',
-            'service__settings__uuid',
-            'service__settings__shared',
-            'service__settings__name',
-        )
-        for link_model in models.ServiceProjectLink.get_all_models():
-            links = (
-                link_model.objects.all()
-                .select_related('service', 'service__settings')
-                .only(*related_fields)
-            )
-            if isinstance(self.instance, list):
-                links = links.filter(project__in=self.instance)
-            else:
-                links = links.filter(project=self.instance)
-            for link in links:
-                services[link.project_id].append(link)
-        return services
 
     def validate_description(self, value):
         return clean_html(value.strip())

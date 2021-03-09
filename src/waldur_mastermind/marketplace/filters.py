@@ -10,6 +10,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -33,7 +34,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
 class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     class Meta:
         model = models.Offering
-        fields = ['type']
+        fields = []
 
     customer = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid'
@@ -57,6 +58,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created', 'type'))
+    type = LooseMultipleChoiceFilter()
 
     def filter_allowed_customer(self, queryset, name, value):
         return queryset.filter_for_customer(value)
