@@ -92,6 +92,7 @@ google-auth-oauthlib = "^0.4.2"
 django-health-check = "^3.16.2"
 bleach = "^3.3.0"
 django-dbtemplates = {git = "https://github.com/jazzband/django-dbtemplates.git"}
+ansible-waldur-module = {git = "https://github.com/opennode/ansible-waldur-module.git", rev = "develop"}
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"
@@ -135,7 +136,7 @@ waldur_marketplace_script = "waldur_mastermind.marketplace_script.extension:Mark
 waldur_marketplace_slurm = "waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension"
 waldur_marketplace_support = "waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension"
 waldur_marketplace_vmware = "waldur_mastermind.marketplace_vmware.extension:MarketplaceVMwareExtension"
-waldur_marketplace_waldur = "waldur_mastermind.marketplace_waldur.extension:MarketplaceWaldurExtension"
+waldur_marketplace_remote = "waldur_mastermind.marketplace_remote.extension:MarketplaceRemoteExtension"
 waldur_openstack = "waldur_openstack.openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack.openstack_tenant.extension:OpenStackTenantExtension"
 waldur_notifications = "waldur_mastermind.notifications.extension:NotificationsExtension"
@@ -148,7 +149,6 @@ waldur_zabbix = "waldur_zabbix.extension:ZabbixExtension"
 waldur_zabbix_openstack = "waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension"
 waldur_pid = "waldur_pid.extension:PIDExtension"
 waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
-waldur_waldur = "waldur_waldur.extension:RemoteWaldurExtension"
 
 [build-system]
 requires = ["poetry=1.0.9"]

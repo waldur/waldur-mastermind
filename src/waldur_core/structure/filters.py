@@ -155,6 +155,25 @@ class CustomerFilter(NameFilterSet):
         return queryset
 
 
+class OwnedByCurrentUserFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        value = request.query_params.get('owned_by_current_user')
+        boolean_field = forms.NullBooleanField()
+
+        try:
+            value = boolean_field.to_python(value)
+        except exceptions.ValidationError:
+            value = None
+
+        if value:
+            return queryset.filter(
+                permissions__user=request.user,
+                permissions__is_active=True,
+                permissions__role=models.CustomerRole.OWNER,
+            )
+        return queryset
+
+
 class ExternalCustomerFilterBackend(ExternalFilterBackend):
     pass
 
@@ -238,6 +257,7 @@ class ProjectFilter(NameFilterSet):
             'description',
             'created',
             'query',
+            'backend_id',
         ]
 
     def filter_query(self, queryset, name, value):

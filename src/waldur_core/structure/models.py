@@ -669,6 +669,7 @@ class Project(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescendantMixin,
+    core_models.BackendMixin,
     quotas_models.ExtendableQuotaModelMixin,
     PermissionMixin,
     StructureLoggableMixin,

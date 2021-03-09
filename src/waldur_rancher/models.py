@@ -9,6 +9,7 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
+from waldur_core.core.models import BackendMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import NewResource, ServiceSettings
 
@@ -43,17 +44,6 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
     @classmethod
     def get_url_name(cls):
         return 'rancher-spl'
-
-
-class BackendMixin(models.Model):
-    """
-    Mixin to add standard backend_id field.
-    """
-
-    class Meta:
-        abstract = True
-
-    backend_id = models.CharField(max_length=255, blank=True)
 
 
 class SettingsMixin(models.Model):

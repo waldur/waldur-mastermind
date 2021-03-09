@@ -62,8 +62,9 @@ class PluginManager:
         :key get_filtered_components: optional function to filter out enabled offering components.
         :key change_attributes_for_view: optional function to change the display of attributes in a view. An attributes
         of offering do not change.
-        :key is_in_notifications_whitelist: optional boolean indicated whether usage notifications
+        :key enable_usage_notifications: optional boolean indicated whether usage notifications
         should be sent to a customer.
+        :key enable_remote_support: optional boolean indicated whether offering can be imported in remote Waldur.
         """
         self.backends[offering_type] = kwargs
 
@@ -163,11 +164,13 @@ class PluginManager:
         """
         return self.backends.get(offering_type, {}).get('change_attributes_for_view')
 
-    def is_in_notifications_whitelist(self, offering_type):
-        return (
-            self.backends.get(offering_type, {}).get('is_in_notifications_whitelist')
-            or False
+    def enable_usage_notifications(self, offering_type):
+        return self.backends.get(offering_type, {}).get(
+            'enable_usage_notifications', False
         )
+
+    def enable_remote_support(self, offering_type):
+        return self.backends.get(offering_type, {}).get('enable_remote_support', False)
 
 
 manager = PluginManager()

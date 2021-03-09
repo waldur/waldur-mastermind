@@ -212,7 +212,7 @@ def get_info_about_missing_usage_reports():
     whitelist_types = [
         offering_type
         for offering_type in plugins.manager.get_offering_types()
-        if plugins.manager.is_in_notifications_whitelist(offering_type)
+        if plugins.manager.enable_usage_notifications(offering_type)
     ]
 
     offering_ids = models.OfferingComponent.objects.filter(

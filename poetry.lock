@@ -24,6 +24,24 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 vine = ">=1.1.3,<5.0.0a1"
 
 [[package]]
+name = "ansible-waldur-module"
+version = "1.0.9"
+description = ""
+category = "main"
+optional = false
+python-versions = "*"
+develop = false
+
+[package.dependencies]
+requests = ">=2.6.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/opennode/ansible-waldur-module.git"
+reference = "develop"
+resolved_reference = "915795a52667f9f2b5596ec7a44d4a21c870acec"
+
+[[package]]
 name = "apache-libcloud"
 version = "2.2.1"
 description = "A standard Python library that abstracts away differences among multiple cloud provider APIs. For more information and documentation, please see http://libcloud.apache.org"
@@ -2513,7 +2531,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "89329769556e2e2343ee0b40df0e7a5095e954d4df575e2306713e86d8696ca0"
+content-hash = "7fa95cf9310382cb1ecb92f21ce36e50534193889e008626b2a4246690196262"
 
 [metadata.files]
 adal = [
@@ -2524,6 +2542,7 @@ amqp = [
     {file = "amqp-2.6.0-py2.py3-none-any.whl", hash = "sha256:bb68f8d2bced8f93ccfd07d96c689b716b3227720add971be980accfc2952139"},
     {file = "amqp-2.6.0.tar.gz", hash = "sha256:24dbaff8ce4f30566bb88976b398e8c4e77637171af3af6f1b9650f48890e60b"},
 ]
+ansible-waldur-module = []
 apache-libcloud = [
     {file = "apache-libcloud-2.2.1.tar.gz", hash = "sha256:d065d9da8ba192badad3a98c2f6c3ef9dabba45d1318638b9c1bac83f6c3e7a9"},
     {file = "apache_libcloud-2.2.1-py2.py3-none-any.whl", hash = "sha256:e3f4907e84c2e20dbfefd965848e8eb812f3c4ed96218d61706d575efee337ba"},

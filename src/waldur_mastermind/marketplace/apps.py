@@ -142,7 +142,8 @@ class MarketplaceConfig(AppConfig):
             create_resource_processor=processors.BasicCreateResourceProcessor,
             update_resource_processor=processors.BasicUpdateResourceProcessor,
             delete_resource_processor=processors.BasicDeleteResourceProcessor,
-            is_in_notifications_whitelist=True,
+            enable_usage_notifications=True,
+            enable_remote_support=True,
         )
 
         marketplace_registrators.MarketplaceRegistrator.connect()

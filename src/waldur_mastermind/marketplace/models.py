@@ -126,7 +126,12 @@ def validate_tenant_category_flag(value):
             )
 
 
-class Category(core_models.UuidMixin, quotas_models.QuotaModelMixin, TimeStampedModel):
+class Category(
+    core_models.BackendMixin,
+    core_models.UuidMixin,
+    quotas_models.QuotaModelMixin,
+    TimeStampedModel,
+):
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
         upload_to='marketplace_category_icons',
@@ -135,7 +140,6 @@ class Category(core_models.UuidMixin, quotas_models.QuotaModelMixin, TimeStamped
         validators=[ImageValidator],
     )
     description = models.TextField(blank=True)
-    backend_id = models.CharField(max_length=255, blank=True)
 
     default_vm_category = models.BooleanField(
         default=False,
@@ -311,6 +315,7 @@ class CategoryComponentUsage(core_mixins.ScopeMixin):
 
 
 class Offering(
+    core_models.BackendMixin,
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
@@ -406,7 +411,6 @@ class Offering(
     billable = models.BooleanField(
         default=True, help_text=_('Purchase and usage is invoiced.')
     )
-    backend_id = models.CharField(max_length=255, blank=True)
 
     objects = managers.OfferingManager()
     tracker = FieldTracker()
@@ -519,7 +523,10 @@ class Offering(
 
 
 class OfferingComponent(
-    common_mixins.ProductCodeMixin, BaseComponent, core_mixins.ScopeMixin
+    common_mixins.ProductCodeMixin,
+    BaseComponent,
+    core_mixins.ScopeMixin,
+    core_models.BackendMixin,
 ):
     class Meta:
         unique_together = ('type', 'offering')
@@ -586,7 +593,6 @@ class OfferingComponent(
         ),
     )
     objects = managers.MixinManager('scope')
-    backend_id = models.CharField(max_length=255, blank=True)
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:
@@ -610,6 +616,7 @@ class OfferingComponent(
 
 
 class Plan(
+    core_models.BackendMixin,
     core_models.UuidMixin,
     TimeStampedModel,
     core_models.NameMixin,
@@ -633,7 +640,6 @@ class Plan(
         default=False, help_text=_('Forbids creation of new resources.')
     )
     objects = managers.MixinManager('scope')
-    backend_id = models.CharField(max_length=255, blank=True)
     max_amount = models.PositiveSmallIntegerField(
         blank=True,
         null=True,
@@ -993,6 +999,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
 class Resource(
     CostEstimateMixin,
     core_models.UuidMixin,
+    core_models.BackendMixin,
     TimeStampedModel,
     core_mixins.ScopeMixin,
     structure_models.StructureLoggableMixin,
@@ -1038,7 +1045,6 @@ class Resource(
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
     attributes = BetterJSONField(blank=True, default=dict)
-    backend_id = models.CharField(max_length=255, blank=True)
     backend_metadata = BetterJSONField(blank=True, default=dict)
     report = BetterJSONField(blank=True, null=True)
     current_usages = BetterJSONField(blank=True, default=dict)
@@ -1153,6 +1159,7 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
 
 class OrderItem(
     core_models.UuidMixin,
+    core_models.BackendMixin,
     core_models.ErrorMessageMixin,
     RequestTypeMixin,
     structure_models.StructureLoggableMixin,

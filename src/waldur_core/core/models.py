@@ -593,3 +593,14 @@ class BackendModelMixin:
         Returns a list of fields that are handled on backend.
         """
         return ()
+
+
+class BackendMixin(models.Model):
+    """
+    Mixin to add standard backend_id field.
+    """
+
+    class Meta:
+        abstract = True
+
+    backend_id = models.CharField(max_length=255, blank=True)

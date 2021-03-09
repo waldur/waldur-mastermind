@@ -64,6 +64,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         filters.GenericRoleFilter,
         DjangoFilterBackend,
         rf_filters.OrderingFilter,
+        filters.OwnedByCurrentUserFilterBackend,
         filters.AccountingStartDateFilter,
         filters.ExternalCustomerFilterBackend,
     )
