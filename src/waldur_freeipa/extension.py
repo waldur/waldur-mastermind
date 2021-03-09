@@ -27,7 +27,7 @@ class FreeIPAExtension(WaldurExtension):
 
     @staticmethod
     def get_public_settings():
-        return ['USERNAME_PREFIX']
+        return ['USERNAME_PREFIX', 'ENABLED']
 
     @staticmethod
     def celery_tasks():
