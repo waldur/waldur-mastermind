@@ -297,25 +297,29 @@ class PushSecurityGroupTest(BaseBackendTestCase):
             }
         }
 
+        mocked_security_group_rule = {
+            'security_group_id': security_group.backend_id,
+            'ethertype': 'IPv4',
+            'direction': 'ingress',
+            'protocol': rule.protocol,
+            'port_range_min': rule.from_port,
+            'port_range_max': rule.to_port,
+            'remote_ip_prefix': rule.cidr,
+            'remote_group_id': None,
+            'description': rule.description,
+        }
+
+        self.mocked_neutron().create_security_group_rule.return_value = {
+            'security_group_rule': dict(id='valid_id', **mocked_security_group_rule)
+        }
+
         self.backend.push_security_group_rules(security_group)
 
         self.mocked_neutron().delete_security_group_rule.assert_has_calls(
             [mock.call(EGRESS_RULE_ID), mock.call(INGRESS_RULE_ID),]
         )
         self.mocked_neutron().create_security_group_rule.assert_called_once_with(
-            {
-                'security_group_rule': {
-                    'security_group_id': security_group.backend_id,
-                    'ethertype': 'IPv4',
-                    'direction': 'ingress',
-                    'protocol': rule.protocol,
-                    'port_range_min': rule.from_port,
-                    'port_range_max': rule.to_port,
-                    'remote_ip_prefix': rule.cidr,
-                    'remote_group_id': None,
-                    'description': rule.description,
-                }
-            }
+            {'security_group_rule': mocked_security_group_rule}
         )
 
 
