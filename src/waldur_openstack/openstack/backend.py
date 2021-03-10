@@ -411,6 +411,35 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
+    def pull_security_group(self, local_security_group: models.SecurityGroup):
+        neutron = self.neutron_client
+        try:
+            remote_security_group = neutron.show_security_group(
+                local_security_group.backend_id
+            )['security_group']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        imported_security_group = self._backend_security_group_to_security_group(
+            remote_security_group,
+            tenant=local_security_group.tenant,
+            service_project_link=local_security_group.tenant.service_project_link,
+        )
+
+        modified = update_pulled_fields(
+            local_security_group,
+            imported_security_group,
+            models.SecurityGroup.get_backend_fields(),
+        )
+
+        if modified:
+            self._log_security_group_pulled(local_security_group)
+
+        self._extract_security_group_rules(local_security_group, remote_security_group)
+        self._update_remote_security_groups(
+            local_security_group.tenant, [remote_security_group]
+        )
+
     @log_backend_action('pull security groups for tenant')
     def pull_tenant_security_groups(self, tenant):
         neutron = self.neutron_client
@@ -457,13 +486,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except models.SecurityGroup.DoesNotExist:
                 imported_security_group.save()
                 security_group = imported_security_group
-
-                event_logger.openstack_security_group.info(
-                    'Security group %s has been imported to local cache.'
-                    % security_group.name,
-                    event_type='openstack_security_group_imported',
-                    event_context={'security_group': security_group},
-                )
+                self._log_security_group_imported(security_group)
             else:
                 modified = update_pulled_fields(
                     security_group,
@@ -473,16 +496,25 @@ class OpenStackBackend(BaseOpenStackBackend):
                 handle_resource_update_success(security_group)
 
                 if modified:
-                    event_logger.openstack_security_group.info(
-                        'Security group %s has been pulled from backend.'
-                        % security_group.name,
-                        event_type='openstack_security_group_pulled',
-                        event_context={'security_group': security_group},
-                    )
+                    self._log_security_group_pulled(security_group)
 
             self._extract_security_group_rules(security_group, backend_security_group)
 
         self._update_remote_security_groups(tenant, backend_security_groups)
+
+    def _log_security_group_imported(self, security_group):
+        event_logger.openstack_security_group.info(
+            'Security group %s has been imported to local cache.' % security_group.name,
+            event_type='openstack_security_group_imported',
+            event_context={'security_group': security_group},
+        )
+
+    def _log_security_group_pulled(self, security_group):
+        event_logger.openstack_security_group.info(
+            'Security group %s has been pulled from backend.' % security_group.name,
+            event_type='openstack_security_group_pulled',
+            event_context={'security_group': security_group},
+        )
 
     def _log_security_group_rule_imported(self, rule):
         event_logger.openstack_security_group_rule.info(
