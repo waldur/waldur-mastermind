@@ -1310,7 +1310,11 @@ class ComponentQuota(models.Model):
 
 
 class ComponentUsage(
-    TimeStampedModel, core_models.DescribableMixin, core_models.UuidMixin, LoggableMixin
+    TimeStampedModel,
+    core_models.DescribableMixin,
+    core_models.BackendMixin,
+    core_models.UuidMixin,
+    LoggableMixin,
 ):
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='usages'

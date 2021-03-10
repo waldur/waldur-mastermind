@@ -23,13 +23,3 @@ PLAN_FIELDS = (
     'article_code',
     'archived',
 )
-
-INVOICE_ITEM_FIELDS = (
-    'name',
-    'quantity',
-    'measured_unit',
-    'product_code',
-    'article_code',
-    'start',
-    'end',
-)
