@@ -33,6 +33,16 @@ class SecurityGroupUpdateExecutor(core_executors.UpdateExecutor):
         )
 
 
+class SecurityGroupPullExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, security_group, serialized_security_group, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_security_group,
+            'pull_security_group',
+            state_transition='begin_updating',
+        )
+
+
 class SecurityGroupDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, security_group, serialized_security_group, **kwargs):

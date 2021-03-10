@@ -155,10 +155,8 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SecurityGroup.objects.all()
     serializer_class = serializers.SecurityGroupSerializer
     filterset_class = filters.SecurityGroupFilter
-    disabled_actions = [
-        'create',
-        'pull',
-    ]  # pull operation should be implemented in WAL-323
+    disabled_actions = ['create']
+    pull_executor = executors.SecurityGroupPullExecutor
 
     def default_security_group_validator(security_group):
         if security_group.name == 'default':
