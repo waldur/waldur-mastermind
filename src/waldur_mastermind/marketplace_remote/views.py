@@ -117,7 +117,7 @@ class OfferingCreateView(RemoteView):
     ):
         local_offering = models.Offering.objects.create(
             type=PLUGIN_NAME,
-            billable=False,
+            billable=True,
             backend_id=remote_offering['uuid'],
             customer=local_customer,
             category=local_category,

@@ -1,15 +1,9 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils import timezone
 
-from waldur_core.structure.models import Project
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
-from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
-from waldur_mastermind.marketplace_remote.constants import (
-    INVOICE_ITEM_FIELDS,
-    OFFERING_FIELDS,
-)
+from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
     pull_fields,
@@ -54,47 +48,38 @@ class OrderItemListPullTask(BackgroundListPullTask):
         )
 
 
-class InvoicePullTask(BackgroundPullTask):
-    def pull(self, local_offering):
-        customer_uuid = local_offering.secret_options['customer_uuid']
-        client = get_client_for_offering(local_offering)
+class UsagePullTask(BackgroundPullTask):
+    def pull(self, local_resource: models.Resource):
+        client = get_client_for_offering(local_resource.offering)
 
-        now = timezone.now()
-        remote_invoice = client.get_invoice_for_customer(
-            customer_uuid, now.year, now.month
-        )
-        local_invoice = Invoice.objects.get(
-            customer=local_offering.customer, year=now.year, month=now.month
-        )
+        remote_usages = client.list_component_usages(local_resource.backend_id)
 
-        for remote_item in remote_invoice['items']:
-            self.pull_invoice_item(remote_item, local_offering, local_invoice)
-
-    def pull_invoice_item(self, remote_item, local_offering, local_invoice):
-        try:
-            local_resource = models.Resource.objects.get(
-                offering=local_offering, backend_id=remote_item['resource_uuid']
+        for remote_usage in remote_usages:
+            try:
+                offering_component = models.OfferingComponent.objects.get(
+                    offering=local_resource.offering, type=remote_usage['type']
+                )
+            except ObjectDoesNotExist:
+                continue
+            defaults = {
+                'usage': remote_usage['usage'],
+                'name': remote_usage['name'],
+                'description': remote_usage['description'],
+                'created': remote_usage['created'],
+                'date': remote_usage['date'],
+                'billing_period': remote_usage['billing_period'],
+            }
+            models.ComponentUsage.objects.update_or_create(
+                resource=local_resource,
+                backend_id=remote_usage['uuid'],
+                component=offering_component,
+                defaults=defaults,
             )
-        except ObjectDoesNotExist:
-            return
-
-        try:
-            local_project = Project.objects.get(uuid=remote_item['project_backend_id'])
-        except ObjectDoesNotExist:
-            return
-
-        defaults = {key: remote_item[key] for key in INVOICE_ITEM_FIELDS}
-        defaults['resource'] = local_resource
-        defaults['project'] = local_project
-
-        InvoiceItem.objects.update_or_create(
-            invoice=local_invoice, backend_id=remote_item['uuid'], defaults=defaults,
-        )
 
 
-class InvoiceListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_invoices'
-    pull_task = InvoicePullTask
+class UsageListPullTask(BackgroundListPullTask):
+    name = 'waldur_mastermind.marketplace_remote.pull_usage'
+    pull_task = UsagePullTask
 
     def get_pulled_objects(self):
-        return models.Offering.objects.filter(type=PLUGIN_NAME)
+        return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
