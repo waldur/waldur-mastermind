@@ -71,6 +71,7 @@ class WaldurClient(object):
         MarketplaceCategories = 'marketplace-categories'
         Customers = 'customers'
         Invoice = 'invoices'
+        ComponentUsage = 'marketplace-component-usages'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -1347,6 +1348,16 @@ class WaldurClient(object):
         return self._query_resource(
             self.Endpoints.Invoice,
             {'customer_uuid': customer_uuid, 'year': year, 'month': month},
+        )
+
+    def list_component_usages(self, resource_uuid, date_after=None, date_before=None):
+        return self._query_resource_list(
+            self.Endpoints.ComponentUsage,
+            {
+                'resource_uuid': resource_uuid,
+                'date_after': date_after,
+                'date_before': date_before,
+            },
         )
 
 
