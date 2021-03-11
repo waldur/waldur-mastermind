@@ -371,6 +371,7 @@ FIELD_TYPES = (
     'select_string',
     'select_string_multi',
     'select_openstack_tenant',
+    'select_multiple_openstack_tenants',
     'select_openstack_instance',
     'select_multiple_openstack_instances',
     'date',
