@@ -277,7 +277,7 @@ class Saml2LogoutView(BaseSaml2View):
         )
         subject_id = _get_subject_id(request.session)
         if subject_id is None:
-            return logout_failed(_('You cannot be logged out.'))
+            return logout_failed(_('Remote SAML2 login failed.'))
 
         try:
             result = client.global_logout(subject_id)
