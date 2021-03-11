@@ -39,7 +39,7 @@ requests = ">=2.6.0"
 type = "git"
 url = "https://github.com/opennode/ansible-waldur-module.git"
 reference = "develop"
-resolved_reference = "915795a52667f9f2b5596ec7a44d4a21c870acec"
+resolved_reference = "02d34b3a274549e0b6b4dd1482f8faa002913eb3"
 
 [[package]]
 name = "apache-libcloud"
@@ -583,7 +583,7 @@ Django = ">=2.0"
 
 [[package]]
 name = "django-dbtemplates"
-version = "3.0.post13+g012fe06"
+version = "3.0.post14+gac86ca5"
 description = "Template loader for templates stored in the database"
 category = "main"
 optional = false
@@ -597,7 +597,7 @@ django-appconf = ">=0.4"
 type = "git"
 url = "https://github.com/jazzband/django-dbtemplates.git"
 reference = "master"
-resolved_reference = "012fe061a82dd35139b3d27c8f8af3877c96a38e"
+resolved_reference = "ac86ca5ec97c47016146b4c3d7b3f0c77ce4f614"
 
 [[package]]
 name = "django-filter"
@@ -775,7 +775,7 @@ python-versions = ">=3.5"
 
 [[package]]
 name = "djangosaml2"
-version = "0.17.2"
+version = "1.0.5"
 description = "pysaml2 integration for Django"
 category = "main"
 optional = false
@@ -783,11 +783,8 @@ python-versions = "*"
 
 [package.dependencies]
 defusedxml = ">=0.4.1"
-Django = ">=1.8"
-pysaml2 = ">=4.6.0"
-
-[package.extras]
-test = ["unittest2"]
+Django = ">=2.2,<5"
+pysaml2 = ">=6.5.1"
 
 [[package]]
 name = "docker"
@@ -825,6 +822,17 @@ python-versions = "*"
 
 [package.dependencies]
 decorator = ">=4.0.0"
+
+[[package]]
+name = "elementpath"
+version = "2.2.0"
+description = "XPath 1.0/2.0 parsers and selectors for ElementTree and lxml"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+dev = ["tox", "coverage", "lxml", "xmlschema (>=1.2.3,<1.3.0)", "sphinx"]
 
 [[package]]
 name = "et-xmlfile"
@@ -1043,6 +1051,18 @@ zipp = ">=0.5"
 [package.extras]
 docs = ["sphinx", "rst.linker"]
 testing = ["packaging", "pep517", "importlib-resources (>=1.3)"]
+
+[[package]]
+name = "importlib-resources"
+version = "5.1.2"
+description = "Read resources from Python packages"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+docs = ["sphinx", "jaraco.packaging (>=8.2)", "rst.linker (>=1.9)"]
+testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pytest-cov", "pytest-enabler", "pytest-black (>=0.3.7)", "pytest-mypy"]
 
 [[package]]
 name = "influxdb"
@@ -1647,19 +1667,6 @@ pyparsing = ">=2.0.2"
 six = "*"
 
 [[package]]
-name = "passlib"
-version = "1.7.1"
-description = "comprehensive password hashing framework supporting over 30 schemes"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.extras]
-argon2 = ["argon2-cffi (>=16.2)"]
-bcrypt = ["bcrypt (>=3.1.0)"]
-totp = ["cryptography"]
-
-[[package]]
 name = "paypalrestsdk"
 version = "1.13.1"
 description = "The PayPal REST SDK provides Python APIs to create, process and manage payments."
@@ -1875,20 +1882,22 @@ six = "*"
 
 [[package]]
 name = "pysaml2"
-version = "5.0.0"
+version = "6.5.1"
 description = "Python implementation of SAML Version 2 Standard"
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = "<4,>=3.6"
 
 [package.dependencies]
 cryptography = ">=1.4"
 defusedxml = "*"
+importlib-resources = "*"
 pyOpenSSL = "*"
 python-dateutil = "*"
 pytz = "*"
 requests = ">=1.0.0"
 six = "*"
+xmlschema = "*"
 
 [package.extras]
 s2repoze = ["paste", "zope.interface", "repoze.who"]
@@ -2281,14 +2290,6 @@ python-versions = "*"
 botocore = ">=1.12.36,<2.0a.0"
 
 [[package]]
-name = "scrypt"
-version = "0.8.6"
-description = "Bindings for the scrypt key derivation function library"
-category = "main"
-optional = false
-python-versions = "*"
-
-[[package]]
 name = "secretstorage"
 version = "3.1.2"
 description = "Python bindings to FreeDesktop.org Secret Service API"
@@ -2517,6 +2518,22 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "xmlschema"
+version = "1.5.2"
+description = "An XML Schema validator and decoder"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+elementpath = ">=2.1.2,<3.0.0"
+
+[package.extras]
+codegen = ["elementpath (>=2.1.2,<3.0.0)", "jinja2"]
+dev = ["tox", "coverage", "lxml", "elementpath (>=2.1.2,<3.0.0)", "memory-profiler", "sphinx", "sphinx-rtd-theme", "jinja2"]
+docs = ["elementpath (>=2.1.2,<3.0.0)", "sphinx", "sphinx-rtd-theme", "jinja2"]
+
+[[package]]
 name = "zipp"
 version = "3.1.0"
 description = "Backport of pathlib-compatible object wrapper for zip files"
@@ -2531,7 +2548,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "7fa95cf9310382cb1ecb92f21ce36e50534193889e008626b2a4246690196262"
+content-hash = "c1b544de368094c3fb80caf92e550a3a83bb45484a00af51e9f5a398b712742c"
 
 [metadata.files]
 adal = [
@@ -2858,8 +2875,7 @@ djangorestframework = [
     {file = "djangorestframework-3.10.2.tar.gz", hash = "sha256:aedb48010ebfab9651aaab1df5fd3b4848eb4182afc909852a2110c24f89a359"},
 ]
 djangosaml2 = [
-    {file = "djangosaml2-0.17.2-py2.py3-none-any.whl", hash = "sha256:d9380ad19f4fa97f6d04b2a3316d888b1e40b45fb594267ad088bcd4c4815a99"},
-    {file = "djangosaml2-0.17.2.tar.gz", hash = "sha256:c487d541533106cf11c3c638a985c99e7787c8d5a42dc16b24a37c900c4179b7"},
+    {file = "djangosaml2-1.0.5.tar.gz", hash = "sha256:505bb2768294823ce3d682b036fef98981a99fb8cf26b9a46de5eaaa4eb20cb6"},
 ]
 docker = [
     {file = "docker-4.1.0-py2.py3-none-any.whl", hash = "sha256:8f93775b8bdae3a2df6bc9a5312cce564cade58d6555f2c2570165a1270cd8a7"},
@@ -2872,6 +2888,10 @@ docutils = [
 ]
 "dogpile.cache" = [
     {file = "dogpile.cache-0.9.2.tar.gz", hash = "sha256:bc9dde1ffa5de0179efbcdc73773ef0553921130ad01955422f2932be35c059e"},
+]
+elementpath = [
+    {file = "elementpath-2.2.0-py3-none-any.whl", hash = "sha256:eae259ab72a643c16768268895a596e05a41a697da2723614f9588e5fed9b516"},
+    {file = "elementpath-2.2.0.tar.gz", hash = "sha256:3bbd0e9dcaf9ab7b2080fd4b457d67f166f7c4d1ece7348425195729059b427c"},
 ]
 et-xmlfile = [
     {file = "et_xmlfile-1.0.1.tar.gz", hash = "sha256:614d9722d572f6246302c4491846d2c393c199cfa4edc9af593437691683335b"},
@@ -2951,6 +2971,10 @@ idna = [
 importlib-metadata = [
     {file = "importlib_metadata-1.7.0-py2.py3-none-any.whl", hash = "sha256:dc15b2969b4ce36305c51eebe62d418ac7791e9a157911d58bfb1f9ccd8e2070"},
     {file = "importlib_metadata-1.7.0.tar.gz", hash = "sha256:90bb658cdbbf6d1735b6341ce708fc7024a3e14e99ffdc5783edea9f9b077f83"},
+]
+importlib-resources = [
+    {file = "importlib_resources-5.1.2-py3-none-any.whl", hash = "sha256:ebab3efe74d83b04d6bf5cd9a17f0c5c93e60fb60f30c90f56265fce4682a469"},
+    {file = "importlib_resources-5.1.2.tar.gz", hash = "sha256:642586fc4740bd1cad7690f836b3321309402b20b332529f25617ff18e8e1370"},
 ]
 influxdb = [
     {file = "influxdb-5.0.0-py2.py3-none-any.whl", hash = "sha256:43b2fde195ee2302cfa87c8a0e1d29429f175ed584516d02e04f9b2c3c2ac2ad"},
@@ -3223,10 +3247,6 @@ packaging = [
     {file = "packaging-20.4-py2.py3-none-any.whl", hash = "sha256:998416ba6962ae7fbd6596850b80e17859a5753ba17c32284f67bfff33784181"},
     {file = "packaging-20.4.tar.gz", hash = "sha256:4357f74f47b9c12db93624a82154e9b120fa8293699949152b22065d556079f8"},
 ]
-passlib = [
-    {file = "passlib-1.7.1-py2.py3-none-any.whl", hash = "sha256:43526aea08fa32c6b6dbbbe9963c4c767285b78147b7437597f992812f69d280"},
-    {file = "passlib-1.7.1.tar.gz", hash = "sha256:3d948f64138c25633613f303bcc471126eae67c04d5e3f6b7b8ce6242f8653e0"},
-]
 paypalrestsdk = [
     {file = "paypalrestsdk-1.13.1.tar.gz", hash = "sha256:238713208031e8981bf70b3350b3d7f85ed64d34e0f21e4c1184444a546fee7f"},
 ]
@@ -3408,8 +3428,8 @@ pyrsistent = [
     {file = "pyrsistent-0.16.0.tar.gz", hash = "sha256:28669905fe725965daa16184933676547c5bb40a5153055a8dee2a4bd7933ad3"},
 ]
 pysaml2 = [
-    {file = "pysaml2-5.0.0-py2.py3-none-any.whl", hash = "sha256:1800ef0ab3f5b3c1d18742dd8cc7afa6dd9760fc5a515fd37543003ff5ca9947"},
-    {file = "pysaml2-5.0.0.tar.gz", hash = "sha256:deea75b252b5ead821f12ce01e9d88b0f6fbcde322c1595dcbb06f9660af0cc1"},
+    {file = "pysaml2-6.5.1-py2.py3-none-any.whl", hash = "sha256:f79d7b2a416f1b187643a459b2abc24ae049b663e4c15f0adb93b2f3245ede3e"},
+    {file = "pysaml2-6.5.1.tar.gz", hash = "sha256:6dc798aae0e2d43425cd3c720da1aea1b99e52c7e7d87d3666c8854f35e862f6"},
 ]
 pytest = [
     {file = "pytest-3.6.2-py2.py3-none-any.whl", hash = "sha256:90898786b3d0b880b47645bae7b51aa9bbf1e9d1e4510c2cfd15dd65c70ea0cd"},
@@ -3545,20 +3565,6 @@ s3transfer = [
     {file = "s3transfer-0.3.3-py2.py3-none-any.whl", hash = "sha256:2482b4259524933a022d59da830f51bd746db62f047d6eb213f2f8855dcb8a13"},
     {file = "s3transfer-0.3.3.tar.gz", hash = "sha256:921a37e2aefc64145e7b73d50c71bb4f26f46e4c9f414dc648c6245ff92cf7db"},
 ]
-scrypt = [
-    {file = "scrypt-0.8.6-cp27-cp27m-macosx_10_11_x86_64.whl", hash = "sha256:dc40f0e1a357a49ca62f30f2fc09e92e02c062a656f27949b436b2ba8002d9e1"},
-    {file = "scrypt-0.8.6-cp27-cp27m-win32.whl", hash = "sha256:a343c302b3e99dcb7fcbe57aa7919ed761f1568f854291ccebe1b5e6e2c9e509"},
-    {file = "scrypt-0.8.6-cp27-cp27m-win_amd64.whl", hash = "sha256:a124719c686f2b5957e392465147fb3fd6077e7c643e9538cab1ee631eb01dde"},
-    {file = "scrypt-0.8.6-cp34-cp34m-win32.whl", hash = "sha256:bc131f74a688fa09993c518ca666a2ebd4268b207e039cbab03a034228140d3e"},
-    {file = "scrypt-0.8.6-cp34-cp34m-win_amd64.whl", hash = "sha256:232acdbc3434d2de55def8d5dbf1bc4b9bfc50da7c5741df2a6eebc4e18d3720"},
-    {file = "scrypt-0.8.6-cp35-cp35m-macosx_10_11_x86_64.whl", hash = "sha256:85919f023148cd9fb01d75ad4e3e061928c298fa6249a0cd6cd469c4b947595e"},
-    {file = "scrypt-0.8.6-cp35-cp35m-win32.whl", hash = "sha256:971db040d3963ebe4b919a203fe10d7d6659951d3644066314330983dc175ed4"},
-    {file = "scrypt-0.8.6-cp35-cp35m-win_amd64.whl", hash = "sha256:475ac80239b3d788ae71a09c3019ca915e149aaa339adcdd1c9eef121293dc88"},
-    {file = "scrypt-0.8.6-cp36-cp36m-macosx_10_12_x86_64.whl", hash = "sha256:4ad7188f2e42dbee2ff1cd72e3da40b170ba41847effbf0d726444f62ae60f3a"},
-    {file = "scrypt-0.8.6-cp36-cp36m-win32.whl", hash = "sha256:18ccbc63d87c6f89b753194194bb37aeaf1abc517e4b989461d115c1d93ce128"},
-    {file = "scrypt-0.8.6-cp36-cp36m-win_amd64.whl", hash = "sha256:c23daecee405cb036845917295c76f8d747fc890158df40cb304b4b3c3640079"},
-    {file = "scrypt-0.8.6.tar.gz", hash = "sha256:f8239b2d47fa1d40bc27efd231dc7083695d10c1c2ac51a99380360741e0362d"},
-]
 secretstorage = [
     {file = "SecretStorage-3.1.2-py3-none-any.whl", hash = "sha256:b5ec909dde94d4ae2fa26af7c089036997030f0cf0a5cb372b4cccabd81c143b"},
     {file = "SecretStorage-3.1.2.tar.gz", hash = "sha256:15da8a989b65498e29be338b3b279965f1b8f09b9668bd8010da183024c8bff6"},
@@ -3678,6 +3684,10 @@ xlrd = [
 xlwt = [
     {file = "xlwt-1.3.0-py2.py3-none-any.whl", hash = "sha256:a082260524678ba48a297d922cc385f58278b8aa68741596a87de01a9c628b2e"},
     {file = "xlwt-1.3.0.tar.gz", hash = "sha256:c59912717a9b28f1a3c2a98fd60741014b06b043936dcecbc113eaaada156c88"},
+]
+xmlschema = [
+    {file = "xmlschema-1.5.2-py3-none-any.whl", hash = "sha256:df7bf5d6d23f5f32d50e573f9ad75a2456029009909b63607560916b0584f89e"},
+    {file = "xmlschema-1.5.2.tar.gz", hash = "sha256:f821ce780f84c7e61ca1ccf32f23aec400446e74fa5cc888450af7604ce2291f"},
 ]
 zipp = [
     {file = "zipp-3.1.0-py3-none-any.whl", hash = "sha256:aa36550ff0c0b7ef7fa639055d797116ee891440eac1a56f378e2d3179e0320b"},

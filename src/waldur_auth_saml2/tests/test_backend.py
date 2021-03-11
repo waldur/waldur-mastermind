@@ -18,10 +18,11 @@ class WaldurSaml2BackendTest(TestCase):
             'uid': ['john'],
             'mail': ['john@example.com'],
         }
+        session_info = {'ava': attributes, 'issuer': 'IDP'}
 
         backend = WaldurSaml2Backend()
         user = backend.authenticate(
-            None, session_info={'ava': attributes}, attribute_mapping=attribute_mapping,
+            None, session_info=session_info, attribute_mapping=attribute_mapping,
         )
         self.assertIsNotNone(user)
 
@@ -35,12 +36,13 @@ class WaldurSaml2BackendTest(TestCase):
             'uid': ['john'],
             'mail': ['john@example.com'],
         }
+        session_info = {'ava': attributes, 'issuer': 'IDP'}
 
         backend = WaldurSaml2Backend()
         self.assertRaises(
             ValidationError,
             backend.authenticate,
             None,
-            session_info={'ava': attributes},
+            session_info=session_info,
             attribute_mapping=attribute_mapping,
         )

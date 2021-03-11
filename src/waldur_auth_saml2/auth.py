@@ -6,9 +6,9 @@ User = get_user_model()
 
 
 class WaldurSaml2Backend(Saml2Backend):
-    def is_authorized(self, attributes, attribute_mapping):
-        email = self.get_attribute_value('email', attributes, attribute_mapping)
-        username = self.get_attribute_value('username', attributes, attribute_mapping)
+    def is_authorized(self, attributes, attribute_mapping, idp_entityid, **kwargs):
+        email = self._get_attribute_value('email', attributes, attribute_mapping)
+        username = self._get_attribute_value('username', attributes, attribute_mapping)
         if (
             email
             and User.objects.filter(email=email).exclude(username=username).exists()
