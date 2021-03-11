@@ -117,7 +117,6 @@ class Saml2LoginView(BaseSaml2View):
 
             kwargs['sign'] = True
             kwargs['sigalg'] = signature_algorithm
-            kwargs['sign_alg'] = signature_algorithm
             kwargs['digest_alg'] = digest_algorithm
 
         nameid_format = settings.WALDUR_AUTH_SAML2.get('nameid_format')
