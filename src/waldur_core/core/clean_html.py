@@ -24,6 +24,7 @@ ALLOWED_TAGS = [
     "sub",
     "sup",
     "pre",
+    "br",
 ]
 
 
