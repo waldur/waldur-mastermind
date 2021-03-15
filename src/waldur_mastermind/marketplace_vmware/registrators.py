@@ -30,7 +30,7 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
             .distinct()
         )
 
-    def _create_item(self, source, invoice, start, end):
+    def _create_item(self, source, invoice, start, end, **kwargs):
         try:
             resource = marketplace_models.Resource.objects.get(scope=source)
             plan = resource.plan
