@@ -30,7 +30,7 @@ class OpenStackRegistrator(MarketplaceRegistrator):
             .distinct()
         )
 
-    def _create_item(self, source, invoice, start, end):
+    def _create_item(self, source, invoice, start, end, **kwargs):
         from waldur_mastermind.marketplace import plugins
 
         details = self.get_details(source)
