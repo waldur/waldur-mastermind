@@ -445,7 +445,7 @@ class IssueStatus(models.Model):
         ):
             logger.critical(
                 'There is no information about statuses of an issue. '
-                'Please, add resolved and cancelled statuses in admin. '
+                'Please, add resolved and canceled statuses in admin. '
                 'Otherwise, you cannot use processes that need this information.'
             )
             return
