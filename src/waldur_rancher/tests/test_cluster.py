@@ -9,6 +9,7 @@ from waldur_core.core.models import StateMixin
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests.factories import (
     ProjectFactory,
+    ServiceSettingsFactory,
     SshPublicKeyFactory,
     UserFactory,
 )
@@ -117,9 +118,8 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         add_payload = add_payload or {}
         payload = {
             'name': name,
-            'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            ),
+            'service_settings': ServiceSettingsFactory.get_url(self.fixture.settings),
+            'project': ProjectFactory.get_url(self.fixture.project),
             'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
                 self.fixture.tenant_spl.service.settings
             ),
