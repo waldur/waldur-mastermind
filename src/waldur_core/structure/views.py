@@ -1076,7 +1076,6 @@ class ResourceSummaryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         resource_models = {
             k: v for k, v in SupportedServices.get_resource_models().items()
         }
-        resource_models = self._filter_by_category(resource_models)
         resource_models = self._filter_by_types(resource_models)
         resource_models = self._filter_resources(resource_models)
 
@@ -1088,24 +1087,6 @@ class ResourceSummaryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         if types:
             resource_models = {k: v for k, v in resource_models.items() if k in types}
         return resource_models
-
-    def _filter_by_category(self, resource_models):
-        choices = {
-            'apps': models.ApplicationMixin.get_all_models(),
-            'vms': models.VirtualMachine.get_all_models(),
-            'private_clouds': models.PrivateCloud.get_all_models(),
-            'storages': models.Storage.get_all_models(),
-            'volumes': models.Volume.get_all_models(),
-            'snapshots': models.Snapshot.get_all_models(),
-        }
-        category = self.request.query_params.get('resource_category')
-        if not category:
-            return resource_models
-
-        category_models = choices.get(category)
-        if category_models:
-            return {k: v for k, v in resource_models.items() if v in category_models}
-        return {}
 
     def _filter_resources(self, resource_models):
         return {

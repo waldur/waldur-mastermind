@@ -494,7 +494,7 @@ class ProjectCountersListTest(test.APITransactionTestCase):
 class ProjectQuotasTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.quota = self.fixture.project.quotas.get(name=Project.Quotas.nc_app_count)
+        self.quota = self.fixture.project.quotas.get(name=Project.Quotas.nc_vm_count)
 
     def update_quota(self):
         url = quota_factories.QuotaFactory.get_url(self.quota)
