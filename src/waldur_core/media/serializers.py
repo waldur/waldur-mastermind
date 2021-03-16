@@ -3,7 +3,7 @@ from django.db import models
 from rest_framework import serializers
 
 from waldur_core.media.utils import encode_protected_url, s3_to_waldur_media_url
-from waldur_core.structure.metadata import merge_dictionaries
+from waldur_core.structure.utils import merge_dictionaries
 
 
 class ProtectedFileMixin:

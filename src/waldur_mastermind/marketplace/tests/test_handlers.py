@@ -73,7 +73,7 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         self.assertFalse(service_settings.is_active)
 
-    def test_service_settings_should_be_ensabled_if_resource_is_not_terminated(self,):
+    def test_service_settings_should_be_enabled_if_resource_is_not_terminated(self,):
         marketplace_handlers.connect_resource_metadata_handlers(
             structure_tests_models.TestNewInstance
         )

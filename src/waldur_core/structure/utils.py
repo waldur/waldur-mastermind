@@ -206,3 +206,9 @@ def move_project(project, customer):
         old_customer=old_customer,
         new_customer=customer,
     )
+
+
+def merge_dictionaries(a, b):
+    new = a.copy()
+    new.update(b)
+    return new

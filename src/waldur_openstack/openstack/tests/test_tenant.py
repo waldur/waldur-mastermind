@@ -11,7 +11,6 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import executors, models
-from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests import factories, fixtures
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
@@ -588,26 +587,6 @@ class TenantDeleteTest(BaseTenantActionsTest):
 
     def get_url(self):
         return factories.TenantFactory.get_url(self.tenant)
-
-
-class TenantActionsMetadataTest(BaseTenantActionsTest):
-    def test_if_tenant_is_ok_actions_enabled(self):
-        self.client.force_authenticate(self.fixture.staff)
-        actions = self.get_actions()
-        self.assertTrue(actions['set_quotas']['enabled'])
-
-    def test_if_tenant_is_not_ok_actions_disabled(self):
-        self.tenant.state = Tenant.States.DELETING
-        self.tenant.save()
-
-        self.client.force_authenticate(self.fixture.owner)
-        actions = self.get_actions()
-        self.assertFalse(actions['set_quotas']['enabled'])
-
-    def get_actions(self):
-        url = factories.TenantFactory.get_url(self.tenant)
-        response = self.client.options(url)
-        return response.data['actions']
 
 
 @patch('waldur_openstack.openstack.executors.FloatingIPCreateExecutor.execute')

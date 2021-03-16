@@ -47,7 +47,6 @@ from waldur_core.structure import (
     utils,
 )
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.metadata import ActionsMetadata
 from waldur_core.structure.signals import resource_imported, structure_role_updated
 
 logger = logging.getLogger(__name__)
@@ -1383,7 +1382,6 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.BaseServiceFilter
     lookup_field = 'uuid'
-    metadata_class = ActionsMetadata
     unsafe_methods_permissions = [
         permissions.is_owner,
         permissions.check_access_to_services_management,
@@ -1644,7 +1642,6 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
     lookup_field = 'uuid'
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    metadata_class = ActionsMetadata
     unsafe_methods_permissions = [permissions.is_administrator]
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.NewResource.States.OK)

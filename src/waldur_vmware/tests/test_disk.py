@@ -125,23 +125,6 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    def test_current_disk_size_is_added_to_remaining_quota_metadata(self):
-        # Arrange
-        self.fixture.settings.options['max_disk_total'] = 25 * 1024
-        self.fixture.settings.save(update_fields=['options'])
-
-        self.disk.size = 24 * 1024
-        self.disk.save()
-
-        # Act
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.options(factories.DiskFactory.get_url(self.disk))
-
-        # Assert
-        self.assertEqual(
-            response.data['actions']['extend']['fields']['size']['max_value'], 25 * 1024
-        )
-
     def test_extension_is_allowed_when_vm_is_running(self):
         self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
         self.disk.vm.save()
