@@ -36,8 +36,8 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.metadata import merge_dictionaries
 from waldur_core.structure.tasks import connect_shared_settings
+from waldur_core.structure.utils import merge_dictionaries
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.serializers import validate_options

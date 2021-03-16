@@ -101,66 +101,6 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         # then
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_floating_ip_metadata(self):
-        self.active_ip.state = models.FloatingIP.States.OK
-        self.active_ip.save()
-
-        url = factories.FloatingIPFactory.get_url(self.active_ip)
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.options(url)
-        actions = dict(response.data['actions'])
-        self.assertEqual(
-            actions,
-            {
-                "destroy": {
-                    "title": "Destroy",
-                    "url": url,
-                    "enabled": True,
-                    "reason": None,
-                    "destructive": True,
-                    "type": "button",
-                    "method": "DELETE",
-                },
-                "pull": {
-                    "title": "Pull",
-                    "url": url + "pull/",
-                    "enabled": True,
-                    "reason": None,
-                    "destructive": False,
-                    "type": "button",
-                    "method": "POST",
-                },
-                "attach_to_port": {
-                    "title": "Attach To Port",
-                    "url": url + "attach_to_port/",
-                    "enabled": True,
-                    "reason": None,
-                    "destructive": False,
-                    "type": "form",
-                    "method": "POST",
-                    'fields': {
-                        'port': {
-                            'type': 'select',
-                            'required': True,
-                            'label': 'Port',
-                            'url': 'http://testserver/api/openstack-ports/',
-                            'value_field': 'url',
-                            'display_name_field': 'display_name',
-                        }
-                    },
-                },
-                "detach_from_port": {
-                    "title": "Detach From Port",
-                    "url": url + "detach_from_port/",
-                    "enabled": True,
-                    "reason": None,
-                    "destructive": False,
-                    "type": "button",
-                    "method": "POST",
-                },
-            },
-        )
-
 
 class BaseFloatingIPTest(test.APITransactionTestCase):
     def setUp(self) -> None:
