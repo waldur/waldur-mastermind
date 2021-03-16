@@ -123,11 +123,6 @@ class ResourceCounterFormMixin:
 
     get_vm_count.short_description = _('VM count')
 
-    def get_app_count(self, obj):
-        return obj.quotas.get(name=obj.Quotas.nc_app_count).usage
-
-    get_app_count.short_description = _('Application count')
-
     def get_private_cloud_count(self, obj):
         return obj.quotas.get(name=obj.Quotas.nc_private_cloud_count).usage
 
@@ -284,7 +279,6 @@ class CustomerAdmin(
         'created',
         'accounting_start_date',
         'get_vm_count',
-        'get_app_count',
         'get_private_cloud_count',
     )
     list_filter = ('blocked', 'division')
@@ -411,7 +405,6 @@ class ProjectAdmin(
         'created',
         'get_type_name',
         'get_vm_count',
-        'get_app_count',
         'get_private_cloud_count',
     ]
     search_fields = ['name', 'uuid']

@@ -487,10 +487,6 @@ class Customer(
             target_models=lambda: ResourceMixin.get_all_models(),
             path_to_scope='project.customer',
         )
-        nc_app_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: ApplicationMixin.get_all_models(),
-            path_to_scope='project.customer',
-        )
         nc_vm_count = quotas_fields.CounterQuotaField(
             target_models=lambda: VirtualMachine.get_all_models(),
             path_to_scope='project.customer',
@@ -687,10 +683,6 @@ class Project(
         enable_fields_caching = False
         nc_resource_count = quotas_fields.CounterQuotaField(
             target_models=lambda: ResourceMixin.get_all_models(),
-            path_to_scope='project',
-        )
-        nc_app_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: ApplicationMixin.get_all_models(),
             path_to_scope='project',
         )
         nc_vm_count = quotas_fields.CounterQuotaField(
@@ -1157,16 +1149,6 @@ class CloudServiceProjectLink(ServiceProjectLink):
 
     def can_user_update_quotas(self, user):
         return user.is_staff or self.service.customer.has_user(user, CustomerRole.OWNER)
-
-
-class ApplicationMixin(models.Model):
-    class Meta:
-        abstract = True
-
-    @classmethod
-    @lru_cache(maxsize=1)
-    def get_all_models(cls):
-        return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
 class ResourceMixin(
