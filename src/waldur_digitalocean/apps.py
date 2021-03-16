@@ -6,7 +6,6 @@ class DigitalOceanConfig(AppConfig):
     name = 'waldur_digitalocean'
     verbose_name = 'Waldur DigitalOcean'
     service_name = 'DigitalOcean'
-    is_public_service = True
 
     def ready(self):
         from waldur_core.core import models as core_models
