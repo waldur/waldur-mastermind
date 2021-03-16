@@ -9,6 +9,8 @@ LOCALE_PATHS = (
     os.path.join(BASE_DIR, 'waldur_core', 'locale'),
 )
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 env: dict = os.environ
 
 conf_dir = env.get('WALDUR_BASE_CONFIG_DIR', '/etc/waldur')
