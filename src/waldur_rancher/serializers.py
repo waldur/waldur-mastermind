@@ -282,6 +282,7 @@ class ClusterSerializer(
         if self.instance:
             return attrs
 
+        attrs = super(ClusterSerializer, self).validate(attrs)
         nodes = attrs['node_set']
         name = attrs['name']
         spl = attrs['service_project_link']
@@ -304,7 +305,7 @@ class ClusterSerializer(
         utils.expand_added_nodes(
             name, nodes, spl, tenant_settings, ssh_public_key, security_groups
         )
-        return super(ClusterSerializer, self).validate(attrs)
+        return attrs
 
     def validate_nodes(self, nodes):
         if len([node for node in nodes if 'etcd' in node['roles']]) not in [1, 3, 5]:
