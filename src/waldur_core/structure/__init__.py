@@ -25,7 +25,6 @@ class SupportedServices:
                 'backend': waldur_gitlab.backend.GitLabBackend,
                 'detail_view': 'gitlab-detail',
                 'list_view': 'gitlab-list',
-                'properties': {},
                 'resources': {
                     'gitlab.group': {
                         'name': 'Group',
@@ -51,14 +50,14 @@ class SupportedServices:
 
     @classmethod
     def _setdefault(cls, service_key):
-        cls._registry.setdefault(service_key, {'resources': {}, 'properties': {}})
+        cls._registry.setdefault(service_key, {'resources': {}})
 
     @classmethod
     def register_backend(cls, backend_class, nested=False):
         if not cls._is_active_model(backend_class):
             return
 
-        # For nested backends just discover resources/properties
+        # For nested backends just discover resources
         if not nested:
             key = cls.get_model_key(backend_class)
             cls._setdefault(key)
@@ -143,18 +142,6 @@ class SupportedServices:
         cls._registry[key]['resources'][model_str]['view'] = view
 
     @classmethod
-    def register_property(cls, model):
-        if model is NotImplemented or not cls._is_active_model(model):
-            return
-        key = cls.get_model_key(model)
-        cls._setdefault(key)
-        model_str = cls._get_model_str(model)
-        cls._registry[key]['properties'][model_str] = {
-            'name': model.__name__,
-            'list_view': cls.get_list_view_for_model(model),
-        }
-
-    @classmethod
     def get_service_backend(cls, key):
         if not isinstance(key, str):
             key = cls.get_model_key(key)
@@ -229,8 +216,6 @@ class SupportedServices:
             {
                 ...
                 "GitLab": {
-                    "url": "/api/gitlab/",
-                    "service_project_link_url": "/api/gitlab-service-project-link/",
                     "resources": {
                         "Project": "/api/gitlab-projects/",
                         "Group": "/api/gitlab-groups/"
@@ -239,28 +224,13 @@ class SupportedServices:
                 ...
             }
         """
-        from django.apps import apps
-
         data = {}
         for service in cls._registry.values():
-            service_model = apps.get_model(service['model_name'])
-            service_project_link = service_model.projects.through
-            service_project_link_url = reverse(
-                cls.get_list_view_for_model(service_project_link), request=request
-            )
-
             data[service['name']] = {
-                'url': reverse(service['list_view'], request=request),
-                'service_project_link_url': service_project_link_url,
                 'resources': {
                     resource['name']: reverse(resource['list_view'], request=request)
                     for resource in service['resources'].values()
                 },
-                'properties': {
-                    resource['name']: reverse(resource['list_view'], request=request)
-                    for resource in service.get('properties', {}).values()
-                },
-                'is_public_service': cls.is_public_service(service_model),
             }
         return data
 
@@ -292,9 +262,6 @@ class SupportedServices:
                 'service': service_model,
                 'service_project_link': service_project_link,
                 'resources': [apps.get_model(r) for r in service['resources'].keys()],
-                'properties': [
-                    apps.get_model(r) for r in service['properties'].keys() if '.' in r
-                ],
             }
 
         return data
@@ -408,10 +375,6 @@ class SupportedServices:
     @classmethod
     def get_model_key(cls, model):
         return cls.get_app_config(model).service_name
-
-    @classmethod
-    def is_public_service(cls, model):
-        return getattr(cls.get_app_config(model), 'is_public_service', False)
 
     @classmethod
     def get_app_config(cls, model):

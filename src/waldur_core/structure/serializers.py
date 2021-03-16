@@ -2071,20 +2071,8 @@ class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializ
         return super(VirtualMachineSerializer, self).create(validated_data)
 
 
-class PropertySerializerMetaclass(serializers.SerializerMetaclass):
-    """Build a list of supported properties via serializers definition.
-    See SupportedServices for details.
-    """
-
-    def __new__(cls, name, bases, args):
-        SupportedServices.register_property(args['Meta'].model)
-        return super(PropertySerializerMetaclass, cls).__new__(cls, name, bases, args)
-
-
 class BasePropertySerializer(
-    core_serializers.AugmentedSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
-    metaclass=PropertySerializerMetaclass,
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
         model = NotImplemented

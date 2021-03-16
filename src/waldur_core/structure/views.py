@@ -1051,10 +1051,6 @@ class ServiceMetadataViewSet(viewsets.GenericViewSet):
     queryset = []
 
     def list(self, request):
-        """
-        To get a list of supported service types, run **GET** against */api/service-metadata/* as an authenticated user.
-        Use an endpoint from the returned list in order to create new service.
-        """
         return Response(SupportedServices.get_services_with_resources(request))
 
 
