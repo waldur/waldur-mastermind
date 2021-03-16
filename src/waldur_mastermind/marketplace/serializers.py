@@ -715,7 +715,11 @@ class OfferingDetailsSerializer(
 
     def get_fields(self):
         fields = super(OfferingDetailsSerializer, self).get_fields()
-        if not self.can_see_secret_options() and 'secret_options' in fields:
+        if (
+            self.instance
+            and not self.can_see_secret_options()
+            and 'secret_options' in fields
+        ):
             del fields['secret_options']
         method = self.context['view'].request.method
         if method == 'GET':
