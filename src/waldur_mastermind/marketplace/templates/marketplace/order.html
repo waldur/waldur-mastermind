@@ -95,7 +95,7 @@
         {% if item.attributes.description %}
         {{ item.attributes.description }}
         {% elif item.offering.description %}
-        {{ item.offering.description }}
+        {{ item.offering.description | safe }}
         {% endif %}
       </td>
       <td class="unit">
