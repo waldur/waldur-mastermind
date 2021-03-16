@@ -88,12 +88,6 @@ class InstanceCreateBaseTest(BaseWaldurClientTest):
             obj = self._get_object(name)
             responses.add(responses.GET, self._get_url(mapping[name]), json=[obj])
 
-        service_project_link = self._get_object('service_project_link')
-        responses.add(
-            responses.GET,
-            self._get_url('openstacktenant-service-project-link'),
-            json=[service_project_link],
-        )
         security_group = self._get_object('security_group')
         responses.add(
             responses.GET,
@@ -112,7 +106,7 @@ class InstanceCreateBaseTest(BaseWaldurClientTest):
 
         url = self._get_url(
             'openstacktenant-flavors',
-            {'settings_uuid': u'settings_uuid', 'name_exact': 'flavor'},
+            {'settings_uuid': 'settings_uuid', 'name_exact': 'flavor'},
         )
         responses.add(method='GET', url=url, json=[self.flavor], match_querystring=True)
 
