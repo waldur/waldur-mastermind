@@ -35,7 +35,7 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
             'customer_uuid;customer_name;project_uuid;project_name;'
             'invoice_uuid;invoice_number;invoice_year;invoice_month;'
             'invoice_date;due_date;invoice_price;invoice_tax;'
-            'invoice_total;name;article_code;product_code;'
+            'invoice_total;name;article_code;'
             'price;tax;total;unit_price;unit;start;end'
         )
         self.assertEqual(lines[0], expected_header)

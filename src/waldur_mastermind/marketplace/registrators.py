@@ -113,7 +113,6 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     unit=unit,
                     quantity=quantity,
                     measured_unit=plan_component.component.measured_unit,
-                    product_code=offering_component.product_code or plan.product_code,
                     article_code=offering_component.article_code or plan.article_code,
                 )
 
@@ -243,7 +242,6 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 ),
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
                 measured_unit=offering_component.measured_unit,
-                product_code=offering_component.product_code or plan.product_code,
                 article_code=offering_component.article_code or plan.article_code,
                 name=resource.name + ' / ' + offering_component.name,
             )
