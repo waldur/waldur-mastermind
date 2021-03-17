@@ -53,7 +53,6 @@ class OpenStackRegistrator(MarketplaceRegistrator):
             project=source.project,
             unit_price=unit_price,
             unit=source.plan.unit,
-            product_code=source.plan.product_code,
             article_code=source.plan.article_code,
             invoice=invoice,
             start=start,

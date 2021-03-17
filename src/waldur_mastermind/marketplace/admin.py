@@ -123,7 +123,6 @@ class PlansInline(admin.StackedInline):
         'description',
         'unit_price',
         'unit',
-        'product_code',
         'article_code',
         'archived',
         'max_amount',
@@ -194,14 +193,13 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
     list_filter = ('offering', 'archived')
     search_fields = ('name', 'offering__name')
     inlines = [PlanComponentInline]
-    protected_fields = ('unit', 'unit_price', 'product_code', 'article_code')
+    protected_fields = ('unit', 'unit_price', 'article_code')
     readonly_fields = ('scope_link', 'backend_id')
     fields = (
         'name',
         'description',
         'unit',
         'unit_price',
-        'product_code',
         'article_code',
         'max_amount',
         'archived',

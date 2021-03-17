@@ -10,7 +10,6 @@ OFFERING_COMPONENT_FIELDS = (
     'name',
     'type',
     'description',
-    'product_code',
     'article_code',
     'measured_unit',
     'billing_type',
@@ -19,7 +18,6 @@ OFFERING_COMPONENT_FIELDS = (
 PLAN_FIELDS = (
     'name',
     'description',
-    'product_code',
     'article_code',
     'archived',
 )

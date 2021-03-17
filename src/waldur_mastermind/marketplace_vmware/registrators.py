@@ -81,7 +81,6 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
             project=_get_project(source),
             unit_price=total_price,
             unit=plan.unit,
-            product_code=plan.product_code,
             article_code=plan.article_code,
             invoice=invoice,
             start=start,

@@ -323,7 +323,6 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             'project',
             'project_name',
             'project_uuid',
-            'product_code',
             'article_code',
             'unit',
             'unit_price',
