@@ -16,6 +16,7 @@ from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
 from waldur_jira import serializers as jira_serializers
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import models
@@ -53,7 +54,9 @@ class IssueSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     resource = core_serializers.GenericRelatedField(
-        related_models=structure_models.ResourceMixin.get_all_models(), required=False
+        related_models=structure_models.ResourceMixin.get_all_models()
+        + [marketplace_models.Resource],
+        required=False,
     )
     caller = serializers.HyperlinkedRelatedField(
         view_name='user-detail',
@@ -183,6 +186,8 @@ class IssueSerializer(
             return SupportedServices.get_name_for_model(
                 obj.resource_content_type.model_class()
             )
+        if isinstance(obj.resource, marketplace_models.Resource):
+            return 'Marketplace.Resource'
 
     def validate(self, attrs):
         if self.instance is not None:
@@ -251,7 +256,9 @@ class IssueSerializer(
         )
 
     def validate_resource(self, resource):
-        if resource:
+        if resource and type(resource) == marketplace_models.Resource:
+            self.validate_project(resource.project)
+        elif resource:
             self.validate_project(resource.service_project_link.project)
         return resource
 
@@ -272,7 +279,9 @@ class IssueSerializer(
     @transaction.atomic()
     def create(self, validated_data):
         resource = validated_data.get('resource')
-        if resource:
+        if resource and type(resource) == marketplace_models.Resource:
+            validated_data['project'] = resource.project
+        elif resource:
             validated_data['project'] = resource.service_project_link.project
         project = validated_data.get('project')
         if project:

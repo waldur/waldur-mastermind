@@ -8,7 +8,6 @@ from jira.resources import IssueType, RequestType
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
@@ -102,14 +101,6 @@ class IssueRetrieveTest(base.BaseTest):
         url = factories.IssueFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
-
-    def test_marketplace_resource_is_skipped_in_serializer(self):
-        self.client.force_authenticate(self.fixture.staff)
-        issue = factories.IssueFactory(resource=ResourceFactory())
-
-        response = self.client.get(factories.IssueFactory.get_url(issue))
-        self.assertIsNone(response.data['resource_type'])
-        self.assertIsNone(response.data['resource'])
 
 
 class IssueCreateBaseTest(base.BaseTest):
