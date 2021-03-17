@@ -1922,12 +1922,6 @@ class BaseResourceActionSerializer(BaseResourceSerializer):
         pass
 
 
-class SummaryResourceSerializer(core_serializers.BaseSummarySerializer):
-    @classmethod
-    def get_serializer(cls, model):
-        return SupportedServices.get_resource_serializer(model)
-
-
 class BaseResourceImportSerializer(
     PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,

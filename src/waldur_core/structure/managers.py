@@ -1,6 +1,6 @@
 from django.db import models
 
-from waldur_core.core.managers import GenericKeyMixin, SummaryQuerySet
+from waldur_core.core.managers import GenericKeyMixin
 
 
 def get_permission_subquery(permissions, user):
@@ -124,15 +124,6 @@ class StructureQueryset(models.QuerySet):
 
 
 StructureManager = models.Manager.from_queryset(StructureQueryset)
-
-
-class ResourceSummaryQuerySet(SummaryQuerySet):
-    # Hack for permissions
-    @property
-    def model(self):
-        from waldur_core.structure.models import ResourceMixin
-
-        return ResourceMixin
 
 
 class ServiceSettingsManager(GenericKeyMixin, models.Manager):

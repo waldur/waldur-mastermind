@@ -193,18 +193,6 @@ class SupportedServices:
         }
 
     @classmethod
-    def get_resource_serializer(cls, model):
-        key = cls.get_model_key(model)
-        model_str = cls._get_model_str(model)
-        return cls._registry[key]['resources'][model_str]['serializer']
-
-    @classmethod
-    def get_resource_filter(cls, model):
-        key = cls.get_model_key(model)
-        model_str = cls._get_model_str(model)
-        return cls._registry[key]['resources'][model_str]['filter']
-
-    @classmethod
     def get_resource_view(cls, model):
         key = cls.get_model_key(model)
         model_str = cls._get_model_str(model)
