@@ -849,21 +849,6 @@ class ServicePropertySettingsFilter(BaseServicePropertyFilter):
         fields = BaseServicePropertyFilter.Meta.fields + ('settings_uuid', 'settings')
 
 
-class ResourceSummaryFilterBackend(core_filters.SummaryFilter):
-    """ Filter and order SummaryQuerySet of resources """
-
-    def get_queryset_filter(self, queryset):
-        try:
-            return SupportedServices.get_resource_filter(queryset.model)
-        except KeyError:
-            return super(ResourceSummaryFilterBackend, self).get_queryset_filter(
-                queryset
-            )
-
-    def get_base_filter(self):
-        return BaseResourceFilter
-
-
 class DivisionFilter(NameFilterSet):
     type = django_filters.CharFilter(field_name='type__name', lookup_expr='iexact')
     type_uuid = django_filters.UUIDFilter(field_name='type__uuid')
