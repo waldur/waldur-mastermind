@@ -175,6 +175,8 @@ def get_offering_details(offering):
         'offering_type': offering.type,
         'offering_name': offering.name,
         'offering_uuid': offering.uuid.hex,
+        'service_provider_name': offering.customer.name,
+        'service_provider_uuid': offering.customer.uuid.hex,
     }
 
 
