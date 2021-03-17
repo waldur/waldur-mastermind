@@ -274,6 +274,8 @@ class ComponentStatsTest(StatsBaseTest):
                 'usages': {usage.component.type: usage.usage},
                 'resource_name': item.resource.name,
                 'resource_uuid': item.resource.uuid.hex,
+                'service_provider_name': self.resource.offering.customer.name,
+                'service_provider_uuid': self.resource.offering.customer.uuid.hex,
                 'offering_name': self.offering.name,
                 'offering_type': TENANT_TYPE,
                 'offering_uuid': self.offering.uuid.hex,
