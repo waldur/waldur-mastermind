@@ -14,6 +14,7 @@ class SupportExtension(WaldurExtension):
             'USE_OLD_API': False,
             'USE_TEENAGE_API': False,
             'USE_AUTOMATIC_REQUEST_MAPPING': True,
+            'MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS': False,
             'STRANGE_SETTING': 1,
             'CREDENTIALS': {
                 'server': 'http://example.com/',

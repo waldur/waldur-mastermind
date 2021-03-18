@@ -192,8 +192,9 @@ class IssueSerializer(
     def validate(self, attrs):
         if self.instance is not None:
             return attrs
+        request_user = self.context['request'].user
         if attrs.pop('is_reported_manually'):
-            attrs['caller'] = self.context['request'].user
+            attrs['caller'] = request_user
             if attrs.get('assignee'):
                 raise serializers.ValidationError(
                     {
@@ -203,20 +204,30 @@ class IssueSerializer(
                     }
                 )
         else:
+            # create a request on behalf of an agent
             if not attrs.get('caller'):
                 raise serializers.ValidationError(
                     {'caller': _('This field is required.')}
                 )
-            reporter = models.SupportUser.objects.filter(
-                user=self.context['request'].user, is_active=True
-            ).first()
-            if not reporter:
-                raise serializers.ValidationError(
-                    _(
-                        'You cannot report issues because your help desk account is not connected to profile.'
+            # if change of reporter is supported, use it
+            if settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS']:
+                reporter = models.SupportUser.objects.filter(
+                    user=request_user, is_active=True
+                ).first()
+                if not reporter:
+                    raise serializers.ValidationError(
+                        _(
+                            'You cannot report issues because your help desk account is not connected to profile.'
+                        )
                     )
+                attrs['reporter'] = reporter
+            else:
+                # leave a mark about reporter in the description field
+                attrs['description'] = (
+                    f'Reported by {request_user.full_name}.\n\n'
+                    + attrs.get('description', '')
                 )
-            attrs['reporter'] = reporter
+
         return attrs
 
     def validate_customer(self, customer):
