@@ -8,6 +8,8 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/sync-to-github.yml"
   - project: "waldur/waldur-pipelines"
+    file: "/templates/release/dev-env-update.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/validate/docker-compose-trigger.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/lint-docker-image.yaml"
@@ -84,7 +86,7 @@ Run unit tests:
     - gitlab-ci-test/waldur-test
     - coverage xml
     - coverage report
-  coverage: '/TOTAL.+ ([0-9]{1,3}%)/'
+  coverage: "/TOTAL.+ ([0-9]{1,3}%)/"
   artifacts:
     when: always
     reports:
