@@ -1,0 +1,7 @@
+{% load waldur_marketplace %}[Order item|{{order_item_url}}].
+Provider: {{order_item.offering.customer.name}}
+Plan details:
+    {% plan_details order_item.plan %}
+Full name: {{order_item.order.created_by.full_name|default:"none"}}
+Civil code:{{order_item.order.created_by.civil_number|default:"none"}}
+Email: {{order_item.order.created_by.email}}

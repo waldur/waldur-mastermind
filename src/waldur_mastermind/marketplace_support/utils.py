@@ -2,7 +2,8 @@ import logging
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.template import Context, Template
+from django.template import Context
+from django.template.loader import get_template
 from django.utils.translation import ugettext_lazy as _
 from jira import JIRAError
 from rest_framework import exceptions as rf_exceptions
@@ -34,8 +35,8 @@ def get_request_link(resource: marketplace_models.Resource):
 
 
 def format_description(template_name, context):
-    template = Template(settings.WALDUR_MARKETPLACE_SUPPORT[template_name])
-    return template.render(Context(context, autoescape=False))
+    template = get_template('marketplace_support/' + template_name + '.txt')
+    return template.template.render(Context(context, autoescape=False))
 
 
 def format_create_description(order_item):
@@ -54,7 +55,7 @@ def format_create_description(order_item):
 
     result.append(
         format_description(
-            'CREATE_RESOURCE_TEMPLATE',
+            'create_resource_template',
             {
                 'order_item': order_item,
                 'order_item_url': get_order_item_url(order_item),
@@ -145,7 +146,7 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
 def format_update_description(order_item):
     request_url = get_request_link(order_item.resource)
     return format_description(
-        'UPDATE_RESOURCE_TEMPLATE',
+        'update_resource_template',
         {'order_item': order_item, 'request_url': request_url},
     )
 
@@ -153,6 +154,6 @@ def format_update_description(order_item):
 def format_delete_description(order_item):
     request_url = get_request_link(order_item.resource)
     return format_description(
-        'TERMINATE_RESOURCE_TEMPLATE',
+        'terminate_resource_template',
         {'order_item': order_item, 'request_url': request_url},
     )
