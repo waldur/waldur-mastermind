@@ -221,7 +221,7 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
 
         self.order = {
             'uuid': '9ae5e13294884628aaf984a82214f7c4',
-            'items': [{'state': 'executing'}],
+            'items': [{'state': 'executing', 'resource_uuid': self.instance['uuid']}],
         }
 
         url = self._get_url('marketplace-orders')
@@ -232,17 +232,6 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
 
         url = self._get_url('marketplace-orders/order_uuid/approve')
         responses.add(responses.POST, url, json=self.order, status=200)
-
-        url = self._get_url('marketplace-resources')
-        scope_url = self._get_url('scope_url')
-        responses.add(responses.GET, url, json=[{'scope': scope_url}], status=200)
-
-        responses.add(
-            responses.GET,
-            scope_url,
-            json={'name': 'instance', 'uuid': 'uuid'},
-            status=200,
-        )
 
     @responses.activate
     def test_valid_body_is_sent(self):

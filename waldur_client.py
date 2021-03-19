@@ -1015,10 +1015,9 @@ class WaldurClient(object):
         :param timeout: a maximum amount of time to wait for instance provisioning.
         :param wait: defines whether the client has to wait for instance provisioning.
         :param check_mode: True for check mode.
-        :return: scope.
+        :return: resource_uuid.
         """
         offering = self._get_offering(offering, project)
-        offering_type = offering['type']
 
         if check_mode:
             return {
@@ -1031,9 +1030,9 @@ class WaldurClient(object):
             project, offering['uuid'], attributes=attributes
         )
         order_uuid = order['uuid']
-        scope = None
+        resource_uuid = None
         waited = 0
-        while not scope:
+        while not resource_uuid:
             time.sleep(interval)
             order = self._get_resource(
                 WaldurClient.Endpoints.MarketplaceOrder, order_uuid
@@ -1041,12 +1040,7 @@ class WaldurClient(object):
             if order['items'][0]['state'] == 'erred':
                 raise InvalidStateError(order['items'][0]['error_message'])
 
-            try:
-                resource, scope = self.get_marketplace_resource_scope(
-                    name, offering_type, project
-                )
-            except ObjectDoesNotExist:
-                pass
+            resource_uuid = order['items'][0].get('resource_uuid')
             waited += interval
             if waited >= timeout:
                 error = (
@@ -1056,9 +1050,9 @@ class WaldurClient(object):
                 raise TimeoutError(message)
 
         if wait:
-            self._wait_for_resource(scope_endpoint, scope['uuid'], interval, timeout)
+            self._wait_for_resource(scope_endpoint, resource_uuid, interval, timeout)
 
-        return scope
+        return resource_uuid
 
     def create_instance_via_marketplace(
         self,
@@ -1155,7 +1149,7 @@ class WaldurClient(object):
             volume_type = self._get_volume_type(data_volume_type, settings_uuid)
             attributes.update({'data_volume_type': volume_type['url']})
 
-        instance = self._create_scope_via_marketplace(
+        resource_uuid = self._create_scope_via_marketplace(
             name,
             offering['uuid'],
             project,
@@ -1168,9 +1162,9 @@ class WaldurClient(object):
         )
 
         if wait and floating_ips:
-            self._wait_for_external_ip(instance['uuid'], interval, timeout)
+            self._wait_for_external_ip(resource_uuid, interval, timeout)
 
-        return instance
+        return resource_uuid
 
     def _delete_scope_via_marketplace(self, scope_uuid, offering_type, options=None):
         resource, scope = self.get_marketplace_resource_scope(scope_uuid, offering_type)
