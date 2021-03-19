@@ -118,6 +118,9 @@ class RequestCreateTest(BaseTest):
         self.assertTrue(
             resource.plan.components.first().component.name in issue.description
         )
+        self.assertTrue(order_item.order.created_by.full_name in issue.description)
+        self.assertTrue(order_item.order.created_by.civil_number in issue.description)
+        self.assertTrue(order_item.order.created_by.email in issue.description)
 
     def test_service_provider_name_is_propagated(self):
         order_item = self.submit_order_item()
