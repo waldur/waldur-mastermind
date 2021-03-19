@@ -1087,7 +1087,8 @@ class Resource(
     @property
     def backend_type(self):
         if self.scope:
-            return self.scope.get_scope_type()
+            scope_type = self.scope.get_scope_type()
+            return scope_type if scope_type else 'Marketplace.Resource'
 
     def init_quotas(self):
         if self.limits:
