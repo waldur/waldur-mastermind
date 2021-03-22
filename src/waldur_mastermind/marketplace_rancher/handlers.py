@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 def create_marketplace_resource_for_imported_cluster(
     sender, instance, offering=None, plan=None, **kwargs
 ):
-    if not offering or not plan:
+    if not offering:
         # When cluster is imported directly (ie without marketplace),
         # marketplace resources are not created.
         return
     resource = marketplace_models.Resource(
-        project=instance.service_project_link.project,
+        project=instance.project,
         state=get_resource_state(instance.state),
         name=instance.name,
         scope=instance,

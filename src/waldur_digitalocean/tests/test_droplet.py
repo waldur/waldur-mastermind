@@ -2,6 +2,7 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_digitalocean import models
 from waldur_digitalocean.tests import factories, fixtures
 
@@ -14,7 +15,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.owner)
 
         droplet = factories.DropletFactory(
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
             cores=2,
             ram=2 * 1024,
             disk=10 * 1024,
@@ -32,7 +34,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.owner)
 
         droplet = factories.DropletFactory(
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
             cores=2,
             ram=2 * 1024,
             disk=10 * 1024,
@@ -51,7 +54,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.owner)
 
         droplet = factories.DropletFactory(
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
             ram=1024,
             cores=3,
             disk=20 * 1024,
@@ -70,7 +74,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.owner)
 
         droplet = factories.DropletFactory(
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
             cores=2,
             ram=1024,
             disk=20 * 1024,
@@ -90,7 +95,7 @@ class DropletResizeTest(test.APITransactionTestCase):
         )
 
     @mock.patch('waldur_digitalocean.executors.DropletResizeExecutor.execute')
-    def test_droplet_resize_increases_quotas(self, executor):
+    def test_droplet_resize(self, executor):
         self.client.force_authenticate(self.fixture.owner)
         droplet = self.fixture.droplet
         droplet.runtime_state = droplet.RuntimeStates.OFFLINE
@@ -109,19 +114,6 @@ class DropletResizeTest(test.APITransactionTestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
-        spl = self.fixture.spl
-        actual_storage_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.storage
-        ).usage
-        actual_ram_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.ram
-        ).usage
-        actual_vcpu_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.vcpu
-        ).usage
-        self.assertEqual(size.disk, actual_storage_usage)
-        self.assertEqual(size.ram, actual_ram_usage)
-        self.assertEqual(size.cores, actual_vcpu_usage)
 
 
 class DropletCreateTest(test.APITransactionTestCase):
@@ -137,34 +129,11 @@ class DropletCreateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_spl_quotas_usage_are_increased_on_droplet_creation(self):
-        self.client.force_authenticate(self.fixture.owner)
-        payload = self._get_valid_payload()
-
-        response = self.client.post(self.url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        droplet = models.Droplet.objects.get(uuid=response.data['uuid'])
-        spl = droplet.service_project_link
-        actual_storage_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.storage
-        ).usage
-        actual_ram_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.ram
-        ).usage
-        actual_vcpu_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.vcpu
-        ).usage
-        self.assertEqual(self.fixture.size.disk, actual_storage_usage)
-        self.assertEqual(self.fixture.size.ram, actual_ram_usage)
-        self.assertEqual(self.fixture.size.cores, actual_vcpu_usage)
-
     def _get_valid_payload(self):
         return {
             'name': 'droplet-name',
-            'service_project_link': factories.DigitalOceanServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            ),
+            'service_settings': ServiceSettingsFactory.get_url(self.fixture.settings),
+            'project': ProjectFactory.get_url(self.fixture.project),
             'image': factories.ImageFactory.get_url(self.fixture.image),
             'size': factories.SizeFactory.get_url(self.fixture.size),
             'region': factories.RegionFactory.get_url(self.fixture.region),
@@ -176,31 +145,10 @@ class DropletDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.DigitalOceanFixture()
 
     @mock.patch('waldur_digitalocean.executors.DropletDeleteExecutor.execute')
-    def test_spl_quotas_are_decreased_on_droplet_deletion(self, delete_exectutor_mock):
+    def test_droplet_deletion(self, delete_executor_mock):
         self.client.force_authenticate(self.fixture.owner)
         droplet = self.fixture.droplet
-        # emulate creation.
-        droplet.increase_backend_quotas_usage()
-
-        def mock_droplet_deletion(droplet, *args, **kwargs):
-            droplet.decrease_backend_quotas_usage()
-
-        delete_exectutor_mock.side_effect = mock_droplet_deletion
-
         response = self.client.delete(factories.DropletFactory.get_url(droplet))
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        delete_exectutor_mock.assert_called_once()
-        spl = self.fixture.spl
-        actual_storage_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.storage
-        ).usage
-        actual_ram_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.ram
-        ).usage
-        actual_vcpu_usage = spl.quotas.get(
-            name=models.DigitalOceanServiceProjectLink.Quotas.vcpu
-        ).usage
-        self.assertEqual(0, actual_storage_usage)
-        self.assertEqual(0, actual_ram_usage)
-        self.assertEqual(0, actual_vcpu_usage)
+        delete_executor_mock.assert_called_once()

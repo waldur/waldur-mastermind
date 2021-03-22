@@ -13,8 +13,8 @@ from rest_framework import exceptions, serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
-from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.registry import get_name_for_model
 from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
@@ -54,7 +54,7 @@ class IssueSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     resource = core_serializers.GenericRelatedField(
-        related_models=structure_models.ResourceMixin.get_all_models()
+        related_models=structure_models.BaseResource.get_all_models()
         + [marketplace_models.Resource],
         required=False,
     )
@@ -182,10 +182,8 @@ class IssueSerializer(
         return fields
 
     def get_resource_type(self, obj):
-        if isinstance(obj.resource, structure_models.ResourceMixin):
-            return SupportedServices.get_name_for_model(
-                obj.resource_content_type.model_class()
-            )
+        if isinstance(obj.resource, structure_models.BaseResource):
+            return get_name_for_model(obj.resource_content_type.model_class())
         if isinstance(obj.resource, marketplace_models.Resource):
             return 'Marketplace.Resource'
 
@@ -267,10 +265,8 @@ class IssueSerializer(
         )
 
     def validate_resource(self, resource):
-        if resource and type(resource) == marketplace_models.Resource:
+        if resource:
             self.validate_project(resource.project)
-        elif resource:
-            self.validate_project(resource.service_project_link.project)
         return resource
 
     def validate_priority(self, priority):
@@ -290,10 +286,8 @@ class IssueSerializer(
     @transaction.atomic()
     def create(self, validated_data):
         resource = validated_data.get('resource')
-        if resource and type(resource) == marketplace_models.Resource:
+        if resource:
             validated_data['project'] = resource.project
-        elif resource:
-            validated_data['project'] = resource.service_project_link.project
         project = validated_data.get('project')
         if project:
             validated_data['customer'] = project.customer

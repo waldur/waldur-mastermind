@@ -4,6 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace_openstack import views
 from waldur_mastermind.marketplace_openstack.tests import fixtures
@@ -17,10 +18,11 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
         self.view = views.MarketplaceTenantViewSet.as_view({'post': 'create'})
 
     def get_valid_payload(self):
-        spl = self.fixture.openstack_spl
-        spl_url = openstack_factories.OpenStackServiceProjectLinkFactory.get_url(spl)
         return {
-            'service_project_link': spl_url,
+            'service_settings': openstack_factories.OpenStackServiceSettingsFactory.get_url(
+                self.fixture.openstack_service_settings
+            ),
+            'project': ProjectFactory.get_url(self.fixture.project),
             'name': 'test_tenant',
         }
 

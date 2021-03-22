@@ -1,40 +1,11 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 from waldur_slurm import utils
-
-
-class SlurmService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project, related_name='+', through='SlurmServiceProjectLink'
-    )
-
-    class Meta:
-        unique_together = ('customer', 'settings')
-        verbose_name = _('SLURM provider')
-        verbose_name_plural = _('SLURM providers')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'slurm'
-
-
-class SlurmServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(on_delete=models.CASCADE, to=SlurmService)
-
-    class Meta(structure_models.ServiceProjectLink.Meta):
-        verbose_name = _('SLURM provider project link')
-        verbose_name_plural = _('SLURM provider project links')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'slurm-spl'
-
 
 SLURM_ALLOCATION_REGEX = 'a-zA-Z0-9-_'
 SLURM_ALLOCATION_NAME_MAX_LEN = 34
@@ -49,10 +20,7 @@ class UsageMixin(models.Model):
     gpu_usage = models.BigIntegerField(default=0)
 
 
-class Allocation(UsageMixin, structure_models.NewResource):
-    service_project_link = models.ForeignKey(
-        SlurmServiceProjectLink, related_name='allocations', on_delete=models.PROTECT
-    )
+class Allocation(UsageMixin, structure_models.BaseResource):
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 

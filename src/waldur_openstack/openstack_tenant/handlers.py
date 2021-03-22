@@ -450,7 +450,7 @@ def copy_flavor_exclude_regex_to_openstacktenant_service_settings(
     if not isinstance(tenant, openstack_models.Tenant):
         return
 
-    admin_settings = tenant.service_project_link.service.settings
+    admin_settings = tenant.service_settings
     instance.options['flavor_exclude_regex'] = admin_settings.options.get(
         'flavor_exclude_regex', ''
     )
@@ -475,9 +475,7 @@ def copy_config_drive_to_openstacktenant_service_settings(
     if old_value == new_value:
         return
 
-    tenants = openstack_models.Tenant.objects.filter(
-        service_project_link__service__settings=instance
-    )
+    tenants = openstack_models.Tenant.objects.filter(service_settings=instance)
     ctype = ContentType.objects.get_for_model(openstack_models.Tenant)
     tenant_settings = structure_models.ServiceSettings.objects.filter(
         object_id__in=tenants.values_list('id'), content_type=ctype
@@ -497,8 +495,8 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
         return
 
     tenant = instance
-    admin_settings = tenant.service_project_link.service.settings
-    customer = tenant.service_project_link.project.customer
+    admin_settings = tenant.service_settings
+    customer = tenant.project.customer
     service_settings = structure_models.ServiceSettings.objects.create(
         name=tenant.name,
         scope=tenant,
@@ -525,14 +523,6 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
             'config_drive'
         ]
         service_settings.save()
-
-    service = models.OpenStackTenantService.objects.create(
-        settings=service_settings, customer=customer,
-    )
-
-    models.OpenStackTenantServiceProjectLink.objects.create(
-        service=service, project=tenant.service_project_link.project,
-    )
 
 
 def update_service_settings(sender, instance, created=False, **kwargs):

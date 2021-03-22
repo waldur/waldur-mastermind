@@ -8,7 +8,7 @@ class RancherConfig(AppConfig):
     service_name = 'Rancher'
 
     def ready(self):
-        from waldur_core.structure import SupportedServices
+        from waldur_core.structure.registry import SupportedServices
         from waldur_core.structure import models as structure_models
 
         from waldur_openstack.openstack_tenant.models import Instance

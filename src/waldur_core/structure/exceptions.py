@@ -1,6 +1,10 @@
 import pickle  # noqa: S403
 
-from . import ServiceBackendError
+
+class ServiceBackendError(Exception):
+    """ Base exception for errors occurring during backend communication. """
+
+    pass
 
 
 class SerializableBackendError(ServiceBackendError):
@@ -26,3 +30,7 @@ class SerializableBackendError(ServiceBackendError):
                 args[i] = str(arg)
 
         super(SerializableBackendError, self).__init__(*args, **kwargs)
+
+
+class ServiceBackendNotImplemented(NotImplementedError):
+    pass

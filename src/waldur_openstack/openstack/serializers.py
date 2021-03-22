@@ -14,112 +14,88 @@ from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from rest_framework import serializers
 
-from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack_base.serializers import (
+    BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
     BaseVolumeTypeSerializer,
 )
 
 from . import models
-from .backend import OpenStackBackendError
 
 logger = logging.getLogger(__name__)
 
 
-class ServiceSerializer(
-    core_serializers.ExtraFieldOptionsMixin,
-    core_serializers.RequiredFieldsMixin,
-    structure_serializers.BaseServiceSerializer,
-):
+class OpenStackServiceSerializer(BaseOpenStackServiceSerializer):
 
-    SERVICE_ACCOUNT_FIELDS = {
-        'backend_url': _(
-            'Keystone auth URL (e.g. http://keystone.example.com:5000/v3)'
-        ),
-        'username': _('Administrative user'),
-        'domain': _('Domain name. If not defined default domain will be used.'),
-        'password': '',
-    }
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'tenant_name': '',
-        'availability_zone': _('Default availability zone for provisioned instances'),
-        'console_type': _(
-            'The type of remote console. '
-            'The valid values are novnc, xvpvnc, rdp-html5, '
-            'spice-html5, serial, and webmks.'
-        ),
-        'volume_availability_zone_name': _(
-            'Default availability zone name for provisioned volumes'
-        ),
-        'valid_availability_zones': _(
+    tenant_name = serializers.CharField(
+        source='options.tenant_name',
+        label=_('Tenant name'),
+        default='admin',
+        required=False,
+    )
+
+    volume_availability_zone_name = serializers.CharField(
+        source='options.volume_availability_zone_name',
+        label=_('Name of default volume availability zone to use'),
+        help_text=_('Default availability zone name for provisioned volumes'),
+        required=False,
+    )
+
+    valid_availability_zones = serializers.CharField(
+        source='options.valid_availability_zones',
+        help_text=_(
             'Optional dictionary where key is Nova availability '
             'zone name and value is Cinder availability zone name.'
         ),
-        'external_network_id': _(
+        required=False,
+    )
+
+    external_network_id = serializers.CharField(
+        source='options.external_network_id',
+        help_text=_(
             'ID of OpenStack external network that will be connected to tenants'
         ),
-        'latitude': _('Latitude of the datacenter (e.g. 40.712784)'),
-        'longitude': _('Longitude of the datacenter (e.g. -74.005941)'),
-        'access_url': _('Publicly accessible OpenStack dashboard URL'),
-        'dns_nameservers': _(
+        label=_('Public/gateway network UUID'),
+        required=False,
+    )
+
+    latitude = serializers.CharField(
+        source='options.latitude',
+        help_text=_('Latitude of the datacenter (e.g. 40.712784)'),
+        required=False,
+    )
+
+    longitude = serializers.CharField(
+        source='options.longitude',
+        help_text=_('Longitude of the datacenter (e.g. -74.005941)'),
+        required=False,
+    )
+
+    access_url = serializers.CharField(
+        source='options.access_url',
+        label=_('Access URL'),
+        help_text=_('Publicly accessible OpenStack dashboard URL'),
+        required=False,
+    )
+
+    dns_nameservers = serializers.CharField(
+        source='options.dns_nameservers',
+        help_text=_(
             'Default value for new subnets DNS name servers. Should be defined as list.'
         ),
-        'flavor_exclude_regex': _(
-            'Flavors matching this regex expression will not be pulled from the backend.'
-        ),
-        'create_ha_routers': _('Create highly available Neutron routers.'),
-        'config_drive': _(
-            'Indicates whether a config drive enables metadata injection'
-        ),
-    }
+        required=False,
+    )
 
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.OpenStackService
-        required_fields = (
-            'backend_url',
-            'username',
-            'password',
-        )
-        extra_field_options = {
-            'backend_url': {
-                'label': 'API URL',
-                'default_value': 'http://keystone.example.com:5000/v3',
-            },
-            'username': {'default_value': 'admin',},
-            'tenant_name': {'label': 'Tenant name', 'default_value': 'admin',},
-            'external_network_id': {'label': 'Public/gateway network UUID',},
-            'availability_zone': {'placeholder': 'default',},
-            'volume_availability_zone_name': {
-                'label': 'Name of default volume availability zone to use',
-            },
-            'access_url': {'label': 'Access URL',},
-            'create_ha_routers': {'default_value': False,},
-            'console_type': {'default_value': 'novnc',},
-        }
-
-    def _validate_settings(self, settings):
-        backend = settings.get_backend()
-        try:
-            if not backend.check_admin_tenant():
-                raise serializers.ValidationError(
-                    {
-                        'non_field_errors': _(
-                            'Provided credentials are not for admin tenant.'
-                        )
-                    }
-                )
-        except OpenStackBackendError:
-            raise serializers.ValidationError(
-                {'non_field_errors': _('Unable to validate credentials.')}
-            )
-
-
-class ServiceNameSerializer(serializers.Serializer):
-    name = serializers.CharField(required=True)
+    create_ha_routers = serializers.BooleanField(
+        source='options.create_ha_routers',
+        default=False,
+        help_text=_('Create highly available Neutron routers.'),
+        required=False,
+    )
 
 
 class FlavorSerializer(structure_serializers.BasePropertySerializer):
@@ -152,16 +128,6 @@ class VolumeTypeSerializer(BaseVolumeTypeSerializer):
         model = models.VolumeType
 
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.OpenStackServiceProjectLink
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'openstack-detail'},
-        }
-
-
 class TenantQuotaSerializer(serializers.Serializer):
     instances = serializers.IntegerField(min_value=1, required=False)
     volumes = serializers.IntegerField(min_value=1, required=False)
@@ -174,15 +140,6 @@ class TenantQuotaSerializer(serializers.Serializer):
 
 
 class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail', read_only=True
-    )
     port = serializers.HyperlinkedRelatedField(
         view_name='openstack-port-detail', lookup_field='uuid', read_only=True,
     )
@@ -224,7 +181,8 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
             return attrs
 
         attrs['tenant'] = tenant = self.context['view'].get_object()
-        attrs['service_project_link'] = tenant.service_project_link
+        attrs['service_settings'] = tenant.service_settings
+        attrs['project'] = tenant.project
         return super(FloatingIPSerializer, self).validate(attrs)
 
 
@@ -435,15 +393,6 @@ class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
 
 
 class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail', read_only=True
-    )
     rules = SecurityGroupRuleCreateSerializer(many=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -499,7 +448,8 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
             )
 
         attrs['tenant'] = tenant
-        attrs['service_project_link'] = tenant.service_project_link
+        attrs['service_settings'] = tenant.service_settings
+        attrs['project'] = tenant.project
         return super(SecurityGroupSerializer, self).validate(attrs)
 
     def create(self, validated_data):
@@ -538,73 +488,6 @@ class SecurityGroupUpdateSerializer(serializers.ModelSerializer):
         return name
 
 
-class TenantImportableSerializer(serializers.Serializer):
-    backend_id = serializers.CharField(read_only=True)
-    name = serializers.CharField(read_only=True)
-    description = serializers.CharField(read_only=True)
-    type = serializers.CharField(read_only=True)
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail',
-        queryset=models.OpenStackServiceProjectLink.objects.all(),
-        write_only=True,
-    )
-
-
-class TenantImportSerializer(serializers.HyperlinkedModelSerializer):
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail',
-        write_only=True,
-        queryset=models.OpenStackServiceProjectLink.objects.all(),
-    )
-    quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = models.Tenant
-        read_only_fields = (
-            'name',
-            'uuid',
-            'availability_zone',
-            'internal_network_id',
-            'external_network_id',
-            'user_username',
-            'user_password',
-            'quotas',
-        )
-        fields = read_only_fields + ('service_project_link', 'backend_id')
-
-    @transaction.atomic
-    def create(self, validated_data):
-        service_project_link = validated_data['service_project_link']
-        backend = service_project_link.service.get_backend()
-        backend_id = validated_data['backend_id']
-
-        if models.Tenant.objects.filter(
-            service_project_link__service__settings=service_project_link.service.settings,
-            backend_id=backend_id,
-        ).exists():
-            raise serializers.ValidationError(
-                _('Tenant with ID "%s" is already registered.') % backend_id
-            )
-
-        try:
-            tenant = backend.import_tenant(backend_id, service_project_link)
-        except OpenStackBackendError as e:
-            raise serializers.ValidationError(
-                {
-                    'backend_id': _(
-                        'Can\'t import tenant with ID %(backend_id)s. Reason: %(reason)s'
-                    )
-                    % {'backend_id': backend_id, 'reason': e,}
-                }
-            )
-
-        tenant.user_username = models.Tenant.generate_username(tenant.name)
-        tenant.user_password = core_utils.pwgen()
-        tenant.save()
-
-        return tenant
-
-
 ALLOWED_PRIVATE_NETWORKS = (
     IPv4Network('10.0.0.0/8'),
     IPv4Network('172.16.0.0/12'),
@@ -638,17 +521,6 @@ def validate_private_subnet_cidr(value):
 
 
 class TenantSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail',
-        queryset=models.OpenStackServiceProjectLink.objects.all(),
-        write_only=True,
-    )
     quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
     subnet_cidr = serializers.CharField(
         validators=[validate_private_subnet_cidr],
@@ -691,20 +563,18 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
 
         return fields
 
-    def _validate_service_project_link(self, spl):
+    def _validate_service_settings(self, service_settings, project):
         """ Administrator can create tenant only using not shared service settings """
         user = self.context['request'].user
         message = _(
             'You do not have permissions to create tenant in this project using selected service.'
         )
-        if spl.service.settings.shared and not user.is_staff:
+        if service_settings.shared and not user.is_staff:
             raise serializers.ValidationError(message)
-        if (
-            not spl.service.settings.shared
-            and not structure_permissions._has_admin_access(user, spl.project)
+        if not service_settings.shared and not structure_permissions._has_admin_access(
+            user, project
         ):
             raise serializers.ValidationError(message)
-        return spl
 
     def validate_security_groups_configuration(self):
         nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})
@@ -730,18 +600,16 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         domain = service_settings.domain
         backend_url = service_settings.backend_url
         tenants = models.Tenant.objects.filter(
-            service_project_link__service__settings__backend_url=backend_url
+            service_settings__backend_url=backend_url
         )
         if domain in (None, '', 'default'):
             tenants = tenants.filter(
-                Q(service_project_link__service__settings__domain='')
-                | Q(service_project_link__service__settings__domain__isnull=True)
-                | Q(service_project_link__service__settings__domain__iexact='default')
+                Q(service_settings__domain='')
+                | Q(service_settings__domain__isnull=True)
+                | Q(service_settings__domain__iexact='default')
             )
         else:
-            tenants = tenants.filter(
-                service_project_link__service__settings__domain=domain
-            )
+            tenants = tenants.filter(service_settings__domain=domain)
         return tenants
 
     def _validate_tenant_name(self, service_settings, tenant_name):
@@ -792,14 +660,14 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         attrs = super(TenantSerializer, self).validate(attrs)
 
         if not self.instance:
-            self._validate_service_project_link(attrs['service_project_link'])
+            self._validate_service_settings(attrs['service_settings'], attrs['project'])
 
         self.validate_security_groups_configuration()
 
         if self.instance is not None:
-            service_settings = self.instance.service_project_link.service.settings
+            service_settings = self.instance.service_settings
         else:
-            service_settings = attrs['service_project_link'].service.settings
+            service_settings = attrs['service_settings']
 
         # validate tenant name
         if self.instance is not None and attrs.get('name'):
@@ -823,11 +691,11 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         return attrs
 
     def create(self, validated_data):
-        spl = validated_data['service_project_link']
+        service_settings = validated_data['service_settings']
         # get availability zone from service settings if it is not defined
         if not validated_data.get('availability_zone'):
             validated_data['availability_zone'] = (
-                spl.service.settings.get_option('availability_zone') or ''
+                service_settings.get_option('availability_zone') or ''
             )
         # init tenant user username(if not defined) and password
         slugified_name = slugify(validated_data['name'])[:25]
@@ -844,16 +712,18 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
                 name=slugified_name + '-int-net',
                 description=_('Internal network for tenant %s') % tenant.name,
                 tenant=tenant,
-                service_project_link=tenant.service_project_link,
+                service_settings=tenant.service_settings,
+                project=tenant.project,
             )
             models.SubNet.objects.create(
                 name=slugified_name + '-sub-net',
                 description=_('SubNet for tenant %s internal network') % tenant.name,
                 network=network,
-                service_project_link=tenant.service_project_link,
+                service_settings=tenant.service_settings,
+                project=tenant.project,
                 cidr=subnet_cidr,
                 allocation_pools=_generate_subnet_allocation_pool(subnet_cidr),
-                dns_nameservers=spl.service.settings.options.get('dns_nameservers', []),
+                dns_nameservers=service_settings.options.get('dns_nameservers', []),
             )
 
             nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})
@@ -865,7 +735,8 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
                 sg_name = group.get('name')
                 sg_description = group.get('description', None)
                 sg = models.SecurityGroup.objects.get_or_create(
-                    service_project_link=tenant.service_project_link,
+                    service_settings=tenant.service_settings,
+                    project=tenant.project,
                     tenant=tenant,
                     description=sg_description,
                     name=sg_name,
@@ -925,15 +796,6 @@ class RouterSetRoutesSerializer(serializers.Serializer):
 
 
 class RouterSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail', read_only=True
-    )
     routes = StaticRouteSerializer(many=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
@@ -954,16 +816,7 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
-class PortSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail', read_only=True
-    )
+class PortSerializer(structure_serializers.BaseResourceActionSerializer):
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
     network_name = serializers.CharField(source='network.name', read_only=True)
@@ -1059,7 +912,8 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
                                 % {'backend_id': subnet_backend_id, 'network': network,}
                             }
                         )
-        attrs['service_project_link'] = network.service_project_link
+        attrs['service_settings'] = network.service_settings
+        attrs['project'] = network.project
         attrs['network'] = network
         attrs['tenant'] = network.tenant
 
@@ -1067,15 +921,6 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail', read_only=True
-    )
     subnets = _NestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
@@ -1115,7 +960,8 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
             return attrs
 
         attrs['tenant'] = tenant = self.context['view'].get_object()
-        attrs['service_project_link'] = tenant.service_project_link
+        attrs['service_settings'] = tenant.service_settings
+        attrs['project'] = tenant.project
         return super(NetworkSerializer, self).validate(attrs)
 
 
@@ -1129,15 +975,6 @@ class SetMtuSerializer(serializers.Serializer):
 
 
 class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='openstack-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='openstack-spl-detail', read_only=True
-    )
     cidr = serializers.CharField(
         validators=[validate_private_subnet_cidr],
         required=False,
@@ -1220,8 +1057,9 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
                     _('Subnet with cidr "%s" is already registered') % cidr
                 )
 
-            attrs['service_project_link'] = network.service_project_link
-            options = network.service_project_link.service.settings.options
+            attrs['service_settings'] = network.service_settings
+            attrs['project'] = network.project
+            options = network.service_settings.options
             attrs['allocation_pools'] = _generate_subnet_allocation_pool(cidr)
             attrs.setdefault('dns_nameservers', options.get('dns_nameservers', []))
 

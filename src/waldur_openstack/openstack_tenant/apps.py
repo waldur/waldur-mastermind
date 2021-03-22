@@ -23,7 +23,7 @@ class OpenStackTenantConfig(AppConfig):
             Customer,
             SharedServiceSettings,
         )
-        from waldur_core.structure import SupportedServices
+        from waldur_core.structure.registry import SupportedServices
         from waldur_openstack.openstack.models import Tenant, SecurityGroupRule
 
         from .backend import OpenStackTenantBackend
@@ -65,7 +65,7 @@ class OpenStackTenantConfig(AppConfig):
             name='os_cpu_count',
             quota_field=TotalQuotaField(
                 target_models=[models.Instance],
-                path_to_scope='service_project_link.project',
+                path_to_scope='project',
                 target_field='cores',
             ),
         )
@@ -74,7 +74,7 @@ class OpenStackTenantConfig(AppConfig):
             name='os_ram_size',
             quota_field=TotalQuotaField(
                 target_models=[models.Instance],
-                path_to_scope='service_project_link.project',
+                path_to_scope='project',
                 target_field='ram',
             ),
         )
@@ -83,7 +83,7 @@ class OpenStackTenantConfig(AppConfig):
             name='os_storage_size',
             quota_field=TotalQuotaField(
                 target_models=[models.Volume, models.Snapshot],
-                path_to_scope='service_project_link.project',
+                path_to_scope='project',
                 target_field='size',
             ),
         )
@@ -92,7 +92,7 @@ class OpenStackTenantConfig(AppConfig):
             name='os_cpu_count',
             quota_field=TotalQuotaField(
                 target_models=[models.Instance],
-                path_to_scope='service_project_link.project.customer',
+                path_to_scope='project.customer',
                 target_field='cores',
             ),
         )
@@ -101,7 +101,7 @@ class OpenStackTenantConfig(AppConfig):
             name='os_ram_size',
             quota_field=TotalQuotaField(
                 target_models=[models.Instance],
-                path_to_scope='service_project_link.project.customer',
+                path_to_scope='project.customer',
                 target_field='ram',
             ),
         )
@@ -110,7 +110,7 @@ class OpenStackTenantConfig(AppConfig):
             name='os_storage_size',
             quota_field=TotalQuotaField(
                 target_models=[models.Volume, models.Snapshot],
-                path_to_scope='service_project_link.project.customer',
+                path_to_scope='project.customer',
                 target_field='size',
             ),
         )

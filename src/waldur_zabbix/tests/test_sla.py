@@ -55,7 +55,7 @@ class SlaViewTest(test.APITransactionTestCase):
 
 
 class SlaPullTest(test.APITransactionTestCase):
-    @mock.patch('waldur_core.structure.models.ServiceProjectLink.get_backend')
+    @mock.patch('waldur_core.structure.models.ServiceSettings.get_backend')
     @mock.patch('waldur_zabbix.tasks.update_itservice_sla')
     def test_task_calls_backend(self, mock_task, mock_backend):
         # Given

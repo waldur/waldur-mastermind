@@ -10,29 +10,20 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.active_ip = factories.FloatingIPFactory(
-            runtime_state='ACTIVE', service_project_link=self.fixture.openstack_spl
+            runtime_state='ACTIVE',
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
         )
         self.down_ip = factories.FloatingIPFactory(
-            runtime_state='DOWN', service_project_link=self.fixture.openstack_spl
+            runtime_state='DOWN',
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
         )
         self.other_ip = factories.FloatingIPFactory(runtime_state='UNDEFINED')
 
     def test_floating_ip_list_can_be_filtered_by_project(self):
         data = {
             'project': self.fixture.project.uuid.hex,
-        }
-        # when
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(factories.FloatingIPFactory.get_list_url(), data)
-        # then
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response_ip_uuids = [ip['uuid'] for ip in response.data]
-        expected_ip_uuids = [ip.uuid.hex for ip in (self.active_ip, self.down_ip)]
-        self.assertEqual(sorted(response_ip_uuids), sorted(expected_ip_uuids))
-
-    def test_floating_ip_list_can_be_filtered_by_service(self):
-        data = {
-            'service_uuid': self.fixture.openstack_service.uuid.hex,
         }
         # when
         self.client.force_authenticate(self.fixture.staff)

@@ -76,7 +76,7 @@ def update_quotas_on_allocation_usage_update(sender, instance, created=False, **
     if not allocation.usage_changed():
         return
 
-    project = allocation.service_project_link.project
+    project = allocation.project
     update_quotas(project, models.Allocation.Permissions.project_path)
     update_quotas(project.customer, models.Allocation.Permissions.customer_path)
 

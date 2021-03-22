@@ -10,7 +10,8 @@ from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 
-from waldur_core.structure import log_backend_action
+from waldur_core.structure.backend import log_backend_action
+from waldur_core.structure.registry import get_name_for_model
 from waldur_core.structure.utils import (
     handle_resource_not_found,
     handle_resource_update_success,
@@ -114,7 +115,7 @@ class InternalIPSynchronizer:
         Prepare mapping from backend ID to local instance model.
         """
         instances = models.Instance.objects.filter(
-            service_project_link__service__settings=self.settings
+            service_settings=self.settings
         ).exclude(backend_id='')
         return {instance.backend_id: instance for instance in instances}
 
@@ -223,7 +224,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def pull_volumes(self):
         backend_volumes = self.get_volumes()
         volumes = models.Volume.objects.filter(
-            service_project_link__service__settings=self.settings,
+            service_settings=self.settings,
             state__in=[models.Volume.States.OK, models.Volume.States.ERRED],
         )
         backend_volumes_map = {
@@ -244,7 +245,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def pull_snapshots(self):
         backend_snapshots = self.get_snapshots()
         snapshots = models.Snapshot.objects.filter(
-            service_project_link__service__settings=self.settings,
+            service_settings=self.settings,
             state__in=[models.Snapshot.States.OK, models.Snapshot.States.ERRED],
         )
         backend_snapshots_map = {
@@ -265,7 +266,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def pull_instances(self):
         backend_instances = self.get_instances()
         instances = models.Instance.objects.filter(
-            service_project_link__service__settings=self.settings,
+            service_settings=self.settings,
             state__in=[models.Instance.States.OK, models.Instance.States.ERRED],
         )
         backend_instances_map = {
@@ -584,7 +585,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         if volume.source_snapshot:
             kwargs['snapshot_id'] = volume.source_snapshot.backend_id
 
-        tenant = volume.service_project_link.service.settings.scope
+        tenant = volume.service_settings.scope
 
         # there is an issue in RHOS13 that doesn't allow to restore a snapshot to a volume if also a volume type ID is provided
         # a workaround is to avoid setting volume type in this case at all
@@ -596,27 +597,20 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 if volume_type_name:
                     try:
                         volume_type = models.VolumeType.objects.get(
-                            name=volume_type_name,
-                            settings=volume.service_project_link.service.settings,
+                            name=volume_type_name, settings=volume.service_settings,
                         )
                         volume.type = volume_type
                         kwargs['volume_type'] = volume_type.backend_id
                     except models.VolumeType.DoesNotExist:
                         logger.error(
                             'Volume type is not set as volume type with name %s is not found. Settings UUID: %s'
-                            % (
-                                volume_type_name,
-                                volume.service_project_link.service.settings.uuid.hex,
-                            )
+                            % (volume_type_name, volume.service_settings.uuid.hex,)
                         )
                     except models.VolumeType.MultipleObjectsReturned:
                         logger.error(
                             'Volume type is not set as multiple volume types with name %s are found.'
                             'Service settings UUID: %s'
-                            % (
-                                volume_type_name,
-                                volume.service_project_link.service.settings.uuid.hex,
-                            )
+                            % (volume_type_name, volume.service_settings.uuid.hex,)
                         )
 
         if volume.availability_zone:
@@ -631,7 +625,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 try:
                     volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
                         name=volume_availability_zone_name,
-                        settings=volume.service_project_link.service.settings,
+                        settings=volume.service_settings,
                     )
                     volume.availability_zone = volume_availability_zone
                     kwargs['availability_zone'] = volume_availability_zone.name
@@ -640,7 +634,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                         'Volume availability zone with name %s is not found. Settings UUID: %s'
                         % (
                             volume_availability_zone_name,
-                            volume.service_project_link.service.settings.uuid.hex,
+                            volume.service_settings.uuid.hex,
                         )
                     )
 
@@ -721,16 +715,16 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-    def import_volume(self, backend_volume_id, save=True, service_project_link=None):
+    def import_volume(self, backend_id, project=None, save=True):
         """ Restore Waldur volume instance based on backend data. """
         cinder = self.cinder_client
         try:
-            backend_volume = cinder.volumes.get(backend_volume_id)
+            backend_volume = cinder.volumes.get(backend_id)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
         volume = self._backend_volume_to_volume(backend_volume)
-        if service_project_link is not None:
-            volume.service_project_link = service_project_link
+        volume.service_settings = self.settings
+        volume.project = project
         if save:
             volume.save()
 
@@ -797,7 +791,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
             if 'server_id' in backend_volume.attachments[0]:
                 volume.instance = models.Instance.objects.filter(
-                    service_project_link__service__settings=self.settings,
+                    service_settings=self.settings,
                     backend_id=backend_volume.attachments[0]['server_id'],
                 ).first()
         return volume
@@ -812,9 +806,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             self._backend_volume_to_volume(backend_volume)
             for backend_volume in backend_volumes
         ]
-
-    def get_volumes_for_import(self):
-        return self._get_backend_resource(models.Volume, self.get_volumes())
 
     @log_backend_action()
     def remove_bootable_flag(self, volume):
@@ -894,9 +885,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         snapshot.save()
         return snapshot
 
-    def import_snapshot(
-        self, backend_snapshot_id, save=True, service_project_link=None
-    ):
+    def import_snapshot(self, backend_snapshot_id, project=None, save=True):
         """ Restore Waldur Snapshot instance based on backend data. """
         cinder = self.cinder_client
         try:
@@ -904,8 +893,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
         snapshot = self._backend_snapshot_to_snapshot(backend_snapshot)
-        if service_project_link is not None:
-            snapshot.service_project_link = service_project_link
+        snapshot.service_settings = self.settings
+        snapshot.project = project
         if save:
             snapshot.save()
         return snapshot
@@ -922,8 +911,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         )
         if hasattr(backend_snapshot, 'volume_id'):
             snapshot.source_volume = models.Volume.objects.filter(
-                service_project_link__service__settings=self.settings,
-                backend_id=backend_snapshot.volume_id,
+                service_settings=self.settings, backend_id=backend_snapshot.volume_id,
             ).first()
         return snapshot
 
@@ -937,9 +925,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             self._backend_snapshot_to_snapshot(backend_snapshot)
             for backend_snapshot in backend_snapshots
         ]
-
-    def get_snapshots_for_import(self):
-        return self._get_backend_resource(models.Snapshot, self.get_snapshots())
 
     @log_backend_action()
     def pull_snapshot(self, snapshot, update_fields=None):
@@ -1283,16 +1268,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except keystone_exceptions.NotFound as e:
             raise OpenStackBackendError(e)
 
-    def import_instance(
-        self, backend_instance_id, save=True, service_project_link=None
-    ):
+    def import_instance(self, backend_id, project=None, save=True):
         # NB! This method does not import instance sub-objects like security groups or internal IPs.
         #     They have to be pulled separately.
         nova = self.nova_client
         try:
-            backend_instance = nova.servers.get(backend_instance_id)
+            backend_instance = nova.servers.get(backend_id)
             attached_volume_ids = [
-                v.volumeId for v in nova.volumes.get_server_volumes(backend_instance_id)
+                v.volumeId for v in nova.volumes.get_server_volumes(backend_id)
             ]
             flavor_id = backend_instance.flavor['id']
         except nova_exceptions.ClientException as e:
@@ -1306,19 +1289,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 try:
                     volumes.append(
                         models.Volume.objects.get(
-                            service_project_link__service__settings=self.settings,
+                            service_settings=self.settings,
                             backend_id=backend_volume_id,
                         )
                     )
                 except models.Volume.DoesNotExist:
-                    volumes.append(
-                        self.import_volume(
-                            backend_volume_id, save, service_project_link
-                        )
-                    )
+                    volumes.append(self.import_volume(backend_volume_id, project, save))
 
-            if service_project_link:
-                instance.service_project_link = service_project_link
+            instance.service_settings = self.settings
+            instance.project = project
             if hasattr(backend_instance, 'fault'):
                 instance.error_message = backend_instance.fault['message']
             if save:
@@ -1399,16 +1378,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-    def _get_backend_resource(self, model, resources):
-        registered_backend_ids = model.objects.filter(
-            service_project_link__service__settings=self.settings
-        ).values_list('backend_id', flat=True)
-        return [
-            instance
-            for instance in resources
-            if instance.backend_id not in registered_backend_ids
-        ]
-
     def get_instances(self):
         nova = self.nova_client
         try:
@@ -1424,8 +1393,41 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             )
         return instances
 
-    def get_instances_for_import(self):
-        return self._get_backend_resource(models.Instance, self.get_instances())
+    def get_importable_instances(self):
+        instances = [
+            {
+                'type': get_name_for_model(models.Instance),
+                'name': instance.name,
+                'backend_id': instance.backend_id,
+                'description': instance.description,
+                'extra': [
+                    {'name': 'Runtime state', 'value': instance.runtime_state},
+                    {'name': 'Flavor', 'value': instance.flavor_name},
+                    {'name': 'RAM (MBs)', 'value': instance.ram},
+                    {'name': 'Cores', 'value': instance.cores},
+                ],
+            }
+            for instance in self.get_instances()
+        ]
+        return self.get_importable_resources(models.Instance, instances)
+
+    def get_importable_volumes(self):
+        volumes = [
+            {
+                'type': get_name_for_model(models.Volume),
+                'name': volume.name,
+                'backend_id': volume.id,
+                'description': volume.description,
+                'extra': [
+                    {'name': 'Is bootable', 'value': volume.bootable},
+                    {'name': 'Size', 'value': volume.size},
+                    {'name': 'Device', 'value': volume.device},
+                    {'name': 'Runtime state', 'value': volume.runtime_state},
+                ],
+            }
+            for volume in self.get_volumes()
+        ]
+        return self.get_importable_resources(models.Volume, volumes)
 
     @transaction.atomic()
     def _pull_zones(self, backend_zones, frontend_model, default_zone='nova'):

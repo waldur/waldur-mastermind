@@ -3,15 +3,16 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import models
 from waldur_openstack.openstack.tests import factories
+from waldur_openstack.openstack.tests.fixtures import OpenStackFixture
 
 
 class StatsTest(test.APITransactionTestCase):
     def setUp(self):
+        self.fixture = OpenStackFixture()
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(self.staff)
 
-        self.service = factories.OpenStackServiceFactory()
-        self.settings = self.service.settings
+        self.settings = self.fixture.openstack_service_settings
         self.url = structure_factories.ServiceSettingsFactory.get_url(
             self.settings, 'stats'
         )
@@ -43,8 +44,9 @@ class StatsTest(test.APITransactionTestCase):
         self.settings.set_quota_limit(self.settings.Quotas.openstack_storage, 10000)
         self.settings.set_quota_usage(self.settings.Quotas.openstack_storage, 5000)
 
-        link = factories.OpenStackServiceProjectLinkFactory(service=self.service)
-        tenant1 = factories.TenantFactory(service_project_link=link)
+        tenant1 = factories.TenantFactory(
+            service_settings=self.settings, project=self.fixture.project
+        )
         tenant1.set_quota_limit(models.Tenant.Quotas.vcpu, 7)
         tenant1.set_quota_limit(models.Tenant.Quotas.ram, 700)
         tenant1.set_quota_limit(models.Tenant.Quotas.storage, 7000)

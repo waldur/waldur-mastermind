@@ -6,7 +6,9 @@ from django.db import IntegrityError, transaction
 from django.utils import dateparse
 
 from waldur_core.core.models import SshPublicKey
-from waldur_core.structure import ServiceBackend, ServiceBackendError, SupportedServices
+from waldur_core.structure.backend import ServiceBackend
+from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_core.structure.registry import get_name_for_model
 
 from . import models
 
@@ -247,9 +249,7 @@ class DigitalOceanBackend(ServiceBackend):
         }
         backend_ids = set(backend_droplets.keys())
 
-        nc_droplets = models.Droplet.objects.filter(
-            service_project_link__service__settings=self.settings
-        )
+        nc_droplets = models.Droplet.objects.filter(service_settings=self.settings)
         nc_droplets = {droplet.backend_id: droplet for droplet in nc_droplets}
         nc_ids = set(nc_droplets.keys())
 
@@ -306,16 +306,16 @@ class DigitalOceanBackend(ServiceBackend):
                 'ram': droplet.memory,
                 'disk': self.gb2mb(droplet.disk),
                 'flavor_name': droplet.size_slug,
-                'resource_type': SupportedServices.get_name_for_model(models.Droplet),
+                'resource_type': get_name_for_model(models.Droplet),
             }
             for droplet in droplets
             if str(droplet.id) not in cur_droplets and droplet.status in statuses
         ]
 
-    def import_droplet(self, backend_droplet_id, service_project_link=None, save=True):
-        backend_droplet = self.get_droplet(backend_droplet_id)
+    def import_droplet(self, backend_id, project=None, save=True):
+        backend_droplet = self.get_droplet(backend_id)
         droplet = models.Droplet()
-        droplet.backend_id = backend_droplet_id
+        droplet.backend_id = backend_id
         droplet.name = backend_droplet.name
         droplet.image_name = self.format_image_name(backend_droplet.image)
         droplet.size_name = backend_droplet.size_slug
@@ -327,9 +327,10 @@ class DigitalOceanBackend(ServiceBackend):
         droplet.created = dateparse.parse_datetime(backend_droplet.created_at)
         state, runtime_state = self._get_droplet_states(backend_droplet)
         droplet.runtime_state = runtime_state
-        if service_project_link and save:
+        if save:
             droplet.state = state
-            droplet.service_project_link = service_project_link
+            droplet.service_settings = self.settings
+            droplet.project = project
             droplet.save()
         return droplet
 

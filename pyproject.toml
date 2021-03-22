@@ -144,7 +144,6 @@ waldur_slurm = "waldur_slurm.extension:SlurmExtension"
 waldur_support = "waldur_mastermind.support.extension:SupportExtension"
 waldur_vmware = "waldur_vmware.extension:VMwareExtension"
 waldur_zabbix = "waldur_zabbix.extension:ZabbixExtension"
-waldur_zabbix_openstack = "waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension"
 waldur_pid = "waldur_pid.extension:PIDExtension"
 waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
 

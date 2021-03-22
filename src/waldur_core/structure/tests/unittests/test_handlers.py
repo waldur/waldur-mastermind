@@ -143,32 +143,3 @@ class LogRoleEventTest(TestCase):
                     'role_name': 'Manager',
                 },
             )
-
-
-class LogServiceProjectLinkEventTest(TestCase):
-    @mock.patch('waldur_core.structure.handlers.event_logger')
-    def test_logger_called_when_spl_was_created(self, logger_mock):
-        spl = factories.TestServiceProjectLinkFactory()
-
-        logger_mock.spl.info.assert_called_once_with(
-            'ServiceProjectLink for project \'{project_name}\' '
-            '(service: \'{service_type}\', settings name: \'{settings_name}\', '
-            'settings type: \'{service_settings_type}\') '
-            'has been created.',
-            event_type='spl_creation_succeeded',
-            event_context={'spl': spl,},
-        )
-
-    @mock.patch('waldur_core.structure.handlers.event_logger')
-    def test_logger_called_when_spl_was_deleted(self, logger_mock):
-        spl = factories.TestServiceProjectLinkFactory()
-        spl.delete()
-
-        logger_mock.spl.info.assert_called_with(
-            'ServiceProjectLink for project \'{project_name}\' '
-            '(service: \'{service_type}\', settings name: \'{settings_name}\', '
-            'settings type: \'{service_settings_type}\') '
-            'has been deleted.',
-            event_type='spl_deletion_succeeded',
-            event_context={'spl': spl,},
-        )

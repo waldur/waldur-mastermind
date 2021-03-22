@@ -9,7 +9,7 @@ class SlurmConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas.fields import QuotaField, CounterQuotaField
-        from waldur_core.structure import SupportedServices
+        from waldur_core.structure.registry import SupportedServices
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_freeipa import models as freeipa_models
@@ -62,8 +62,7 @@ class SlurmConfig(AppConfig):
         structure_models.Project.add_quota_field(
             name='nc_allocation_count',
             quota_field=CounterQuotaField(
-                target_models=lambda: [models.Allocation],
-                path_to_scope='service_project_link.project',
+                target_models=lambda: [models.Allocation], path_to_scope='project',
             ),
         )
 
@@ -71,7 +70,7 @@ class SlurmConfig(AppConfig):
             name='nc_allocation_count',
             quota_field=CounterQuotaField(
                 target_models=lambda: [models.Allocation],
-                path_to_scope='service_project_link.project.customer',
+                path_to_scope='project.customer',
             ),
         )
 

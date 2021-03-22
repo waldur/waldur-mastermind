@@ -7,7 +7,6 @@ from waldur_core.core import WaldurExtension
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.tasks import ConnectSharedSettingsTask
 
 
 class ServiceSettingsCreateExecutor(core_executors.CreateExecutor):
@@ -18,9 +17,6 @@ class ServiceSettingsCreateExecutor(core_executors.CreateExecutor):
                 serialized_settings, state_transition='begin_creating'
             )
         ]
-        # connect settings to all customers if they are shared
-        if settings.shared:
-            creation_tasks.append(ConnectSharedSettingsTask().si(serialized_settings))
         # sync settings if they have not only global properties
         backend = settings.get_backend()
         if not backend.has_global_properties():
@@ -38,12 +34,6 @@ class ServiceSettingsPullExecutor(core_executors.ActionExecutor):
         return core_tasks.IndependentBackendMethodTask().si(
             serialized_settings, 'sync', state_transition='begin_updating'
         )
-
-
-class ServiceSettingsConnectSharedExecutor(core_executors.BaseExecutor):
-    @classmethod
-    def get_task_signature(cls, settings, serialized_settings, **kwargs):
-        return ConnectSharedSettingsTask().si(serialized_settings)
 
 
 class BaseCleanupExecutor(core_executors.BaseExecutor):

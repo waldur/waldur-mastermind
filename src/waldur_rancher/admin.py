@@ -78,10 +78,6 @@ class ClusterTemplateAdmin(core_admin.HideAdminOriginalMixin):
     inlines = [ClusterTemplateNodeInline]
 
 
-admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
-admin.site.register(
-    models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
-)
 admin.site.register(models.Cluster, ClusterAdmin)
 admin.site.register(models.Node)
 admin.site.register(models.RancherUser, RancherUserAdmin)

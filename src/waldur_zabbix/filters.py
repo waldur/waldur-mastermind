@@ -10,7 +10,7 @@ from . import models
 
 class HostScopeFilterBackend(core_filters.GenericKeyFilterBackend):
     def get_related_models(self):
-        return structure_models.ResourceMixin.get_all_models()
+        return structure_models.BaseResource.get_all_models()
 
     def get_field_name(self):
         return 'scope'

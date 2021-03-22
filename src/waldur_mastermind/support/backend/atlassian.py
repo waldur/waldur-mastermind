@@ -13,7 +13,7 @@ from django.utils import timezone
 from jira import Comment, JIRAError
 from jira.utils import json_loads
 
-from waldur_core.structure import ServiceBackendError
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_jira.backend import JiraBackend, JiraBackendError, reraise_exceptions
 from waldur_mastermind.support import models
 from waldur_mastermind.support.exceptions import SupportUserInactive

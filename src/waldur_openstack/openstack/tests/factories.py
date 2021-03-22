@@ -6,6 +6,7 @@ from django.urls import reverse
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_openstack.openstack import models
 
 
@@ -13,54 +14,12 @@ class OpenStackServiceSettingsFactory(structure_factories.ServiceSettingsFactory
     type = 'OpenStack'
 
 
-class OpenStackServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OpenStackService
-
-    settings = factory.SubFactory(OpenStackServiceSettingsFactory)
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = OpenStackServiceFactory()
-        url = 'http://testserver' + reverse(
-            'openstack-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('openstack-list')
-
-
-class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OpenStackServiceProjectLink
-
-    service = factory.SubFactory(OpenStackServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = OpenStackServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse(
-            'openstack-spl-detail', kwargs={'pk': spl.pk}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('openstack-spl-list')
-
-
 class FlavorFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Flavor
 
     name = factory.Sequence(lambda n: 'flavor%s' % n)
-    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
+    settings = factory.SubFactory(OpenStackServiceSettingsFactory)
 
     cores = 2
     ram = 2 * 1024
@@ -86,7 +45,7 @@ class ImageFactory(factory.DjangoModelFactory):
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
-    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
+    settings = factory.SubFactory(OpenStackServiceSettingsFactory)
 
     backend_id = factory.Sequence(lambda n: 'image-id%s' % n)
 
@@ -114,7 +73,8 @@ class TenantMixin:
 
         if 'tenant' not in kwargs:
             tenant, _ = models.Tenant.objects.get_or_create(
-                service_project_link=kwargs['service_project_link'],
+                service_settings=kwargs['service_settings'],
+                project=kwargs['project'],
                 backend_id='VALID_ID',
             )
             kwargs['tenant'] = tenant
@@ -127,7 +87,8 @@ class SecurityGroupFactory(TenantMixin, factory.DjangoModelFactory):
         model = models.SecurityGroup
 
     name = factory.Sequence(lambda n: 'security_group%s' % n)
-    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     state = models.SecurityGroup.States.OK
     backend_id = factory.Sequence(lambda n: 'security_group-id%s' % n)
 
@@ -164,7 +125,8 @@ class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
     class Meta:
         model = models.FloatingIP
 
-    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     runtime_state = factory.Iterator(['ACTIVE', 'SHUTOFF', 'DOWN'])
     address = factory.LazyAttribute(
         lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
@@ -190,7 +152,8 @@ class TenantFactory(factory.DjangoModelFactory):
         model = models.Tenant
 
     name = factory.Sequence(lambda n: 'tenant%s' % n)
-    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     state = models.Tenant.States.OK
     external_network_id = factory.LazyAttribute(lambda _: uuid.uuid4())
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
@@ -219,7 +182,8 @@ class NetworkFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'network%s' % n)
     backend_id = factory.Sequence(lambda n: 'backend_id%s' % n)
-    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     tenant = factory.SubFactory(TenantFactory)
     state = models.Network.States.OK
 
@@ -244,7 +208,8 @@ class SubNetFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'subnet%s' % n)
     network = factory.SubFactory(NetworkFactory)
-    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
 
     @classmethod
     def get_url(cls, subnet=None, action=None):
@@ -301,7 +266,8 @@ class PortFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'port_%s' % n)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
-    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
 
     @classmethod
     def get_url(cls, port=None):

@@ -7,7 +7,8 @@ from django.conf import settings as django_settings
 from django.db import transaction
 from django.utils import timezone
 
-from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure.backend import ServiceBackend
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_freeipa import models as freeipa_models
 from waldur_slurm.client import SlurmClient
 from waldur_slurm.structures import Quotas
@@ -52,12 +53,12 @@ class SlurmBackend(ServiceBackend):
             return True
 
     def add_new_users(self, allocation):
-        users = allocation.service_project_link.project.customer.get_users()
+        users = allocation.project.customer.get_users()
         for profile in freeipa_models.Profile.objects.filter(user__in=users):
             self.add_user(allocation, profile.username.lower())
 
     def create_allocation(self, allocation):
-        project = allocation.service_project_link.project
+        project = allocation.project
         customer_account = self.get_customer_name(project.customer)
         project_account = self.get_project_name(project)
         allocation_account = self.get_allocation_name(allocation)
@@ -90,7 +91,7 @@ class SlurmBackend(ServiceBackend):
         if self.client.get_account(account):
             self.client.delete_account(account)
 
-        project = allocation.service_project_link.project
+        project = allocation.project
         if self.get_allocation_queryset().filter(project=project).count() == 0:
             self.delete_project(project)
 
@@ -255,9 +256,7 @@ class SlurmBackend(ServiceBackend):
         self.client.delete_account(self.get_project_name(project_uuid))
 
     def get_allocation_queryset(self):
-        return models.Allocation.objects.filter(
-            service_project_link__service__settings=self.settings
-        )
+        return models.Allocation.objects.filter(service_settings=self.settings)
 
     def get_customer_name(self, customer):
         return self.get_account_name(

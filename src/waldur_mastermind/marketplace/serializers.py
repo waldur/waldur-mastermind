@@ -6,14 +6,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import (
-    Count,
-    FileField,
-    ImageField,
-    IntegerField,
-    OuterRef,
-    Subquery,
-)
+from django.db.models import Count, IntegerField, OuterRef, Subquery
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -28,16 +21,18 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
-from waldur_core.media.serializers import ProtectedFileField, ProtectedImageField
+from waldur_core.media.serializers import (
+    ProtectedFileField,
+    ProtectedImageField,
+    ProtectedMediaSerializerMixin,
+)
 from waldur_core.quotas.serializers import BasicQuotaSerializer
-from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.tasks import connect_shared_settings
-from waldur_core.structure.utils import merge_dictionaries
+from waldur_core.structure.serializers import ServiceSettingsSerializer
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.serializers import validate_options
@@ -58,9 +53,8 @@ class MarketplaceProtectedMediaSerializerMixin(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
-            self.serializer_field_mapping = merge_dictionaries(
-                serializers.ModelSerializer.serializer_field_mapping,
-                {FileField: ProtectedFileField, ImageField: ProtectedImageField,},
+            self.serializer_field_mapping = (
+                ProtectedMediaSerializerMixin.serializer_field_mapping
             )
 
 
@@ -166,10 +160,6 @@ class CategorySerializer(
         allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')
         if allowed_customer_uuid and core_utils.is_uuid_like(allowed_customer_uuid):
             offerings = offerings.filter_for_customer(allowed_customer_uuid)
-
-        project_uuid = request.query_params.get('project_uuid')
-        if project_uuid and core_utils.is_uuid_like(project_uuid):
-            offerings = offerings.filter_for_project(project_uuid)
 
         offerings = offerings.annotate(count=Count('*')).values('count')
 
@@ -1000,26 +990,19 @@ class OfferingCreateSerializer(OfferingModifySerializer):
             # It is expected that customer URL is passed to the service settings serializer
             customer=self.initial_data['customer'],
             type=service_type,
-            **service_attributes
+            options=service_attributes,
         )
-        serializer_class = SupportedServices.get_service_serializer_for_key(
-            service_type
-        )
-        serializer = serializer_class(data=payload, context=self.context)
+        serializer = ServiceSettingsSerializer(data=payload, context=self.context)
         serializer.is_valid(raise_exception=True)
-        service = serializer.save()
+        service_settings = serializer.save()
         # Usually we don't allow users to create new shared service settings via REST API.
         # That's shared flag is marked as read-only in service settings serializer.
         # But shared offering should be created with shared service settings.
         # That's why we set it to shared only after service settings object is created.
         if validated_data.get('shared'):
-            service.settings.shared = True
-            service.settings.save()
-            # Usually connect shared settings task is called when service is created.
-            # But as we set shared flag after serializer has been executed,
-            # we need to connect shared settings manually.
-            connect_shared_settings(service.settings)
-        validated_data['scope'] = service.settings
+            service_settings.shared = True
+            service_settings.save()
+        validated_data['scope'] = service_settings
         return validated_data
 
 

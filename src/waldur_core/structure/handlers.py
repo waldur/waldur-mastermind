@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import StateMixin
-from waldur_core.structure import SupportedServices, signals
+from waldur_core.structure import signals
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import (
     Customer,
@@ -16,7 +16,6 @@ from waldur_core.structure.models import (
     CustomerRole,
     Project,
     ProjectPermission,
-    Service,
     ServiceSettings,
 )
 
@@ -305,65 +304,6 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
         )
 
 
-def connect_customer_to_shared_service_settings(
-    sender, instance, created=False, **kwargs
-):
-    if not created:
-        return
-    customer = instance
-
-    for shared_settings in ServiceSettings.objects.filter(shared=True):
-        try:
-            service_model = SupportedServices.get_service_models()[
-                shared_settings.type
-            ]['service']
-            service_model.objects.create(
-                customer=customer, settings=shared_settings, available_for_all=True
-            )
-        except KeyError:
-            logger.warning("Unregistered service of type %s" % shared_settings.type)
-
-
-def connect_project_to_all_available_services(
-    sender, instance, created=False, **kwargs
-):
-    if not created:
-        return
-    project = instance
-
-    for service_model in Service.get_all_models():
-        for service in service_model.objects.filter(
-            available_for_all=True, customer=project.customer
-        ):
-            service_project_link_model = service.projects.through
-            service_project_link_model.objects.create(project=project, service=service)
-
-
-def connect_service_to_all_projects_if_it_is_available_for_all(
-    sender, instance, created=False, **kwargs
-):
-    service = instance
-    if service.available_for_all:
-        service_project_link_model = service.projects.through
-        for project in service.customer.projects.all():
-            service_project_link_model.objects.get_or_create(
-                project=project, service=service
-            )
-
-
-def delete_service_settings_on_service_delete(sender, instance, **kwargs):
-    """ Delete not shared service settings without services """
-    service = instance
-    try:
-        service_settings = service.settings
-    except ServiceSettings.DoesNotExist:
-        # If this handler works together with delete_service_settings_on_scope_delete
-        # it tries to delete service settings that are already deleted.
-        return
-    if not service_settings.shared:
-        service.settings.delete()
-
-
 def update_resource_start_time(sender, instance, created=False, **kwargs):
     if created:
         return
@@ -384,10 +324,9 @@ def update_resource_start_time(sender, instance, created=False, **kwargs):
 
 def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
     """ If VM that contains service settings were deleted - all settings
-        resources could be safely deleted from NC.
+        resources could be safely deleted from Waldur.
     """
     for service_settings in ServiceSettings.objects.filter(scope=instance):
-        service_settings.unlink_descendants()
         service_settings.delete()
 
 
@@ -441,29 +380,6 @@ def update_customer_users_count(sender, **kwargs):
     for customer in Customer.objects.all():
         usage = len(set(customer.get_users()))
         customer.set_quota_usage(Customer.Quotas.nc_user_count, usage)
-
-
-def log_spl_create(sender, instance, created=False, **kwargs):
-    if created:
-        event_logger.spl.info(
-            'ServiceProjectLink for project \'{project_name}\' '
-            '(service: \'{service_type}\', settings name: \'{settings_name}\', '
-            'settings type: \'{service_settings_type}\') '
-            'has been created.',
-            event_type='spl_creation_succeeded',
-            event_context={'spl': instance,},
-        )
-
-
-def log_spl_delete(sender, instance, **kwargs):
-    event_logger.spl.info(
-        'ServiceProjectLink for project \'{project_name}\' '
-        '(service: \'{service_type}\', settings name: \'{settings_name}\', '
-        'settings type: \'{service_settings_type}\') '
-        'has been deleted.',
-        event_type='spl_deletion_succeeded',
-        event_context={'spl': instance,},
-    )
 
 
 def change_email_has_been_requested(sender, instance, created=False, **kwargs):

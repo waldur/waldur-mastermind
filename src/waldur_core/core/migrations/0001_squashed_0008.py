@@ -8,6 +8,7 @@ from django.db import migrations, models
 
 import waldur_core.core.fields
 import waldur_core.core.models
+import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
@@ -230,7 +231,7 @@ class Migration(migrations.Migration):
                     models.TextField(
                         validators=[
                             django.core.validators.MaxLengthValidator(2000),
-                            waldur_core.core.models.validate_ssh_public_key,
+                            waldur_core.core.validators.validate_ssh_public_key,
                         ]
                     ),
                 ),

@@ -1,8 +1,6 @@
 import logging
 from typing import List
 
-from waldur_core.structure import SupportedServices
-
 
 class Component:
     def __init__(
@@ -65,6 +63,9 @@ class PluginManager:
         :key enable_usage_notifications: optional boolean indicated whether usage notifications
         should be sent to a customer.
         :key enable_remote_support: optional boolean indicated whether offering can be imported in remote Waldur.
+        :key get_importable_resources_backend_method:
+        :key import_resource_backend_method:
+        :key import_resource_executor:
         """
         self.backends[offering_type] = kwargs
 
@@ -130,27 +131,18 @@ class PluginManager:
         """
         return self.backends.get(offering_type, {}).get('resource_model')
 
-    def get_resource_viewset(self, offering_type):
-        resource_model = self.get_resource_model(offering_type)
-        return SupportedServices.get_resource_view(resource_model)
+    def get_importable_resources_backend_method(self, offering_type):
+        return self.backends.get(offering_type, {}).get(
+            'get_importable_resources_backend_method'
+        )
 
-    def get_spl_model(self, offering_type):
-        resource_model = self.get_resource_model(offering_type)
-        return SupportedServices.get_related_models(resource_model)[
-            'service_project_link'
-        ]
+    def import_resource_backend_method(self, offering_type):
+        return self.backends.get(offering_type, {}).get(
+            'import_resource_backend_method'
+        )
 
-    def get_service_model(self, offering_type):
-        resource_model = self.get_resource_model(offering_type)
-        return SupportedServices.get_related_models(resource_model)['service']
-
-    def get_importable_resources(self, offering):
-        try:
-            resource_viewset = self.get_resource_viewset(offering.type)
-        except AttributeError:
-            return []
-        backend = offering.scope.get_backend()
-        return getattr(backend, resource_viewset.importable_resources_backend_method)()
+    def get_import_resource_executor(self, offering_type):
+        return self.backends.get(offering_type, {}).get('import_resource_executor')
 
     def get_processor(self, offering_type, processor_type):
         """

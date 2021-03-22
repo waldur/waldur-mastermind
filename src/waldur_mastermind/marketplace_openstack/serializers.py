@@ -15,10 +15,6 @@ class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
             'quotas',
         )
 
-    def _validate_service_project_link(self, spl):
-        # We shall skip permission check when marketplace order item is being created
-        pass
-
     @transaction.atomic
     def create(self, validated_data):
         quotas = validated_data.pop('quotas')
@@ -26,3 +22,6 @@ class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
         if quotas:
             _apply_quotas(tenant, quotas)
         return tenant
+
+    def _validate_service_settings(self, service_settings, project):
+        pass

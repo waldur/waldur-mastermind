@@ -3,36 +3,8 @@ from model_utils import FieldTracker
 
 from waldur_azure import validators
 from waldur_core.core import models as core_models
-from waldur_core.quotas.fields import CounterQuotaField
-from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 from waldur_geo_ip.mixins import CoordinatesMixin
-
-
-class AzureService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='azure_services',
-        through='AzureServiceProjectLink',
-    )
-
-    @classmethod
-    def get_url_name(cls):
-        return 'azure'
-
-    class Quotas(QuotaModelMixin.Quotas):
-        vm_count = CounterQuotaField(
-            target_models=lambda: [VirtualMachine],
-            path_to_scope='service_project_link.service',
-        )
-
-
-class AzureServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(on_delete=models.CASCADE, to=AzureService)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'azure-spl'
 
 
 class Location(CoordinatesMixin, structure_models.ServiceProperty):
@@ -78,11 +50,7 @@ class Size(structure_models.ServiceProperty):
         return 'azure-size'
 
 
-class BaseResource(core_models.RuntimeStateMixin, structure_models.NewResource):
-    service_project_link = models.ForeignKey(
-        on_delete=models.CASCADE, to=AzureServiceProjectLink
-    )
-
+class BaseResource(core_models.RuntimeStateMixin, structure_models.BaseResource):
     class Meta:
         abstract = True
 
@@ -166,11 +134,6 @@ class PublicIP(BaseResourceGroupModel):
 
 
 class VirtualMachine(structure_models.VirtualMachine):
-    service_project_link = models.ForeignKey(
-        AzureServiceProjectLink,
-        related_name='virtualmachines',
-        on_delete=models.PROTECT,
-    )
     resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
     size = models.ForeignKey(on_delete=models.CASCADE, to=Size)
     image = models.ForeignKey(on_delete=models.CASCADE, to=Image)

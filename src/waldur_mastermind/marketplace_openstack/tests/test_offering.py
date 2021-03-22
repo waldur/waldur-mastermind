@@ -132,9 +132,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
 
         self.assertTrue(isinstance(service_settings, structure_models.ServiceSettings))
         self.assertEqual(service_settings.scope, tenant)
-        self.assertEqual(
-            offering.customer, tenant.service_project_link.project.customer
-        )
+        self.assertEqual(offering.customer, tenant.project.customer)
 
     @data(INSTANCE_TYPE, VOLUME_TYPE)
     @override_plugin_settings(AUTOMATICALLY_CREATE_PRIVATE_OFFERING=False)
@@ -152,7 +150,8 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
     ):
         fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
-            service_project_link=fixture.openstack_spl,
+            service_settings=fixture.openstack_service_settings,
+            project=fixture.project,
             state=openstack_models.Tenant.States.CREATING,
         )
 
@@ -175,7 +174,8 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
     def trigger_offering_creation(self):
         fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
-            service_project_link=fixture.openstack_spl,
+            service_settings=fixture.openstack_service_settings,
+            project=fixture.project,
             state=openstack_models.Tenant.States.CREATING,
         )
         resource = marketplace_factories.ResourceFactory(scope=tenant)

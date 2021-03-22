@@ -1,48 +1,43 @@
-import hashlib
-import string
 import uuid
 
 from django.db import transaction
-from django.utils.crypto import get_random_string
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from waldur_core.core import serializers as core_serializers
-from waldur_core.core import utils as core_utils
+from waldur_azure.utils import generate_password, generate_username, hash_string
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models
 
 
-def hash_string(value, length=16):
-    return hashlib.sha256(value.encode('utf-8')).hexdigest()[:length]
+class AzureServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = (
+            'tenant_id',
+            'client_id',
+            'client_secret',
+            'subscription_id',
+        )
 
+    tenant_id = serializers.CharField(
+        source='options.tenant_id',
+        label=_('Azure Active Directory tenant ID or domain'),
+    )
 
-def generate_username():
-    return 'user{}'.format(core_utils.pwgen(4))
+    client_id = serializers.CharField(
+        source='options.client_id',
+        label=_('Azure Active Directory application client ID'),
+    )
 
+    client_secret = serializers.CharField(
+        source='options.client_secret',
+        label=_('Azure Active Directory application secret'),
+    )
 
-def generate_password():
-    lowercase = get_random_string(5, string.ascii_lowercase)
-    uppercase = get_random_string(5, string.ascii_uppercase)
-    digits = get_random_string(5, string.digits)
-    return lowercase + uppercase + digits
-
-
-class ServiceSerializer(
-    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
-):
-
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'tenant_id': 'Azure Active Directory tenant id or domain',
-        'client_id': 'Azure Active Directory Application Client ID',
-        'client_secret': 'Azure Active Directory Application Secret',
-        'subscription_id': 'Azure Subscription Id',
-    }
-
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.AzureService
-        view_name = 'azure-detail'
+    subscription_id = serializers.CharField(
+        source='options.subscription_id', label=_('Azure subscription ID')
+    )
 
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
@@ -84,32 +79,7 @@ class LocationSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.AzureServiceProjectLink
-        view_name = 'azure-spl-detail'
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'azure-detail'},
-        }
-
-
 class BaseResourceSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='azure-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='azure-spl-detail',
-        queryset=models.AzureServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
@@ -218,7 +188,8 @@ class VirtualMachineSerializer(
     @transaction.atomic
     def create(self, validated_data):
         vm_name = validated_data['name']
-        spl = validated_data['service_project_link']
+        service_settings = validated_data['service_settings']
+        project = validated_data['project']
         size = validated_data['size']
         location = validated_data.pop('location')
 
@@ -232,24 +203,30 @@ class VirtualMachineSerializer(
         security_group_name = 'NSG{}'.format(vm_name)
 
         resource_group = models.ResourceGroup.objects.create(
-            service_project_link=spl, name=resource_group_name, location=location,
+            service_settings=service_settings,
+            project=project,
+            name=resource_group_name,
+            location=location,
         )
 
         models.StorageAccount.objects.create(
-            service_project_link=spl,
+            service_settings=service_settings,
+            project=project,
             name=storage_account_name,
             resource_group=resource_group,
         )
 
         network = models.Network.objects.create(
-            service_project_link=spl,
+            service_settings=service_settings,
+            project=project,
             resource_group=resource_group,
             name=network_name,
             cidr='10.0.0.0/16',
         )
 
         subnet = models.SubNet.objects.create(
-            service_project_link=spl,
+            service_settings=service_settings,
+            project=project,
             resource_group=resource_group,
             name=subnet_name,
             cidr='10.0.0.0/24',
@@ -257,20 +234,23 @@ class VirtualMachineSerializer(
         )
 
         public_ip = models.PublicIP.objects.create(
-            service_project_link=spl,
+            service_settings=service_settings,
+            project=project,
             resource_group=resource_group,
             location=location,
             name=public_ip_name,
         )
 
         security_group = models.SecurityGroup.objects.create(
-            service_project_link=spl,
+            service_settings=service_settings,
+            project=project,
             resource_group=resource_group,
             name=security_group_name,
         )
 
         nic = models.NetworkInterface.objects.create(
-            service_project_link=spl,
+            service_settings=service_settings,
+            project=project,
             resource_group=resource_group,
             name=nic_name,
             subnet=subnet,
@@ -335,13 +315,17 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        spl = validated_data['service_project_link']
+        service_settings = validated_data['service_settings']
+        project = validated_data['project']
         location = validated_data.pop('location')
 
         resource_group_name = 'group{}'.format(uuid.uuid4().hex)
 
         resource_group = models.ResourceGroup.objects.create(
-            service_project_link=spl, name=resource_group_name, location=location,
+            service_settings=service_settings,
+            project=project,
+            name=resource_group_name,
+            location=location,
         )
         validated_data['resource_group'] = resource_group
         validated_data['username'] = generate_username()
@@ -386,5 +370,6 @@ class SQLDatabaseCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         server = self.context['view'].get_object()
         validated_data['server'] = server
-        validated_data['service_project_link'] = server.service_project_link
+        validated_data['service_settings'] = server.service_settings
+        validated_data['project'] = server.project
         return super(SQLDatabaseCreateSerializer, self).create(validated_data)

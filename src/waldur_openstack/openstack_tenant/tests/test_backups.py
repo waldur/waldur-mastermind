@@ -63,7 +63,8 @@ class BackupPermissionsTest(helpers.PermissionsTest):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.instance = self.fixture.instance
         self.backup = factories.BackupFactory(
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
             state=models.Backup.States.OK,
             instance=self.instance,
         )
@@ -125,7 +126,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=user)
 
         self.backup = factories.BackupFactory(state=models.Backup.States.OK)
-        ss = self.backup.service_project_link.service.settings
+        ss = self.backup.service_settings
         ss.options = {'external_network_id': uuid.uuid4().hex}
         ss.save()
         self.url = factories.BackupFactory.get_url(self.backup, 'restore')
@@ -133,9 +134,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         system_volume = self.backup.instance.volumes.get(bootable=True)
         self.disk_size = system_volume.size
 
-        self.service_settings = (
-            self.backup.instance.service_project_link.service.settings
-        )
+        self.service_settings = self.backup.instance.service_settings
         self.service_settings.options = {'external_network_id': uuid.uuid4().hex}
         self.service_settings.save()
         self.valid_flavor = factories.FlavorFactory(
@@ -158,9 +157,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self,
     ):
         security_group = factories.SecurityGroupFactory()
-        self.assertNotEqual(
-            self.backup.service_project_link.service.settings, security_group.settings
-        )
+        self.assertNotEqual(self.backup.service_settings, security_group.settings)
         payload = self._get_valid_payload(
             security_groups=[
                 {'url': factories.SecurityGroupFactory.get_url(security_group)}

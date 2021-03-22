@@ -2,10 +2,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.models import ProjectRole
-from waldur_openstack.openstack_tenant.models import (
-    Instance,
-    OpenStackTenantServiceProjectLink,
-)
+from waldur_openstack.openstack.models import Tenant
+from waldur_openstack.openstack_tenant.models import Instance
 
 from . import factories, fixtures
 
@@ -53,7 +51,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
 
     def test_when_flavor_is_changed_related_quotas_are_updated(self):
-        Quotas = OpenStackTenantServiceProjectLink.Quotas
+        Quotas = Tenant.Quotas
 
         new_flavor = factories.FlavorFactory(
             settings=self.fixture.openstack_tenant_service_settings,
@@ -79,7 +77,6 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         quota_holders = [
-            self.fixture.spl,
             self.fixture.openstack_tenant_service_settings,
             self.fixture.tenant,
         ]
@@ -157,31 +154,11 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
 
     @data('admin', 'manager')
-    def test_user_with_access_cannot_change_flavor_of_stopped_instance_if_spl_quota_would_be_exceeded(
-        self, user
-    ):
-        self.client.force_authenticate(user=getattr(self.fixture, user))
-        settings = self.fixture.openstack_tenant_service_settings
-        spl = self.fixture.spl
-
-        self._assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(
-            settings, spl
-        )
-
-    @data('admin', 'manager')
     def test_user_with_access_cannot_change_flavor_of_stopped_instance_if_settings_quota_would_be_exceeded(
         self, user
     ):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        settings = self.fixture.openstack_tenant_service_settings
-
-        self._assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(
-            settings, settings
-        )
-
-    def _assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(
-        self, settings, quotas_holder
-    ):
+        quotas_holder = settings = self.fixture.openstack_tenant_service_settings
         quotas_holder.set_quota_limit('ram', 1024)
 
         # check for ram
@@ -242,7 +219,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         inaccessible_instance = factories.InstanceFactory()
 
         new_flavor = factories.FlavorFactory(
-            settings=inaccessible_instance.service_project_link.service.settings,
+            settings=inaccessible_instance.service_settings,
             disk=self.instance.disk + 1,
         )
 
@@ -267,7 +244,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.user)
 
         instance = factories.InstanceFactory(state=Instance.States.CREATION_SCHEDULED)
-        project = instance.service_project_link.project
+        project = instance.project
         project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
 
         response = self.client.post(
@@ -287,11 +264,9 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         for state in forbidden_states:
             instance = factories.InstanceFactory(state=state)
-            link = instance.service_project_link
+            instance.project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
 
-            link.project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
-
-            changed_flavor = factories.FlavorFactory(settings=link.service.settings)
+            changed_flavor = factories.FlavorFactory(settings=instance.service_settings)
 
             data = {'flavor': factories.FlavorFactory.get_url(changed_flavor)}
 
@@ -313,7 +288,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         instance = factories.InstanceFactory(
             state=Instance.States.OK, runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
-        project = instance.service_project_link.project
+        project = instance.project
 
         project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
 

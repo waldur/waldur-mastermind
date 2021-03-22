@@ -15,7 +15,9 @@ from libcloud.utils.xml import fixxpath
 
 from waldur_core.core.models import SshPublicKey
 from waldur_core.core.utils import hours_in_month
-from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure.backend import ServiceBackend
+from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_core.structure.registry import get_name_for_model
 
 from . import models
 
@@ -606,8 +608,6 @@ class AWSBackend(ServiceBackend):
         return size.price * hours_in_month()
 
     def to_instance(self, instance, region):
-        from waldur_core.structure import SupportedServices
-
         manager = self._get_api(region.backend_id)
         # TODO: Connect volume with instance
         try:
@@ -634,7 +634,7 @@ class AWSBackend(ServiceBackend):
             'state': models.Instance.States.OK,
             'public_ips': instance.public_ips,
             'flavor_name': instance.extra.get('instance_type'),
-            'type': SupportedServices.get_name_for_model(models.Instance),
+            'type': get_name_for_model(models.Instance),
             'runtime_state': instance.state,
         }
 
@@ -662,24 +662,6 @@ class AWSBackend(ServiceBackend):
             return manager.ex_import_keypair_from_string(
                 ssh_key.name, ssh_key.public_key
             )
-
-    def get_resources_for_import(self, resource_type=None):
-        from waldur_core.structure import SupportedServices
-
-        resources = []
-
-        if (
-            resource_type is None
-            or resource_type == SupportedServices.get_name_for_model(models.Instance)
-        ):
-            resources.extend(self.get_instances_for_import())
-
-        if (
-            resource_type is None
-            or resource_type == SupportedServices.get_name_for_model(models.Volume)
-        ):
-            resources.extend(self.get_volumes_for_import())
-        return resources
 
     def get_instances_for_import(self):
         cur_instances = models.Instance.objects.all().values_list(
@@ -726,10 +708,35 @@ class AWSBackend(ServiceBackend):
                 return region, self.to_volume(volume)
         raise AWSBackendError("Volume with id %s is not found", volume_id)
 
-    def get_managed_resources(self):
-        backend_instance = self.get_managed_instances()
-        backend_volumes = self.get_managed_volumes()
-        return list(backend_instance) + list(backend_volumes)
+    def import_instance(self, backend_id, project):
+        region, instance = self.find_instance(backend_id)
+        return models.Instance.objects.create(
+            name=instance['name'],
+            public_ips=instance['public_ips'],
+            cores=instance['cores'],
+            ram=instance['ram'],
+            disk=instance['disk'],
+            created=instance['created'],
+            state=instance['state'],
+            region=region,
+            service_settings=self.settings,
+            project=project,
+        )
+
+    def import_volume(self, backend_id, project):
+        region, volume = self.find_volume(backend_id)
+        return models.Volume.objects.create(
+            name=volume['name'],
+            size=volume['size'],
+            created=volume['created'],
+            runtime_state=volume['runtime_state'],
+            state=models.Volume.States.OK,
+            device=volume['device'],
+            volume_type=volume['volume_type'],
+            region=region,
+            service_settings=self.settings,
+            project=project,
+        )
 
     def get_managed_instances(self):
         try:
@@ -756,8 +763,6 @@ class AWSBackend(ServiceBackend):
             raise AWSBackendError(e)
 
     def to_volume(self, volume):
-        from waldur_core.structure import SupportedServices
-
         return {
             'id': volume.id,
             'name': volume.name,
@@ -765,7 +770,7 @@ class AWSBackend(ServiceBackend):
             'created': volume.extra['create_time'],
             'state': self._get_volume_state(volume.state),
             'runtime_state': volume.state,
-            'type': SupportedServices.get_name_for_model(models.Volume),
+            'type': get_name_for_model(models.Volume),
             'device': volume.extra['device'],
             'instance_id': volume.extra['instance_id'],
             'volume_type': volume.extra['volume_type'],

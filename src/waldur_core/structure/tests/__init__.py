@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 
-from waldur_core.structure import ServiceBackend, SupportedServices
+from waldur_core.structure.backend import ServiceBackend
+from waldur_core.structure.registry import SupportedServices
 
 default_app_config = 'waldur_core.structure.tests.TestConfig'
 
@@ -21,4 +22,3 @@ class TestConfig(AppConfig):
 
     def ready(self):
         SupportedServices.register_backend(TestBackend)
-        SupportedServices.register_service(self.get_model('TestService'))

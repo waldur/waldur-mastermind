@@ -1,23 +1,22 @@
 import collections
+import unittest
 from unittest import mock
 
 from django.utils import timezone
 from rest_framework import status, test
 
-from waldur_core.structure import ServiceBackend
+from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_digitalocean import models
 
 from . import factories
 
 
+@unittest.skip('Move import to marketplace')
 @mock.patch('digitalocean.Manager')
-class ImportDroptetTest(test.APITransactionTestCase):
+class ImportDropletTest(test.APITransactionTestCase):
     def setUp(self):
-        self.link = factories.DigitalOceanServiceProjectLinkFactory()
-        self.import_url = factories.DigitalOceanServiceFactory.get_url(
-            self.link.service, 'link'
-        )
+        self.import_url = factories.DropletFactory.get_url(self.link.service)
         self.project_url = structure_factories.ProjectFactory.get_url(self.link.project)
         self.client.force_authenticate(
             user=structure_factories.UserFactory(is_staff=True)
@@ -61,7 +60,7 @@ class ImportDroptetTest(test.APITransactionTestCase):
         mocked_manager().get_droplet.assert_called_once_with('VALID_ID')
 
         droplet = models.Droplet.objects.get(uuid=response.data['uuid'])
-        self.assertEqual(droplet.service_project_link, self.link)
+        self.assertEqual(droplet.service_settings, self.service_settings)
         self.assertEqual(droplet.backend_id, 'VALID_ID')
         self.assertEqual(droplet.state, models.Droplet.States.OK)
         self.assertEqual(droplet.runtime_state, models.Droplet.RuntimeStates.ONLINE)

@@ -4,7 +4,7 @@ from functools import partial
 from django.conf import settings as django_settings
 from django.contrib import auth
 from django.core import exceptions as django_exceptions
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -17,13 +17,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import (
-    APIException,
-    MethodNotAllowed,
-    NotFound,
-    PermissionDenied,
-    ValidationError,
-)
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from waldur_core.core import managers as core_managers
@@ -35,18 +29,11 @@ from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import models as logging_models
 from waldur_core.quotas.models import QuotaModelMixin
-from waldur_core.structure import (
-    ServiceBackendError,
-    ServiceBackendNotImplemented,
-    SupportedServices,
-    filters,
-    models,
-    permissions,
-    serializers,
-    utils,
-)
+from waldur_core.structure import filters, models, permissions, serializers, utils
+from waldur_core.structure.exceptions import ServiceBackendNotImplemented
+from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.signals import resource_imported, structure_role_updated
+from waldur_core.structure.signals import structure_role_updated
 
 logger = logging.getLogger(__name__)
 
@@ -947,7 +934,13 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
         'name',
         'state',
     )
-    disabled_actions = ['create', 'destroy']
+
+    def perform_create(self, serializer):
+        service_settings = serializer.save()
+
+        transaction.on_commit(
+            lambda: ServiceSettingsCreateExecutor.execute(service_settings)
+        )
 
     def list(self, request, *args, **kwargs):
         """
@@ -957,7 +950,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
         Supported filters are:
 
         - ?name=<text> - partial matching used for searching
-        - ?type=<type> - choices: OpenStack, DigitalOcean, Amazon, JIRA, GitLab, Oracle
+        - ?type=<type> - choices: OpenStack, DigitalOcean, Amazon, JIRA
         - ?state=<state> - choices: New, Creation Scheduled, Creating, Sync Scheduled, Syncing, In Sync, Erred
         - ?shared=<bool> - allows to filter shared service settings
         """
@@ -1003,6 +996,8 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
 
     update_validators = partial_update_validators = [utils.check_customer_blocked]
 
+    destroy_permissions = [can_user_update_settings]
+
     @action(detail=True)
     def stats(self, request, uuid=None):
         """
@@ -1043,14 +1038,6 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
             stats = {}
 
         return Response(stats, status=status.HTTP_200_OK)
-
-
-class ServiceMetadataViewSet(viewsets.GenericViewSet):
-    # Fix for schema generation
-    queryset = []
-
-    def list(self, request):
-        return Response(SupportedServices.get_services_with_resources(request))
 
 
 class BaseCounterView(viewsets.GenericViewSet):
@@ -1100,7 +1087,6 @@ class CustomerCountersView(BaseCounterView):
     .. code-block:: javascript
 
         {
-            "services": 1,
             "projects": 1,
             "users": 3
         }
@@ -1118,7 +1104,6 @@ class CustomerCountersView(BaseCounterView):
     def get_fields(self):
         return {
             'projects': self.get_projects,
-            'services': self.get_services,
             'users': self.get_users,
         }
 
@@ -1127,12 +1112,6 @@ class CustomerCountersView(BaseCounterView):
 
     def get_projects(self):
         return self._count_model(models.Project)
-
-    def get_services(self):
-        models = [
-            item['service'] for item in SupportedServices.get_service_models().values()
-        ]
-        return self._total_count(models)
 
     def _total_count(self, models):
         return sum(self._count_model(model) for model in models)
@@ -1207,259 +1186,6 @@ class UserCountersView(BaseCounterView):
         ).count()
 
 
-class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
-    queryset = NotImplemented
-    serializer_class = NotImplemented
-    import_serializer_class = NotImplemented
-    filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    filterset_class = filters.BaseServiceFilter
-    lookup_field = 'uuid'
-    unsafe_methods_permissions = [
-        permissions.is_owner,
-        permissions.check_access_to_services_management,
-    ]
-
-    def list(self, request, *args, **kwargs):
-        """
-        To list all services without regard to its type, run **GET** against */api/services/* as an authenticated user.
-
-        To list services of specific type issue **GET** to specific endpoint from a list above as a customer owner.
-        Individual endpoint used for every service type.
-
-        To create a service, issue a **POST** to specific endpoint from a list above as a customer owner.
-        Individual endpoint used for every service type.
-
-        You can create service based on shared service settings. Example:
-
-        .. code-block:: http
-
-            POST /api/digitalocean/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "Common DigitalOcean",
-                "customer": "http://example.com/api/customers/1040561ca9e046d2b74268600c7e1105/",
-                "settings": "http://example.com/api/service-settings/93ba615d6111466ebe3f792669059cb4/"
-            }
-
-        Or provide your own credentials. Example:
-
-        .. code-block:: http
-
-            POST /api/oracle/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "My Oracle",
-                "customer": "http://example.com/api/customers/1040561ca9e046d2b74268600c7e1105/",
-                "backend_url": "https://oracle.example.com:7802/em",
-                "username": "admin",
-                "password": "secret"
-            }
-        """
-        return super(BaseServiceViewSet, self).list(request, *args, **kwargs)
-
-    def _can_import(self):
-        return self.import_serializer_class is not NotImplemented
-
-    def get_serializer_class(self):
-        serializer = super(BaseServiceViewSet, self).get_serializer_class()
-        if self.action == 'link':
-            serializer = (
-                self.import_serializer_class
-                if self._can_import()
-                else rf_serializers.Serializer
-            )
-
-        return serializer
-
-    def get_serializer_context(self):
-        context = super(BaseServiceViewSet, self).get_serializer_context()
-        # Viewset doesn't have object during schema generation
-        if self.action == 'link' and self.lookup_field in self.kwargs:
-            context['service'] = self.get_object()
-        return context
-
-    def get_import_context(self):
-        return {}
-
-    @action(detail=True)
-    def managed_resources(self, request, uuid=None):
-        service = self.get_object()
-        backend = self.get_backend(service)
-
-        try:
-            resources = backend.get_managed_resources()
-        except ServiceBackendNotImplemented:
-            resources = []
-
-        serializer = serializers.ManagedResourceSerializer(resources, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def _has_import_serializer_permission(request, view, obj=None):
-        if not view._can_import():
-            raise MethodNotAllowed(view.action)
-
-    def _require_staff_for_shared_settings(request, view, obj=None):
-        """ Allow to execute action only if service settings are not shared or user is staff """
-        if obj is None:
-            return
-
-        if obj.settings.shared and not request.user.is_staff:
-            raise PermissionDenied(
-                _(
-                    'Only staff users are allowed to import resources from shared services.'
-                )
-            )
-
-    @action(detail=True, methods=['get', 'post'])
-    def link(self, request, uuid=None):
-        """
-        To get a list of resources available for import, run **GET** against */<service_endpoint>/link/*
-        as an authenticated user.
-        Optionally project_uuid parameter can be supplied for services requiring it like OpenStack.
-
-        To import (link with Waldur) resource issue **POST** against the same endpoint with resource id.
-
-        .. code-block:: http
-
-            POST /api/openstack/08039f01c9794efc912f1689f4530cf0/link/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "backend_id": "bd5ec24d-9164-440b-a9f2-1b3c807c5df3",
-                "project": "http://example.com/api/projects/e5f973af2eb14d2d8c38d62bcbaccb33/"
-            }
-        """
-
-        service = self.get_object()
-
-        if self.request.method == 'GET':
-            try:
-                backend = self.get_backend(service)
-                try:
-                    resources = backend.get_resources_for_import(
-                        **self.get_import_context()
-                    )
-                except ServiceBackendNotImplemented:
-                    resources = []
-
-                page = self.paginate_queryset(resources)
-                if page is not None:
-                    return self.get_paginated_response(page)
-
-                return Response(resources)
-            except (ServiceBackendError, ValidationError) as e:
-                raise APIException(e)
-
-        else:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-
-            try:
-                resource = serializer.save()
-            except ServiceBackendError as e:
-                raise APIException(e)
-
-            resource_imported.send(
-                sender=resource.__class__, instance=resource,
-            )
-
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-    link_permissions = [
-        _has_import_serializer_permission,
-        _require_staff_for_shared_settings,
-    ]
-
-    def get_backend(self, service):
-        # project_uuid can be supplied in order to get a list of resources
-        # available for import (link) based on project, depends on backend implementation
-        project_uuid = self.request.query_params.get('project_uuid')
-        if project_uuid:
-            spl_class = SupportedServices.get_related_models(service)[
-                'service_project_link'
-            ]
-            try:
-                spl = spl_class.objects.get(project__uuid=project_uuid, service=service)
-            except spl_class.DoesNotExist:
-                raise NotFound(_("Can't find project %s.") % project_uuid)
-            else:
-                return spl.get_backend()
-        else:
-            return service.get_backend()
-
-    @action(detail=True, methods=['post'])
-    def unlink(self, request, uuid=None):
-        """
-        Unlink all related resources, service project link and service itself.
-        """
-        service = self.get_object()
-        service.unlink_descendants()
-        self.perform_destroy(service)
-
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    unlink_permissions = [
-        _require_staff_for_shared_settings,
-        permissions.check_access_to_services_management,
-    ]
-    unlink.destructive = True
-
-
-class BaseServiceProjectLinkViewSet(core_views.ActionsViewSet):
-    queryset = NotImplemented
-    serializer_class = NotImplemented
-    filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    filterset_class = filters.BaseServiceProjectLinkFilter
-    unsafe_methods_permissions = [permissions.is_owner]
-    disabled_actions = ['update', 'partial_update']
-
-    def list(self, request, *args, **kwargs):
-        """
-        To get a list of connections between a project and an service, run **GET** against service_project_link_url
-        as authenticated user. Note that a user can only see connections of a project where a user has a role.
-
-        If service has `available_for_all` flag, project-service connections are created automatically.
-        Otherwise, in order to be able to provision resources, service must first be linked to a project.
-        To do that, **POST** a connection between project and a service to service_project_link_url
-        as stuff user or customer owner.
-        """
-        return super(BaseServiceProjectLinkViewSet, self).list(request, *args, **kwargs)
-
-    def retrieve(self, request, *args, **kwargs):
-        """
-        To remove a link, issue **DELETE** to URL of the corresponding connection as stuff user or customer owner.
-        """
-        return super(BaseServiceProjectLinkViewSet, self).retrieve(
-            request, *args, **kwargs
-        )
-
-
-class ResourceViewMetaclass(type):
-    """ Store view in registry """
-
-    def __new__(cls, name, bases, args):
-        resource_view = super(ResourceViewMetaclass, cls).__new__(
-            cls, name, bases, args
-        )
-        queryset = args.get('queryset')
-        if hasattr(queryset, 'model') and not issubclass(
-            queryset.model, models.SubResource
-        ):
-            SupportedServices.register_resource_view(queryset.model, resource_view)
-        return resource_view
-
-
 class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.BaseServicePropertyFilter
 
@@ -1476,11 +1202,11 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
     unsafe_methods_permissions = [permissions.is_administrator]
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(models.NewResource.States.OK)
+        core_validators.StateValidator(models.BaseResource.States.OK)
     ]
     destroy_validators = [
         core_validators.StateValidator(
-            models.NewResource.States.OK, models.NewResource.States.ERRED
+            models.BaseResource.States.OK, models.BaseResource.States.ERRED
         )
     ]
 
@@ -1500,75 +1226,10 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     pull_executor = NotImplemented
     pull_validators = [
         core_validators.StateValidator(
-            models.NewResource.States.OK, models.NewResource.States.ERRED
+            models.BaseResource.States.OK, models.BaseResource.States.ERRED
         ),
         check_resource_backend_id,
     ]
-
-
-class BaseResourceViewSet(ResourceViewSet, metaclass=ResourceViewMetaclass):
-    pass
-
-
-class ImportableResourceViewSet(BaseResourceViewSet):
-    """
-    This viewset enables uniform implementation of resource import.
-
-    Comparing to the previous approach when import endpoint was defined in service viewset,
-    this class assumes that resource-specific import options are defined in resource viewset.
-
-    Consider the following example:
-
-    importable_resources_backend_method = 'get_tenants_for_import'
-    importable_resources_serializer_class = serializers.TenantImportableSerializer
-    importable_resources_permissions = [structure_permissions.is_staff]
-    import_resource_serializer_class = serializers.TenantImportSerializer
-    import_resource_permissions = [structure_permissions.is_staff]
-    import_resource_executor = executors.TenantImportExecutor
-
-    It is expected that importable_resources_backend_method returns list of dicts, each of which
-    contains two mandatory fields: name and backend_id, and one optional field called extra.
-    This optional field should be list of dicts, each of which contains two mandatory fields: name and value.
-
-    Note that there are only 3 mandatory parameters:
-    * importable_resources_backend_method
-    * importable_resources_serializer_class
-    * import_resource_serializer_class
-    """
-
-    import_resource_executor = None
-
-    @action(methods=['get'], detail=False)
-    def importable_resources(self, request):
-        serializer = self.get_serializer(data=request.GET)
-        serializer.is_valid(raise_exception=True)
-        service_project_link = serializer.validated_data['service_project_link']
-
-        backend = service_project_link.get_backend()
-        resources = getattr(backend, self.importable_resources_backend_method)()
-        serializer = self.get_serializer(resources, many=True)
-        page = self.paginate_queryset(serializer.data)
-        if page is not None:
-            return self.get_paginated_response(page)
-
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
-
-    @action(methods=['post'], detail=False)
-    def import_resource(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            resource = serializer.save()
-        except IntegrityError:
-            raise rf_serializers.ValidationError(_('Resource is already registered.'))
-        else:
-            resource_imported.send(
-                sender=resource.__class__, instance=resource,
-            )
-        if self.import_resource_executor:
-            self.import_resource_executor.execute(resource)
-
-        return Response(data=serializer.data, status=status.HTTP_201_CREATED)
 
 
 class DivisionViewSet(core_views.ReadOnlyActionsViewSet):

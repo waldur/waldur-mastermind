@@ -2,13 +2,7 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'vmware', views.ServiceViewSet, basename='vmware')
     router.register(r'vmware-limits', views.LimitViewSet, basename='vmware-limit')
-    router.register(
-        r'vmware-service-project-link',
-        views.ServiceProjectLinkViewSet,
-        basename='vmware-spl',
-    )
     router.register(
         r'vmware-virtual-machine',
         views.VirtualMachineViewSet,

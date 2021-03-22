@@ -4,7 +4,7 @@ from .models import Comment, Issue
 
 
 def get_issue_scopes(issue):
-    project = issue.project.service_project_link.project
+    project = issue.project.project
     result = {project, project.customer}
     if issue.resource:
         result.add(issue.resource)

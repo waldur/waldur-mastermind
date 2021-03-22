@@ -11,8 +11,9 @@ from waldur_core.monitoring.models import (
     ResourceSlaStateTransition,
 )
 from waldur_core.structure.tests.factories import (
+    ProjectFactory,
+    ServiceSettingsFactory,
     TestNewInstanceFactory,
-    TestServiceProjectLinkFactory,
     UserFactory,
 )
 
@@ -21,10 +22,17 @@ from ..utils import format_period
 
 class BaseMonitoringTest(test.APITransactionTestCase):
     def setUp(self):
-        self.link = TestServiceProjectLinkFactory()
-        self.vm1 = TestNewInstanceFactory(service_project_link=self.link)
-        self.vm2 = TestNewInstanceFactory(service_project_link=self.link)
-        self.vm3 = TestNewInstanceFactory(service_project_link=self.link)
+        service_settings = ServiceSettingsFactory()
+        project = ProjectFactory()
+        self.vm1 = TestNewInstanceFactory(
+            service_settings=service_settings, project=project
+        )
+        self.vm2 = TestNewInstanceFactory(
+            service_settings=service_settings, project=project
+        )
+        self.vm3 = TestNewInstanceFactory(
+            service_settings=service_settings, project=project
+        )
         self.client.force_authenticate(UserFactory(is_staff=True))
 
 

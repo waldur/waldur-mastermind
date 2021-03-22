@@ -4,8 +4,8 @@ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import exceptions
 
-from waldur_core.structure import ServiceBackend
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.backend import ServiceBackend
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.utils import import_resource_metadata

@@ -14,23 +14,13 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import signals as structure_signals
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.signals import resource_imported
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 
 from . import executors, filters, models, serializers
-
-
-class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.OpenStackTenantService.objects.all()
-    serializer_class = serializers.ServiceSerializer
-
-
-class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.OpenStackTenantServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-    filterset_class = filters.OpenStackTenantServiceProjectLinkFilter
 
 
 class UsageReporter:
@@ -75,16 +65,12 @@ class UsageReporter:
         if self.query:
             filter_dict = dict()
             if self.query.get('shared', None):
-                filter_dict[
-                    'service_project_link__service__settings__shared'
-                ] = self.query['shared']
+                filter_dict['service_settings__shared'] = self.query['shared']
             if self.query.get('service_provider', None):
-                filter_dict[
-                    'service_project_link__service__settings__uuid__in'
-                ] = self.query['service_provider']
-                filter_dict[
-                    'service_project_link__service__settings__type'
-                ] = 'OpenStackTenant'
+                filter_dict['service_settings__uuid__in'] = self.query[
+                    'service_provider'
+                ]
+                filter_dict['service_settings__type'] = 'OpenStackTenant'
             return qs.filter(**filter_dict)
         return qs
 
@@ -192,7 +178,7 @@ class SecurityGroupViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.SecurityGroupFilter
 
 
-class VolumeViewSet(structure_views.ImportableResourceViewSet):
+class VolumeViewSet(structure_views.ResourceViewSet):
     queryset = models.Volume.objects.all()
     serializer_class = serializers.VolumeSerializer
     filterset_class = filters.VolumeFilter
@@ -356,12 +342,8 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 
     retype_serializer_class = serializers.VolumeRetypeSerializer
 
-    importable_resources_backend_method = 'get_volumes_for_import'
-    importable_resources_serializer_class = serializers.VolumeImportableSerializer
-    import_resource_serializer_class = serializers.VolumeImportSerializer
 
-
-class SnapshotViewSet(structure_views.ImportableResourceViewSet):
+class SnapshotViewSet(structure_views.ResourceViewSet):
     queryset = models.Snapshot.objects.all().order_by('name')
     serializer_class = serializers.SnapshotSerializer
     update_executor = executors.SnapshotUpdateExecutor
@@ -396,10 +378,6 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
 
     restorations_serializer_class = serializers.SnapshotRestorationSerializer
 
-    importable_resources_backend_method = 'get_snapshots_for_import'
-    importable_resources_serializer_class = serializers.SnapshotImportableSerializer
-    import_resource_serializer_class = serializers.SnapshotImportSerializer
-
 
 class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.InstanceAvailabilityZone.objects.all().order_by(
@@ -410,7 +388,7 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
     filterset_class = filters.InstanceAvailabilityZoneFilter
 
 
-class InstanceViewSet(structure_views.ImportableResourceViewSet):
+class InstanceViewSet(structure_views.ResourceViewSet):
     """
     OpenStack instance permissions
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -758,11 +736,6 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     floating_ips_serializer_class = serializers.NestedFloatingIPSerializer
 
-    importable_resources_backend_method = 'get_instances_for_import'
-    importable_resources_serializer_class = serializers.InstanceImportableSerializer
-    import_resource_serializer_class = serializers.InstanceImportSerializer
-    import_resource_executor = executors.InstancePullExecutor
-
     @decorators.action(detail=True, methods=['get'])
     def console(self, request, uuid=None):
         instance = self.get_object()
@@ -827,7 +800,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     force_destroy_serializer_class = destroy_serializer_class
 
 
-class BackupViewSet(structure_views.BaseResourceViewSet):
+class BackupViewSet(structure_views.ResourceViewSet):
     queryset = models.Backup.objects.all().order_by('name')
     serializer_class = serializers.BackupSerializer
     filterset_class = filters.BackupFilter
@@ -871,7 +844,7 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
     restore_serializer_class = serializers.BackupRestorationSerializer
 
 
-class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
+class BaseScheduleViewSet(structure_views.ResourceViewSet):
     disabled_actions = ['create']
 
     # method has to be overridden in order to avoid triggering of UpdateExecutor
@@ -921,7 +894,7 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
 
     activate_validators = [_is_schedule_active]
 
-    def _is_schedule_deactived(resource_schedule):
+    def _is_schedule_deactivated(resource_schedule):
         if not resource_schedule.is_active:
             raise core_exceptions.IncorrectStateException(
                 _('A schedule is already deactivated.')
@@ -938,7 +911,7 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
         schedule.save()
         return response.Response({'status': _('Backup schedule was deactivated')})
 
-    deactivate_validators = [_is_schedule_deactived]
+    deactivate_validators = [_is_schedule_deactivated]
 
 
 class BackupScheduleViewSet(BaseScheduleViewSet):
@@ -964,14 +937,16 @@ class SharedSettingsBaseView(generics.GenericAPIView):
         queryset = structure_models.ServiceSettings.objects.filter(
             type=OpenStackConfig.service_name
         )
+        queryset = filter_queryset_for_user(queryset, self.request.user)
         try:
             shared_settings = queryset.get(uuid=service_settings_uuid)
         except structure_models.ServiceSettings.DoesNotExist:
             return structure_models.ServiceSettings.objects.none()
 
         tenants = openstack_models.Tenant.objects.filter(
-            service_project_link__service__settings=shared_settings
+            service_settings=shared_settings
         )
+        tenants = filter_queryset_for_user(tenants, self.request.user)
         if tenants:
             return structure_models.ServiceSettings.objects.filter(scope__in=tenants)
         else:
@@ -989,9 +964,9 @@ class SharedSettingsInstances(SharedSettingsBaseView):
 
     def get_queryset(self):
         private_settings = self.get_private_settings()
-        return models.Instance.objects.order_by(
-            'service_project_link__project__customer__name'
-        ).filter(service_project_link__service__settings__in=private_settings)
+        return models.Instance.objects.order_by('project__customer__name').filter(
+            service_settings__in=private_settings
+        )
 
 
 class SharedSettingsCustomers(SharedSettingsBaseView):
@@ -1002,8 +977,7 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
         private_settings = self.get_private_settings()
         vms = (
             models.Instance.objects.filter(
-                service_project_link__service__settings__in=private_settings,
-                project__customer=OuterRef('pk'),
+                service_settings__in=private_settings, project__customer=OuterRef('pk'),
             )
             .annotate(count=Count('*'))
             .values('count')

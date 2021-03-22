@@ -1,3 +1,4 @@
+import unittest
 from unittest.mock import patch
 
 import ddt
@@ -35,14 +36,10 @@ class CartSubmitTest(test.APITransactionTestCase):
             offering_type='TEST_TYPE',
             create_resource_processor=utils.TestCreateProcessor,
         )
-        self.service_settings = structure_factories.ServiceSettingsFactory(type='Test')
+        self.service_settings = structure_factories.ServiceSettingsFactory(
+            type='Test', shared=True
+        )
         self.fixture = fixtures.ProjectFixture()
-        service = structure_factories.TestServiceFactory(
-            settings=self.service_settings, customer=self.fixture.customer
-        )
-        structure_factories.TestServiceProjectLinkFactory(
-            service=service, project=self.fixture.project
-        )
         self.offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             type='TEST_TYPE',
@@ -149,7 +146,9 @@ class AutoapproveTest(test.APITransactionTestCase):
             offering_type='TEST_TYPE',
             create_resource_processor=utils.TestCreateProcessor,
         )
-        self.service_settings = structure_factories.ServiceSettingsFactory(type='Test')
+        self.service_settings = structure_factories.ServiceSettingsFactory(
+            type='Test', shared=True
+        )
 
     def submit(self, project):
         return self.client.post(
@@ -160,12 +159,6 @@ class AutoapproveTest(test.APITransactionTestCase):
     def submit_public_and_private(self, role):
         provider_fixture = fixtures.ProjectFixture()
         consumer_fixture = fixtures.ProjectFixture()
-        service = structure_factories.TestServiceFactory(
-            settings=self.service_settings, customer=consumer_fixture.customer
-        )
-        structure_factories.TestServiceProjectLinkFactory(
-            service=service, project=consumer_fixture.project
-        )
         private_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=False,
@@ -214,13 +207,6 @@ class AutoapproveTest(test.APITransactionTestCase):
     @ddt.data('staff', 'owner', 'manager', 'admin')
     def test_order_gets_approved_if_all_offerings_are_private(self, role, mocked_task):
         fixture = fixtures.ProjectFixture()
-        service = structure_factories.TestServiceFactory(
-            settings=self.service_settings, customer=fixture.customer
-        )
-        structure_factories.TestServiceProjectLinkFactory(
-            service=service, project=fixture.project
-        )
-
         offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=False,
@@ -282,12 +268,6 @@ class AutoapproveTest(test.APITransactionTestCase):
         self, auto_approve_in_service_provider_projects, mocked_task
     ):
         consumer_fixture = provider_fixture = fixtures.ProjectFixture()
-        service = structure_factories.TestServiceFactory(
-            settings=self.service_settings, customer=consumer_fixture.customer
-        )
-        structure_factories.TestServiceProjectLinkFactory(
-            service=service, project=consumer_fixture.project
-        )
         public_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=True,
@@ -396,14 +376,10 @@ class QuotasValidateTest(test.APITransactionTestCase):
             offering_type='TEST_TYPE',
             create_resource_processor=TestNewInstanceCreateProcessor,
         )
-        self.service_settings = structure_factories.ServiceSettingsFactory(type='Test')
+        self.service_settings = structure_factories.ServiceSettingsFactory(
+            type='Test', shared=True
+        )
         self.fixture = fixtures.ProjectFixture()
-        service = structure_factories.TestServiceFactory(
-            settings=self.service_settings, customer=self.fixture.customer
-        )
-        structure_factories.TestServiceProjectLinkFactory(
-            service=service, project=self.fixture.project
-        )
         self.offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             type='TEST_TYPE',
@@ -414,7 +390,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
             name='test_cpu_count',
             quota_field=TotalQuotaField(
                 target_models=[test_models.TestNewInstance],
-                path_to_scope='service_project_link.project',
+                path_to_scope='project',
                 target_field='cores',
             ),
         )
@@ -441,6 +417,9 @@ class QuotasValidateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @unittest.skip(
+        'Consider avoiding service settings quota validation in favor of marketplace offering component limits'
+    )
     def test_cart_item_does_not_created_if_quotas_is_not_valid(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(

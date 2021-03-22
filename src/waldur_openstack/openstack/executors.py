@@ -110,7 +110,7 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
             )
         )
         # handle security groups
-        # XXX: Create default security groups that was connected to SPL earlier.
+        # XXX: Create default security groups
         for security_group in tenant.security_groups.all():
             creation_tasks.append(
                 SecurityGroupCreateExecutor.as_signature(security_group)
@@ -124,8 +124,8 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
             )
 
         # initialize external network if it defined in service settings
-        service_settings = tenant.service_project_link.service.settings
-        customer = tenant.service_project_link.project.customer
+        service_settings = tenant.service_settings
+        customer = tenant.project.customer
         external_network_id = service_settings.get_option('external_network_id')
 
         try:

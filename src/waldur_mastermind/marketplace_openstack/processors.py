@@ -1,7 +1,7 @@
 from django.utils.translation import ugettext_lazy as _
-from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import processors, signals
+from waldur_mastermind.marketplace.processors import get_order_item_post_data
 from waldur_mastermind.marketplace_openstack import views
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
@@ -20,13 +20,6 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
     def get_post_data(self):
         order_item = self.order_item
 
-        project = order_item.order.project
-
-        project_url = reverse('project-detail', kwargs={'uuid': project.uuid.hex})
-        spl_url = processors.get_spl_url(
-            openstack_models.OpenStackServiceProjectLink, order_item
-        )
-
         fields = (
             'name',
             'description',
@@ -37,14 +30,10 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
             'availability_zone',
         )
 
+        payload = get_order_item_post_data(order_item, fields)
         quotas = utils.map_limits_to_quotas(order_item.limits, order_item.offering)
 
-        return dict(
-            project=project_url,
-            service_project_link=spl_url,
-            quotas=quotas,
-            **processors.copy_attributes(fields, order_item)
-        )
+        return dict(quotas=quotas, **payload)
 
     def get_scope_from_response(self, response):
         return openstack_models.Tenant.objects.get(uuid=response.data['uuid'])

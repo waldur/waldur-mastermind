@@ -2,7 +2,9 @@ from ddt import data, ddt
 from django.conf import settings as django_settings
 from rest_framework import status, test
 
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_freeipa import models as freeipa_models
+from waldur_slurm.tests.factories import SlurmServiceSettingsFactory
 
 from . import factories, fixtures
 
@@ -23,7 +25,7 @@ class AllocationGetTest(test.APITransactionTestCase):
         self.assertEqual(response.data['username'], 'waldur_admin')
 
     def test_gateway_is_returned_if_is_defined(self):
-        settings = self.fixture.service.settings
+        settings = self.fixture.settings
         settings.options['gateway'] = '8.8.8.8'
         settings.save()
 
@@ -33,7 +35,7 @@ class AllocationGetTest(test.APITransactionTestCase):
         self.assertEqual(response.data['gateway'], '8.8.8.8')
 
     def test_hostname_is_returned_if_is_defined(self):
-        settings = self.fixture.service.settings
+        settings = self.fixture.settings
         settings.options['hostname'] = '4.4.4.4'
         settings.save()
 
@@ -71,9 +73,10 @@ class AllocationCreateTest(test.APITransactionTestCase):
     def get_valid_payload(self):
         return {
             'name': 'Test-allocation',
-            'service_project_link': factories.SlurmServiceProjectLinkFactory.get_url(
-                self.fixture.spl
+            'service_settings': SlurmServiceSettingsFactory.get_url(
+                self.fixture.settings
             ),
+            'project': ProjectFactory.get_url(self.fixture.project),
         }
 
 

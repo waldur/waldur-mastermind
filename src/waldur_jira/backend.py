@@ -12,7 +12,8 @@ from jira.utils import json_loads
 from rest_framework import status
 
 from waldur_core.core.models import StateMixin
-from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure.backend import ServiceBackend
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 
 from . import models
@@ -85,13 +86,6 @@ class JiraBackend(ServiceBackend):
             return False
         else:
             return True
-
-    @reraise_exceptions
-    def get_resources_for_import(self):
-        return [
-            {'name': proj.name, 'backend_id': proj.key,}
-            for proj in self.manager.projects()
-        ]
 
     @staticmethod
     def convert_field(value, choices, mapping=None):
@@ -544,10 +538,11 @@ class JiraBackend(ServiceBackend):
                     state=issue.comments.model.States.OK,
                 )
 
-    def _import_project(self, project_backend_id, service_project_link, state):
+    def _import_project(self, project_backend_id, waldur_project, state):
         backend_project = self.get_project(project_backend_id)
         project = self.model_project(
-            service_project_link=service_project_link,
+            service_settings=self.settings,
+            project=waldur_project,
             backend_id=project_backend_id,
             state=state,
         )
@@ -555,16 +550,16 @@ class JiraBackend(ServiceBackend):
         project.save()
         return project
 
-    def import_project(self, project_backend_id, service_project_link):
+    def import_project(self, project_backend_id, waldur_project):
         project = self._import_project(
-            project_backend_id, service_project_link, models.Project.States.OK
+            project_backend_id, waldur_project, models.Project.States.OK,
         )
         self.import_project_issues(project)
         return project
 
-    def import_project_scheduled(self, project_backend_id, service_project_link):
+    def import_project_scheduled(self, project_backend_id, waldur_project):
         project = self._import_project(
-            project_backend_id, service_project_link, models.Project.States.OK
+            project_backend_id, waldur_project, models.Project.States.OK,
         )
         return project
 
@@ -679,8 +674,7 @@ class JiraBackend(ServiceBackend):
     def _get_or_create_priority(self, project, backend_priority):
         try:
             priority = models.Priority.objects.get(
-                settings=project.service_project_link.service.settings,
-                backend_id=backend_priority.id,
+                settings=project.service_settings, backend_id=backend_priority.id,
             )
         except models.Priority.DoesNotExist:
             priority = self.import_priority(backend_priority)
@@ -690,8 +684,7 @@ class JiraBackend(ServiceBackend):
     def _get_or_create_issue_type(self, project, backend_issue_type):
         try:
             issue_type = models.IssueType.objects.get(
-                settings=project.service_project_link.service.settings,
-                backend_id=backend_issue_type.id,
+                settings=project.service_settings, backend_id=backend_issue_type.id,
             )
         except models.IssueType.DoesNotExist:
             issue_type = self.import_issue_type(backend_issue_type)

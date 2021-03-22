@@ -11,7 +11,7 @@ class DropletResizeEventLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['droplet']
-        project = resource.service_project_link.project
+        project = resource.project
         return {resource, project, project.customer}
 
 

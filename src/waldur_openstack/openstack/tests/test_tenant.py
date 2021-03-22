@@ -1,5 +1,4 @@
 import itertools
-from collections import namedtuple
 from unittest.mock import patch
 
 from ddt import data, ddt
@@ -8,12 +7,10 @@ from django.contrib.auth import get_user_model
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import executors, models
 from waldur_openstack.openstack.tests import factories, fixtures
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
-from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
 
 
 @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
@@ -22,7 +19,6 @@ class BaseTenantActionsTest(test.APITransactionTestCase):
         super(BaseTenantActionsTest, self).setUp()
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
-        self.spl = self.fixture.openstack_spl
 
 
 class TenantGetTest(BaseTenantActionsTest):
@@ -69,9 +65,10 @@ class TenantCreateTest(BaseTenantActionsTest):
         super(TenantCreateTest, self).setUp()
         self.valid_data = {
             'name': 'Test tenant',
-            'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(
-                self.fixture.openstack_spl
+            'service_settings': factories.OpenStackServiceSettingsFactory.get_url(
+                self.fixture.openstack_service_settings
             ),
+            'project': structure_factories.ProjectFactory.get_url(self.fixture.project),
         }
         self.url = factories.TenantFactory.get_list_url()
         self.fixture.openstack_service_settings.backend_url = 'https://waldur.com/'
@@ -150,15 +147,17 @@ class TenantCreateTest(BaseTenantActionsTest):
             'user_username', {'user_username': self.fixture.tenant.user_username}
         )
 
-    def test_cannot_create_tenant_with_duplicated_tenant_name_in_same_spl(self):
-        service_project_link = factories.OpenStackServiceProjectLinkFactory.get_url(
-            self.fixture.openstack_spl
-        )
+    def test_cannot_create_tenant_with_duplicated_tenant_name_in_same_project(self):
         self.assert_can_not_create_tenant(
             'name',
             {
                 'name': self.fixture.tenant.name,
-                'service_project_link': service_project_link,
+                'service_settings': factories.OpenStackServiceSettingsFactory.get_url(
+                    self.fixture.openstack_service_settings
+                ),
+                'project': structure_factories.ProjectFactory.get_url(
+                    self.fixture.project
+                ),
             },
         )
 
@@ -182,14 +181,16 @@ class TenantCreateTest(BaseTenantActionsTest):
         service_settings.domain = domain2
         service_settings.save()
 
-        service_project_link = factories.OpenStackServiceProjectLinkFactory.get_url(
-            other_fixture.openstack_spl
-        )
         self.assert_can_not_create_tenant(
             'name',
             {
                 'name': self.fixture.tenant.name,
-                'service_project_link': service_project_link,
+                'service_settings': factories.OpenStackServiceSettingsFactory.get_url(
+                    other_fixture.openstack_service_settings
+                ),
+                'project': structure_factories.ProjectFactory.get_url(
+                    other_fixture.project
+                ),
             },
         )
 
@@ -207,13 +208,15 @@ class TenantCreateTest(BaseTenantActionsTest):
         service_settings.domain = 'second'
         service_settings.save()
 
-        service_project_link = factories.OpenStackServiceProjectLinkFactory.get_url(
-            other_fixture.openstack_spl
-        )
         self.assert_can_create_tenant(
             {
                 'name': self.fixture.tenant.name,
-                'service_project_link': service_project_link,
+                'service_settings': factories.OpenStackServiceSettingsFactory.get_url(
+                    other_fixture.openstack_service_settings
+                ),
+                'project': structure_factories.ProjectFactory.get_url(
+                    other_fixture.project
+                ),
             }
         )
 
@@ -229,10 +232,13 @@ class TenantCreateTest(BaseTenantActionsTest):
     def create_tenant(self, payload):
         payload.setdefault('name', 'Test tenant')
         payload.setdefault(
-            'service_project_link',
-            factories.OpenStackServiceProjectLinkFactory.get_url(
-                self.fixture.openstack_spl
+            'service_settings',
+            factories.OpenStackServiceSettingsFactory.get_url(
+                self.fixture.openstack_service_settings
             ),
+        )
+        payload.setdefault(
+            'project', structure_factories.ProjectFactory.get_url(self.fixture.project),
         )
         self.client.force_authenticate(self.fixture.staff)
         return self.client.post(self.url, data=payload)
@@ -368,10 +374,10 @@ class TenantCreateTest(BaseTenantActionsTest):
     ):
         EXTERNAL_NETWORK_ID = 'test_external_network_id'
         self.client.force_authenticate(self.fixture.staff)
-        self.fixture.openstack_spl.service.settings.shared = True
+        self.fixture.openstack_service_settings.shared = True
         factories.CustomerOpenStackFactory(
-            settings=self.fixture.openstack_spl.service.settings,
-            customer=self.fixture.openstack_spl.project.customer,
+            settings=self.fixture.openstack_service_settings,
+            customer=self.fixture.project.customer,
             external_network_id=EXTERNAL_NETWORK_ID,
         )
         self.client.post(self.url, data=self.valid_data)
@@ -398,7 +404,8 @@ class TenantUpdateTest(BaseTenantActionsTest):
 
     def test_cannot_update_tenant_with_duplicated_tenant_name(self):
         other_tenant = factories.TenantFactory(
-            service_project_link=self.fixture.openstack_spl
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
         )
         payload = dict(name=other_tenant.name)
 
@@ -728,121 +735,6 @@ class TenantChangePasswordTest(BaseTenantActionsTest):
         response = self.client.post(self.url, {'user_password': ''})
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-
-
-@ddt
-class TenantImportableResourcesTest(BaseTenantActionsTest):
-    @patch('waldur_openstack.openstack.backend.OpenStackBackend.get_tenants_for_import')
-    def test_user_can_list_importable_resources(self, get_tenants_for_import_mock):
-        self.client.force_authenticate(self.fixture.staff)
-        backend_tenants = [factories.TenantFactory.build(service_project_link=self.spl)]
-        get_tenants_for_import_mock.return_value = backend_tenants
-        url = factories.TenantFactory.get_list_url('importable_resources')
-        payload = {
-            'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(
-                self.spl
-            )
-        }
-
-        response = self.client.get(url, payload)
-
-        self.assertEquals(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEquals(len(response.data), len(backend_tenants))
-        returned_backend_ids = [item['backend_id'] for item in response.data]
-        expected_backend_ids = [item.backend_id for item in backend_tenants]
-        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
-        get_tenants_for_import_mock.assert_called()
-
-    @data('admin', 'manager', 'owner')
-    def test_user_does_not_have_permissions_to_list_resources(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        url = factories.TenantFactory.get_list_url('importable_resources')
-        payload = {
-            'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(
-                self.spl
-            )
-        }
-
-        response = self.client.get(url, payload)
-
-        self.assertEquals(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
-@ddt
-class TenantImportTest(BaseBackendTestCase):
-    def setUp(self):
-        super(TenantImportTest, self).setUp()
-        self.fixture = fixtures.OpenStackFixture()
-        self.backend_tenant = factories.TenantFactory.build(
-            service_project_link=self.fixture.openstack_spl
-        )
-
-    def test_tenant_is_imported(self):
-        response = self.import_tenant()
-
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEquals(response.data['backend_id'], self.backend_tenant.backend_id)
-        self.assertTrue(
-            models.Tenant.objects.filter(
-                backend_id=self.backend_tenant.backend_id
-            ).exists()
-        )
-
-    @patch('waldur_core.structure.handlers.event_logger')
-    def test_event_is_emitted(self, logger_mock):
-        self.import_tenant()
-
-        actual = logger_mock.resource.info.call_args[0][0]
-        expected = 'Resource {resource_full_name} has been imported.'
-        self.assertEqual(expected, actual)
-
-    @data('admin', 'manager', 'owner')
-    def test_user_cannot_import_tenant(self, user):
-        response = self.import_tenant(user)
-        self.assertEquals(
-            response.status_code, status.HTTP_403_FORBIDDEN, response.data
-        )
-
-    def test_tenant_cannot_be_imported_if_backend_id_exists_already(self):
-        self.backend_tenant.save()
-        response = self.import_tenant()
-        self.assertEquals(
-            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
-        )
-
-    def test_imported_tenant_has_user_password_and_username(self):
-        response = self.import_tenant()
-
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEquals(response.data['backend_id'], self.backend_tenant.backend_id)
-
-        self.assertIsNotNone(response.data['user_username'])
-        self.assertIsNotNone(response.data['user_password'])
-
-    def test_imported_tenant_settings_have_username_and_password_set(self):
-        response = self.import_tenant()
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
-
-        tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
-        service_settings = ServiceSettings.objects.get(scope=tenant)
-
-        self.assertEquals(tenant.user_username, service_settings.username)
-        self.assertEquals(tenant.user_password, service_settings.password)
-
-    def import_tenant(self, user='staff'):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        payload = {
-            'backend_id': self.backend_tenant.backend_id,
-            'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(
-                self.fixture.openstack_spl
-            ),
-        }
-        url = factories.TenantFactory.get_list_url('import_resource')
-        FakeProject = namedtuple('Project', 'name description')
-        self.mocked_keystone.return_value.projects.get.return_value = FakeProject(
-            'admin', 'default'
-        )
-        return self.client.post(url, payload)
 
 
 @ddt

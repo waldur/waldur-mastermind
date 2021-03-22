@@ -40,10 +40,6 @@
         {% service_settings_description %}
     </div>
 </div>
-<div class="module services">
-    <a href="#">Connected services and projects</a>
-    <div>Loading...</div>
-</div>
 <script type="text/javascript">
 var service_settings_module = (function(self, jQuery) {
     var $ = jQuery;
@@ -57,10 +53,6 @@ var service_settings_module = (function(self, jQuery) {
     }
 
     function onDocumentReady() {
-        $(".services>div").hide();
-        $(".services>a").click(function(){
-            $(this).next("div").show().load("services/");
-        });
         $("#service-settings-content").hide();
         $("#service-settings-toggle").click(function() {
           $("#service-settings-content").slideToggle("slow");
@@ -73,7 +65,7 @@ var service_settings_module = (function(self, jQuery) {
         $(".field-type").change(function(){
             var selectedServiceType = $(".field-type input:checked").val();
             displayOnlyServiceFields(selectedServiceType);
-            diplayOnlyServiceRelatedHints(selectedServiceType);
+            displayOnlyServiceRelatedHints(selectedServiceType);
             markRequiredFields(selectedServiceType);
         });
 
@@ -82,7 +74,7 @@ var service_settings_module = (function(self, jQuery) {
         }
     }
 
-    function diplayOnlyServiceRelatedHints(serviceName) {
+    function displayOnlyServiceRelatedHints(serviceName) {
         $(".service-fields").hide();
         $("#id_" + serviceName).show();
     }

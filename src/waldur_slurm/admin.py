@@ -9,13 +9,7 @@ from waldur_core.core.models import StateMixin
 from waldur_core.structure import admin as structure_admin
 
 from . import executors, tasks
-from .models import (
-    Allocation,
-    AllocationUserUsage,
-    Association,
-    SlurmService,
-    SlurmServiceProjectLink,
-)
+from .models import Allocation, AllocationUserUsage, Association
 
 
 def get_allocation_count(self, scope):
@@ -74,8 +68,6 @@ class AssociationAdmin(admin.ModelAdmin):
     list_display = admin.ModelAdmin.list_display + ('allocation', 'username',)
 
 
-admin.site.register(SlurmService, structure_admin.ServiceAdmin)
-admin.site.register(SlurmServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(Allocation, AllocationAdmin)
 admin.site.register(AllocationUserUsage, AllocationUserUsageAdmin)
 admin.site.register(Association, AssociationAdmin)

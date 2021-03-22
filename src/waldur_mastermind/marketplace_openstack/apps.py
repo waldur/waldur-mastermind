@@ -18,7 +18,10 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_openstack.openstack import models as openstack_models
         from waldur_openstack.openstack.apps import OpenStackConfig
-        from waldur_openstack.openstack_tenant import models as tenant_models
+        from waldur_openstack.openstack_tenant import (
+            models as tenant_models,
+            executors as tenant_executors,
+        )
         from waldur_mastermind.invoices import registrators
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import filters as marketplace_filters
@@ -101,6 +104,8 @@ class MarketplaceOpenStackConfig(AppConfig):
             secret_attributes=get_secret_attributes,
             available_limits=AVAILABLE_LIMITS,
             resource_model=openstack_models.Tenant,
+            get_importable_resources_backend_method='get_importable_tenants',
+            import_resource_backend_method='import_tenant',
         )
 
         manager.register(
@@ -108,6 +113,9 @@ class MarketplaceOpenStackConfig(AppConfig):
             create_resource_processor=processors.InstanceCreateProcessor,
             delete_resource_processor=processors.InstanceDeleteProcessor,
             resource_model=tenant_models.Instance,
+            get_importable_resources_backend_method='get_importable_instances',
+            import_resource_backend_method='import_instance',
+            import_resource_executor=tenant_executors.InstancePullExecutor,
         )
 
         manager.register(
@@ -115,6 +123,8 @@ class MarketplaceOpenStackConfig(AppConfig):
             create_resource_processor=processors.VolumeCreateProcessor,
             delete_resource_processor=processors.VolumeDeleteProcessor,
             resource_model=tenant_models.Volume,
+            get_importable_resources_backend_method='get_importable_volumes',
+            import_resource_backend_method='import_volume',
         )
 
         signals.post_save.connect(

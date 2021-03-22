@@ -79,7 +79,7 @@ def create_offerings_for_volume_and_instance(tenant):
                 'for instances and volumes is not yet defined.'
             )
             continue
-        actual_customer = tenant.service_project_link.project.customer
+        actual_customer = tenant.project.customer
         payload = dict(
             type=offering_type,
             name=offering_name,
@@ -315,7 +315,8 @@ def create_marketplace_resource_for_imported_resources(
     sender, instance, offering=None, plan=None, **kwargs
 ):
     resource = marketplace_models.Resource(
-        project=instance.service_project_link.project,
+        backend_id=instance.backend_id,
+        project=instance.project,
         state=get_resource_state(instance.state),
         name=instance.name,
         scope=instance,

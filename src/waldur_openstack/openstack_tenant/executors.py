@@ -488,7 +488,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
                 .set(countdown=5 if not index else 0)
             )
 
-        shared_tenant = instance.service_project_link.service.settings.scope
+        shared_tenant = instance.service_settings.scope
         if shared_tenant:
             serialized_tenant = core_utils.serialize_instance(shared_tenant)
             _tasks.append(core_tasks.PollStateTask().si(serialized_tenant))
@@ -658,7 +658,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                     .set(countdown=5 if not index else 0)
                 )
 
-        shared_tenant = instance.service_project_link.service.settings.scope
+        shared_tenant = instance.service_settings.scope
         if shared_tenant and isinstance(shared_tenant, openstack_models.Tenant):
             serialized_tenant = core_utils.serialize_instance(shared_tenant)
             _tasks.append(core_tasks.PollStateTask().si(serialized_tenant))

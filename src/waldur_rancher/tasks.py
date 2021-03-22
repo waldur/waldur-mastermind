@@ -35,7 +35,8 @@ class CreateNodeTask(core_tasks.Task):
         image = node.initial_data['image']
         subnet = node.initial_data['subnet']
         security_groups = node.initial_data['security_groups']
-        tenant_spl = node.initial_data['tenant_service_project_link']
+        service_settings = node.initial_data['service_settings']
+        project = node.initial_data['project']
         user = auth.get_user_model().objects.get(pk=user_id)
         ssh_public_key = node.initial_data.get('ssh_public_key')
 
@@ -43,9 +44,10 @@ class CreateNodeTask(core_tasks.Task):
             'name': node.name,
             'flavor': reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor}),
             'image': reverse('openstacktenant-image-detail', kwargs={'uuid': image}),
-            'service_project_link': reverse(
-                'openstacktenant-spl-detail', kwargs={'pk': tenant_spl}
+            'service_settings': reverse(
+                'servicesettings-detail', kwargs={'uuid': service_settings}
             ),
+            'project': reverse('project-detail', kwargs={'uuid': project}),
             'system_volume_size': system_volume_size,
             'system_volume_type': system_volume_type
             and reverse(

@@ -12,15 +12,15 @@ from . import factories, fixtures
 class VirtualMachineCreateBaseTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
-        self.fixture.spl
         self.url = factories.VirtualMachineFactory.get_list_url()
 
     def get_valid_payload(self):
         return {
             'name': 'VMware VM',
-            'service_project_link': factories.VMwareServiceProjectLinkFactory.get_url(
-                self.fixture.spl
+            'service_settings': factories.VMwareServiceSettingsFactory.get_url(
+                self.fixture.settings
             ),
+            'project': factories.ProjectFactory.get_url(self.fixture.project),
             'template': factories.TemplateFactory.get_url(self.fixture.template),
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
             'datastore': factories.DatastoreFactory.get_url(self.fixture.datastore),
@@ -586,7 +586,8 @@ class NetworkPortCreateTest(test.APITransactionTestCase):
             10,
             vm=self.fixture.virtual_machine,
             network=self.fixture.network,
-            service_project_link=self.fixture.virtual_machine.service_project_link,
+            service_settings=self.fixture.virtual_machine.service_settings,
+            project=self.fixture.virtual_machine.project,
         )
         response = self.client.post(
             self.url,

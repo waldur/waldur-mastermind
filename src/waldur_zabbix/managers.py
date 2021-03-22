@@ -1,15 +1,14 @@
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.structure.managers import StructureManager
-from waldur_core.structure.models import NewResource as Resource
-from waldur_core.structure.models import ResourceMixin
+from waldur_core.structure.models import BaseResource
 
 
 def filter_active(qs):
     INVALID_STATES = (
-        Resource.States.CREATION_SCHEDULED,
-        Resource.States.DELETION_SCHEDULED,
-        Resource.States.DELETING,
-        Resource.States.ERRED,
+        BaseResource.States.CREATION_SCHEDULED,
+        BaseResource.States.DELETION_SCHEDULED,
+        BaseResource.States.DELETING,
+        BaseResource.States.ERRED,
     )
     return qs.exclude(backend_id='', state__in=INVALID_STATES)
 
@@ -19,4 +18,4 @@ class HostManager(GenericKeyMixin, StructureManager):
 
     def get_available_models(self):
         """ Return list of models that are acceptable """
-        return ResourceMixin.get_all_models()
+        return BaseResource.get_all_models()

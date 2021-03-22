@@ -55,9 +55,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
         self.assertFalse(
             self.project.customer in self.resource.offering.allowed_customers.all()
         )
-        self.assertEqual(
-            self.fixture.volume.service_project_link.project, self.new_project
-        )
+        self.assertEqual(self.fixture.volume.project, self.new_project)
         self.assertEqual(self.order.project, self.new_project)
         self.assertEqual(self.resource.project, self.new_project)
         self.assertEqual(self.start_invoice.items.count(), 0)
@@ -94,9 +92,7 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
         self.fixture.volume.refresh_from_db()
         self.order.refresh_from_db()
         self.resource.refresh_from_db()
-        self.assertEqual(
-            self.fixture.volume.service_project_link.project, self.new_project
-        )
+        self.assertEqual(self.fixture.volume.project, self.new_project)
         self.assertEqual(self.order.project, self.new_project)
         self.assertEqual(self.resource.project, self.new_project)
         self.assertEqual(self.start_invoice.items.count(), 0)

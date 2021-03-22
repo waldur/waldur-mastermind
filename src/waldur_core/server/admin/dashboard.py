@@ -9,8 +9,8 @@ from fluent_dashboard.dashboard import (
 
 from waldur_core.core import models as core_models
 from waldur_core.logging import models as logging_models
-from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.models import BaseResource
 
 
 class CustomIndexDashboard(FluentIndexDashboard):
@@ -123,15 +123,12 @@ class CustomIndexDashboard(FluentIndexDashboard):
         Returns a list of links to resources which are in ERRED state and linked to a shared service settings.
         """
         result_module = modules.LinkList(title=_('Resources in erred state'))
-        erred_state = structure_models.NewResource.States.ERRED
+        erred_state = structure_models.BaseResource.States.ERRED
         children = []
 
-        resource_models = SupportedServices.get_resource_models()
         resources_in_erred_state_overall = 0
-        for resource_type, resource_model in resource_models.items():
-            queryset = resource_model.objects.filter(
-                service_project_link__service__settings__shared=True
-            )
+        for resource_model in BaseResource.get_all_models():
+            queryset = resource_model.objects.filter(service_settings__shared=True)
             erred_amount = queryset.filter(state=erred_state).count()
             if erred_amount:
                 resources_in_erred_state_overall = (

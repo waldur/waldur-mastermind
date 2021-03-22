@@ -9,9 +9,9 @@ class MarketplaceConfig(AppConfig):
     def ready(self):
         from waldur_core.core import signals as core_signals
         from waldur_core.quotas import signals as quota_signals
-        from waldur_core.structure import SupportedServices
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
+        from waldur_core.structure.serializers import BaseResourceSerializer
 
         from . import (
             handlers,
@@ -108,7 +108,7 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace.resource_limit_update_failed',
         )
 
-        for resource_serializer in SupportedServices.get_resource_serializers():
+        for resource_serializer in BaseResourceSerializer.get_subclasses():
             core_signals.pre_serializer_fields.connect(
                 sender=resource_serializer, receiver=utils.add_marketplace_offering,
             )

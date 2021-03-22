@@ -23,8 +23,8 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
-from waldur_core.structure import SupportedServices
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure.registry import SupportedServices
 
 from ..core.api_groups_mapping import API_GROUPS
 from .models import User

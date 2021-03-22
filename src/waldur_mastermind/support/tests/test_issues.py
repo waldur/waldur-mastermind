@@ -341,12 +341,8 @@ class IssueCreateTest(IssueCreateBaseTest):
         response = self.client.post(self.url, data=payload)
 
         issue = models.Issue.objects.get(uuid=json.loads(response.content)['uuid'])
-        self.assertEqual(
-            issue.project, self.fixture.resource.service_project_link.project
-        )
-        self.assertEqual(
-            issue.customer, self.fixture.resource.service_project_link.project.customer
-        )
+        self.assertEqual(issue.project, self.fixture.resource.project)
+        self.assertEqual(issue.customer, self.fixture.resource.project.customer)
 
     @override_support_settings(ENABLED=False)
     def test_user_can_not_create_issue_if_support_extension_is_disabled(self):

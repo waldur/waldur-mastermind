@@ -1,6 +1,6 @@
 import logging
 
-from waldur_core.structure.models import NewResource as Resource
+from waldur_core.structure.models import BaseResource as Resource
 
 from . import executors
 from .models import Host

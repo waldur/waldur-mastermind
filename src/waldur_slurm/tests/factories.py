@@ -2,45 +2,12 @@ import factory
 from django.urls import reverse
 from factory import fuzzy
 
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_slurm import models
 
 
-class SlurmServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.SlurmService
-
-    settings = factory.SubFactory(
-        structure_factories.ServiceSettingsFactory, type='SLURM'
-    )
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = SlurmServiceFactory()
-        url = 'http://testserver' + reverse(
-            'slurm-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-list')
-
-
-class SlurmServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.SlurmServiceProjectLink
-
-    service = factory.SubFactory(SlurmServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, link=None):
-        if link is None:
-            link = SlurmServiceProjectLinkFactory()
-        return 'http://testserver' + reverse('slurm-spl-detail', kwargs={'pk': link.id})
+class SlurmServiceSettingsFactory(ServiceSettingsFactory):
+    type = 'SLURM'
 
 
 class AllocationFactory(factory.DjangoModelFactory):
@@ -49,7 +16,8 @@ class AllocationFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'allocation%s' % n)
     backend_id = factory.Sequence(lambda n: 'allocation-id%s' % n)
-    service_project_link = factory.SubFactory(SlurmServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(SlurmServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
 
     state = models.Allocation.States.OK
     cpu_limit = fuzzy.FuzzyInteger(1000, 8000, step=100)

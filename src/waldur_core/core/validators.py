@@ -1,4 +1,10 @@
+import logging
+
 from croniter import croniter
+from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat import backends
+from cryptography.hazmat.primitives import serialization
 from django import template
 from django.core.exceptions import ValidationError
 from django.core.validators import BaseValidator, URLValidator
@@ -9,6 +15,8 @@ from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 
 from waldur_core.core import exceptions
+
+logger = logging.getLogger(__name__)
 
 
 def validate_cron_schedule(value):
@@ -123,3 +131,24 @@ def validate_template_syntax(value):
         template.Template(value)
     except template.exceptions.TemplateSyntaxError as e:
         raise ValidationError(e)
+
+
+def validate_ssh_public_key(ssh_key):
+    if isinstance(ssh_key, str):
+        ssh_key = ssh_key.encode('utf-8')
+
+    try:
+        serialization.load_ssh_public_key(ssh_key, backends.default_backend())
+    except (ValueError, UnsupportedAlgorithm) as e:
+        logger.debug('Invalid SSH public key %s. Error: %s', ssh_key, e)
+        raise ValidationError(_('Invalid SSH public key.'))
+
+
+def validate_x509_certificate(data):
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+
+    try:
+        x509.load_pem_x509_certificate(data)
+    except ValueError:
+        raise ValidationError(_('Invalid X509 certificate.'))

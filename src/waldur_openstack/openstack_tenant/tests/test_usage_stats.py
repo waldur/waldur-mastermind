@@ -24,17 +24,20 @@ class TestImageUsageStats(test.APITransactionTestCase):
         factories.InstanceFactory(
             volumes__image_name='Ubuntu 16.04',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         factories.InstanceFactory(
             volumes__image_name='Ubuntu 16.04',
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         factories.InstanceFactory(
             volumes__image_name='Windows 10',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         factories.ImageFactory(
             name='Ubuntu 16.04', settings=self.fixture.openstack_tenant_service_settings
@@ -83,17 +86,20 @@ class TestFlavorUsageStats(test.APITransactionTestCase):
         factories.InstanceFactory(
             flavor_name='Small',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         factories.InstanceFactory(
             flavor_name='Small',
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         factories.InstanceFactory(
             flavor_name='Large',
             runtime_state=models.Instance.RuntimeStates.ACTIVE,
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
 
         factories.FlavorFactory(

@@ -13,65 +13,45 @@ from waldur_freeipa import models as freeipa_models
 from . import models
 
 
-class ServiceSerializer(
-    core_serializers.ExtraFieldOptionsMixin,
-    core_serializers.RequiredFieldsMixin,
-    structure_serializers.BaseServiceSerializer,
-):
-    SERVICE_ACCOUNT_FIELDS = {
-        'username': '',
-    }
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'hostname': _('Hostname or IP address of master node'),
-        'port': '',
-        'use_sudo': _('Set to true to activate privilege escalation'),
-        'gateway': _('Hostname or IP address of gateway node'),
-        'default_account': _('Default SLURM account for user'),
-    }
+class SlurmServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ('hostname', 'username', 'port', 'gateway')
 
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.SlurmService
-        required_fields = ('hostname', 'username')
-        extra_field_options = {
-            'username': {'default_value': 'root',},
-            'use_sudo': {'default_value': False,},
-            'default_account': {'required': True,},
-        }
+    username = rf_serializers.CharField(
+        max_length=100, help_text=_('Administrative user'), default='root'
+    )
 
+    hostname = rf_serializers.CharField(
+        source='options.hostname', label=_('Hostname or IP address of master node')
+    )
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.SlurmServiceProjectLink
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'slurm-detail'},
-        }
+    default_account = rf_serializers.CharField(
+        source='options.default_account', label=_('Default SLURM account for user')
+    )
+
+    port = rf_serializers.IntegerField(source='options.port', required=False)
+
+    use_sudo = rf_serializers.BooleanField(
+        source='options.use_sudo',
+        default=False,
+        help_text=_('Set to true to activate privilege escalation'),
+        required=False,
+    )
+
+    gateway = rf_serializers.CharField(
+        source='options.gateway',
+        label=_('Hostname or IP address of gateway node'),
+        required=False,
+    )
 
 
 class AllocationSerializer(
     structure_serializers.BaseResourceSerializer,
     core_serializers.AugmentedSerializerMixin,
 ):
-    service = rf_serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='slurm-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = rf_serializers.HyperlinkedRelatedField(
-        view_name='slurm-spl-detail',
-        queryset=models.SlurmServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     username = rf_serializers.SerializerMethodField()
     gateway = rf_serializers.SerializerMethodField()
-    homepage = rf_serializers.ReadOnlyField(
-        source='service_project_link.service.settings.homepage'
-    )
+    homepage = rf_serializers.ReadOnlyField(source='service_settings.homepage')
 
     def get_username(self, allocation):
         request = self.context['request']
@@ -82,7 +62,7 @@ class AllocationSerializer(
             return None
 
     def get_gateway(self, allocation):
-        options = allocation.service_project_link.service.settings.options
+        options = allocation.service_settings.options
         return options.get('gateway') or options.get('hostname')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -135,9 +115,9 @@ class AllocationSerializer(
                 % name
             )
 
-        spl = attrs['service_project_link']
+        project = attrs['project']
         user = self.context['request'].user
-        if not _has_owner_access(user, spl.project.customer):
+        if not _has_owner_access(user, project.customer):
             raise rf_exceptions.PermissionDenied(
                 _('You do not have permissions to create allocation for given project.')
             )

@@ -6,7 +6,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from waldur_core.structure import ServiceBackendError
+from waldur_core.structure.exceptions import ServiceBackendError
 
 
 class GoogleBackendError(ServiceBackendError):

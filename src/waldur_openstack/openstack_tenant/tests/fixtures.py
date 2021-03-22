@@ -28,12 +28,6 @@ class OpenStackTenantFixture(ProjectFixture):
         )
 
     @cached_property
-    def openstack_tenant_service(self):
-        return factories.OpenStackTenantServiceFactory(
-            customer=self.customer, settings=self.openstack_tenant_service_settings
-        )
-
-    @cached_property
     def network(self):
         return factories.NetworkFactory(settings=self.openstack_tenant_service_settings)
 
@@ -44,15 +38,10 @@ class OpenStackTenantFixture(ProjectFixture):
         )
 
     @cached_property
-    def spl(self):
-        return factories.OpenStackTenantServiceProjectLinkFactory(
-            project=self.project, service=self.openstack_tenant_service
-        )
-
-    @cached_property
     def volume(self):
         return factories.VolumeFactory(
-            service_project_link=self.spl,
+            project=self.project,
+            service_settings=self.openstack_tenant_service_settings,
             state=models.Volume.States.OK,
             runtime_state=models.Volume.RuntimeStates.OFFLINE,
             type=self.volume_type,
@@ -68,7 +57,8 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def instance(self):
         return factories.InstanceFactory(
-            service_project_link=self.spl,
+            project=self.project,
+            service_settings=self.openstack_tenant_service_settings,
             state=models.Instance.States.OK,
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
         )
@@ -76,7 +66,8 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def snapshot(self):
         return factories.SnapshotFactory(
-            service_project_link=self.spl,
+            project=self.project,
+            service_settings=self.openstack_tenant_service_settings,
             state=models.Volume.States.OK,
             runtime_state=models.Volume.RuntimeStates.OFFLINE,
             source_volume=self.volume,
@@ -85,7 +76,8 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def backup(self):
         return factories.BackupFactory(
-            service_project_link=self.spl,
+            project=self.project,
+            service_settings=self.openstack_tenant_service_settings,
             instance=self.instance,
             backup_schedule=self.backup_schedule,
         )
@@ -93,7 +85,8 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def backup_schedule(self):
         return factories.BackupScheduleFactory(
-            service_project_link=self.spl,
+            project=self.project,
+            service_settings=self.openstack_tenant_service_settings,
             state=models.BackupSchedule.States.OK,
             instance=self.instance,
         )
@@ -101,7 +94,8 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def snapshot_schedule(self):
         return factories.SnapshotScheduleFactory(
-            service_project_link=self.spl,
+            project=self.project,
+            service_settings=self.openstack_tenant_service_settings,
             state=models.SnapshotSchedule.States.OK,
             source_volume=self.volume,
         )

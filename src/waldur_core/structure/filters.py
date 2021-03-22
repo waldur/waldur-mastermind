@@ -10,7 +10,6 @@ from django.core import exceptions
 from django.db.models import Q
 from django.db.models.functions import Concat
 from django.utils import timezone
-from django_filters.filterset import FilterSetMetaclass
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.widgets import BooleanWidget
 from rest_framework.filters import BaseFilterBackend
@@ -19,8 +18,9 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
-from waldur_core.structure import SupportedServices, models
+from waldur_core.structure import models
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.registry import SupportedServices
 
 User = auth.get_user_model()
 
@@ -41,10 +41,8 @@ class ScopeTypeFilterBackend(DjangoFilterBackend):
     scope_param = 'scope_type'
     scope_models = {
         'customer': models.Customer,
-        'service': models.Service,
         'project': models.Project,
-        'service_project_link': models.ServiceProjectLink,
-        'resource': models.ResourceMixin,
+        'resource': models.BaseResource,
     }
 
     @classmethod
@@ -525,181 +523,49 @@ class ServiceTypeFilter(django_filters.Filter):
 class ServiceSettingsFilter(NameFilterSet):
     type = ServiceTypeFilter()
     state = core_filters.StateFilter()
-    has_resources = django_filters.BooleanFilter(
-        method='filter_has_resources', widget=BooleanWidget
-    )
 
     class Meta:
         model = models.ServiceSettings
         fields = ('name', 'type', 'state', 'shared')
 
-    def filter_has_resources(self, queryset, name, value):
-        service_settings_with_resources = []
-        for model in SupportedServices.get_resource_models().values():
-            service_settings_with_resources += list(
-                model.objects.values_list(
-                    'service_project_link__service__settings__pk', flat=True
-                )
-            )
-        if value is True:
-            return queryset.filter(pk__in=service_settings_with_resources)
-        return queryset.exclude(Q(pk__in=service_settings_with_resources))
-
 
 class ServiceSettingsScopeFilterBackend(core_filters.GenericKeyFilterBackend):
     def get_related_models(self):
-        return models.ResourceMixin.get_all_models()
+        return models.BaseResource.get_all_models()
 
     def get_field_name(self):
         return 'scope'
 
 
-class ServiceFilterMetaclass(FilterSetMetaclass):
-    """ Build a list of supported resource via serializers definition.
-        See SupportedServices for details.
-    """
-
-    def __new__(mcs, name, bases, args):
-        service_filter = super(ServiceFilterMetaclass, mcs).__new__(
-            mcs, name, bases, args
-        )
-        model = args['Meta'].model
-        if not model._meta.abstract:
-            SupportedServices.register_service_filter(
-                args['Meta'].model, service_filter
-            )
-        return service_filter
-
-
-class BaseServiceFilter(django_filters.FilterSet, metaclass=ServiceFilterMetaclass):
-    customer = django_filters.UUIDFilter(field_name='customer__uuid')
-    name = django_filters.CharFilter(
-        field_name='settings__name', lookup_expr='icontains'
-    )
-    name_exact = django_filters.CharFilter(
-        field_name='settings__name', lookup_expr='exact'
-    )
-    project = core_filters.URLFilter(
-        view_name='project-detail', field_name='projects__uuid', distinct=True
-    )
-    project_uuid = django_filters.UUIDFilter(field_name='projects__uuid', distinct=True)
-    settings = core_filters.URLFilter(
-        view_name='servicesettings-detail', field_name='settings__uuid', distinct=True
-    )
-    shared = django_filters.BooleanFilter(
-        field_name='settings__shared', distinct=True, widget=BooleanWidget
-    )
-    type = ServiceTypeFilter(field_name='settings__type')
-    tag = django_filters.ModelMultipleChoiceFilter(
-        field_name='settings__tags__name',
-        to_field_name='name',
-        lookup_expr='in',
-        queryset=taggit.models.Tag.objects.all(),
-    )
-    # rtag - required tag, support for filtration by tags using AND operation
-    # ?rtag=t1&rtag=t2 - will filter instances that have both t1 and t2.
-    rtag = django_filters.ModelMultipleChoiceFilter(
-        field_name='settings__tags__name',
-        to_field_name='name',
-        queryset=taggit.models.Tag.objects.all(),
-        conjoined=True,
-    )
-
-    class Meta:
-        model = models.Service
-        fields = (
-            'name',
-            'name_exact',
-            'project_uuid',
-            'customer',
-            'project',
-            'settings',
-            'shared',
-            'type',
-            'tag',
-            'rtag',
-        )
-
-
-class BaseServiceProjectLinkFilter(django_filters.FilterSet):
-    service_uuid = django_filters.UUIDFilter(field_name='service__uuid')
-    settings_uuid = django_filters.UUIDFilter(field_name='service__settings__uuid')
-    customer_uuid = django_filters.UUIDFilter(field_name='service__customer__uuid')
-    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
-    project = core_filters.URLFilter(
-        view_name='project-detail', field_name='project__uuid'
-    )
-
-    class Meta:
-        model = models.ServiceProjectLink
-        fields = ()
-
-
-class ResourceFilterMetaclass(FilterSetMetaclass):
-    """ Build a list of supported resource via serializers definition.
-        See SupportedServices for details.
-    """
-
-    def __new__(cls, name, bases, args):
-        resource_filter = super(ResourceFilterMetaclass, cls).__new__(
-            cls, name, bases, args
-        )
-        if 'Meta' in args:
-            SupportedServices.register_resource_filter(
-                args['Meta'].model, resource_filter
-            )
-        return resource_filter
-
-
-class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
+class BaseResourceFilter(NameFilterSet):
     def __init__(self, *args, **kwargs):
         super(BaseResourceFilter, self).__init__(*args, **kwargs)
         self.filters['o'] = django_filters.OrderingFilter(fields=self.ORDERING_FIELDS)
 
     # customer
-    customer = django_filters.UUIDFilter(
-        field_name='service_project_link__project__customer__uuid'
-    )
-    customer_uuid = django_filters.UUIDFilter(
-        field_name='service_project_link__project__customer__uuid'
-    )
+    customer = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
     customer_name = django_filters.CharFilter(
-        field_name='service_project_link__project__customer__name',
-        lookup_expr='icontains',
+        field_name='project__customer__name', lookup_expr='icontains',
     )
     customer_native_name = django_filters.CharFilter(
-        field_name='service_project_link__project__customer__native_name',
-        lookup_expr='icontains',
+        field_name='project__customer__native_name', lookup_expr='icontains',
     )
     customer_abbreviation = django_filters.CharFilter(
-        field_name='service_project_link__project__customer__abbreviation',
-        lookup_expr='icontains',
+        field_name='project__customer__abbreviation', lookup_expr='icontains',
     )
     # project
-    project = django_filters.UUIDFilter(
-        field_name='service_project_link__project__uuid'
-    )
-    project_uuid = django_filters.UUIDFilter(
-        field_name='service_project_link__project__uuid'
-    )
+    project = django_filters.UUIDFilter(field_name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     project_name = django_filters.CharFilter(
-        field_name='service_project_link__project__name', lookup_expr='icontains'
-    )
-    # service
-    service_uuid = django_filters.UUIDFilter(
-        field_name='service_project_link__service__uuid'
-    )
-    service_name = django_filters.CharFilter(
-        field_name='service_project_link__service__settings__name',
-        lookup_expr='icontains',
+        field_name='project__name', lookup_expr='icontains'
     )
     # service settings
     service_settings_uuid = django_filters.UUIDFilter(
-        field_name='service_project_link__service__settings__uuid'
+        field_name='service_settings__uuid'
     )
     service_settings_name = django_filters.CharFilter(
-        field_name='service_project_link__service__settings__name',
-        lookup_expr='icontains',
+        field_name='service_settings__name', lookup_expr='icontains',
     )
     # resource
     description = django_filters.CharFilter(lookup_expr='icontains')
@@ -733,23 +599,16 @@ class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
     ORDERING_FIELDS = (
         ('name', 'name'),
         ('state', 'state'),
-        ('service_project_link__project__customer__name', 'customer_name'),
-        (
-            'service_project_link__project__customer__native_name',
-            'customer_native_name',
-        ),
-        (
-            'service_project_link__project__customer__abbreviation',
-            'customer_abbreviation',
-        ),
-        ('service_project_link__project__name', 'project_name'),
-        ('service_project_link__service__settings__name', 'service_name'),
-        ('service_project_link__service__uuid', 'service_uuid'),
+        ('project__customer__name', 'customer_name'),
+        ('project__customer__native_name', 'customer_native_name',),
+        ('project__customer__abbreviation', 'customer_abbreviation',),
+        ('project__name', 'project_name'),
+        ('service_settings__name', 'service_name'),
         ('created', 'created'),
     )
 
     class Meta:
-        model = models.ResourceMixin
+        model = models.BaseResource
         fields = (
             # customer
             'customer',
@@ -761,9 +620,6 @@ class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
             'project',
             'project_uuid',
             'project_name',
-            # service
-            'service_uuid',
-            'service_name',
             # service settings
             'service_settings_name',
             'service_settings_uuid',

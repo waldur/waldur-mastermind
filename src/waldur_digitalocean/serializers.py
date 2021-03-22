@@ -4,24 +4,16 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models
-from .backend import DigitalOceanBackendError
 
 
-class ServiceSerializer(
-    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
-):
+class DigitalOceanServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ('token',)
 
-    SERVICE_ACCOUNT_FIELDS = {
-        'token': '',
-    }
-
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.DigitalOceanService
-        extra_field_options = {'token': {'label': 'Access token'}}
+    token = serializers.CharField(label=_('Access token'))
 
 
 class RegionSerializer(structure_serializers.BasePropertySerializer):
@@ -65,31 +57,7 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
     regions = RegionSerializer(many=True, read_only=True)
 
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.DigitalOceanServiceProjectLink
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'digitalocean-detail'},
-        }
-
-
 class DropletSerializer(structure_serializers.VirtualMachineSerializer):
-
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='digitalocean-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='digitalocean-spl-detail',
-        queryset=models.DigitalOceanServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
 
     region = serializers.HyperlinkedRelatedField(
         view_name='digitalocean-region-detail',
@@ -180,22 +148,6 @@ class DropletSerializer(structure_serializers.VirtualMachineSerializer):
         return super(DropletSerializer, self).create(validated_data)
 
 
-class DropletImportSerializer(structure_serializers.BaseResourceImportSerializer):
-    class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
-        model = models.Droplet
-
-    def create(self, validated_data):
-        backend = self.context['service'].get_backend()
-        backend_id = validated_data['backend_id']
-        service_project_link = validated_data['service_project_link']
-        try:
-            return backend.import_droplet(backend_id, service_project_link)
-        except DigitalOceanBackendError:
-            raise serializers.ValidationError(
-                {'backend_id': _("Can't find droplet with ID %s") % backend_id}
-            )
-
-
 class DropletResizeSerializer(serializers.Serializer):
     size = serializers.HyperlinkedRelatedField(
         view_name='digitalocean-size-detail',
@@ -204,13 +156,6 @@ class DropletResizeSerializer(serializers.Serializer):
         write_only=True,
     )
     disk = serializers.BooleanField(required=True)
-
-    def get_fields(self):
-        fields = super(DropletResizeSerializer, self).get_fields()
-        field = fields['size']
-        field.value_field = 'url'
-        field.display_name_field = 'name'
-        return fields
 
     class Meta:
         fields = 'size', 'disk'

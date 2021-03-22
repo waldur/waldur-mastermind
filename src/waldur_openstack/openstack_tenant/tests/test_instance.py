@@ -71,7 +71,6 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
         self.openstack_settings.options = {'external_network_id': uuid.uuid4().hex}
         self.openstack_settings.save()
-        self.openstack_spl = self.openstack_tenant_fixture.spl
         self.project = self.openstack_tenant_fixture.project
         self.customer = self.openstack_tenant_fixture.customer
         self.image = factories.ImageFactory(
@@ -86,9 +85,10 @@ class InstanceCreateTest(test.APITransactionTestCase):
     def get_valid_data(self, **extra):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         default = {
-            'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-                self.openstack_spl
+            'service_settings': factories.OpenStackTenantServiceSettingsFactory.get_url(
+                self.openstack_settings
             ),
+            'project': structure_factories.ProjectFactory.get_url(self.project),
             'flavor': factories.FlavorFactory.get_url(self.flavor),
             'image': factories.ImageFactory.get_url(self.image),
             'name': 'valid-name',
@@ -115,16 +115,6 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(
             self.openstack_settings.quotas.get(name=Quotas.instances).usage, 1
-        )
-
-        self.assertEqual(
-            self.openstack_spl.quotas.get(name=Quotas.ram).usage, instance.ram
-        )
-        self.assertEqual(
-            self.openstack_spl.quotas.get(name=Quotas.storage).usage, instance.disk
-        )
-        self.assertEqual(
-            self.openstack_spl.quotas.get(name=Quotas.vcpu).usage, instance.cores
         )
 
         self.assertEqual(
@@ -171,22 +161,6 @@ class InstanceCreateTest(test.APITransactionTestCase):
             self.customer.quotas.get(name='os_storage_size').usage, instance.disk
         )
 
-    def test_spl_quota_updated_by_signal_handler_when_instance_is_removed(self):
-        response = self.client.post(self.url, self.get_valid_data())
-        instance = models.Instance.objects.get(uuid=response.data['uuid'])
-        instance.delete()
-
-        self.assertEqual(
-            self.openstack_spl.quotas.get(name=self.openstack_spl.Quotas.vcpu).usage, 0
-        )
-        self.assertEqual(
-            self.openstack_spl.quotas.get(name=self.openstack_spl.Quotas.ram).usage, 0
-        )
-        self.assertEqual(
-            self.openstack_spl.quotas.get(name=self.openstack_spl.Quotas.storage).usage,
-            0,
-        )
-
     def test_project_quotas_updated_when_instance_is_deleted(self):
         response = self.client.post(self.url, self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
@@ -204,16 +178,6 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(self.customer.quotas.get(name='os_cpu_count').usage, 0)
         self.assertEqual(self.customer.quotas.get(name='os_ram_size').usage, 0)
         self.assertEqual(self.customer.quotas.get(name='os_storage_size').usage, 0)
-
-    @data('storage', 'ram', 'vcpu')
-    def test_instance_cannot_be_created_if_service_project_link_quota_has_been_exceeded(
-        self, quota
-    ):
-        payload = self.get_valid_data()
-        self.openstack_spl.set_quota_limit(quota, 0)
-        response = self.client.post(self.url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data('instances')
     def test_quota_validation(self, quota_name):
@@ -265,9 +229,8 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertIn(floating_ip, instance.floating_ips)
 
     def test_service_settings_should_have_external_network_id(self):
-        ss = self.openstack_spl.service.settings
-        ss.options = {'external_network_id': 'invalid'}
-        ss.save()
+        self.openstack_settings.options = {'external_network_id': 'invalid'}
+        self.openstack_settings.save()
 
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}])
@@ -386,10 +349,10 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
     def test_show_volume_type_in_instance_serializer(self):
         instance = factories.InstanceFactory()
-        settings = instance.service_project_link.service.settings
-        volume_type = factories.VolumeTypeFactory(settings=settings)
+        volume_type = factories.VolumeTypeFactory(settings=instance.service_settings)
         factories.VolumeFactory(
-            service_project_link=instance.service_project_link,
+            service_settings=instance.service_settings,
+            project=instance.project,
             instance=instance,
             type=volume_type,
             name='test-volume',
@@ -595,9 +558,9 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.mock_volumes(True)
         self.delete_instance()
 
-        self.instance.service_project_link.service.settings.refresh_from_db()
-        quotas = self.instance.service_project_link.service.settings.quotas
-        tenant_quotas = self.instance.service_project_link.service.settings.scope.quotas
+        self.instance.service_settings.refresh_from_db()
+        quotas = self.instance.service_settings.quotas
+        tenant_quotas = self.instance.service_settings.scope.quotas
 
         for scope in (quotas, tenant_quotas):
             self.assert_quota_usage(scope, 'instances', 0)
@@ -633,7 +596,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.mock_volumes(False)
         self.delete_instance({'delete_volumes': False})
 
-        settings = self.instance.service_project_link.service.settings
+        settings = self.instance.service_settings
         settings.refresh_from_db()
 
         self.assert_quota_usage(settings.quotas, 'instances', 0)
@@ -665,7 +628,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         internal_ip = factories.InternalIPFactory.create(
             instance=self.instance, subnet=fixture.subnet
         )
-        settings = self.instance.service_project_link.service.settings
+        settings = self.instance.service_settings
         floating_ip = factories.FloatingIPFactory.create(
             internal_ip=internal_ip, settings=settings
         )
@@ -696,7 +659,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         internal_ip = factories.InternalIPFactory.create(
             instance=self.instance, subnet=fixture.subnet
         )
-        settings = self.instance.service_project_link.service.settings
+        settings = self.instance.service_settings
         factories.FloatingIPFactory.create(internal_ip=internal_ip, settings=settings)
         self.delete_instance({'release_floating_ips': False, 'delete_volumes': False})
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
@@ -1053,7 +1016,9 @@ class InstanceBackupTest(test.APITransactionTestCase):
     def test_backup_can_be_created_for_instance_with_3_volumes(self):
         instance = self.fixture.instance
         instance.volumes.add(
-            factories.VolumeFactory(service_project_link=instance.service_project_link)
+            factories.VolumeFactory(
+                service_settings=instance.service_settings, project=instance.project,
+            )
         )
         url = factories.InstanceFactory.get_url(instance, action='backup')
         payload = self.get_payload()
@@ -1075,94 +1040,6 @@ class InstanceBackupTest(test.APITransactionTestCase):
 
     def get_payload(self):
         return {'name': 'backup_name'}
-
-
-class BaseInstanceImportTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.OpenStackTenantFixture()
-
-    def _generate_backend_instances(self, count=1):
-        instances = []
-        for i in range(count):
-            instance = factories.InstanceFactory()
-            instance.delete()
-            instances.append(instance)
-
-        return instances
-
-
-class InstanceImportableResourcesTest(BaseInstanceImportTest):
-    def setUp(self):
-        super(InstanceImportableResourcesTest, self).setUp()
-        self.url = factories.InstanceFactory.get_list_url('importable_resources')
-        self.client.force_authenticate(self.fixture.owner)
-
-    @mock.patch(
-        'waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.get_instances_for_import'
-    )
-    def test_importable_instances_are_returned(self, get_instances_for_import_mock):
-        backend_instances = self._generate_backend_instances()
-        get_instances_for_import_mock.return_value = backend_instances
-        data = {
-            'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            )
-        }
-
-        response = self.client.get(self.url, data=data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEquals(len(response.data), len(backend_instances))
-        returned_backend_ids = [item['backend_id'] for item in response.data]
-        expected_backend_ids = [item.backend_id for item in backend_instances]
-        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
-        get_instances_for_import_mock.assert_called()
-
-
-class InstanceImportTest(BaseInstanceImportTest):
-    def setUp(self):
-        super(InstanceImportTest, self).setUp()
-        self.url = factories.InstanceFactory.get_list_url('import_resource')
-        self.client.force_authenticate(self.fixture.owner)
-
-    def _get_payload(self, backend_id):
-        return {
-            'backend_id': backend_id,
-            'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            ),
-        }
-
-    @mock.patch(
-        'waldur_openstack.openstack_tenant.executors.InstancePullExecutor.execute'
-    )
-    @mock.patch(
-        'waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.import_instance'
-    )
-    def test_instance_can_be_imported(
-        self, import_instance_mock, resource_import_execute_mock
-    ):
-        backend_id = 'backend_id'
-
-        def import_instance(backend_id, save, service_project_link):
-            return self._generate_backend_instances()[0]
-
-        import_instance_mock.side_effect = import_instance
-        payload = self._get_payload(backend_id)
-
-        response = self.client.post(self.url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        resource_import_execute_mock.assert_called()
-
-    def test_existing_instance_cannot_be_imported(self):
-        payload = self._get_payload(factories.InstanceFactory().backend_id)
-
-        response = self.client.post(self.url, payload)
-
-        self.assertEqual(
-            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
-        )
 
 
 @ddt

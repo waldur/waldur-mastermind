@@ -13,16 +13,6 @@ from . import executors, filters, models, serializers
 logger = logging.getLogger(__name__)
 
 
-class JiraServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.JiraService.objects.all()
-    serializer_class = serializers.ServiceSerializer
-
-
-class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.JiraServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-
-
 class JiraPermissionMixin:
     def get_queryset(self):
         user = self.request.user
@@ -40,7 +30,7 @@ class ProjectTemplateViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
 
 
-class ProjectViewSet(structure_views.ImportableResourceViewSet):
+class ProjectViewSet(structure_views.ResourceViewSet):
     queryset = models.Project.objects.all()
     filterset_class = filters.ProjectFilter
     serializer_class = serializers.ProjectSerializer
@@ -50,10 +40,6 @@ class ProjectViewSet(structure_views.ImportableResourceViewSet):
     async_executor = False
 
     destroy_permissions = [structure_permissions.is_staff]
-
-    importable_resources_backend_method = 'get_resources_for_import'
-    importable_resources_serializer_class = serializers.ProjectImportableSerializer
-    import_resource_serializer_class = serializers.ProjectImportSerializer
 
 
 class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):

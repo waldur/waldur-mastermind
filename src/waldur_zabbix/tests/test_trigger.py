@@ -4,8 +4,7 @@ from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_zabbix import models
-
-from . import factories
+from waldur_zabbix.tests.factories import ZabbixServiceSettingsFactory
 
 
 class TriggerQueryTest(test.APITransactionTestCase):
@@ -14,8 +13,11 @@ class TriggerQueryTest(test.APITransactionTestCase):
         staff = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(staff)
 
-        url = factories.ZabbixServiceFactory.get_url(action='trigger_status')
-        self.client.get(url, params)
+        service_settings = ZabbixServiceSettingsFactory()
+
+        self.client.get(
+            f'/api/zabbix-service-trigger-status/{service_settings.uuid}/', params
+        )
 
         kwargs = mock_zabbix().trigger.get.call_args[1]
         return kwargs

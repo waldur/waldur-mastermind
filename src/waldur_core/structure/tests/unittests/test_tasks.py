@@ -18,15 +18,18 @@ class ThrottleProvisionTaskTest(TestCase):
         dict(size=tasks.ThrottleProvisionTask.DEFAULT_LIMIT - 1, retried=False),
     )
     def test_if_limit_is_reached_provisioning_is_delayed(self, params):
-        link = factories.TestServiceProjectLinkFactory()
+        service_settings = factories.ServiceSettingsFactory()
+        project = factories.ProjectFactory()
         factories.TestNewInstanceFactory.create_batch(
             size=params['size'],
             state=models.TestNewInstance.States.CREATING,
-            service_project_link=link,
+            service_settings=service_settings,
+            project=project,
         )
         vm = factories.TestNewInstanceFactory(
             state=models.TestNewInstance.States.CREATION_SCHEDULED,
-            service_project_link=link,
+            service_settings=service_settings,
+            project=project,
         )
         serialized_vm = utils.serialize_instance(vm)
         mocked_retry = mock.Mock()

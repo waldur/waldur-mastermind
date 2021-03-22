@@ -1,8 +1,10 @@
+import unittest
 from unittest import mock
 
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_jira import executors, models
 from waldur_jira.tests import factories, fixtures
 
@@ -51,7 +53,10 @@ class ProjectCreateTest(ProjectBaseTest):
             'name': 'Test project',
             'key': 'TST',
             'template': self.fixture.jira_project_template_url,
-            'service_project_link': self.fixture.service_project_link_url,
+            'service_settings': ServiceSettingsFactory.get_url(
+                self.fixture.service_settings
+            ),
+            'project': ProjectFactory.get_url(self.fixture.project),
         }
 
 
@@ -83,6 +88,7 @@ class BaseProjectImportTest(test.APITransactionTestCase):
         return projects
 
 
+@unittest.skip('Move import to marketplace')
 class ProjectImportableResourcesTest(BaseProjectImportTest):
     def setUp(self):
         super(ProjectImportableResourcesTest, self).setUp()
@@ -94,13 +100,7 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
     def test_importable_projects_are_returned(self, get_projects_mock):
         backend_projects = self._generate_backend_projects()
         get_projects_mock.return_value = backend_projects
-        data = {
-            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(
-                self.fixture.service_project_link
-            )
-        }
-
-        response = self.client.get(self.url, data=data)
+        response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEquals(len(response.data), len(backend_projects))
@@ -110,6 +110,7 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
         get_projects_mock.assert_called()
 
 
+@unittest.skip('Move import to marketplace')
 class ProjectImportResourceTest(BaseProjectImportTest):
     def setUp(self):
         super(ProjectImportResourceTest, self).setUp()
@@ -138,9 +139,7 @@ class ProjectImportResourceTest(BaseProjectImportTest):
 
         payload = {
             'backend_id': backend_id,
-            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(
-                self.fixture.service_project_link
-            ),
+            'project': self.fixture.project.uuid,
         }
 
         response = self.client.post(self.url, payload)
@@ -151,14 +150,13 @@ class ProjectImportResourceTest(BaseProjectImportTest):
 
     def test_backend_project_cannot_be_imported_if_it_is_registered_in_waldur(self):
         project = factories.ProjectFactory(
-            service_project_link=self.fixture.service_project_link
+            service_settings=self.fixture.service_settings,
+            project=self.fixture.project,
         )
 
         payload = {
             'backend_id': project.backend_id,
-            'service_project_link': factories.JiraServiceProjectLinkFactory.get_url(
-                self.fixture.service_project_link
-            ),
+            'project': self.fixture.project.uuid,
         }
 
         response = self.client.post(self.url, payload)

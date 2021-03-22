@@ -1,12 +1,9 @@
 import logging
 
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.reverse import reverse
 
-from waldur_core.structure import SupportedServices
-from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
@@ -15,35 +12,18 @@ from waldur_mastermind.marketplace.utils import validate_limits
 logger = logging.getLogger(__name__)
 
 
-def get_spl_url(spl_model_class, order_item):
-    """
-    Find service project link URL for specific service settings and marketplace order.
-    """
-    service_settings = order_item.offering.scope
-
-    service_settings_type = spl_model_class._meta.app_config.service_name
-
-    if (
-        not isinstance(service_settings, structure_models.ServiceSettings)
-        or service_settings.type != service_settings_type
-    ):
-        raise serializers.ValidationError(
-            'Offering has invalid scope. Service settings object is expected.'
-        )
-
-    project = order_item.order.project
-
-    try:
-        spl = spl_model_class.objects.get(
-            project=project,
-            service__settings=service_settings,
-            service__customer=project.customer,
-        )
-        return reverse('{}-detail'.format(spl.get_url_name()), kwargs={'pk': spl.pk})
-    except ObjectDoesNotExist:
-        raise serializers.ValidationError(
-            'Project does not have access to the service.'
-        )
+def get_order_item_post_data(order_item, fields):
+    project_url = reverse(
+        'project-detail', kwargs={'uuid': order_item.order.project.uuid}
+    )
+    service_settings_url = reverse(
+        'servicesettings-detail', kwargs={'uuid': order_item.offering.scope.uuid}
+    )
+    return dict(
+        service_settings=service_settings_url,
+        project=project_url,
+        **copy_attributes(fields, order_item)
+    )
 
 
 def copy_attributes(fields, order_item):
@@ -362,14 +342,6 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         """
         return self.get_viewset().queryset.model
 
-    def get_spl_model(self):
-        """
-        Get service project link model used by resource model using service registry.
-        """
-        return SupportedServices.get_related_models(self.get_resource_model())[
-            'service_project_link'
-        ]
-
     def get_serializer_class(self):
         """
         Use create_serializer_class if it is defined. Otherwise fallback to standard serializer class.
@@ -380,11 +352,7 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         )
 
     def get_post_data(self):
-        order_item = self.order_item
-        return dict(
-            service_project_link=get_spl_url(self.get_spl_model(), order_item),
-            **copy_attributes(self.get_fields(), order_item)
-        )
+        return get_order_item_post_data(self.order_item, self.get_fields())
 
     def get_scope_from_response(self, response):
         return self.get_resource_model().objects.get(uuid=response.data['uuid'])

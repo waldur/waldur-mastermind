@@ -20,20 +20,9 @@ class OpenStackFixture(ProjectFixture):
         )
 
     @cached_property
-    def openstack_service(self):
-        return openstack_models.OpenStackService.objects.create(
-            customer=self.customer, settings=self.openstack_service_settings,
-        )
-
-    @cached_property
-    def openstack_spl(self):
-        return openstack_models.OpenStackServiceProjectLink.objects.create(
-            project=self.project, service=self.openstack_service
-        )
-
-    @cached_property
     def openstack_tenant(self):
         return TenantFactory(
-            service_project_link=self.openstack_spl,
+            service_settings=self.openstack_service_settings,
+            project=self.project,
             state=openstack_models.Tenant.States.OK,
         )

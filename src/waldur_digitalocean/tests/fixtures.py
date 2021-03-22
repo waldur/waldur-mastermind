@@ -7,6 +7,10 @@ from . import factories
 
 class DigitalOceanFixture(ProjectFixture):
     @cached_property
+    def settings(self):
+        return factories.DigitalOceanServiceSettingsFactory(customer=self.customer)
+
+    @cached_property
     def size(self):
         size = factories.SizeFactory()
         size.regions.add(self.region)
@@ -24,14 +28,6 @@ class DigitalOceanFixture(ProjectFixture):
 
     @cached_property
     def droplet(self):
-        return factories.DropletFactory(service_project_link=self.spl)
-
-    @cached_property
-    def service(self):
-        return factories.DigitalOceanServiceFactory(customer=self.customer)
-
-    @cached_property
-    def spl(self):
-        return factories.DigitalOceanServiceProjectLinkFactory(
-            service=self.service, project=self.project,
+        return factories.DropletFactory(
+            service_settings=self.settings, project=self.project
         )

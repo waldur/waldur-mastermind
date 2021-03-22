@@ -368,8 +368,8 @@ class ConfigDriveUpdateTest(TestCase):
         )
 
         # Act
-        tenant.service_project_link.service.settings.options['config_drive'] = True
-        tenant.service_project_link.service.settings.save()
+        tenant.service_settings.options['config_drive'] = True
+        tenant.service_settings.save()
 
         # Assert
         service_settings.refresh_from_db()
@@ -484,17 +484,12 @@ class CreateServiceFromTenantTest(TestCase):
             scope=tenant, type=apps.OpenStackTenantConfig.service_name,
         )
         self.assertEquals(service_settings.name, tenant.name)
-        self.assertEquals(
-            service_settings.customer, tenant.service_project_link.project.customer
-        )
+        self.assertEquals(service_settings.customer, tenant.project.customer)
         self.assertEquals(service_settings.username, tenant.user_username)
         self.assertEquals(service_settings.password, tenant.user_password)
+        self.assertEquals(service_settings.domain, tenant.service_settings.domain)
         self.assertEquals(
-            service_settings.domain, tenant.service_project_link.service.settings.domain
-        )
-        self.assertEquals(
-            service_settings.backend_url,
-            tenant.service_project_link.service.settings.backend_url,
+            service_settings.backend_url, tenant.service_settings.backend_url,
         )
         self.assertEquals(
             service_settings.type, apps.OpenStackTenantConfig.service_name
@@ -505,61 +500,39 @@ class CreateServiceFromTenantTest(TestCase):
         )
         self.assertFalse('console_type' in service_settings.options)
 
-        self.assertTrue(
-            models.OpenStackTenantService.objects.filter(
-                settings=service_settings,
-                customer=tenant.service_project_link.project.customer,
-            ).exists()
-        )
-
-        service = models.OpenStackTenantService.objects.get(
-            settings=service_settings,
-            customer=tenant.service_project_link.project.customer,
-        )
-
-        self.assertTrue(
-            models.OpenStackTenantServiceProjectLink.objects.filter(
-                service=service, project=tenant.service_project_link.project,
-            ).exists()
-        )
-
     def test_copy_console_type_from_admin_settings_to_private_settings(self):
-        service_project_link = openstack_factories.OpenStackServiceProjectLinkFactory()
-        service_project_link.service.settings.options['console_type'] = 'console_type'
-        service_project_link.service.settings.save()
-        tenant = openstack_factories.TenantFactory(
-            service_project_link=service_project_link
-        )
-        service_settings = structure_models.ServiceSettings.objects.get(
+        shared_settings = openstack_factories.OpenStackServiceSettingsFactory()
+        shared_settings.options['console_type'] = 'console_type'
+        shared_settings.save()
+        tenant = openstack_factories.TenantFactory(service_settings=shared_settings)
+        private_settings = structure_models.ServiceSettings.objects.get(
             scope=tenant, type=apps.OpenStackTenantConfig.service_name,
         )
-        self.assertTrue('console_type' in service_settings.options)
+        self.assertTrue('console_type' in private_settings.options)
         self.assertEquals(
-            service_settings.options['console_type'],
-            service_project_link.service.settings.options['console_type'],
+            shared_settings.options['console_type'],
+            private_settings.options['console_type'],
         )
 
     def test_copy_config_drive_from_admin_settings_to_private_settings(self):
-        service_project_link = openstack_factories.OpenStackServiceProjectLinkFactory()
-        service_project_link.service.settings.options['config_drive'] = True
-        service_project_link.service.settings.save()
-        tenant = openstack_factories.TenantFactory(
-            service_project_link=service_project_link
-        )
-        service_settings = structure_models.ServiceSettings.objects.get(
+        shared_settings = openstack_factories.OpenStackServiceSettingsFactory()
+        shared_settings.options['config_drive'] = True
+        shared_settings.save()
+        tenant = openstack_factories.TenantFactory(service_settings=shared_settings)
+        private_settings = structure_models.ServiceSettings.objects.get(
             scope=tenant, type=apps.OpenStackTenantConfig.service_name,
         )
-        self.assertTrue(service_settings.options['config_drive'])
+        self.assertTrue(private_settings.options['config_drive'])
 
     def test_copy_tenant_id_from_tenant_to_private_settings(self):
-        service_project_link = openstack_factories.OpenStackServiceProjectLinkFactory()
+        shared_settings = openstack_factories.OpenStackServiceSettingsFactory()
         tenant = openstack_factories.TenantFactory(
-            service_project_link=service_project_link, backend_id=None
+            service_settings=shared_settings, backend_id=None
         )
-        service_settings = structure_models.ServiceSettings.objects.get(
+        private_settings = structure_models.ServiceSettings.objects.get(
             scope=tenant, type=apps.OpenStackTenantConfig.service_name,
         )
         tenant.backend_id = 'VALID_BACKEND_ID'
         tenant.save()
-        service_settings.refresh_from_db()
-        self.assertTrue(service_settings.options['tenant_id'], tenant.backend_id)
+        private_settings.refresh_from_db()
+        self.assertTrue(private_settings.options['tenant_id'], tenant.backend_id)
