@@ -8,11 +8,11 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/sync-to-github.yml"
   - project: "waldur/waldur-pipelines"
-    file: "/templates/release/dev-env-update.yml"
-  - project: "waldur/waldur-pipelines"
     file: "/templates/validate/docker-compose-trigger.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/lint-docker-image.yaml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/deploy/dev-env-update.yml"
 
 variables:
   GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/waldur-mastermind.git"
@@ -116,11 +116,8 @@ Lint docker image:
   extends: .Lint docker image template
   variables:
     IMAGE: opennode/waldur-mastermind:latest
-    DOCKERFILE: Dockerfile
 
 Lint docker image for tests:
   extends: .Lint docker image template
-  variables:
-    DOCKERFILE: gitlab-ci-test/Dockerfile
   before_script:
     - export IMAGE=$WALDUR_MASTERMIND_TEST_IMAGE
