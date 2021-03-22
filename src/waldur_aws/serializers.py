@@ -3,31 +3,24 @@ from django.utils.translation import ugettext_lazy as _
 from libcloud.compute.types import NodeState
 from rest_framework import serializers
 
-from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models
-from .backend import AWSBackendError
 
 
-class ServiceSerializer(
-    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
-):
+class AwsServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ('username', 'token')
 
-    SERVICE_ACCOUNT_FIELDS = {
-        'username': '',
-        'token': '',
-    }
+    username = serializers.CharField(label=_('Access key ID'))
 
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {'images_regex': ''}
+    token = serializers.CharField(label=_('Secret access key'))
 
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.AWSService
-        extra_field_options = {
-            'username': {'label': 'Access key ID', 'required': True},
-            'token': {'label': 'Secret access key', 'required': True},
-            'images_regex': {'help_text': _('Regular expression to limit images list')},
-        }
+    images_regex = serializers.CharField(
+        source='options.images_regex',
+        help_text=_('Regular expression to limit images list'),
+        required=False,
+    )
 
 
 class RegionSerializer(structure_serializers.BasePropertySerializer):
@@ -67,44 +60,7 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
     regions = RegionSerializer(many=True, read_only=True)
 
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.AWSServiceProjectLink
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'aws-detail'},
-        }
-
-
-class AWSImportSerializerMixin:
-    def get_fields(self):
-        from waldur_core.structure import SupportedServices
-
-        fields = super(AWSImportSerializerMixin, self).get_fields()
-        resources = SupportedServices.get_service_resources(models.AWSService)
-        choices = [
-            SupportedServices.get_name_for_model(resource) for resource in resources
-        ]
-        fields['type'] = serializers.ChoiceField(choices=choices, write_only=True)
-        return fields
-
-
 class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='aws-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='aws-spl-detail',
-        queryset=models.AWSServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     region = serializers.HyperlinkedRelatedField(
         view_name='aws-region-detail',
         lookup_field='uuid',
@@ -176,7 +132,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'name': ('temp-%s' % instance.name)[:150],
             'state': models.Volume.States.CREATION_SCHEDULED,
             'instance': instance,
-            'service_project_link': instance.service_project_link,
+            'service_settings': instance.service_settings,
+            'project': instance.project,
             'region': instance.region,
             # Size will be received from the backend
             'size': 0,
@@ -184,37 +141,6 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         models.Volume.objects.create(**volume)
 
         return instance
-
-
-class InstanceImportSerializer(
-    AWSImportSerializerMixin, structure_serializers.BaseResourceImportSerializer
-):
-    class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
-        model = models.Instance
-
-    def create(self, validated_data):
-        backend = self.context['service'].get_backend()
-        try:
-            region, instance = backend.find_instance(validated_data['backend_id'])
-        except AWSBackendError:
-            raise serializers.ValidationError(
-                {
-                    'backend_id': _("Can't find instance with ID %s")
-                    % validated_data['backend_id']
-                }
-            )
-
-        validated_data['name'] = instance['name']
-        validated_data['public_ips'] = instance['public_ips']
-        validated_data['cores'] = instance['cores']
-        validated_data['ram'] = instance['ram']
-        validated_data['disk'] = instance['disk']
-        validated_data['created'] = instance['created']
-        validated_data['state'] = instance['state']
-        validated_data['region'] = region
-        validated_data.pop('type')
-
-        return super(InstanceImportSerializer, self).create(validated_data)
 
 
 class InstanceResizeSerializer(
@@ -225,12 +151,6 @@ class InstanceResizeSerializer(
         lookup_field='uuid',
         queryset=models.Size.objects.all(),
     )
-
-    def get_fields(self):
-        fields = super(InstanceResizeSerializer, self).get_fields()
-        if self.instance:
-            fields['size'].query_params = {'region_uuid': self.instance.region.uuid}
-        return fields
 
     def get_filtered_field_names(self):
         return ('size',)
@@ -271,38 +191,15 @@ class InstanceResizeSerializer(
     def update(self, instance, validated_data):
         size = validated_data.get('size')
 
-        ram_increase = size.ram - instance.ram
-        cores_increase = size.cores - instance.cores
-        disk_increase = size.disk - instance.disk
-
         instance.ram = size.ram
         instance.cores = size.cores
         instance.disk = size.disk
         instance.save(update_fields=['ram', 'cores', 'disk'])
 
-        spl = instance.service_project_link
-        spl.add_quota_usage(spl.Quotas.storage, disk_increase, validate=True)
-        spl.add_quota_usage(spl.Quotas.ram, ram_increase, validate=True)
-        spl.add_quota_usage(spl.Quotas.vcpu, cores_increase, validate=True)
-
         return instance
 
 
 class VolumeSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='aws-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='aws-spl-detail',
-        queryset=models.AWSServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     region = serializers.HyperlinkedRelatedField(
         view_name='aws-region-detail',
         lookup_field='uuid',
@@ -335,48 +232,6 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
         }
 
 
-class VolumeImportSerializer(
-    AWSImportSerializerMixin, structure_serializers.BaseResourceImportSerializer
-):
-    class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
-        model = models.Volume
-
-    def create(self, validated_data):
-        backend = self.context['service'].get_backend()
-        try:
-            region, volume = backend.find_volume(validated_data['backend_id'])
-        except AWSBackendError:
-            raise serializers.ValidationError(
-                {
-                    'backend_id': _("Can't find volume with ID %s")
-                    % validated_data['backend_id']
-                }
-            )
-
-        instance_id = volume['instance_id']
-        if instance_id:
-            try:
-                instance = models.Instance.objects.get(backend_id=instance_id)
-            except models.Instance.DoesNotExist:
-                raise serializers.ValidationError(
-                    _('You must import instance with ID %s first') % instance_id
-                )
-            else:
-                validated_data['instance'] = instance
-
-        validated_data['name'] = volume['name']
-        validated_data['size'] = volume['size']
-        validated_data['created'] = volume['created']
-        validated_data['runtime_state'] = volume['runtime_state']
-        validated_data['state'] = models.Volume.States.OK
-        validated_data['device'] = volume['device']
-        validated_data['volume_type'] = volume['volume_type']
-        validated_data['region'] = region
-        validated_data.pop('type')
-
-        return super(VolumeImportSerializer, self).create(validated_data)
-
-
 class VolumeAttachSerializer(
     structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer
 ):
@@ -391,12 +246,6 @@ class VolumeAttachSerializer(
             'The device name for attachment. For example, use /dev/sd[f-p] for Linux instances.'
         ),
     )
-
-    def get_fields(self):
-        fields = super(VolumeAttachSerializer, self).get_fields()
-        if self.instance:
-            fields['instance'].query_params = {'region_uuid': self.instance.region.uuid}
-        return fields
 
     def get_filtered_field_names(self):
         return ('instance',)

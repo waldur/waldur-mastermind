@@ -1,7 +1,7 @@
 import logging
 
 from waldur_azure.client import AzureBackendError, AzureClient
-from waldur_core.structure import ServiceBackend
+from waldur_core.structure.backend import ServiceBackend
 
 from . import models
 
@@ -72,7 +72,7 @@ class AzureBackend(ServiceBackend):
             enabled=False
         )
 
-    def pull_public_ips(self, service_project_link):
+    def pull_public_ips(self, service_settings, project):
         locations = {
             location.backend_id: location
             for location in models.Location.objects.filter(settings=self.settings)
@@ -81,7 +81,7 @@ class AzureBackend(ServiceBackend):
         cached_public_ips = {
             public_ip.backend_id: public_ip
             for public_ip in models.PublicIP.objects.filter(
-                service_project_link=service_project_link
+                service_settings=service_settings, project=project,
             )
         }
 
@@ -105,7 +105,8 @@ class AzureBackend(ServiceBackend):
             models.PublicIP.objects.create(
                 backend_id=backend_public_ip.name,
                 name=backend_public_ip.name,
-                service_project_link=service_project_link,
+                service_settings=service_settings,
+                project=project,
                 location=locations.get(backend_public_ip.location),
                 state=models.PublicIP.States.OK,
             )
@@ -142,11 +143,11 @@ class AzureBackend(ServiceBackend):
         for cached_size in stale_sizes:
             cached_size.delete()
 
-    def pull_resource_groups(self, service_project_link):
+    def pull_resource_groups(self, service_settings, project):
         cached_groups = {
             group.backend_id: group
             for group in models.ResourceGroup.objects.filter(
-                service_project_link=service_project_link
+                service_settings=service_settings, project=project,
             )
         }
 
@@ -171,7 +172,8 @@ class AzureBackend(ServiceBackend):
             models.ResourceGroup.objects.create(
                 backend_id=backend_group.id,
                 name=backend_group.name,
-                service_project_link=service_project_link,
+                service_settings=service_settings,
+                project=project,
                 location=locations.get(backend_group.location),
                 state=models.ResourceGroup.States.OK,
             )

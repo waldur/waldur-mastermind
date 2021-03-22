@@ -19,22 +19,11 @@ from . import executors, filters, models, serializers
 logger = logging.getLogger(__name__)
 
 
-class ServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.VMwareService.objects.all()
-    serializer_class = serializers.ServiceSerializer
-
-
-class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.VMwareServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-    filterset_class = filters.ServiceProjectLinkFilter
-
-
 class LimitViewSet(RetrieveModelMixin, GenericViewSet):
     """
     Service consumer is not allowed to get details of service settings of service provider.
     However, currently VMware virtual machine limits are stored as options in service settings.
-    Therefore in order to implement frontent-side validation of VM configuration in deployment form,
+    Therefore in order to implement frontend-side validation of VM configuration in deployment form,
     we need to get limits of VMware service settings for service consumer.
     That's why GenericRoleFilter is not applied here.
     It is expected that eventually service provider limits would be moved to marketplace offering.
@@ -47,7 +36,7 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
     serializer_class = serializers.LimitSerializer
 
 
-class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
+class VirtualMachineViewSet(structure_views.ResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
     serializer_class = serializers.VirtualMachineSerializer
     filterset_class = filters.VirtualMachineFilter
@@ -62,7 +51,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         ),
     ]
 
-    destroy_validators = structure_views.BaseResourceViewSet.destroy_validators + [
+    destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_OFF
         )
@@ -252,7 +241,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
 
 
-class PortViewSet(structure_views.BaseResourceViewSet):
+class PortViewSet(structure_views.ResourceViewSet):
     queryset = models.Port.objects.all().order_by('-created')
     serializer_class = serializers.PortSerializer
     filterset_class = filters.PortFilter
@@ -261,7 +250,7 @@ class PortViewSet(structure_views.BaseResourceViewSet):
     delete_executor = executors.PortDeleteExecutor
 
 
-class DiskViewSet(structure_views.BaseResourceViewSet):
+class DiskViewSet(structure_views.ResourceViewSet):
     queryset = models.Disk.objects.all().order_by('-created')
     serializer_class = serializers.DiskSerializer
     filterset_class = filters.DiskFilter

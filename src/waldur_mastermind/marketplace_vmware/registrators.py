@@ -14,13 +14,11 @@ logger = logging.getLogger(__name__)
 
 class VirtualMachineRegistrator(MarketplaceRegistrator):
     def get_customer(self, source):
-        return source.service_project_link.project.customer
+        return source.project.customer
 
     def get_sources(self, customer):
         return (
-            vmware_models.VirtualMachine.objects.filter(
-                service_project_link__project__customer=customer
-            )
+            vmware_models.VirtualMachine.objects.filter(project__customer=customer)
             .exclude(
                 state__in=[
                     vmware_models.VirtualMachine.States.CREATING,

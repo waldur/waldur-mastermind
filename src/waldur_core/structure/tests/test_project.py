@@ -560,21 +560,6 @@ class ProjectCleanupTest(test.APITransactionTestCase):
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
 
-    def test_project_with_resources_without_executors_is_not_deleted(
-        self, get_extensions
-    ):
-        fixture = fixtures.ServiceFixture()
-        project = fixture.project
-        resource = fixture.resource
-
-        get_extensions.return_value = []
-        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
-
-        self.assertTrue(models.Project.objects.filter(id=project.id).exists())
-        self.assertTrue(
-            test_models.TestNewInstance.objects.filter(id=resource.id).exists()
-        )
-
     def test_project_with_resources_and_executors_is_deleted(self, get_extensions):
         fixture = fixtures.ServiceFixture()
         project = fixture.project

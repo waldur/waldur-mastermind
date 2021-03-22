@@ -171,7 +171,7 @@ class CounterQuotaField(QuotaField):
         # This quota will increase/decrease own values on any resource creation/deletion
         nc_resource_count = CounterQuotaField(
             target_models=lambda: Resource.get_all_models(),  # list or function that return list of target models
-            path_to_scope='service_project_link.project',  # path from target model to scope
+            path_to_scope='project',  # path from target model to scope
         )
 
     It is possible to define trickier calculation by passing `get_current_usage` function as parameter.

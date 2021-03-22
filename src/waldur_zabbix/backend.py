@@ -13,11 +13,8 @@ from waldur_core.core.utils import (
     datetime_to_timestamp,
     timestamp_to_datetime,
 )
-from waldur_core.structure import (
-    ServiceBackend,
-    ServiceBackendError,
-    log_backend_action,
-)
+from waldur_core.structure.backend import ServiceBackend, log_backend_action
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 
 from . import models, utils
@@ -915,18 +912,18 @@ class ZabbixBackend(ServiceBackend):
             logger.exception('Can not execute query the Zabbix DB.')
             raise ZabbixBackendError(e)
 
-    def import_host(self, host_backend_id, service_project_link=None, save=True):
-        if save and not service_project_link:
-            raise AttributeError('Cannot save imported host if SPL is not defined.')
+    def import_host(self, backend_id, project=None, save=True):
+        if save and not project:
+            raise AttributeError('Cannot save imported host if project is not defined.')
         try:
             backend_host = self.api.host.get(
-                filter={'hostid': host_backend_id},
+                filter={'hostid': backend_id},
                 selectGroups=True,
                 output=['host', 'name', 'description', 'error', 'status', 'groups'],
             )[0]
         except IndexError:
             raise ZabbixBackendError(
-                'Host with id %s does not exist at backend' % host_backend_id
+                'Host with id %s does not exist at backend' % backend_id
             )
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
             raise ZabbixBackendError(e)
@@ -937,7 +934,7 @@ class ZabbixBackend(ServiceBackend):
         host.description = backend_host['description']
         host.error = backend_host['error']
         host.status = backend_host['status']
-        host.backend_id = host_backend_id
+        host.backend_id = backend_id
         if backend_host.get('groups'):
             # Host groups list is serialized as in following example:
             # [{'internal': '0', 'flags': '0', 'groupid': '15', 'name': 'waldur'}]
@@ -946,7 +943,8 @@ class ZabbixBackend(ServiceBackend):
             host.host_group_name = ''
 
         if save:
-            host.service_project_link = service_project_link
+            host.service_settings = self.settings
+            host.project = project
             host.save()
             templates = self.get_host_templates(host)
             host.templates.add(*templates)
@@ -961,7 +959,7 @@ class ZabbixBackend(ServiceBackend):
             raise ZabbixBackendError(e)
         return models.Template.objects.filter(
             backend_id__in=[t['templateid'] for t in backend_templates],
-            settings=host.service_project_link.service.settings,
+            settings=host.service_settings,
         )
 
     @log_backend_action()

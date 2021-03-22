@@ -2,47 +2,21 @@ import factory
 from django.urls import reverse
 from factory import fuzzy
 
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.models import ServiceSettings
+from waldur_core.structure.tests.factories import (
+    CustomerFactory,
+    ProjectFactory,
+    ServiceSettingsFactory,
+)
 from waldur_digitalocean import models
 
 
-class DigitalOceanServiceFactory(factory.DjangoModelFactory):
+class DigitalOceanServiceSettingsFactory(ServiceSettingsFactory):
     class Meta:
-        model = models.DigitalOceanService
+        model = ServiceSettings
 
-    settings = factory.SubFactory(
-        structure_factories.ServiceSettingsFactory, type='DigitalOcean'
-    )
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = DigitalOceanServiceFactory()
-        url = 'http://testserver' + reverse(
-            'digitalocean-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('digitalocean-list')
-
-
-class DigitalOceanServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.DigitalOceanServiceProjectLink
-
-    service = factory.SubFactory(DigitalOceanServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, link=None):
-        if link is None:
-            link = DigitalOceanServiceProjectLinkFactory()
-        return 'http://testserver' + reverse(
-            'digitalocean-spl-detail', kwargs={'pk': link.id}
-        )
+    type = 'DigitalOcean'
+    customer = factory.SubFactory(CustomerFactory)
 
 
 class RegionFactory(factory.DjangoModelFactory):
@@ -109,7 +83,8 @@ class DropletFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'droplet%s' % n)
     backend_id = factory.Sequence(lambda n: 'droplet-id%s' % n)
-    service_project_link = factory.SubFactory(DigitalOceanServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(DigitalOceanServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
 
     state = models.Droplet.States.OK
     runtime_state = models.Droplet.RuntimeStates.ONLINE

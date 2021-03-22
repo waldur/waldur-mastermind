@@ -4,6 +4,7 @@ from django import forms
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
 from waldur_core.core.fields import MappedChoiceField
@@ -12,6 +13,7 @@ from waldur_core.core.serializers import (
     HyperlinkedRelatedModelSerializer,
 )
 from waldur_core.core.utils import datetime_to_timestamp, pwgen
+from waldur_core.core.validators import BackendURLValidator
 from waldur_core.monitoring.utils import get_period
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
@@ -19,34 +21,49 @@ from waldur_core.structure import serializers as structure_serializers
 from . import apps, models
 
 
-class ServiceSerializer(structure_serializers.BaseServiceSerializer):
-    SERVICE_ACCOUNT_FIELDS = {
-        'backend_url': 'Zabbix API URL (e.g. http://example.com/zabbix/api_jsonrpc.php)',
-        'username': 'Zabbix user username (e.g. admin)',
-        'password': 'Zabbix user password (e.g. zabbix)',
-    }
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'host_group_name': 'Zabbix host group name for registered hosts',
-        'templates_names': 'List of Zabbix hosts templates',
-        'database_parameters': 'Zabbix database parameters',
-        'interface_parameters': 'Default parameters for hosts interface (will be used if interface is not specified)',
-    }
+class ZabbixServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ('backend_url', 'username', 'password')
 
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.ZabbixService
-        view_name = 'zabbix-detail'
-        required_fields = ('backend_url', 'username', 'password')
+    backend_url = serializers.CharField(
+        max_length=200,
+        label=_('Zabbix API URL (e.g. http://example.com/zabbix/api_jsonrpc.php)'),
+        validators=[BackendURLValidator],
+    )
 
+    username = serializers.CharField(
+        max_length=100, label=_('Zabbix user username (e.g. admin)')
+    )
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.ZabbixServiceProjectLink
-        view_name = 'zabbix-spl-detail'
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'zabbix-detail'},
-        }
+    password = serializers.CharField(
+        max_length=100, label=_('Zabbix user password (e.g. zabbix)')
+    )
+
+    host_group_name = serializers.CharField(
+        source='options.host_group_name',
+        help_text=_('Zabbix host group name for registered hosts'),
+        required=False,
+    )
+
+    templates_names = serializers.CharField(
+        source='options.templates_names',
+        help_text=_('List of Zabbix hosts templates'),
+        required=False,
+    )
+
+    database_parameters = serializers.CharField(
+        source='options.database_parameters',
+        help_text=_('Zabbix database parameters'),
+        required=False,
+    )
+
+    interface_parameters = serializers.CharField(
+        source='options.interface_parameters',
+        help_text=_(
+            'Default parameters for hosts interface (will be used if interface is not specified)'
+        ),
+        required=False,
+    )
 
 
 class TemplateSerializer(structure_serializers.BasePropertySerializer):
@@ -91,26 +108,12 @@ class NestedTemplateSerializer(TemplateSerializer, HyperlinkedRelatedModelSerial
 
 
 class HostSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='zabbix-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='zabbix-spl-detail',
-        queryset=models.ZabbixServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     # visible name could be populated from scope, so we need to mark it as not required
     visible_name = serializers.CharField(
         required=False, max_length=models.Host.VISIBLE_NAME_MAX_LENGTH
     )
     scope = GenericRelatedField(
-        related_models=structure_models.ResourceMixin.get_all_models(), required=False
+        related_models=structure_models.BaseResource.get_all_models(), required=False
     )
     templates = NestedTemplateSerializer(
         queryset=models.Template.objects.all().prefetch_related('items', 'children'),
@@ -164,7 +167,7 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
                 setattr(self.instance, name, value)
             self.instance.clean()
         else:
-            service_settings = attrs.get('service_project_link').service.settings
+            service_settings = attrs['service_settings']
             if service_settings.state == structure_models.ServiceSettings.States.ERRED:
                 raise serializers.ValidationError(
                     'It is impossible to create host if service is in ERRED state.'
@@ -181,10 +184,8 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
                     attrs['scope']
                 )
 
-            spl = attrs['service_project_link']
             if models.Host.objects.filter(
-                service_project_link__service__settings=spl.service.settings,
-                visible_name=attrs['visible_name'],
+                service_settings=service_settings, visible_name=attrs['visible_name'],
             ).exists():
                 raise serializers.ValidationError(
                     {'visible_name': 'Visible name should be unique.'}
@@ -199,11 +200,13 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
             )
             instance.clean()
 
-        spl = attrs.get('service_project_link') or self.instance.service_project_link
+        service_settings = (
+            attrs.get('service_settings') or self.instance.service_settings
+        )
         templates = attrs.get('templates', [])
         parents = {}  # dictionary <parent template: child template>
         for template in templates:
-            if template.settings != spl.service.settings:
+            if template.settings != service_settings:
                 raise serializers.ValidationError(
                     {
                         'templates': 'Template "%s" and host belong to different service settings.'
@@ -240,8 +243,8 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
 
     def create(self, validated_data):
         # define interface parameters based on settings and user input
-        spl = validated_data['service_project_link']
-        interface_parameters = spl.service.settings.get_option('interface_parameters')
+        service_settings = validated_data['service_settings']
+        interface_parameters = service_settings.get_option('interface_parameters')
         scope = validated_data.get('scope')
         interface_ip = validated_data.pop('interface_ip', None) or getattr(
             scope, 'internal_ips', None
@@ -261,10 +264,8 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
             # get default templates from service settings if they are not defined
             if templates is None:
                 templates = models.Template.objects.filter(
-                    settings=host.service_project_link.service.settings,
-                    name__in=host.service_project_link.service.settings.get_option(
-                        'templates_names'
-                    ),
+                    settings=host.service_settings,
+                    name__in=host.service_settings.get_option('templates_names'),
                 )
             for template in templates:
                 host.templates.add(template)
@@ -284,20 +285,6 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class ITServiceSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='zabbix-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='zabbix-spl-detail',
-        queryset=models.ZabbixServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     host = serializers.HyperlinkedRelatedField(
         view_name='zabbix-host-detail',
         queryset=models.Host.objects.all(),
@@ -358,9 +345,9 @@ class ITServiceSerializer(structure_serializers.BaseResourceSerializer):
                     "Host templates should contain trigger's template"
                 )
 
-            if host.service_project_link != attrs['service_project_link']:
+            if host.service_settings != attrs['service_settings']:
                 raise serializers.ValidationError(
-                    'Host and IT service should belong to the same SPL.'
+                    'Host and IT service should belong to the same service.'
                 )
 
         return attrs

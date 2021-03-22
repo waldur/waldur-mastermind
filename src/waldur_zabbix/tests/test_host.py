@@ -5,27 +5,30 @@ from django.test import TestCase
 from requests import RequestException
 from rest_framework import status, test
 
-from waldur_core.structure import ServiceBackendError
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_zabbix import models
 
 from ..apps import ZabbixConfig
-from . import factories
+from . import factories, fixtures
 
 
 class HostApiCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.fixture = fixtures.ZabbixFixture()
+        self.staff = self.fixture.staff
         self.client.force_authenticate(self.staff)
-        self.spl = factories.ZabbixServiceProjectLinkFactory()
+        self.service_settings = self.fixture.settings
+        self.project = self.fixture.project
 
     def test_visible_name_populated_from_scope(self):
-        vm = structure_factories.TestNewInstanceFactory()
+        vm = structure_factories.TestNewInstanceFactory(project=self.project)
         data = {
-            'service_project_link': factories.ZabbixServiceProjectLinkFactory.get_url(
-                self.spl
+            'service_settings': factories.ZabbixServiceSettingsFactory.get_url(
+                self.service_settings
             ),
+            'project': structure_factories.ProjectFactory.get_url(self.project),
             'name': 'Valid host name',
             'scope': structure_factories.TestNewInstanceFactory.get_url(vm),
         }
@@ -37,14 +40,17 @@ class HostApiCreateTest(test.APITransactionTestCase):
 
     def test_visible_name_should_be_unique(self):
         factories.HostFactory(
-            service_project_link=self.spl, visible_name='Unique visible host name'
+            project=self.project,
+            service_settings=self.service_settings,
+            visible_name='Unique visible host name',
         )
         response = self.client.post(
             factories.HostFactory.get_list_url(),
             {
-                'service_project_link': factories.ZabbixServiceProjectLinkFactory.get_url(
-                    self.spl
+                'service_settings': factories.ZabbixServiceSettingsFactory.get_url(
+                    self.service_settings
                 ),
+                'project': structure_factories.ProjectFactory.get_url(self.project),
                 'name': 'Valid host name',
                 'visible_name': 'Unique visible host name',
             },
@@ -52,16 +58,17 @@ class HostApiCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_impossible_to_add_child_template_to_host(self):
-        template = factories.TemplateFactory(settings=self.spl.service.settings)
-        child_template = factories.TemplateFactory(settings=self.spl.service.settings)
+        template = factories.TemplateFactory(settings=self.service_settings)
+        child_template = factories.TemplateFactory(settings=self.service_settings)
         template.children.add(child_template)
 
         response = self.client.post(
             factories.HostFactory.get_list_url(),
             {
-                'service_project_link': factories.ZabbixServiceProjectLinkFactory.get_url(
-                    self.spl
+                'service_settings': factories.ZabbixServiceSettingsFactory.get_url(
+                    self.service_settings
                 ),
+                'project': structure_factories.ProjectFactory.get_url(self.project),
                 'name': 'Valid host name',
                 'visible_name': 'Visible name',
                 'templates': [
@@ -73,16 +80,17 @@ class HostApiCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_impossible_to_add_parent_template_to_host(self):
-        template = factories.TemplateFactory(settings=self.spl.service.settings)
-        parent_template = factories.TemplateFactory(settings=self.spl.service.settings)
+        template = factories.TemplateFactory(settings=self.service_settings)
+        parent_template = factories.TemplateFactory(settings=self.service_settings)
         template.parents.add(parent_template)
 
         response = self.client.post(
             factories.HostFactory.get_list_url(),
             {
-                'service_project_link': factories.ZabbixServiceProjectLinkFactory.get_url(
-                    self.spl
+                'service_settings': factories.ZabbixServiceSettingsFactory.get_url(
+                    self.service_settings
                 ),
+                'project': structure_factories.ProjectFactory.get_url(self.project),
                 'name': 'Valid host name',
                 'visible_name': 'Visible name',
                 'templates': [
@@ -94,18 +102,19 @@ class HostApiCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_impossible_to_add_templates_to_host_with_common_parent(self):
-        template1 = factories.TemplateFactory(settings=self.spl.service.settings)
-        template2 = factories.TemplateFactory(settings=self.spl.service.settings)
-        parent_template = factories.TemplateFactory(settings=self.spl.service.settings)
+        template1 = factories.TemplateFactory(settings=self.service_settings)
+        template2 = factories.TemplateFactory(settings=self.service_settings)
+        parent_template = factories.TemplateFactory(settings=self.service_settings)
         template1.parents.add(parent_template)
         template2.parents.add(parent_template)
 
         response = self.client.post(
             factories.HostFactory.get_list_url(),
             {
-                'service_project_link': factories.ZabbixServiceProjectLinkFactory.get_url(
-                    self.spl
+                'service_settings': factories.ZabbixServiceSettingsFactory.get_url(
+                    self.service_settings
                 ),
+                'project': structure_factories.ProjectFactory.get_url(self.project),
                 'name': 'Valid host name',
                 'visible_name': 'Visible name',
                 'templates': [

@@ -8,7 +8,7 @@ class VMwareConfig(AppConfig):
     service_name = 'VMware'
 
     def ready(self):
-        from waldur_core.structure import SupportedServices
+        from waldur_core.structure.registry import SupportedServices
 
         from .backend import VMwareBackend
         from . import handlers, models

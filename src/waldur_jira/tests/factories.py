@@ -12,45 +12,6 @@ class JiraServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     backend_url = 'http://jira/'
 
 
-class JiraServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.JiraService
-
-    settings = factory.SubFactory(JiraServiceSettingsFactory)
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-    @classmethod
-    def get_url(cls, service=None):
-        if service is None:
-            service = JiraServiceFactory()
-        return 'http://testserver' + reverse(
-            'jira-detail', kwargs={'uuid': service.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('jira-list')
-
-
-class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.JiraServiceProjectLink
-
-    service = factory.SubFactory(JiraServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = JiraServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('jira-spl-detail', kwargs={'pk': spl.pk})
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('jira-spl-list')
-
-
 class ProjectTemplateFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.ProjectTemplate
@@ -78,7 +39,8 @@ class ProjectFactory(factory.DjangoModelFactory):
 
     backend_id = factory.Sequence(lambda n: 'PRJ-%s' % n)
     name = factory.Sequence(lambda n: 'JIRA project %s' % n)
-    service_project_link = factory.SubFactory(JiraServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(JiraServiceSettingsFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
     template = factory.SubFactory(ProjectTemplateFactory)
     state = models.Project.States.OK
 

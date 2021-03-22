@@ -7,6 +7,7 @@ from libcloud.compute.types import NodeState
 from waldur_azure import models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.factories import ProjectFactory
 
 
 class AzureServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
@@ -15,46 +16,6 @@ class AzureServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
     type = 'Azure'
     customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-
-class AzureServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.AzureService
-
-    settings = factory.SubFactory(AzureServiceSettingsFactory)
-    customer = factory.SelfAttribute('settings.customer')
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = AzureServiceFactory()
-        url = 'http://testserver' + reverse(
-            'azure-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-list')
-
-
-class AzureServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.AzureServiceProjectLink
-
-    service = factory.SubFactory(AzureServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = AzureServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('azure-spl-detail', kwargs={'pk': spl.pk})
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-spl-list')
 
 
 class LocationFactory(factory.DjangoModelFactory):
@@ -66,11 +27,11 @@ class LocationFactory(factory.DjangoModelFactory):
     backend_id = factory.Sequence(lambda n: 'region-%s' % n)
 
     @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = LocationFactory()
+    def get_url(cls, location=None, action=None):
+        if location is None:
+            location = LocationFactory()
         url = 'http://testserver' + reverse(
-            'azure-location-detail', kwargs={'uuid': spl.uuid.hex}
+            'azure-location-detail', kwargs={'uuid': location.uuid.hex}
         )
         return url if action is None else url + action + '/'
 
@@ -94,11 +55,11 @@ class SizeFactory(factory.DjangoModelFactory):
     resource_disk_size_in_mb = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
 
     @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = SizeFactory()
+    def get_url(cls, size=None, action=None):
+        if size is None:
+            size = SizeFactory()
         url = 'http://testserver' + reverse(
-            'azure-size-detail', kwargs={'uuid': spl.uuid.hex}
+            'azure-size-detail', kwargs={'uuid': size.uuid.hex}
         )
         return url if action is None else url + action + '/'
 
@@ -120,11 +81,11 @@ class ImageFactory(factory.DjangoModelFactory):
     version = factory.Sequence(lambda n: 'v-%s' % n)
 
     @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = ImageFactory()
+    def get_url(cls, image=None, action=None):
+        if image is None:
+            image = ImageFactory()
         url = 'http://testserver' + reverse(
-            'azure-image-detail', kwargs={'uuid': spl.uuid.hex}
+            'azure-image-detail', kwargs={'uuid': image.uuid.hex}
         )
         return url if action is None else url + action + '/'
 
@@ -139,7 +100,8 @@ class ResourceGroupFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'rg-%s' % n)
     backend_id = factory.Sequence(lambda n: 'rg-%s' % n)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     location = factory.SubFactory(LocationFactory)
 
 
@@ -149,7 +111,8 @@ class NetworkFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'net-%s' % n)
     backend_id = factory.Sequence(lambda n: 'net-%s' % n)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     cidr = '10.0.0.0/16'
 
@@ -160,7 +123,8 @@ class SubNetFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'subnet-%s' % n)
     backend_id = factory.Sequence(lambda n: 'subnet-%s' % n)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     cidr = '10.0.0.0/24'
     network = factory.SubFactory(NetworkFactory)
@@ -172,7 +136,8 @@ class NetworkInterfaceFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'nic-%s' % n)
     backend_id = factory.Sequence(lambda n: 'nic-%s' % n)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     subnet = factory.SubFactory(SubNetFactory)
     config_name = factory.Sequence(lambda n: 'conf-%s' % n)
@@ -185,7 +150,8 @@ class PublicIPFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'floating_ip%s' % n)
     backend_id = factory.Sequence(lambda n: 'floating_ip%s' % n)
     location = factory.SubFactory(LocationFactory)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     ip_address = factory.LazyAttribute(
         lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4))  # noqa: S311
@@ -198,7 +164,8 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'vm-%s' % n)
     backend_id = factory.Sequence(lambda n: 'vm-%s' % n)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     size = factory.SubFactory(SizeFactory)
     image = factory.SubFactory(ImageFactory)
@@ -230,7 +197,8 @@ class SQLServerFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'sql-%s' % n)
     backend_id = factory.Sequence(lambda n: 'sql-%s' % n)
-    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(AzureServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     resource_group = factory.SubFactory(ResourceGroupFactory)
     state = models.SQLServer.States.OK
 

@@ -77,7 +77,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch('waldur_rancher.executors.tasks')
     def test_use_data_volumes(self, mock_tasks):
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_spl.service.settings
+            settings=self.fixture.tenant_settings
         )
         self.payload = {
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -106,7 +106,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch('waldur_rancher.executors.tasks')
     def test_use_data_volumes_without_mount_point(self, mock_tasks):
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_spl.service.settings
+            settings=self.fixture.tenant_settings
         )
         self.payload = {
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -134,7 +134,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch('waldur_rancher.executors.tasks')
     def test_if_mount_point_is_required(self, mock_tasks):
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_spl.service.settings
+            settings=self.fixture.tenant_settings
         )
         self.payload = {
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -261,10 +261,8 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         service_settings = factories.RancherServiceSettingsFactory(
             options={'cloud_init_template': template}
         )
-        service = factories.RancherServiceFactory(settings=service_settings)
-        spl = factories.RancherServiceProjectLinkFactory(service=service)
         cluster = factories.ClusterFactory(
-            settings=self.fixture.settings, service_project_link=spl
+            settings=self.fixture.settings, service_settings=service_settings
         )
         node = factories.NodeFactory(
             cluster=cluster, initial_data={'data_volumes': [{'mount_point': 'path'}]}

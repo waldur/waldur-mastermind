@@ -60,7 +60,3 @@ admin.site.register(models.ProjectTemplate, ProjectTemplateAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, admin.ModelAdmin)
 admin.site.register(models.Project, ProjectAdmin)
-admin.site.register(models.JiraService, structure_admin.ServiceAdmin)
-admin.site.register(
-    models.JiraServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
-)

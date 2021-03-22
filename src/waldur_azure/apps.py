@@ -7,7 +7,7 @@ class AzureConfig(AppConfig):
     service_name = 'Azure'
 
     def ready(self):
-        from waldur_core.structure import SupportedServices
+        from waldur_core.structure.registry import SupportedServices
         from .backend import AzureBackend
 
         SupportedServices.register_backend(AzureBackend)

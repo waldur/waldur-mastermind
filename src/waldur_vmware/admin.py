@@ -126,10 +126,6 @@ class CustomerFolderInline(options.TabularInline):
     formset = CustomerFolderInlineInlineFormset
 
 
-admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
-admin.site.register(
-    models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
-)
 admin.site.register(models.Disk, DiskAdmin)
 admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
 admin.site.register(models.Template, structure_admin.ServicePropertyAdmin)

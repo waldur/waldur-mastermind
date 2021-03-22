@@ -413,8 +413,6 @@ class InstanceCreateTest(test.APITransactionTestCase):
         marketplace_factories.OfferingFactory(
             type=VOLUME_TYPE, scope=self.service_settings
         )
-        # Ensure that SPL exists
-        self.fixture.spl
         order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
@@ -560,18 +558,12 @@ class VolumeCreateTest(test.APITransactionTestCase):
         )
 
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering, attributes=attributes
+            offering=offering,
+            attributes=attributes,
+            order__project=self.fixture.project,
         )
         order_item.order.approve()
         order_item.order.save()
-
-        service = openstack_tenant_models.OpenStackTenantService.objects.create(
-            customer=order_item.order.project.customer, settings=self.service_settings,
-        )
-
-        openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.create(
-            project=order_item.order.project, service=service,
-        )
 
         process_order(order_item.order, self.fixture.staff)
 

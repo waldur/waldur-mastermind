@@ -8,18 +8,7 @@ from waldur_core.structure import views as structure_views
 from . import executors, filters, models, serializers
 
 
-class SlurmServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.SlurmService.objects.all()
-    serializer_class = serializers.ServiceSerializer
-
-
-class SlurmServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.SlurmServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-    filterset_class = filters.SlurmServiceProjectLinkFilter
-
-
-class AllocationViewSet(structure_views.BaseResourceViewSet):
+class AllocationViewSet(structure_views.ResourceViewSet):
     queryset = models.Allocation.objects.all()
     serializer_class = serializers.AllocationSerializer
     filterset_class = filters.AllocationFilter

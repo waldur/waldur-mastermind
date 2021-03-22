@@ -2,44 +2,39 @@ import logging
 import re
 
 from django.core import validators as django_validators
-from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.validators import BackendURLValidator
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
-from waldur_core.structure import SupportedServices
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.registry import get_name_for_model
 
-from . import executors, models
-from .backend import JiraBackendError
+from . import models
 
 logger = logging.getLogger(__name__)
 
 
-class ServiceSerializer(structure_serializers.BaseServiceSerializer):
-    SERVICE_ACCOUNT_FIELDS = {
-        'backend_url': 'JIRA host (e.g. https://jira.example.com/)',
-        'username': 'JIRA user with excessive privileges',
-        'password': '',
-        'token': '',
-    }
+class JiraServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ('backend_url', 'username', 'password', 'token')
 
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.JiraService
-        view_name = 'jira-detail'
+    backend_url = serializers.CharField(
+        max_length=200,
+        label=_('API URL'),
+        help_text=_('JIRA host (e.g. https://jira.example.com/)'),
+        validators=[BackendURLValidator],
+    )
 
+    username = serializers.CharField(
+        max_length=100, help_text=_('JIRA user with excessive privileges')
+    )
 
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.JiraServiceProjectLink
-        view_name = 'jira-spl-detail'
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'jira-detail'},
-        }
+    password = serializers.CharField(max_length=100)
+
+    token = serializers.CharField(label=_('Access token'))
 
 
 class BaseJiraPropertySerializer(structure_serializers.BasePropertySerializer):
@@ -85,20 +80,6 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         ],
     )
 
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='jira-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='jira-spl-detail',
-        queryset=models.JiraServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     template = serializers.HyperlinkedRelatedField(
         view_name='jira-project-templates-detail',
         queryset=models.ProjectTemplate.objects.all(),
@@ -135,60 +116,6 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
     def create(self, validated_data):
         validated_data['backend_id'] = validated_data['key']
         return super(ProjectSerializer, self).create(validated_data)
-
-
-class ProjectImportableSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
-):
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='jira-spl-detail',
-        queryset=models.JiraServiceProjectLink.objects.all(),
-        write_only=True,
-    )
-
-    def get_filtered_field_names(self):
-        return ('service_project_link',)
-
-    class Meta:
-        model = models.Project
-        model_fields = ('name',)
-        fields = ('service_project_link', 'backend_id') + model_fields
-        read_only_fields = model_fields
-
-
-class ProjectImportSerializer(ProjectImportableSerializer):
-    class Meta(ProjectImportableSerializer.Meta):
-        fields = ProjectImportableSerializer.Meta.fields + ('url', 'uuid', 'created',)
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
-
-    @transaction.atomic
-    def create(self, validated_data):
-        service_project_link = validated_data['service_project_link']
-        backend_id = validated_data['backend_id']
-
-        if models.Project.objects.filter(
-            service_project_link__service__settings=service_project_link.service.settings,
-            backend_id=backend_id,
-        ).exists():
-            raise serializers.ValidationError(
-                {'backend_id': _('Project has been imported already.')}
-            )
-
-        try:
-            backend = service_project_link.get_backend()
-            project = backend.import_project_scheduled(backend_id, service_project_link)
-        except JiraBackendError:
-            raise serializers.ValidationError(
-                {
-                    'backend_id': _("Can't import project with ID %s")
-                    % validated_data['backend_id']
-                }
-            )
-
-        executors.ProjectPullExecutor.execute(project)
-        return project
 
 
 class JiraPropertySerializer(
@@ -277,7 +204,7 @@ class IssueSerializer(JiraPropertySerializer):
 
     scope = core_serializers.GenericRelatedField(
         source='resource',
-        related_models=structure_models.ResourceMixin.get_all_models(),
+        related_models=structure_models.BaseResource.get_all_models(),
         required=False,
     )
     scope_type = serializers.SerializerMethodField()
@@ -294,18 +221,14 @@ class IssueSerializer(JiraPropertySerializer):
     # For consistency with resource serializer render
     # Waldur project as project and JIRA project as jira_project
     project = serializers.HyperlinkedRelatedField(
-        source='project.service_project_link.project',
+        source='project.project',
         view_name='project-detail',
         read_only=True,
         lookup_field='uuid',
     )
 
-    project_name = serializers.ReadOnlyField(
-        source='project.service_project_link.project.name'
-    )
-    project_uuid = serializers.ReadOnlyField(
-        source='project.service_project_link.project.uuid'
-    )
+    project_name = serializers.ReadOnlyField(source='project.project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.project.uuid')
 
     jira_project = serializers.HyperlinkedRelatedField(
         queryset=models.Project.objects.all(),
@@ -328,9 +251,7 @@ class IssueSerializer(JiraPropertySerializer):
 
     def get_scope_type(self, obj):
         if obj.resource:
-            return SupportedServices.get_name_for_model(
-                obj.resource_content_type.model_class()
-            )
+            return get_name_for_model(obj.resource_content_type.model_class())
 
     class Meta(JiraPropertySerializer.Meta):
         model = models.Issue
@@ -420,7 +341,7 @@ class IssueSerializer(JiraPropertySerializer):
             )
 
         priority = validated_data['priority']
-        if priority.settings != project.service_project_link.service.settings:
+        if priority.settings != project.service_settings:
             raise serializers.ValidationError(
                 {'parent': _('Priority should belong to the same JIRA provider.')}
             )

@@ -6,15 +6,6 @@ from waldur_core.structure import filters as structure_filters
 from . import models
 
 
-class OpenStackServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(
-        view_name='openstack-detail', field_name='service__uuid'
-    )
-
-    class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
-        model = models.OpenStackServiceProjectLink
-
-
 class SecurityGroupFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
     tenant = core_filters.URLFilter(

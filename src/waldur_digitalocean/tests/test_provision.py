@@ -5,6 +5,7 @@ from rest_framework import test
 
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_digitalocean.apps import DigitalOceanConfig
 from waldur_digitalocean.models import Droplet
 from waldur_digitalocean.tests import factories
@@ -42,10 +43,6 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
             type=DigitalOceanConfig.service_name,
             token='VALID_TOKEN',
         )
-        self.service = factories.DigitalOceanServiceFactory(
-            customer=self.customer, settings=self.settings
-        )
-
         self.region = factories.RegionFactory()
         self.image = factories.ImageFactory()
         self.size = factories.SizeFactory()
@@ -54,9 +51,6 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.size.regions.add(self.region)
 
         self.project = structure_factories.ProjectFactory(customer=self.customer)
-        self.link = factories.DigitalOceanServiceProjectLinkFactory(
-            service=self.service, project=self.project
-        )
 
         self.customer_owner = structure_factories.UserFactory()
         self.customer.add_user(self.customer_owner, CustomerRole.OWNER)
@@ -98,9 +92,8 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
     def get_valid_data(self, **extra):
         default = {
-            'service_project_link': factories.DigitalOceanServiceProjectLinkFactory.get_url(
-                self.link
-            ),
+            'service_settings': ServiceSettingsFactory.get_url(self.settings),
+            'project': ProjectFactory.get_url(self.project),
             'region': factories.RegionFactory.get_url(self.region),
             'image': factories.ImageFactory.get_url(self.image),
             'size': factories.SizeFactory.get_url(self.size),

@@ -15,26 +15,6 @@ from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 
 
-class JiraService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='jira_services',
-        through='JiraServiceProjectLink',
-    )
-
-    @classmethod
-    def get_url_name(cls):
-        return 'jira'
-
-
-class JiraServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(on_delete=models.CASCADE, to=JiraService)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'jira-spl'
-
-
 class ProjectTemplate(
     core_models.UiDescribableMixin, structure_models.GeneralServiceProperty
 ):
@@ -50,13 +30,10 @@ class ProjectTemplate(
         )
 
 
-class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
-    class Permissions(structure_models.NewResource.Permissions):
+class Project(structure_models.BaseResource, core_models.RuntimeStateMixin):
+    class Permissions(structure_models.BaseResource.Permissions):
         pass
 
-    service_project_link = models.ForeignKey(
-        JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT
-    )
     template = models.ForeignKey(
         on_delete=models.CASCADE, to=ProjectTemplate, blank=True, null=True
     )
@@ -67,7 +44,7 @@ class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
         return super(Project, self).get_backend(project=self.backend_id)
 
     def get_access_url(self):
-        base_url = self.service_project_link.service.settings.backend_url
+        base_url = self.service_settings.backend_url
         return urljoin(base_url, 'projects/' + self.backend_id)
 
     @classmethod
@@ -76,9 +53,7 @@ class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
 
     @property
     def priorities(self):
-        return Priority.objects.filter(
-            settings=self.service_project_link.service.settings
-        )
+        return Priority.objects.filter(settings=self.service_settings)
 
 
 class JiraPropertyIssue(
@@ -90,8 +65,8 @@ class JiraPropertyIssue(
     backend_id = models.CharField(max_length=255, null=True)
 
     class Permissions:
-        customer_path = 'project__service_project_link__project__customer'
-        project_path = 'project__service_project_link__project'
+        customer_path = 'project__project__customer'
+        project_path = 'project__project'
 
     class Meta:
         abstract = True
@@ -202,7 +177,7 @@ class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
         return self.project  # XXX: avoid logging conflicts
 
     def get_access_url(self):
-        base_url = self.project.service_project_link.service.settings.backend_url
+        base_url = self.project.service_settings.backend_url
         return urljoin(base_url, 'browse/' + (self.backend_id or ''))
 
     def get_log_fields(self):
@@ -221,8 +196,8 @@ class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
 
 class JiraSubPropertyIssue(JiraPropertyIssue):
     class Permissions:
-        customer_path = 'issue__project__service_project_link__project__customer'
-        project_path = 'issue__project__service_project_link__project'
+        customer_path = 'issue__project__project__customer'
+        project_path = 'issue__project__project'
 
     class Meta:
         abstract = True

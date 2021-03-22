@@ -49,17 +49,17 @@ class ServiceSettingsListTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.users['owner'])
 
         response = self.client.get(factories.ServiceSettingsFactory.get_list_url())
-        uuids_recieved = {d['uuid'] for d in response.data}
+        uuids_received = {d['uuid'] for d in response.data}
         uuids_expected = {self.settings[s].uuid.hex for s in ('shared', 'owned')}
-        self.assertEqual(uuids_recieved, uuids_expected, response.data)
+        self.assertEqual(uuids_received, uuids_expected, response.data)
 
     def test_admin_can_see_all_settings(self):
         self.client.force_authenticate(user=self.users['staff'])
 
         response = self.client.get(factories.ServiceSettingsFactory.get_list_url())
-        uuids_recieved = {d['uuid'] for d in response.data}
+        uuids_received = {d['uuid'] for d in response.data}
         uuids_expected = {s.uuid.hex for s in self.settings.values()}
-        self.assertEqual(uuids_recieved, uuids_expected, uuids_recieved)
+        self.assertEqual(uuids_received, uuids_expected, uuids_received)
 
     def test_user_can_see_credentials_of_own_settings(self):
         self.client.force_authenticate(user=self.users['owner'])
@@ -93,60 +93,20 @@ class ServiceSettingsListTest(test.APITransactionTestCase):
         )
         self.assert_credentials_hidden(response.data)
 
-    def test_admin_can_see_settings_only_with_resources(self):
-        self.client.force_authenticate(user=self.users['staff'])
-
-        instance = factories.TestNewInstanceFactory()
-        response = self.client.get(
-            factories.ServiceSettingsFactory.get_list_url(), {'has_resources': 'true'}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        expected = instance.service_project_link.service.settings.name
-        self.assertEqual(response.data[0]['name'], expected)
-
-    def test_admin_can_see_settings_without_resources(self):
-        self.client.force_authenticate(user=self.users['staff'])
-
-        service_with_resource = factories.TestNewInstanceFactory()
-        service_without_resource = factories.ServiceSettingsFactory()
-        response = self.client.get(
-            factories.ServiceSettingsFactory.get_list_url(), {'has_resources': 'false'}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        uuid_expected = service_without_resource.uuid.hex
-        uuid_unexpected = (
-            service_with_resource.service_project_link.service.settings.uuid.hex
-        )
-        uuids_received = [d['uuid'] for d in response.data]
-        self.assertIn(uuid_expected, uuids_received)
-        self.assertNotIn(uuid_unexpected, uuids_received)
-
-    def test_settings_without_resources_are_filtered_out(self):
-        self.client.force_authenticate(user=self.users['staff'])
-
-        response = self.client.get(
-            factories.ServiceSettingsFactory.get_list_url(), {'has_resources': 'true'}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
-
     def assert_credentials_visible(self, data):
         for field in self.credentials:
-            self.assertIn(field, data)
+            self.assertIn(field, data['options'])
 
     def assert_credentials_hidden(self, data):
         for field in self.credentials:
-            self.assertNotIn(field, data)
+            self.assertNotIn(field, data['options'])
 
 
 @ddt
 class ServiceSettingsUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
-        self.service_settings = self.fixture.service.settings
+        self.service_settings = self.fixture.service_settings
         self.url = factories.ServiceSettingsFactory.get_url(self.service_settings)
 
     @data('staff', 'owner')
@@ -154,17 +114,16 @@ class ServiceSettingsUpdateTest(test.APITransactionTestCase):
         self.assert_user_can_update_service_settings(user)
 
     @data('admin', 'manager')
-    def test_admin_and_owner_can_not_update_service_settings(self, user):
-        self.assert_user_can_not_get_service_settings(user)
+    def test_admin_and_manager_can_not_update_service_settings(self, user):
+        self.assert_user_can_not_update_service_settings(user)
 
     @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
     def test_if_only_staff_manages_services_he_can_update_it(self):
         self.assert_user_can_update_service_settings('staff')
 
-    @data('owner', 'admin', 'manager')
     @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    def test_if_only_staff_manages_services_other_users_can_not_update_it(self, user):
-        self.assert_user_can_not_update_service_settings(user)
+    def test_if_only_staff_manages_services_owner_can_not_update_it(self):
+        self.assert_user_can_not_update_service_settings('owner')
 
     def assert_user_can_update_service_settings(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -180,15 +139,6 @@ class ServiceSettingsUpdateTest(test.APITransactionTestCase):
 
         response = self.update_service_settings()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        self.service_settings.refresh_from_db()
-        self.assertNotEqual(self.service_settings.name, 'Valid new name')
-
-    def assert_user_can_not_get_service_settings(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-
-        response = self.update_service_settings()
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
         self.service_settings.refresh_from_db()
         self.assertNotEqual(self.service_settings.name, 'Valid new name')
@@ -218,7 +168,7 @@ class SharedServiceSettingUpdateTest(test.APITransactionTestCase):
         return {'name': 'test'}
 
     @data('staff', 'owner')
-    def test_only_staff_and_an_owner_of_an_unshared_service_settings_can_update_the_settings(
+    def test_only_staff_and_an_owner_of_an_private_service_settings_can_update_the_settings(
         self, user
     ):
         self.service_settings.shared = False
@@ -275,7 +225,7 @@ class SharedServiceSettingUpdateTest(test.APITransactionTestCase):
         self.service_settings.refresh_from_db()
         self.assertNotEqual(self.service_settings.name, payload['name'])
 
-    def test_user_cannot_change_unshared_settings_type(self):
+    def test_user_cannot_change_private_settings_type(self):
         self.service_settings.shared = False
         self.service_settings.save()
         self.client.force_authenticate(user=self.fixture.owner)
@@ -287,43 +237,39 @@ class SharedServiceSettingUpdateTest(test.APITransactionTestCase):
         self.service_settings.refresh_from_db()
         self.assertNotEqual(self.service_settings.type, payload['type'], response.data)
 
-    def test_user_can_change_unshared_settings_password(self):
+    def test_user_can_change_private_settings_secret_options(self):
         self.service_settings.shared = False
         self.service_settings.save()
         self.client.force_authenticate(user=self.fixture.owner)
-        payload = {'password': 'secret'}
+        payload = {
+            'username': 'admin',
+            'password': 'secret',
+            'backend_url': 'http://example.com',
+        }
 
-        response = self.client.patch(self.url, data=payload)
+        response = self.client.patch(self.url, data={'options': payload})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.service_settings.refresh_from_db()
         self.assertEqual(
-            self.service_settings.password, payload['password'], response.data
+            self.service_settings.password,
+            payload['password'],
+            response.data['options'],
         )
 
-    def test_user_cannot_change_shared_settings_password(self):
+    def test_user_cannot_change_shared_settings_secret_options(self):
         self.client.force_authenticate(user=self.fixture.owner)
-        payload = {'password': 'secret'}
+        payload = {
+            'username': 'admin',
+            'password': 'secret',
+            'backend_url': 'http://example.com',
+        }
 
-        response = self.client.patch(self.url, data=payload)
+        response = self.client.patch(self.url, data={'options': payload})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_options_are_partially_updated(self):
-        required_field_name = 'availability_zone'
-        self.service_settings.shared = False
-        self.service_settings.options = {required_field_name: 'value'}
-        self.service_settings.save()
-        self.client.force_authenticate(user=self.fixture.owner)
-        payload = {'tenant_name': 'secret'}
-
-        response = self.client.patch(self.url, data=payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.service_settings.refresh_from_db()
-        self.assertIn(required_field_name, self.service_settings.options)
-
-    def test_unshared_service_setting_updating_is_not_available_for_blocked_organization(
+    def test_private_service_setting_updating_is_not_available_for_blocked_organization(
         self,
     ):
         self.service_settings.shared = False

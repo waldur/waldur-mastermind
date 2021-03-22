@@ -928,10 +928,6 @@ class Migration(migrations.Migration):
                 max_length=100,
             ),
         ),
-        migrations.AlterUniqueTogether(
-            name='tenant',
-            unique_together=set([('service_project_link', 'backend_id')]),
-        ),
         migrations.AlterField(
             model_name='floatingip',
             name='address',

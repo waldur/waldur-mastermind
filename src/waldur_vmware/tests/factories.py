@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_vmware import models
 
 
@@ -15,46 +16,6 @@ class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     type = 'VMware'
     backend_url = 'https://example.com'
     customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-
-class VMwareServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.VMwareService
-
-    settings = factory.SubFactory(VMwareServiceSettingsFactory)
-    customer = factory.SelfAttribute('settings.customer')
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = VMwareServiceFactory()
-        url = 'http://testserver' + reverse(
-            'vmware-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('vmware-list')
-
-
-class VMwareServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.VMwareServiceProjectLink
-
-    service = factory.SubFactory(VMwareServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = VMwareServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('vmware-spl-detail', kwargs={'pk': spl.pk})
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('vmware-spl-list')
 
 
 class TemplateFactory(factory.DjangoModelFactory):
@@ -115,7 +76,8 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'vm-%s' % n)
     backend_id = factory.Sequence(lambda n: 'vm-%s' % n)
-    service_project_link = factory.SubFactory(VMwareServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(VMwareServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     template = factory.SubFactory(TemplateFactory)
     cluster = factory.SubFactory(ClusterFactory)
 
@@ -145,7 +107,8 @@ class DiskFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'disk-%s' % n)
     backend_id = factory.Sequence(lambda n: 'disk-%s' % n)
-    service_project_link = factory.SubFactory(VMwareServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(VMwareServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
 
     state = models.Disk.States.OK
     size = factory.fuzzy.FuzzyInteger(1, 8, step=1)
@@ -192,7 +155,8 @@ class PortFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'port-%s' % n)
     backend_id = factory.Sequence(lambda n: 'port-%s' % n)
-    service_project_link = factory.SubFactory(VMwareServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(VMwareServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     vm = factory.SubFactory(VirtualMachineFactory)
     network = factory.SubFactory(NetworkFactory)
 

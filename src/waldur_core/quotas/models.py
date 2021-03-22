@@ -192,8 +192,8 @@ class QuotaModelMixin(models.Model):
         if isinstance(self, DescendantMixin):
             # We need to use set in order to eliminate duplicates.
             # Consider, for example, two ways of traversing from resource to customer:
-            # resource -> spl -> project -> customer
-            # resource -> spl -> service -> customer
+            # resource -> project -> customer
+            # resource -> service -> customer
             return {a for a in self.get_ancestors() if isinstance(a, QuotaModelMixin)}
         return {}
 

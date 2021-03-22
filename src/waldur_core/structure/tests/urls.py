@@ -7,12 +7,6 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'test', views.TestServiceViewSet, basename='test')
-    router.register(
-        r'test-service-project-link',
-        views.TestServiceProjectLinkViewSet,
-        basename='test-spl',
-    )
     router.register(
         r'test-new-instances',
         views.TestNewInstanceViewSet,

@@ -61,8 +61,6 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         offering = marketplace_factories.OfferingFactory(
             type=VIRTUAL_MACHINE_TYPE, scope=service_settings
         )
-        # Ensure that SPL exists
-        fixture.spl
         order = marketplace_factories.OrderFactory(
             project=fixture.project, state=marketplace_models.Order.States.EXECUTING,
         )
@@ -181,8 +179,6 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         offering = marketplace_factories.OfferingFactory(
             type=SQL_SERVER_TYPE, scope=service_settings
         )
-        # Ensure that SPL exists
-        fixture.spl
         order = marketplace_factories.OrderFactory(
             project=fixture.project, state=marketplace_models.Order.States.EXECUTING,
         )

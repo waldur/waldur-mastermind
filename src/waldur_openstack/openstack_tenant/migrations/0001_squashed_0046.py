@@ -1617,15 +1617,7 @@ class Migration(migrations.Migration):
             name='volumeavailabilityzone', unique_together=set([('settings', 'name')]),
         ),
         migrations.AlterUniqueTogether(
-            name='volume',
-            unique_together=set([('service_project_link', 'backend_id')]),
-        ),
-        migrations.AlterUniqueTogether(
             name='subnet', unique_together=set([('settings', 'backend_id')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='snapshot',
-            unique_together=set([('service_project_link', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
             name='securitygroup', unique_together=set([('settings', 'backend_id')]),
@@ -1647,10 +1639,6 @@ class Migration(migrations.Migration):
         migrations.AlterUniqueTogether(
             name='instanceavailabilityzone',
             unique_together=set([('settings', 'name')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='instance',
-            unique_together=set([('service_project_link', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
             name='image', unique_together=set([('settings', 'backend_id')]),

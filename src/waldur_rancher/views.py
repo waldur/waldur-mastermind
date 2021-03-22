@@ -38,17 +38,6 @@ from waldur_rancher.exceptions import RancherException
 logger = logging.getLogger(__name__)
 
 
-class RancherServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.RancherService.objects.all()
-    serializer_class = serializers.RancherServiceSerializer
-
-
-class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.RancherServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-    filterset_class = filters.ServiceProjectLinkFilter
-
-
 class OptionalReadonlyViewset:
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
@@ -60,9 +49,7 @@ class OptionalReadonlyViewset:
             raise MethodNotAllowed(method=request.method)
 
 
-class ClusterViewSet(
-    OptionalReadonlyViewset, structure_views.ImportableResourceViewSet
-):
+class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Cluster.objects.all()
     serializer_class = serializers.ClusterSerializer
     filterset_class = filters.ClusterFilter
@@ -100,13 +87,9 @@ class ClusterViewSet(
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Cluster.States.OK),
     ]
-    destroy_validators = (
-        structure_views.ImportableResourceViewSet.destroy_validators
-        + [validators.all_cluster_related_vms_can_be_deleted,]
-    )
-    importable_resources_backend_method = 'get_clusters_for_import'
-    importable_resources_serializer_class = serializers.ClusterImportableSerializer
-    import_resource_serializer_class = serializers.ClusterImportSerializer
+    destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
+        validators.all_cluster_related_vms_can_be_deleted,
+    ]
     pull_executor = executors.ClusterPullExecutor
 
     @decorators.action(detail=True, methods=['get'])
@@ -294,7 +277,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
             )
             | Q(
                 content_type=ContentType.objects.get_for_model(ServiceSettings),
-                object_id=cluster.service_project_link.service.settings.id,
+                object_id=cluster.service_settings.id,
             )
         )
 
@@ -370,7 +353,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         if isinstance(scope, ServiceSettings) and not self.request.user.is_staff:
             raise ValidationError(_('Only staff is allowed to manage global catalogs.'))
         if isinstance(scope, models.Cluster):
-            is_administrator(self.request.user, scope.service_project_link.project)
+            is_administrator(self.request.user, scope.project)
 
 
 class ProjectViewSet(structure_views.BaseServicePropertyViewSet):

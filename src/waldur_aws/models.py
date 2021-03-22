@@ -4,48 +4,8 @@ from libcloud.compute.drivers.ec2 import REGION_DETAILS
 
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import RuntimeStateMixin
-from waldur_core.quotas.fields import CounterQuotaField
-from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 from waldur_geo_ip.utils import get_coordinates_by_ip
-
-
-class AWSService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='aws_services',
-        through='AWSServiceProjectLink',
-    )
-
-    class Meta(structure_models.Service.Meta):
-        verbose_name = _('AWS provider')
-        verbose_name_plural = _('AWS providers')
-
-    class Quotas(QuotaModelMixin.Quotas):
-        instance_count = CounterQuotaField(
-            target_models=lambda: [Instance],
-            path_to_scope='service_project_link.service',
-        )
-
-        volume_count = CounterQuotaField(
-            target_models=lambda: [Volume], path_to_scope='service_project_link.service'
-        )
-
-    @classmethod
-    def get_url_name(cls):
-        return 'aws'
-
-
-class AWSServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(on_delete=models.CASCADE, to=AWSService)
-
-    class Meta(structure_models.CloudServiceProjectLink.Meta):
-        verbose_name = _('AWS provider project link')
-        verbose_name_plural = _('AWS provider project links')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'aws-spl'
 
 
 class Region(structure_models.GeneralServiceProperty):
@@ -103,10 +63,6 @@ class Size(structure_models.GeneralServiceProperty):
 
 
 class Instance(structure_models.VirtualMachine):
-    service_project_link = models.ForeignKey(
-        AWSServiceProjectLink, related_name='instances', on_delete=models.PROTECT
-    )
-
     region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
     public_ips = JSONField(
         default=list, help_text=_('List of public IP addresses'), blank=True
@@ -115,23 +71,6 @@ class Instance(structure_models.VirtualMachine):
         default=list, help_text=_('List of private IP addresses'), blank=True
     )
     size_backend_id = models.CharField(max_length=150, blank=True)
-
-    def increase_backend_quotas_usage(self, validate=True):
-        spl = self.service_project_link
-        spl.add_quota_usage(spl.Quotas.storage, self.disk, validate=validate)
-        spl.add_quota_usage(spl.Quotas.ram, self.ram, validate=validate)
-        spl.add_quota_usage(spl.Quotas.vcpu, self.cores, validate=validate)
-
-    def decrease_backend_quotas_usage(self):
-        self.service_project_link.add_quota_usage(
-            self.service_project_link.Quotas.storage, -self.disk
-        )
-        self.service_project_link.add_quota_usage(
-            self.service_project_link.Quotas.ram, -self.ram
-        )
-        self.service_project_link.add_quota_usage(
-            self.service_project_link.Quotas.vcpu, -self.cores
-        )
 
     @property
     def external_ips(self):
@@ -165,11 +104,7 @@ class Instance(structure_models.VirtualMachine):
         return 'stopped'
 
 
-class Volume(RuntimeStateMixin, structure_models.NewResource):
-    service_project_link = models.ForeignKey(
-        AWSServiceProjectLink, related_name='volumes', on_delete=models.PROTECT
-    )
-
+class Volume(RuntimeStateMixin, structure_models.BaseResource):
     VOLUME_TYPES = (
         ('gp2', _('General Purpose SSD')),
         ('io1', _('Provisioned IOPS SSD')),

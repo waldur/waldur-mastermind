@@ -22,7 +22,7 @@ from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
 
 from waldur_core.core.utils import QuietSession
-from waldur_core.structure import ServiceBackend
+from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import SerializableBackendError
 from waldur_openstack.openstack.models import Tenant
 

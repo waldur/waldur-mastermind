@@ -16,7 +16,7 @@ class TenantQuotaLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         tenant = event_context['tenant']
-        project = tenant.service_project_link.project
+        project = tenant.project
         return {tenant, project, project.customer}
 
 
@@ -35,7 +35,7 @@ class RouterLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         router = event_context['router']
-        project = router.service_project_link.project
+        project = router.project
         return {project, project.customer}
 
 

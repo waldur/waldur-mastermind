@@ -2,7 +2,7 @@ import logging
 
 import reversion
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import (
     Count,
     ExpressionWrapper,
@@ -29,7 +29,6 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
-from rest_framework.reverse import reverse
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -41,6 +40,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.marketplace.utils import validate_attributes
@@ -149,6 +149,24 @@ class OfferingViewSet(
     PublicViewsetMixin,
     BaseMarketplaceView,
 ):
+    """
+    This viewset enables uniform implementation of resource import.
+
+    Consider the following example:
+
+    importable_resources_backend_method = 'get_tenants_for_import'
+    import_resource_executor = executors.TenantImportExecutor
+
+    It is expected that importable_resources_backend_method returns list of dicts, each of which
+    contains two mandatory fields: name and backend_id, and one optional field called extra.
+    This optional field should be list of dicts, each of which contains two mandatory fields: name and value.
+
+    Note that there are only 3 mandatory parameters:
+    * importable_resources_backend_method
+    * importable_resources_serializer_class
+    * import_resource_serializer_class
+    """
+
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
@@ -252,18 +270,74 @@ class OfferingViewSet(
     @action(detail=True, methods=['get'])
     def importable_resources(self, request, uuid=None):
         offering = self.get_object()
-        resources = plugins.manager.get_importable_resources(offering)
-
-        if resources:
-            resource_viewset = plugins.manager.get_resource_viewset(offering.type)
-            serializer_class = resource_viewset.importable_resources_serializer_class
-            serializer = serializer_class(
-                instance=resources, many=True, context=self.get_serializer_context()
+        method = plugins.manager.get_importable_resources_backend_method(offering.type)
+        if not method:
+            raise rf_exceptions.ValidationError(
+                'Current offering plugin does not support resource import'
             )
-            resources = serializer.data
 
+        backend = offering.scope.get_backend()
+        resources = getattr(backend, method)()
         page = self.paginate_queryset(resources)
         return self.get_paginated_response(page)
+
+    importable_resources_permissions = [permissions.user_can_list_importable_resources]
+
+    import_resource_permissions = [permissions.user_can_list_importable_resources]
+
+    import_resource_serializer_class = serializers.ImportResourceSerializer
+
+    @action(detail=True, methods=['post'])
+    def import_resource(self, request, uuid=None):
+        import_resource_serializer = self.get_serializer(data=request.data)
+        import_resource_serializer.is_valid(raise_exception=True)
+
+        plan = import_resource_serializer.validated_data.get('plan', None)
+        project = import_resource_serializer.validated_data['project']
+        backend_id = import_resource_serializer.validated_data['backend_id']
+
+        offering = self.get_object()
+        backend = offering.scope.get_backend()
+        method = plugins.manager.import_resource_backend_method(offering.type)
+        if not method:
+            raise rf_exceptions.ValidationError(
+                'Current offering plugin does not support resource import'
+            )
+
+        resource_model = plugins.manager.get_resource_model(offering.type)
+
+        if resource_model.objects.filter(
+            service_settings=offering.scope, backend_id=backend_id
+        ).exists():
+            raise rf_exceptions.ValidationError(
+                _('Resource has been imported already.')
+            )
+
+        try:
+            resource = getattr(backend, method)(backend_id=backend_id, project=project)
+        except ServiceBackendError as e:
+            raise rf_exceptions.ValidationError(str(e))
+        else:
+            resource_imported.send(
+                sender=resource.__class__,
+                instance=resource,
+                plan=plan,
+                offering=offering,
+            )
+
+        import_resource_executor = plugins.manager.get_import_resource_executor(
+            offering.type
+        )
+
+        if import_resource_executor:
+            transaction.on_commit(lambda: import_resource_executor.execute(resource))
+
+        marketplace_resource = models.Resource.objects.get(scope=resource)
+        resource_serializer = serializers.ResourceSerializer(
+            marketplace_resource, context=self.get_serializer_context()
+        )
+
+        return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def update_attributes(self, request, uuid=None):
@@ -280,69 +354,6 @@ class OfferingViewSet(
 
     update_attributes_permissions = [permissions.user_is_owner_or_service_manager]
     update_attributes_validators = [validate_offering_update]
-
-    importable_resources_permissions = [permissions.user_can_list_importable_resources]
-
-    import_resource_permissions = [permissions.user_can_list_importable_resources]
-
-    import_resource_serializer_class = serializers.ImportResourceSerializer
-
-    @action(detail=True, methods=['post'])
-    def import_resource(self, request, uuid=None):
-        offering = self.get_object()
-
-        marketplace_serializer = self.get_serializer(data=request.data)
-        marketplace_serializer.is_valid(raise_exception=True)
-
-        plan = marketplace_serializer.validated_data.get('plan', None)
-        project = marketplace_serializer.validated_data['project']
-        backend_id = marketplace_serializer.validated_data['backend_id']
-
-        service_model = plugins.manager.get_service_model(offering.type)
-        service = service_model.objects.get(
-            settings=offering.scope, customer=project.customer
-        )
-
-        spl_model = plugins.manager.get_spl_model(offering.type)
-        spl = spl_model.objects.get(project=project, service=service)
-        spl_url = reverse('{}-detail'.format(spl.get_url_name()), kwargs={'pk': spl.pk})
-
-        resource_data = {
-            'backend_id': backend_id,
-            'service_project_link': spl_url,
-        }
-
-        resource_viewset = plugins.manager.get_resource_viewset(offering.type)
-        serializer_class = resource_viewset.import_resource_serializer_class
-
-        serializer = serializer_class(
-            data=resource_data, context=self.get_serializer_context()
-        )
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            resource = serializer.save()
-        except IntegrityError:
-            raise rf_exceptions.ValidationError(_('Resource is already registered.'))
-        else:
-            resource_imported.send(
-                sender=resource.__class__,
-                instance=resource,
-                plan=plan,
-                offering=offering,
-            )
-
-        if resource_viewset.import_resource_executor:
-            transaction.on_commit(
-                lambda: resource_viewset.import_resource_executor.execute(resource)
-            )
-
-        marketplace_resource = models.Resource.objects.get(scope=resource)
-        resource_serializer = serializers.ResourceSerializer(
-            marketplace_resource, context=self.get_serializer_context()
-        )
-
-        return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True)
     def customers(self, request, uuid):

@@ -26,7 +26,7 @@ from azure.mgmt.storage import StorageManagementClient
 from django.utils.functional import cached_property
 from msrest.exceptions import ClientException
 
-from waldur_core.structure import ServiceBackendError
+from waldur_core.structure.exceptions import ServiceBackendError
 
 
 class AzureBackendError(ServiceBackendError):

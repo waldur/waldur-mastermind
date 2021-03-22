@@ -9,6 +9,7 @@ from factory import fuzzy
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant import models
 
@@ -21,9 +22,7 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
     name = factory.SelfAttribute('tenant.name')
     scope = factory.SelfAttribute('tenant')
     customer = factory.SelfAttribute('tenant.customer')
-    backend_url = factory.SelfAttribute(
-        'tenant.service_project_link.service.settings.backend_url'
-    )
+    backend_url = factory.SelfAttribute('tenant.service_settings.backend_url')
     username = factory.SelfAttribute('tenant.user_username')
     password = factory.SelfAttribute('tenant.user_password')
     type = 'OpenStackTenant'
@@ -31,54 +30,12 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
     options = {'tenant_id': uuid.uuid4()}
 
 
-class OpenStackTenantServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OpenStackTenantService
-
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-    customer = factory.SelfAttribute('settings.customer')
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = OpenStackTenantServiceSettingsFactory()
-        url = 'http://testserver' + reverse(
-            'openstacktenant-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('openstacktenant-list')
-
-
-class OpenStackTenantServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OpenStackTenantServiceProjectLink
-
-    service = factory.SubFactory(OpenStackTenantServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, spl=None, action=None):
-        if spl is None:
-            spl = OpenStackTenantServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse(
-            'openstacktenant-spl-detail', kwargs={'pk': spl.pk}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('openstacktenant-spl-list')
-
-
 class FlavorFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Flavor
 
     name = factory.Sequence(lambda n: 'flavor%s' % n)
-    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
+    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
 
     cores = 2
     ram = 2 * 1024
@@ -105,7 +62,7 @@ class ImageFactory(factory.DjangoModelFactory):
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
-    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
+    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
 
     backend_id = factory.Sequence(lambda n: 'image-id%s' % n)
 
@@ -128,7 +85,8 @@ class VolumeFactory(factory.DjangoModelFactory):
         model = models.Volume
 
     name = factory.Sequence(lambda n: 'volume%s' % n)
-    service_project_link = factory.SubFactory(OpenStackTenantServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     size = 10 * 1024
     backend_id = factory.LazyAttribute(lambda _: str(uuid.uuid4()))
 
@@ -175,7 +133,8 @@ class InstanceFactory(factory.DjangoModelFactory):
         model = models.Instance
 
     name = factory.Sequence(lambda n: 'instance%s' % n)
-    service_project_link = factory.SubFactory(OpenStackTenantServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
     ram = 2048
 
@@ -200,7 +159,8 @@ class InstanceFactory(factory.DjangoModelFactory):
 
         self.volumes.create(
             backend_id='{0}-system'.format(self.name),
-            service_project_link=self.service_project_link,
+            service_settings=self.service_settings,
+            project=self.project,
             bootable=True,
             size=10 * 1024,
             name='{0}-system'.format(self.name),
@@ -210,7 +170,8 @@ class InstanceFactory(factory.DjangoModelFactory):
         )
         self.volumes.create(
             backend_id='{0}-data'.format(self.name),
-            service_project_link=self.service_project_link,
+            service_settings=self.service_settings,
+            project=self.project,
             size=20 * 1024,
             name='{0}-data'.format(self.name),
             state=models.Volume.States.OK,
@@ -278,7 +239,8 @@ class BackupScheduleFactory(factory.DjangoModelFactory):
 
     instance = factory.SubFactory(InstanceFactory)
     state = models.BackupSchedule.States.OK
-    service_project_link = factory.SelfAttribute('instance.service_project_link')
+    service_settings = factory.SelfAttribute('instance.service_settings')
+    project = factory.SelfAttribute('instance.project')
     retention_time = 10
     is_active = True
     maximal_number_of_resources = 3
@@ -302,7 +264,8 @@ class BackupFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Backup
 
-    service_project_link = factory.SubFactory(OpenStackTenantServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     backup_schedule = factory.SubFactory(BackupScheduleFactory)
     instance = factory.LazyAttribute(lambda b: b.backup_schedule.instance)
     state = models.Backup.States.OK
@@ -327,7 +290,8 @@ class SnapshotFactory(factory.DjangoModelFactory):
         model = models.Snapshot
 
     size = 1024
-    service_project_link = factory.SubFactory(OpenStackTenantServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
     source_volume = factory.SubFactory(VolumeFactory)
     name = factory.Sequence(lambda n: 'Snapshot #%s' % n)
     state = models.Snapshot.States.OK
@@ -361,7 +325,8 @@ class SnapshotScheduleFactory(factory.DjangoModelFactory):
 
     source_volume = factory.SubFactory(VolumeFactory)
     state = models.SnapshotSchedule.States.OK
-    service_project_link = factory.SelfAttribute('source_volume.service_project_link')
+    service_settings = factory.SelfAttribute('source_volume.service_settings')
+    project = factory.SelfAttribute('source_volume.project')
     retention_time = 10
     is_active = True
     maximal_number_of_resources = 3

@@ -11,27 +11,7 @@ from waldur_core.structure import models as structure_models
 from . import managers
 
 
-class ZabbixService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='zabbix_services',
-        through='ZabbixServiceProjectLink',
-    )
-
-    @classmethod
-    def get_url_name(cls):
-        return 'zabbix'
-
-
-class ZabbixServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(on_delete=models.CASCADE, to=ZabbixService)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'zabbix-spl'
-
-
-class Host(structure_models.NewResource):
+class Host(structure_models.BaseResource):
     VISIBLE_NAME_MAX_LENGTH = 64
 
     # list of items that are added as monitoring items to hosts scope.
@@ -56,9 +36,6 @@ class Host(structure_models.NewResource):
 
         CHOICES = ((MONITORED, 'monitored'), (UNMONITORED, 'unmonitored'))
 
-    service_project_link = models.ForeignKey(
-        ZabbixServiceProjectLink, related_name='hosts', on_delete=models.PROTECT
-    )
     visible_name = models.CharField(
         _('visible name'), max_length=VISIBLE_NAME_MAX_LENGTH
     )
@@ -92,9 +69,7 @@ class Host(structure_models.NewResource):
     def clean(self):
         # It is impossible to mark service and name unique together at DB level, because host is connected with service
         # through SPL.
-        same_service_hosts = Host.objects.filter(
-            service_project_link__service=self.service_project_link.service
-        )
+        same_service_hosts = Host.objects.filter(service_settings=self.service_settings)
         if same_service_hosts.filter(name=self.name).exclude(pk=self.pk).exists():
             raise ValidationError(
                 'Host with name "%s" already exists at this service. Host name should be unique.'
@@ -218,7 +193,7 @@ class Trigger(structure_models.ServiceProperty):
 Trigger._meta.get_field('name').max_length = 255
 
 
-class ITService(structure_models.NewResource):
+class ITService(structure_models.BaseResource):
     class Algorithm:
         SKIP = 0
         ANY = 1
@@ -230,9 +205,6 @@ class ITService(structure_models.NewResource):
             (ALL, 'problem, if all children have problems'),
         )
 
-    service_project_link = models.ForeignKey(
-        ZabbixServiceProjectLink, related_name='itservices', on_delete=models.PROTECT
-    )
     host = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Host,

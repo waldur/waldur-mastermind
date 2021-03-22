@@ -8,7 +8,6 @@ from . import factories
 class VMwareFixture(ProjectFixture):
     def __init__(self):
         super(VMwareFixture, self).__init__()
-        self.spl
         self.customer_cluster
         self.customer_network
         self.customer_datastore
@@ -17,18 +16,6 @@ class VMwareFixture(ProjectFixture):
     @cached_property
     def settings(self):
         return factories.VMwareServiceSettingsFactory(customer=self.customer)
-
-    @cached_property
-    def service(self):
-        return factories.VMwareServiceFactory(
-            customer=self.customer, settings=self.settings
-        )
-
-    @cached_property
-    def spl(self):
-        return factories.VMwareServiceProjectLinkFactory(
-            service=self.service, project=self.project
-        )
 
     @cached_property
     def cluster(self):
@@ -83,11 +70,16 @@ class VMwareFixture(ProjectFixture):
     @cached_property
     def virtual_machine(self):
         return factories.VirtualMachineFactory(
-            service_project_link=self.spl, template=self.template, cluster=self.cluster,
+            service_settings=self.settings,
+            project=self.project,
+            template=self.template,
+            cluster=self.cluster,
         )
 
     @cached_property
     def disk(self):
         return factories.DiskFactory(
-            vm=self.virtual_machine, service_project_link=self.spl,
+            vm=self.virtual_machine,
+            service_settings=self.settings,
+            project=self.project,
         )

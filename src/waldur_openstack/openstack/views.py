@@ -21,109 +21,6 @@ from . import executors, filters, models, serializers
 logger = logging.getLogger(__name__)
 
 
-class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.OpenStackService.objects.all().order_by('id')
-    serializer_class = serializers.ServiceSerializer
-
-    def list(self, request, *args, **kwargs):
-        """
-        To create a service, issue a **POST** to */api/openstack/* as a customer owner.
-
-        You can create service based on shared service settings. Example:
-
-        .. code-block:: http
-
-            POST /api/openstack/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "Common OpenStack",
-                "customer": "http://example.com/api/customers/1040561ca9e046d2b74268600c7e1105/",
-                "settings": "http://example.com/api/service-settings/93ba615d6111466ebe3f792669059cb4/"
-            }
-
-        Or provide your own credentials. Example:
-
-        .. code-block:: http
-
-            POST /api/openstack/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "My OpenStack",
-                "customer": "http://example.com/api/customers/1040561ca9e046d2b74268600c7e1105/",
-                "backend_url": "http://keystone.example.com:5000/v2.0",
-                "username": "admin",
-                "password": "secret"
-            }
-        """
-
-        return super(OpenStackServiceViewSet, self).list(request, *args, **kwargs)
-
-    def retrieve(self, request, *args, **kwargs):
-        """
-        To update OpenStack service issue **PUT** or **PATCH** against */api/openstack/<service_uuid>/*
-        as a customer owner. You can update service's `name` and `available_for_all` fields.
-
-        Example of a request:
-
-        .. code-block:: http
-
-            PUT /api/openstack/c6526bac12b343a9a65c4cd6710666ee/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "My OpenStack2"
-            }
-
-        To remove OpenStack service, issue **DELETE** against */api/openstack/<service_uuid>/* as
-        staff user or customer owner.
-        """
-        return super(OpenStackServiceViewSet, self).retrieve(request, *args, **kwargs)
-
-
-class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.OpenStackServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-    filterset_class = filters.OpenStackServiceProjectLinkFilter
-
-    def list(self, request, *args, **kwargs):
-        """
-        In order to be able to provision OpenStack resources, it must first be linked to a project. To do that,
-        **POST** a connection between project and a service to */api/openstack-service-project-link/*
-        as stuff user or customer owner.
-
-        Example of a request:
-
-        .. code-block:: http
-
-            POST /api/openstack-service-project-link/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "project": "http://example.com/api/projects/e5f973af2eb14d2d8c38d62bcbaccb33/",
-                "service": "http://example.com/api/openstack/b0e8a4cbd47c4f9ca01642b7ec033db4/"
-            }
-
-        To remove a link, issue DELETE to URL of the corresponding connection as stuff user or customer owner.
-        """
-        return super(OpenStackServiceProjectLinkViewSet, self).list(
-            request, *args, **kwargs
-        )
-
-
 class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     """
     VM instance flavor is a pre-defined set of virtual hardware parameters that the instance will use:
@@ -151,7 +48,7 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.VolumeTypeFilter
 
 
-class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
+class SecurityGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.SecurityGroup.objects.all()
     serializer_class = serializers.SecurityGroupSerializer
     filterset_class = filters.SecurityGroupFilter
@@ -206,7 +103,7 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
     set_rules_serializer_class = serializers.SecurityGroupRuleListUpdateSerializer
 
 
-class FloatingIPViewSet(structure_views.BaseResourceViewSet):
+class FloatingIPViewSet(structure_views.ResourceViewSet):
     queryset = models.FloatingIP.objects.all().order_by('address')
     serializer_class = serializers.FloatingIPSerializer
     filterset_class = filters.FloatingIPFilter
@@ -283,7 +180,7 @@ class FloatingIPViewSet(structure_views.BaseResourceViewSet):
     ]
 
 
-class TenantViewSet(structure_views.ImportableResourceViewSet):
+class TenantViewSet(structure_views.ResourceViewSet):
     queryset = models.Tenant.objects.all()
     serializer_class = serializers.TenantSerializer
     filterset_class = structure_filters.BaseResourceFilter
@@ -292,17 +189,10 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
     update_executor = executors.TenantUpdateExecutor
     pull_executor = executors.TenantPullExecutor
 
-    importable_resources_backend_method = 'get_tenants_for_import'
-    importable_resources_serializer_class = serializers.TenantImportableSerializer
-    importable_resources_permissions = [structure_permissions.is_staff]
-    import_resource_serializer_class = serializers.TenantImportSerializer
-    import_resource_permissions = [structure_permissions.is_staff]
-    import_resource_executor = executors.TenantImportExecutor
-
     def delete_permission_check(request, view, obj=None):
         if not obj:
             return
-        if obj.service_project_link.service.settings.shared:
+        if obj.service_settings.shared:
             if settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']:
                 structure_permissions.is_manager(request, view, obj)
             elif settings.WALDUR_OPENSTACK['ADMIN_CAN_MANAGE_TENANTS']:
@@ -562,7 +452,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
     set_routes_validators = [core_validators.StateValidator(models.Router.States.OK)]
 
 
-class PortViewSet(structure_views.BaseResourceViewSet):
+class PortViewSet(structure_views.ResourceViewSet):
     queryset = models.Port.objects.all()
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PortFilter
@@ -572,7 +462,7 @@ class PortViewSet(structure_views.BaseResourceViewSet):
     delete_executor = executors.PortDeleteExecutor
 
 
-class NetworkViewSet(structure_views.BaseResourceViewSet):
+class NetworkViewSet(structure_views.ResourceViewSet):
     queryset = models.Network.objects.all()
     serializer_class = serializers.NetworkSerializer
     filterset_class = filters.NetworkFilter
@@ -627,7 +517,7 @@ class NetworkViewSet(structure_views.BaseResourceViewSet):
     create_port_validators = [core_validators.StateValidator(models.Network.States.OK)]
 
 
-class SubNetViewSet(structure_views.BaseResourceViewSet):
+class SubNetViewSet(structure_views.ResourceViewSet):
     queryset = models.SubNet.objects.all()
     serializer_class = serializers.SubNetSerializer
     filterset_class = filters.SubNetFilter

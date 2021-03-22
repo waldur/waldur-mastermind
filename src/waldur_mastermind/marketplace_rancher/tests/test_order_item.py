@@ -1,7 +1,7 @@
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.tests.factories import SshPublicKeyFactory
+from waldur_core.structure.tests.factories import ProjectFactory, SshPublicKeyFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -21,25 +21,21 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
 
     def test_resource_is_created_when_order_item_is_processed(self):
-        service = rancher_factories.RancherServiceFactory(
-            customer=self.fixture.customer
-        )
-        spl = rancher_factories.RancherServiceProjectLinkFactory(
-            project=self.fixture.project, service=service
-        )
-        service_settings = spl.service.settings
+        service_settings = rancher_factories.RancherServiceSettingsFactory()
         offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME, scope=service_settings
         )
 
         openstack_tenant_factories.FlavorFactory(
-            settings=self.fixture.spl.service.settings, ram=1024 * 8, cores=8
+            settings=self.fixture.openstack_tenant_service_settings,
+            ram=1024 * 8,
+            cores=8,
         )
         image = openstack_tenant_factories.ImageFactory(
-            settings=self.fixture.spl.service.settings
+            settings=self.fixture.openstack_tenant_service_settings
         )
         openstack_tenant_factories.SecurityGroupFactory(
-            name='default', settings=self.fixture.spl.service.settings
+            name='default', settings=self.fixture.openstack_tenant_service_settings
         )
         service_settings.options['base_image_name'] = image.name
         service_settings.save()
@@ -54,8 +50,9 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
             attributes={
                 'name': 'name',
                 'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
-                    self.fixture.spl.service.settings
+                    self.fixture.openstack_tenant_service_settings
                 ),
+                'project': ProjectFactory.get_url(self.fixture.project),
                 'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
                 'nodes': [
                     {

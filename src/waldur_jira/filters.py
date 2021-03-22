@@ -46,12 +46,9 @@ class IssueFilter(django_filters.FilterSet):
         queryset=models.Priority.objects.all(),
     )
     project = core_filters.URLFilter(
-        view_name='project-detail',
-        field_name='project__service_project_link__project__uuid',
+        view_name='project-detail', field_name='project__project__uuid',
     )
-    project_uuid = django_filters.UUIDFilter(
-        field_name='project__service_project_link__project__uuid'
-    )
+    project_uuid = django_filters.UUIDFilter(field_name='project__project__uuid')
     type_name = django_filters.CharFilter(field_name='type__name')
     updated_before = django_filters.IsoDateTimeFilter(
         field_name="updated", lookup_expr="lte"

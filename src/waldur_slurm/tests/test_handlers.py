@@ -17,7 +17,7 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.user = structure_factories.UserFactory()
 
-        service_settings = self.fixture.service.settings
+        service_settings = self.fixture.settings
         service_settings.options = {'default_account': 'waldur_user'}
         service_settings.save()
 

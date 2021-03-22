@@ -6,34 +6,6 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
 
-class VMwareService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project, related_name='+', through='VMwareServiceProjectLink'
-    )
-
-    class Meta:
-        unique_together = ('customer', 'settings')
-        verbose_name = _('VMware provider')
-        verbose_name_plural = _('VMware providers')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'vmware'
-
-
-class VMwareServiceProjectLink(structure_models.ServiceProjectLink):
-
-    service = models.ForeignKey(on_delete=models.CASCADE, to=VMwareService)
-
-    class Meta(structure_models.ServiceProjectLink.Meta):
-        verbose_name = _('VMware provider project link')
-        verbose_name_plural = _('VMware provider project links')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'vmware-spl'
-
-
 class VirtualMachineMixin(models.Model):
     class Meta:
         abstract = True
@@ -58,12 +30,8 @@ class VirtualMachineMixin(models.Model):
 
 
 class VirtualMachine(
-    VirtualMachineMixin, core_models.RuntimeStateMixin, structure_models.NewResource
+    VirtualMachineMixin, core_models.RuntimeStateMixin, structure_models.BaseResource
 ):
-    service_project_link = models.ForeignKey(
-        VMwareServiceProjectLink, related_name='+', on_delete=models.PROTECT
-    )
-
     class RuntimeStates:
         POWERED_OFF = 'POWERED_OFF'
         POWERED_ON = 'POWERED_ON'
@@ -151,10 +119,7 @@ class VirtualMachine(
         return self.name
 
 
-class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
-    service_project_link = models.ForeignKey(
-        VMwareServiceProjectLink, related_name='+', on_delete=models.PROTECT
-    )
+class Port(core_models.RuntimeStateMixin, structure_models.BaseResource):
     vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine)
     network = models.ForeignKey(on_delete=models.CASCADE, to='Network')
     mac_address = models.CharField(
@@ -173,11 +138,7 @@ class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
         return self.name
 
 
-class Disk(structure_models.NewResource):
-    service_project_link = models.ForeignKey(
-        VMwareServiceProjectLink, related_name='+', on_delete=models.PROTECT
-    )
-
+class Disk(structure_models.BaseResource):
     size = models.PositiveIntegerField(help_text=_('Size in MiB'))
     vm = models.ForeignKey(
         on_delete=models.CASCADE, to=VirtualMachine, related_name='disks'

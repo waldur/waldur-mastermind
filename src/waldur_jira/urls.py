@@ -4,12 +4,6 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'jira', views.JiraServiceViewSet, basename='jira')
-    router.register(
-        r'jira-service-project-link',
-        views.JiraServiceProjectLinkViewSet,
-        basename='jira-spl',
-    )
     router.register(
         r'jira-attachments', views.AttachmentViewSet, basename='jira-attachments'
     )

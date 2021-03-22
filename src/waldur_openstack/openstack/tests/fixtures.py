@@ -12,25 +12,16 @@ class OpenStackFixture(ProjectFixture):
         return factories.OpenStackServiceSettingsFactory(customer=self.customer)
 
     @cached_property
-    def openstack_service(self):
-        return factories.OpenStackServiceFactory(
-            customer=self.customer, settings=self.openstack_service_settings
-        )
-
-    @cached_property
-    def openstack_spl(self):
-        return factories.OpenStackServiceProjectLinkFactory(
-            project=self.project, service=self.openstack_service
-        )
-
-    @cached_property
     def tenant(self):
-        return factories.TenantFactory(service_project_link=self.openstack_spl)
+        return factories.TenantFactory(
+            service_settings=self.openstack_service_settings, project=self.project
+        )
 
     @cached_property
     def network(self):
         return factories.NetworkFactory(
-            service_project_link=self.openstack_spl,
+            service_settings=self.openstack_service_settings,
+            project=self.project,
             tenant=self.tenant,
             state=models.Network.States.OK,
         )
@@ -39,14 +30,16 @@ class OpenStackFixture(ProjectFixture):
     def subnet(self):
         return factories.SubNetFactory(
             network=self.network,
-            service_project_link=self.openstack_spl,
+            service_settings=self.openstack_service_settings,
+            project=self.project,
             state=models.SubNet.States.OK,
         )
 
     @cached_property
     def floating_ip(self):
         return factories.FloatingIPFactory(
-            service_project_link=self.openstack_spl,
+            service_settings=self.openstack_service_settings,
+            project=self.project,
             tenant=self.tenant,
             state=models.FloatingIP.States.OK,
         )
@@ -54,7 +47,8 @@ class OpenStackFixture(ProjectFixture):
     @cached_property
     def security_group(self):
         return factories.SecurityGroupFactory(
-            service_project_link=self.openstack_spl,
+            service_settings=self.openstack_service_settings,
+            project=self.project,
             tenant=self.tenant,
             state=models.SecurityGroup.States.OK,
         )
@@ -68,6 +62,7 @@ class OpenStackFixture(ProjectFixture):
         return factories.PortFactory(
             network=self.network,
             tenant=self.tenant,
-            service_project_link=self.openstack_spl,
+            service_settings=self.openstack_service_settings,
+            project=self.project,
             state=models.Port.States.OK,
         )

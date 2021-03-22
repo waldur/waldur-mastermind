@@ -1,44 +1,7 @@
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
-from waldur_core.quotas.fields import CounterQuotaField
-from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
-
-
-class DigitalOceanService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='digitalocean_services',
-        through='DigitalOceanServiceProjectLink',
-    )
-
-    class Meta(structure_models.Service.Meta):
-        verbose_name = _('DigitalOcean provider')
-        verbose_name_plural = _('DigitalOcean providers')
-
-    class Quotas(QuotaModelMixin.Quotas):
-        droplet_count = CounterQuotaField(
-            default_limit=50,
-            target_models=lambda: [Droplet],
-            path_to_scope='service_project_link.service',
-        )
-
-    @classmethod
-    def get_url_name(cls):
-        return 'digitalocean'
-
-
-class DigitalOceanServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(on_delete=models.CASCADE, to=DigitalOceanService)
-
-    class Meta(structure_models.CloudServiceProjectLink.Meta):
-        verbose_name = _('DigitalOcean provider project link')
-        verbose_name_plural = _('DigitalOcean provider project links')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'digitalocean-spl'
 
 
 class Region(structure_models.GeneralServiceProperty):
@@ -111,34 +74,12 @@ class Size(structure_models.GeneralServiceProperty):
 
 
 class Droplet(structure_models.VirtualMachine):
-    service_project_link = models.ForeignKey(
-        DigitalOceanServiceProjectLink,
-        related_name='droplets',
-        on_delete=models.PROTECT,
-    )
     transfer = models.PositiveIntegerField(
         default=0, help_text=_('Amount of transfer bandwidth in MiB')
     )
     ip_address = models.GenericIPAddressField(null=True, protocol='IPv4', blank=True)
     region_name = models.CharField(max_length=150, blank=True)
     size_name = models.CharField(max_length=150, blank=True)
-
-    def increase_backend_quotas_usage(self, validate=True):
-        spl = self.service_project_link
-        spl.add_quota_usage(spl.Quotas.storage, self.disk, validate=validate)
-        spl.add_quota_usage(spl.Quotas.ram, self.ram, validate=validate)
-        spl.add_quota_usage(spl.Quotas.vcpu, self.cores, validate=validate)
-
-    def decrease_backend_quotas_usage(self):
-        self.service_project_link.add_quota_usage(
-            self.service_project_link.Quotas.storage, -self.disk
-        )
-        self.service_project_link.add_quota_usage(
-            self.service_project_link.Quotas.ram, -self.ram
-        )
-        self.service_project_link.add_quota_usage(
-            self.service_project_link.Quotas.vcpu, -self.cores
-        )
 
     @property
     def external_ips(self):

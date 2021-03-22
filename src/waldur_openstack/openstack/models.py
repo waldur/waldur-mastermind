@@ -11,78 +11,10 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.quotas.fields import (
-    CounterQuotaField,
-    QuotaField,
-    UsageAggregatorQuotaField,
-)
+from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack_base import models as openstack_base_models
-
-
-class ServiceUsageAggregatorQuotaField(UsageAggregatorQuotaField):
-    def __init__(self, **kwargs):
-        super(ServiceUsageAggregatorQuotaField, self).__init__(
-            get_children=lambda service: Tenant.objects.filter(
-                service_project_link__service=service
-            ),
-            **kwargs
-        )
-
-
-class OpenStackService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='openstack_services',
-        through='OpenStackServiceProjectLink',
-    )
-
-    class Meta:
-        unique_together = ('customer', 'settings')
-        verbose_name = _('OpenStack provider')
-        verbose_name_plural = _('OpenStack providers')
-
-    class Quotas(QuotaModelMixin.Quotas):
-        tenant_count = CounterQuotaField(
-            target_models=lambda: [Tenant], path_to_scope='service_project_link.service'
-        )
-        vcpu = ServiceUsageAggregatorQuotaField()
-        ram = ServiceUsageAggregatorQuotaField()
-        storage = ServiceUsageAggregatorQuotaField()
-        instances = ServiceUsageAggregatorQuotaField()
-        security_group_count = ServiceUsageAggregatorQuotaField()
-        security_group_rule_count = ServiceUsageAggregatorQuotaField()
-        floating_ip_count = ServiceUsageAggregatorQuotaField()
-        volumes = ServiceUsageAggregatorQuotaField()
-        snapshots = ServiceUsageAggregatorQuotaField()
-
-    @classmethod
-    def get_url_name(cls):
-        return 'openstack'
-
-
-class OpenStackServiceProjectLink(structure_models.ServiceProjectLink):
-
-    service = models.ForeignKey(on_delete=models.CASCADE, to=OpenStackService)
-
-    class Meta(structure_models.ServiceProjectLink.Meta):
-        verbose_name = _('OpenStack provider project link')
-        verbose_name_plural = _('OpenStack provider project links')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'openstack-spl'
-
-    # XXX: Hack for statistics: return quotas of tenants as quotas of SPLs.
-    @classmethod
-    def get_sum_of_quotas_as_dict(
-        cls, spls, quota_names=None, fields=['usage', 'limit']
-    ):
-        tenants = Tenant.objects.filter(service_project_link__in=spls)
-        return Tenant.get_sum_of_quotas_as_dict(
-            tenants, quota_names=quota_names, fields=fields
-        )
 
 
 class Flavor(LoggableMixin, structure_models.ServiceProperty):
@@ -113,11 +45,6 @@ class VolumeType(openstack_base_models.BaseVolumeType):
 
 
 class SecurityGroup(structure_models.SubResource):
-    service_project_link = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=OpenStackServiceProjectLink,
-        related_name='security_groups',
-    )
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to='Tenant', related_name='security_groups'
     )
@@ -187,11 +114,6 @@ class SecurityGroupRule(
 
 
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
-    service_project_link = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=OpenStackServiceProjectLink,
-        related_name='floating_ips',
-    )
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to='Tenant', related_name='floating_ips'
     )
@@ -222,11 +144,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
         return 'openstack-fip'
 
     def __str__(self):
-        return '%s:%s (%s)' % (
-            self.address,
-            self.runtime_state,
-            self.service_project_link,
-        )
+        return '%s:%s (%s)' % (self.address, self.runtime_state, self.service_settings,)
 
     @classmethod
     def get_backend_fields(cls):
@@ -268,10 +186,6 @@ class Tenant(structure_models.PrivateCloud):
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, blank=True, null=True)
 
-    service_project_link = models.ForeignKey(
-        OpenStackServiceProjectLink, related_name='tenants', on_delete=models.PROTECT
-    )
-
     internal_network_id = models.CharField(max_length=64, blank=True)
     external_network_id = models.CharField(max_length=64, blank=True)
     availability_zone = models.CharField(
@@ -292,7 +206,7 @@ class Tenant(structure_models.PrivateCloud):
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('service_project_link', 'backend_id')
+        unique_together = ('service_settings', 'backend_id')
 
     @classmethod
     def generate_username(cls, name):
@@ -304,7 +218,7 @@ class Tenant(structure_models.PrivateCloud):
         return slugify(name)[:25] + '-user-%s' % core_utils.pwgen(4)
 
     def get_backend(self):
-        return self.service_project_link.service.get_backend(tenant_id=self.backend_id)
+        return self.service_settings.get_backend(tenant_id=self.backend_id)
 
     @classmethod
     def get_backend_fields(cls):
@@ -316,7 +230,7 @@ class Tenant(structure_models.PrivateCloud):
         )
 
     def get_access_url(self):
-        settings = self.service_project_link.service.settings
+        settings = self.service_settings
         access_url = settings.get_option('access_url')
         if access_url:
             return access_url
@@ -335,9 +249,6 @@ class Tenant(structure_models.PrivateCloud):
 
 
 class Router(structure_models.SubResource):
-    service_project_link = models.ForeignKey(
-        OpenStackServiceProjectLink, related_name='routers', on_delete=models.PROTECT
-    )
     tenant: Tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name='routers'
     )
@@ -353,9 +264,6 @@ class Router(structure_models.SubResource):
 
 
 class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
-    service_project_link = models.ForeignKey(
-        OpenStackServiceProjectLink, related_name='networks', on_delete=models.PROTECT
-    )
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name='networks'
     )
@@ -402,9 +310,6 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
 
 
 class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
-    service_project_link = models.ForeignKey(
-        OpenStackServiceProjectLink, related_name='subnets', on_delete=models.PROTECT
-    )
     network = models.ForeignKey(
         on_delete=models.CASCADE, to=Network, related_name='subnets'
     )
@@ -452,9 +357,6 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
 
 
 class Port(structure_models.SubResource, openstack_base_models.Port):
-    service_project_link = models.ForeignKey(
-        OpenStackServiceProjectLink, related_name='ports', on_delete=models.CASCADE
-    )
     tenant: Tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name='ports'
     )

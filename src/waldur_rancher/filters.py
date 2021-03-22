@@ -2,19 +2,9 @@ import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 
-from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
 from . import models
-
-
-class ServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(
-        view_name='rancher-detail', field_name='service__uuid'
-    )
-
-    class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
-        model = models.RancherServiceProjectLink
 
 
 class ClusterFilter(structure_filters.BaseResourceFilter):
@@ -82,7 +72,7 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
             return queryset.none()
         else:
             # Include global templates
-            service_settings = cluster.service_project_link.service.settings
+            service_settings = cluster.service_settings
             ctype = ContentType.objects.get_for_model(service_settings)
             global_subquery = Q(
                 catalog__content_type=ctype, catalog__object_id=service_settings.id

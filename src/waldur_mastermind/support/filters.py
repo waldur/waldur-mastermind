@@ -79,7 +79,7 @@ class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
     def get_related_models(self):
         from waldur_mastermind.marketplace.models import Resource
 
-        return structure_models.ResourceMixin.get_all_models() + [Resource]
+        return structure_models.BaseResource.get_all_models() + [Resource]
 
     def get_field_name(self):
         return 'resource'

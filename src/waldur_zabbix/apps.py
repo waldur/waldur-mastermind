@@ -9,7 +9,8 @@ class ZabbixConfig(AppConfig):
     service_name = 'Zabbix'
 
     def ready(self):
-        from waldur_core.structure import SupportedServices, models as structure_models
+        from waldur_core.structure import models as structure_models
+        from waldur_core.structure.registry import SupportedServices
 
         # structure
         from .backend import ZabbixBackend
@@ -19,7 +20,7 @@ class ZabbixConfig(AppConfig):
         from . import handlers
 
         for index, resource_model in enumerate(
-            structure_models.ResourceMixin.get_all_models()
+            structure_models.BaseResource.get_all_models()
         ):
 
             fsm_signals.post_transition.connect(

@@ -21,6 +21,7 @@ from waldur_openstack.openstack_tenant.tests import (
 from waldur_rancher import models as rancher_models
 from waldur_rancher import tasks, utils
 from waldur_rancher.tests import factories as rancher_factories
+from waldur_rancher.tests.factories import RancherServiceSettingsFactory
 from waldur_rancher.tests.utils import backend_node_response
 
 
@@ -39,13 +40,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self.mock_client = self.patcher_client.start()
         self.mock_client.get_node.return_value = backend_node_response
 
-        service = rancher_factories.RancherServiceFactory(
-            customer=self.fixture.customer
-        )
-        spl = rancher_factories.RancherServiceProjectLinkFactory(
-            project=self.fixture.project, service=service
-        )
-        service_settings = spl.service.settings
+        service_settings = RancherServiceSettingsFactory()
         self.offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME, scope=service_settings
         )
@@ -59,13 +54,15 @@ class InvoiceTest(test.APITransactionTestCase):
             plan=self.plan, component=self.offering_component,
         )
         openstack_tenant_factories.FlavorFactory(
-            settings=self.fixture.spl.service.settings, ram=1024 * 8, cores=8
+            settings=self.fixture.openstack_tenant_service_settings,
+            ram=1024 * 8,
+            cores=8,
         )
         image = openstack_tenant_factories.ImageFactory(
-            settings=self.fixture.spl.service.settings
+            settings=self.fixture.openstack_tenant_service_settings
         )
         openstack_tenant_factories.SecurityGroupFactory(
-            name='default', settings=self.fixture.spl.service.settings
+            name='default', settings=self.fixture.openstack_tenant_service_settings
         )
         service_settings.options['base_image_name'] = image.name
         service_settings.save()

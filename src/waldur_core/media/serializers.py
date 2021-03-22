@@ -3,7 +3,6 @@ from django.db import models
 from rest_framework import serializers
 
 from waldur_core.media.utils import encode_protected_url, s3_to_waldur_media_url
-from waldur_core.structure.utils import merge_dictionaries
 
 
 class ProtectedFileMixin:
@@ -33,7 +32,8 @@ class ProtectedImageField(ProtectedFileMixin, serializers.ImageField):
 
 
 class ProtectedMediaSerializerMixin(serializers.ModelSerializer):
-    serializer_field_mapping = merge_dictionaries(
-        serializers.ModelSerializer.serializer_field_mapping,
-        {models.FileField: ProtectedFileField, models.ImageField: ProtectedImageField,},
-    )
+    serializer_field_mapping = {
+        **serializers.ModelSerializer.serializer_field_mapping,
+        models.FileField: ProtectedFileField,
+        models.ImageField: ProtectedImageField,
+    }

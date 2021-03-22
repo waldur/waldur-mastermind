@@ -21,42 +21,27 @@ class RancherFixture(ProjectFixture):
         return factories.RancherServiceSettingsFactory(customer=self.customer)
 
     @cached_property
-    def service(self):
-        return factories.RancherServiceFactory(
-            customer=self.customer, settings=self.settings
-        )
-
-    @cached_property
-    def spl(self):
-        return factories.RancherServiceProjectLinkFactory(
-            service=self.service, project=self.project
-        )
-
-    @cached_property
-    def tenant_spl(self):
-        settings = openstack_tenant_factories.OpenStackTenantServiceSettingsFactory(
+    def tenant_settings(self):
+        return openstack_tenant_factories.OpenStackTenantServiceSettingsFactory(
             customer=self.customer
-        )
-        service = openstack_tenant_factories.OpenStackTenantServiceFactory(
-            customer=self.customer, settings=settings
-        )
-        return openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(
-            service=service, project=self.project
         )
 
     @cached_property
     def cluster(self):
         return factories.ClusterFactory(
             settings=self.settings,
-            service_project_link=self.spl,
+            service_settings=self.settings,
+            project=self.project,
             state=models.Cluster.States.OK,
-            tenant_settings=self.tenant_spl.service.settings,
+            tenant_settings=self.tenant_settings,
         )
 
     @cached_property
     def instance(self):
         return openstack_tenant_factories.InstanceFactory(
-            service_project_link=self.tenant_spl, state=StateMixin.States.OK,
+            service_settings=self.tenant_settings,
+            project=self.project,
+            state=StateMixin.States.OK,
         )
 
     @cached_property

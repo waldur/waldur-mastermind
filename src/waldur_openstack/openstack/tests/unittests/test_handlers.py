@@ -20,7 +20,7 @@ class SshKeysHandlersTest(TestCase):
     def test_ssh_key_will_be_removed_if_user_lost_connection_to_tenant(
         self, mocked_task_call
     ):
-        project = self.tenant.service_project_link.project
+        project = self.tenant.project
         project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
         project.remove_user(self.user)
 
@@ -35,7 +35,7 @@ class SshKeysHandlersTest(TestCase):
     def test_ssh_key_will_not_be_removed_if_user_still_has_connection_to_tenant(
         self, mocked_task_call
     ):
-        project = self.tenant.service_project_link.project
+        project = self.tenant.project
         project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
         project.customer.add_user(self.user, structure_models.CustomerRole.OWNER)
         project.remove_user(self.user)
@@ -45,7 +45,7 @@ class SshKeysHandlersTest(TestCase):
     def test_ssh_key_will_be_deleted_from_tenant_on_user_deletion(
         self, mocked_task_call
     ):
-        project = self.tenant.service_project_link.project
+        project = self.tenant.project
         project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
         self.user.delete()
 
@@ -60,7 +60,7 @@ class SshKeysHandlersTest(TestCase):
     def test_ssh_key_will_be_deleted_from_tenant_on_ssh_key_deletion(
         self, mocked_task_call
     ):
-        project = self.tenant.service_project_link.project
+        project = self.tenant.project
         project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
         self.ssh_key.delete()
 
@@ -94,16 +94,6 @@ class LogTenantQuotaUpdateTest(TestCase):
                 'old_limit': float(old_limit),
             },
         )
-
-    @patch('waldur_openstack.openstack.handlers.event_logger')
-    def test_logger_is_not_called_if_quota_scope_is_not_tenant(self, logger_mock):
-        provider = factories.OpenStackServiceFactory()
-        quota = provider.quotas.get(name='vcpu')
-
-        quota.limit = 10
-        quota.save()
-
-        self.assertFalse(logger_mock.openstack_tenant_quota.info.called)
 
     @patch('waldur_openstack.openstack.handlers.event_logger')
     def test_vcpu_limit_quota_update_logged_as_integer(self, logger_mock):

@@ -19,16 +19,16 @@ from . import exceptions, models
 logger = logging.getLogger(__name__)
 
 
-def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
+def get_unique_node_name(name, tenant_settings, rancher_settings, existing_names=None):
     existing_names = existing_names or []
     # This has a potential risk of race condition when requests to create nodes come exactly at the same time.
     # But we consider this use case highly unrealistic and avoid creation of additional complexity
     # to protect against it
     names_instances = openstack_tenant_models.Instance.objects.filter(
-        service_project_link=instance_spl
+        service_settings=tenant_settings
     ).values_list('name', flat=True)
     names_nodes = models.Node.objects.filter(
-        cluster__service_project_link=cluster_spl
+        cluster__service_settings=rancher_settings
     ).values_list('name', flat=True)
     names = list(names_instances) + list(names_nodes) + existing_names
 
@@ -45,25 +45,15 @@ def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
 def expand_added_nodes(
     cluster_name,
     nodes,
-    rancher_spl,
+    project,
+    rancher_settings,
     tenant_settings,
     ssh_public_key,
     security_groups=None,
 ):
-    project = rancher_spl.project
 
     try:
-        tenant_spl = openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.get(
-            project=project, service__settings=tenant_settings
-        )
-    except ObjectDoesNotExist:
-        raise serializers.ValidationError(
-            _('Service project link for service %s and project %s is not found.')
-            % (tenant_settings.name, project.name)
-        )
-
-    try:
-        base_image_name = rancher_spl.service.settings.get_option('base_image_name')
+        base_image_name = rancher_settings.get_option('base_image_name')
         image = openstack_tenant_models.Image.objects.get(
             name=base_image_name, settings=tenant_settings
         )
@@ -104,7 +94,8 @@ def expand_added_nodes(
             'ram': flavor.ram,
             'image': image.uuid.hex,
             'subnet': subnet.uuid.hex,
-            'tenant_service_project_link': tenant_spl.id,
+            'service_settings': tenant_settings.uuid.hex,
+            'project': project.uuid.hex,
             'security_groups': [group.uuid.hex for group in security_groups],
             'system_volume_size': system_volume_size,
             'system_volume_type': system_volume_type and system_volume_type.uuid.hex,
@@ -127,15 +118,15 @@ def expand_added_nodes(
 
         node['name'] = get_unique_node_name(
             cluster_name + '-rancher-node',
-            tenant_spl,
-            rancher_spl,
+            tenant_settings,
+            rancher_settings,
             existing_names=[n['name'] for n in nodes if n.get('name')],
         )
 
         if ssh_public_key:
             node['initial_data']['ssh_public_key'] = ssh_public_key.uuid.hex
 
-    validate_quotas(nodes, tenant_spl)
+    validate_quotas(nodes, tenant_settings, project)
 
 
 def validate_data_volumes(data_volumes, tenant_settings):
@@ -209,13 +200,11 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
     return flavor
 
 
-def validate_quotas(nodes, tenant_spl):
+def validate_quotas(nodes, tenant_settings, project):
     quota_sources = [
-        tenant_spl,
-        tenant_spl.project,
-        tenant_spl.customer,
-        tenant_spl.service,
-        tenant_spl.service.settings,
+        project,
+        project.customer,
+        tenant_settings,
     ]
     for quota_name in ['storage', 'vcpu', 'ram']:
         requested = sum(get_node_quota(quota_name, node) for node in nodes)
@@ -268,11 +257,9 @@ def format_node_command(node):
     return node.cluster.node_command + ' ' + ' '.join(roles_command)
 
 
-def format_node_cloud_config(node):
+def format_node_cloud_config(node: models.Node):
     node_command = format_node_command(node)
-    config_template = node.service_project_link.service.settings.get_option(
-        'cloud_init_template'
-    )
+    config_template = node.cluster.service_settings.get_option('cloud_init_template')
     user_data = config_template.format(command=node_command)
     data_volumes = node.initial_data.get('data_volumes')
 
@@ -312,8 +299,8 @@ class SyncUser:
             result[user][service_settings].append([cluster, role])
 
         for cluster in models.Cluster.objects.filter(state=models.Cluster.States.OK):
-            service_settings = cluster.service_project_link.service.settings
-            project = cluster.service_project_link.project
+            service_settings = cluster.service_settings
+            project = cluster.project
             users = project.get_users()
             owners = project.customer.get_owners()
 

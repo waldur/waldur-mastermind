@@ -701,12 +701,8 @@ def move_resource(resource: models.Resource, project):
     resource.save(update_fields=['project'])
 
     if resource.scope:
-        spl, _ = resource.scope.service_project_link._meta.model.objects.get_or_create(
-            service=resource.scope.service_project_link.service, project=project,
-        )
-
-        resource.scope.service_project_link = spl
-        resource.scope.save(update_fields=['service_project_link'])
+        resource.scope.project = project
+        resource.scope.save(update_fields=['project'])
 
     order_ids = resource.orderitem_set.values_list('order_id', flat=True)
     for order in models.Order.objects.filter(pk__in=order_ids):

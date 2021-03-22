@@ -89,7 +89,7 @@ class BackupScheduleTaskTest(TestCase):
         self, event_logger
     ):
         schedule = self.overdue_schedule
-        scope = self.instance.service_project_link.service.settings
+        scope = self.instance.service_settings
 
         # Usage is equal to limit
         scope.set_quota_limit(TenantQuotas.snapshots, 2)
@@ -308,7 +308,7 @@ class SnapshotScheduleTaskTest(TestCase):
         schedule = factories.SnapshotScheduleFactory()
         schedule.next_trigger_at = timezone.now() - timedelta(minutes=10)
         schedule.save()
-        scope = schedule.source_volume.service_project_link.service.settings
+        scope = schedule.source_volume.service_settings
 
         # Usage is equal to limit
         scope.set_quota_limit(TenantQuotas.snapshots, 2)

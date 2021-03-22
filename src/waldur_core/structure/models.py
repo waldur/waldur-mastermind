@@ -38,7 +38,6 @@ from waldur_core.media.validators import CertificateValidator
 from waldur_core.monitoring.models import MonitoringModelMixin
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
-from waldur_core.structure import SupportedServices
 from waldur_core.structure.managers import (
     PrivateServiceSettingsManager,
     ServiceSettingsManager,
@@ -46,8 +45,8 @@ from waldur_core.structure.managers import (
     StructureManager,
     filter_queryset_for_user,
 )
+from waldur_core.structure.registry import SupportedServices, get_name_for_model
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
-from waldur_core.structure.utils import sort_dependencies
 from waldur_geo_ip.mixins import CoordinatesMixin, IPCoordinatesMixin
 from waldur_geo_ip.utils import get_coordinates_by_ip
 
@@ -479,12 +478,9 @@ class Customer(
         nc_project_count = quotas_fields.CounterQuotaField(
             target_models=lambda: [Project], path_to_scope='customer',
         )
-        nc_service_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Service.get_all_models(), path_to_scope='customer',
-        )
         nc_user_count = quotas_fields.QuotaField()
         nc_resource_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: ResourceMixin.get_all_models(),
+            target_models=lambda: BaseResource.get_all_models(),
             path_to_scope='project.customer',
         )
         nc_vm_count = quotas_fields.CounterQuotaField(
@@ -555,8 +551,7 @@ class Customer(
 
     def get_children(self):
         return itertools.chain.from_iterable(
-            m.objects.filter(customer=self)
-            for m in [Project] + Service.get_all_models()
+            m.objects.filter(customer=self) for m in [Project]
         )
 
     def is_billable(self):
@@ -682,7 +677,7 @@ class Project(
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_resource_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: ResourceMixin.get_all_models(),
+            target_models=lambda: BaseResource.get_all_models(),
             path_to_scope='project',
         )
         nc_vm_count = quotas_fields.CounterQuotaField(
@@ -744,14 +739,9 @@ class Project(
 
     @transaction.atomic()
     def _soft_delete(self, using=None):
-        """ Method for project soft delete. It doesn't delete a project, only mark as 'removed',
-        but it sends needed signals and delete ServiceProjectLink objects
+        """ Method for project soft delete. It doesn't delete a project, only mark as 'removed', but it sends signals
         """
         signals.pre_delete.send(sender=self.__class__, instance=self, using=using)
-
-        for model in ServiceProjectLink.get_all_models():
-            for spl in model.objects.filter(project=self):
-                spl.delete()
 
         self.is_removed = True
         self.save(using=using)
@@ -790,14 +780,6 @@ class Project(
     def get_parents(self):
         return [self.customer]
 
-    def get_children(self):
-        """
-        Get all service project links connected to current project
-        """
-        return itertools.chain.from_iterable(
-            m.objects.filter(project=self) for m in ServiceProjectLink.get_all_models()
-        )
-
     class Meta:
         base_manager_name = 'objects'
 
@@ -830,6 +812,14 @@ class CustomerPermissionReview(core_models.UuidMixin):
         self.save()
 
 
+def build_service_settings_query(user):
+    return (
+        Q(shared=True)
+        | Q(shared=False, customer__projects__permissions__user=user, is_active=True,)
+        | Q(shared=False, customer__permissions__user=user, is_active=True)
+    )
+
+
 class ServiceSettings(
     quotas_models.ExtendableQuotaModelMixin,
     core_models.UuidMixin,
@@ -845,7 +835,7 @@ class ServiceSettings(
 
     class Permissions:
         customer_path = 'customer'
-        extra_query = dict(shared=True)
+        build_query = build_service_settings_query
 
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -898,31 +888,22 @@ class ServiceSettings(
             return defaults.get(name)
 
     def __str__(self):
-        return '%s (%s)' % (self.name, self.get_type_display())
+        return '%s (%s)' % (self.name, self.type)
 
     def get_log_fields(self):
         return ('uuid', 'name', 'customer')
 
     def _get_log_context(self, entity_name):
         context = super(ServiceSettings, self)._get_log_context(entity_name)
-        context['service_settings_type'] = self.get_type_display()
+        context['service_settings_type'] = self.type
         return context
 
     def get_type_display(self):
-        return SupportedServices.get_name_for_type(self.type)
-
-    def get_services(self):
-        service_model = SupportedServices.get_service_models()[self.type]['service']
-        return service_model.objects.filter(settings=self)
-
-    def unlink_descendants(self):
-        for service in self.get_services():
-            service.unlink_descendants()
-            service.delete()
+        return self.type
 
 
 class SharedServiceSettings(ServiceSettings):
-    """Required for a clear separation of shared/unshared service settings on admin."""
+    """Required for a clear separation of shared/private service settings on admin."""
 
     objects = SharedServiceSettingsManager()
 
@@ -932,90 +913,13 @@ class SharedServiceSettings(ServiceSettings):
 
 
 class PrivateServiceSettings(ServiceSettings):
-    """Required for a clear separation of shared/unshared service settings on admin."""
+    """Required for a clear separation of shared/private service settings on admin."""
 
     objects = PrivateServiceSettingsManager()
 
     class Meta:
         proxy = True
         verbose_name_plural = _('Private provider settings')
-
-
-class Service(
-    core_models.UuidMixin,
-    core_models.DescendantMixin,
-    quotas_models.QuotaModelMixin,
-    StructureLoggableMixin,
-    StructureModel,
-):
-    """ Base service class. """
-
-    class Meta:
-        abstract = True
-        unique_together = ('customer', 'settings')
-
-    class Permissions:
-        customer_path = 'customer'
-        project_path = 'projects'
-
-    settings = models.ForeignKey(on_delete=models.CASCADE, to=ServiceSettings)
-    customer = models.ForeignKey(
-        on_delete=models.CASCADE, to=Customer, verbose_name=_('organization')
-    )
-    available_for_all = models.BooleanField(
-        default=False,
-        help_text=_(
-            'Service will be automatically added to all customers projects if it is available for all'
-        ),
-    )
-    projects = NotImplemented
-
-    def __init__(self, *args, **kwargs):
-        AbstractFieldTracker().finalize_class(self.__class__, 'tracker')
-        super(Service, self).__init__(*args, **kwargs)
-
-    def __str__(self):
-        return self.settings.name
-
-    def get_backend(self, **kwargs):
-        return self.settings.get_backend(**kwargs)
-
-    @classmethod
-    @lru_cache(maxsize=1)
-    def get_all_models(cls):
-        return [model for model in apps.get_models() if issubclass(model, cls)]
-
-    @classmethod
-    def get_url_name(cls):
-        """ This name will be used by generic relationships to membership model for URL creation """
-        return cls._meta.app_label
-
-    def get_log_fields(self):
-        return ('uuid', 'customer', 'settings')
-
-    def _get_log_context(self, entity_name):
-        context = super(Service, self)._get_log_context(entity_name)
-        context['service_type'] = SupportedServices.get_name_for_model(self)
-        return context
-
-    def get_service_project_links(self):
-        """
-        Generic method for getting queryset of service project links related to current service
-        """
-        return self.projects.through.objects.filter(service=self)
-
-    def get_parents(self):
-        return [self.settings, self.customer]
-
-    def get_children(self):
-        return self.get_service_project_links()
-
-    def unlink_descendants(self):
-        descendants = sort_dependencies(self._meta.model, self.get_descendants())
-        for descendant in descendants:
-            if isinstance(descendant, ResourceMixin):
-                descendant.unlink()
-            descendant.delete()
 
 
 class BaseServiceProperty(
@@ -1072,92 +976,14 @@ class GeneralServiceProperty(BaseServiceProperty):
         return self.name
 
 
-class ServiceProjectLink(
-    quotas_models.QuotaModelMixin,
-    core_models.DescendantMixin,
-    LoggableMixin,
-    StructureModel,
-):
-    """ Base service-project link class. See Service class for usage example. """
-
-    class States:
-        OK = 'OK'
-        ERRED = 'ERRED'
-        WARNING = 'WARNING'
-
-        CHOICES = [OK, ERRED, WARNING]
-
-    class Meta:
-        abstract = True
-        unique_together = ('service', 'project')
-
-    class Permissions:
-        customer_path = 'service__customer'
-        project_path = 'project'
-
-    service = NotImplemented
-    project = models.ForeignKey(on_delete=models.CASCADE, to=Project)
-
-    def get_backend(self, **kwargs):
-        return self.service.get_backend(**kwargs)
-
-    @classmethod
-    @lru_cache(maxsize=1)
-    def get_all_models(cls):
-        return [model for model in apps.get_models() if issubclass(model, cls)]
-
-    @classmethod
-    def get_url_name(cls):
-        """ This name will be used by generic relationships to membership model for URL creation """
-        return cls._meta.app_label + '-spl'
-
-    def get_log_fields(self):
-        return (
-            'project',
-            'service',
-        )
-
-    def get_parents(self):
-        return [self.project, self.service]
-
-    def get_children(self):
-        resource_models = [
-            m
-            for m in ResourceMixin.get_all_models() + SubResource.get_all_models()
-            if m.service_project_link.field.related_model == self.__class__
-        ]
-        return itertools.chain.from_iterable(
-            m.objects.filter(service_project_link=self) for m in resource_models
-        )
-
-    def __str__(self):
-        return '{0} | {1}'.format(self.service.settings.name, self.project.name)
-
-
-class CloudServiceProjectLink(ServiceProjectLink):
-    """
-    Represents a link between a project and a cloud service that provides VPS or VPC (e.g. Amazon, DO, OpenStack).
-    """
-
-    class Meta(ServiceProjectLink.Meta):
-        abstract = True
-
-    class Quotas(quotas_models.QuotaModelMixin.Quotas):
-        vcpu = quotas_fields.QuotaField()
-        ram = quotas_fields.QuotaField()
-        storage = quotas_fields.QuotaField()
-
-    def can_user_update_quotas(self, user):
-        return user.is_staff or self.service.customer.has_user(user, CustomerRole.OWNER)
-
-
-class ResourceMixin(
+class BaseResource(
     MonitoringModelMixin,
     core_models.UuidMixin,
     core_models.DescribableMixin,
     core_models.NameMixin,
     core_models.DescendantMixin,
     core_models.BackendModelMixin,
+    core_models.StateMixin,
     StructureLoggableMixin,
     TagMixin,
     TimeStampedModel,
@@ -1172,19 +998,21 @@ class ResourceMixin(
         abstract = True
 
     class Permissions:
-        customer_path = 'service_project_link__project__customer'
-        project_path = 'service_project_link__project'
-        service_path = 'service_project_link__service'
+        customer_path = 'project__customer'
+        project_path = 'project'
 
-    service_project_link = NotImplemented
+    service_settings = models.ForeignKey(
+        on_delete=models.CASCADE, to=ServiceSettings, related_name='+'
+    )
+    project = models.ForeignKey(on_delete=models.CASCADE, to=Project, related_name='+')
     backend_id = models.CharField(max_length=255, blank=True)
 
     @classmethod
     def get_backend_fields(cls):
-        return super(ResourceMixin, cls).get_backend_fields() + ('backend_id',)
+        return super(BaseResource, cls).get_backend_fields() + ('backend_id',)
 
     def get_backend(self, **kwargs):
-        return self.service_project_link.get_backend(**kwargs)
+        return self.service_settings.get_backend(**kwargs)
 
     def get_access_url(self):
         # default behaviour. Override in subclasses if applicable
@@ -1204,25 +1032,22 @@ class ResourceMixin(
         return '{}-{}'.format(cls._meta.app_label, cls.__name__.lower())
 
     def get_log_fields(self):
-        return ('uuid', 'name', 'service_project_link', 'full_name')
+        return ('uuid', 'name', 'service_settings', 'project', 'full_name')
 
     @property
     def full_name(self):
-        return '%s %s' % (
-            SupportedServices.get_name_for_model(self).replace('.', ' '),
-            self.name,
-        )
+        return '%s %s' % (get_name_for_model(self).replace('.', ' '), self.name,)
 
     def _get_log_context(self, entity_name):
-        context = super(ResourceMixin, self)._get_log_context(entity_name)
+        context = super(BaseResource, self)._get_log_context(entity_name)
         # XXX: Add resource_full_name here, because event context does not support properties as fields
         context['resource_full_name'] = self.full_name
-        context['resource_type'] = SupportedServices.get_name_for_model(self)
+        context['resource_type'] = get_name_for_model(self)
 
         return context
 
     def get_parents(self):
-        return [self.service_project_link]
+        return [self.service_settings, self.project]
 
     def __str__(self):
         return self.name
@@ -1239,26 +1064,12 @@ class ResourceMixin(
         """ Decrease usage of quotas that were released on resource deletion """
         pass
 
-    def unlink(self):
-        # XXX: add special attribute to an instance in order to be tracked by signal handler
-        setattr(self, 'PERFORM_UNLINK', True)
-
-    @property
-    def service_settings(self):
-        return self.service_project_link.service.settings
-
     @classmethod
     def get_scope_type(cls):
-        return SupportedServices.get_name_for_model(cls)
+        return get_name_for_model(cls)
 
 
-# TODO: rename to Resource
-class NewResource(ResourceMixin, core_models.StateMixin):
-    class Meta:
-        abstract = True
-
-
-class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResource):
+class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseResource):
     def __init__(self, *args, **kwargs):
         AbstractFieldTracker().finalize_class(self.__class__, 'tracker')
         super(VirtualMachine, self).__init__(*args, **kwargs)
@@ -1329,13 +1140,13 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResou
 
 
 class PrivateCloud(
-    quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin, NewResource
+    quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin, BaseResource
 ):
     class Meta:
         abstract = True
 
 
-class Storage(core_models.RuntimeStateMixin, NewResource):
+class Storage(core_models.RuntimeStateMixin, BaseResource):
     size = models.PositiveIntegerField(help_text=_('Size in MiB'))
 
     class Meta:
@@ -1352,7 +1163,7 @@ class Snapshot(Storage):
         abstract = True
 
 
-class SubResource(NewResource):
+class SubResource(BaseResource):
     """ Resource dependent object that cannot exist without resource. """
 
     class Meta:

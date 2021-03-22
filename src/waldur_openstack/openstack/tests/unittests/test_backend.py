@@ -369,7 +369,8 @@ class PullSubnetsTest(BaseBackendTestCase):
     def setUp(self):
         super(PullSubnetsTest, self).setUp()
         self.network = factories.NetworkFactory(
-            service_project_link=self.fixture.openstack_spl,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
             tenant=self.tenant,
             backend_id='network_id',
         )
@@ -422,7 +423,8 @@ class PullSubnetsTest(BaseBackendTestCase):
 
     def test_existing_subnets_are_updated(self):
         subnet = factories.SubNetFactory(
-            service_project_link=self.fixture.openstack_spl,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
             backend_id='backend_id',
             name='Old name',
             network=self.network,
@@ -499,7 +501,8 @@ class ImportTenantNetworksTest(BaseBackendTestCase):
         }
         network = factories.NetworkFactory(
             tenant=self.tenant,
-            service_project_link=self.tenant.service_project_link,
+            service_settings=self.tenant.service_settings,
+            project=self.tenant.project,
             backend_id=backend_network['id'],
         )
         self.assertEqual(self.tenant.networks.count(), 1)

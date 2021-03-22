@@ -527,15 +527,6 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         project.delete()
         self.assert_quota_usage('nc_project_count', 0)
 
-    def test_customer_services_quota_increases_on_service_creation(self):
-        factories.TestServiceFactory(customer=self.customer)
-        self.assert_quota_usage('nc_service_count', 1)
-
-    def test_customer_services_quota_decreases_on_service_deletion(self):
-        service = factories.TestServiceFactory(customer=self.customer)
-        service.delete()
-        self.assert_quota_usage('nc_service_count', 0)
-
     def test_customer_users_quota_increases_on_adding_owner(self):
         user = factories.UserFactory()
         self.customer.add_user(user, CustomerRole.OWNER)
@@ -767,17 +758,14 @@ class CustomerCountersListTest(test.APITransactionTestCase):
         self.manager = self.fixture.manager
         self.member = self.fixture.member
         self.customer = self.fixture.customer
-        self.service = self.fixture.service
         self.url = factories.CustomerFactory.get_url(self.customer, action='counters')
 
     @data('owner', 'customer_support')
     def test_user_can_get_customer_counters(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.get(
-            self.url, {'fields': ['users', 'projects', 'services']}
-        )
+        response = self.client.get(self.url, {'fields': ['users', 'projects']})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'users': 5, 'projects': 1, 'services': 1})
+        self.assertEqual(response.data, {'users': 5, 'projects': 1})
 
 
 class UserCustomersFilterTest(test.APITransactionTestCase):

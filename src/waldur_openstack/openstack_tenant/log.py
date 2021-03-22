@@ -5,7 +5,7 @@ from . import models
 
 
 class ResourceActionEventLogger(EventLogger):
-    resource = structure_models.NewResource
+    resource = structure_models.BaseResource
     action_details = dict
 
     class Meta:
@@ -66,7 +66,7 @@ class ResourceActionEventLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['resource']
-        project = resource.service_project_link.project
+        project = resource.project
         return {resource, project, project.customer}
 
 

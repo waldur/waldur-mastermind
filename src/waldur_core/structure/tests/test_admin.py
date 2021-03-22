@@ -1,16 +1,15 @@
-import copy
 import json
 from datetime import datetime
 
+import mock
 from django.contrib.admin.sites import AdminSite
 from django.db.models.deletion import ProtectedError
 from django.test import TestCase
+from rest_framework import serializers as rf_serializers
 
 from waldur_core.structure import admin as structure_admin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories, fixtures
-from waldur_core.structure.tests.serializers import ServiceSerializer
-from waldur_core.structure.utils import FieldInfo, get_all_services_field_info
 
 
 class MockRequest:
@@ -26,117 +25,48 @@ request = MockRequest()
 request.user = MockSuperUser()
 
 
-class override_serializer:
-    def __init__(self, field_info):
-        self.field_info = field_info
-        self.required = copy.copy(ServiceSerializer.Meta.required_fields)
-        self.extra_field_options = copy.copy(ServiceSerializer.Meta.extra_field_options)
-
-        if ServiceSerializer.SERVICE_ACCOUNT_FIELDS is not NotImplemented:
-            self.fields = copy.copy(ServiceSerializer.SERVICE_ACCOUNT_FIELDS)
-        else:
-            self.fields = NotImplemented
-
-        if ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS is not NotImplemented:
-            self.extra_fields = copy.copy(
-                ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS
-            )
-        else:
-            self.extra_fields = NotImplemented
-
-    def __enter__(self):
-        ServiceSerializer.Meta.required_fields = self.field_info.fields_required
-
-        ServiceSerializer.Meta.extra_field_options = {
-            k: {'default_value': v}
-            for k, v in self.field_info.extra_fields_default.items()
-        }
-
-        ServiceSerializer.SERVICE_ACCOUNT_FIELDS = {
-            field: '' for field in self.field_info.fields
-        }
-        ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS = {
-            field: '' for field in self.field_info.extra_fields_required
-        }
-        return ServiceSerializer
-
-    def __exit__(self, *args):
-        ServiceSerializer.Meta.required_fields = self.required
-        ServiceSerializer.Meta.extra_field_options = self.extra_field_options
-        ServiceSerializer.SERVICE_ACCOUNT_FIELDS = self.fields
-        ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS = self.extra_fields
-
-
 class ServiceSettingAdminTest(TestCase):
-    def setUp(self):
-        super(ServiceSettingAdminTest, self).setUp()
-        get_all_services_field_info.cache_clear()
-
     def test_if_required_field_value_is_provided_form_is_valid(self):
-        fields = FieldInfo(
-            fields_required=['backend_url'],
-            fields=['backend_url'],
-            extra_fields_required=[],
-            extra_fields_default={},
+        class ServiceOptionsSerializer(rf_serializers.Serializer):
+            backend_url = rf_serializers.CharField()
+
+        self.assertTrue(
+            self.form_is_valid(ServiceOptionsSerializer, backend_url='http://test.net')
         )
-
-        data = self.get_valid_data(backend_url='http://test.net')
-        self.assert_form_valid(fields, data)
-
-    def test_if_required_field_value_is_not_provided_form_is_invalid(self):
-        fields = FieldInfo(
-            fields_required=['backend_url'],
-            fields=['backend_url'],
-            extra_fields_required=[],
-            extra_fields_default={},
-        )
-
-        data = self.get_valid_data()
-        self.assert_form_invalid(fields, data)
 
     def test_if_required_extra_field_value_is_provided_form_is_valid(self):
-        fields = FieldInfo(
-            fields_required=['tenant'],
-            fields=[],
-            extra_fields_required=['tenant'],
-            extra_fields_default={},
+        class ServiceOptionsSerializer(rf_serializers.Serializer):
+            tenant = rf_serializers.CharField(source='options.tenant')
+
+        self.assertTrue(
+            self.form_is_valid(
+                ServiceOptionsSerializer, options=json.dumps({'tenant': 1})
+            )
         )
-        data = self.get_valid_data(options=json.dumps({'tenant': 1}))
-        self.assert_form_valid(fields, data)
 
     def test_if_required_extra_field_value_is_not_provided_form_is_invalid(self):
-        fields = FieldInfo(
-            fields_required=['tenant'],
-            fields=[],
-            extra_fields_required=['tenant'],
-            extra_fields_default={},
-        )
-        data = self.get_valid_data()
-        self.assert_form_invalid(fields, data)
+        class ServiceOptionsSerializer(rf_serializers.Serializer):
+            tenant = rf_serializers.CharField(source='options.tenant')
+
+        self.assertFalse(self.form_is_valid(ServiceOptionsSerializer))
 
     def test_if_options_is_not_valid_json_form_is_invalid(self):
-        fields = FieldInfo(
-            fields_required=['tenant'],
-            fields=[],
-            extra_fields_required=['tenant'],
-            extra_fields_default={},
+        class ServiceOptionsSerializer(rf_serializers.Serializer):
+            tenant = rf_serializers.CharField(source='options.tenant')
+
+        self.assertFalse(
+            self.form_is_valid(ServiceOptionsSerializer, options='INVALID')
         )
-        data = self.get_valid_data(options='INVALID')
-        self.assert_form_invalid(fields, data)
 
     def test_if_required_field_is_not_filled_but_it_has_got_default_value_form_is_valid(
         self,
     ):
-        fields = FieldInfo(
-            fields_required=['tenant'],
-            fields=[],
-            extra_fields_required=['tenant'],
-            extra_fields_default={'tenant': 'tenant_id'},
-        )
-        data = self.get_valid_data()
-        self.assert_form_valid(fields, data)
+        class ServiceOptionsSerializer(rf_serializers.Serializer):
+            tenant = rf_serializers.CharField(source='options.tenant', default='admin')
 
-    def get_valid_data(self, **kwargs):
+        self.assertTrue(self.form_is_valid(ServiceOptionsSerializer))
+
+    def form_is_valid(self, serializer_class, **kwargs):
         data = {
             'type': 'Test',
             'name': 'test',
@@ -146,22 +76,24 @@ class ServiceSettingAdminTest(TestCase):
             'options': json.dumps({}),
         }
         data.update(kwargs)
-        return data
-
-    def form_is_valid(self, fields, data):
-        with override_serializer(fields):
-            site = AdminSite()
-            model_admin = structure_admin.PrivateServiceSettingsAdmin(
-                structure_models.PrivateServiceSettings, site
-            )
-            form = model_admin.get_form(request)(data)
-            return form.is_valid()
-
-    def assert_form_valid(self, fields, data):
-        self.assertTrue(self.form_is_valid(fields, data))
-
-    def assert_form_invalid(self, fields, data):
-        self.assertFalse(self.form_is_valid(fields, data))
+        with mock.patch(
+            'waldur_core.structure.admin.get_options_serializer_class'
+        ) as mock_class:
+            with mock.patch(
+                'waldur_core.structure.serializers.ServiceOptionsSerializer.get_subclasses'
+            ) as mock_subclasses:
+                with mock.patch(
+                    'waldur_core.structure.admin.get_model_key'
+                ) as mock_key:
+                    mock_key.return_value = 'Test'
+                    mock_class.return_value = serializer_class
+                    mock_subclasses.return_value = [serializer_class]
+                    site = AdminSite()
+                    model_admin = structure_admin.PrivateServiceSettingsAdmin(
+                        structure_models.PrivateServiceSettings, site
+                    )
+                    form = model_admin.get_form(request)(data)
+                    return form.is_valid()
 
 
 class ProjectAdminTest(TestCase):

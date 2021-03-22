@@ -1,82 +1,21 @@
 from collections import defaultdict
 
-from rest_framework import exceptions, response, status
+from django.http import Http404, HttpResponseForbidden
+from rest_framework import exceptions, generics, response, status
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.serializers import HistorySerializer
-from waldur_core.core.utils import datetime_to_timestamp, pwgen
 from waldur_core.monitoring.utils import get_period
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
+from waldur_zabbix.apps import ZabbixConfig
 
 from . import executors, filters, models, serializers
 from .managers import filter_active
-
-
-class ZabbixServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.ZabbixService.objects.all()
-    serializer_class = serializers.ServiceSerializer
-
-    def get_serializer_class(self):
-        if self.action == 'credentials':
-            return serializers.UserSerializer
-        elif self.action == 'trigger_status':
-            return serializers.TriggerRequestSerializer
-        return super(ZabbixServiceViewSet, self).get_serializer_class()
-
-    @action(detail=True, methods=['GET', 'POST'])
-    def credentials(self, request, uuid):
-        """ On GET request - return superadmin user data.
-            On POST - reset superuser password and return new one.
-        """
-        service = self.get_object()
-        if request.method == 'GET':
-            user = models.User.objects.get(
-                settings=service.settings, alias=service.settings.username
-            )
-            serializer_class = self.get_serializer_class()
-            serializer = serializer_class(user, context=self.get_serializer_context())
-            return Response(serializer.data)
-        else:
-            password = pwgen()
-            executors.ServiceSettingsPasswordResetExecutor.execute(
-                service.settings, password=password
-            )
-            return Response({'password': password})
-
-    @action(detail=True, methods=['GET', 'HEAD'])
-    def trigger_status(self, request, uuid):
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        query = serializer.validated_data
-
-        service = self.get_object()
-        backend = service.get_backend()
-        headers = {
-            'X-Result-Count': backend.get_trigger_count(query),
-        }
-
-        if request.method == 'HEAD':
-            return Response(headers=headers)
-
-        backend_triggers = backend.get_trigger_status(query)
-        response_serializer = serializers.TriggerResponseSerializer(
-            instance=backend_triggers, many=True
-        )
-
-        page = self.paginate_queryset(response_serializer.data)
-        if page is not None:
-            return self.get_paginated_response(page)
-
-        return Response(response_serializer.data, headers=headers)
-
-
-class ZabbixServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.ZabbixServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
 
 
 class NoHostsException(exceptions.APIException):
@@ -253,7 +192,7 @@ class HostViewSet(structure_views.ResourceViewSet):
         }
         serializer = HistorySerializer(data={k: v for k, v in mapped.items() if v})
         serializer.is_valid(raise_exception=True)
-        points = map(datetime_to_timestamp, serializer.get_filter_data())
+        points = map(core_utils.datetime_to_timestamp, serializer.get_filter_data())
         return points
 
     def _sum_rows(self, rows):
@@ -327,7 +266,7 @@ class UserViewSet(structure_views.BaseServicePropertyViewSet):
     @action(detail=True, methods=['post'])
     def password(self, request, uuid):
         user = self.get_object()
-        user.password = pwgen()
+        user.password = core_utils.pwgen()
         user.save()
         executors.UserUpdateExecutor.execute(user, updated_fields=['password'])
         return response.Response(
@@ -337,3 +276,68 @@ class UserViewSet(structure_views.BaseServicePropertyViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class ServiceActionsView(generics.GenericAPIView):
+    def get_service_settings(self):
+        if not self.request.user.is_staff:
+            return HttpResponseForbidden()
+
+        service_settings_uuid = self.kwargs['uuid']
+        if not service_settings_uuid or not core_utils.is_uuid_like(
+            service_settings_uuid
+        ):
+            raise Http404
+
+        queryset = structure_models.ServiceSettings.objects.filter(
+            type=ZabbixConfig.service_name
+        )
+        return get_object_or_404(queryset, uuid=service_settings_uuid)
+
+
+class ServiceCredentials(ServiceActionsView):
+    def get(self, request, *args, **kwargs):
+        service_settings = self.get_service_settings()
+        user = models.User.objects.get(
+            settings=service_settings, alias=service_settings.username
+        )
+        serializer = serializers.UserSerializer(
+            user, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        service_settings = self.get_service_settings()
+        password = core_utils.pwgen()
+        executors.ServiceSettingsPasswordResetExecutor.execute(
+            service_settings, password=password
+        )
+        return Response({'password': password})
+
+
+class ServiceTriggerStatus(ServiceActionsView):
+    def get_query(self):
+        serializer = serializers.TriggerRequestSerializer(
+            data=self.request.query_params
+        )
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data
+
+    def get(self, request, *args, **kwargs):
+        service_settings = self.get_service_settings()
+        backend = service_settings.get_backend()
+        query = self.get_query()
+        headers = {
+            'X-Result-Count': backend.get_trigger_count(query),
+        }
+
+        backend_triggers = backend.get_trigger_status(query)
+        response_serializer = serializers.TriggerResponseSerializer(
+            instance=backend_triggers, many=True
+        )
+
+        page = self.paginate_queryset(response_serializer.data)
+        if page is not None:
+            return self.get_paginated_response(page)
+
+        return Response(response_serializer.data, headers=headers)

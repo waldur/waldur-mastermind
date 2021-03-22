@@ -4,9 +4,6 @@ from datetime import datetime
 
 import pytz
 from croniter.croniter import croniter
-from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat import backends
-from cryptography.hazmat.primitives import serialization
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
@@ -26,7 +23,11 @@ from reversion import revisions as reversion
 from reversion.models import Version
 
 from waldur_core.core.fields import CronScheduleField, UUIDField
-from waldur_core.core.validators import MinCronValueValidator, validate_name
+from waldur_core.core.validators import (
+    MinCronValueValidator,
+    validate_name,
+    validate_ssh_public_key,
+)
 from waldur_core.logging.loggers import LoggableMixin
 
 from .shims import AbstractBaseUser
@@ -313,17 +314,6 @@ class ChangeEmailRequest(UuidMixin, TimeStampedModel):
     class Meta:
         verbose_name = _('change email request')
         verbose_name_plural = _('change email requests')
-
-
-def validate_ssh_public_key(ssh_key):
-    if isinstance(ssh_key, str):
-        ssh_key = ssh_key.encode('utf-8')
-
-    try:
-        serialization.load_ssh_public_key(ssh_key, backends.default_backend())
-    except (ValueError, UnsupportedAlgorithm) as e:
-        logger.debug('Invalid SSH public key %s. Error: %s', ssh_key, e)
-        raise ValidationError(_('Invalid SSH public key.'))
 
 
 def get_ssh_key_fingerprint(ssh_key):

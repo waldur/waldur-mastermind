@@ -4,17 +4,20 @@ from collections import defaultdict
 from typing import Dict
 
 from cinderclient import exceptions as cinder_exceptions
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
+from django.utils.translation import ugettext_lazy as _
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.utils import create_batch_fetcher
-from waldur_core.structure import SupportedServices, log_backend_action
+from waldur_core.core.utils import create_batch_fetcher, pwgen
+from waldur_core.structure.backend import log_backend_action
+from waldur_core.structure.registry import get_name_for_model
 from waldur_core.structure.utils import (
     handle_resource_not_found,
     handle_resource_update_success,
@@ -42,6 +45,10 @@ class OpenStackBackend(BaseOpenStackBackend):
     DEFAULTS = {
         'tenant_name': 'admin',
     }
+
+    def validate_settings(self):
+        if not self.check_admin_tenant():
+            raise ValidationError(_('Provided credentials are not for admin tenant.'))
 
     def check_admin_tenant(self):
         try:
@@ -82,7 +89,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         tenants = models.Tenant.objects.filter(
             state__in=[models.Tenant.States.OK, models.Tenant.States.ERRED],
-            service_project_link__service__settings=self.settings,
+            service_settings=self.settings,
         )
         for tenant in tenants:
             backend_tenant = backend_tenants_mapping.get(tenant.backend_id)
@@ -262,16 +269,14 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_quotas(self):
         for tenant in models.Tenant.objects.filter(
-            state=models.Tenant.States.OK,
-            service_project_link__service__settings=self.settings,
+            state=models.Tenant.States.OK, service_settings=self.settings,
         ):
             self.pull_tenant_quotas(tenant)
 
     def pull_floating_ips(self, tenants=None):
         if tenants is None:
             tenants = models.Tenant.objects.filter(
-                state=models.Tenant.States.OK,
-                service_project_link__service__settings=self.settings,
+                state=models.Tenant.States.OK, service_settings=self.settings,
             ).prefetch_related('floating_ips')
         tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
         if not tenant_mappings:
@@ -335,7 +340,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             imported_floating_ip = self._backend_floating_ip_to_floating_ip(
                 backend_ip,
                 tenant=tenant,
-                service_project_link=tenant.service_project_link,
+                service_settings=tenant.service_settings,
+                project=tenant.project,
             )
             floating_ip = floating_ips.pop(imported_floating_ip.backend_id, None)
             if floating_ip is None:
@@ -356,8 +362,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         port_id = backend_floating_ip['port_id']
         if port_id:
             port = models.Port.objects.filter(
-                backend_id=port_id,
-                service_project_link__service__settings=self.settings,
+                backend_id=port_id, service_settings=self.settings,
             ).first()
         else:
             port = None
@@ -380,8 +385,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         if tenants is None:
             tenants = models.Tenant.objects.filter(
-                state=models.Tenant.States.OK,
-                service_project_link__service__settings=self.settings,
+                state=models.Tenant.States.OK, service_settings=self.settings,
             ).prefetch_related('security_groups')
         tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
         if not tenant_mappings:
@@ -423,7 +427,8 @@ class OpenStackBackend(BaseOpenStackBackend):
         imported_security_group = self._backend_security_group_to_security_group(
             remote_security_group,
             tenant=local_security_group.tenant,
-            service_project_link=local_security_group.tenant.service_project_link,
+            service_settings=local_security_group.tenant.service_settings,
+            project=local_security_group.tenant.project,
         )
 
         modified = update_pulled_fields(
@@ -476,7 +481,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             imported_security_group = self._backend_security_group_to_security_group(
                 backend_security_group,
                 tenant=tenant,
-                service_project_link=tenant.service_project_link,
+                service_settings=tenant.service_settings,
+                project=tenant.project,
             )
 
             try:
@@ -571,8 +577,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_routers(self):
         for tenant in models.Tenant.objects.filter(
-            state=models.Tenant.States.OK,
-            service_project_link__service__settings=self.settings,
+            state=models.Tenant.States.OK, service_settings=self.settings,
         ):
             self.pull_tenant_routers(tenant)
 
@@ -602,7 +607,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'description': backend_router['description'],
                 'routes': backend_router['routes'],
                 'fixed_ips': fixed_ips,
-                'service_project_link': tenant.service_project_link,
+                'service_settings': tenant.service_settings,
+                'project': tenant.project,
                 'state': models.Router.States.OK,
             }
             try:
@@ -625,8 +631,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_ports(self):
         for tenant in models.Tenant.objects.filter(
-            state=models.Tenant.States.OK,
-            service_project_link__service__settings=self.settings,
+            state=models.Tenant.States.OK, service_settings=self.settings,
         ):
             self.pull_tenant_ports(tenant)
 
@@ -646,7 +651,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             defaults = {
                 'name': backend_port['name'],
                 'description': backend_port['description'],
-                'service_project_link': tenant.service_project_link,
+                'service_settings': tenant.service_settings,
+                'project': tenant.project,
                 'state': models.Port.States.OK,
                 'mac_address': backend_port['mac_address'],
                 'fixed_ips': backend_port['fixed_ips'],
@@ -678,7 +684,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             models.Tenant.objects.exclude(backend_id='')
             .filter(
                 state__in=[models.Tenant.States.OK, models.Tenant.States.UPDATING],
-                service_project_link__service__settings=self.settings,
+                service_settings=self.settings,
             )
             .prefetch_related('networks')
         )
@@ -707,7 +713,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 imported_network = self._backend_network_to_network(
                     backend_network,
                     tenant=tenant,
-                    service_project_link=tenant.service_project_link,
+                    service_settings=tenant.service_settings,
+                    project=tenant.project,
                 )
 
                 try:
@@ -788,8 +795,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             networks = [network]
         else:
             networks = models.Network.objects.filter(
-                state=models.Network.States.OK,
-                service_project_link__service__settings=self.settings,
+                state=models.Network.States.OK, service_settings=self.settings,
             )
         network_mappings = {network.backend_id: network for network in networks}
         if not network_mappings:
@@ -825,7 +831,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 imported_subnet = self._backend_subnet_to_subnet(
                     backend_subnet,
                     network=network,
-                    service_project_link=network.service_project_link,
+                    service_settings=network.service_settings,
+                    project=network.project,
                 )
 
                 try:
@@ -941,7 +948,9 @@ class OpenStackBackend(BaseOpenStackBackend):
                 new_name = "%s_%s" % (name[:-truncation], get_random_string(3))
         return new_name
 
-    def import_tenant(self, tenant_backend_id, service_project_link=None, save=True):
+    def _import_tenant(
+        self, tenant_backend_id, service_settings=None, project=None, save=True
+    ):
         keystone = self.keystone_admin_client
         try:
             backend_tenant = keystone.projects.get(tenant_backend_id)
@@ -953,16 +962,40 @@ class OpenStackBackend(BaseOpenStackBackend):
         tenant.description = backend_tenant.description
         tenant.backend_id = tenant_backend_id
 
-        if save and service_project_link:
-            tenant.service_project_link = service_project_link
+        if save and service_settings:
+            tenant.service_settings = service_settings
+            tenant.project = project
             tenant.state = models.Tenant.States.OK
             tenant.save()
         return tenant
 
+    def import_tenant(self, backend_id, project):
+        tenant = self._import_tenant(backend_id, self.settings, project)
+        tenant.user_username = models.Tenant.generate_username(tenant.name)
+        tenant.user_password = pwgen()
+        tenant.save()
+        return tenant
+
+    def get_importable_tenants(self):
+        keystone = self.keystone_admin_client
+        try:
+            tenants = [
+                {
+                    'type': get_name_for_model(models.Tenant),
+                    'name': tenant.name,
+                    'description': tenant.description,
+                    'backend_id': tenant.id,
+                }
+                for tenant in keystone.projects.list(domain=self._get_domain())
+            ]
+            return self.get_importable_resources(models.Tenant, tenants)
+        except keystone_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
     @log_backend_action()
     def pull_tenant(self, tenant):
         import_time = timezone.now()
-        imported_tenant = self.import_tenant(tenant.backend_id, save=False)
+        imported_tenant = self._import_tenant(tenant.backend_id, save=False)
 
         tenant.refresh_from_db()
         # if tenant was not modified in Waldur database after import.
@@ -1028,32 +1061,6 @@ class OpenStackBackend(BaseOpenStackBackend):
             keystone.users.update(user=keystone_user, password=tenant.user_password)
         except keystone_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
-
-    def get_resources_for_import(self, resource_type=None):
-        return self.get_tenants_for_import()
-
-    def get_tenants_for_import(self):
-        keystone = self.keystone_admin_client
-        try:
-            tenants = keystone.projects.list(domain=self._get_domain())
-        except keystone_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        cur_tenants = set(models.Tenant.objects.values_list('backend_id', flat=True))
-
-        return [
-            {
-                'backend_id': tenant.id,
-                'name': tenant.name,
-                'description': tenant.description,
-                'type': SupportedServices.get_name_for_model(models.Tenant),
-            }
-            for tenant in tenants
-            if tenant.id not in cur_tenants
-        ]
-
-    def get_managed_resources(self):
-        return []
 
     @log_backend_action()
     def delete_tenant_floating_ips(self, tenant):
@@ -2219,9 +2226,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return storage
 
     def get_stats(self):
-        tenants = models.Tenant.objects.filter(
-            service_project_link__service__settings=self.settings
-        )
+        tenants = models.Tenant.objects.filter(service_settings=self.settings)
         quota_names = ('vcpu', 'ram', 'storage')
         quota_values = models.Tenant.get_sum_of_quotas_as_dict(
             tenants, quota_names=quota_names, fields=['limit']

@@ -11,39 +11,9 @@ from model_utils import FieldTracker
 from waldur_core.core import models as core_models
 from waldur_core.core.models import BackendMixin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.models import NewResource, ServiceSettings
+from waldur_core.structure.models import BaseResource, ServiceSettings
 
 logger = logging.getLogger(__name__)
-
-
-class RancherService(structure_models.Service):
-    projects = models.ManyToManyField(
-        structure_models.Project,
-        related_name='rancher_services',
-        through='RancherServiceProjectLink',
-    )
-
-    class Meta:
-        unique_together = ('customer', 'settings')
-        verbose_name = _('Rancher provider')
-        verbose_name_plural = _('Rancher providers')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'rancher'
-
-
-class RancherServiceProjectLink(structure_models.ServiceProjectLink):
-
-    service = models.ForeignKey(on_delete=models.CASCADE, to=RancherService)
-
-    class Meta(structure_models.ServiceProjectLink.Meta):
-        verbose_name = _('Rancher provider project link')
-        verbose_name_plural = _('Rancher provider project links')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'rancher-spl'
 
 
 class SettingsMixin(models.Model):
@@ -58,13 +28,9 @@ class SettingsMixin(models.Model):
         return self.settings.get_backend()
 
 
-class Cluster(SettingsMixin, NewResource):
+class Cluster(SettingsMixin, BaseResource):
     class RuntimeStates:
         ACTIVE = 'active'
-
-    service_project_link = models.ForeignKey(
-        RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT
-    )
 
     """
     Rancher generated node installation command base. For example:
@@ -94,7 +60,7 @@ class Cluster(SettingsMixin, NewResource):
         return 'rancher-cluster'
 
     def get_access_url(self):
-        base_url = self.service_project_link.service.settings.backend_url
+        base_url = self.service_settings.backend_url
         return urljoin(base_url, 'c/' + self.backend_id)
 
     def __str__(self):
@@ -170,17 +136,12 @@ class Node(
         unique_together = (('content_type', 'object_id'), ('cluster', 'name'))
 
     class Permissions:
-        customer_path = 'cluster__service_project_link__project__customer'
-        project_path = 'cluster__service_project_link__project'
-        service_path = 'cluster__service_project_link__service'
+        customer_path = 'cluster__project__customer'
+        project_path = 'cluster__project'
 
     @classmethod
     def get_url_name(cls):
         return 'rancher-node'
-
-    @property
-    def service_project_link(self):
-        return self.cluster.service_project_link
 
     def get_backend(self):
         return self.cluster.get_backend()
@@ -307,9 +268,8 @@ class Project(
         return self.name
 
     class Permissions:
-        customer_path = 'cluster__service_project_link__project__customer'
-        project_path = 'cluster__service_project_link__project'
-        service_path = 'cluster__service_project_link__service'
+        customer_path = 'cluster__project__customer'
+        project_path = 'cluster__project'
 
     @classmethod
     def get_url_name(cls):
@@ -394,9 +354,8 @@ class Workload(
         return self.name
 
     class Permissions:
-        customer_path = 'cluster__service_project_link__project__customer'
-        project_path = 'cluster__service_project_link__project'
-        service_path = 'cluster__service_project_link__service'
+        customer_path = 'cluster__project__customer'
+        project_path = 'cluster__project'
 
     class Meta:
         ordering = ('name',)
@@ -442,9 +401,8 @@ class HPA(
         return self.name
 
     class Permissions:
-        customer_path = 'cluster__service_project_link__project__customer'
-        project_path = 'cluster__service_project_link__project'
-        service_path = 'cluster__service_project_link__service'
+        customer_path = 'cluster__project__customer'
+        project_path = 'cluster__project'
 
     class Meta:
         ordering = ('name',)
@@ -481,10 +439,7 @@ class ClusterTemplateNode(RoleMixin):
     preferred_volume_type = models.CharField(max_length=150, blank=True)
 
 
-class Application(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
-    service_project_link = models.ForeignKey(
-        RancherServiceProjectLink, related_name='+', on_delete=models.PROTECT
-    )
+class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     template = models.ForeignKey(Template, on_delete=models.CASCADE)
     rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -504,10 +459,7 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
         return f'{self.settings.backend_url.strip("/")}/p/{self.project.backend_id}/apps/{self.backend_id}'
 
 
-class Ingress(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
-    service_project_link = models.ForeignKey(
-        RancherServiceProjectLink, related_name='+', on_delete=models.PROTECT
-    )
+class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -521,10 +473,7 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
         return self.name
 
 
-class Service(SettingsMixin, core_models.RuntimeStateMixin, NewResource):
-    service_project_link = models.ForeignKey(
-        RancherServiceProjectLink, related_name='+', on_delete=models.PROTECT
-    )
+class Service(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     cluster_ip = models.GenericIPAddressField(protocol='IPv4', blank=True, null=True)
     target_workloads = models.ManyToManyField(Workload)

@@ -11,12 +11,10 @@ class StructureConfig(AppConfig):
         from waldur_core.core.models import User, ChangeEmailRequest
         from waldur_core.structure.executors import check_cleanup_executors
         from waldur_core.structure.models import (
-            ResourceMixin,
+            BaseResource,
             SubResource,
-            Service,
             TagMixin,
             VirtualMachine,
-            ServiceProjectLink,
         )
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
@@ -123,7 +121,7 @@ class StructureConfig(AppConfig):
         )
 
         resource_and_subresources = (
-            ResourceMixin.get_all_models() + SubResource.get_all_models()
+            BaseResource.get_all_models() + SubResource.get_all_models()
         )
         for index, model in enumerate(resource_and_subresources):
             signals.pre_delete.connect(
@@ -176,36 +174,6 @@ class StructureConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            handlers.connect_customer_to_shared_service_settings,
-            sender=Customer,
-            dispatch_uid='waldur_core.structure.handlers.connect_customer_to_shared_service_settings',
-        )
-
-        signals.post_save.connect(
-            handlers.connect_project_to_all_available_services,
-            sender=Project,
-            dispatch_uid='waldur_core.structure.handlers.connect_project_to_all_available_services',
-        )
-
-        for index, service_model in enumerate(Service.get_all_models()):
-            signals.post_save.connect(
-                handlers.connect_service_to_all_projects_if_it_is_available_for_all,
-                sender=service_model,
-                dispatch_uid='waldur_core.structure.handlers.'
-                'connect_service_{}_to_all_projects_if_it_is_available_for_all_{}'.format(
-                    service_model.__name__, index
-                ),
-            )
-
-            signals.post_delete.connect(
-                handlers.delete_service_settings_on_service_delete,
-                sender=service_model,
-                dispatch_uid='waldur_core.structure.handlers.delete_service_settings_on_service_delete_{}_{}'.format(
-                    service_model.__name__, index
-                ),
-            )
-
-        signals.post_save.connect(
             handlers.clean_tags_cache_after_tagged_item_saved,
             sender=TagMixin.tags.through,
             dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created',
@@ -227,23 +195,6 @@ class StructureConfig(AppConfig):
             handlers.update_customer_users_count,
             dispatch_uid='waldur_core.structure.handlers.update_customer_users_count',
         )
-
-        for index, spl_model in enumerate(ServiceProjectLink.get_all_models()):
-            signals.post_save.connect(
-                handlers.log_spl_create,
-                sender=spl_model,
-                dispatch_uid='waldur_core.structure.handlers.log_spl_{}_create_{}'.format(
-                    spl_model.__name__, index
-                ),
-            )
-
-            signals.pre_delete.connect(
-                handlers.log_spl_delete,
-                sender=spl_model,
-                dispatch_uid='waldur_core.structure.handlers.log_spl_{}_delete_{}'.format(
-                    spl_model.__name__, index
-                ),
-            )
 
         signals.post_save.connect(
             handlers.change_email_has_been_requested,

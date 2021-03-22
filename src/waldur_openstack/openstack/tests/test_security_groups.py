@@ -261,7 +261,8 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
     def setUp(self):
         super(SecurityGroupUpdateTest, self).setUp()
         self.security_group = factories.SecurityGroupFactory(
-            service_project_link=self.fixture.openstack_spl,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
             tenant=self.fixture.tenant,
             state=models.SecurityGroup.States.OK,
         )
@@ -320,7 +321,8 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
 
     def test_security_group_name_should_be_unique(self):
         existing_group = factories.SecurityGroupFactory(
-            service_project_link=self.fixture.openstack_spl,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
             tenant=self.fixture.tenant,
             state=models.SecurityGroup.States.OK,
         )
@@ -334,7 +336,8 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
     def setUp(self):
         super(SecurityGroupSetRulesTest, self).setUp()
         self.security_group = factories.SecurityGroupFactory(
-            service_project_link=self.fixture.openstack_spl,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
             tenant=self.fixture.tenant,
             state=models.SecurityGroup.States.OK,
         )
@@ -497,7 +500,8 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
     def setUp(self):
         super(SecurityGroupDeleteTest, self).setUp()
         self.security_group = factories.SecurityGroupFactory(
-            service_project_link=self.fixture.openstack_spl,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
             tenant=self.fixture.tenant,
             state=models.SecurityGroup.States.OK,
         )
@@ -540,7 +544,9 @@ class SecurityGroupRetrieveTest(BaseSecurityGroupTest):
     def setUp(self):
         super(SecurityGroupRetrieveTest, self).setUp()
         self.security_group = factories.SecurityGroupFactory(
-            service_project_link=self.fixture.openstack_spl, tenant=self.fixture.tenant,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
         )
         self.url = factories.SecurityGroupFactory.get_url(self.security_group)
 

@@ -1,3 +1,4 @@
+import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -51,6 +52,20 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ServiceFixture()
 
+        self.mock_method = mock.patch(
+            'waldur_mastermind.marketplace.plugins.manager.get_importable_resources_backend_method'
+        ).start()
+        self.mock_method.return_value = 'get_importable_virtual_machines'
+
+        self.mock_backend = mock.patch(
+            'waldur_core.structure.models.ServiceSettings.get_backend'
+        ).start()
+        self.mock_backend().get_importable_virtual_machines.return_value = []
+
+    def tearDown(self):
+        super(ImportableResourcesListTest, self).tearDown()
+        mock.patch.stopall()
+
     def list_resources(self, shared, user):
         offering = factories.OfferingFactory(
             scope=self.fixture.service_settings,
@@ -78,11 +93,34 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_another_owner_can_list_importable_resources(self):
+        # Arrange
         offering = factories.OfferingFactory(
-            scope=self.fixture.service_settings, shared=False,
+            scope=self.fixture.service_settings,
+            shared=False,
+            type='Test.VirtualMachine',
+        )
+        offering.allowed_customers.set([self.fixture.customer])
+
+        # Act
+        list_url = factories.OfferingFactory.get_url(offering, 'importable_resources')
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(list_url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_if_plugin_does_not_support_resource_import_validation_error_is_raised(
+        self,
+    ):
+        mock.patch.stopall()
+        offering = factories.OfferingFactory(
+            scope=self.fixture.service_settings,
+            shared=False,
+            type='Test.VirtualMachine',
         )
         offering.allowed_customers.set([self.fixture.customer])
         list_url = factories.OfferingFactory.get_url(offering, 'importable_resources')
-        self.client.force_authenticate(getattr(self.fixture, 'owner'))
+        self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(list_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

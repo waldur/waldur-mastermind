@@ -5,14 +5,6 @@ from . import views
 
 def register_in(router):
     router.register(
-        r'openstacktenant', views.OpenStackServiceViewSet, basename='openstacktenant'
-    )
-    router.register(
-        r'openstacktenant-service-project-link',
-        views.OpenStackServiceProjectLinkViewSet,
-        basename='openstacktenant-spl',
-    )
-    router.register(
         r'openstacktenant-images', views.ImageViewSet, basename='openstacktenant-image'
     )
     router.register(

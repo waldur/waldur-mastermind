@@ -8,13 +8,17 @@ class QuotasTest(TestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
 
-        allocation1 = factories.AllocationFactory(service_project_link=self.fixture.spl)
+        allocation1 = factories.AllocationFactory(
+            service_settings=self.fixture.settings, project=self.fixture.project
+        )
         allocation1.cpu_usage = 1000
         allocation1.gpu_usage = 2000
         allocation1.ram_usage = 10000
         allocation1.save()
 
-        allocation2 = factories.AllocationFactory(service_project_link=self.fixture.spl)
+        allocation2 = factories.AllocationFactory(
+            service_settings=self.fixture.settings, project=self.fixture.project
+        )
         allocation2.cpu_usage = 5000
         allocation2.gpu_usage = 2000
         allocation2.ram_usage = 50000

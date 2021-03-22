@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
-from django.db import transaction
 from django.db.models import Q
 from django.db.utils import DatabaseError
 from django.utils import timezone
@@ -11,9 +10,8 @@ from django.utils import timezone
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_core.quotas.exceptions import QuotaValidationError
-from waldur_core.structure import ServiceBackendError, SupportedServices
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.exceptions import ServiceBackendError
 
 logger = logging.getLogger(__name__)
 
@@ -37,59 +35,6 @@ def check_expired_permissions():
     for cls in structure_models.BasePermission.get_all_models():
         for permission in cls.get_expired():
             permission.revoke()
-
-
-def connect_shared_settings(service_settings):
-    logger.debug(
-        'About to connect service settings "%s" to all available customers'
-        % service_settings.name
-    )
-    if not service_settings.shared:
-        raise ValueError('It is impossible to connect non-shared settings')
-    service_model = SupportedServices.get_service_models()[service_settings.type][
-        'service'
-    ]
-
-    with transaction.atomic():
-        for customer in structure_models.Customer.objects.all():
-            defaults = {'available_for_all': True}
-            try:
-                service, _ = service_model.objects.get_or_create(
-                    customer=customer, settings=service_settings, defaults=defaults
-                )
-            except QuotaValidationError:
-                logger.warning(
-                    'Unable to connect shared service '
-                    'settings to customer because quota is exceeded. '
-                    'Service settings ID: %s, customer ID: %s',
-                    service_settings.id,
-                    customer.id,
-                )
-                continue
-
-            service_project_link_model = service.projects.through
-            for project in service.customer.projects.all():
-                try:
-                    service_project_link_model.objects.get_or_create(
-                        project=project, service=service
-                    )
-                except QuotaValidationError:
-                    logger.warning(
-                        'Unable to connect shared service to project because '
-                        'quota is exceeded. Service ID: %s, project ID: %s',
-                        service.id,
-                        project.id,
-                    )
-                    continue
-
-
-class ConnectSharedSettingsTask(core_tasks.Task):
-    def execute(self, service_settings):
-        connect_shared_settings(service_settings)
-        logger.info(
-            'Successfully connected service settings "%s" to all available customers'
-            % service_settings.name
-        )
 
 
 class BackgroundPullTask(core_tasks.BackgroundTask):
@@ -246,11 +191,11 @@ class BaseThrottleProvisionTask(RetryUntilAvailableTask):
         return usage <= limit
 
     def get_usage(self, resource):
-        service_settings = resource.service_project_link.service.settings
+        service_settings = resource.service_settings
         model_class = resource._meta.model
         return model_class.objects.filter(
             state=core_models.StateMixin.States.CREATING,
-            service_project_link__service__settings=service_settings,
+            service_settings=service_settings,
         ).count()
 
     def get_limit(self, resource):
@@ -280,11 +225,11 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
     def run(self):
         cutoff = timezone.now() - timedelta(hours=3)
         states = (
-            structure_models.NewResource.States.CREATING,
-            structure_models.NewResource.States.CREATION_SCHEDULED,
+            structure_models.BaseResource.States.CREATING,
+            structure_models.BaseResource.States.CREATION_SCHEDULED,
         )
         resource_models = (
-            structure_models.NewResource.get_all_models()
+            structure_models.BaseResource.get_all_models()
             + structure_models.SubResource.get_all_models()
         )
         for model in resource_models:

@@ -11,8 +11,9 @@ from django.utils.functional import cached_property
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import guess_image_extension
-from waldur_core.structure import ServiceBackend
+from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
+from waldur_core.structure.registry import get_name_for_model
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_rancher.enums import (
@@ -168,24 +169,39 @@ class RancherBackend(ServiceBackend):
             'runtime_state': backend_node.get('state', ''),
         }
 
-    def get_clusters_for_import(self):
-        cur_clusters = set(
-            models.Cluster.objects.filter(settings=self.settings).values_list(
-                'backend_id', flat=True
-            )
-        )
-        backend_clusters = self.client.list_clusters()
-        return filter(lambda c: c['id'] not in cur_clusters, backend_clusters)
+    def get_nodes_count(self, remote_cluster):
+        spec = remote_cluster.get('appliedSpec', {})
+        config = spec.get('rancherKubernetesEngineConfig', {})
+        backend_nodes = config.get('nodes', [])
+        return len(backend_nodes)
 
-    def import_cluster(self, backend_id, service_project_link):
+    def get_importable_clusters(self):
+        remote_clusters = [
+            {
+                'type': get_name_for_model(models.Cluster),
+                'name': cluster['name'],
+                'backend_id': cluster['id'],
+                'extra': [
+                    {'name': 'Description', 'value': cluster['description']},
+                    {'name': 'Number of nodes', 'value': self.get_nodes_count(cluster)},
+                    {'name': 'Created at', 'value': cluster['created']},
+                ],
+            }
+            for cluster in self.client.list_clusters()
+            if cluster.get('state') == 'active'
+        ]
+        return self.get_importable_resources(models.Cluster, remote_clusters)
+
+    def import_cluster(self, backend_id, project):
         backend_cluster = self.client.get_cluster(backend_id)
 
         if not backend_cluster.get('state', '') == models.Cluster.RuntimeStates.ACTIVE:
             raise RancherException('Cannot import K8s cluster in non-active state.')
 
-        cluster = models.Cluster(
+        cluster = models.Cluster.objects.create(
             backend_id=backend_id,
-            service_project_link=service_project_link,
+            service_settings=self.settings,
+            project=project,
             state=models.Cluster.States.OK,
             runtime_state=backend_cluster['state'],
             settings=self.settings,
@@ -1087,7 +1103,8 @@ class RancherBackend(ServiceBackend):
 
         return models.Application(
             settings=self.settings,
-            service_project_link=rancher_project.cluster.service_project_link,
+            service_settings=rancher_project.cluster.service_settings,
+            project=rancher_project.cluster.project,
             rancher_project=rancher_project,
             cluster=rancher_project.cluster,
             namespace=local_namespaces_map.get(remote_app['targetNamespace']),
@@ -1222,7 +1239,8 @@ class RancherBackend(ServiceBackend):
 
         models.Application.objects.create(
             settings=self.settings,
-            service_project_link=cluster.service_project_link,
+            service_settings=cluster.service_settings,
+            project=cluster.project,
             rancher_project=system_project,
             cluster=cluster,
             namespace=namespace,
@@ -1307,7 +1325,8 @@ class RancherBackend(ServiceBackend):
             created=parse_datetime(remote_ingress['created']),
             runtime_state=remote_ingress['state'],
             settings=self.settings,
-            service_project_link=namespace.project.cluster.service_project_link,
+            service_settings=namespace.project.cluster.service_settings,
+            project=namespace.project.cluster.cluster.project,
             namespace=namespace,
             cluster=namespace.project.cluster,
             rancher_project=namespace.project,
@@ -1425,7 +1444,8 @@ class RancherBackend(ServiceBackend):
                 created=parse_datetime(remote_service['created']),
                 runtime_state=remote_service['state'],
                 settings=self.settings,
-                service_project_link=namespace.project.cluster.service_project_link,
+                service_settings=namespace.project.cluster.service_settings,
+                project=namespace.project.cluster.cluster.project,
                 namespace=namespace,
                 cluster_ip=remote_service['clusterIp'],
                 selector=remote_service.get('selector'),

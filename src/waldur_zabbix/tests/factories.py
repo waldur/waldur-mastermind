@@ -7,50 +7,16 @@ from waldur_zabbix import models
 from ..apps import ZabbixConfig
 
 
-class ServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
+class ZabbixServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     type = ZabbixConfig.service_name
-
-
-class ZabbixServiceFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.ZabbixService
-
-    settings = factory.SubFactory(ServiceSettingsFactory)
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-
-    @classmethod
-    def get_url(cls, service=None, action=None):
-        if service is None:
-            service = ZabbixServiceFactory()
-        url = 'http://testserver' + reverse(
-            'zabbix-detail', kwargs={'uuid': service.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('zabbix-list')
-
-
-class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.ZabbixServiceProjectLink
-
-    service = factory.SubFactory(ZabbixServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, spl=None):
-        if spl is None:
-            spl = ZabbixServiceProjectLinkFactory()
-        return 'http://testserver' + reverse('zabbix-spl-detail', kwargs={'pk': spl.pk})
 
 
 class HostFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Host
 
-    service_project_link = factory.SubFactory(ZabbixServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(ZabbixServiceSettingsFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
     name = factory.Sequence(lambda n: 'host%s' % n)
     backend_id = factory.Sequence(lambda n: 'host-id%s' % n)
 
@@ -72,7 +38,8 @@ class ITServiceFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.ITService
 
-    service_project_link = factory.SubFactory(ZabbixServiceProjectLinkFactory)
+    service_settings = factory.SubFactory(ZabbixServiceSettingsFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
     host = factory.SubFactory(HostFactory)
     name = factory.Sequence(lambda n: 'itservice%s' % n)
     backend_id = factory.Sequence(lambda n: 'itservice-id%s' % n)
@@ -96,7 +63,7 @@ class TemplateFactory(factory.DjangoModelFactory):
         model = models.Template
 
     name = factory.Sequence(lambda n: 'zabbix-template#%s' % n)
-    settings = factory.SubFactory(ServiceSettingsFactory)
+    settings = factory.SubFactory(ZabbixServiceSettingsFactory)
     backend_id = factory.Sequence(lambda n: 'zabbix-template-id%s' % n)
 
     @classmethod

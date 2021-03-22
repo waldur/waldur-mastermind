@@ -532,7 +532,9 @@ class CreateVolumesTest(VolumesBaseTest):
 
     def _get_volume(self):
         volume = factories.VolumeFactory(
-            service_project_link=self.fixture.spl, backend_id=None,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
+            backend_id=None,
         )
 
         backend = OpenStackTenantBackend(self.settings)
@@ -543,7 +545,6 @@ class CreateVolumesTest(VolumesBaseTest):
 class ImportVolumeTest(BaseBackendTest):
     def setUp(self):
         super(ImportVolumeTest, self).setUp()
-        self.spl = self.fixture.spl
         self.backend_volume_id = 'backend_id'
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
@@ -551,7 +552,7 @@ class ImportVolumeTest(BaseBackendTest):
 
     def test_volume_is_imported(self):
         volume = self.tenant_backend.import_volume(
-            self.backend_volume_id, save=True, service_project_link=self.spl
+            self.backend_volume_id, project=self.fixture.project, save=True
         )
 
         self.assertTrue(
@@ -565,11 +566,13 @@ class ImportVolumeTest(BaseBackendTest):
 
     def test_volume_instance_is_not_created_during_import(self):
         vm = factories.InstanceFactory(
-            backend_id='instance_backend_id', service_project_link=self.spl
+            backend_id='instance_backend_id',
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         self.backend_volume.attachments = [dict(server_id=vm.backend_id)]
         volume = self.tenant_backend.import_volume(
-            self.backend_volume_id, save=True, service_project_link=self.spl
+            self.backend_volume_id, project=self.fixture.project, save=True
         )
 
         self.assertIsNotNone(volume.instance)
@@ -586,7 +589,6 @@ class ImportVolumeTest(BaseBackendTest):
 class PullVolumeTest(BaseBackendTest):
     def setUp(self):
         super(PullVolumeTest, self).setUp()
-        self.spl = self.fixture.spl
         self.backend_volume_id = 'backend_id'
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
@@ -594,12 +596,15 @@ class PullVolumeTest(BaseBackendTest):
 
     def test_volume_instance_is_pulled(self):
         vm = factories.InstanceFactory(
-            backend_id='instance_backend_id', service_project_link=self.spl
+            backend_id='instance_backend_id',
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         volume = factories.VolumeFactory(
             backend_id=self.backend_volume_id,
             instance=vm,
-            service_project_link=self.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         self.backend_volume.attachments = [dict(server_id=vm.backend_id)]
         self.tenant_backend.pull_volume(volume)
@@ -609,7 +614,9 @@ class PullVolumeTest(BaseBackendTest):
 
     def test_volume_image_is_pulled(self):
         volume = factories.VolumeFactory(
-            backend_id=self.backend_volume_id, service_project_link=self.spl,
+            backend_id=self.backend_volume_id,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         image = factories.ImageFactory(settings=self.settings)
         self.backend_volume.volume_image_metadata = {'image_id': image.backend_id}
@@ -620,7 +627,9 @@ class PullVolumeTest(BaseBackendTest):
 
     def test_volume_image_is_not_pulled(self):
         volume = factories.VolumeFactory(
-            backend_id=self.backend_volume_id, service_project_link=self.spl,
+            backend_id=self.backend_volume_id,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
         )
         self.backend_volume.volume_image_metadata = {}
         self.tenant_backend.pull_volume(volume)
@@ -875,8 +884,14 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
 
     def test_shared_internal_ips_are_reassigned(self):
         # Arrange
-        vm1 = factories.InstanceFactory(service_project_link=self.fixture.spl)
-        vm2 = factories.InstanceFactory(service_project_link=self.fixture.spl)
+        vm1 = factories.InstanceFactory(
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
+        )
+        vm2 = factories.InstanceFactory(
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
+        )
 
         subnet = self.fixture.subnet
         internal_ip = factories.InternalIPFactory(
@@ -1111,7 +1126,6 @@ class GetInstancesTest(BaseBackendTest):
 class ImportInstanceTest(BaseBackendTest):
     def setUp(self):
         super(ImportInstanceTest, self).setUp()
-        self.spl = self.fixture.spl
         self.backend_id = 'instance_id'
         self.backend_instance = self._get_valid_instance(self.backend_id)
         self.nova_client_mock.servers.get.return_value = self.backend_instance
@@ -1124,7 +1138,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, save=True, service_project_link=self.spl
+            self.backend_id, self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
@@ -1138,14 +1152,17 @@ class ImportInstanceTest(BaseBackendTest):
         self.assertEquals(instance.name, self.backend_instance.name)
 
     def test_volume_is_attached_to_imported_instance_if_they_are_registered(self):
-        expected_volume = factories.VolumeFactory(service_project_link=self.spl)
+        expected_volume = factories.VolumeFactory(
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
+        )
         backend_volume = self._get_valid_volume(backend_id=expected_volume.backend_id)
         backend_volume.volumeId = backend_volume.id
         self.nova_client_mock.volumes.get_server_volumes.return_value = [backend_volume]
         self.cinder_client_mock.volumes.get.return_value = backend_volume
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, save=True, service_project_link=self.spl
+            self.backend_id, self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
@@ -1162,7 +1179,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.cinder_client_mock.volumes.get.return_value = backend_volume
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, save=True, service_project_link=self.spl
+            self.backend_id, self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
@@ -1177,7 +1194,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, save=True, service_project_link=self.spl
+            self.backend_id, self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)

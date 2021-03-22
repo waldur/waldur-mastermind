@@ -771,10 +771,6 @@ class ResourceMoveTest(test.APITransactionTestCase):
         self.new_project = ProjectFactory()
         self.project = self.fixture.project
 
-        spl = self.tenant.service_project_link
-        spl.project = self.project
-        spl.save()
-
         self.resource = factories.ResourceFactory(project=self.project)
         self.resource.scope = self.tenant
         self.resource.save()
@@ -813,7 +809,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.resource.project, self.project)
 
-    def test_move_resource_exception_hadling(self):
+    def test_move_resource_exception_handling(self):
         start_invoice = invoices_factories.InvoiceFactory(
             customer=self.project.customer,
             year=2020,

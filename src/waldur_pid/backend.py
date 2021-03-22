@@ -3,7 +3,7 @@ import logging
 import requests
 from django.conf import settings
 
-from waldur_core.structure import ServiceBackend
+from waldur_core.structure.backend import ServiceBackend
 
 from . import exceptions
 

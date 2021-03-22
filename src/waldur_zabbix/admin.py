@@ -7,14 +7,7 @@ from waldur_core.core.admin import ExecutorAdminAction, JsonWidget
 from waldur_core.structure import admin as structure_admin
 
 from . import executors, tasks
-from .models import (
-    Host,
-    ITService,
-    SlaHistory,
-    SlaHistoryEvent,
-    ZabbixService,
-    ZabbixServiceProjectLink,
-)
+from .models import Host, ITService, SlaHistory, SlaHistoryEvent
 
 
 class SlaHistoryEventsInline(admin.TabularInline):
@@ -78,6 +71,4 @@ class ITServiceAdmin(structure_admin.ResourceAdmin):
 
 admin.site.register(Host, HostAdmin)
 admin.site.register(ITService, ITServiceAdmin)
-admin.site.register(ZabbixService, structure_admin.ServiceAdmin)
-admin.site.register(ZabbixServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(SlaHistory, SlaHistoryAdmin)

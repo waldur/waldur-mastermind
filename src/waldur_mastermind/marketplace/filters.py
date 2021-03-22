@@ -40,7 +40,6 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         view_name='customer-detail', field_name='customer__uuid'
     )
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
-    project_uuid = django_filters.UUIDFilter(method='filter_project')
     allowed_customer_uuid = django_filters.UUIDFilter(method='filter_allowed_customer')
     service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     attributes = django_filters.CharFilter(method='filter_attributes')
@@ -65,9 +64,6 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
 
     def filter_service_manager(self, queryset, name, value):
         return queryset.filter_for_service_manager(value)
-
-    def filter_project(self, queryset, name, value):
-        return queryset.filter_for_project(value)
 
     def filter_attributes(self, queryset, name, value):
         try:
@@ -143,9 +139,8 @@ class OfferingImportableFilterBackend(DjangoFilterBackend):
                 if (
                     offering.scope
                     and offering.scope.scope
-                    and offering.scope.scope.service_project_link
-                    and offering.scope.scope.service_project_link.project.id
-                    in projects_ids
+                    and offering.scope.scope.project
+                    and offering.scope.scope.project.id in projects_ids
                 ):
                     used_offerings_ids.append(offering.id)
 

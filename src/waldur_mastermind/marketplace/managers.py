@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db.models import Q
 
@@ -42,23 +41,6 @@ class OfferingQuerySet(django_models.QuerySet):
     def filter_for_service_manager(self, value):
         return self.filter(
             shared=True, permissions__user__uuid=value, permissions__is_active=True
-        )
-
-    def filter_for_project(self, value):
-        settings_ct = ContentType.objects.get_for_model(
-            structure_models.ServiceSettings
-        )
-        service_settings = {
-            pk
-            for spl in structure_models.ServiceProjectLink.get_all_models()
-            for pk in spl.objects.filter(project__uuid=value).values_list(
-                'service__settings_id', flat=True
-            )
-        }
-
-        return self.filter(
-            Q(content_type=settings_ct, object_id__in=service_settings)
-            | ~Q(content_type=settings_ct)
         )
 
     def filter_importable(self, user):

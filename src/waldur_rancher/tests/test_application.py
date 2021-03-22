@@ -2,6 +2,8 @@ from unittest import mock
 
 from rest_framework import status, test
 
+from waldur_core.structure.tests.factories import ProjectFactory
+
 from . import factories, fixtures, utils
 
 
@@ -36,9 +38,10 @@ class ApplicationCreateTest(test.APITransactionTestCase):
         response = self.client.post(
             '/api/rancher-apps/',
             {
-                'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(
-                    self.fixture.spl
+                'service_settings': factories.RancherServiceSettingsFactory.get_url(
+                    self.fixture.settings
                 ),
+                'project': ProjectFactory.get_url(self.fixture.project),
                 'name': 'Test Catalog',
                 'template': factories.TemplateFactory.get_url(template),
                 'rancher_project': factories.ProjectFactory.get_url(project),

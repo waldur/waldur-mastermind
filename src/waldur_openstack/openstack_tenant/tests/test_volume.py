@@ -1,9 +1,8 @@
-from unittest import mock
-
 from ddt import data, ddt
 from django.conf import settings
 from rest_framework import status, test
 
+from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
@@ -16,17 +15,11 @@ class VolumeDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.volume = self.fixture.volume
-        self.spl = self.fixture.spl
 
     def destroy_volume(self):
         url = factories.VolumeFactory.get_url(self.volume)
         self.client.force_authenticate(self.fixture.staff)
         return self.client.delete(url)
-
-    def test_spl_quota_updated_by_signal_handler_when_volume_is_removed(self):
-        self.volume.delete()
-        Quotas = models.OpenStackTenantServiceProjectLink.Quotas
-        self.assertEqual(self.spl.quotas.get(name=Quotas.storage).usage, 0)
 
     def test_erred_volume_can_be_destroyed(self):
         self.volume.state = models.Volume.States.ERRED
@@ -75,7 +68,7 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
     def test_user_can_not_extend_volume_if_resulting_quota_usage_is_greater_than_limit(
         self,
     ):
-        service_settings = self.volume.service_project_link.service.settings
+        service_settings = self.volume.service_settings
         service_settings.set_quota_usage('storage', self.volume.size)
         service_settings.set_quota_limit('storage', self.volume.size + 512)
 
@@ -86,7 +79,7 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
     def test_user_can_not_extend_volume_if_quota_usage_becomes_greater_than_limit(
         self,
     ):
-        scope = self.volume.service_project_link.service.settings
+        scope = self.volume.service_settings
         scope.set_quota_usage('storage', self.volume.size)
         scope.set_quota_limit('storage', self.volume.size + 512)
 
@@ -112,7 +105,7 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
 
     def test_when_volume_is_extended_volume_type_quota_is_updated(self):
         # Arrange
-        private_settings = self.volume.service_project_link.service.settings
+        private_settings = self.volume.service_settings
         shared_tenant = private_settings.scope
         key = 'gigabytes_' + self.volume.type.backend_id
 
@@ -371,111 +364,19 @@ class VolumeCreateSnapshotScheduleTest(test.APITransactionTestCase):
         self.assertEqual(response.data['timezone'], settings.TIME_ZONE)
 
 
-class BaseVolumeTest(test.APITransactionTestCase):
-    def _generate_backend_volumes(self, count=1):
-        volumes = []
-        for i in range(count):
-            volume = factories.VolumeFactory()
-            volume.delete()
-            volumes.append(volume)
-
-        return volumes
-
-
-class VolumeImportableResourcesTest(BaseVolumeTest):
-    def setUp(self):
-        super(VolumeImportableResourcesTest, self).setUp()
-        self.url = factories.VolumeFactory.get_list_url('importable_resources')
-        self.fixture = fixtures.OpenStackTenantFixture()
-        self.client.force_authenticate(self.fixture.owner)
-
-    @mock.patch(
-        'waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.get_volumes_for_import'
-    )
-    def test_importable_volumes_are_returned(self, get_volumes_mock):
-        backend_volumes = self._generate_backend_volumes()
-        get_volumes_mock.return_value = backend_volumes
-        data = {
-            'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            )
-        }
-
-        response = self.client.get(self.url, data=data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEquals(len(response.data), len(backend_volumes))
-        returned_backend_ids = [item['backend_id'] for item in response.data]
-        expected_backend_ids = [item.backend_id for item in backend_volumes]
-        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
-        get_volumes_mock.assert_called()
-
-
-@mock.patch(
-    'waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.import_volume'
-)
-class VolumeImportTest(BaseVolumeTest):
-    def setUp(self):
-        super(VolumeImportTest, self).setUp()
-        self.fixture = fixtures.OpenStackTenantFixture()
-        self.url = factories.VolumeFactory.get_list_url('import_resource')
-        self.client.force_authenticate(self.fixture.owner)
-
-    def test_backend_volume_is_imported(self, import_volume_mock):
-        backend_id = 'backend_id'
-
-        def import_volume(backend_id, save, service_project_link):
-            return self._generate_backend_volumes()[0]
-
-        import_volume_mock.side_effect = import_volume
-
-        payload = {
-            'backend_id': backend_id,
-            'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            ),
-        }
-
-        response = self.client.post(self.url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-    def test_backend_volume_cannot_be_imported_if_it_is_registered_in_waldur(
-        self, import_volume_mock
-    ):
-        volume = factories.VolumeFactory(service_project_link=self.fixture.spl)
-
-        def import_volume(backend_id, save, service_project_link):
-            return volume
-
-        import_volume_mock.side_effect = import_volume
-        payload = {
-            'backend_id': volume.backend_id,
-            'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-                self.fixture.spl
-            ),
-        }
-
-        response = self.client.post(self.url, payload)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-
 class BaseVolumeCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.settings = self.fixture.openstack_tenant_service_settings
         self.image = factories.ImageFactory(settings=self.settings)
         self.image_url = factories.ImageFactory.get_url(self.image)
-        self.spl_url = factories.OpenStackTenantServiceProjectLinkFactory.get_url(
-            self.fixture.spl
-        )
         self.client.force_authenticate(self.fixture.owner)
 
     def create_volume(self, **extra):
         payload = {
             'name': 'Test volume',
-            'service_project_link': self.spl_url,
+            'service_settings': ServiceSettingsFactory.get_url(self.settings),
+            'project': ProjectFactory.get_url(self.fixture.project),
             'size': 10240,
         }
         payload.update(extra)
@@ -499,7 +400,8 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         payload = {
             'name': 'test-instance',
             'image': self.image_url,
-            'service_project_link': self.spl_url,
+            'service_settings': ServiceSettingsFactory.get_url(self.settings),
+            'project': ProjectFactory.get_url(self.fixture.project),
             'flavor': flavor_url,
             'system_volume_size': 20480,
             'internal_ips_set': [{'subnet': subnet_url}],
@@ -520,7 +422,8 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         payload = {
             'name': 'test-instance',
             'image': self.image_url,
-            'service_project_link': self.spl_url,
+            'service_settings': ServiceSettingsFactory.get_url(self.settings),
+            'project': ProjectFactory.get_url(self.fixture.project),
             'flavor': flavor_url,
             'system_volume_size': 20480,
             'internal_ips_set': [{'subnet': subnet_url}],
@@ -662,7 +565,7 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
 
     def test_when_volume_is_retyped_volume_type_quota_is_updated(self):
         # Arrange
-        scope = self.volume.service_project_link.service.settings
+        scope = self.volume.service_settings
         old_type_key = 'gigabytes_' + self.volume.type.backend_id
         new_type_key = 'gigabytes_' + self.new_type.backend_id
         scope.set_quota_usage(old_type_key, self.volume.size / 1024)
@@ -680,7 +583,7 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         self,
     ):
         # Arrange
-        scope = self.volume.service_project_link.service.settings.scope
+        scope = self.volume.service_settings.scope
         old_type_key = 'gigabytes_' + self.volume.type.backend_id
         new_type_key = 'gigabytes_' + self.new_type.backend_id
         scope.set_quota_usage(old_type_key, self.volume.size / 1024)
@@ -709,7 +612,8 @@ class VolumeFilterTest(test.APITransactionTestCase):
         self.volume.save()
 
         volume1 = factories.VolumeFactory(
-            service_project_link=self.fixture.spl,
+            service_settings=self.fixture.openstack_tenant_service_settings,
+            project=self.fixture.project,
             state=models.Volume.States.OK,
             runtime_state='available',
             type=self.fixture.volume_type,

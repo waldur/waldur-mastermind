@@ -8,17 +8,6 @@ from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 from . import models
 
 
-class OpenStackTenantServiceProjectLinkFilter(
-    structure_filters.BaseServiceProjectLinkFilter
-):
-    service = core_filters.URLFilter(
-        view_name='openstacktenant-detail', field_name='service__uuid'
-    )
-
-    class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
-        model = models.OpenStackTenantServiceProjectLink
-
-
 class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
 
     name_iregex = django_filters.CharFilter(field_name='name', lookup_expr='iregex')
@@ -106,7 +95,7 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
             return queryset.none()
 
         queryset = queryset.filter(
-            service_project_link=instance.service_project_link
+            service_settings=instance.service_settings, project=instance.project,
         ).exclude(instance=instance)
 
         zones_map = get_valid_availability_zones(instance)
@@ -117,9 +106,7 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
                 if cinder_zone == instance.availability_zone.name
             }
             nova_zones = models.InstanceAvailabilityZone.objects.filter(
-                settings=instance.service_project_link.service.settings,
-                name__in=zone_names,
-                available=True,
+                settings=instance.service_settings, name__in=zone_names, available=True,
             )
             queryset = queryset.filter(availability_zone__in=nova_zones)
         return queryset
@@ -186,7 +173,9 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
         except models.Volume.DoesNotExist:
             return queryset.none()
 
-        queryset = queryset.filter(service_project_link=volume.service_project_link)
+        queryset = queryset.filter(
+            service_settings=volume.service_settings, project=volume.project
+        )
 
         zones_map = get_valid_availability_zones(volume)
         if volume.availability_zone and zones_map:
@@ -196,9 +185,7 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
                 if cinder_zone == volume.availability_zone.name
             }
             nova_zones = models.InstanceAvailabilityZone.objects.filter(
-                settings=volume.service_project_link.service.settings,
-                name__in=zone_names,
-                available=True,
+                settings=volume.service_settings, name__in=zone_names, available=True,
             )
             queryset = queryset.filter(availability_zone__in=nova_zones)
         return queryset

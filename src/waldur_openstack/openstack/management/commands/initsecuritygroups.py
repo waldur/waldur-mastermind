@@ -37,7 +37,8 @@ class Command(BaseCommand):
                 tenant.security_groups.create(
                     name=group['name'],
                     description=group['description'],
-                    service_project_link=tenant.service_project_link,
+                    service_settings=tenant.service_settings,
+                    project=tenant.project,
                 )
                 try:
                     db_security_group = handlers.create_security_group(tenant, group)

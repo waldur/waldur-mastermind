@@ -4,10 +4,6 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'rancher', views.RancherServiceViewSet, basename='rancher')
-    router.register(
-        r'rancher-spl', views.ServiceProjectLinkViewSet, basename='rancher-spl'
-    )
     router.register(
         r'rancher-clusters', views.ClusterViewSet, basename='rancher-cluster'
     )

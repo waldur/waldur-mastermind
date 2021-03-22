@@ -10,16 +10,6 @@ from waldur_core.structure import views as structure_views
 from . import executors, filters, models, serializers
 
 
-class AzureServiceViewSet(structure_views.BaseServiceViewSet):
-    queryset = models.AzureService.objects.all()
-    serializer_class = serializers.ServiceSerializer
-
-
-class AzureServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
-    queryset = models.AzureServiceProjectLink.objects.all()
-    serializer_class = serializers.ServiceProjectLinkSerializer
-
-
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
     serializer_class = serializers.ImageSerializer
@@ -50,7 +40,7 @@ class ResourceGroupViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
 
 
-class PublicIPViewSet(structure_views.BaseResourceViewSet):
+class PublicIPViewSet(structure_views.ResourceViewSet):
     queryset = models.PublicIP.objects.all()
     filterset_class = filters.PublicIPFilter
     serializer_class = serializers.PublicIPSerializer
@@ -58,7 +48,7 @@ class PublicIPViewSet(structure_views.BaseResourceViewSet):
     delete_executor = executors.PublicIPDeleteExecutor
 
 
-class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
+class VirtualMachineViewSet(structure_views.ResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
     filterset_class = filters.VirtualMachineFilter
     serializer_class = serializers.VirtualMachineSerializer
@@ -108,7 +98,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     restart_serializer_class = rf_serializers.Serializer
 
 
-class SQLServerViewSet(structure_views.BaseResourceViewSet):
+class SQLServerViewSet(structure_views.ResourceViewSet):
     queryset = models.SQLServer.objects.all()
     filterset_class = filters.SQLServerFilter
     serializer_class = serializers.SQLServerSerializer
@@ -137,7 +127,7 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
     create_database_serializer_class = serializers.SQLDatabaseCreateSerializer
 
 
-class SQLDatabaseViewSet(structure_views.BaseResourceViewSet):
+class SQLDatabaseViewSet(structure_views.ResourceViewSet):
     queryset = models.SQLDatabase.objects.all()
     filterset_class = filters.SQLDatabaseFilter
     serializer_class = serializers.SQLDatabaseSerializer

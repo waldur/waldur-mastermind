@@ -111,12 +111,8 @@ def user_can_list_importable_resources(request, view, offering=None):
         )
 
     # Import private offerings must be available for admins and managers
-    if (
-        offering.scope
-        and offering.scope.scope
-        and offering.scope.scope.service_project_link
-    ):
-        project = offering.scope.scope.service_project_link.project
+    if offering.scope and offering.scope.scope and offering.scope.scope.project:
+        project = offering.scope.scope.project
         if (
             project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
             .filter(pk=user.pk)

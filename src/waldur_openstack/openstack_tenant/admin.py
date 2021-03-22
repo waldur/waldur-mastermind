@@ -101,13 +101,15 @@ class VolumeChangeForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.fields['type'].queryset = models.VolumeType.objects.filter(
-                settings=self.instance.service_project_link.service.settings,
+                settings=self.instance.service_settings,
             )
             self.fields['instance'].queryset = models.Instance.objects.filter(
-                service_project_link=self.instance.service_project_link,
+                service_settings=self.instance.service_settings,
+                project=self.instance.project,
             )
             self.fields['source_snapshot'].queryset = models.Snapshot.objects.filter(
-                service_project_link=self.instance.service_project_link,
+                service_settings=self.instance.service_settings,
+                project=self.instance.project,
             )
 
 
@@ -172,7 +174,7 @@ class InstanceChangeForm(forms.ModelForm):
             self.fields[
                 'security_groups'
             ].queryset = models.SecurityGroup.objects.filter(
-                settings=self.instance.service_project_link.service.settings,
+                settings=self.instance.service_settings,
             )
 
 
@@ -209,7 +211,7 @@ class BackupAdmin(MetadataMixin, admin.ModelAdmin):
     exclude = ('metadata',)
 
     def project(self, obj):
-        return obj.instance.service_project_link.project
+        return obj.instance.project
 
     project.short_description = _('Project')
 
@@ -244,10 +246,6 @@ class SnapshotScheduleAdmin(BaseScheduleAdmin):
     list_display = BaseScheduleAdmin.list_display + ('source_volume',)
 
 
-admin.site.register(models.OpenStackTenantService, structure_admin.ServiceAdmin)
-admin.site.register(
-    models.OpenStackTenantServiceProjectLink, structure_admin.ServiceProjectLinkAdmin
-)
 admin.site.register(models.Flavor, FlavorAdmin)
 admin.site.register(models.Image, ImageAdmin)
 admin.site.register(models.FloatingIP, FloatingIPAdmin)

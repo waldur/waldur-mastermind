@@ -7,18 +7,14 @@ from . import factories
 
 class SlurmFixture(ProjectFixture):
     @cached_property
-    def service(self):
-        return factories.SlurmServiceFactory(customer=self.customer)
-
-    @cached_property
-    def spl(self):
-        return factories.SlurmServiceProjectLinkFactory(
-            project=self.project, service=self.service
-        )
+    def settings(self):
+        return factories.SlurmServiceSettingsFactory(customer=self.customer)
 
     @cached_property
     def allocation(self):
-        return factories.AllocationFactory(service_project_link=self.spl)
+        return factories.AllocationFactory(
+            service_settings=self.settings, project=self.project,
+        )
 
     @cached_property
     def association(self):

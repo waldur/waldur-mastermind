@@ -3,10 +3,67 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.validators import BackendURLValidator
 from waldur_core.structure import serializers as structure_serializers
 from waldur_vmware.utils import is_basic_mode
 
 from . import constants, models
+
+
+class VmwareServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+    class Meta:
+        secret_fields = ('backend_url', 'username', 'password')
+
+    backend_url = serializers.CharField(
+        max_length=200, label=_('VMware auth URL'), validators=[BackendURLValidator]
+    )
+
+    username = serializers.CharField(max_length=100, label=_('VMware user username'))
+
+    password = serializers.CharField(max_length=100, label=_('VMware user password'))
+
+    default_cluster_label = serializers.CharField(
+        source='options.default_cluster_label',
+        help_text=_(
+            'Label of VMware cluster that will be used for virtual machines provisioning'
+        ),
+        required=False,
+    )
+
+    max_cpu = core_serializers.UnicodeIntegerField(
+        min_value=1,
+        source='options.max_cpu',
+        required=False,
+        help_text=_('Maximum vCPU for each VM'),
+    )
+
+    max_cores_per_socket = core_serializers.UnicodeIntegerField(
+        min_value=1,
+        source='options.max_cores_per_socket',
+        required=False,
+        help_text=_('Maximum number of cores per socket for each VM'),
+    )
+
+    max_ram = core_serializers.UnicodeIntegerField(
+        min_value=1,
+        source='options.max_ram',
+        required=False,
+        help_text=_('Maximum RAM for each VM, MiB'),
+    )
+
+    max_disk = core_serializers.UnicodeIntegerField(
+        min_value=1,
+        source='options.max_disk',
+        required=False,
+        help_text=_('Maximum capacity for each disk, MiB'),
+    )
+
+    max_disk_total = core_serializers.UnicodeIntegerField(
+        min_value=1,
+        source='options.max_disk_total',
+        required=False,
+        help_text=_('Maximum total size of the disk space per VM, MiB'),
+    )
 
 
 def get_int_or_none(options, key):
@@ -21,59 +78,6 @@ def get_int_or_none(options, key):
             return
 
     return value
-
-
-class OptionsSerializer(serializers.Serializer):
-    default_cluster_label = serializers.CharField(required=False)
-    max_cpu = core_serializers.UnicodeIntegerField(min_value=1, required=False)
-    max_cores_per_socket = core_serializers.UnicodeIntegerField(
-        min_value=1, required=False
-    )
-    max_ram = core_serializers.UnicodeIntegerField(min_value=1, required=False)
-    max_disk = core_serializers.UnicodeIntegerField(min_value=1, required=False)
-    max_disk_total = core_serializers.UnicodeIntegerField(min_value=1, required=False)
-
-
-class ServiceSerializer(
-    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
-):
-
-    SERVICE_ACCOUNT_FIELDS = {
-        'backend_url': _('VMware auth URL'),
-        'username': _('VMware user username'),
-        'password': _('VMware user password'),
-    }
-
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'default_cluster_label': _(
-            'Label of VMware cluster that will be used for virtual machines provisioning'
-        ),
-        'max_cpu': _('Maximum vCPU for each VM'),
-        'max_cores_per_socket': _('Maximum number of cores per socket for each VM'),
-        'max_ram': _('Maximum RAM for each VM, MiB'),
-        'max_disk': _('Maximum capacity for each disk, MiB'),
-        'max_disk_total': _('Maximum total size of the disk space per VM, MiB'),
-    }
-
-    class Meta(structure_serializers.BaseServiceSerializer.Meta):
-        model = models.VMwareService
-        required_fields = (
-            'backend_url',
-            'username',
-            'password',
-            'default_cluster_label',
-        )
-        options_serializer = OptionsSerializer
-
-
-class ServiceProjectLinkSerializer(
-    structure_serializers.BaseServiceProjectLinkSerializer
-):
-    class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
-        model = models.VMwareServiceProjectLink
-        extra_kwargs = {
-            'service': {'lookup_field': 'uuid', 'view_name': 'vmware-detail'},
-        }
 
 
 class LimitSerializer(serializers.Serializer):
@@ -124,20 +128,6 @@ class NestedNetworkSerializer(
 
 
 class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='vmware-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='vmware-spl-detail',
-        queryset=models.VMwareServiceProjectLink.objects.all(),
-        allow_null=True,
-        required=False,
-    )
-
     guest_os = serializers.ChoiceField(
         choices=list(constants.GUEST_OS_CHOICES.items()),
         required=False,
@@ -280,8 +270,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             fields['cores_per_socket'].min_value = 1
 
         if isinstance(self.instance, models.VirtualMachine):
-            spl = self.instance.service_project_link
-            options = spl.service.settings.options
+            options = self.instance.service_settings.options
 
             if 'cores' in fields:
                 fields['cores'].max_value = options.get('max_cpu')
@@ -407,11 +396,11 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         Validate hardware specification against service limits.
         """
         if self.instance:
-            spl = self.instance.service_project_link
+            service_settings = self.instance.service_settings
         else:
-            spl = attrs['service_project_link']
+            service_settings = attrs['service_settings']
 
-        options = spl.service.settings.options
+        options = service_settings.options
         self._validate_cpu(attrs, options)
         self._validate_ram(attrs, options)
         self._validate_disk(attrs, options)
@@ -423,13 +412,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         Otherwise use cluster provided by user if it is allowed.
         Finally, use default cluster from service settings.
         """
-        spl = attrs['service_project_link']
+        service_settings = attrs['service_settings']
+        project = attrs['project']
 
         if is_basic_mode():
-            customer = spl.project.customer
+            customer = project.customer
             try:
                 cluster = models.Cluster.objects.filter(
-                    settings=spl.service.settings, customercluster__customer=customer
+                    settings=service_settings, customercluster__customer=customer
                 ).get()
             except ObjectDoesNotExist:
                 return self._fallback_to_default_cluster(attrs)
@@ -444,13 +434,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         cluster = attrs.get('cluster')
 
         if cluster:
-            if cluster.settings != spl.service.settings:
+            if cluster.settings != service_settings:
                 raise serializers.ValidationError(
                     'This cluster is not available for this service.'
                 )
 
             if not cluster.customercluster_set.filter(
-                customer=spl.project.customer
+                customer=project.customer
             ).exists():
                 raise serializers.ValidationError(
                     'This cluster is not available for this customer.'
@@ -460,10 +450,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         return attrs
 
     def _fallback_to_default_cluster(self, attrs):
-        spl = attrs['service_project_link']
-        default_cluster_label = spl.service.settings.options.get(
-            'default_cluster_label'
-        )
+        service_settings = attrs['service_settings']
+        default_cluster_label = service_settings.options.get('default_cluster_label')
 
         if not default_cluster_label:
             raise serializers.ValidationError(
@@ -471,7 +459,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             )
         try:
             attrs['cluster'] = models.Cluster.objects.filter(
-                settings=spl.service.settings, name=default_cluster_label
+                settings=service_settings, name=default_cluster_label
             ).get()
             return attrs
         except models.Cluster.DoesNotExist:
@@ -484,13 +472,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         If basic mode is activated, match folder by customer and service.
         Otherwise use folder provided by user if it is allowed.
         """
-        spl = attrs['service_project_link']
+        service_settings = attrs['service_settings']
+        project = attrs['project']
 
         if is_basic_mode():
-            customer = spl.project.customer
+            customer = project.customer
             try:
                 folder = models.Folder.objects.filter(
-                    settings=spl.service.settings, customerfolder__customer=customer
+                    settings=service_settings, customerfolder__customer=customer
                 ).get()
             except ObjectDoesNotExist:
                 raise serializers.ValidationError(
@@ -507,14 +496,12 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         folder = attrs.get('folder')
 
         if folder:
-            if folder.settings != spl.service.settings:
+            if folder.settings != service_settings:
                 raise serializers.ValidationError(
                     'This folder is not available for this service.'
                 )
 
-            if not folder.customerfolder_set.filter(
-                customer=spl.project.customer
-            ).exists():
+            if not folder.customerfolder_set.filter(customer=project.customer).exists():
                 raise serializers.ValidationError(
                     'This folder is not available for this customer.'
                 )
@@ -525,14 +512,15 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         If basic mode is activated, match datastore by customer and service.
         Otherwise use datastore provided by user if it is valid with respect to its size.
         """
-        spl = attrs['service_project_link']
+        service_settings = attrs['service_settings']
+        project = attrs['project']
         template = attrs.get('template')
 
         if is_basic_mode():
-            customer = spl.project.customer
+            customer = project.customer
             datastore = (
                 models.Datastore.objects.filter(
-                    settings=spl.service.settings, customerdatastore__customer=customer
+                    settings=service_settings, customerdatastore__customer=customer
                 )
                 .order_by('-free_space')
                 .first()
@@ -552,13 +540,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         datastore = attrs.get('datastore')
 
         if datastore:
-            if datastore.settings != spl.service.settings:
+            if datastore.settings != service_settings:
                 raise serializers.ValidationError(
                     'This datastore is not available for this service.'
                 )
 
             if not datastore.customerdatastore_set.filter(
-                customer=spl.project.customer
+                customer=project.customer
             ).exists():
                 raise serializers.ValidationError(
                     'This datastore is not available for this customer.'
@@ -575,13 +563,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         If basic mode is activated, match network by customer and service.
         Otherwise use networks provided by user if it is valid with respect to its size.
         """
-        spl = attrs['service_project_link']
+        service_settings = attrs['service_settings']
+        project = attrs['project']
 
         if is_basic_mode():
-            customer = spl.project.customer
+            customer = project.customer
             try:
                 network = models.Network.objects.filter(
-                    settings=spl.service.settings, customernetwork__customer=customer
+                    settings=service_settings, customernetwork__customer=customer
                 ).get()
             except ObjectDoesNotExist:
                 raise serializers.ValidationError(
@@ -598,13 +587,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         networks = attrs.get('networks', [])
 
         for network in networks:
-            if network.settings != spl.service.settings:
+            if network.settings != service_settings:
                 raise serializers.ValidationError(
                     'This network is not available for this service.'
                 )
 
             if not network.customernetwork_set.filter(
-                customer=spl.project.customer
+                customer=project.customer
             ).exists():
                 raise serializers.ValidationError(
                     'This network is not available for this customer.'
@@ -640,17 +629,6 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class PortSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='vmware-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='vmware-spl-detail', read_only=True,
-    )
-
     service_settings = serializers.HyperlinkedRelatedField(
         view_name='servicesettings-detail', lookup_field='uuid', read_only=True,
     )
@@ -689,18 +667,6 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
-    def get_fields(self):
-        # Skip metadata tweak on update because network is protected from update
-        fields = super(PortSerializer, self).get_fields()
-        if 'network' in fields and self.instance:
-            network_field = fields['network']
-            network_field.display_name_field = 'name'
-            network_field.query_params = {
-                'customer_pair_uuid': self.instance.customer.uuid.hex,
-                'settings_uuid': self.instance.service_settings.uuid.hex,
-            }
-        return fields
-
     def validate(self, attrs):
         # Skip validation on update
         if self.instance:
@@ -708,7 +674,8 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
 
         vm = self.context['view'].get_object()
         attrs['vm'] = vm
-        attrs['service_project_link'] = vm.service_project_link
+        attrs['service_settings'] = vm.service_settings
+        attrs['project'] = vm.project
 
         if not models.CustomerNetworkPair.objects.filter(
             customer=vm.customer, network=attrs['network'],
@@ -726,17 +693,6 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
 
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
-    service = serializers.HyperlinkedRelatedField(
-        source='service_project_link.service',
-        view_name='vmware-detail',
-        read_only=True,
-        lookup_field='uuid',
-    )
-
-    service_project_link = serializers.HyperlinkedRelatedField(
-        view_name='vmware-spl-detail', read_only=True,
-    )
-
     service_settings = serializers.HyperlinkedRelatedField(
         view_name='servicesettings-detail', lookup_field='uuid', read_only=True,
     )
@@ -794,7 +750,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         return fields
 
     def _validate_size(self, vm, attrs):
-        options = vm.service_project_link.service.settings.options
+        options = vm.service_settings.options
 
         actual_disk = attrs.get('size')
         if actual_disk < 1024:
@@ -827,7 +783,8 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         vm = self.context['view'].get_object()
         self._validate_size(vm, attrs)
         attrs['vm'] = vm
-        attrs['service_project_link'] = vm.service_project_link
+        attrs['service_settings'] = vm.service_settings
+        attrs['project'] = vm.project
         return super(DiskSerializer, self).validate(attrs)
 
 

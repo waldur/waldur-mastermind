@@ -8,11 +8,8 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from pyVmomi import vim
 
-from waldur_core.structure import (
-    ServiceBackend,
-    ServiceBackendError,
-    log_backend_action,
-)
+from waldur_core.structure.backend import ServiceBackend, log_backend_action
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
@@ -189,7 +186,7 @@ class VMwareBackend(ServiceBackend):
 
             update_pulled_fields(vm, imported_vm, update_fields)
 
-    def import_virtual_machine(self, backend_id, save=True, service_project_link=None):
+    def import_virtual_machine(self, backend_id, project=None, save=True):
         """
         Import virtual machine by its ID.
 
@@ -197,7 +194,7 @@ class VMwareBackend(ServiceBackend):
         :type backend_id: str
         :param save: Save object in the database
         :type save: bool
-        :param service_project_link: Optional service project link model object
+        :param project: Optional service settings model object
         :rtype: :class:`waldur_vmware.models.VirtualMachine`
         """
         try:
@@ -211,8 +208,8 @@ class VMwareBackend(ServiceBackend):
         vm = self._backend_vm_to_vm(
             backend_vm, tools_installed, tools_state, backend_id
         )
-        if service_project_link is not None:
-            vm.service_project_link = service_project_link
+        vm.service_settings = self.settings
+        vm.project = project
         if save:
             vm.save()
 
@@ -480,7 +477,8 @@ class VMwareBackend(ServiceBackend):
         for disk in backend_vm['disks']:
             disk = self._backend_disk_to_disk(disk['value'], disk['key'])
             disk.vm = vm
-            disk.service_project_link = vm.service_project_link
+            disk.service_settings = vm.service_settings
+            disk.project = vm.project
             disk.save()
 
         # If virtual machine is not deployed from template, it does not have any networks.
@@ -854,7 +852,12 @@ class VMwareBackend(ServiceBackend):
             update_pulled_fields(port, imported_port, update_fields)
 
     def import_port(
-        self, backend_vm_id, backend_port_id, save=True, service_project_link=None
+        self,
+        backend_vm_id,
+        backend_port_id,
+        save=True,
+        service_settings=None,
+        project=None,
     ):
         """
         Import Ethernet port by its ID.
@@ -865,7 +868,8 @@ class VMwareBackend(ServiceBackend):
         :type backend_port_id: str
         :param save: Save object in the database
         :type save: bool
-        :param service_project_link: Service project link model object
+        :param service_settings: Optional service settings model object
+        :param project: Optional service settings model object
         :rtype: :class:`waldur_vmware.models.Disk`
         """
         try:
@@ -875,8 +879,8 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
 
         port = self._backend_port_to_port(backend_port)
-        if service_project_link is not None:
-            port.service_project_link = service_project_link
+        port.service_settings = service_settings
+        port.project = project
         if save:
             port.save()
 
@@ -923,7 +927,8 @@ class VMwareBackend(ServiceBackend):
         for item_id in new_ids:
             backend_port = backend_ports_map[item_id]
             port = self._backend_port_to_port(backend_port)
-            port.service_project_link = vm.service_project_link
+            port.service_settings = vm.service_settings
+            port.port = vm.port
             network_id = backend_port['backing']['network']
             port.network = networks_map.get(network_id)
             port.vm = vm
@@ -1133,7 +1138,7 @@ class VMwareBackend(ServiceBackend):
             update_pulled_fields(disk, imported_disk, update_fields)
 
     def import_disk(
-        self, backend_vm_id, backend_disk_id, save=True, service_project_link=None
+        self, backend_vm_id, backend_disk_id, save=True, project=None,
     ):
         """
         Import virtual disk by its ID.
@@ -1144,7 +1149,7 @@ class VMwareBackend(ServiceBackend):
         :type backend_disk_id: str
         :param save: Save object in the database
         :type save: bool
-        :param service_project_link: Service project link model object
+        :param project: Project model object
         :rtype: :class:`waldur_vmware.models.Disk`
         """
         try:
@@ -1153,8 +1158,8 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
 
         disk = self._backend_disk_to_disk(backend_disk, backend_disk_id)
-        if service_project_link is not None:
-            disk.service_project_link = service_project_link
+        disk.service_settings = self.settings
+        disk.project = project
         if save:
             disk.save()
 

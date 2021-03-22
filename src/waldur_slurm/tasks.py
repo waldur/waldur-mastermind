@@ -14,7 +14,7 @@ def get_user_allocations(user):
     )
     projects = project_permissions.values_list('project_id', flat=True)
     project_allocations = models.Allocation.objects.filter(
-        is_active=True, service_project_link__project__in=projects
+        is_active=True, project__in=projects
     )
 
     customer_permissions = structure_models.CustomerPermission.objects.filter(
@@ -22,7 +22,7 @@ def get_user_allocations(user):
     )
     customers = customer_permissions.values_list('customer_id', flat=True)
     customer_allocations = models.Allocation.objects.filter(
-        is_active=True, service_project_link__project__customer__in=customers
+        is_active=True, project__customer__in=customers
     )
 
     return itertools.chain(project_allocations, customer_allocations)
@@ -30,15 +30,11 @@ def get_user_allocations(user):
 
 def get_structure_allocations(structure):
     if isinstance(structure, structure_models.Project):
-        return list(
-            models.Allocation.objects.filter(
-                is_active=True, service_project_link__project=structure
-            )
-        )
+        return list(models.Allocation.objects.filter(is_active=True, project=structure))
     elif isinstance(structure, structure_models.Customer):
         return list(
             models.Allocation.objects.filter(
-                is_active=True, service_project_link__project__customer=structure
+                is_active=True, project__customer=structure
             )
         )
     else:

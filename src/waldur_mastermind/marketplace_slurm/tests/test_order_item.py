@@ -14,9 +14,8 @@ from waldur_slurm.tests import fixtures as slurm_fixtures
 class AllocationCreateTest(test.APITransactionTestCase):
     def setUp(self):
         fixture = slurm_fixtures.SlurmFixture()
-        service_settings = fixture.service.settings
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, scope=service_settings
+            type=PLUGIN_NAME, scope=fixture.settings
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
         order = marketplace_factories.OrderFactory(
@@ -42,7 +41,6 @@ class AllocationCreateTest(test.APITransactionTestCase):
             )
 
         # Create SPL
-        fixture.spl
         self.fixture = fixture
         self.order_item = order_item
         self.offering = offering

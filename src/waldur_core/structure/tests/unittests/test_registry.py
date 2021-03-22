@@ -1,9 +1,9 @@
 from django.test import TestCase
 
-from waldur_core.structure import ServiceBackendNotImplemented, SupportedServices
+from waldur_core.structure.exceptions import ServiceBackendNotImplemented
+from waldur_core.structure.registry import SupportedServices, get_model_key
 from waldur_core.structure.tests import TestBackend, TestConfig
-from waldur_core.structure.tests.models import TestNewInstance, TestService
-from waldur_core.structure.tests.serializers import ServiceSerializer
+from waldur_core.structure.tests.models import TestNewInstance
 
 
 class ServiceRegistryTest(TestCase):
@@ -19,17 +19,5 @@ class ServiceRegistryTest(TestCase):
             TestBackend, SupportedServices.get_service_backend(TestConfig.service_name)
         )
 
-    def test_get_service_serializer(self):
-        self.assertEqual(
-            ServiceSerializer, SupportedServices.get_service_serializer(TestService)
-        )
-
-    def test_get_service_resources(self):
-        self.assertEqual(
-            [TestNewInstance], SupportedServices.get_service_resources(TestService)
-        )
-
     def test_model_key(self):
-        self.assertEqual(
-            TestConfig.service_name, SupportedServices.get_model_key(TestNewInstance)
-        )
+        self.assertEqual(TestConfig.service_name, get_model_key(TestNewInstance))
