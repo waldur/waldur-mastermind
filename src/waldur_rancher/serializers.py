@@ -27,7 +27,14 @@ from . import models, utils, validators
 
 class RancherServiceSerializer(structure_serializers.ServiceOptionsSerializer):
     class Meta:
-        secret_fields = ('backend_url', 'username', 'password')
+        secret_fields = (
+            'backend_url',
+            'username',
+            'password',
+            'private_registry_url',
+            'private_registry_user',
+            'private_registry_password',
+        )
 
     backend_url = serializers.CharField(
         max_length=200, label=_('Rancher server URL'), validators=[BackendURLValidator]
@@ -45,7 +52,7 @@ class RancherServiceSerializer(structure_serializers.ServiceOptionsSerializer):
         required=False,
     )
 
-    default_mtu = serializers.CharField(
+    default_mtu = serializers.IntegerField(
         source='options.default_mtu',
         label=_('Default MTU of a cluster'),
         required=False,
@@ -69,7 +76,7 @@ class RancherServiceSerializer(structure_serializers.ServiceOptionsSerializer):
         required=False,
     )
 
-    allocate_floating_ip_to_all_nodes = serializers.CharField(
+    allocate_floating_ip_to_all_nodes = serializers.BooleanField(
         source='options.allocate_floating_ip_to_all_nodes',
         help_text=_(
             'If True, on provisioning a floating IP will be allocated to each of the nodes'
