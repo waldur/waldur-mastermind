@@ -17,6 +17,8 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         allow_null=True,
     )
     project_name = serializers.ReadOnlyField(source='project.name')
+    created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
+    created_by_username = serializers.ReadOnlyField(source='created_by.username')
     customer = serializers.HyperlinkedRelatedField(
         view_name='customer-detail',
         lookup_field='uuid',
@@ -53,6 +55,8 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
             'error_message',
             'created',
             'expires',
+            'created_by_full_name',
+            'created_by_username',
         ) + detail_fields
         read_only_fields = (
             'url',
