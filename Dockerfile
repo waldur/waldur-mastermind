@@ -11,7 +11,8 @@ RUN curl -L https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-
     chmod +x /usr/local/bin/gosu
 
 # Install necessary packages
-RUN apt-get update       && \
+RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && \
+    apt-get update       && \
     apt-get install -y      \
     git                     \
     libldap2-dev            \
@@ -41,16 +42,14 @@ RUN apt-get update       && \
     man2html-base           \
     xsltproc
 
-RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && \
-    mkdir xmlsec1               && \
+RUN mkdir xmlsec1               && \
     cd xmlsec1                  && \
-    apt-get update              && \
     apt-get source xmlsec1      && \
     cd xmlsec1-1*               && \
     sed "s/--disable-crypto-dl/--disable-crypto-dl --enable-md5=no --enable-ripemd160=no/g" debian/rules >> debian/rules && \
     dpkg-buildpackage -us -uc   && \
     cd ..                       && \
-    dpkg -i *.deb               && \
+    dpkg -i ./*.deb             && \
     apt-mark hold '*xmlsec1*'   && \
     rm -rf /xmlsec1/            && \
     apt-get remove -y              \
@@ -60,16 +59,17 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
     help2man                       \
     gtk-doc-tools                  \
     man2html-base                  \
-    xsltproc
+    xsltproc                    && \
+    rm -rf /var/lib/apt/lists
 
-RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_amd64.deb && \
-    dpkg -i wkhtmltox_0.12.6-1.buster_amd64.deb                                                                  && \
+RUN curl -LO https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_amd64.deb && \
+    dpkg -i wkhtmltox_0.12.6-1.buster_amd64.deb                                                                      && \
     rm wkhtmltox_0.12.6-1.buster_amd64.deb
 
 # Create python3.8 uwsgi plugin
 RUN PYTHON=python3.8 uwsgi --build-plugin "/usr/src/uwsgi/plugins/python python38" && \
     mv python38_plugin.so /usr/lib/uwsgi/plugins/ && \
-    apt remove -y uwsgi-src
+    apt-get remove -y uwsgi-src
 
 RUN mkdir -p /usr/src/waldur
 
@@ -79,6 +79,10 @@ COPY docker/rootfs /
 
 # Delete all test directories
 RUN cd /usr/src/waldur && find . -name "tests" -exec rm -r {} + && bash docker_build.sh
+
+# Delete .git directories
+RUN rm -rf /usr/local/src/ansible-waldur-module/.git \
+           /usr/local/src/django-dbtemplates/.git
 
 ENTRYPOINT ["/app-entrypoint.sh"]
 CMD ["/bin/bash"]
