@@ -767,11 +767,14 @@ Django = ">=1.11"
 
 [[package]]
 name = "djangorestframework"
-version = "3.10.2"
+version = "3.11.2"
 description = "Web APIs for Django, made easy."
 category = "main"
 optional = false
 python-versions = ">=3.5"
+
+[package.dependencies]
+django = ">=1.11"
 
 [[package]]
 name = "djangosaml2"
@@ -2548,7 +2551,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "8d65eb39daf447d4155f92353441b2376f70b3f40b77fe94aed4bee91b8af932"
+content-hash = "00596e9cbffea29b7807a4e309e0f35899029fb58554c8a8c9bbe793eec9e9a7"
 
 [metadata.files]
 adal = [
@@ -2872,8 +2875,8 @@ django-taggit = [
     {file = "django_taggit-1.1.0-py3-none-any.whl", hash = "sha256:c13dfc1808a3084b64898e591af1d2f49b672d108388654804b170ee0ac5caf0"},
 ]
 djangorestframework = [
-    {file = "djangorestframework-3.10.2-py3-none-any.whl", hash = "sha256:42979bd5441bb4d8fd69d0f385024a114c3cae7df0f110600b718751250f6929"},
-    {file = "djangorestframework-3.10.2.tar.gz", hash = "sha256:aedb48010ebfab9651aaab1df5fd3b4848eb4182afc909852a2110c24f89a359"},
+    {file = "djangorestframework-3.11.2-py3-none-any.whl", hash = "sha256:5cc724dc4b076463497837269107e1995b1fbc917468d1b92d188fd1af9ea789"},
+    {file = "djangorestframework-3.11.2.tar.gz", hash = "sha256:a5967b68a04e0d97d10f4df228e30f5a2d82ba63b9d03e1759f84993b7bf1b53"},
 ]
 djangosaml2 = [
     {file = "djangosaml2-1.0.5.tar.gz", hash = "sha256:505bb2768294823ce3d682b036fef98981a99fb8cf26b9a46de5eaaa4eb20cb6"},
