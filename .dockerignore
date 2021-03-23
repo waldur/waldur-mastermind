@@ -1,5 +1,3 @@
 .git
 .idea
 docker_push.sh
-gitlab-ci-test/
-Dockerfile
