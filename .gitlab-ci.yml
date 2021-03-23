@@ -12,6 +12,8 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/lint-docker-image.yaml"
   - project: "waldur/waldur-pipelines"
+    file: "/templates/test/lint-dockerfile.yaml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/deploy/dev-env-update.yml"
 
 variables:
@@ -117,7 +119,13 @@ Lint docker image:
   variables:
     IMAGE: opennode/waldur-mastermind:latest
 
-Lint docker image for tests:
-  extends: .Lint docker image template
-  before_script:
-    - export IMAGE=$WALDUR_MASTERMIND_TEST_IMAGE
+Lint dockerfile:
+  extends: .Lint dockerfile template
+  variables:
+    DOCKERFILE: Dockerfile
+    HADOLINT_CONFIG: |
+      ignored:
+        - DL3003 # "WORKDIR" warning
+        - DL3008 # "versions for `apt install`" warning
+        - DL3015 # "--no-install-recommends" info
+        - SC2094 # "read and write the same file in the same pipeline" info
