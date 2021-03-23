@@ -50,7 +50,7 @@ class InvalidStateError(WaldurClientException):
 
 class WaldurClient(object):
     class Endpoints(object):
-        Provider = 'openstacktenant'
+        Provider = 'service-settings'
         Project = 'projects'
         Flavor = 'openstacktenant-flavors'
         Subnet = 'openstacktenant-subnets'
@@ -273,7 +273,7 @@ class WaldurClient(object):
         url = self._build_resource_url(endpoint, uuid, action)
         return self._post(url, [202], **kwargs)
 
-    def _get_provider(self, identifier):
+    def _get_service_settings(self, identifier):
         return self._get_resource(self.Endpoints.Provider, identifier)
 
     def _get_project(self, identifier):
@@ -520,106 +520,6 @@ class WaldurClient(object):
 
         return response
 
-    def create_instance(
-        self,
-        name,
-        provider,
-        project,
-        networks,
-        image,
-        system_volume_size,
-        description=None,
-        flavor=None,
-        flavor_min_cpu=None,
-        flavor_min_ram=None,
-        interval=10,
-        timeout=600,
-        wait=True,
-        ssh_key=None,
-        data_volume_size=None,
-        security_groups=None,
-        tags=None,
-        user_data=None,
-        check_mode=False,
-    ):
-        """
-        Creates OpenStack instance from passed parameters.
-
-        :param name: name of the instance.
-        :param description: description of the instance.
-        :param provider: uuid or name of the provider to use.
-        :param project: uuid or name of the project to add the instance.
-        :param networks: a list of networks to attach instance to.
-        :param flavor: uuid or name of the flavor to use.
-        :param flavor_min_cpu: min cpu count.
-        :param flavor_min_ram: min ram size (MB).
-        :param image: uuid or name of the image to use.
-        :param system_volume_size: size of the system volume in GB.
-        :param interval: interval of instance state polling in seconds.
-        :param timeout: a maximum amount of time to wait for instance provisioning.
-        :param wait: defines whether the client has to wait for instance provisioning.
-        :param ssh_key: uuid or name of the ssh key to add to the instance.
-        :param data_volume_size: size of the data volume in GB.
-            No data volume is going to be created if empty.
-        :param security_groups: list of security groups to add to the instance.
-        :param tags: list of tags to add to the instance.
-        :param user_data: additional data that will be added to the instance.
-        :return: an instance as a dictionary.
-        """
-        provider = self._get_provider(provider)
-        settings_uuid = provider['settings_uuid']
-        project = self._get_project(project)
-        if flavor:
-            flavor = self._get_flavor(flavor, settings_uuid)
-        else:
-            flavor = self._get_flavor_from_params(flavor_min_cpu, flavor_min_ram)
-
-        image = self._get_image(image, settings_uuid)
-        subnets, floating_ips = self._networks_to_payload(networks)
-
-        payload = {
-            'name': name,
-            'flavor': flavor['url'],
-            'image': image['url'],
-            'service_settings': provider['settings'],
-            'project': project['url'],
-            'system_volume_size': system_volume_size * 1024,
-            'internal_ips_set': subnets,
-            'floating_ips': floating_ips,
-        }
-
-        if security_groups:
-            payload['security_groups'] = []
-            for group in security_groups:
-                security_group = self._get_security_group(group, settings_uuid)
-                payload['security_groups'].append({'url': security_group['url']})
-
-        if data_volume_size:
-            payload.update({'data_volume_size': data_volume_size * 1024})
-        if user_data:
-            payload.update({'user_data': user_data})
-        if ssh_key:
-            ssh_key = self._get_resource(self.Endpoints.SshKey, ssh_key)
-            payload.update({'ssh_public_key': ssh_key['url']})
-        if tags:
-            payload.update({'tags': tags})
-        if description:
-            payload['description'] = description
-
-        if check_mode:
-            return payload
-
-        instance = self._create_instance(payload)
-
-        if wait:
-            self._wait_for_resource(
-                self.Endpoints.Instance, instance['uuid'], interval, timeout
-            )
-            if floating_ips:
-                self._wait_for_external_ip(instance['uuid'], interval, timeout)
-
-        return instance
-
     def _get_project_resource(self, endpoint, name, project=None):
         if is_uuid(name):
             return self._query_resource_by_uuid(endpoint, name)
@@ -778,55 +678,6 @@ class WaldurClient(object):
 
     def delete_volume(self, uuid):
         return self._delete_resource(self.Endpoints.Volume, uuid)
-
-    def create_volume(
-        self,
-        name,
-        project,
-        provider,
-        size,
-        description=None,
-        tags=None,
-        wait=True,
-        interval=10,
-        timeout=600,
-    ):
-        """
-        Creates OpenStack volume via Waldur API from passed parameters.
-
-        :param name: name of the volume.
-        :param project: uuid or name of the project to add the volume to.
-        :param provider: uuid or name of the provider to use.
-        :param size: size of the volume in GBs.
-        :param description: arbitrary text.
-        :param tags: list of tags to add to the volume.
-        :param wait: defines whether the client has to wait for volume provisioning.
-        :param interval: interval of volume state polling in seconds.
-        :param timeout: a maximum amount of time to wait for volume provisioning.
-        :return: volume as a dictionary.
-        """
-        provider = self._get_provider(provider)
-        project = self._get_project(project)
-
-        payload = {
-            'name': name,
-            'service_settings': provider['settings'],
-            'project': project['url'],
-            'size': size * 1024,
-        }
-        if description:
-            payload.update({'description': description})
-        if tags:
-            payload.update({'tags': tags})
-
-        resource = self._create_resource(self.Endpoints.Volume, payload)
-
-        if wait:
-            self._wait_for_resource(
-                self.Endpoints.Volume, resource['uuid'], interval, timeout
-            )
-
-        return resource
 
     def detach_volume(self, uuid, wait=True, interval=10, timeout=600):
         """
