@@ -5,14 +5,13 @@ from django.apps import apps
 from waldur_core.structure.exceptions import ServiceBackendNotImplemented
 
 
-def get_name_for_model(model):
-    key = get_model_key(model)
-    return f'{key}.{model._meta.object_name}'
+def get_resource_type(model):
+    return f'{get_service_type(model)}.{model._meta.object_name}'
 
 
-def get_model_key(model):
+def get_service_type(model):
     app_config = apps.get_containing_app_config(model.__module__)
-    return app_config and app_config.service_name
+    return getattr(app_config, 'service_name', None)
 
 
 class SupportedServices:
@@ -24,13 +23,13 @@ class SupportedServices:
 
     @classmethod
     def register_backend(cls, backend_class):
-        key = get_model_key(backend_class)
+        key = get_service_type(backend_class)
         cls._registry[key] = backend_class
 
     @classmethod
     def get_service_backend(cls, key):
         if not isinstance(key, str):
-            key = get_model_key(key)
+            key = get_service_type(key)
         try:
             return cls._registry[key]
         except KeyError:

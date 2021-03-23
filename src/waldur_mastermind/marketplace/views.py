@@ -42,6 +42,8 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.permissions import _has_owner_access
+from waldur_core.structure.registry import get_resource_type
+from waldur_core.structure.serializers import get_resource_serializer_class
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
@@ -836,6 +838,18 @@ class ResourceViewSet(core_views.ActionsViewSet):
                 offering__customer__permissions__is_active=True,
             )
         ).distinct()
+
+    @action(detail=True, methods=['get'])
+    def details(self, request, uuid=None):
+        resource = self.get_object()
+        if not resource.scope:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        resource_type = get_resource_type(resource.scope)
+        serializer_class = get_resource_serializer_class(resource_type)
+        serializer = serializer_class(
+            instance=resource.scope, context=self.get_serializer_context()
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):

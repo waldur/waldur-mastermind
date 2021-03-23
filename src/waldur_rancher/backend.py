@@ -13,7 +13,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import guess_image_extension
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_rancher.enums import (
@@ -178,7 +178,7 @@ class RancherBackend(ServiceBackend):
     def get_importable_clusters(self):
         remote_clusters = [
             {
-                'type': get_name_for_model(models.Cluster),
+                'type': get_resource_type(models.Cluster),
                 'name': cluster['name'],
                 'backend_id': cluster['id'],
                 'extra': [

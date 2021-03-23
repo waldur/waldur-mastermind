@@ -1,7 +1,7 @@
 from django.test import TestCase
 
 from waldur_core.structure.exceptions import ServiceBackendNotImplemented
-from waldur_core.structure.registry import SupportedServices, get_model_key
+from waldur_core.structure.registry import SupportedServices, get_service_type
 from waldur_core.structure.tests import TestBackend, TestConfig
 from waldur_core.structure.tests.models import TestNewInstance
 
@@ -20,4 +20,4 @@ class ServiceRegistryTest(TestCase):
         )
 
     def test_model_key(self):
-        self.assertEqual(TestConfig.service_name, get_model_key(TestNewInstance))
+        self.assertEqual(TestConfig.service_name, get_service_type(TestNewInstance))

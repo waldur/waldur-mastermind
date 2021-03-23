@@ -9,7 +9,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure import tasks as structure_tasks
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 
 from . import log, models, serializers
 
@@ -384,7 +384,7 @@ class LimitedPerTypeThrottleMixin:
     def get_limit(self, resource):
         nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})
         limit_per_type = nc_settings.get('MAX_CONCURRENT_PROVISION', {})
-        model_name = get_name_for_model(resource)
+        model_name = get_resource_type(resource)
         return limit_per_type.get(
             model_name, super(LimitedPerTypeThrottleMixin, self).get_limit(resource)
         )

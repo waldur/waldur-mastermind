@@ -45,7 +45,7 @@ from waldur_core.structure.managers import (
     StructureManager,
     filter_queryset_for_user,
 )
-from waldur_core.structure.registry import SupportedServices, get_name_for_model
+from waldur_core.structure.registry import SupportedServices, get_resource_type
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
 from waldur_geo_ip.mixins import CoordinatesMixin, IPCoordinatesMixin
 from waldur_geo_ip.utils import get_coordinates_by_ip
@@ -1036,13 +1036,13 @@ class BaseResource(
 
     @property
     def full_name(self):
-        return '%s %s' % (get_name_for_model(self).replace('.', ' '), self.name,)
+        return '%s %s' % (get_resource_type(self).replace('.', ' '), self.name,)
 
     def _get_log_context(self, entity_name):
         context = super(BaseResource, self)._get_log_context(entity_name)
         # XXX: Add resource_full_name here, because event context does not support properties as fields
         context['resource_full_name'] = self.full_name
-        context['resource_type'] = get_name_for_model(self)
+        context['resource_type'] = get_resource_type(self)
 
         return context
 
@@ -1066,7 +1066,7 @@ class BaseResource(
 
     @classmethod
     def get_scope_type(cls):
-        return get_name_for_model(cls)
+        return get_resource_type(cls)
 
 
 class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseResource):
