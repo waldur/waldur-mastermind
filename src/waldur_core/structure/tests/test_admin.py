@@ -83,7 +83,7 @@ class ServiceSettingAdminTest(TestCase):
                 'waldur_core.structure.serializers.ServiceOptionsSerializer.get_subclasses'
             ) as mock_subclasses:
                 with mock.patch(
-                    'waldur_core.structure.admin.get_model_key'
+                    'waldur_core.structure.admin.get_service_type'
                 ) as mock_key:
                     mock_key.return_value = 'Test'
                     mock_class.return_value = serializer_class

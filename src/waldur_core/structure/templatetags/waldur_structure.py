@@ -4,7 +4,7 @@ from django import template
 from django.utils.lru_cache import lru_cache
 
 from waldur_core.core.utils import get_fake_context
-from waldur_core.structure.registry import get_model_key
+from waldur_core.structure.registry import get_service_type
 from waldur_core.structure.serializers import ServiceOptionsSerializer
 
 register = template.Library()
@@ -15,7 +15,7 @@ register = template.Library()
 def service_settings_description():
     services = []
     for cls in ServiceOptionsSerializer.get_subclasses():
-        name = get_model_key(cls)
+        name = get_service_type(cls)
         if not name:
             continue
         fields, extra_fields = get_fields(cls)

@@ -17,7 +17,7 @@ from waldur_core.core.models import SshPublicKey
 from waldur_core.core.utils import hours_in_month
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 
 from . import models
 
@@ -634,7 +634,7 @@ class AWSBackend(ServiceBackend):
             'state': models.Instance.States.OK,
             'public_ips': instance.public_ips,
             'flavor_name': instance.extra.get('instance_type'),
-            'type': get_name_for_model(models.Instance),
+            'type': get_resource_type(models.Instance),
             'runtime_state': instance.state,
         }
 
@@ -770,7 +770,7 @@ class AWSBackend(ServiceBackend):
             'created': volume.extra['create_time'],
             'state': self._get_volume_state(volume.state),
             'runtime_state': volume.state,
-            'type': get_name_for_model(models.Volume),
+            'type': get_resource_type(models.Volume),
             'device': volume.extra['device'],
             'instance_id': volume.extra['instance_id'],
             'volume_type': volume.extra['volume_type'],

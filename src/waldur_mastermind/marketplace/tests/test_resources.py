@@ -896,3 +896,29 @@ class ResourceReportTest(test.APITransactionTestCase):
     def test_report_section_should_contain_header_and_body(self):
         response = self.make_request(self.fixture.staff, [1, 2])
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ResourceDetailsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.offering.add_user(self.fixture.user)
+        self.resource = factories.ResourceFactory(
+            project=self.project, offering=self.offering
+        )
+
+    def make_request(self):
+        url = factories.ResourceFactory.get_url(self.resource, action='details')
+        self.client.force_authenticate(self.fixture.user)
+        return self.client.get(url)
+
+    def test_resource_without_scope_returns_error_404(self):
+        response = self.make_request()
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_resource_with_scope_returns_valid_resource_details(self):
+        self.resource.scope = openstack_factories.TenantFactory(project=self.project)
+        self.resource.save()
+        response = self.make_request()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

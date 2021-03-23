@@ -17,7 +17,7 @@ from novaclient import exceptions as nova_exceptions
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.structure.backend import log_backend_action
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import (
     handle_resource_not_found,
     handle_resource_update_success,
@@ -981,7 +981,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             tenants = [
                 {
-                    'type': get_name_for_model(models.Tenant),
+                    'type': get_resource_type(models.Tenant),
                     'name': tenant.name,
                     'description': tenant.description,
                     'backend_id': tenant.id,

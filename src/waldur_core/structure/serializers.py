@@ -1,5 +1,6 @@
 import json
 import logging
+from functools import lru_cache
 
 import pyvat
 from django.conf import settings
@@ -28,7 +29,7 @@ from waldur_core.structure.exceptions import (
 )
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.registry import get_model_key, get_name_for_model
+from waldur_core.structure.registry import get_resource_type, get_service_type
 
 User = auth.get_user_model()
 logger = logging.getLogger(__name__)
@@ -38,7 +39,17 @@ def get_options_serializer_class(service_type):
     return next(
         cls
         for cls in ServiceOptionsSerializer.get_subclasses()
-        if get_model_key(cls) == service_type
+        if get_service_type(cls) == service_type
+    )
+
+
+@lru_cache
+def get_resource_serializer_class(resource_type):
+    return next(
+        cls
+        for cls in BaseResourceSerializer.get_subclasses()
+        if get_resource_type(cls.Meta.model) == resource_type
+        and get_service_type(cls) is not None
     )
 
 
@@ -1108,7 +1119,7 @@ class BasicResourceSerializer(serializers.Serializer):
     resource_type = serializers.SerializerMethodField()
 
     def get_resource_type(self, resource):
-        return get_name_for_model(resource)
+        return get_resource_type(resource)
 
 
 class ManagedResourceSerializer(BasicResourceSerializer):
@@ -1291,7 +1302,7 @@ class BaseResourceSerializer(
         return ('project', 'service_settings')
 
     def get_resource_type(self, obj):
-        return get_name_for_model(obj)
+        return get_resource_type(obj)
 
     def get_resource_fields(self):
         return [f.name for f in self.Meta.model._meta.get_fields()]
@@ -1304,7 +1315,7 @@ class BaseResourceSerializer(
         fields = super(BaseResourceSerializer, self).get_fields()
         # skip validation on object update
         if not self.instance:
-            service_type = get_model_key(self.Meta.model)
+            service_type = get_service_type(self.Meta.model)
             if (
                 'service_settings' in fields
                 and not fields['service_settings'].read_only

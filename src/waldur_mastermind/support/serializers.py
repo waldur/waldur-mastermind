@@ -14,7 +14,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
@@ -183,7 +183,7 @@ class IssueSerializer(
 
     def get_resource_type(self, obj):
         if isinstance(obj.resource, structure_models.BaseResource):
-            return get_name_for_model(obj.resource_content_type.model_class())
+            return get_resource_type(obj.resource_content_type.model_class())
         if isinstance(obj.resource, marketplace_models.Resource):
             return 'Marketplace.Resource'
 

@@ -11,7 +11,7 @@ from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 
 from waldur_core.structure.backend import log_backend_action
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import (
     handle_resource_not_found,
     handle_resource_update_success,
@@ -1396,7 +1396,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def get_importable_instances(self):
         instances = [
             {
-                'type': get_name_for_model(models.Instance),
+                'type': get_resource_type(models.Instance),
                 'name': instance.name,
                 'backend_id': instance.backend_id,
                 'description': instance.description,
@@ -1414,7 +1414,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def get_importable_volumes(self):
         volumes = [
             {
-                'type': get_name_for_model(models.Volume),
+                'type': get_resource_type(models.Volume),
                 'name': volume.name,
                 'backend_id': volume.id,
                 'description': volume.description,

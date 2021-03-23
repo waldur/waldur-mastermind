@@ -10,7 +10,7 @@ from waldur_core.core.validators import BackendURLValidator
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 
 from . import models
 
@@ -251,7 +251,7 @@ class IssueSerializer(JiraPropertySerializer):
 
     def get_scope_type(self, obj):
         if obj.resource:
-            return get_name_for_model(obj.resource_content_type.model_class())
+            return get_resource_type(obj.resource_content_type.model_class())
 
     class Meta(JiraPropertySerializer.Meta):
         model = models.Issue

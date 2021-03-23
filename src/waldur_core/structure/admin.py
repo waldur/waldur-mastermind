@@ -39,7 +39,7 @@ from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.quotas.admin import QuotaInline
 from waldur_core.structure import executors, models
-from waldur_core.structure.registry import SupportedServices, get_model_key
+from waldur_core.structure.registry import SupportedServices, get_service_type
 from waldur_core.structure.serializers import (
     ServiceOptionsSerializer,
     get_options_serializer_class,
@@ -63,22 +63,22 @@ def get_all_services_field_info():
 
     for serializer_class in ServiceOptionsSerializer.get_subclasses():
         serializer = serializer_class(context=get_fake_context())
-        service_name = get_model_key(serializer_class)
-        if not service_name:
+        service_type = get_service_type(serializer_class)
+        if not service_type:
             continue
         serializer_fields = serializer.get_fields().items()
-        services_fields[service_name] = [
+        services_fields[service_type] = [
             name for name, field in serializer_fields if not field.source
         ]
-        services_fields_required[service_name] = [
+        services_fields_required[service_type] = [
             name
             for name, field in serializer_fields
             if field.required and not field.source
         ]
-        services_extra_fields_required[service_name] = [
+        services_extra_fields_required[service_type] = [
             name for name, field in serializer_fields if field.required and field.source
         ]
-        services_fields_default_value[service_name] = {
+        services_fields_default_value[service_type] = {
             name: field.default
             for name, field in serializer_fields
             if field.required and field.source

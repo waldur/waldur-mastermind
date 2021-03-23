@@ -8,7 +8,7 @@ from django.utils import dateparse
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
-from waldur_core.structure.registry import get_name_for_model
+from waldur_core.structure.registry import get_resource_type
 
 from . import models
 
@@ -306,7 +306,7 @@ class DigitalOceanBackend(ServiceBackend):
                 'ram': droplet.memory,
                 'disk': self.gb2mb(droplet.disk),
                 'flavor_name': droplet.size_slug,
-                'resource_type': get_name_for_model(models.Droplet),
+                'resource_type': get_resource_type(models.Droplet),
             }
             for droplet in droplets
             if str(droplet.id) not in cur_droplets and droplet.status in statuses
