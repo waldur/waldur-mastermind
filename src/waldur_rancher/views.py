@@ -23,6 +23,9 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
+from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import views as openstack_views
 from waldur_rancher import (
     exceptions,
     executors,
@@ -132,6 +135,61 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         return response.Response(status.HTTP_200_OK)
 
     import_yaml_serializer_class = serializers.ImportYamlSerializer
+
+    @decorators.action(detail=True, methods=['post'])
+    def create_management_security_group(self, request, uuid=None):
+        serializer = serializers.CreateManagementSecurityGroupSerializer(
+            data=request.data, many=True
+        )
+        serializer.is_valid(raise_exception=True)
+        cluster = self.get_object()
+        user = request.user
+        tenant = utils.get_management_tenant(cluster)
+        port = cluster.settings.get_option('management_tenant_access_port')
+
+        rules = []
+
+        for rule in serializer.validated_data:
+            rules.append(
+                {
+                    'protocol': 'tcp',
+                    'from_port': port,
+                    'to_port': port,
+                    'direction': openstack_models.SecurityGroupRule.INGRESS,
+                    'ethertype': rule['ethertype'],
+                    'cidr': rule['cidr'],
+                }
+            )
+
+        post_data = {
+            'name': cluster.name,
+            'description': 'Access for management of cluster %s' % cluster.name,
+            'rules': rules,
+        }
+        view = openstack_views.TenantViewSet.as_view({'post': 'create_security_group'})
+        group_response = common_utils.create_request(
+            view, user, post_data, uuid=tenant.uuid.hex
+        )
+
+        if group_response.status_code != status.HTTP_201_CREATED:
+            return response.Response(
+                group_response.data, status=group_response.status_code
+            )
+
+        security_group = openstack_models.SecurityGroup.objects.get(
+            uuid=group_response.data.get('uuid')
+        )
+        cluster.management_security_group = security_group
+        cluster.save()
+        return response.Response(
+            {'security_group_uuid': security_group.uuid.hex},
+            status=status.HTTP_201_CREATED,
+        )
+
+    create_management_security_group_validators = (
+        validators.creation_of_management_security_group_is_available,
+        core_validators.StateValidator(models.Cluster.States.OK),
+    )
 
 
 class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
