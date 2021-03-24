@@ -47,7 +47,7 @@ class DockerExecutorMixin:
             key.upper(): str(input_parameters[key]) for key in input_parameters.keys()
         }
         # update environment with offering-specific parameters
-        for opt in options.get('environ'):
+        for opt in options.get('environ', []):
             if isinstance(opt, dict):
                 environment.update({opt['name']: opt['value']})
 

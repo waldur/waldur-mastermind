@@ -5,14 +5,14 @@ class MarketplaceScriptExtension(WaldurExtension):
     class Settings:
         WALDUR_MARKETPLACE_SCRIPT = {
             # See also: https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient
-            'DOCKER_CLIENT': {'base_url': None,},
+            'DOCKER_CLIENT': {'base_url': 'unix://var/run/docker.sock',},
             # See also: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run
             'DOCKER_RUN_OPTIONS': {'mem_limit': '64m',},
             # Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location
             # OS X users, see https://github.com/docker/for-mac/issues/1532
             'DOCKER_SCRIPT_DIR': None,
             # Key is command to execute script, value is image name.
-            'DOCKER_IMAGES': {'python': 'python:3.7-alpine', 'sh': 'alpine:3.10.0',},
+            'DOCKER_IMAGES': {'python': 'python:3.8-alpine', 'sh': 'alpine:3',},
         }
 
     @staticmethod
