@@ -3,6 +3,7 @@ import datetime
 import decimal
 import logging
 import os
+import traceback
 from io import BytesIO
 
 import pdfkit
@@ -50,7 +51,7 @@ def get_order_item_processor(order_item):
         return plugins.manager.get_processor(offering.type, 'delete_resource_processor')
 
 
-def process_order_item(order_item, user):
+def process_order_item(order_item: models.OrderItem, user):
     processor = get_order_item_processor(order_item)
     if not processor:
         order_item.error_message = (
@@ -68,8 +69,10 @@ def process_order_item(order_item, user):
         # Here it is necessary to catch all exceptions.
         # If this is not done, then the order will remain in the executed status.
         order_item.error_message = str(e)
+        order_item.error_traceback = traceback.format_exc()
         order_item.set_state_erred()
-        order_item.save(update_fields=['state', 'error_message'])
+        logger.error(f'Error processing order item { order_item }.')
+        order_item.save(update_fields=['state', 'error_message', 'error_traceback'])
 
 
 def validate_order_item(order_item, request):
@@ -347,7 +350,7 @@ def create_offering_components(offering, custom_components=None):
         models.OfferingComponent.objects.create(
             offering=offering,
             parent=category_components.get(component_data.type, None),
-            **component_data._asdict()
+            **component_data._asdict(),
         )
 
     if custom_components:

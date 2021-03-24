@@ -1409,6 +1409,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
             'state',
             'marketplace_resource_uuid',
             'error_message',
+            'error_traceback',
             'accepting_terms_of_service',
         )
 
@@ -1428,6 +1429,12 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
     def get_fields(self):
         fields = super(BaseItemSerializer, self).get_fields()
         method = self.context['view'].request.method
+
+        user = self.context['view'].request.user
+        # conceal detailed error message from non-system users
+        if not user.is_staff and not user.is_support:
+            del fields['error_traceback']
+
         if method == 'GET':
             fields['attributes'] = serializers.ReadOnlyField(source='safe_attributes')
         return fields

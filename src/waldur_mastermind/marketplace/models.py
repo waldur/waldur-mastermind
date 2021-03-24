@@ -1285,8 +1285,9 @@ class OrderItem(
         }
 
     def __str__(self):
-        return 'type: %s, created_by: %s' % (
+        return 'type: %s, offering: %s, created_by: %s' % (
             self.get_type_display(),
+            self.offering,
             self.order.created_by,
         )
 
