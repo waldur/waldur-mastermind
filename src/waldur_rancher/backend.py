@@ -44,6 +44,7 @@ class RancherBackend(ServiceBackend):
         'private_registry_url': None,
         'private_registry_user': None,
         'private_registry_password': None,
+        'management_tenant_access_port': 443,
     }
 
     def __init__(self, settings):

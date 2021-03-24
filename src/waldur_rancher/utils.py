@@ -611,3 +611,17 @@ def check_permissions_for_console():
 
 def check_permissions_for_console_log():
     return _check_permissions('console_log')
+
+
+def get_management_tenant(cluster):
+    from waldur_openstack.openstack.models import Tenant
+
+    tenant = None
+
+    try:
+        tenant_uuid = cluster.settings.get_option('management_tenant_uuid')
+        tenant = Tenant.objects.get(uuid=tenant_uuid)
+    except ObjectDoesNotExist:
+        pass
+
+    return tenant

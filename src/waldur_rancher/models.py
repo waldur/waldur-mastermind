@@ -12,6 +12,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core.models import BackendMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import BaseResource, ServiceSettings
+from waldur_openstack.openstack import models as openstack_models
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,12 @@ class Cluster(SettingsMixin, BaseResource):
         blank=True,
     )
     runtime_state = models.CharField(max_length=255, blank=True)
+    management_security_group = models.ForeignKey(
+        to=openstack_models.SecurityGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
 
     @classmethod
     def get_url_name(cls):

@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.response import Response
 
@@ -11,6 +12,7 @@ from waldur_core.structure.tests.factories import (
     SshPublicKeyFactory,
     UserFactory,
 )
+from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import (
@@ -637,6 +639,46 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
         cluster = models.Cluster.objects.get(name='new-cluster')
         self.assertEqual(len(cluster.node_set.first().initial_data['data_volumes']), 0)
+
+
+@ddt
+class ClusterGroupCreateTest(BaseClusterCreateTest):
+    def setUp(self):
+        self.fixture = fixtures.RancherFixture()
+        self.url = factories.ClusterFactory.get_url(
+            cluster=self.fixture.cluster, action='create_management_security_group'
+        )
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_create_management_security_group(self, user):
+        tenant = openstack_factories.TenantFactory(project=self.fixture.project)
+        self.fixture.settings.options['management_tenant_uuid'] = tenant.uuid.hex
+        self.fixture.settings.save()
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, self.get_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.fixture.cluster.refresh_from_db()
+        self.assertTrue(self.fixture.cluster.management_security_group)
+        group_uuid = response.data['security_group_uuid']
+        group = openstack_models.SecurityGroup.objects.get(uuid=group_uuid)
+        self.assertEqual(
+            group.rules.first().direction, openstack_models.SecurityGroupRule.INGRESS
+        )
+        self.assertEqual(
+            group.rules.first().ethertype, openstack_models.SecurityGroupRule.IPv4
+        )
+        self.assertEqual(group.rules.first().cidr, '192.168.77.0/24')
+        self.assertEqual(group.rules.first().to_port, 443)
+        self.assertEqual(group.rules.first().from_port, 443)
+
+    def test_group_creating_is_not_available_if_management_tenant_is_not_set(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, self.get_payload())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Management tenant is not set.' in response.data)
+
+    def get_payload(self):
+        return [{'cidr': '192.168.77.0/24'}]
 
 
 class ClusterPullTest(test.APITransactionTestCase):

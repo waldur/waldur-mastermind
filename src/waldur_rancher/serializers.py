@@ -13,6 +13,8 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import VirtualMachine
+from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant import (
@@ -83,6 +85,28 @@ class RancherServiceSerializer(structure_serializers.ServiceOptionsSerializer):
         ),
         required=False,
     )
+
+    management_tenant_uuid = serializers.UUIDField(
+        source='options.management_tenant_uuid',
+        help_text=_('Tenant where Rancher management is running'),
+        required=False,
+    )
+
+    management_tenant_access_port = serializers.IntegerField(
+        source='options.management_tenant_access_port',
+        help_text=_('Management tenant access port'),
+        required=False,
+    )
+
+    def validate_management_tenant_uuid(self, tenant_uuid):
+        if not filter_queryset_for_user(
+            openstack_models.Tenant.objects.filter(uuid=tenant_uuid),
+            self.context['request'].user,
+        ):
+            raise serializers.ValidationError(
+                _('User has not permissions for tenant %s') % tenant_uuid
+            )
+        return tenant_uuid
 
 
 class DataVolumeSerializer(
@@ -253,6 +277,10 @@ class ClusterSerializer(
         write_only=True,
     )
 
+    management_security_group = serializers.HyperlinkedRelatedField(
+        read_only=True, view_name='openstack-sgp-detail', lookup_field='uuid'
+    )
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -263,6 +291,7 @@ class ClusterSerializer(
             'ssh_public_key',
             'install_longhorn',
             'security_groups',
+            'management_security_group',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -1045,6 +1074,19 @@ class ImportYamlSerializer(serializers.Serializer):
             )
 
         return attrs
+
+
+class CreateManagementSecurityGroupSerializer(serializers.Serializer):
+    cidr = serializers.CharField(
+        validators=[openstack_serializers.validate_private_subnet_cidr],
+        default='192.168.42.0/24',
+        initial='192.168.42.0/24',
+    )
+    ethertype = serializers.ChoiceField(
+        choices=openstack_models.SecurityGroupRule.ETHER_TYPES,
+        initial=openstack_models.SecurityGroupRule.IPv4,
+        default=openstack_models.SecurityGroupRule.IPv4,
+    )
 
 
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
