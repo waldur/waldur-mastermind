@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from django.http import Http404, HttpResponseForbidden
-from rest_framework import exceptions, generics, response, status
+from rest_framework import exceptions, generics, response, status, views
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
@@ -278,7 +278,7 @@ class UserViewSet(structure_views.BaseServicePropertyViewSet):
         )
 
 
-class ServiceActionsView(generics.GenericAPIView):
+class ServiceActionsView(views.APIView):
     def get_service_settings(self):
         if not self.request.user.is_staff:
             return HttpResponseForbidden()
@@ -293,6 +293,10 @@ class ServiceActionsView(generics.GenericAPIView):
             type=ZabbixConfig.service_name
         )
         return get_object_or_404(queryset, uuid=service_settings_uuid)
+
+
+class ServiceActionsGenericView(ServiceActionsView, generics.GenericAPIView):
+    pass
 
 
 class ServiceCredentials(ServiceActionsView):
@@ -315,7 +319,7 @@ class ServiceCredentials(ServiceActionsView):
         return Response({'password': password})
 
 
-class ServiceTriggerStatus(ServiceActionsView):
+class ServiceTriggerStatus(ServiceActionsGenericView):
     def get_query(self):
         serializer = serializers.TriggerRequestSerializer(
             data=self.request.query_params
