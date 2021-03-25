@@ -1264,7 +1264,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def update_instance(self, instance):
         nova = self.nova_client
         try:
-            nova.servers.update(instance.backend_id, name=instance.name)
+            nova.servers.update(
+                instance.backend_id,
+                name=instance.name,
+                description=instance.description,
+            )
         except keystone_exceptions.NotFound as e:
             raise OpenStackBackendError(e)
 
