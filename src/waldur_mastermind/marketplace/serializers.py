@@ -1407,13 +1407,20 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
             'resource_name',
             'cost',
             'state',
+            'output',
             'marketplace_resource_uuid',
             'error_message',
             'error_traceback',
             'accepting_terms_of_service',
         )
 
-        read_only_fields = ('cost', 'state', 'error_message')
+        read_only_fields = (
+            'cost',
+            'state',
+            'error_message',
+            'error_traceback',
+            'output',
+        )
         protected_fields = ('offering', 'plan')
 
     marketplace_resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
