@@ -61,11 +61,14 @@ class DockerExecutorMixin:
         )
 
         try:
-            self.order_item.output = execute_script(
-                image=image,
-                command=language,
-                src=options[self.hook_type],
-                environment=environment,
+            self.order_item.output = str(
+                execute_script(
+                    image=image,
+                    command=language,
+                    src=options[self.hook_type],
+                    environment=environment,
+                ),
+                'utf-8',
             )
             self.order_item.save(update_fields=['output'])
         except DockerException as exc:
