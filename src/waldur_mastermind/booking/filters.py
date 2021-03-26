@@ -3,7 +3,7 @@ import collections
 from django.core import exceptions as django_exceptions
 from django.db.models import Q
 from django_filters import OrderingFilter, UUIDFilter
-from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.filters import ResourceFilter
 from . import PLUGIN_NAME
 
 
-class ResourceOwnerOrCreatorFilterBackend(DjangoFilterBackend):
+class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
         if user.is_staff:
@@ -43,7 +43,7 @@ class ResourceOwnerOrCreatorFilterBackend(DjangoFilterBackend):
             )
 
 
-class CustomersFilterBackend(DjangoFilterBackend):
+class CustomersFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
         if user.is_staff:

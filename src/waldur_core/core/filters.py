@@ -7,7 +7,6 @@ from django.forms.fields import MultipleChoiceField
 from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import fields as core_fields
@@ -15,7 +14,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 
 
-class GenericKeyFilterBackend(DjangoFilterBackend):
+class GenericKeyFilterBackend(BaseFilterBackend):
     """
     Backend for filtering by backend field.
 
@@ -262,7 +261,7 @@ class ExternalFilterBackend(BaseFilterBackend):
         return queryset
 
 
-class SummaryFilter(DjangoFilterBackend):
+class SummaryFilter(BaseFilterBackend):
     """ Base filter for summary querysets """
 
     def filter_queryset(self, request, queryset, view):

@@ -10,7 +10,6 @@ from django.core import exceptions
 from django.db.models import Q
 from django.db.models.functions import Concat
 from django.utils import timezone
-from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.widgets import BooleanWidget
 from rest_framework.filters import BaseFilterBackend
 
@@ -30,7 +29,7 @@ class NameFilterSet(django_filters.FilterSet):
     name_exact = django_filters.CharFilter(field_name='name', lookup_expr='exact')
 
 
-class ScopeTypeFilterBackend(DjangoFilterBackend):
+class ScopeTypeFilterBackend(BaseFilterBackend):
     """ Scope filters:
 
         * ?scope = ``URL``
@@ -265,7 +264,7 @@ class ProjectFilter(NameFilterSet):
             return queryset.filter(name__icontains=value)
 
 
-class CustomerUserFilter(DjangoFilterBackend):
+class CustomerUserFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         customer_uuid = request.query_params.get('customer_uuid')
         if not customer_uuid:
@@ -288,7 +287,7 @@ class CustomerUserFilter(DjangoFilterBackend):
         ).distinct()
 
 
-class ProjectUserFilter(DjangoFilterBackend):
+class ProjectUserFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         project_uuid = request.query_params.get('project_uuid')
         if not project_uuid:
@@ -331,7 +330,7 @@ def filter_visible_users(queryset, user, extra=None):
     return queryset
 
 
-class UserFilterBackend(DjangoFilterBackend):
+class UserFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
@@ -413,7 +412,7 @@ class UserFilter(BaseUserFilter):
     )
 
 
-class UserConcatenatedNameOrderingBackend(DjangoFilterBackend):
+class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
     """ Filter user by concatenated full_name + username with ?o=concatenated_name """
 
     def filter_queryset(self, request, queryset, view):
