@@ -2,7 +2,7 @@ import uuid
 
 import django_filters
 from django.db.models import Q
-from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.users import models
@@ -27,7 +27,7 @@ class InvitationFilter(django_filters.FilterSet):
         ]
 
 
-class InvitationCustomerFilterBackend(DjangoFilterBackend):
+class InvitationCustomerFilterBackend(BaseFilterBackend):
     url_filter = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid',
     )

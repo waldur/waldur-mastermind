@@ -4,7 +4,6 @@ import django_filters
 from django.conf import settings
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
-from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
@@ -89,12 +88,12 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         return queryset
 
 
-class OfferingCustomersFilterBackend(DjangoFilterBackend):
+class OfferingCustomersFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         return queryset.filter_for_user(request.user)
 
 
-class OfferingImportableFilterBackend(DjangoFilterBackend):
+class OfferingImportableFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         if 'importable' in request.query_params:
             user = request.user
