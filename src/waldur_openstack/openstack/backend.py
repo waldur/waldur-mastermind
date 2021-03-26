@@ -1431,11 +1431,11 @@ class OpenStackBackend(BaseOpenStackBackend):
             for rule in backend_security_group['security_group_rules']
         }
 
-        # list of nc rules, that do not exist in openstack
+        # list of waldur rules, that do not exist in openstack
         nonexistent_rules = []
-        # list of nc rules, that have wrong parameters in openstack
+        # list of waldur rules, that have wrong parameters in openstack
         unsynchronized_rules = []
-        # list of os rule ids, that exist in openstack and do not exist in nc
+        # list of os rule ids, that exist in openstack and do not exist in waldur
         extra_rule_ids = list(backend_rules.keys())
 
         for nc_rule in security_group.rules.all():

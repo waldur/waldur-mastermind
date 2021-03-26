@@ -11,7 +11,7 @@ import os
 
 from django.core.wsgi import get_wsgi_application  # noqa: F402
 
-import waldur_core  # noqa: F401 pre-load NC monkey-patching methods
+import waldur_core  # noqa: F401 pre-load waldur monkey-patching methods
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "waldur_core.server.settings")
 

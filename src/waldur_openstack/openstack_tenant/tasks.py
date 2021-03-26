@@ -59,7 +59,7 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
     def execute(self, backup):
         super(SetBackupErredTask, self).execute(backup)
         for snapshot in backup.snapshots.all():
-            # If snapshot creation was not started - delete it from NC DB.
+            # If snapshot creation was not started - delete it from waldur DB.
             if snapshot.state == models.Snapshot.States.CREATION_SCHEDULED:
                 snapshot.decrease_backend_quotas_usage()
                 snapshot.delete()

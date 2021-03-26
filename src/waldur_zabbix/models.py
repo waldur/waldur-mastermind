@@ -289,9 +289,9 @@ class User(core_models.StateMixin, structure_models.ServiceProperty):
     surname = models.CharField(max_length=150)
     type = models.CharField(max_length=30, choices=Types.CHOICES, default=Types.DEFAULT)
     groups = models.ManyToManyField(UserGroup, related_name='users')
-    # password can be blank if user was pulled from zabbix, not created through NC
+    # password can be blank if user was pulled from zabbix, not created through waldur
     password = models.CharField(max_length=150, blank=True)
-    # phone is NC-only field
+    # phone is waldur-only field
     phone = models.CharField(max_length=30, blank=True)
 
     class Meta:

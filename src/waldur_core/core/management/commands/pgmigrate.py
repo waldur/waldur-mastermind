@@ -18,7 +18,7 @@ class Command(BaseCommand):
             '--path',
             '-p',
             dest='path',
-            default='nc.json',
+            default='waldur.json',
             help='Path to dumped database.',
         )
 
