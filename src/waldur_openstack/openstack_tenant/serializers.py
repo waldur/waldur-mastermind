@@ -799,9 +799,7 @@ def _validate_instance_internal_ips(internal_ips, settings):
     for subnet in subnets:
         if subnet.settings != settings:
             message = (
-                _(
-                    'Subnet %s does not belong to the same service settings as service project link.'
-                )
+                _('Subnet %s does not belong to the same service settings as instance.')
                 % subnet
             )
             raise serializers.ValidationError({'internal_ips_set': message})
@@ -822,7 +820,7 @@ def _validate_instance_security_groups(security_groups, settings):
     for security_group in security_groups:
         if security_group.settings != settings:
             error = _(
-                'Security group %s does not belong to the same service settings as service project link.'
+                'Security group %s does not belong to the same service settings as instance.'
             )
             raise serializers.ValidationError(
                 {'security_groups': error % security_group.name}
@@ -855,7 +853,7 @@ def _validate_instance_floating_ips(
             raise serializers.ValidationError({'floating_ips': message % floating_ip})
         if floating_ip.settings != settings:
             message = ugettext(
-                'Floating IP %s does not belong to the same service settings as service project link.'
+                'Floating IP %s does not belong to the same service settings as instance.'
             )
             raise serializers.ValidationError({'floating_ips': message % floating_ip})
 
@@ -1114,7 +1112,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         ):
             raise serializers.ValidationError(
                 _(
-                    'Flavor and image must belong to the same service settings as service project link.'
+                    'Flavor and image must belong to the same service settings as instance.'
                 )
             )
 
@@ -1150,7 +1148,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         if availability_zone and availability_zone.settings != service_settings:
             raise serializers.ValidationError(
                 _(
-                    'Instance and availability zone must belong to the same service settings as service project link.'
+                    'Instance and availability zone must belong to the same service settings as instance.'
                 )
             )
         if availability_zone and not availability_zone.available:

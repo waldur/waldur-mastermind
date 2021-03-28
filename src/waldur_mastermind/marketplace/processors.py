@@ -320,7 +320,6 @@ class DeleteResourceProcessor(AbstractDeleteResourceProcessor):
 class BaseCreateResourceProcessor(CreateResourceProcessor):
     """
     Abstract base class to adapt resource provisioning endpoints to marketplace API.
-    It is assumed that resource model and serializer uses service project link.
     """
 
     viewset = NotImplementedError

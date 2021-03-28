@@ -26,14 +26,6 @@ Glossary
       and they will be automatically connected to all customers (service that is "available for all" will be created
       as connection between service settings and customer).
 
-    Service
-      A standalone entity. Represents cloud service within Waldur and belongs to a customer.
-      Customer can have any number of any services. If service is "available_for_all" - it will be automatically
-      connected to each customer project.
-
-    Service project link
-      Connection between service and project.
-
     Service property
       Represents any properties of cloud service usually used for a resource provisioning.
       For example: image and flavor in OpenStack or zone and template in Oracle.
