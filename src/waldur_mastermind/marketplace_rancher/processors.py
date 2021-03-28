@@ -15,5 +15,5 @@ class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
 
-class RancherDeleteProcessor(processors.DeleteResourceProcessor):
+class RancherDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = rancher_views.ClusterViewSet

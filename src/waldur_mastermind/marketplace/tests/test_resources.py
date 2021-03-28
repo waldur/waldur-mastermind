@@ -641,7 +641,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         plugins.manager.register(
             offering_type='TEST_TYPE',
             create_resource_processor=test_utils.TestCreateProcessor,
-            update_resource_processor=test_utils.TestUpdateProcessor,
+            update_resource_processor=test_utils.TestUpdateScopedProcessor,
         )
 
         self.fixture = fixtures.ServiceFixture()

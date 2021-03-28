@@ -25,14 +25,14 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         return support_models.Issue
 
 
-class DeleteRequestProcessor(processors.DeleteResourceProcessor):
+class DeleteRequestProcessor(processors.DeleteScopedResourceProcessor):
     viewset = IssueViewSet
 
     def get_resource(self):
         return self.order_item
 
 
-class UpdateRequestProcessor(processors.UpdateResourceProcessor):
+class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
     def get_view(self):
         return IssueViewSet.as_view({'post': 'update'})
 

@@ -219,7 +219,7 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
         """
         This method should return related resource of order item.
         """
-        return self.order_item.resource.scope
+        return self.order_item.resource
 
     def update_limits_process(self, user):
         """
@@ -228,7 +228,10 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
         raise NotImplementedError
 
 
-class UpdateResourceProcessor(AbstractUpdateResourceProcessor):
+class UpdateScopedResourceProcessor(AbstractUpdateResourceProcessor):
+    def get_resource(self):
+        return self.order_item.resource.scope
+
     def send_request(self, user):
         view = self.get_view()
         payload = self.get_post_data()
@@ -265,7 +268,7 @@ class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
         """
         This method should return related resource of order item.
         """
-        return self.order_item.resource.scope
+        return self.order_item.resource
 
     def send_request(self, user, resource):
         """
@@ -293,12 +296,17 @@ class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
                 self.order_item.resource.save(update_fields=['state'])
 
 
-class DeleteResourceProcessor(AbstractDeleteResourceProcessor):
+class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
     viewset = NotImplementedError
+
+    def get_resource(self):
+        return self.order_item.resource.scope
 
     def send_request(self, user, resource):
         view = self.get_viewset().as_view({'delete': 'destroy'})
         delete_attributes = self.order_item.attributes
+        # Delete resource processor operates with scoped resources
+
         response = common_utils.delete_request(
             view, user, uuid=resource.uuid.hex, query_params=delete_attributes
         )

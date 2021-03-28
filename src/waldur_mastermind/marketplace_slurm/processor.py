@@ -11,5 +11,5 @@ class CreateAllocationProcessor(processors.BaseCreateResourceProcessor):
     )
 
 
-class DeleteAllocationProcessor(processors.DeleteResourceProcessor):
+class DeleteAllocationProcessor(processors.DeleteScopedResourceProcessor):
     viewset = slurm_views.AllocationViewSet

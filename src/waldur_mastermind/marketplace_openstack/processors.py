@@ -39,9 +39,9 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
         return openstack_models.Tenant.objects.get(uuid=response.data['uuid'])
 
 
-class TenantUpdateProcessor(processors.UpdateResourceProcessor):
+class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
     def update_limits_process(self, user):
-        scope = self.order_item.resource.scope
+        scope = self.get_resource()
         if not scope or not isinstance(scope, openstack_models.Tenant):
             signals.resource_limit_update_failed.send(
                 sender=self.order_item.resource.__class__,
@@ -53,7 +53,7 @@ class TenantUpdateProcessor(processors.UpdateResourceProcessor):
         utils.update_limits(self.order_item)
 
 
-class TenantDeleteProcessor(processors.DeleteResourceProcessor):
+class TenantDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = openstack_views.TenantViewSet
 
 
@@ -79,7 +79,7 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
 
-class InstanceDeleteProcessor(processors.DeleteResourceProcessor):
+class InstanceDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = tenant_views.InstanceViewSet
 
 
@@ -96,5 +96,5 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
 
-class VolumeDeleteProcessor(processors.DeleteResourceProcessor):
+class VolumeDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = tenant_views.VolumeViewSet
