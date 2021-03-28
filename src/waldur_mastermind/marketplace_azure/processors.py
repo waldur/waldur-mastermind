@@ -13,7 +13,7 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
 
-class VirtualMachineDeleteProcessor(processors.DeleteResourceProcessor):
+class VirtualMachineDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = azure_views.VirtualMachineViewSet
 
 
@@ -27,5 +27,5 @@ class SQLServerCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
 
-class SQLServerDeleteProcessor(processors.DeleteResourceProcessor):
+class SQLServerDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = azure_views.SQLServerViewSet
