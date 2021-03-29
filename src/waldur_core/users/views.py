@@ -168,7 +168,9 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['post'], filter_backends=[])
+    @action(
+        detail=True, methods=['post'], filter_backends=[filters.PendingInvitationFilter]
+    )
     def accept(self, request, uuid=None):
         """ Accept invitation for current user.
 
@@ -176,14 +178,6 @@ class InvitationViewSet(ProtectedViewSet):
             'replace_email' to request POST body.
         """
         invitation = self.get_object()
-
-        if invitation.state != models.Invitation.State.PENDING:
-            raise ValidationError(_('Only pending invitation can be accepted.'))
-        elif (
-            invitation.civil_number
-            and invitation.civil_number != request.user.civil_number
-        ):
-            raise ValidationError(_('User has an invalid civil number.'))
 
         if invitation.project:
             if invitation.project.has_user(request.user):
@@ -193,10 +187,8 @@ class InvitationViewSet(ProtectedViewSet):
 
         replace_email = False
         if invitation.email != request.user.email:
-            if settings.WALDUR_CORE['VALIDATE_INVITATION_EMAIL']:
-                raise ValidationError(_('Invitation and user emails mismatch.'))
             # Ensure that user wouldn't reuse existing email
-            elif bool(request.data.get('replace_email')):
+            if bool(request.data.get('replace_email')):
                 if User.objects.filter(email=invitation.email).exists():
                     raise ValidationError(_('This email is already taken.'))
                 else:
@@ -237,3 +229,9 @@ class InvitationViewSet(ProtectedViewSet):
             )
         else:
             return Response({'email': invitation.email}, status=status.HTTP_200_OK)
+
+    @action(detail=True, filter_backends=[filters.PendingInvitationFilter])
+    def details(self, request, uuid=None):
+        invitation = self.get_object()
+        serializer = serializers.PendingInvitationDetailsSerializer(instance=invitation)
+        return Response(serializer.data)

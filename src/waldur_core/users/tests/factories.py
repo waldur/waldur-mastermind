@@ -7,13 +7,17 @@ from waldur_core.users import models
 
 
 class InvitationBaseFactory(factory.DjangoModelFactory):
+    email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
+
     @classmethod
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('user-invitation-list')
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_url(cls, invitation, action=None):
+    def get_url(cls, invitation=None, action=None):
+        if invitation is None:
+            invitation = cls()
         url = 'http://testserver' + reverse(
             'user-invitation-detail', kwargs={'uuid': invitation.uuid.hex}
         )
@@ -27,13 +31,6 @@ class ProjectInvitationFactory(InvitationBaseFactory):
     customer = factory.SelfAttribute('project.customer')
     project = factory.SubFactory(structure_factories.ProjectFactory)
     project_role = structure_models.ProjectRole.MANAGER
-    email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
-
-    @classmethod
-    def get_url(cls, invitation=None, action=None):
-        if invitation is None:
-            invitation = ProjectInvitationFactory()
-        return super(ProjectInvitationFactory, cls).get_url(invitation, action)
 
 
 class CustomerInvitationFactory(InvitationBaseFactory):
@@ -42,10 +39,3 @@ class CustomerInvitationFactory(InvitationBaseFactory):
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     customer_role = structure_models.CustomerRole.OWNER
-    email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
-
-    @classmethod
-    def get_url(cls, invitation=None, action=None):
-        if invitation is None:
-            invitation = CustomerInvitationFactory()
-        return super(CustomerInvitationFactory, cls).get_url(invitation, action)

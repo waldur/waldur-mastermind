@@ -104,3 +104,22 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         if project:
             validated_data['customer'] = project.customer
         return super(InvitationSerializer, self).create(validated_data)
+
+
+class PendingInvitationDetailsSerializer(serializers.ModelSerializer):
+    project_name = serializers.ReadOnlyField(source='project.name')
+    customer_name = serializers.ReadOnlyField(source='customer.name')
+    created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
+    created_by_username = serializers.ReadOnlyField(source='created_by.username')
+
+    class Meta:
+        model = models.Invitation
+        fields = (
+            'email',
+            'project_name',
+            'project_role',
+            'customer_name',
+            'customer_role',
+            'created_by_full_name',
+            'created_by_username',
+        )
