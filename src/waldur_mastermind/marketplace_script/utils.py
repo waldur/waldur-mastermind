@@ -36,7 +36,7 @@ def execute_script(image, command, src, **kwargs):
 class DockerExecutorMixin:
     hook_type = NotImplemented
 
-    def send_request(self, user):
+    def send_request(self, user, resource=None):
         options = self.order_item.offering.secret_options
 
         serializer = serializers.OrderItemSerializer(instance=self.order_item)

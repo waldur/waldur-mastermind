@@ -37,6 +37,14 @@ class CreateProcessor(DockerExecutorMixin, processors.AbstractCreateResourceProc
 class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProcessor):
     hook_type = 'update'
 
+    def send_request(self, user):
+        super().send_request(user)
+        return True
+
 
 class DeleteProcessor(DockerExecutorMixin, processors.AbstractDeleteResourceProcessor):
     hook_type = 'delete'
+
+    def send_request(self, user, resource):
+        super().send_request(user, resource)
+        return True

@@ -22,7 +22,7 @@ def get_order_item_post_data(order_item, fields):
     return dict(
         service_settings=service_settings_url,
         project=project_url,
-        **copy_attributes(fields, order_item)
+        **copy_attributes(fields, order_item),
     )
 
 
@@ -204,12 +204,26 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
         resource = self.get_resource()
         if not resource:
             raise serializers.ValidationError('Resource is not found.')
+        done = self.send_request(user)
 
-        self.send_request(user)
-        self.order_item.resource.set_state_updating()
-        self.order_item.resource.save(update_fields=['state'])
+        if done:
+            with transaction.atomic():
+                # check if a new plan has been requested
+                if resource.plan != self.order_item.plan:
+                    logger.info(
+                        f'Changing plan of a resource {resource.name} from {resource.plan} to {self.order_item.plan}. Order item ID: {self.order_item.id}'
+                    )
+                    resource.plan = self.order_item.plan
+                    resource.save(update_fields=['plan'])
 
-    def send_request(self, user):
+                self.order_item.state = models.OrderItem.States.DONE
+                self.order_item.save(update_fields=['state'])
+        else:
+            with transaction.atomic():
+                self.order_item.resource.set_state_updating()
+                self.order_item.resource.save(update_fields=['state'])
+
+    def send_request(self, user, resource):
         """
         This method should send request to backend.
         """
@@ -238,6 +252,9 @@ class UpdateScopedResourceProcessor(AbstractUpdateResourceProcessor):
         response = common_utils.create_request(view, user, payload)
         if response.status_code != status.HTTP_202_ACCEPTED:
             raise serializers.ValidationError(response.data)
+
+        # we expect all children to implement async update process, which will set state of resource back to OK
+        return False
 
     def get_serializer_class(self):
         """
@@ -380,7 +397,7 @@ class BasicDeleteResourceProcessor(AbstractDeleteResourceProcessor):
 
 class BasicUpdateResourceProcessor(AbstractUpdateResourceProcessor):
     def send_request(self, user):
-        pass
+        return True
 
     def validate_request(self, request):
         pass
