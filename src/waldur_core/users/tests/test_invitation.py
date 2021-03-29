@@ -51,13 +51,15 @@ class BaseInvitationTest(test.APITransactionTestCase):
 
 @ddt
 class InvitationRetrieveTest(BaseInvitationTest):
-    def test_user_can_list_invitations(self):
+    def test_unauthorized_user_can_not_list_invitations(self):
+        self.project_invitation
         self.client.force_authenticate(user=self.user)
         response = self.client.get(factories.InvitationBaseFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
 
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_retrieve_project_invitation(self, user):
+    def test_authorized_user_can_retrieve_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.get(
             factories.ProjectInvitationFactory.get_url(self.project_invitation)
@@ -65,7 +67,7 @@ class InvitationRetrieveTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data('project_admin', 'project_manager', 'user')
-    def test_user_without_access_cannot_retrieve_project_invitation(self, user):
+    def test_unauthorized_user_cannot_retrieve_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.get(
             factories.ProjectInvitationFactory.get_url(self.project_invitation)
@@ -73,7 +75,7 @@ class InvitationRetrieveTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_retrieve_customer_invitation(self, user):
+    def test_authorized_user_can_retrieve_customer_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.get(
             factories.CustomerInvitationFactory.get_url(self.customer_invitation)
@@ -81,7 +83,7 @@ class InvitationRetrieveTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data('project_admin', 'project_manager', 'user')
-    def test_user_without_access_cannot_retrieve_customer_invitation(self, user):
+    def test_unauthorized_user_cannot_retrieve_customer_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.get(
             factories.CustomerInvitationFactory.get_url(self.customer_invitation)
@@ -125,6 +127,54 @@ class InvitationRetrieveTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+
+class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
+    def get_details(self, user, invitation):
+        self.client.force_authenticate(user=user)
+        return self.client.get(
+            factories.CustomerInvitationFactory.get_url(invitation, action='details')
+        )
+
+    def test_if_user_has_civil_number_only_matching_invitation_is_shown(self):
+        customer_invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            customer_role=self.customer_role,
+            civil_number='123456789',
+        )
+        self.user.civil_number = '123456789'
+        self.user.save()
+        response = self.get_details(self.user, customer_invitation)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_if_user_has_civil_number_non_matching_invitation_is_concealed(self):
+        customer_invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            customer_role=self.customer_role,
+            civil_number='123456789',
+        )
+        response = self.get_details(self.user, customer_invitation)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
+    def test_if_email_validation_is_enabled_matching_invitation_is_shown(self,):
+        invitation = factories.CustomerInvitationFactory(
+            created_by=self.customer_owner, email=self.user.email
+        )
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
+    def test_if_email_validation_is_enabled_non_matching_invitation_is_concealed(self,):
+        invitation = factories.CustomerInvitationFactory(created_by=self.customer_owner)
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=False)
+    def test_if_email_validation_is_disabled_non_matching_invitation_is_shown(self,):
+        invitation = factories.CustomerInvitationFactory(created_by=self.customer_owner)
+        response = self.get_details(self.user, invitation)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 @ddt
@@ -538,8 +588,7 @@ class InvitationAcceptTest(BaseInvitationTest):
             )
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, ['User has an invalid civil number.'])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_user_which_already_has_role_within_customer_cannot_accept_invitation(self):
         customer_invitation = factories.CustomerInvitationFactory(
@@ -621,7 +670,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
         response = self.client.post(url, {'replace_email': True})
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.user.refresh_from_db()
         self.assertNotEqual(self.user.email, invitation.email)
 
