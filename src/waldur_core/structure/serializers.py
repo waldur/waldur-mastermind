@@ -20,7 +20,6 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
-from waldur_core.monitoring.serializers import MonitoringSerializerMixin
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import models
 from waldur_core.structure.exceptions import (
@@ -1207,7 +1206,6 @@ class TagListSerializerField(serializers.Field):
 
 class BaseResourceSerializer(
     core_serializers.RestrictedSerializerMixin,
-    MonitoringSerializerMixin,
     PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,
     TagSerializer,
@@ -1262,7 +1260,7 @@ class BaseResourceSerializer(
 
     class Meta:
         model = NotImplemented
-        fields = MonitoringSerializerMixin.Meta.fields + (
+        fields = (
             'url',
             'uuid',
             'name',

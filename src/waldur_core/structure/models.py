@@ -35,7 +35,6 @@ from waldur_core.core.validators import validate_cidr_list
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
-from waldur_core.monitoring.models import MonitoringModelMixin
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure.managers import (
@@ -977,7 +976,6 @@ class GeneralServiceProperty(BaseServiceProperty):
 
 
 class BaseResource(
-    MonitoringModelMixin,
     core_models.UuidMixin,
     core_models.DescribableMixin,
     core_models.NameMixin,
