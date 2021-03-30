@@ -216,6 +216,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
         'is_active',
         'is_staff',
         'is_support',
+        'is_identity_manager',
     )
     search_fields = (
         'username',

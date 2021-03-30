@@ -41,3 +41,7 @@ class ActivationSerializer(serializers.Serializer):
         if not default_token_generator.check_token(self.user, attrs['token']):
             raise serializers.ValidationError('Invalid token')
         return attrs
+
+
+class RemoteEduteamsRequestSerializer(serializers.Serializer):
+    cuid = serializers.CharField(max_length=256)

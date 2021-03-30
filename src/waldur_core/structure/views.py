@@ -455,6 +455,13 @@ class UserViewSet(viewsets.ModelViewSet):
 
         NB! Username field is case-insensitive. So "John" and "john" will be treated as the same user.
         """
+        if request.user.is_identity_manager and not (
+            request.user.is_staff or request.user.is_support
+        ):
+            return Response(
+                _('Identity manager is not allowed to list users.'),
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return super(UserViewSet, self).list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
