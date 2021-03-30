@@ -44,3 +44,6 @@ class GoogleCalendar(core_models.StateMixin):
     class Meta:
         verbose_name = _('Google calendar')
         verbose_name_plural = _('Google calendars')
+
+    def __str__(self):
+        return f'{self.offering} ({self.public})'
