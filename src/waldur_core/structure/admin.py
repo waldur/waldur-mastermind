@@ -179,19 +179,19 @@ class ResourceCounterFormMixin:
 
 class CustomerAdminForm(ModelForm):
     owners = ModelMultipleChoiceField(
-        User.objects.all().order_by('first_name', 'last_name'),
+        User.objects.all().order_by('full_name'),
         required=False,
         widget=FilteredSelectMultiple(verbose_name=_('Owners'), is_stacked=False),
     )
     support_users = ModelMultipleChoiceField(
-        User.objects.all().order_by('first_name', 'last_name'),
+        User.objects.all().order_by('full_name'),
         required=False,
         widget=FilteredSelectMultiple(
             verbose_name=_('Support users'), is_stacked=False
         ),
     )
     service_managers = ModelMultipleChoiceField(
-        User.objects.all().order_by('first_name', 'last_name'),
+        User.objects.all().order_by('full_name'),
         required=False,
         widget=FilteredSelectMultiple(
             verbose_name=_('Service managers'), is_stacked=False
@@ -351,17 +351,17 @@ class CustomerAdmin(
 
 class ProjectAdminForm(ModelForm):
     admins = ModelMultipleChoiceField(
-        User.objects.all().order_by('first_name', 'last_name'),
+        User.objects.all().order_by('full_name'),
         required=False,
         widget=FilteredSelectMultiple(verbose_name=_('Admins'), is_stacked=False),
     )
     managers = ModelMultipleChoiceField(
-        User.objects.all().order_by('first_name', 'last_name'),
+        User.objects.all().order_by('full_name'),
         required=False,
         widget=FilteredSelectMultiple(verbose_name=_('Managers'), is_stacked=False),
     )
     members = ModelMultipleChoiceField(
-        User.objects.all().order_by('first_name', 'last_name'),
+        User.objects.all().order_by('full_name'),
         required=False,
         widget=FilteredSelectMultiple(verbose_name=_('Members'), is_stacked=False),
     )

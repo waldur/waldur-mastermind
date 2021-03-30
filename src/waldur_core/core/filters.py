@@ -3,8 +3,6 @@ from urllib.parse import urlparse
 
 import django_filters
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Value as V
-from django.db.models.functions import Concat
 from django.forms.fields import MultipleChoiceField
 from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
@@ -317,47 +315,3 @@ class BaseSummaryFilterSet(django_filters.FilterSet):
         for name, value in self.form.cleaned_data.items():
             queryset = self.filters[name].filter(queryset, value)
         return queryset
-
-
-class ExtendedOrderingFilter(django_filters.OrderingFilter):
-    """This filter allows to use list or tuple of model fields in defining of ordering fields in filter.
-
-    For example:
-
-    class MyFilterSet(django_filters.FilterSet):
-        o = core_filters.ExtendedOrderingFilter(
-            fields=(
-                ('created', 'created'),
-                (('first_name', 'last_name'), 'full_name'),
-            )
-        )
-    """
-
-    def get_ordering_value(self, param):
-        descending = param.startswith('-')
-        param = param[1:] if descending else param
-        field_name = self.param_map.get(param, param)
-
-        if not isinstance(field_name, (tuple, list)):
-            field_name = [field_name]
-
-        return list(map(lambda x: "-%s" % x if descending else x, field_name))
-
-    def filter(self, qs, value):
-        if value in EMPTY_VALUES:
-            return qs
-
-        ordering = []
-
-        for param_name in value:
-            param = self.get_ordering_value(param_name)
-            ordering += param
-
-        return qs.order_by(*ordering)
-
-
-def filter_by_full_name(queryset, value, field=''):
-    field = field and field + '__'
-    return queryset.annotate(
-        concatenated_name=Concat(field + 'first_name', V(' '), field + 'last_name')
-    ).filter(concatenated_name__icontains=value)

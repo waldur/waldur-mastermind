@@ -145,6 +145,7 @@ class UserDetailsMixin(models.Model):
     class Meta:
         abstract = True
 
+    full_name = models.CharField(_('full name'), max_length=100, blank=True)
     native_name = models.CharField(_('native name'), max_length=100, blank=True)
     phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
     organization = models.CharField(_('organization'), max_length=255, blank=True)
@@ -237,18 +238,6 @@ class User(
         help_text=_('Extra details from authentication backend.'),
     )
     backend_id = models.CharField(max_length=255, blank=True)
-    first_name = models.CharField(_('first name'), max_length=100, blank=True)
-    last_name = models.CharField(_('last name'), max_length=100, blank=True)
-
-    @property
-    def full_name(self):
-        return ('%s %s' % (self.first_name, self.last_name)).strip()
-
-    @full_name.setter
-    def full_name(self, value):
-        names = value.split()
-        self.first_name = ' '.join(names[:1])
-        self.last_name = ' '.join(names[1:])
 
     tracker = FieldTracker()
     objects = UserManager()

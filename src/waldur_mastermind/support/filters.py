@@ -28,7 +28,7 @@ class IssueFilter(django_filters.FilterSet):
     )
 
     caller_full_name = django_filters.CharFilter(
-        method='filter_by_full_name', label='Caller full name contains'
+        lookup_expr='icontains', field_name='caller__full_name'
     )
     caller = core_filters.URLFilter(view_name='user-detail', field_name='caller__uuid')
 
@@ -38,9 +38,6 @@ class IssueFilter(django_filters.FilterSet):
     assignee = core_filters.URLFilter(
         view_name='support-user-detail', field_name='assignee__uuid'
     )
-
-    def filter_by_full_name(self, queryset, name, value):
-        return core_filters.filter_by_full_name(queryset, value, 'caller')
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -53,8 +50,7 @@ class IssueFilter(django_filters.FilterSet):
             ('summary', 'summary'),
             ('customer__name', 'customer_name'),
             ('project__name', 'project_name'),
-            ('caller__first_name', 'caller_first_name'),
-            ('caller__last_name', 'caller_last_name'),
+            ('caller__full_name', 'caller_full_name'),
             ('reporter__name', 'reporter_name'),
             ('assignee__name', 'assignee_name'),
         )
@@ -186,9 +182,5 @@ class FeedbackFilter(django_filters.FilterSet):
     )
 
     issue_key = django_filters.CharFilter(field_name='issue__key')
-    user_full_name = django_filters.CharFilter(
-        method='filter_by_full_name', label='User full name contains'
-    )
 
-    def filter_by_full_name(self, queryset, name, value):
-        return core_filters.filter_by_full_name(queryset, value, 'issue__caller')
+    user_full_name = django_filters.CharFilter(field_name='issue__caller__full_name')

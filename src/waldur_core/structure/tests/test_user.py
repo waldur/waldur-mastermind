@@ -1,7 +1,6 @@
 import unittest
 from unittest import mock
 
-from ddt import data, ddt
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -798,20 +797,3 @@ class NotificationsProfileChangesTest(test.APITransactionTestCase):
         self.user.email = new_email
         self.user.save()
         self.assertEqual(mock_event_logger.user.info.call_count, 0)
-
-
-@ddt
-class UserFullnameTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.user = factories.UserFactory()
-
-    @data(
-        ('', '', ''),
-        ('John', 'John', ''),
-        ('John Smith', 'John', 'Smith'),
-        ('John A Smith', 'John', 'A Smith'),
-    )
-    def test_split_full_name(self, names):
-        self.user.full_name = names[0]
-        self.assertEqual(self.user.first_name, names[1])
-        self.assertEqual(self.user.last_name, names[2])

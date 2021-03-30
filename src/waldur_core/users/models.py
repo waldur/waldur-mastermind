@@ -84,7 +84,6 @@ class Invitation(
         ),
     )
     tax_number = models.CharField(_('tax number'), max_length=50, blank=True)
-    full_name = models.CharField(_('full name'), max_length=100, blank=True)
 
     def get_expiration_time(self):
         return self.created + settings.WALDUR_CORE['INVITATION_LIFETIME']

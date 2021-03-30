@@ -211,8 +211,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
         'username',
         'uuid',
         'email',
-        'first_name',
-        'last_name',
+        'full_name',
         'native_name',
         'is_active',
         'is_staff',
@@ -222,8 +221,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
     search_fields = (
         'username',
         'uuid',
-        'first_name',
-        'last_name',
+        'full_name',
         'native_name',
         'email',
         'civil_number',
@@ -237,8 +235,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
             {
                 'fields': (
                     'civil_number',
-                    'first_name',
-                    'last_name',
+                    'full_name',
                     'native_name',
                     'email',
                     'preferred_language',
