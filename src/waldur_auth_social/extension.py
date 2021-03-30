@@ -28,6 +28,8 @@ class AuthSocialExtension(WaldurExtension):
             'EDUTEAMS_AUTH_URL': 'https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization',
             'EDUTEAMS_TOKEN_URL': 'https://proxy.acc.eduteams.org/OIDC/token',
             'EDUTEAMS_USERINFO_URL': 'https://proxy.acc.eduteams.org/OIDC/userinfo',
+            'REMOTE_EDUTEAMS_ACCESS_TOKEN': '',
+            'REMOTE_EDUTEAMS_USERINFO_URL': '',
         }
 
     @staticmethod

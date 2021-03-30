@@ -1,6 +1,7 @@
 import json
 from unittest import mock
 
+import responses
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -174,3 +175,71 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
             ssh_key = SshPublicKey.objects.get(user=user)
             self.assertEqual(ssh_key.public_key, self.backend_user['ssh_public_key'][0])
             self.assertTrue(ssh_key.name.startswith('eduteams_'))
+
+
+@override_settings(
+    WALDUR_AUTH_SOCIAL={
+        'REMOTE_EDUTEAMS_ACCESS_TOKEN': '28c5353b8bb34984a8bd4169ba94c606',
+        'REMOTE_EDUTEAMS_USERINFO_URL': 'https://proxy.acc.researcher-access.org/api/userinfo',
+    }
+)
+class RemoteEduteamsTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        super(RemoteEduteamsTest, self).setUp()
+        self.url = reverse('auth_remote_eduteams')
+        self.valid_cuid = (
+            '87b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org'
+        )
+
+    def test_unauthorized_user_can_not_sync_remote_users(self):
+        user = structure_factories.UserFactory()
+        self.client.force_login(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data, 'Only identity manager is allowed to sync remote users.'
+        )
+
+    def test_when_user_already_exists_local_uuid_is_returned(self):
+        eduteams_user = structure_factories.UserFactory(
+            registration_method='eduteams',
+            username=self.valid_cuid,
+            email='john@snow.me',
+        )
+        user = structure_factories.UserFactory(is_identity_manager=True)
+        self.client.force_login(user)
+        response = self.client.post(self.url, {'cuid': eduteams_user.username})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data['uuid'], eduteams_user.uuid.hex)
+
+    @responses.activate
+    def test_when_user_does_not_exist_remote_api_is_called(self):
+        user_url = (
+            f'https://proxy.acc.researcher-access.org/api/userinfo/${self.valid_cuid}'
+        )
+        responses.add(
+            method='GET',
+            url=user_url,
+            json={
+                "voperson_id": "87b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org",
+                "name": "John Snow",
+                "given_name": "John",
+                "family_name": "Snow",
+                "mail": ["john@snow.me"],
+                "ssh_public_key": [
+                    'ssh-ed25519 AAAAC3NqaC1lZDI1TTE5AAAAIJ4pfKk7hRdUVeMfrKdLYhxdKy92nVPuHDlVVvZMyqeP'
+                ],
+            },
+        )
+        user = structure_factories.UserFactory(is_identity_manager=True)
+        self.client.force_login(user)
+
+        response = self.client.post(self.url, {'cuid': self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        new_user = User.objects.get(username=self.valid_cuid)
+        self.assertEqual(new_user.email, "john@snow.me")
+        self.assertEqual(new_user.full_name, "John Snow")
+
+        keys = SshPublicKey.objects.filter(user=new_user)
+        self.assertEqual(keys.count(), 1)

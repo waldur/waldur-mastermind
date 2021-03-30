@@ -10,6 +10,7 @@ from django.db import IntegrityError, transaction
 from rest_framework import generics, response, status, views
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.response import Response
 
 from waldur_core.core.models import SshPublicKey
 from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
@@ -17,7 +18,12 @@ from waldur_core.core.views import RefreshTokenMixin, validate_authentication_me
 from . import tasks
 from .log import event_logger, provider_event_type_mapping
 from .models import AuthProfile
-from .serializers import ActivationSerializer, AuthSerializer, RegistrationSerializer
+from .serializers import (
+    ActivationSerializer,
+    AuthSerializer,
+    RegistrationSerializer,
+    RemoteEduteamsRequestSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -552,6 +558,76 @@ class EduteamsView(BaseAuthView):
             existing_keys_map[key].delete()
 
         return user, created
+
+
+class RemoteEduteamsView(views.APIView):
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_identity_manager:
+            return Response(
+                'Only identity manager is allowed to sync remote users.',
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not self.get_token() or not self.get_url():
+            return Response(
+                'Remote Eduteams user sync is disabled.',
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = RemoteEduteamsRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        cuid = serializer.validated_data['cuid']
+
+        user = self.get_or_create_user(cuid)
+        return Response({'uuid': user.uuid.hex})
+
+    def get_token(self):
+        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ACCESS_TOKEN']
+
+    def get_url(self):
+        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_USERINFO_URL']
+
+    def get_or_create_user(self, username):
+        try:
+            return User.objects.get(
+                username=username, registration_method=EduteamsView.provider
+            )
+        except User.DoesNotExist:
+            user_info = self.get_user_info(username)
+            return self.create_user(user_info)
+
+    def create_user(self, user_info):
+        user = User.objects.create_user(
+            username=user_info['voperson_id'],
+            registration_method=EduteamsView.provider,
+            full_name=user_info['name'],
+            email=user_info['mail'][0],
+        )
+        for ssh_key in user_info['ssh_public_key']:
+            name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
+            new_key = SshPublicKey(user=user, name=name, public_key=ssh_key)
+            new_key.save()
+        user.set_unusable_password()
+        user.save()
+        return user
+
+    def get_user_info(self, cuid: str) -> dict:
+        user_url = f'{self.get_url()}/${cuid}'
+        headers = {'Authorization': f'Bearer ${self.get_token()}'}
+
+        try:
+            response = requests.get(user_url, headers=headers)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to get Eduteams user info. Error is %s', e)
+            raise EduteamsException('Unable to get user info.')
+
+        if response.status_code != 200:
+            raise EduteamsException('Unable to get user info.')
+
+        try:
+            return response.json()
+        except (ValueError, TypeError):
+            raise EduteamsException('Unable to parse JSON in user info response.')
 
 
 class RegistrationView(generics.CreateAPIView):

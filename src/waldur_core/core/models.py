@@ -205,6 +205,12 @@ class User(
         default=False,
         help_text=_('Designates whether the user is a global support user.'),
     )
+    is_identity_manager = models.BooleanField(
+        default=False,
+        help_text=_(
+            'Designates whether the user is allowed to manage remote user identities.'
+        ),
+    )
     date_joined = models.DateTimeField(_('date joined'), default=django_timezone.now)
     registration_method = models.CharField(
         _('registration method'),
