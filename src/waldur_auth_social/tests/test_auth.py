@@ -215,7 +215,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
     @responses.activate
     def test_when_user_does_not_exist_remote_api_is_called(self):
         user_url = (
-            f'https://proxy.acc.researcher-access.org/api/userinfo/${self.valid_cuid}'
+            f'https://proxy.acc.researcher-access.org/api/userinfo/{self.valid_cuid}'
         )
         responses.add(
             method='GET',

@@ -603,7 +603,7 @@ class RemoteEduteamsView(views.APIView):
             full_name=user_info['name'],
             email=user_info['mail'][0],
         )
-        for ssh_key in user_info['ssh_public_key']:
+        for ssh_key in user_info.get('ssh_public_key', []):
             name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
             new_key = SshPublicKey(user=user, name=name, public_key=ssh_key)
             new_key.save()
@@ -612,8 +612,8 @@ class RemoteEduteamsView(views.APIView):
         return user
 
     def get_user_info(self, cuid: str) -> dict:
-        user_url = f'{self.get_url()}/${cuid}'
-        headers = {'Authorization': f'Bearer ${self.get_token()}'}
+        user_url = f'{self.get_url()}/{cuid}'
+        headers = {'Authorization': f'Bearer {self.get_token()}'}
 
         try:
             response = requests.get(user_url, headers=headers)
