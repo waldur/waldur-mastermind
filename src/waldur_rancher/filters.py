@@ -2,6 +2,7 @@ import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 
+from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
 from . import models
@@ -81,15 +82,17 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class UserFilter(django_filters.FilterSet):
-    cluster_uuid = django_filters.UUIDFilter(method='filter_by_cluster')
+    cluster_uuid = django_filters.UUIDFilter(
+        method='filter_by_cluster', label='Cluster UUID'
+    )
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
     user_username = django_filters.CharFilter(
         field_name='user__username', lookup_expr='icontains'
     )
-    user_full_name = django_filters.CharFilter(
-        field_name='user__full_name', lookup_expr='icontains'
-    )
     settings_uuid = django_filters.UUIDFilter(field_name='settings__uuid')
+    user_full_name = django_filters.CharFilter(
+        method='filter_by_full_name', label='User full name contains'
+    )
 
     class Meta:
         model = models.RancherUser
@@ -110,6 +113,9 @@ class UserFilter(django_filters.FilterSet):
                 cluster=cluster
             ).values_list('user_id', flat=True)
             return queryset.filter(id__in=user_ids)
+
+    def filter_by_full_name(self, queryset, name, value):
+        return core_filters.filter_by_full_name(queryset, value, 'user')
 
 
 class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):

@@ -252,7 +252,10 @@ class OfferingPermissionInline(admin.TabularInline):
     model = models.OfferingPermission
     fields = ('user', 'is_active', 'created_by')
     readonly_fields = ('created_by',)
-    ordering = ('-user__full_name',)
+    ordering = (
+        '-user__first_name',
+        '-user__last_name',
+    )
     extra = 1
 
 
