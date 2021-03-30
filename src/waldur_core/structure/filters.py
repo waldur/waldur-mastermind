@@ -365,13 +365,18 @@ class UserFilterBackend(BaseFilterBackend):
 
 
 class BaseUserFilter(django_filters.FilterSet):
-    full_name = django_filters.CharFilter(lookup_expr='icontains')
+    full_name = django_filters.CharFilter(
+        method='filter_by_full_name', label='Full name'
+    )
     username = django_filters.CharFilter()
     native_name = django_filters.CharFilter(lookup_expr='icontains')
     organization = django_filters.CharFilter(lookup_expr='icontains')
     job_title = django_filters.CharFilter(lookup_expr='icontains')
     email = django_filters.CharFilter(lookup_expr='icontains')
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
+
+    def filter_by_full_name(self, queryset, name, value):
+        return core_filters.filter_by_full_name(queryset, value)
 
     class Meta:
         model = User
@@ -394,9 +399,9 @@ class UserFilter(BaseUserFilter):
     is_staff = django_filters.BooleanFilter(widget=BooleanWidget)
     is_support = django_filters.BooleanFilter(widget=BooleanWidget)
 
-    o = django_filters.OrderingFilter(
+    o = core_filters.ExtendedOrderingFilter(
         fields=(
-            'full_name',
+            (('first_name', 'last_name'), 'full_name'),
             'native_name',
             'email',
             'phone_number',
@@ -413,7 +418,7 @@ class UserFilter(BaseUserFilter):
 
 
 class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
-    """ Filter user by concatenated full_name + username with ?o=concatenated_name """
+    """ Filter user by concatenated first_name + last_name + username with ?o=concatenated_name """
 
     def filter_queryset(self, request, queryset, view):
         queryset = self._filter_queryset(request, queryset, view)
@@ -431,7 +436,7 @@ class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
         else:
             return queryset
         return queryset.annotate(
-            concatenated_name=Concat('full_name', 'username')
+            concatenated_name=Concat('first_name', 'last_name', 'username')
         ).order_by(order_by)
 
 
@@ -442,16 +447,19 @@ class UserPermissionFilter(django_filters.FilterSet):
         field_name='user__username', lookup_expr='exact',
     )
     full_name = django_filters.CharFilter(
-        field_name='user__full_name', lookup_expr='icontains',
+        method='filter_by_full_name', label='User full name contains'
     )
     native_name = django_filters.CharFilter(
         field_name='user__native_name', lookup_expr='icontains',
     )
 
-    o = django_filters.OrderingFilter(
+    def filter_by_full_name(self, queryset, name, value):
+        return core_filters.filter_by_full_name(queryset, value, 'user')
+
+    o = core_filters.ExtendedOrderingFilter(
         fields=(
             ('user__username', 'username'),
-            ('user__full_name', 'full_name'),
+            (('user__first_name', 'user__last_name'), 'full_name'),
             ('user__native_name', 'native_name'),
             ('user__email', 'email'),
             ('expiration_time', 'expiration_time'),
