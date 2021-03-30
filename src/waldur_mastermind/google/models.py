@@ -1,4 +1,4 @@
-import base64
+from urllib.parse import urlencode
 
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
@@ -35,8 +35,9 @@ class GoogleCalendar(core_models.StateMixin):
     @property
     def http_link(self):
         if self.public:
-            cid = base64.b64encode(self.backend_id.encode()).decode().replace('==', '')
-            return 'https://calendar.google.com/calendar/u/0?cid=%s' % cid
+            return 'https://calendar.google.com/calendar/embed?%s' % urlencode(
+                {'src': self.backend_id}
+            )
 
     class Permissions:
         customer_path = 'offering__customer'
