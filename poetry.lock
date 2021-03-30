@@ -2170,17 +2170,6 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
-name = "pyzabbix"
-version = "0.7.4"
-description = "Zabbix API Python interface"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-requests = ">=1.0"
-
-[[package]]
 name = "redis"
 version = "3.2.1"
 description = "Python client for Redis key-value store"
@@ -2551,7 +2540,7 @@ testing = ["jaraco.itertools", "func-timeout"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "ed3e1679e34e7385c68009d5401534be25304eb566ec913a8d39e9fb9b392fc3"
+content-hash = "693c558e4078d7acfd77f8c13c2159f7253770ea73a2c4d29b0425e88adb8fff"
 
 [metadata.files]
 adal = [
@@ -3533,9 +3522,6 @@ pyyaml = [
     {file = "PyYAML-5.1.2-cp38-cp38m-win32.whl", hash = "sha256:7ec9b2a4ed5cad025c2278a1e6a19c011c80a3caaac804fd2d329e9cc2c287c9"},
     {file = "PyYAML-5.1.2-cp38-cp38m-win_amd64.whl", hash = "sha256:b631ef96d3222e62861443cc89d6563ba3eeb816eeb96b2629345ab795e53681"},
     {file = "PyYAML-5.1.2.tar.gz", hash = "sha256:01adf0b6c6f61bd11af6e10ca52b7d4057dd0be0343eb9283c878cf3af56aee4"},
-]
-pyzabbix = [
-    {file = "pyzabbix-0.7.4.tar.gz", hash = "sha256:a30b52427851d3284b0334ba9f99a839208c79c5ce2284863ef2bc2e187c8ad8"},
 ]
 redis = [
     {file = "redis-3.2.1-py2.py3-none-any.whl", hash = "sha256:6946b5dca72e86103edc8033019cc3814c031232d339d5f4533b02ea85685175"},

@@ -63,11 +63,7 @@ class CustomMenu(Menu):
         'waldur_paypal.*',
     )
 
-    APPLICATION_PROVIDERS = (
-        'waldur_ansible.*',
-        'waldur_zabbix.*',
-        'waldur_jira.*',
-    )
+    APPLICATION_PROVIDERS = ('waldur_jira.*',)
 
     SUPPORT_MODULES = ('waldur_mastermind.support.*',)
 
