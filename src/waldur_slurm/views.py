@@ -19,7 +19,8 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     destroy_permissions = [structure_permissions.is_owner]
     delete_executor = executors.AllocationDeleteExecutor
 
-    partial_update_permissions = update_permissions = [structure_permissions.is_owner]
+    partial_update_permissions = update_permissions = [structure_permissions.is_staff]
+    partial_update_serializer_class = serializers.AllocationLimitsUpdateSerializer
     update_executor = executors.AllocationUpdateExecutor
 
 

@@ -1,5 +1,4 @@
 from ddt import data, ddt
-from django.conf import settings as django_settings
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory
@@ -58,11 +57,6 @@ class AllocationCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
-        self.assertEqual(response.data['cpu_limit'], default_limits['CPU'])
-        self.assertEqual(response.data['gpu_limit'], default_limits['GPU'])
-        self.assertEqual(response.data['ram_limit'], default_limits['RAM'])
-
     @data('admin', 'manager')
     def test_non_authorized_user_can_not_create_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
@@ -114,19 +108,28 @@ class AllocationCancelTest(test.APITransactionTestCase):
 class AllocationUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
-        self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
+        self.allocation = self.fixture.allocation
+        self.url = factories.AllocationFactory.get_url(self.allocation)
 
-    @data('owner', 'staff')
-    def test_authorized_user_can_not_update_allocation(self, user):
-        self.client.force_login(getattr(self.fixture, user))
+    def test_authorized_user_can_update_allocation(self):
+        self.client.force_login(self.fixture.staff)
 
         response = self.client.patch(self.url, self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['cpu_limit'], self.fixture.allocation.cpu_limit)
-        self.assertEqual(response.data['gpu_limit'], self.fixture.allocation.gpu_limit)
-        self.assertEqual(response.data['ram_limit'], self.fixture.allocation.ram_limit)
+        self.allocation.refresh_from_db()
+        self.assertEqual(100, self.allocation.cpu_limit)
+        self.assertEqual(200, self.allocation.gpu_limit)
+        self.assertEqual(300, self.allocation.ram_limit)
 
-    @data('admin', 'manager')
+    def test_user_can_not_update_allocation_with_invalid_limits(self):
+        self.client.force_login(self.fixture.staff)
+        payload = self.get_valid_payload()
+        payload['cpu_limit'] = -2
+
+        response = self.client.patch(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('owner', 'admin', 'manager')
     def test_non_authorized_user_can_not_update_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 

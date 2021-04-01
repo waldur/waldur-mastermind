@@ -41,6 +41,49 @@ class BackendTest(TestCase):
         self.allocation = self.fixture.allocation
         self.account = self.allocation.backend_id
 
+    def prepare_limits_check(self, quotas):
+        self.allocation.cpu_limit = quotas['CPU']
+        self.allocation.gpu_limit = quotas['GPU']
+        self.allocation.ram_limit = quotas['RAM']
+        self.allocation.save()
+
+        template = (
+            'sacctmgr --parsable2 --noheader --immediate'
+            ' modify account %s set GrpTRES=cpu=%d,gres/gpu=%d,mem=%d'
+        )
+
+        context = (
+            self.account,
+            self.allocation.cpu_limit,
+            self.allocation.gpu_limit,
+            self.allocation.ram_limit,
+        )
+
+        return [
+            'ssh',
+            '-o',
+            'UserKnownHostsFile=/dev/null',
+            '-o',
+            'StrictHostKeyChecking=no',
+            'root@localhost',
+            '-p',
+            '22',
+            '-i',
+            '/etc/waldur/id_rsa',
+            template % context,
+        ]
+
+    @mock.patch('subprocess.check_output')
+    def test_allocation_creation(self, check_output):
+        backend = self.allocation.get_backend()
+        backend.create_allocation(self.allocation)
+
+        self.allocation.refresh_from_db()
+        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
+        self.assertEqual(self.allocation.cpu_limit, default_limits['CPU'])
+        self.assertEqual(self.allocation.gpu_limit, default_limits['GPU'])
+        self.assertEqual(self.allocation.ram_limit, default_limits['RAM'])
+
     @mock.patch('subprocess.check_output')
     def test_usage_synchronization(self, check_output):
         check_output.return_value = VALID_REPORT.replace('allocation1', self.account)
@@ -83,36 +126,23 @@ class BackendTest(TestCase):
         self.assertEqual(user2_allocation_usage.ram_usage, 2 * 2 * 51200)
 
     @mock.patch('subprocess.check_output')
-    def test_set_resource_limits(self, check_output):
+    def test_set_default_resource_limits(self, check_output):
         default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
-        self.allocation.cpu_limit = default_limits['CPU']
-        self.allocation.gpu_limit = default_limits['GPU']
-        self.allocation.ram_limit = default_limits['RAM']
-        self.allocation.save()
+        command = self.prepare_limits_check(default_limits)
 
-        template = (
-            'sacctmgr --parsable2 --noheader --immediate'
-            ' modify account %s set GrpTRES=cpu=%d,gres/gpu=%d,mem=%d'
-        )
-        context = (
-            self.account,
-            self.allocation.cpu_limit,
-            self.allocation.gpu_limit,
-            self.allocation.ram_limit,
-        )
-        command = [
-            'ssh',
-            '-o',
-            'UserKnownHostsFile=/dev/null',
-            '-o',
-            'StrictHostKeyChecking=no',
-            'root@localhost',
-            '-p',
-            '22',
-            '-i',
-            '/etc/waldur/id_rsa',
-            template % context,
-        ]
+        backend = self.allocation.get_backend()
+        backend.set_resource_limits(self.allocation)
+
+        check_output.assert_called_once_with(command, encoding='utf-8', stderr=-2)
+
+    @mock.patch('subprocess.check_output')
+    def test_set_custom_resource_limits(self, check_output):
+        quotas_dict = {
+            'CPU': 1000,
+            'GPU': 2000,
+            'RAM': 3000,
+        }
+        command = self.prepare_limits_check(quotas_dict)
 
         backend = self.allocation.get_backend()
         backend.set_resource_limits(self.allocation)

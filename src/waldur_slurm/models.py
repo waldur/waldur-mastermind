@@ -24,15 +24,9 @@ class Allocation(UsageMixin, structure_models.BaseResource):
     is_active = models.BooleanField(default=True)
     tracker = FieldTracker()
 
-    cpu_limit = models.BigIntegerField(
-        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['CPU']
-    )
-    gpu_limit = models.BigIntegerField(
-        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['GPU']
-    )
-    ram_limit = models.BigIntegerField(
-        default=settings.WALDUR_SLURM['DEFAULT_LIMITS']['RAM']
-    )
+    cpu_limit = models.BigIntegerField(default=0)
+    gpu_limit = models.BigIntegerField(default=0)
+    ram_limit = models.BigIntegerField(default=0)
 
     @classmethod
     def get_url_name(cls):

@@ -75,6 +75,11 @@ class SlurmBackend(ServiceBackend):
             organization=project_account,
         )
         allocation.backend_id = allocation_account
+
+        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
+        allocation.cpu_limit = default_limits['CPU']
+        allocation.gpu_limit = default_limits['GPU']
+        allocation.ram_limit = default_limits['RAM']
         allocation.save()
 
         self.set_resource_limits(allocation)
@@ -132,16 +137,14 @@ class SlurmBackend(ServiceBackend):
         if self.client.get_association(username, account):
             self.client.delete_association(username, account)
 
-    def set_resource_limits(self, allocation):
+    def set_resource_limits(self, allocation: models.Allocation):
         # TODO: add default limits configuration (https://opennode.atlassian.net/browse/WAL-3037)
-        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
-        quotas = Quotas(
-            cpu=default_limits['CPU'],
-            gpu=default_limits['GPU'],
-            ram=default_limits['RAM'],
+        limits = Quotas(
+            cpu=allocation.cpu_limit,
+            gpu=allocation.gpu_limit,
+            ram=allocation.ram_limit,
         )
-
-        self.client.set_resource_limits(allocation.backend_id, quotas)
+        self.client.set_resource_limits(allocation.backend_id, limits)
 
     def sync_usage(self):
         waldur_allocations = {
