@@ -766,7 +766,7 @@ class UserSerializer(
     customer_permissions = serializers.SerializerMethodField()
     project_permissions = serializers.SerializerMethodField()
     requested_email = serializers.SerializerMethodField()
-    full_name = serializers.CharField(max_length=200)
+    full_name = serializers.CharField(max_length=200, required=False)
 
     def get_customer_permissions(self, user):
         permissions = models.CustomerPermission.objects.filter(
