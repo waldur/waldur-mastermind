@@ -144,6 +144,7 @@ waldur_support = "waldur_mastermind.support.extension:SupportExtension"
 waldur_vmware = "waldur_vmware.extension:VMwareExtension"
 waldur_pid = "waldur_pid.extension:PIDExtension"
 waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
+waldur_hpc = "waldur_hpc.extension:HPCExtension"
 
 [build-system]
 requires = ["poetry=1.0.9"]

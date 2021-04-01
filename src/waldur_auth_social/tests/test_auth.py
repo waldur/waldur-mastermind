@@ -154,6 +154,7 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
             'ssh_public_key': [
                 'ssh-ed25519 AAAAC3NqaC1lZDI1TTE5AAAAIJ4pfKk7hRdUVeMfrKdLYhxdKy92nVPuHDlVVvZMyqeP'
             ],
+            'voperson_external_affiliation': ['faculty@helsinki.fi'],
         }
 
     def test_details_are_imported(self):
@@ -175,6 +176,7 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
             ssh_key = SshPublicKey.objects.get(user=user)
             self.assertEqual(ssh_key.public_key, self.backend_user['ssh_public_key'][0])
             self.assertTrue(ssh_key.name.startswith('eduteams_'))
+            self.assertEqual(user.affiliations, ['faculty@helsinki.fi'])
 
 
 @override_settings(

@@ -174,7 +174,8 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         serializer.is_valid(raise_exception=True)
 
         attribute_mapping = get_custom_setting(
-            'SAML_ATTRIBUTE_MAPPING', {'uid': ('username',)}
+            'SAML_ATTRIBUTE_MAPPING',
+            {'uid': ('username',), 'eduPersonAffiliation': ('affiliations',)},
         )
         create_unknown_user = get_custom_setting('SAML_CREATE_UNKNOWN_USER', True)
 
