@@ -17,7 +17,7 @@ def split_full_name(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0013_user_is_identity_manager'),
+        ('core', '0014_user_affiliations'),
     ]
 
     operations = [
