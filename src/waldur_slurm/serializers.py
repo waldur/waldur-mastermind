@@ -124,6 +124,16 @@ class AllocationSerializer(
         return attrs
 
 
+class AllocationLimitsUpdateSerializer(rf_serializers.ModelSerializer):
+    cpu_limit = rf_serializers.IntegerField(min_value=-1)
+    gpu_limit = rf_serializers.IntegerField(min_value=-1)
+    ram_limit = rf_serializers.IntegerField(min_value=-1)
+
+    class Meta:
+        model = models.Allocation
+        fields = ('cpu_limit', 'gpu_limit', 'ram_limit')
+
+
 class AllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
     full_name = rf_serializers.ReadOnlyField(source='user.full_name')
 
