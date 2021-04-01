@@ -25,19 +25,19 @@ class SupportUserAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(SupportUserAdminForm, self).__init__(*args, **kwargs)
         self.fields['user'] = UserChoiceField(
-            queryset=User.objects.all().order_by('full_name')
+            queryset=User.objects.all().order_by('first_name', 'last_name')
         )
 
 
 class SupportUserAdmin(admin.ModelAdmin):
     list_display = ('user', 'backend_id', 'is_active')
-    search_fields = ('user__full_name', 'user__email')
+    search_fields = ('user__first_name', 'user__last_name', 'user__email')
     form = SupportUserAdminForm
 
 
 class SupportCustomerAdmin(admin.ModelAdmin):
     list_display = ('user', 'backend_id')
-    search_fields = ('user__full_name', 'user__email')
+    search_fields = ('user__first_name', 'user__last_name', 'user__email')
 
 
 class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendModelAdmin):
