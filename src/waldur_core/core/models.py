@@ -150,6 +150,11 @@ class UserDetailsMixin(models.Model):
     phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
     organization = models.CharField(_('organization'), max_length=255, blank=True)
     job_title = models.CharField(_('job title'), max_length=40, blank=True)
+    affiliations = BetterJSONField(
+        null=True,
+        blank=True,
+        help_text="Person's affiliation within organization such as student, faculty, staff.",
+    )
 
 
 @reversion.register()

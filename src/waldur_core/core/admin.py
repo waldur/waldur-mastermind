@@ -244,7 +244,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
                 )
             },
         ),
-        (_('Organization'), {'fields': ('organization', 'job_title',)}),
+        (_('Organization'), {'fields': ('organization', 'job_title', 'affiliations')}),
         (
             _('Permissions'),
             {

@@ -519,12 +519,19 @@ class EduteamsView(BaseAuthView):
         email = backend_user.get('email')
         full_name = backend_user.get('name', '')
         # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-Assurance
-        details = {'eduperson_assurance': backend_user.get('eduperson_assurance', [])}
+        details = {
+            'eduperson_assurance': backend_user.get('eduperson_assurance', []),
+        }
+        # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-AffiliationwithinHomeOrganization
+        backend_affiliations = backend_user.get('voperson_external_affiliation', [])
         try:
             user = User.objects.get(username=username)
             if user.details != details:
                 user.details = details
                 user.save(update_fields=['details'])
+            if user.affiliations != backend_affiliations:
+                user.affiliations = backend_affiliations
+                user.save(update_fields=['affiliations'])
             created = False
         except User.DoesNotExist:
             created = True
@@ -534,6 +541,7 @@ class EduteamsView(BaseAuthView):
                 email=email,
                 full_name=full_name,
                 details=details,
+                affiliations=backend_affiliations,
             )
             user.set_unusable_password()
             user.save()
