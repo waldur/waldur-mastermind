@@ -1,3 +1,4 @@
+import importlib
 from functools import lru_cache
 
 from django.apps import apps
@@ -25,6 +26,8 @@ class SupportedServices:
     def register_backend(cls, backend_class):
         key = get_service_type(backend_class)
         cls._registry[key] = backend_class
+        modname, _, clsname = backend_class.__module__.rpartition('.')
+        importlib.import_module(modname + '.serializers')
 
     @classmethod
     def get_service_backend(cls, key):
