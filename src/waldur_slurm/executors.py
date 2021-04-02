@@ -15,7 +15,7 @@ class AllocationCreateExecutor(core_executors.CreateExecutor):
         )
 
 
-class AllocationUpdateExecutor(core_executors.UpdateExecutor):
+class AllocationSetLimitsExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, allocation, serialized_allocation, **kwargs):
         return core_tasks.BackendMethodTask().si(

@@ -1,5 +1,7 @@
+from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import permissions, viewsets
+from rest_framework import permissions, response, status, viewsets
+from rest_framework.decorators import action
 
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -19,9 +21,20 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     destroy_permissions = [structure_permissions.is_owner]
     delete_executor = executors.AllocationDeleteExecutor
 
-    partial_update_permissions = update_permissions = [structure_permissions.is_staff]
-    partial_update_serializer_class = serializers.AllocationLimitsUpdateSerializer
-    update_executor = executors.AllocationUpdateExecutor
+    set_limits_permissions = [structure_permissions.is_staff]
+    set_limits_serializer_class = serializers.AllocationSetLimitsSerializer
+
+    @action(detail=True, methods=['post'])
+    def set_limits(self, request, uuid=None):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        executors.AllocationSetLimitsExecutor().execute(instance)
+        return response.Response(
+            {'status': _('Set limits was scheduled.')}, status=status.HTTP_202_ACCEPTED,
+        )
 
 
 class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
