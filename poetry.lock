@@ -2511,7 +2511,7 @@ python-versions = "*"
 
 [[package]]
 name = "xmlschema"
-version = "1.5.2"
+version = "1.5.3"
 description = "An XML Schema validator and decoder"
 category = "main"
 optional = false
@@ -3681,8 +3681,8 @@ xlwt = [
     {file = "xlwt-1.3.0.tar.gz", hash = "sha256:c59912717a9b28f1a3c2a98fd60741014b06b043936dcecbc113eaaada156c88"},
 ]
 xmlschema = [
-    {file = "xmlschema-1.5.2-py3-none-any.whl", hash = "sha256:df7bf5d6d23f5f32d50e573f9ad75a2456029009909b63607560916b0584f89e"},
-    {file = "xmlschema-1.5.2.tar.gz", hash = "sha256:f821ce780f84c7e61ca1ccf32f23aec400446e74fa5cc888450af7604ce2291f"},
+    {file = "xmlschema-1.5.3-py3-none-any.whl", hash = "sha256:34e785f8ed60c07ae825c1506c8e0fc138c4f1464d67752eaef5c62893f1b453"},
+    {file = "xmlschema-1.5.3.tar.gz", hash = "sha256:a7db4c8ae2afa28654d15fcbf5d7f22f0441b5611e50426426e5418f369b5c79"},
 ]
 zipp = [
     {file = "zipp-3.1.0-py3-none-any.whl", hash = "sha256:aa36550ff0c0b7ef7fa639055d797116ee891440eac1a56f378e2d3179e0320b"},
