@@ -92,10 +92,6 @@ class EmailHookAdmin(BaseHookAdmin):
     list_display = BaseHookAdmin.list_display + ('email',)
 
 
-class PushHookAdmin(BaseHookAdmin):
-    list_display = BaseHookAdmin.list_display + ('type', 'device_id')
-
-
 class ReportAdmin(UpdateOnlyModelAdmin, ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('created', 'state', 'get_filesize')
     readonly_fields = ('state', 'file', 'get_filesize', 'error_message')
@@ -131,6 +127,5 @@ if admin.site.is_registered(Group):
 admin.site.register(models.SystemNotification, SystemNotificationAdmin)
 admin.site.register(models.WebHook, WebHookAdmin)
 admin.site.register(models.EmailHook, EmailHookAdmin)
-admin.site.register(models.PushHook, PushHookAdmin)
 admin.site.register(models.Report, ReportAdmin)
 admin.site.register(models.Event, EventAdmin)

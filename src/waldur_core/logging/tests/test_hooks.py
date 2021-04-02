@@ -5,7 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import loggers, models, tasks
-from waldur_core.logging.tests.factories import PushHookFactory, WebHookFactory
+from waldur_core.logging.tests.factories import WebHookFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
@@ -42,18 +42,6 @@ class HookCreationViewTest(BaseHookApiTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-    def test_user_can_create_push_hook(self):
-        self.client.force_authenticate(user=self.author)
-        response = self.client.post(
-            PushHookFactory.get_list_url(),
-            data={
-                'event_types': self.valid_event_types,
-                'token': 'VALID_TOKEN',
-                'type': 'Android',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
     def test_user_can_subscribe_to_event_groups(self):
         event_groups = self.valid_event_groups
         event_types = loggers.expand_event_groups(event_groups)
@@ -77,7 +65,6 @@ class HookUpdateTest(BaseHookApiTest):
         super(HookUpdateTest, self).setUp()
         self.hooks = {
             'web': WebHookFactory.get_url(WebHookFactory(user=self.author)),
-            'push': PushHookFactory.get_url(PushHookFactory(user=self.author)),
         }
 
     def test_author_can_update_webhook_destination_url(self):
@@ -85,18 +72,13 @@ class HookUpdateTest(BaseHookApiTest):
         response = self.update_hook('web', new_data)
         self.assertEqual(new_data['destination_url'], response.data['destination_url'])
 
-    def test_author_can_update_push_hook_token(self):
-        new_data = {'token': 'NEW_VALID_TOKEN'}
-        response = self.update_hook('push', new_data)
-        self.assertEqual(new_data['token'], response.data['token'])
-
-    @data('web', 'push')
+    @data('web',)
     def test_author_can_update_hook_event_types(self, hook):
         new_event_types = set(self.valid_event_types[:1])
         response = self.update_hook(hook, {'event_types': new_event_types})
         self.assertEqual(new_event_types, response.data['event_types'])
 
-    @data('web', 'push')
+    @data('web',)
     def test_author_can_update_event_groups(self, hook):
         event_groups = self.valid_event_groups
         event_types = loggers.expand_event_groups(event_groups)
@@ -106,7 +88,7 @@ class HookUpdateTest(BaseHookApiTest):
         self.assertEqual(response.data['event_groups'], set(event_groups))
         self.assertEqual(response.data['event_types'], set(event_types))
 
-    @data('web', 'push')
+    @data('web',)
     def test_author_can_disable_hook(self, hook):
         response = self.update_hook(hook, {'is_active': False})
         self.assertFalse(response.data['is_active'])
@@ -155,7 +137,7 @@ class HookFilterViewTest(BaseHookApiTest):
 
     def test_staff_can_filter_summary_hook_by_author_uuid(self):
         WebHookFactory(user=self.author)
-        PushHookFactory(user=self.other_user)
+        WebHookFactory(user=self.other_user)
         self.client.force_authenticate(user=self.staff)
         response = self.client.get(
             reverse('hooks-list'), {'author_uuid': self.author.uuid.hex}

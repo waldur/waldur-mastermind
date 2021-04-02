@@ -7,8 +7,6 @@ import locale
 import os
 import warnings
 
-from celery.schedules import crontab
-
 from waldur_core.core import WaldurExtension
 from waldur_core.server.admin.settings import *  # noqa: F403
 

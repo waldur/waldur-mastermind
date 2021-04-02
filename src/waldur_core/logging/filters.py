@@ -33,19 +33,11 @@ class HookSummaryFilterBackend(core_filters.SummaryFilter):
             return WebHookFilter
         elif queryset.model == models.EmailHook:
             return EmailHookFilter
-        elif queryset.model == models.PushHook:
-            return PushHookFilter
 
         return BaseHookFilter
 
     def get_base_filter(self):
         return BaseHookFilter
-
-
-class PushHookFilter(BaseHookFilter):
-    class Meta:
-        model = models.PushHook
-        fields = ('type', 'device_id', 'device_manufacturer', 'device_model', 'token')
 
 
 class EventFilter(django_filters.FilterSet):
