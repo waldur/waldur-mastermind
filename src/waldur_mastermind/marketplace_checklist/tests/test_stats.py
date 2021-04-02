@@ -92,3 +92,55 @@ class AnswerTest(test.APITransactionTestCase):
                 question=self.question, user=self.fixture.staff
             ).exists()
         )
+
+    def test_create_answer_on_behalf_by_staff_is_allowed(self):
+        response = common_utils.create_request(
+            self.view,
+            self.fixture.staff,
+            post_data=[{'question_uuid': self.question.uuid.hex, 'value': True}],
+            query_params={'on_behalf_user_uuid': self.fixture.user.uuid.hex},
+            checklist_uuid=self.question.checklist.uuid.hex,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Answer.objects.filter(
+                question=self.question, user=self.fixture.user
+            ).exists()
+        )
+
+    def test_create_answer_on_behalf_by_non_staff_is_ignored(self):
+        response = common_utils.create_request(
+            self.view,
+            self.fixture.global_support,
+            post_data=[{'question_uuid': self.question.uuid.hex, 'value': True}],
+            query_params={'on_behalf_user_uuid': self.fixture.user.uuid.hex},
+            checklist_uuid=self.question.checklist.uuid.hex,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(
+            models.Answer.objects.filter(
+                question=self.question, user=self.fixture.user
+            ).exists()
+        )
+
+    def test_create_answer_on_behalf_raises_error_when_uuid_has_invalid_format(self):
+        response = common_utils.create_request(
+            self.view,
+            self.fixture.staff,
+            post_data=[{'question_uuid': self.question.uuid.hex, 'value': True}],
+            query_params={'on_behalf_user_uuid': 'INVALID'},
+            checklist_uuid=self.question.checklist.uuid.hex,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_answer_on_behalf_raises_error_when_uuid_is_invalid(self):
+        response = common_utils.create_request(
+            self.view,
+            self.fixture.staff,
+            post_data=[{'question_uuid': self.question.uuid.hex, 'value': True}],
+            query_params={
+                'on_behalf_user_uuid': 'bb223745-1111-1111-1111-c3ae54678d38'
+            },
+            checklist_uuid=self.question.checklist.uuid.hex,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

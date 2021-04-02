@@ -36,9 +36,10 @@ def get_request(view, user, **extra):
     return view(request, **extra)
 
 
-def create_request(view, user, post_data, **kwargs):
+def create_request(view, user, post_data, query_params=None, **kwargs):
     factory = APIRequestFactory()
-    request = factory.post('/', data=json.dumps(post_data), **get_headers(user))
+    path = '/' if not query_params else '/' + '?' + urlencode(query_params)
+    request = factory.post(path, data=json.dumps(post_data), **get_headers(user))
     return view(request, **kwargs)
 
 
