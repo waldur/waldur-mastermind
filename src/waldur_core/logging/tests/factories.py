@@ -61,27 +61,6 @@ class WebHookFactory(factory.DjangoModelFactory):
         )
 
 
-class PushHookFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.PushHook
-
-    event_types = get_valid_events()[:3]
-    token = 'VALID_TOKEN'
-    type = models.PushHook.Type.ANDROID
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('pushhook-list')
-
-    @classmethod
-    def get_url(cls, hook=None):
-        if hook is None:
-            hook = PushHookFactory()
-        return 'http://testserver' + reverse(
-            'pushhook-detail', kwargs={'uuid': hook.uuid.hex}
-        )
-
-
 class SystemNotificationFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.SystemNotification

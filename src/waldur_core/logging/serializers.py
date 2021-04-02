@@ -108,23 +108,6 @@ class WebHookSerializer(BaseHookSerializer):
         return 'webhook'
 
 
-class PushHookSerializer(BaseHookSerializer):
-    type = NaturalChoiceField(models.PushHook.Type.CHOICES)
-
-    class Meta(BaseHookSerializer.Meta):
-        model = models.PushHook
-        fields = BaseHookSerializer.Meta.fields + (
-            'type',
-            'device_id',
-            'token',
-            'device_manufacturer',
-            'device_model',
-        )
-
-    def get_hook_type(self, hook):
-        return 'pushhook'
-
-
 class EmailHookSerializer(BaseHookSerializer):
     class Meta(BaseHookSerializer.Meta):
         model = models.EmailHook
