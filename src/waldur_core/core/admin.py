@@ -7,7 +7,6 @@ from django.conf import settings
 from django.conf.urls import url
 from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
-from django.contrib.admin import widgets
 from django.contrib.auth import admin as auth_admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -620,20 +619,6 @@ class UpdateOnlyModelAdmin:
         if request.user.is_staff:
             return True
         return False
-
-
-class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
-    def value_from_datadict(self, data, files, name):
-        value = super(GBtoMBWidget, self).value_from_datadict(data, files, name) or 0
-        value = int(value) * 1024
-        return value
-
-    def format_value(self, value):
-        return int(value) / 1024
-
-    def render(self, name, value, attrs=None, renderer=None):
-        result = super(GBtoMBWidget, self).render(name, value, attrs)
-        return '<label>%s GB</label>' % result
 
 
 class HideAdminOriginalMixin(admin.ModelAdmin):
