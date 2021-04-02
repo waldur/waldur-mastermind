@@ -90,6 +90,7 @@ django-health-check = "^3.16.2"
 bleach = "^3.3.0"
 django-dbtemplates = {git = "https://github.com/jazzband/django-dbtemplates.git"}
 ansible-waldur-module = {git = "https://github.com/opennode/ansible-waldur-module.git", rev = "develop"}
+django-upload-validator = "^1.1.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"

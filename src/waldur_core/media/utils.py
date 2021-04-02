@@ -6,6 +6,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 import jwt
+import magic
 from django.apps import apps
 from django.conf import settings
 from django.http import HttpResponse
@@ -16,7 +17,6 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import utils
 from waldur_core.core.models import User
-from waldur_core.media import magic
 from waldur_core.structure.managers import filter_queryset_for_user
 
 
