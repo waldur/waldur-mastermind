@@ -29,7 +29,7 @@ class ChecklistAdmin(
     import_export_admin.ImportExportMixin, modeltranslation_admin.TranslationAdmin
 ):
     inlines = [QuestionInline, ChecklistCustomerRoleInline, ChecklistProjectRoleInline]
-    list_display = ('name', 'description', 'category')
+    list_display = ('name', 'description', 'category', 'uuid')
     list_filter = ('category',)
     fields = ('name', 'description', 'category')
 
@@ -37,7 +37,7 @@ class ChecklistAdmin(
 
 
 class AnswerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'question')
+    list_display = ('user', 'question', 'value')
     list_filter = ('question',)
 
 

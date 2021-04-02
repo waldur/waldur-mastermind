@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core.models import User
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.models import (
     Customer,
@@ -252,14 +253,26 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
             models.Checklist, uuid=self.kwargs['checklist_uuid']
         )
 
+        # we allow staff users to answer on behalf of users
+        on_behalf_user_uuid = request.query_params.get('on_behalf_user_uuid', '')
+        if request.user.is_staff and on_behalf_user_uuid:
+            if not is_uuid_like(on_behalf_user_uuid):
+                raise ValidationError(
+                    {'on_behalf_user_uuid': "Format of user UUID is not correct"}
+                )
+            try:
+                user = User.objects.get(uuid=on_behalf_user_uuid)
+            except User.DoesNotExist:
+                raise ValidationError({'on_behalf_user_uuid': "User was not found."})
+        else:
+            user = request.user
+
         for answer in serializer.validated_data:
             question = get_object_or_404(
                 models.Question, uuid=answer['question_uuid'], checklist=checklist
             )
             models.Answer.objects.update_or_create(
-                question=question,
-                user=request.user,
-                defaults={'value': answer['value']},
+                question=question, user=user, defaults={'value': answer['value']},
             )
 
         headers = self.get_success_headers(serializer.data)
