@@ -216,8 +216,6 @@ class CustomerAdminForm(ModelForm):
         textarea_attrs = {'cols': '40', 'rows': '4'}
         self.fields['contact_details'].widget.attrs = textarea_attrs
         self.fields['access_subnets'].widget.attrs = textarea_attrs
-        type_choices = ['']
-        type_choices.extend(settings.WALDUR_CORE['COMPANY_TYPES'])
 
     def save(self, commit=True):
         customer = super(CustomerAdminForm, self).save(commit=False)
