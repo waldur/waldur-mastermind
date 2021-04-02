@@ -105,17 +105,17 @@ class AllocationCancelTest(test.APITransactionTestCase):
 
 
 @ddt
-class AllocationUpdateTest(test.APITransactionTestCase):
+class AllocationSetLimitsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.allocation = self.fixture.allocation
-        self.url = factories.AllocationFactory.get_url(self.allocation)
+        self.url = factories.AllocationFactory.get_url(self.allocation, 'set_limits')
 
     def test_authorized_user_can_update_allocation(self):
         self.client.force_login(self.fixture.staff)
 
-        response = self.client.patch(self.url, self.get_valid_payload())
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.post(self.url, self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.allocation.refresh_from_db()
         self.assertEqual(100, self.allocation.cpu_limit)
         self.assertEqual(200, self.allocation.gpu_limit)
@@ -126,14 +126,14 @@ class AllocationUpdateTest(test.APITransactionTestCase):
         payload = self.get_valid_payload()
         payload['cpu_limit'] = -2
 
-        response = self.client.patch(self.url, payload)
+        response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data('owner', 'admin', 'manager')
     def test_non_authorized_user_can_not_update_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
-        response = self.client.patch(self.url, self.get_valid_payload())
+        response = self.client.post(self.url, self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def get_valid_payload(self):

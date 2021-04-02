@@ -124,7 +124,7 @@ class AllocationSerializer(
         return attrs
 
 
-class AllocationLimitsUpdateSerializer(rf_serializers.ModelSerializer):
+class AllocationSetLimitsSerializer(rf_serializers.ModelSerializer):
     cpu_limit = rf_serializers.IntegerField(min_value=-1)
     gpu_limit = rf_serializers.IntegerField(min_value=-1)
     ram_limit = rf_serializers.IntegerField(min_value=-1)
