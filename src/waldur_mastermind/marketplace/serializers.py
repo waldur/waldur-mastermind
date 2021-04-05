@@ -2219,6 +2219,22 @@ class OfferingReferralSerializer(
         )
 
 
+class OfferingUserSerializer(serializers.ModelSerializer):
+    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
+    offering_name = serializers.ReadOnlyField(source='offering.name')
+    user_uuid = serializers.ReadOnlyField(source='user.uuid')
+
+    class Meta:
+        model = models.OfferingUser
+        fields = (
+            'offering_uuid',
+            'offering_name',
+            'user_uuid',
+            'username',
+            'created',
+        )
+
+
 def validate_plan(plan):
     """"
     Ensure that maximum amount of resources with current plan is not reached yet.

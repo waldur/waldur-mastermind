@@ -259,6 +259,13 @@ class OfferingPermissionInline(admin.TabularInline):
     extra = 1
 
 
+class OfferingUserInline(admin.TabularInline):
+    model = models.OfferingUser
+    fields = ('user', 'username', 'created')
+    readonly_fields = fields
+    extra = 1
+
+
 class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [
@@ -267,6 +274,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         PlansInline,
         OfferingComponentInline,
         GoogleCalendarInline,
+        OfferingUserInline,
     ]
     list_display = ('name', 'uuid', 'customer', 'state', 'category', 'billable')
     list_filter = (

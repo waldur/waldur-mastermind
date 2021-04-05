@@ -435,6 +435,15 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
         return queryset
 
 
+class OfferingUserFilter(OfferingFilterMixin, django_filters.FilterSet):
+    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    o = django_filters.OrderingFilter(fields=('created',))
+
+    class Meta:
+        model = models.OfferingUser
+        fields = []
+
+
 structure_filters.ExternalCustomerFilterBackend.register(CustomerResourceFilter())
 structure_filters.ExternalCustomerFilterBackend.register(
     ServiceProviderOfferingFilter()
