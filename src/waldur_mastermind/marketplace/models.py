@@ -12,6 +12,7 @@ from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
+from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
@@ -32,6 +33,8 @@ from waldur_pid import mixins as pid_mixins
 from ..common import mixins as common_mixins
 from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES
+
+User = get_user_model()
 
 
 class ServiceProvider(
@@ -519,7 +522,7 @@ class Offering(
 
     def get_users(self, role=None):
         query = Q(offeringpermission__offering=self, offeringpermission__is_active=True)
-        return get_user_model().objects.filter(query).order_by('username')
+        return User.objects.filter(query).order_by('username')
 
 
 class OfferingComponent(
@@ -928,7 +931,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         pass
 
     def get_approvers(self):
-        User = get_user_model()
         users = []
 
         if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
@@ -1409,6 +1411,13 @@ class OfferingPermission(core_models.UuidMixin, structure_models.BasePermission)
 
     def revoke(self):
         self.offering.remove_user(self.user)
+
+
+class OfferingUser(models.Model):
+    offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    username = models.CharField(max_length=100, blank=True, null=True)
+    created = AutoCreatedField()
 
 
 reversion.register(Screenshot)

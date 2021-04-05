@@ -1146,6 +1146,27 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_owner]
 
 
+class OfferingUsersViewSet(rf_viewsets.ReadOnlyModelViewSet):
+    queryset = models.OfferingUser.objects.all()
+    serializer_class = serializers.OfferingUserSerializer
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingUserFilter
+
+    def get_queryset(self):
+        queryset = super(OfferingUsersViewSet, self).get_queryset()
+        if self.request.user.is_staff or self.request.user.is_support:
+            return queryset
+        queryset = queryset.filter(
+            Q(user=self.request.user)
+            | Q(
+                offering__customer__permissions__user=self.request.user,
+                offering__customer__permissions__is_active=True,
+            )
+        )
+        return queryset
+
+
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
 
     def inject_resources_counter(scope):

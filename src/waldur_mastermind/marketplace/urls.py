@@ -8,12 +8,12 @@ def register_in(router):
         r'marketplace-service-providers',
         views.ServiceProviderViewSet,
         basename='marketplace-service-provider',
-    ),
+    )
     router.register(
         r'marketplace-categories',
         views.CategoryViewSet,
         basename='marketplace-category',
-    ),
+    )
     router.register(
         r'marketplace-offerings', views.OfferingViewSet, basename='marketplace-offering'
     )
@@ -65,17 +65,22 @@ def register_in(router):
         r'marketplace-public-api',
         views.MarketplaceAPIViewSet,
         basename='marketplace-public-api',
-    ),
+    )
     router.register(
         r'marketplace-offering-files',
         views.OfferingFileViewSet,
         basename='marketplace-offering-file',
-    ),
+    )
     router.register(
         r'marketplace-offering-referrals',
         views.OfferingReferralsViewSet,
         basename='marketplace-offering-referral',
-    ),
+    )
+    router.register(
+        r'marketplace-offering-users',
+        views.OfferingUsersViewSet,
+        basename='marketplace-offering-user',
+    )
 
 
 urlpatterns = [
