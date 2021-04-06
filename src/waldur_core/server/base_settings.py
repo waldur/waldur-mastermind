@@ -8,6 +8,7 @@ import os
 import warnings
 
 from waldur_core.core import WaldurExtension
+from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.server.admin.settings import *  # noqa: F403
 
 encoding = locale.getpreferredencoding()
@@ -259,55 +260,7 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-# Logging
-# Send verified request on webhook processing
-VERIFY_WEBHOOK_REQUESTS = True
-
-
-# Extensions
-WALDUR_CORE = {
-    'EXTENSIONS_AUTOREGISTER': True,
-    'TOKEN_KEY': 'x-auth-token',
-
-    # wiki: http://docs.waldur.com/MasterMind+configuration
-    'AUTHENTICATION_METHODS': [
-        'LOCAL_SIGNIN',
-    ],
-    'INVITATIONS_ENABLED': True,
-    'ALLOW_SIGNUP_WITHOUT_INVITATION': True,
-    'VALIDATE_INVITATION_EMAIL': False,
-    'TOKEN_LIFETIME': timedelta(hours=1),
-    'INVITATION_LIFETIME': timedelta(weeks=1),
-    'OWNERS_CAN_MANAGE_OWNERS': False,
-    'OWNER_CAN_MANAGE_CUSTOMER': False,
-    'BACKEND_FIELDS_EDITABLE': True,
-    'INITIAL_CUSTOMER_AGREEMENT_NUMBER': 4000,
-    'CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION': False,
-    'ONLY_STAFF_MANAGES_SERVICES': False,
-    'NATIVE_NAME_ENABLED': False,
-    'SITE_NAME': 'Waldur MasterMind',
-    'SITE_ADDRESS': 'Default address',
-    'SITE_EMAIL': 'Default email',
-    'SITE_PHONE': 'Default phone',
-    'SITE_LOGO': None,
-    'CURRENCY_NAME': 'EUR',
-    'NOTIFICATIONS_PROFILE_CHANGES': {'ENABLED': True, 'FIELDS': ('email', 'phone_number', 'job_title')},
-    # 'COUNTRIES': ['EE', 'LV', 'LT'],
-    'ENABLE_ACCOUNTING_START_DATE': False,
-    'USE_ATOMIC_TRANSACTION': True,
-    'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
-    'LOGGING_REPORT_DIRECTORY': '/var/log/waldur',
-    'LOGGING_REPORT_INTERVAL': timedelta(days=7),
-    'HTTP_CHUNK_SIZE': 50,
-    'ONLY_STAFF_CAN_INVITE_USERS': False,
-    'INVITATION_MAX_AGE': None,
-    'INVITATION_CREATE_MISSING_USER': False,
-    'INVITATION_DISABLE_MULTIPLE_ROLES': False,
-    'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS': [],
-    'ATTACHMENT_LINK_MAX_AGE': timedelta(hours=1),
-    'EMAIL_CHANGE_MAX_AGE': timedelta(days=1),
-    'HOMEPORT_URL': 'https://example.com/'
-}
+globals().update(WaldurConfiguration().dict())
 
 WALDUR_CORE_PUBLIC_SETTINGS = [
     'AUTHENTICATION_METHODS',
@@ -354,13 +307,6 @@ SWAGGER_SETTINGS = {
         },
     },
 }
-
-IPSTACK_ACCESS_KEY = ''
-
-USE_PROTECTED_URL = False
-CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC = False
-
-IMPORT_EXPORT_USE_TRANSACTIONS = True
 
 AXES_ONLY_USER_FAILURES = True
 AXES_COOLOFF_TIME = timedelta(minutes=10)
