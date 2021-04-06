@@ -1,0 +1,485 @@
+{
+  "title": "WaldurConfiguration",
+  "type": "object",
+  "properties": {
+    "WALDUR_CORE": {
+      "title": "Waldur Core",
+      "default": {
+        "SITE_LOGO": null,
+        "COUNTRIES": ["EE", "LV", "LT"],
+        "INVITATION_MAX_AGE": null,
+        "EXTENSIONS_AUTOREGISTER": true,
+        "TOKEN_KEY": "x-auth-token",
+        "AUTHENTICATION_METHODS": ["LOCAL_SIGNIN"],
+        "INVITATIONS_ENABLED": true,
+        "ALLOW_SIGNUP_WITHOUT_INVITATION": true,
+        "VALIDATE_INVITATION_EMAIL": false,
+        "TOKEN_LIFETIME": 3600.0,
+        "INVITATION_LIFETIME": 604800.0,
+        "OWNERS_CAN_MANAGE_OWNERS": false,
+        "OWNER_CAN_MANAGE_CUSTOMER": false,
+        "BACKEND_FIELDS_EDITABLE": true,
+        "INITIAL_CUSTOMER_AGREEMENT_NUMBER": 4000,
+        "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION": false,
+        "ONLY_STAFF_MANAGES_SERVICES": false,
+        "NATIVE_NAME_ENABLED": false,
+        "SITE_NAME": "Waldur MasterMind",
+        "SITE_ADDRESS": "Default address",
+        "SITE_EMAIL": "Default email",
+        "SITE_PHONE": "Default phone",
+        "CURRENCY_NAME": "EUR",
+        "NOTIFICATIONS_PROFILE_CHANGES": {
+          "ENABLED": true,
+          "FIELDS": ["email", "phone_number", "job_title"]
+        },
+        "ENABLE_ACCOUNTING_START_DATE": false,
+        "USE_ATOMIC_TRANSACTION": true,
+        "NOTIFICATION_SUBJECT": "Notifications from Waldur",
+        "LOGGING_REPORT_DIRECTORY": "/var/log/waldur",
+        "LOGGING_REPORT_INTERVAL": 604800.0,
+        "HTTP_CHUNK_SIZE": 50,
+        "ONLY_STAFF_CAN_INVITE_USERS": false,
+        "INVITATION_CREATE_MISSING_USER": false,
+        "INVITATION_DISABLE_MULTIPLE_ROLES": false,
+        "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": [],
+        "ATTACHMENT_LINK_MAX_AGE": 3600.0,
+        "EMAIL_CHANGE_MAX_AGE": 86400.0,
+        "HOMEPORT_URL": "https://example.com/"
+      },
+      "allOf": [{ "$ref": "#/definitions/WaldurCore" }]
+    },
+    "WALDUR_AUTH_SOCIAL": {
+      "title": "Waldur Auth Social",
+      "default": {
+        "FACEBOOK_SECRET": "",
+        "FACEBOOK_CLIENT_ID": "",
+        "SMARTIDEE_SECRET": "",
+        "SMARTIDEE_CLIENT_ID": "",
+        "TARA_SECRET": "",
+        "TARA_CLIENT_ID": "",
+        "TARA_SANDBOX": true,
+        "TARA_LABEL": "Riigi Autentimisteenus",
+        "KEYCLOAK_LABEL": "Keycloak",
+        "KEYCLOAK_CLIENT_ID": "",
+        "KEYCLOAK_SECRET": "",
+        "KEYCLOAK_AUTH_URL": "",
+        "KEYCLOAK_TOKEN_URL": "",
+        "KEYCLOAK_USERINFO_URL": "",
+        "EDUTEAMS_LABEL": "Eduteams",
+        "EDUTEAMS_CLIENT_ID": "",
+        "EDUTEAMS_SECRET": "",
+        "EDUTEAMS_AUTH_URL": "https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization",
+        "EDUTEAMS_TOKEN_URL": "https://proxy.acc.eduteams.org/OIDC/token",
+        "EDUTEAMS_USERINFO_URL": "https://proxy.acc.eduteams.org/OIDC/userinfo",
+        "REMOTE_EDUTEAMS_ACCESS_TOKEN": "",
+        "REMOTE_EDUTEAMS_USERINFO_URL": ""
+      },
+      "allOf": [{ "$ref": "#/definitions/WaldurAuthSocial" }]
+    },
+    "USE_PROTECTED_URL": {
+      "title": "Use Protected Url",
+      "description": "Protect media URLs using signed token.",
+      "default": false,
+      "type": "boolean"
+    },
+    "VERIFY_WEBHOOK_REQUESTS": {
+      "title": "Verify Webhook Requests",
+      "description": "Send verified request on webhook processing.",
+      "default": true,
+      "type": "boolean"
+    },
+    "CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC": {
+      "title": "Convert Media Urls To Mastermind Netloc",
+      "default": false,
+      "type": "boolean"
+    },
+    "IPSTACK_ACCESS_KEY": {
+      "title": "Ipstack Access Key",
+      "default": "",
+      "type": "string"
+    },
+    "IMPORT_EXPORT_USE_TRANSACTIONS": {
+      "title": "Import Export Use Transactions",
+      "default": true,
+      "type": "boolean"
+    }
+  },
+  "definitions": {
+    "WaldurCore": {
+      "title": "WaldurCore",
+      "type": "object",
+      "properties": {
+        "SITE_LOGO": {
+          "title": "Site Logo",
+          "description": "It is used in marketplace order header.",
+          "type": "string"
+        },
+        "COUNTRIES": {
+          "title": "Countries",
+          "description": "It is used in organization creation dialog in order to limit country choices to predefined set.",
+          "default": ["EE", "LV", "LT"],
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "INVITATION_MAX_AGE": {
+          "title": "Invitation Max Age",
+          "description": "Max age of invitation token. It is used in approve and reject actions.",
+          "type": "number",
+          "format": "time-delta"
+        },
+        "EXTENSIONS_AUTOREGISTER": {
+          "title": "Extensions Autoregister",
+          "description": "Defines whether extensions should be automatically registered.",
+          "default": true,
+          "type": "boolean"
+        },
+        "TOKEN_KEY": {
+          "title": "Token Key",
+          "description": "Header for token authentication.",
+          "default": "x-auth-token",
+          "type": "string"
+        },
+        "AUTHENTICATION_METHODS": {
+          "title": "Authentication Methods",
+          "description": "List of enabled authentication methods.",
+          "default": ["LOCAL_SIGNIN"],
+          "type": "array",
+          "items": {}
+        },
+        "INVITATIONS_ENABLED": {
+          "title": "Invitations Enabled",
+          "description": "Allows to disable invitations feature.",
+          "default": true,
+          "type": "boolean"
+        },
+        "ALLOW_SIGNUP_WITHOUT_INVITATION": {
+          "title": "Allow Signup Without Invitation",
+          "description": "Allow to signup without an invitation.",
+          "default": true,
+          "type": "boolean"
+        },
+        "VALIDATE_INVITATION_EMAIL": {
+          "title": "Validate Invitation Email",
+          "description": "Ensure that invitation and user emails match.",
+          "default": false,
+          "type": "boolean"
+        },
+        "TOKEN_LIFETIME": {
+          "title": "Token Lifetime",
+          "description": "Defines for how long user token should remain valid if there was no action from user.",
+          "default": 3600.0,
+          "type": "number",
+          "format": "time-delta"
+        },
+        "INVITATION_LIFETIME": {
+          "title": "Invitation Lifetime",
+          "description": "Defines for how long invitation remains valid.",
+          "default": 604800.0,
+          "type": "number",
+          "format": "time-delta"
+        },
+        "OWNERS_CAN_MANAGE_OWNERS": {
+          "title": "Owners Can Manage Owners",
+          "description": "Enables organization owners to manage other organization owners.",
+          "default": false,
+          "type": "boolean"
+        },
+        "OWNER_CAN_MANAGE_CUSTOMER": {
+          "title": "Owner Can Manage Customer",
+          "description": "Enables organization owners to create an organization.",
+          "default": false,
+          "type": "boolean"
+        },
+        "BACKEND_FIELDS_EDITABLE": {
+          "title": "Backend Fields Editable",
+          "description": "Allows to control /admin writable fields. If this flag is disabled it is impossible to edit any field that corresponds to backend value via /admin. Such restriction allows to save information from corruption.",
+          "default": true,
+          "type": "boolean"
+        },
+        "INITIAL_CUSTOMER_AGREEMENT_NUMBER": {
+          "title": "Initial Customer Agreement Number",
+          "description": "Allows to tweak initial value of agreement number. It is assumed that organization owner should accept terms of services when organization is registered via Waldur HomePort.",
+          "default": 4000,
+          "type": "integer"
+        },
+        "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION": {
+          "title": "Create Default Project On Organization Creation",
+          "description": "Enables generation of the first project on organization creation.",
+          "default": false,
+          "type": "boolean"
+        },
+        "ONLY_STAFF_MANAGES_SERVICES": {
+          "title": "Only Staff Manages Services",
+          "description": "Allows to restrict provider management only to staff users.",
+          "default": false,
+          "type": "boolean"
+        },
+        "NATIVE_NAME_ENABLED": {
+          "title": "Native Name Enabled",
+          "description": "Allows to render native name field in customer and user forms.",
+          "default": false,
+          "type": "boolean"
+        },
+        "SITE_NAME": {
+          "title": "Site Name",
+          "description": "It is used in email notifications in order to refer to the current deployment in user-friendly way.",
+          "default": "Waldur MasterMind",
+          "type": "string"
+        },
+        "SITE_ADDRESS": {
+          "title": "Site Address",
+          "description": "It is used in marketplace order header.",
+          "default": "Default address",
+          "type": "string"
+        },
+        "SITE_EMAIL": {
+          "title": "Site Email",
+          "description": "It is used in marketplace order header.",
+          "default": "Default email",
+          "type": "string"
+        },
+        "SITE_PHONE": {
+          "title": "Site Phone",
+          "description": "It is used in marketplace order header.",
+          "default": "Default phone",
+          "type": "string"
+        },
+        "CURRENCY_NAME": {
+          "title": "Currency Name",
+          "description": "It is used in marketplace order details and invoices for currency formatting.",
+          "default": "EUR",
+          "type": "string"
+        },
+        "NOTIFICATIONS_PROFILE_CHANGES": {
+          "title": "Notifications Profile Changes",
+          "description": "Allows enabling notifications about profile changes of organization owners.",
+          "default": {
+            "ENABLED": true,
+            "FIELDS": ["email", "phone_number", "job_title"]
+          },
+          "type": "object"
+        },
+        "ENABLE_ACCOUNTING_START_DATE": {
+          "title": "Enable Accounting Start Date",
+          "description": "Allows to enable accounting for organizations using value of accounting_start_date field.",
+          "default": false,
+          "type": "boolean"
+        },
+        "USE_ATOMIC_TRANSACTION": {
+          "title": "Use Atomic Transaction",
+          "description": "Wrap action views in atomic transaction.",
+          "default": true,
+          "type": "boolean"
+        },
+        "NOTIFICATION_SUBJECT": {
+          "title": "Notification Subject",
+          "description": "It is used as a subject of email emitted by event logging hook.",
+          "default": "Notifications from Waldur",
+          "type": "string"
+        },
+        "LOGGING_REPORT_DIRECTORY": {
+          "title": "Logging Report Directory",
+          "description": "Directory where log files are located.",
+          "default": "/var/log/waldur",
+          "type": "string"
+        },
+        "LOGGING_REPORT_INTERVAL": {
+          "title": "Logging Report Interval",
+          "description": "Files older that specified interval are filtered out.",
+          "default": 604800.0,
+          "type": "number",
+          "format": "time-delta"
+        },
+        "HTTP_CHUNK_SIZE": {
+          "title": "Http Chunk Size",
+          "description": "Chunk size for resource fetching from backend API. It is needed in order to avoid too long HTTP request error.",
+          "default": 50,
+          "type": "integer"
+        },
+        "ONLY_STAFF_CAN_INVITE_USERS": {
+          "title": "Only Staff Can Invite Users",
+          "description": "Allow to limit invitation management to staff only.",
+          "default": false,
+          "type": "boolean"
+        },
+        "INVITATION_CREATE_MISSING_USER": {
+          "title": "Invitation Create Missing User",
+          "description": "Allow to create FreeIPA user using details specified in invitation if user does not exist yet.",
+          "default": false,
+          "type": "boolean"
+        },
+        "INVITATION_DISABLE_MULTIPLE_ROLES": {
+          "title": "Invitation Disable Multiple Roles",
+          "description": "Do not allow user to grant multiple roles in the same project or organization using invitation.",
+          "default": false,
+          "type": "boolean"
+        },
+        "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": {
+          "title": "Protect User Details For Registration Methods",
+          "description": "List of authentication methods which are not allowed to update user details.",
+          "default": [],
+          "type": "array",
+          "items": {}
+        },
+        "ATTACHMENT_LINK_MAX_AGE": {
+          "title": "Attachment Link Max Age",
+          "description": "Max age of secure token for media download.",
+          "default": 3600.0,
+          "type": "number",
+          "format": "time-delta"
+        },
+        "EMAIL_CHANGE_MAX_AGE": {
+          "title": "Email Change Max Age",
+          "description": "Max age of change email request.",
+          "default": 86400.0,
+          "type": "number",
+          "format": "time-delta"
+        },
+        "HOMEPORT_URL": {
+          "title": "Homeport Url",
+          "description": "It is used for rendering callback URL in HomePort.",
+          "default": "https://example.com/",
+          "type": "string"
+        }
+      }
+    },
+    "WaldurAuthSocial": {
+      "title": "WaldurAuthSocial",
+      "type": "object",
+      "properties": {
+        "FACEBOOK_SECRET": {
+          "title": "Facebook Secret",
+          "description": "Application secret key.",
+          "default": "",
+          "type": "string"
+        },
+        "FACEBOOK_CLIENT_ID": {
+          "title": "Facebook Client Id",
+          "description": "ID of application used for OAuth authentication.",
+          "default": "",
+          "type": "string"
+        },
+        "SMARTIDEE_SECRET": {
+          "title": "Smartidee Secret",
+          "description": "Application secret key.",
+          "default": "",
+          "type": "string"
+        },
+        "SMARTIDEE_CLIENT_ID": {
+          "title": "Smartidee Client Id",
+          "description": "ID of application used for OAuth authentication.",
+          "default": "",
+          "type": "string"
+        },
+        "TARA_SECRET": {
+          "title": "Tara Secret",
+          "description": "Application secret key.",
+          "default": "",
+          "type": "string"
+        },
+        "TARA_CLIENT_ID": {
+          "title": "Tara Client Id",
+          "description": "ID of application used for OAuth authentication.",
+          "default": "",
+          "type": "string"
+        },
+        "TARA_SANDBOX": {
+          "title": "Tara Sandbox",
+          "description": "You should set it to False in order to switch to production mode.",
+          "default": true,
+          "type": "boolean"
+        },
+        "TARA_LABEL": {
+          "title": "Tara Label",
+          "description": "You may set it to eIDAS, SmartID or MobileID make it more clear to the user which exact identity provider is configured or preferred for service provider.",
+          "default": "Riigi Autentimisteenus",
+          "type": "string"
+        },
+        "KEYCLOAK_LABEL": {
+          "title": "Keycloak Label",
+          "description": "Label is used by HomePort for rendering login button.",
+          "default": "Keycloak",
+          "type": "string"
+        },
+        "KEYCLOAK_CLIENT_ID": {
+          "title": "Keycloak Client Id",
+          "description": "ID of application used for OAuth authentication.",
+          "default": "",
+          "type": "string"
+        },
+        "KEYCLOAK_SECRET": {
+          "title": "Keycloak Secret",
+          "description": "Application secret key.",
+          "default": "",
+          "type": "string"
+        },
+        "KEYCLOAK_AUTH_URL": {
+          "title": "Keycloak Auth Url",
+          "description": "The authorization endpoint performs authentication of the end-user. This is done by redirecting the user agent to this endpoint.",
+          "default": "",
+          "type": "string"
+        },
+        "KEYCLOAK_TOKEN_URL": {
+          "title": "Keycloak Token Url",
+          "description": "The token endpoint is used to obtain tokens.",
+          "default": "",
+          "type": "string"
+        },
+        "KEYCLOAK_USERINFO_URL": {
+          "title": "Keycloak Userinfo Url",
+          "description": "The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.",
+          "default": "",
+          "type": "string"
+        },
+        "EDUTEAMS_LABEL": {
+          "title": "Eduteams Label",
+          "description": "Label is used by HomePort for rendering login button.",
+          "default": "Eduteams",
+          "type": "string"
+        },
+        "EDUTEAMS_CLIENT_ID": {
+          "title": "Eduteams Client Id",
+          "description": "ID of application used for OAuth authentication.",
+          "default": "",
+          "type": "string"
+        },
+        "EDUTEAMS_SECRET": {
+          "title": "Eduteams Secret",
+          "description": "Application secret key.",
+          "default": "",
+          "type": "string"
+        },
+        "EDUTEAMS_AUTH_URL": {
+          "title": "Eduteams Auth Url",
+          "description": "The authorization endpoint performs authentication of the end-user. This is done by redirecting the user agent to this endpoint.",
+          "default": "https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization",
+          "type": "string"
+        },
+        "EDUTEAMS_TOKEN_URL": {
+          "title": "Eduteams Token Url",
+          "description": "The token endpoint is used to obtain tokens.",
+          "default": "https://proxy.acc.eduteams.org/OIDC/token",
+          "type": "string"
+        },
+        "EDUTEAMS_USERINFO_URL": {
+          "title": "Eduteams Userinfo Url",
+          "description": "The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.",
+          "default": "https://proxy.acc.eduteams.org/OIDC/userinfo",
+          "type": "string"
+        },
+        "REMOTE_EDUTEAMS_ACCESS_TOKEN": {
+          "title": "Remote Eduteams Access Token",
+          "description": "Token is used to authenticate against user info endpoint.",
+          "default": "",
+          "type": "string"
+        },
+        "REMOTE_EDUTEAMS_USERINFO_URL": {
+          "title": "Remote Eduteams Userinfo Url",
+          "description": "It allows to get user data based on userid aka CUID.",
+          "default": "",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

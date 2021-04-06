@@ -14,6 +14,7 @@ class CoreConfig(AppConfig):
         from waldur_core.core import handlers
         from waldur_core.core.models import StateMixin
         from rest_framework.authtoken.models import Token
+        from waldur_core.core import checks  # noqa
 
         User = get_user_model()
         SshPublicKey = self.get_model('SshPublicKey')
