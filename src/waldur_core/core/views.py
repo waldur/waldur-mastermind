@@ -26,6 +26,7 @@ from rest_framework.views import exception_handler as rf_exception_handler
 from waldur_core import __version__
 from waldur_core.core import WaldurExtension, permissions
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
+from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import AuthTokenSerializer
 from waldur_core.core.utils import format_homeport_link
@@ -340,14 +341,21 @@ class ReadOnlyActionsViewSet(ActionsViewSet):
 def get_public_settings():
     public_settings = {}
 
-    # Processing a special extension WALDUR_CORE
-    public_settings['WALDUR_CORE'] = {}
-    extension_settings = settings.WALDUR_CORE
-    for s in settings.WALDUR_CORE_PUBLIC_SETTINGS:
+    for (settings_name, section) in WaldurConfiguration().__fields__.items():
+        type_ = section.type_
         try:
-            public_settings['WALDUR_CORE'][s] = extension_settings[s]
-        except KeyError:
-            pass
+            keys = type_.Meta.public_settings
+        except AttributeError:
+            continue
+        extension_settings = getattr(settings, settings_name, None)
+        if not extension_settings:
+            continue
+        public_settings[settings_name] = {}
+        for s in keys:
+            try:
+                public_settings[settings_name][s] = extension_settings[s]
+            except KeyError:
+                pass
 
     # Processing a others extensions
     for ext in WaldurExtension.get_extensions():
