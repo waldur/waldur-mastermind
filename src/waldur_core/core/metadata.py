@@ -139,6 +139,19 @@ class WaldurCore(BaseModel):
         description='It is used for rendering callback URL in HomePort.',
     )
 
+    class Meta:
+        public_settings = [
+            'AUTHENTICATION_METHODS',
+            'INVITATIONS_ENABLED',
+            'ALLOW_SIGNUP_WITHOUT_INVITATION',
+            'VALIDATE_INVITATION_EMAIL',
+            'OWNER_CAN_MANAGE_CUSTOMER',
+            'OWNERS_CAN_MANAGE_OWNERS',
+            'NATIVE_NAME_ENABLED',
+            'ONLY_STAFF_MANAGES_SERVICES',
+            'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',
+        ]
+
 
 class WaldurAuthSocial(BaseModel):
     FACEBOOK_SECRET = Field('', description='Application secret key.')
@@ -207,6 +220,21 @@ class WaldurAuthSocial(BaseModel):
     REMOTE_EDUTEAMS_USERINFO_URL = Field(
         '', description='It allows to get user data based on userid aka CUID.'
     )
+
+    class Meta:
+        public_settings = [
+            'FACEBOOK_CLIENT_ID',
+            'SMARTIDEE_CLIENT_ID',
+            'TARA_CLIENT_ID',
+            'TARA_SANDBOX',
+            'TARA_LABEL',
+            'KEYCLOAK_CLIENT_ID',
+            'KEYCLOAK_LABEL',
+            'KEYCLOAK_AUTH_URL',
+            'EDUTEAMS_CLIENT_ID',
+            'EDUTEAMS_LABEL',
+            'EDUTEAMS_AUTH_URL',
+        ]
 
 
 class WaldurConfiguration(BaseModel):

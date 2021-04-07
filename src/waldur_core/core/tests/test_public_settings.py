@@ -26,13 +26,13 @@ class TestPublicSettings(TestCase):
                 return {'DYN': 'dynamic'}
 
         extensions = {
+            'WALDUR_CORE': {},
+            'WALDUR_AUTH_SOCIAL': {},
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},
             'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'},
         }
-        mock_settings = mock.Mock(
-            WALDUR_CORE={}, WALDUR_CORE_PUBLIC_SETTINGS=[], **extensions
-        )
+        mock_settings = mock.Mock(**extensions)
         self.patcher_settings = mock.patch(
             'waldur_core.core.views.settings', new=mock_settings
         )
