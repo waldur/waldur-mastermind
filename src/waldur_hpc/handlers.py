@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.conf import settings
 from django.db import transaction
@@ -112,6 +113,13 @@ def create_order(project, user, offering, plan, limits=None):
     return order
 
 
+def check_user(user, affiliations, email_patterns):
+    if set(user.affiliations or []) & set(affiliations):
+        return True
+
+    return any(re.match(pattern, user.email) for pattern in email_patterns)
+
+
 def handle_new_user(sender, instance, created=False, **kwargs):
     if not created:
         return
@@ -140,9 +148,12 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         return
 
     user = instance
-    user_affiliations = set(user.affiliations or [])
 
-    if user_affiliations & set(settings.WALDUR_HPC['INTERNAL_AFFILIATIONS']):
+    if check_user(
+        user,
+        settings.WALDUR_HPC['INTERNAL_AFFILIATIONS'],
+        settings.WALDUR_HPC['INTERNAL_EMAIL_PATTERNS'],
+    ):
         project = create_project(internal_customer, user)
         if not project:
             return
@@ -158,7 +169,11 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         approve_order(order, user)
         return
 
-    if user_affiliations & set(settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS']):
+    if check_user(
+        user,
+        settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS'],
+        settings.WALDUR_HPC['EXTERNAL_EMAIL_PATTERNS'],
+    ):
         project = create_project(external_customer, user)
         if not project:
             return

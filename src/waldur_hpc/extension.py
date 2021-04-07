@@ -9,6 +9,8 @@ class HPCExtension(WaldurExtension):
             'EXTERNAL_CUSTOMER_UUID': '',
             'INTERNAL_AFFILIATIONS': [],
             'EXTERNAL_AFFILIATIONS': [],
+            'INTERNAL_EMAIL_PATTERNS': [],
+            'EXTERNAL_EMAIL_PATTERNS': [],
             'INTERNAL_LIMITS': {},
             'OFFERING_UUID': '',
             'PLAN_UUID': '',
