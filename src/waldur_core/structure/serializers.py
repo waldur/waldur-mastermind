@@ -210,6 +210,9 @@ class ProjectSerializer(
     def get_filtered_field_names(self):
         return ('customer',)
 
+    def get_optional_fields(self):
+        return ('quotas',)
+
     def validate_description(self, value):
         return clean_html(value.strip())
 

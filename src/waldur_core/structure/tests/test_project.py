@@ -521,6 +521,22 @@ class ProjectQuotasTest(test.APITransactionTestCase):
         self.assertNotEqual(self.quota.limit, 100)
 
 
+class ProjectQuotasListTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.url = factories.ProjectFactory.get_url(self.fixture.project)
+
+    def test_quotas_are_hidden_by_default(self):
+        self.client.force_login(self.fixture.admin)
+        response = self.client.get(self.url)
+        self.assertTrue('quotas' not in response.data)
+
+    def test_quotas_are_visible_if_explicitly_requested(self):
+        self.client.force_login(self.fixture.admin)
+        response = self.client.get(self.url, {'fields': ['quotas', 'name']})
+        self.assertTrue('quotas' not in response.data)
+
+
 class TestExecutor(executors.BaseCleanupExecutor):
     pre_models = (test_models.TestNewInstance,)
 

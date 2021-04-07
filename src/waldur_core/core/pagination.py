@@ -42,14 +42,3 @@ class LinkHeaderPagination(pagination.PageNumberPagination):
         if page_number == 1:
             return remove_query_param(url, self.page_query_param)
         return replace_query_param(url, self.page_query_param, page_number)
-
-
-class UnlimitedLinkHeaderPagination(LinkHeaderPagination):
-    """
-    A hackish paginator for cases when calculating a queryset to display is an expensive query and if
-    once the result set is known, it's cheaper to serialize larger output.
-
-    Should be used only as a temporary workaround!
-    """
-
-    page_size = None
