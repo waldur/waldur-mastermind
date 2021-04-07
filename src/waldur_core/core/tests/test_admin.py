@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from reversion.models import Version
 
-from waldur_core.core.admin import UserAdmin, UserChangeForm
+from waldur_core.core.admin import UserAdmin
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.admin import CustomerAdmin
@@ -27,6 +27,8 @@ request.user = MockSuperUser()
 class UserAdminTest(TestCase):
     def change_user(self, **kwargs):
         user = UserFactory()
+        ma = UserAdmin(User, AdminSite())
+        UserChangeForm = ma.get_form(request, user, change=True)
         form_for_data = UserChangeForm(instance=user)
 
         post_data = form_for_data.initial
@@ -42,7 +44,7 @@ class UserAdminTest(TestCase):
         user = self.change_user(civil_number='  NEW_CIVIL_NUMBER  ')
         self.assertEqual(user.civil_number, 'NEW_CIVIL_NUMBER')
 
-    def test_whitspace_civil_number_converts_to_none(self):
+    def test_whitespace_civil_number_converts_to_none(self):
         user = self.change_user(civil_number='  ')
         self.assertEqual(user.civil_number, None)
 

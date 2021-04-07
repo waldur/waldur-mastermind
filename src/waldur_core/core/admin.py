@@ -8,6 +8,7 @@ from django.conf.urls import url
 from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
 from django.contrib.auth import admin as auth_admin
+from django.contrib.auth import forms as auth_forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
@@ -117,7 +118,7 @@ class OptionalChoiceField(forms.ChoiceField):
         super(OptionalChoiceField, self).__init__(choices=choices, *args, **kwargs)
 
 
-class UserCreationForm(auth_admin.UserCreationForm):
+class UserCreationForm(auth_forms.UserCreationForm):
     class Meta:
         model = get_user_model()
         fields = ("username",)
@@ -136,7 +137,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
         )
 
 
-class UserChangeForm(auth_admin.UserChangeForm):
+class UserChangeForm(auth_forms.UserChangeForm):
     class Meta:
         model = get_user_model()
         exclude = ('details',)
@@ -271,6 +272,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
     )
     readonly_fields = (
         'registration_method',
+        'affiliations',
         'agreement_date',
         'customer_roles',
         'project_roles',

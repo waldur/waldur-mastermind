@@ -175,7 +175,10 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
 
         attribute_mapping = get_custom_setting(
             'SAML_ATTRIBUTE_MAPPING',
-            {'uid': ('username',), 'eduPersonAffiliation': ('affiliations',)},
+            {
+                'uid': ('username',),
+                'eduPersonScopedAffiliation': ('_process_saml2_affiliations',),
+            },
         )
         create_unknown_user = get_custom_setting('SAML_CREATE_UNKNOWN_USER', True)
 
