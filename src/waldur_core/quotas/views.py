@@ -2,7 +2,6 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import mixins, viewsets
 
-from waldur_core.core.pagination import UnlimitedLinkHeaderPagination
 from waldur_core.quotas import exceptions, filters, models, serializers
 
 
@@ -10,8 +9,6 @@ class QuotaViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.Quota.objects.all()
     serializer_class = serializers.QuotaSerializer
     lookup_field = 'uuid'
-    # XXX: Remove a custom pagination class once the quota calculation has been made more efficient
-    pagination_class = UnlimitedLinkHeaderPagination
     filterset_class = filters.QuotaFilterSet
 
     def get_queryset(self):

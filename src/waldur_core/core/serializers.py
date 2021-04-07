@@ -13,10 +13,9 @@ from rest_framework import serializers
 from rest_framework.fields import Field, ReadOnlyField
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.fields import TimestampField
 from waldur_core.core.signals import pre_serializer_fields
 
-from . import fields
+from . import fields as core_fields
 
 logger = logging.getLogger(__name__)
 
@@ -327,11 +326,22 @@ class RestrictedSerializerMixin:
         query_params = self.context['request'].query_params
         keys = query_params.getlist(self.FIELDS_PARAM_NAME)
         keys = set(key for key in keys if key in fields.keys())
+        optional_fields = set(self.get_optional_fields()) - keys
+        fields = OrderedDict(
+            (
+                (key, value)
+                for key, value in fields.items()
+                if key not in optional_fields
+            )
+        )
         if not keys:
             return fields
         return OrderedDict(
             ((key, value) for key, value in fields.items() if key in keys)
         )
+
+    def get_optional_fields(self):
+        return []
 
 
 class HyperlinkedRelatedModelSerializer(serializers.HyperlinkedModelSerializer):
@@ -370,61 +380,6 @@ class HyperlinkedRelatedModelSerializer(serializers.HyperlinkedModelSerializer):
         return url.to_internal_value(data['url'])
 
 
-class HistorySerializer(serializers.Serializer):
-    """
-    Receive datetime as timestamps and converts them to list of datetimes
-
-    Support 2 types of input data:
-     - start, end and points_count - interval from <start> to <end> will be automatically split into
-                                     <points_count> pieces
-     - point_list - list of timestamps that will be converted to datetime points
-
-    """
-
-    start = TimestampField(required=False)
-    end = TimestampField(required=False)
-    points_count = serializers.IntegerField(min_value=2, required=False)
-    point_list = serializers.ListField(child=TimestampField(), required=False)
-
-    def validate(self, attrs):
-        autosplit_fields = {'start', 'end', 'points_count'}
-        if (
-            'point_list' not in attrs or not attrs['point_list']
-        ) and not autosplit_fields == set(attrs.keys()):
-            raise serializers.ValidationError(
-                _(
-                    'Not enough parameters for historical data. '
-                    '(Either "point" or "start" + "end" + "points_count" parameters have to be provided).'
-                )
-            )
-        if 'point_list' in attrs and autosplit_fields & set(attrs.keys()):
-            raise serializers.ValidationError(
-                _(
-                    'Too many parameters for historical data. '
-                    '(Either "point" or "start" + "end" + "points_count" parameters have to be provided).'
-                )
-            )
-        if 'point_list' not in attrs and not attrs['start'] < attrs['end']:
-            raise serializers.ValidationError(
-                _('Start timestamps have to be later than end timestamps.')
-            )
-        return attrs
-
-    # History serializer is used for validation only. We are providing custom method for such serializers
-    # to avoid confusion with to_internal_value or to_representation DRF methods.
-    def get_filter_data(self):
-        if 'point_list' in self.validated_data:
-            return self.validated_data['point_list']
-        else:
-            interval = (self.validated_data['end'] - self.validated_data['start']) / (
-                self.validated_data['points_count'] - 1
-            )
-            return [
-                self.validated_data['start'] + interval * i
-                for i in range(self.validated_data['points_count'])
-            ]
-
-
 class UnicodeIntegerField(serializers.IntegerField):
     def to_internal_value(self, data):
         if isinstance(data, str):
@@ -433,8 +388,8 @@ class UnicodeIntegerField(serializers.IntegerField):
 
 
 class DateRangeFilterSerializer(serializers.Serializer):
-    start = fields.YearMonthField(required=False)
-    end = fields.YearMonthField(required=False)
+    start = core_fields.YearMonthField(required=False)
+    end = core_fields.YearMonthField(required=False)
 
     def validate(self, data):
         if 'start' in data and 'end' in data and data['start'] > data['end']:
