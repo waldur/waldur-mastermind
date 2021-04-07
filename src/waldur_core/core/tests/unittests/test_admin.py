@@ -15,7 +15,7 @@ class TestAdminEndpoints(TestCase):
     def _reverse_url(self, path):
         return reverse('%s:%s' % (self.admin_site_name, path))
 
-    def test_app_list_ulrs_can_be_queried(self):
+    def test_app_list_urls_can_be_queried(self):
         app_list_urls = dict()
         for model in admin.site._registry:
             app_list_url = reverse(

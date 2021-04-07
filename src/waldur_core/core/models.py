@@ -150,10 +150,18 @@ class UserDetailsMixin(models.Model):
     organization = models.CharField(_('organization'), max_length=255, blank=True)
     job_title = models.CharField(_('job title'), max_length=40, blank=True)
     affiliations = BetterJSONField(
-        null=True,
+        default=list,
         blank=True,
         help_text="Person's affiliation within organization such as student, faculty, staff.",
     )
+
+    def _process_saml2_affiliations(self, affiliations):
+        """
+        Due to djangosaml2 assumption that attributes list should have at most one element
+        we have to implement custom method to process affiliations fetched from SAML2 IdP.
+        See also: https://github.com/peppelinux/djangosaml2/issues/28
+        """
+        self.affiliations = affiliations
 
 
 @reversion.register()
