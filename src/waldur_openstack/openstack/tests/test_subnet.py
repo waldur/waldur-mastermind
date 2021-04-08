@@ -2,7 +2,6 @@ from unittest import mock
 
 from rest_framework import status, test
 
-from waldur_core.core import utils as core_utils
 from waldur_openstack.openstack.tests import factories, fixtures
 
 
@@ -64,19 +63,3 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
         subnet.refresh_from_db()
         self.assertEqual(subnet.cidr, CIDR)
-
-    @mock.patch('waldur_openstack.openstack.executors.core_tasks.BackendMethodTask')
-    def test_subnet_updating_if_enable_default_gateway_is_false(self, core_tasks_mock):
-        self.request_data['enable_default_gateway'] = False
-        response = self.client.put(self.url, self.request_data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        core_tasks_mock().si.assert_has_calls(
-            [
-                mock.call(
-                    core_utils.serialize_instance(self.fixture.subnet),
-                    'update_subnet',
-                    state_transition='begin_updating',
-                    enable_default_gateway=False,
-                )
-            ]
-        )
