@@ -825,6 +825,8 @@ class UserSerializer(
             'project_permissions',
             'requested_email',
             'affiliations',
+            'first_name',
+            'last_name',
         )
         read_only_fields = (
             'uuid',
@@ -835,6 +837,8 @@ class UserSerializer(
             'customer_permissions',
             'project_permissions',
             'affiliations',
+            'first_name',
+            'last_name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
