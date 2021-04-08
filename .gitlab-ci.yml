@@ -141,8 +141,8 @@ Upload configuration guide:
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - git remote set-url origin "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git fetch
-    - git status
     - waldur print_settings > docs/admin-guide/mastermind-configuration/configuration-guide.md
+    - git status
     - git commit docs/admin-guide/mastermind-configuration/configuration-guide.md -m "Update configuration guide" || exit 0
     - git status
     - echo "Committing updated configuration guide"
