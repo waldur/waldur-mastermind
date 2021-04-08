@@ -1065,7 +1065,7 @@ class ServiceSettingsSerializer(
     def get_fields(self):
         fields = super(ServiceSettingsSerializer, self).get_fields()
         method = self.context['view'].request.method
-        if method == 'GET':
+        if method == 'GET' and 'options' in fields:
             fields['options'] = serializers.SerializerMethodField('get_options')
         return fields
 
