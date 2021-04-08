@@ -143,6 +143,8 @@ Upload configuration guide:
     - poetry install
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
     - waldur print_settings > $GUIDE_PATH
     - git commit $GUIDE_PATH -m "Update configuration guide" || exit 0
