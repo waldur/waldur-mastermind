@@ -129,3 +129,23 @@ Lint dockerfile:
         - DL3008 # "versions for `apt install`" warning
         - DL3015 # "--no-install-recommends" info
         - SC2094 # "read and write the same file in the same pipeline" info
+
+Upload configuration guide:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+  script:
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - git remote set-url origin "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - git fetch
+    - git status
+    - waldur print_settings > docs/admin-guide/mastermind-configuration/configuration-guide.md
+    - git commit docs/admin-guide/mastermind-configuration/configuration-guide.md -m "Update configuration guide" || exit 0
+    - git status
+    - echo "Committing updated configuration guide"
+    - git branch new-configuration-guide
+    - git push --set-upstream origin new-configuration-guide:master
+  before_script: []
