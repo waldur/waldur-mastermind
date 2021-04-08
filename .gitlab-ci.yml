@@ -139,6 +139,7 @@ Upload configuration guide:
   variables:
     GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
   script:
+    - poetry install
     - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - cd waldur-docs
