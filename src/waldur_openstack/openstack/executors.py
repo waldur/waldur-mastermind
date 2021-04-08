@@ -537,13 +537,28 @@ class SetMtuExecutor(core_executors.ActionExecutor):
 class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_subnet, 'create_subnet', state_transition='begin_creating',
+        )
+
+
+class SubNetUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_subnet, 'update_subnet', state_transition='begin_updating',
+        )
+
+
+class SubnetConnectExecutor(core_executors.ActionExecutor):
+    action = 'connect'
+
+    @classmethod
+    def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
         serialized_tenant = core_utils.serialize_instance(subnet.network.tenant)
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_subnet,
-                'create_subnet',
-                state_transition='begin_creating',
-                enable_default_gateway=kwargs.get('enable_default_gateway', True),
+                serialized_subnet, 'connect_subnet', state_transition='begin_updating',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, backend_method='pull_tenant_routers'
@@ -551,16 +566,17 @@ class SubNetCreateExecutor(core_executors.CreateExecutor):
         )
 
 
-class SubNetUpdateExecutor(core_executors.UpdateExecutor):
+class SubnetDisconnectExecutor(core_executors.ActionExecutor):
+    action = 'disconnect'
+
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
         serialized_tenant = core_utils.serialize_instance(subnet.network.tenant)
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_subnet,
-                'update_subnet',
+                'disconnect_subnet',
                 state_transition='begin_updating',
-                enable_default_gateway=kwargs.get('enable_default_gateway', True),
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, backend_method='pull_tenant_routers'

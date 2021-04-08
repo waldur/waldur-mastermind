@@ -477,11 +477,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         subnet = serializer.save()
-        enable_default_gateway = serializer.validated_data['enable_default_gateway']
-
-        executors.SubNetCreateExecutor.execute(
-            subnet, enable_default_gateway=enable_default_gateway
-        )
+        executors.SubNetCreateExecutor.execute(subnet)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_subnet_validators = [
@@ -527,9 +523,18 @@ class SubNetViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.SubNetDeleteExecutor
     pull_executor = executors.SubNetPullExecutor
 
-    def get_update_executor_kwargs(self, serializer):
-        return {
-            'enable_default_gateway': serializer.validated_data[
-                'enable_default_gateway'
-            ]
-        }
+    @decorators.action(detail=True, methods=['post'])
+    def connect(self, request, uuid=None):
+        executors.SubnetConnectExecutor.execute(self.get_object())
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    connect_validators = [core_validators.StateValidator(models.SubNet.States.OK)]
+    connect_serializer_class = rf_serializers.Serializer
+
+    @decorators.action(detail=True, methods=['post'])
+    def disconnect(self, request, uuid=None):
+        executors.SubnetDisconnectExecutor.execute(self.get_object())
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    disconnect_validators = [core_validators.StateValidator(models.SubNet.States.OK)]
+    disconnect_serializer_class = rf_serializers.Serializer

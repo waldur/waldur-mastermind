@@ -1807,7 +1807,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.pull_subnets(network=network)
 
     @log_backend_action()
-    def create_subnet(self, subnet, enable_default_gateway=True):
+    def create_subnet(self, subnet):
         neutron = self.neutron_admin_client
 
         data = {
@@ -1849,13 +1849,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     @log_backend_action()
-    def update_subnet(self, subnet, enable_default_gateway=True):
+    def update_subnet(self, subnet):
         neutron = self.neutron_admin_client
-
-        if not enable_default_gateway:
-            self.disconnect_subnet(subnet)
-        else:
-            self.connect_subnet(subnet)
 
         data = {
             'name': subnet.name,
