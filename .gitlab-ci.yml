@@ -136,16 +136,14 @@ Upload configuration guide:
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+  variables:
+    GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
   script:
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git config --global user.email "$GITLAB_USER_EMAIL"
-    - git remote set-url origin "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
-    - git fetch
-    - waldur print_settings > waldur-docs/docs/admin-guide/mastermind-configuration/configuration-guide.md
-    - git status
-    - git commit waldur-docs/docs/admin-guide/mastermind-configuration/configuration-guide.md -m "Update configuration guide" || exit 0
-    - git status
-    - echo "Committing updated configuration guide"
+    - cd /tmp/
+    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - cd waldur-docs
+    - waldur print_settings > $GUIDE_PATH
+    - git commit $GUIDE_PATH -m "Update configuration guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
   before_script: []
