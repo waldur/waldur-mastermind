@@ -10,7 +10,7 @@ class WaldurCore(BaseModel):
         description='Defines whether extensions should be automatically registered.',
     )
     TOKEN_KEY = Field('x-auth-token', description='Header for token authentication.')
-    AUTHENTICATION_METHODS = Field(
+    AUTHENTICATION_METHODS: List[str] = Field(
         ['LOCAL_SIGNIN'], description='List of enabled authentication methods.'
     )
     INVITATIONS_ENABLED = Field(
@@ -124,7 +124,7 @@ class WaldurCore(BaseModel):
         False,
         description='Do not allow user to grant multiple roles in the same project or organization using invitation.',
     )
-    PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS = Field(
+    PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: List[str] = Field(
         [],
         description='List of authentication methods which are not allowed to update user details.',
     )
@@ -137,6 +137,17 @@ class WaldurCore(BaseModel):
     HOMEPORT_URL = Field(
         'https://example.com/',
         description='It is used for rendering callback URL in HomePort.',
+    )
+    ENABLE_GEOIP = Field(
+        True, description='Enable detection of coordinates of virtual machines.'
+    )
+    SELLER_COUNTRY_CODE: Optional[str] = Field(
+        description='Specifies seller legal or effective country of registration or residence as an '
+        'ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate.'
+    )
+    SHOW_ALL_USERS = Field(
+        False,
+        description='Indicates whether user can see all other users in `api/users/` endpoint.',
     )
 
     class Meta:
@@ -244,8 +255,19 @@ class WaldurConfiguration(BaseModel):
         False, description='Protect media URLs using signed token.'
     )
     VERIFY_WEBHOOK_REQUESTS = Field(
-        True, description='Send verified request on webhook processing.'
+        True,
+        description='When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.',
+    )
+    DEFAULT_FROM_EMAIL = Field(
+        'webmaster@localhost',
+        description='Default email address to use for automated correspondence from Waldur.',
     )
     CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC = False
-    IPSTACK_ACCESS_KEY = ''
-    IMPORT_EXPORT_USE_TRANSACTIONS = True
+    IPSTACK_ACCESS_KEY: Optional[str] = Field(
+        description='Unique authentication key used to gain access to the ipstack API.'
+    )
+    IMPORT_EXPORT_USE_TRANSACTIONS = Field(
+        True,
+        description='Controls if resource importing should use database transactions. '
+        'Using transactions makes imports safer as a failure during import won’t import only part of the data set.',
+    )
