@@ -262,7 +262,7 @@ class OfferingPermissionInline(admin.TabularInline):
 class OfferingUserInline(admin.TabularInline):
     model = models.OfferingUser
     fields = ('user', 'username', 'created')
-    readonly_fields = fields
+    readonly_fields = ('created',)
     extra = 1
 
 
