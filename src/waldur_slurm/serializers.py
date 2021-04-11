@@ -107,7 +107,7 @@ class AllocationSerializer(
         correct_name_regex = '^([%s]{1,63})$' % models.SLURM_ALLOCATION_REGEX
         name = attrs.get('name')
         if not re.match(correct_name_regex, name):
-            raise core_serializers.ValidationError(
+            raise rf_serializers.ValidationError(
                 _(
                     "Name '%s' must be 1-63 characters long, each of "
                     "which can only be alphanumeric or a hyphen"

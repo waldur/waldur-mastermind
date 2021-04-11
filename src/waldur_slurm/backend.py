@@ -1,6 +1,5 @@
 import logging
 import operator
-import re
 from functools import reduce
 
 from django.conf import settings as django_settings
@@ -14,6 +13,7 @@ from waldur_slurm.client import SlurmClient
 from waldur_slurm.structures import Quotas
 
 from . import base, models
+from .utils import sanitize_allocation_name
 
 logger = logging.getLogger(__name__)
 
@@ -271,16 +271,12 @@ class SlurmBackend(ServiceBackend):
             django_settings.WALDUR_SLURM['PROJECT_PREFIX'], project
         )
 
-    def sanitize_allocation_name(self, name):
-        incorrect_symbols_regex = r'[^%s]+' % models.SLURM_ALLOCATION_REGEX
-        return re.sub(incorrect_symbols_regex, '', name)
-
     def get_allocation_name(self, allocation):
         prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
         name = allocation.name
         hexpart = allocation.uuid.hex[:5]
         raw_name = "%s%s_%s" % (prefix, hexpart, name)
-        result_name = self.sanitize_allocation_name(raw_name)[
+        result_name = sanitize_allocation_name(raw_name)[
             : models.SLURM_ALLOCATION_NAME_MAX_LEN
         ]
         return result_name.lower()
