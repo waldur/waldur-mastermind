@@ -54,21 +54,21 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         response = self.client.get(factories.UserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_staff_can_see_token_in_the_list(self):
+    def test_staff_cannot_see_token_in_the_list(self):
         self.client.force_authenticate(self.users['staff'])
 
         response = self.client.get(factories.UserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), len(self.users))
-        self.assertIsNotNone(response.data[0]['token'])
+        self.assertIsNone(response.data[0].get('token'))
 
-    def test_staff_can_see_token_and_its_lifetime_of_the_other_user(self):
+    def test_staff_cannot_see_token_and_its_lifetime_of_the_other_user(self):
         self.client.force_authenticate(self.users['staff'])
 
         response = self.client.get(factories.UserFactory.get_url(self.users['owner']))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNotNone(response.data['token'])
-        self.assertIn('token_lifetime', response.data)
+        self.assertIsNone(response.data.get('token'))
+        self.assertNotIn('token_lifetime', response.data)
 
     def test_owner_cannot_see_token_and_its_lifetime_field_in_the_list_of_users(self):
         self.client.force_authenticate(self.users['owner'])

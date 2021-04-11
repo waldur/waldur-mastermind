@@ -915,12 +915,10 @@ class UserSerializer(
         return fields
 
     def _can_see_token(self, user):
-        # Staff can see any token
-        # User can see his own token either via details view or /api/users/?current
+        # Nobody apart from the user herself can see her token.
+        # User can see the token either via details view or /api/users/?current
 
-        if user.is_staff:
-            return True
-        elif isinstance(self.instance, list) and len(self.instance) == 1:
+        if isinstance(self.instance, list) and len(self.instance) == 1:
             return self.instance[0] == user
         else:
             return self.instance == user
