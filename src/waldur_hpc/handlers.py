@@ -93,7 +93,7 @@ def create_project(customer, user):
         return
 
 
-def create_order(project, user, offering, plan, limits=None):
+def create_order(project: Project, user, offering, plan, limits=None):
     order = Order.objects.create(project=project, created_by=user)
 
     order_item = OrderItem.objects.create(
@@ -158,8 +158,8 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         if not project:
             return
         order = create_order(
-            user,
             project,
+            user,
             offering,
             plan,
             limits=settings.WALDUR_HPC['INTERNAL_LIMITS'],
