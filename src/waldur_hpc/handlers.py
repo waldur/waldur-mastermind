@@ -8,6 +8,7 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure.models import Customer, Project, ProjectRole
 from waldur_mastermind.marketplace.models import Offering, Order, OrderItem, Plan
 from waldur_mastermind.marketplace.tasks import approve_order, notify_order_approvers
+from waldur_slurm.utils import sanitize_allocation_name
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ def create_order(project: Project, user, offering, plan, limits=None):
         offering=offering,
         plan=plan,
         limits=limits,
-        attributes={'name': user.username},
+        attributes={'name': sanitize_allocation_name(user.username)},
     )
 
     order_item.init_cost()
