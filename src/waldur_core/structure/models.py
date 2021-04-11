@@ -631,7 +631,10 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         self.project.remove_user(self.user, self.role)
 
     def __str__(self):
-        return '%s | %s' % (self.project.name, self.get_role_display())
+        project = Project.all_objects.get(
+            id=self.project_id
+        )  # handle case when project is already deleted
+        return '%s | %s' % (project.name, self.get_role_display())
 
 
 class ProjectType(

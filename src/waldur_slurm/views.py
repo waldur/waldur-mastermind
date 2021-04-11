@@ -18,7 +18,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     create_executor = executors.AllocationCreateExecutor
     pull_executor = executors.AllocationPullExecutor
 
-    destroy_permissions = [structure_permissions.is_owner]
+    destroy_permissions = [structure_permissions.is_administrator]
     delete_executor = executors.AllocationDeleteExecutor
 
     set_limits_permissions = [structure_permissions.is_staff]
@@ -33,7 +33,8 @@ class AllocationViewSet(structure_views.ResourceViewSet):
 
         executors.AllocationSetLimitsExecutor().execute(instance)
         return response.Response(
-            {'status': _('Set limits was scheduled.')}, status=status.HTTP_202_ACCEPTED,
+            {'status': _('Setting limits was scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
