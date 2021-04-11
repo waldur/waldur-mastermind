@@ -22,6 +22,7 @@ from waldur_core.core.fields import MappedChoiceField
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.exceptions import (
     ServiceBackendError,
     ServiceBackendNotImplemented,
@@ -177,6 +178,7 @@ class ProjectSerializer(
             'type',
             'type_name',
             'backend_id',
+            'end_date',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -215,6 +217,24 @@ class ProjectSerializer(
 
     def validate_description(self, value):
         return clean_html(value.strip())
+
+    def validate_end_date(self, end_date):
+        if end_date <= timezone.datetime.today().date():
+            raise serializers.ValidationError(
+                {'end_date': _('Cannot be earlier than the current date.')}
+            )
+        return end_date
+
+    def validate(self, attrs):
+        customer = (
+            attrs.get('customer') if not self.instance else self.instance.customer
+        )
+        end_date = attrs.get('end_date')
+
+        if end_date:
+            structure_permissions.is_owner(self.context['request'], None, customer)
+
+        return attrs
 
 
 class CustomerSerializer(

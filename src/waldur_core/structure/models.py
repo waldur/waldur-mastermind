@@ -724,9 +724,22 @@ class Project(
         null=True,
         on_delete=models.PROTECT,
     )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'The date is inclusive. Once reached, '
+            'all project resource will '
+            'be scheduled for termination.'
+        ),
+    )
 
     objects = SoftDeletableManager()
     structure_objects = StructureManager()
+
+    @property
+    def is_expired(self):
+        return self.end_date and self.end_date <= timezone.datetime.today().date()
 
     @property
     def full_name(self):

@@ -93,6 +93,14 @@ def check_customer_blocked(obj):
         raise ValidationError(_('Blocked organization is not available.'))
 
 
+def check_project_end_date(obj):
+    from waldur_core.structure import permissions
+
+    project = permissions._get_project(obj)
+    if project.is_expired:
+        raise ValidationError(_('Project \'%s\' is expired.') % project)
+
+
 @transaction.atomic
 def move_project(project, customer):
     if customer.blocked:

@@ -1054,10 +1054,6 @@ class BaseCounterView(viewsets.GenericViewSet):
     dynamic_counters = set()
 
     @classmethod
-    def register_counter(cls, name, func):
-        cls.extra_counters[name] = func
-
-    @classmethod
     def register_dynamic_counter(cls, func):
         cls.dynamic_counters.add(func)
 

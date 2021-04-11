@@ -577,6 +577,7 @@ class OrderViewSet(BaseMarketplaceView):
     approve_validators = [
         core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
         structure_utils.check_customer_blocked,
+        structure_utils.check_project_end_date,
     ]
     approve_permissions = [permissions.user_can_approve_order_permission]
 
@@ -610,6 +611,7 @@ class OrderViewSet(BaseMarketplaceView):
     def perform_create(self, serializer):
         project = serializer.validated_data['project']
         structure_utils.check_customer_blocked(project)
+        structure_utils.check_project_end_date(project)
 
         super(OrderViewSet, self).perform_create(serializer)
 

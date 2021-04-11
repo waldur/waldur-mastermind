@@ -22,6 +22,7 @@ class MarketplaceExtension(WaldurExtension):
             'amount: {{component.amount}}; '
             'price: {{component.price|floatformat }};'
             '{% endfor %}',
+            'STAFF_USERNAME_FOR_TERMINATING_RESOURCE_OF_EXPIRED_PROJECT': 'staff',
         }
 
     @staticmethod
@@ -67,6 +68,11 @@ class MarketplaceExtension(WaldurExtension):
             'waldur-mastermind-send-notifications-about-usages': {
                 'task': 'waldur_mastermind.marketplace.send_notifications_about_usages',
                 'schedule': crontab(minute=0, hour=15, day_of_month='23'),
+                'args': (),
+            },
+            'terminate_resources_if_project_end_date_has_been_reached': {
+                'task': 'waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached',
+                'schedule': timedelta(days=1),
                 'args': (),
             },
         }
