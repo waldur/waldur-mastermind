@@ -1,13 +1,15 @@
+import datetime
 from unittest import mock
 
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
+from freezegun import freeze_time
 from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
 from waldur_core.quotas.tests import factories as quota_factories
-from waldur_core.structure import executors, models, permissions, signals, views
+from waldur_core.structure import executors, models, permissions, signals
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
@@ -134,6 +136,7 @@ class ProjectPermissionRevokeTest(TransactionTestCase):
         self.assertFalse(receiver.called, 'structure_role_remove should not be emitted')
 
 
+@ddt
 class ProjectUpdateDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
@@ -149,6 +152,30 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('New project name', response.data['name'])
         self.assertTrue(Project.objects.filter(name=data['name']).exists())
+
+    @data('staff', 'owner')
+    def test_user_can_update_end_date(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        with freeze_time('2020-01-01'):
+            data = {'end_date': '2021-01-01'}
+            response = self.client.patch(
+                factories.ProjectFactory.get_url(self.fixture.project), data
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.fixture.project.refresh_from_db()
+            self.assertTrue(self.fixture.project.end_date)
+
+    @data('manager', 'admin')
+    def test_user_cannot_update_end_date(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        with freeze_time('2020-01-01'):
+            data = {'end_date': '2021-01-01'}
+            response = self.client.patch(
+                factories.ProjectFactory.get_url(self.fixture.project), data
+            )
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.fixture.project.refresh_from_db()
+            self.assertFalse(self.fixture.project.end_date)
 
     # Delete tests:
     def test_user_can_delete_project_belonging_to_the_customer_he_owns(self):
@@ -167,6 +194,7 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.assertTrue(Project.structure_objects.filter(pk=pk).exists())
 
 
+@ddt
 class ProjectCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
@@ -216,6 +244,67 @@ class ProjectCreateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(Project.objects.filter(name=data['name']).exists())
+
+    def test_validate_end_date(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload['end_date'] = '2021-06-01'
+
+        with freeze_time('2021-07-01'):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertTrue(
+                'Cannot be earlier than the current date.' in str(response.data)
+            )
+            self.assertFalse(Project.objects.filter(name=payload['name']).exists())
+
+        with freeze_time('2021-01-01'):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertTrue(
+                Project.objects.filter(
+                    name=payload['name'],
+                    end_date=datetime.datetime(year=2021, month=6, day=1).date(),
+                ).exists()
+            )
+
+    @data('staff', 'owner')
+    def test_user_can_set_end_date(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload['end_date'] = '2021-06-01'
+
+        with freeze_time('2021-01-01'):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertTrue(
+                Project.objects.filter(
+                    name=payload['name'],
+                    end_date=datetime.datetime(year=2021, month=6, day=1).date(),
+                ).exists()
+            )
+
+    @data('manager', 'admin')
+    def test_user_cannot_set_end_date(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload['end_date'] = '2021-06-01'
+
+        with freeze_time('2021-01-01'):
+            response = self.client.post(
+                factories.ProjectFactory.get_list_url(), payload
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def _get_valid_project_payload(self, customer):
         return {
@@ -481,13 +570,6 @@ class ProjectCountersListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {'users': 2})
-
-    def test_additional_counters_could_be_registered(self):
-        views.ProjectCountersView.register_counter('test', lambda project: 100)
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(self.url, {'fields': ['test']})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'test': 100})
 
 
 @ddt

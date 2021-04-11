@@ -1,6 +1,8 @@
+import datetime
 from unittest import mock
 
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.models import CustomerRole
@@ -364,6 +366,15 @@ class OrderCreateTest(test.APITransactionTestCase):
         )
         self.assertFalse(models.Order.objects.filter(created_by=user).exists())
 
+    def test_user_cannot_create_order_in_project_is_expired(self):
+        user = getattr(self.fixture, 'staff')
+        self.project.end_date = datetime.datetime(day=1, month=1, year=2020)
+        self.project.save()
+
+        with freeze_time('2020-01-01'):
+            response = self.create_order(user)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
@@ -438,6 +449,14 @@ class OrderApproveTest(test.APITransactionTestCase):
         self.approve_order(self.fixture.owner)
         order_item.refresh_from_db()
         self.assertEqual(order_item.resource.state, models.Resource.States.OK)
+
+    def test_user_cannot_approve_order_if_project_is_expired(self):
+        self.project.end_date = datetime.datetime(year=2020, month=1, day=1).date()
+        self.project.save()
+
+        with freeze_time('2020-01-01'):
+            response = self.approve_order(self.fixture.staff)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def approve_order(self, user):
         self.client.force_authenticate(user)

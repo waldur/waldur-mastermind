@@ -497,3 +497,32 @@ def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     log.log_marketplace_resource_renamed(
         instance, instance.tracker.previous('name') or ''
     )
+
+
+def delete_expired_project_if_every_resource_has_been_terminated(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state != models.Resource.States.TERMINATED:
+        return
+
+    project = instance.project
+
+    if project.is_expired:
+        resources = (
+            models.Resource.objects.filter(project=project)
+            .exclude(
+                state__in=(
+                    models.Resource.States.ERRED,
+                    models.Resource.States.TERMINATED,
+                )
+            )
+            .exists()
+        )
+        if not resources:
+            project.delete()

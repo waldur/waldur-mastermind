@@ -1,13 +1,15 @@
 import datetime
 
 from django.core import mail
+from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import exceptions, models, tasks
 
-from . import factories
+from . import factories, fixtures
 
 
 class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
@@ -89,3 +91,27 @@ class TerminateResource(test.APITransactionTestCase):
             core_utils.serialize_instance(self.resource),
             core_utils.serialize_instance(self.user),
         )
+
+
+class ProjectEndDate(test.APITransactionTestCase):
+    def setUp(self):
+        structure_factories.UserFactory(username='staff', is_staff=True)
+        self.fixtures = fixtures.MarketplaceFixture()
+        self.fixtures.project.end_date = datetime.datetime(day=1, month=1, year=2020)
+        self.fixtures.project.save()
+        self.fixtures.resource.set_state_ok()
+        self.fixtures.resource.save()
+
+    def test_terminate_resources_if_project_end_date_has_been_reached(self):
+        with freeze_time('2020-01-02'):
+            tasks.terminate_resources_if_project_end_date_has_been_reached()
+            self.assertTrue(
+                models.OrderItem.objects.filter(
+                    resource=self.fixtures.resource,
+                    type=models.OrderItem.Types.TERMINATE,
+                ).count()
+            )
+            order_item = models.OrderItem.objects.get(
+                resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
+            )
+            self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)

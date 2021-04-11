@@ -189,3 +189,10 @@ class MarketplaceConfig(AppConfig):
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.resource_has_been_renamed',
         )
+
+        signals.post_save.connect(
+            handlers.delete_expired_project_if_every_resource_has_been_terminated,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+            'delete_expired_project_if_every_resource_has_been_terminated',
+        )

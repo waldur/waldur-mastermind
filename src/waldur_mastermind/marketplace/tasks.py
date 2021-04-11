@@ -2,7 +2,9 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -177,3 +179,50 @@ def terminate_resource(serialized_resource, serialized_user):
 
     if response.status_code != status.HTTP_200_OK:
         raise exceptions.ResourceTerminateException(response.rendered_content)
+
+
+@shared_task(
+    name='marketplace.terminate_resources_if_project_end_date_has_been_reached'
+)
+def terminate_resources_if_project_end_date_has_been_reached():
+    expired_projects = structure_models.Project.objects.exclude(
+        end_date__isnull=True
+    ).filter(end_date__lte=timezone.datetime.today())
+
+    if expired_projects:
+        try:
+            user = get_user_model().objects.get(
+                username=settings.WALDUR_MARKETPLACE[
+                    'STAFF_USERNAME_FOR_TERMINATING_RESOURCE_OF_EXPIRED_PROJECT'
+                ],
+                is_staff=True,
+                is_active=True,
+            )
+        except ObjectDoesNotExist:
+            logger.error(
+                'Staff user with username %s for terminating resources '
+                'of project with due date does not exist.'
+                % settings.WALDUR_MARKETPLACE[
+                    'STAFF_USERNAME_FOR_TERMINATING_RESOURCE_OF_EXPIRED_PROJECT'
+                ]
+            )
+            return
+    else:
+        return
+
+    for project in expired_projects:
+        resources = models.Resource.objects.filter(project=project).filter(
+            state__in=(models.Resource.States.OK, models.Resource.States.ERRED)
+        )
+
+        for resource in resources:
+            view = views.ResourceViewSet.as_view({'post': 'terminate'})
+            response = create_request(view, user, {}, uuid=resource.uuid.hex)
+
+            if response.status_code != status.HTTP_200_OK:
+                logger.error(
+                    'Terminating resource %s has failed. %s'
+                    % (resource.uuid.hex, response.content)
+                )
+        else:
+            project.delete()
