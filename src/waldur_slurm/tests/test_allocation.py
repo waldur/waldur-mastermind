@@ -50,14 +50,14 @@ class AllocationCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_list_url()
 
-    @data('owner', 'staff')
+    @data('owner', 'staff', 'admin', 'manager')
     def test_authorized_user_can_create_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
         response = self.client.post(self.url, self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-    @data('admin', 'manager')
+    @data('member',)
     def test_non_authorized_user_can_not_create_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
@@ -80,14 +80,14 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
 
-    @data('staff', 'owner')
+    @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_delete_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    @data('admin', 'manager')
+    @data('member')
     def test_non_authorized_user_can_not_delete_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
