@@ -28,7 +28,7 @@ For class based tasks use old Task base class for compatibility:
 
 .. code-block:: python
 
-    from celery.task import Task
+    from celery import Task
 
 For functions use decorator shared_task:
 

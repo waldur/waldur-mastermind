@@ -7,4 +7,4 @@ class Command(BaseCommand):
     help = "Pull users from support backend."
 
     def handle(self, *args, **options):
-        tasks.SupportUserPullTask().run()
+        tasks.pull_support_users()

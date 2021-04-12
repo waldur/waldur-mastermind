@@ -102,7 +102,7 @@ class SupportExtension(WaldurExtension):
     def celery_tasks():
         return {
             'pull-support-users': {
-                'task': 'support.SupportUserPullTask',
+                'task': 'waldur_mastermind.support.pull_support_users',
                 'schedule': timedelta(hours=6),
                 'args': (),
             },

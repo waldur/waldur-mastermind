@@ -1,6 +1,6 @@
 import logging
 
-from celery.task import Task as CeleryTask
+from celery import shared_task
 
 from waldur_core.core import utils
 from waldur_core.core.tasks import Task
@@ -10,21 +10,18 @@ from . import log
 logger = logging.getLogger(__name__)
 
 
-class WaitForActionComplete(CeleryTask):
-    max_retries = 300
-    default_retry_delay = 5
-
-    def run(self, action_id, serialized_droplet):
-        droplet = utils.deserialize_instance(serialized_droplet)
-        backend = droplet.get_backend()
-        action = backend.manager.get_action(action_id)
-        if action.status == 'completed':
-            backend_droplet = backend.get_droplet(droplet.backend_id)
-            droplet.ip_address = backend_droplet.ip_address
-            droplet.save(update_fields=['ip_address'])
-            return True
-        else:
-            self.retry()
+@shared_task(bind=True, max_retries=300, default_retry_delay=5)
+def wait_for_action_complete(self, action_id, serialized_droplet):
+    droplet = utils.deserialize_instance(serialized_droplet)
+    backend = droplet.get_backend()
+    action = backend.manager.get_action(action_id)
+    if action.status == 'completed':
+        backend_droplet = backend.get_droplet(droplet.backend_id)
+        droplet.ip_address = backend_droplet.ip_address
+        droplet.save(update_fields=['ip_address'])
+        return True
+    else:
+        self.retry()
 
 
 class LogDropletResized(Task):

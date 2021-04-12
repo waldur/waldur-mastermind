@@ -2,7 +2,6 @@ import logging
 from smtplib import SMTPException
 
 from celery import shared_task
-from celery.task import Task as CeleryTask
 from django.conf import settings
 from django.core import signing
 from django.core.mail import send_mail
@@ -17,7 +16,8 @@ from .utils import get_feedback_link
 logger = logging.getLogger(__name__)
 
 
-class SupportUserPullTask(CeleryTask):
+@shared_task(name='waldur_mastermind.support.pull_support_users')
+def pull_support_users():
     """
     Pull support users from backend.
     Note that support users are not deleted in JIRA.
@@ -25,26 +25,23 @@ class SupportUserPullTask(CeleryTask):
     Therefore, Waldur replicates the same behaviour.
     """
 
-    name = 'support.SupportUserPullTask'
+    if not settings.WALDUR_SUPPORT['ENABLED']:
+        return
 
-    def run(self):
-        if not settings.WALDUR_SUPPORT['ENABLED']:
-            return
-
-        backend_users = backend.get_active_backend().get_users()
-        for backend_user in backend_users:
-            user, created = models.SupportUser.objects.get_or_create(
-                backend_id=backend_user.backend_id, defaults={'name': backend_user.name}
-            )
-            if not created and user.name != backend_user.name:
-                user.name = backend_user.name
-                user.save()
-            if not user.is_active:
-                user.is_active = True
-                user.save()
-        models.SupportUser.objects.exclude(
-            backend_id__in=[u.backend_id for u in backend_users]
-        ).update(is_active=False)
+    backend_users = backend.get_active_backend().get_users()
+    for backend_user in backend_users:
+        user, created = models.SupportUser.objects.get_or_create(
+            backend_id=backend_user.backend_id, defaults={'name': backend_user.name}
+        )
+        if not created and user.name != backend_user.name:
+            user.name = backend_user.name
+            user.save()
+        if not user.is_active:
+            user.is_active = True
+            user.save()
+    models.SupportUser.objects.exclude(
+        backend_id__in=[u.backend_id for u in backend_users]
+    ).update(is_active=False)
 
 
 @shared_task(name='waldur_mastermind.support.pull_priorities')
