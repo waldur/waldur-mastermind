@@ -161,6 +161,10 @@ class CategorySerializer(
         if allowed_customer_uuid and core_utils.is_uuid_like(allowed_customer_uuid):
             offerings = offerings.filter_for_customer(allowed_customer_uuid)
 
+        project_uuid = request.query_params.get('project_uuid')
+        if project_uuid and core_utils.is_uuid_like(project_uuid):
+            offerings = offerings.filter_for_project(project_uuid)
+
         offerings = offerings.annotate(count=Count('*')).values('count')
 
         # Workaround for Django bug:
