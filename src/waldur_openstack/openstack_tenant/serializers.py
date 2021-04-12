@@ -1396,12 +1396,12 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
 
 class AllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
-        validators=[validate_private_cidr],
-        default='192.168.42.0/24',
-        initial='192.168.42.0/24',
-        write_only=True,
+        default='192.168.42.0/24', initial='192.168.42.0/24', write_only=True,
     )
     mac_address = serializers.CharField(required=False)
+
+    def validate_ip_address(self, value):
+        return validate_private_cidr(value)
 
 
 class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):

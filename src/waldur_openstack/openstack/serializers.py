@@ -515,18 +515,17 @@ def validate_private_cidr(value, enforced_prefixlen=None):
             message=_('A private network CIDR is expected.'), code='invalid',
         )
 
+    return network.with_prefixlen
+
 
 def validate_private_subnet_cidr(value):
-    validate_private_cidr(value, 24)
+    return validate_private_cidr(value, 24)
 
 
 class TenantSerializer(structure_serializers.BaseResourceSerializer):
     quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
     subnet_cidr = serializers.CharField(
-        validators=[validate_private_subnet_cidr],
-        default='192.168.42.0/24',
-        initial='192.168.42.0/24',
-        write_only=True,
+        default='192.168.42.0/24', initial='192.168.42.0/24', write_only=True,
     )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -553,6 +552,9 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
             name={'max_length': 64},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
+
+    def validate_subnet_cidr(self, value):
+        return validate_private_subnet_cidr(value)
 
     def get_fields(self):
         fields = super(TenantSerializer, self).get_fields()
@@ -976,10 +978,7 @@ class SetMtuSerializer(serializers.Serializer):
 
 class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     cidr = serializers.CharField(
-        validators=[validate_private_subnet_cidr],
-        required=False,
-        initial='192.168.42.0/24',
-        label='CIDR',
+        required=False, initial='192.168.42.0/24', label='CIDR',
     )
     allocation_pools = serializers.JSONField(read_only=True)
     network_name = serializers.CharField(source='network.name', read_only=True)
@@ -1030,6 +1029,10 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             network={'lookup_field': 'uuid', 'view_name': 'openstack-network-detail'},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
+
+    def validate_cidr(self, value):
+        if value:
+            return validate_private_subnet_cidr(value)
 
     def validate(self, attrs):
         if attrs.get('disable_gateway') and attrs.get('gateway_ip'):
