@@ -43,6 +43,9 @@ class OfferingQuerySet(django_models.QuerySet):
             shared=True, permissions__user__uuid=value, permissions__is_active=True
         )
 
+    def filter_for_project(self, value):
+        return self.filter(Q(shared=True) | Q(project__uuid=value))
+
     def filter_importable(self, user):
         # Import is limited to staff for shared offerings and to staff/owners for private offerings
 

@@ -90,6 +90,7 @@ def create_offerings_for_volume_and_instance(tenant):
             billable=False,
             parent=parent_offering,
             customer=actual_customer,
+            project=tenant.project,
         )
 
         fields = (

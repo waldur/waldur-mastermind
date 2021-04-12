@@ -366,6 +366,13 @@ class Offering(
         related_name='+',
         null=True,
     )
+    project = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Project,
+        related_name='+',
+        null=True,
+        blank=True,
+    )
     # Volume offering is linked with VPC offering via parent field
     parent = models.ForeignKey(
         on_delete=models.CASCADE, to='Offering', null=True, blank=True
