@@ -55,7 +55,7 @@ class SupportUserPullTest(base.BaseTest):
         bob = factories.SupportUserFactory(backend_id='bob')
 
         # Act
-        tasks.SupportUserPullTask().run()
+        tasks.pull_support_users()
 
         # Assert
         alice.refresh_from_db()
@@ -71,7 +71,7 @@ class SupportUserPullTest(base.BaseTest):
         alice = factories.SupportUserFactory(backend_id='alice', is_active=False)
 
         # Act
-        tasks.SupportUserPullTask().run()
+        tasks.pull_support_users()
 
         # Assert
         alice.refresh_from_db()

@@ -21,7 +21,7 @@ class DropletCreateExecutor(executors.CreateExecutor):
                 success_runtime_state=RuntimeStateMixin.RuntimeStates.ONLINE,
                 **kwargs
             ),
-            tasks.WaitForActionComplete().s(serialized_droplet).set(countdown=30),
+            tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=30),
         )
 
 
@@ -48,7 +48,7 @@ class DropletStopExecutor(executors.ActionExecutor):
                 state_transition='begin_updating',
                 success_runtime_state=models.Droplet.RuntimeStates.OFFLINE,
             ),
-            tasks.WaitForActionComplete().s(serialized_droplet).set(countdown=10),
+            tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
         )
 
 
@@ -62,7 +62,7 @@ class DropletStartExecutor(executors.ActionExecutor):
                 state_transition='begin_updating',
                 success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
             ),
-            tasks.WaitForActionComplete().s(serialized_droplet).set(countdown=10),
+            tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
         )
 
 
@@ -76,7 +76,7 @@ class DropletRestartExecutor(executors.ActionExecutor):
                 state_transition='begin_updating',
                 success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
             ),
-            tasks.WaitForActionComplete().s(serialized_droplet).set(countdown=10),
+            tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
         )
 
 
@@ -95,7 +95,7 @@ class DropletResizeExecutor(executors.UpdateExecutor):
                 backend_size_id=size.backend_id,
                 disk=disk,
             ),
-            tasks.WaitForActionComplete().s(serialized_droplet).set(countdown=10),
+            tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
             tasks.LogDropletResized().si(
                 serialized_droplet, core_utils.serialize_instance(size)
             ),

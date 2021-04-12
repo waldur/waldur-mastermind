@@ -2,7 +2,10 @@ import logging
 import traceback
 from uuid import uuid4
 
-from celery.task import Task as CeleryTask
+from celery import Task as CeleryTask
+from celery import current_app
+from celery.app.task import _reprtask
+from celery.local import Proxy
 from celery.worker.request import Request
 from django.db import IntegrityError
 from django.db import models as django_models
@@ -19,7 +22,64 @@ class StateChangeError(RuntimeError):
     pass
 
 
-class Task(CeleryTask):
+class TaskType(type):
+    """
+    Meta class for tasks.
+    Automatically registers the task in the task registry (except
+    if the :attr:`Task.abstract`` attribute is set).
+    If no :attr:`Task.name` attribute is provided, then the name is generated
+    from the module and class name.
+    Taken from https://github.com/celery/celery/blob/4.3/celery/task/base.py
+    """
+
+    _creation_count = {}  # used by old non-abstract task classes
+
+    def __new__(cls, name, bases, attrs):
+        new = super(TaskType, cls).__new__
+        task_module = attrs.get('__module__') or '__main__'
+
+        # - Abstract class: abstract attribute shouldn't be inherited.
+        abstract = attrs.pop('abstract', None)
+        if abstract or not attrs.get('autoregister', True):
+            return new(cls, name, bases, attrs)
+
+        # The 'app' attribute is now a property, with the real app located
+        # in the '_app' attribute.  Previously this was a regular attribute,
+        # so we should support classes defining it.
+        app = attrs.pop('_app', None) or attrs.pop('app', None)
+
+        # Attempt to inherit app from one the bases
+        if not isinstance(app, Proxy) and app is None:
+            for base in bases:
+                if getattr(base, '_app', None):
+                    app = base._app
+                    break
+            else:
+                app = current_app._get_current_object()
+        attrs['_app'] = app
+
+        # - Automatically generate missing/empty name.
+        task_name = attrs.get('name')
+        if not task_name:
+            attrs['name'] = task_name = app.gen_task_name(name, task_module)
+
+        # - Create and register class.
+        # Because of the way import happens (recursively)
+        # we may or may not be the first time the task tries to register
+        # with the framework.  There should only be one class for each task
+        # name, so we always return the registered version.
+        tasks = app._tasks
+        if task_name not in tasks:
+            tasks.register(new(cls, name, bases, attrs))
+        instance = tasks[task_name]
+        instance.bind(app)
+        return instance.__class__
+
+    def __repr__(self):
+        return _reprtask(self)
+
+
+class Task(CeleryTask, metaclass=TaskType):
     """ Base class for tasks that are run by executors.
 
     Provides standard way for input data deserialization.
@@ -66,7 +126,7 @@ class Task(CeleryTask):
         pass
 
 
-class EmptyTask(CeleryTask):
+class EmptyTask(CeleryTask, metaclass=TaskType):
     def run(self, *args, **kwargs):
         pass
 
