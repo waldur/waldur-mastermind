@@ -7,6 +7,8 @@ from django.contrib.auth import get_user_model
 from django.core import signing
 from django.db import transaction
 from django.template import Context, Template
+from django.template import exceptions as template_exceptions
+from django.template.loader import get_template
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
@@ -26,12 +28,16 @@ User = get_user_model()
 
 
 def render_issue_template(config_name, issue):
-    issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
-    if not issue_settings:
-        return ''
+    try:
+        template = get_template('support/' + config_name + '.txt').template
+    except template_exceptions.TemplateDoesNotExist:
+        issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+        if not issue_settings:
+            return ''
 
-    raw = issue_settings[config_name]
-    template = Template(raw)
+        raw = issue_settings[config_name]
+        template = Template(raw)
+
     return template.render(Context({'issue': issue}, autoescape=False))
 
 
