@@ -695,17 +695,19 @@ def move_resource(resource: models.Resource, project):
 
     old_project = resource.project
 
-    if old_project.customer != project.customer:
-        offering = resource.offering
-        offering.allowed_customers.remove(old_project.customer)
-        offering.allowed_customers.add(project.customer)
-
     resource.project = project
     resource.save(update_fields=['project'])
 
     if resource.scope:
         resource.scope.project = project
         resource.scope.save(update_fields=['project'])
+
+        for service_settings in structure_models.ServiceSettings.objects.filter(
+            scope=resource.scope
+        ):
+            models.Offering.objects.filter(scope=service_settings).update(
+                project=project
+            )
 
     order_ids = resource.orderitem_set.values_list('order_id', flat=True)
     for order in models.Order.objects.filter(pk__in=order_ids):

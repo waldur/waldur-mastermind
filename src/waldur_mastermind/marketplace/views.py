@@ -642,29 +642,6 @@ class PluginViewSet(views.APIView):
         return Response(payload, status=status.HTTP_200_OK)
 
 
-class CustomerOfferingViewSet(views.APIView):
-    serializer_class = serializers.CustomerOfferingSerializer
-
-    def _get_customer(self, request, uuid):
-        user = request.user
-        if not user.is_staff:
-            raise rf_exceptions.PermissionDenied()
-
-        return get_object_or_404(structure_models.Customer, uuid=uuid)
-
-    def get(self, request, uuid):
-        customer = self._get_customer(request, uuid)
-        serializer = self.serializer_class(customer, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def post(self, request, uuid):
-        customer = self._get_customer(request, uuid)
-        serializer = self.serializer_class(instance=customer, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(status=status.HTTP_200_OK)
-
-
 class OrderItemViewSet(BaseMarketplaceView):
     queryset = models.OrderItem.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)

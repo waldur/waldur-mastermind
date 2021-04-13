@@ -14,29 +14,23 @@ class OfferingQuerySet(django_models.QuerySet):
         if user.is_anonymous or user.is_staff or user.is_support:
             return self
 
-        connected_customers = set(
-            structure_models.Customer.objects.all()
-            .filter(
-                Q(permissions__user=user, permissions__is_active=True)
-                | Q(
-                    projects__permissions__user=user,
-                    projects__permissions__is_active=True,
-                )
-            )
-            .distinct()
+        connected_customers = structure_models.Customer.objects.all().filter(
+            permissions__user=user, permissions__is_active=True
+        )
+
+        connected_projects = structure_models.Project.objects.all().filter(
+            permissions__user=user, permissions__is_active=True
         )
 
         return self.filter(
             Q(shared=True)
-            | Q(shared=False, allowed_customers__in=connected_customers)
             | Q(shared=False, customer__in=connected_customers)
+            | Q(shared=False, project__in=connected_projects)
             | Q(shared=True, permissions__user=user, permissions__is_active=True),
         ).distinct()
 
     def filter_for_customer(self, value):
-        return self.filter(
-            Q(shared=True) | Q(customer__uuid=value) | Q(allowed_customers__uuid=value)
-        )
+        return self.filter(Q(shared=True) | Q(customer__uuid=value))
 
     def filter_for_service_manager(self, value):
         return self.filter(
@@ -62,10 +56,7 @@ class OfferingQuerySet(django_models.QuerySet):
             .distinct()
         )
 
-        return self.filter(
-            Q(shared=False, allowed_customers__in=owned_customers)
-            | Q(shared=False, customer__in=owned_customers)
-        )
+        return self.filter(shared=False, customer__in=owned_customers)
 
 
 class OfferingManager(MixinManager):

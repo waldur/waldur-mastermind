@@ -11,6 +11,7 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
+from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
@@ -132,27 +133,36 @@ class OfferingFilterTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(len(response.data), 1)
 
-    def test_private_offerings_are_available_for_users_in_allowed_customers(self):
-        fixture = fixtures.CustomerFixture()
-        self.offering.allowed_customers.add(fixture.customer)
-
-        self.client.force_authenticate(fixture.owner)
-        response = self.client.get(self.url)
-        self.assertEqual(len(response.data), 1)
-
     def test_private_offerings_are_not_available_for_users_in_other_customers(self):
         fixture = fixtures.CustomerFixture()
         self.client.force_authenticate(fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 0)
 
-    def test_private_offerings_are_available_for_users_in_allowed_projects(self):
+    def test_private_offering_is_available_for_users_in_related_project(self):
         fixture = fixtures.ProjectFixture()
-        self.offering.allowed_customers.add(fixture.customer)
-
+        self.offering.project = fixture.project
+        self.offering.save()
         self.client.force_authenticate(fixture.manager)
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
+
+    def test_private_offering_is_not_available_for_users_in_other_project_of_the_same_customer(
+        self,
+    ):
+        fixture = fixtures.ProjectFixture()
+        self.offering.project = fixture.project
+        self.offering.save()
+
+        other_manager = structure_factories.UserFactory()
+        other_project = structure_factories.ProjectFactory(
+            customer=fixture.project.customer
+        )
+        other_project.add_user(other_manager, ProjectRole.MANAGER)
+
+        self.client.force_authenticate(other_manager)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
 
     def test_private_offerings_are_not_available_for_users_in_other_projects(self):
         fixture = fixtures.ProjectFixture()
@@ -1138,13 +1148,14 @@ class OfferingCountTest(test.APITransactionTestCase):
         self.category = factories.CategoryFactory()
         self.url = factories.CategoryFactory.get_url(self.category)
 
-    def assert_count(self, user, value, shared=False):
+    def assert_count(self, user, value, shared=False, project=None):
         factories.OfferingFactory.create_batch(
             2,
             customer=self.customer,
             category=self.category,
             shared=shared,
             state=models.Offering.States.ACTIVE,
+            project=project,
         )
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
@@ -1152,11 +1163,13 @@ class OfferingCountTest(test.APITransactionTestCase):
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_see_private_offering(self, user):
-        self.assert_count(getattr(self.fixture, user), 2)
+        self.assert_count(getattr(self.fixture, user), 2, project=self.fixture.project)
 
     @data('owner', 'admin', 'manager')
     def test_unauthorized_user_can_not_see_private_offering(self, user):
-        self.assert_count(getattr(fixtures.ProjectFixture(), user), 0)
+        self.assert_count(
+            getattr(fixtures.ProjectFixture(), user), 0, project=self.fixture.project
+        )
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_anyone_can_see_public_offering(self, user):
@@ -1259,46 +1272,6 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.offering.refresh_from_db()
 
         return response, self.offering
-
-
-class AllowedCustomersTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.customer = self.fixture.customer
-
-    def test_staff_can_update_allowed_customers(self):
-        url = structure_factories.CustomerFactory.get_url(self.customer, 'offerings')
-        user = getattr(self.fixture, 'staff')
-        self.client.force_authenticate(user)
-        response = self.client.post(
-            url,
-            {
-                "offering_set": [
-                    factories.OfferingFactory.get_url(),
-                    factories.OfferingFactory.get_url(),
-                ]
-            },
-        )
-        self.customer.refresh_from_db()
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(len(self.customer.offering_set.all()), 2)
-
-    def test_other_users_not_can_update_allowed_customers(self):
-        url = structure_factories.CustomerFactory.get_url(self.customer, 'offerings')
-        user = getattr(self.fixture, 'owner')
-        self.client.force_authenticate(user)
-        response = self.client.post(
-            url,
-            {
-                "offering_set": [
-                    factories.OfferingFactory.get_url(),
-                    factories.OfferingFactory.get_url(),
-                ]
-            },
-        )
-        self.customer.refresh_from_db()
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
-        self.assertEqual(len(self.customer.offering_set.all()), 0)
 
 
 @ddt

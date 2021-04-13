@@ -120,10 +120,9 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
             )
 
             owned_offerings_ids = list(
-                queryset.filter(
-                    Q(allowed_customers__in=owned_customers)
-                    | Q(customer__in=owned_customers)
-                ).values_list('id', flat=True)
+                queryset.filter(customer__in=owned_customers).values_list(
+                    'id', flat=True
+                )
             )
 
             # Import private offerings must be available for admins and managers

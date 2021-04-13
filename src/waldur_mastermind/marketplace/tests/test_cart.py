@@ -166,8 +166,8 @@ class AutoapproveTest(test.APITransactionTestCase):
             customer=provider_fixture.customer,
             type='TEST_TYPE',
             scope=self.service_settings,
+            project=consumer_fixture.project,
         )
-        private_offering.allowed_customers.add(consumer_fixture.customer)
         public_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=True,
@@ -176,7 +176,6 @@ class AutoapproveTest(test.APITransactionTestCase):
             type='TEST_TYPE',
             scope=self.service_settings,
         )
-        public_offering.allowed_customers.add(consumer_fixture.customer)
 
         self.client.force_authenticate(getattr(consumer_fixture, role))
 
