@@ -37,35 +37,6 @@ class SupportExtension(WaldurExtension):
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
                 'type_of_linked_issue': 'Relates',
-                # 'organisation_field': 'Reporter organization',
-                # 'project_field': 'Waldur project',
-                # 'affected_resource_field': 'Affected resource',
-                # 'template_field': 'Waldur template',
-                'summary': '{% if issue.customer.abbreviation %}'
-                '{{issue.customer.abbreviation}}: '
-                '{% endif %}'
-                '{{issue.summary}}',
-                'description': (
-                    '{{issue.description}}\n\n'
-                    '---\n'
-                    'Additional Info: \n'
-                    '{% if issue.customer %}'
-                    '- Organization: {{issue.customer.name}}\n'
-                    '{% endif %}'
-                    '{% if issue.project %}'
-                    '- Project: {{issue.project.name}}\n'
-                    '{% endif %}'
-                    '{% if issue.resource %}'
-                    '{% if issue.resource.service_settings %}'
-                    '{% if issue.resource.service_settings.type %}'
-                    '- Service type: {{issue.resource.service_settings.type}}\n'
-                    '{% endif %}'
-                    '- Offering name: {{ issue.resource.service_settings.name }}\n'
-                    '- Offering provided by: {{ issue.resource.service_settings.customer.name }}\n'
-                    '{% endif %}'
-                    '- Affected resource: {{issue.resource}}\n'
-                    '{% endif %}'
-                ),
                 'satisfaction_field': 'Customer satisfaction',
                 'request_feedback': 'Request feedback',  # a field of checkbox type and with a single option 'yes'.
             },
