@@ -301,7 +301,6 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'secret_options',
         'shared',
         'billable',
-        'allowed_customers',
         'type',
         'scope_link',
         'vendor_details',

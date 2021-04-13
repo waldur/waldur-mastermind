@@ -11,11 +11,12 @@ class ImportableOfferingsListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ServiceFixture()
 
-    def list_offerings(self, shared, user):
+    def list_offerings(self, shared, user, project=None):
         factories.OfferingFactory(
             scope=self.fixture.service_settings,
             shared=shared,
             customer=self.fixture.customer,
+            project=project,
         )
         list_url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -44,7 +45,9 @@ class ImportableOfferingsListTest(test.APITransactionTestCase):
         self.fixture.manager
         self.fixture.service_settings.scope = self.fixture.resource
         self.fixture.service_settings.save()
-        offerings = self.list_offerings(shared=False, user=user)
+        offerings = self.list_offerings(
+            shared=False, user=user, project=self.fixture.project
+        )
         self.assertEqual(1, len(offerings))
 
 
@@ -66,11 +69,12 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
         super(ImportableResourcesListTest, self).tearDown()
         mock.patch.stopall()
 
-    def list_resources(self, shared, user):
+    def list_resources(self, shared, user, project=None):
         offering = factories.OfferingFactory(
             scope=self.fixture.service_settings,
             shared=shared,
             customer=self.fixture.customer,
+            project=project,
         )
         list_url = factories.OfferingFactory.get_url(offering, 'importable_resources')
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -89,17 +93,18 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_manager_cannot_list_importable_resources(self):
-        response = self.list_resources(shared=False, user='manager')
+        response = self.list_resources(
+            shared=False, user='manager', project=self.fixture.project
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_another_owner_can_list_importable_resources(self):
+    def test_another_owner_can_not_list_importable_resources(self):
         # Arrange
         offering = factories.OfferingFactory(
             scope=self.fixture.service_settings,
             shared=False,
             type='Test.VirtualMachine',
         )
-        offering.allowed_customers.set([self.fixture.customer])
 
         # Act
         list_url = factories.OfferingFactory.get_url(offering, 'importable_resources')
@@ -107,8 +112,7 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
         response = self.client.get(list_url)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_if_plugin_does_not_support_resource_import_validation_error_is_raised(
         self,
@@ -118,9 +122,11 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
             scope=self.fixture.service_settings,
             shared=False,
             type='Test.VirtualMachine',
+            customer=self.fixture.customer,
         )
-        offering.allowed_customers.set([self.fixture.customer])
         list_url = factories.OfferingFactory.get_url(offering, 'importable_resources')
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(list_url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )

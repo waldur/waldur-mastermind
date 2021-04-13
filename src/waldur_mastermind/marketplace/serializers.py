@@ -1767,19 +1767,6 @@ class OrderSerializer(
         return items
 
 
-class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
-    offering_set = serializers.HyperlinkedRelatedField(
-        many=True,
-        view_name='marketplace-offering-detail',
-        lookup_field='uuid',
-        queryset=models.Offering.objects.all(),
-    )
-
-    class Meta:
-        model = structure_models.Customer
-        fields = ('offering_set',)
-
-
 class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource

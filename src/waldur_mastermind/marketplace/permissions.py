@@ -136,11 +136,7 @@ def user_can_list_importable_resources(request, view, offering=None):
         .distinct()
     )
 
-    allowed_customers = set(offering.allowed_customers.all())
-
-    if offering.customer not in owned_customers and not (
-        allowed_customers & owned_customers
-    ):
+    if offering.customer not in owned_customers:
         raise exceptions.PermissionDenied(
             'Import is limited to owners for private offerings.'
         )

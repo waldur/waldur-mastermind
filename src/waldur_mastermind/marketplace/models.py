@@ -412,11 +412,10 @@ class Offering(
     # 1) staff user;
     # 2) global support user;
     # 3) users with active permission in original customer;
-    # 4) users with active permission in allowed customers and nested projects.
+    # 4) users with active permission in related project.
     shared = models.BooleanField(
         default=True, help_text=_('Accessible to all customers.')
     )
-    allowed_customers = models.ManyToManyField(structure_models.Customer, blank=True)
 
     billable = models.BooleanField(
         default=True, help_text=_('Purchase and usage is invoiced.')
@@ -1249,7 +1248,8 @@ class OrderItem(
 
     def clean(self):
         offering = self.offering
-        customer = self.order.project.customer
+        project = self.order.project
+        customer = project.customer
 
         if offering.shared:
             return
@@ -1257,7 +1257,7 @@ class OrderItem(
         if offering.customer == customer:
             return
 
-        if offering.allowed_customers.filter(pk=customer.pk).exists():
+        if offering.project == project:
             return
 
         raise ValidationError(
