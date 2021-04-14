@@ -316,7 +316,10 @@ def create_marketplace_resource_for_imported_resources(
     sender, instance, offering=None, plan=None, **kwargs
 ):
     resource = marketplace_models.Resource(
-        backend_id=instance.backend_id,
+        # backend_id is None if instance is being restored from backup because
+        # on database level there's uniqueness constraint enforced for backend_id
+        # but in marketplace resource backend_is not nullable
+        backend_id=instance.backend_id or '',
         project=instance.project,
         state=get_resource_state(instance.state),
         name=instance.name,
