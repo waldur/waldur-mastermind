@@ -379,7 +379,7 @@ class PreApplyExecutorTask(Task):
         self.executor.pre_apply(instance, **kwargs)
 
 
-class BackgroundTask(CeleryTask):
+class BackgroundTask(CeleryTask, metaclass=TaskType):
     """ Task that is run in background via celerybeat.
 
         Background task features:
@@ -525,7 +525,7 @@ class PollBackendCheckTask(Task):
         return instance
 
 
-class ExtensionTaskMixin(CeleryTask):
+class ExtensionTaskMixin(CeleryTask, metaclass=TaskType):
     """
     This mixin allows to skip task scheduling if extension is disabled.
     Subclasses should implement "is_extension_disabled" method which returns boolean value.
