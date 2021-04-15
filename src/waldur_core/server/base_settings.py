@@ -299,3 +299,8 @@ SWAGGER_SETTINGS = {
 AXES_ONLY_USER_FAILURES = True
 AXES_COOLOFF_TIME = timedelta(minutes=10)
 AXES_FAILURE_LIMIT = 5
+
+# Disable excessive xmlschema and django-axes logging
+import logging
+logging.getLogger("xmlschema").propagate = False
+logging.getLogger("axes").propagate = False
