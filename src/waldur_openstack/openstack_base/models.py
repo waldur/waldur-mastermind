@@ -35,14 +35,14 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     )
 
     # Empty string represents any protocol
-    protocol = models.CharField(max_length=4, blank=True, choices=PROTOCOLS)
+    protocol = models.CharField(max_length=40, blank=True, choices=PROTOCOLS)
     from_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     to_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     cidr = models.CharField(max_length=255, blank=True, null=True)
     direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
-    ethertype = models.CharField(max_length=8, default=IPv4, choices=ETHER_TYPES)
+    ethertype = models.CharField(max_length=40, default=IPv4, choices=ETHER_TYPES)
 
-    backend_id = models.CharField(max_length=128, blank=True)
+    backend_id = models.CharField(max_length=36, blank=True)
 
     class Meta:
         abstract = True
