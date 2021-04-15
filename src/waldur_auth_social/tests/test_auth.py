@@ -183,6 +183,7 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
     WALDUR_AUTH_SOCIAL={
         'REMOTE_EDUTEAMS_ACCESS_TOKEN': '28c5353b8bb34984a8bd4169ba94c606',
         'REMOTE_EDUTEAMS_USERINFO_URL': 'https://proxy.acc.researcher-access.org/api/userinfo',
+        'REMOTE_EDUTEAMS_TOKEN_URL': 'https://proxy.acc.researcher-access.org/OIDC/token',
     }
 )
 class RemoteEduteamsTest(test.APITransactionTestCase):
@@ -218,6 +219,11 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
     def test_when_user_does_not_exist_remote_api_is_called(self):
         user_url = (
             f'https://proxy.acc.researcher-access.org/api/userinfo/{self.valid_cuid}'
+        )
+        responses.add(
+            method='POST',
+            url='https://proxy.acc.researcher-access.org/OIDC/token',
+            json={"access_token": "random_token"},
         )
         responses.add(
             method='GET',

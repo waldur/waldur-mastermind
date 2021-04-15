@@ -576,7 +576,11 @@ class RemoteEduteamsView(views.APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if not self.get_token() or not self.get_url():
+        if (
+            not self.get_token()
+            or not self.get_userinfo_url()
+            or not self.get_token_url()
+        ):
             return Response(
                 'Remote Eduteams user sync is disabled.',
                 status=status.HTTP_403_FORBIDDEN,
@@ -592,8 +596,11 @@ class RemoteEduteamsView(views.APIView):
     def get_token(self):
         return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ACCESS_TOKEN']
 
-    def get_url(self):
+    def get_userinfo_url(self):
         return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_USERINFO_URL']
+
+    def get_token_url(self):
+        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_TOKEN_URL']
 
     def get_or_create_user(self, username):
         try:
@@ -620,22 +627,43 @@ class RemoteEduteamsView(views.APIView):
         return user
 
     def get_user_info(self, cuid: str) -> dict:
-        user_url = f'{self.get_url()}/{cuid}'
-        headers = {'Authorization': f'Bearer {self.get_token()}'}
-
+        user_url = f'{self.get_userinfo_url()}/{cuid}'
+        access_token = self.refresh_token()
         try:
-            response = requests.get(user_url, headers=headers)
+            user_response = requests.get(
+                user_url, headers={'Authorization': f'Bearer {access_token}'}
+            )
         except requests.exceptions.RequestException as e:
             logger.warning('Unable to get Eduteams user info. Error is %s', e)
             raise EduteamsException('Unable to get user info.')
 
-        if response.status_code != 200:
+        if user_response.status_code != 200:
             raise EduteamsException('Unable to get user info.')
 
         try:
-            return response.json()
+            return user_response.json()
         except (ValueError, TypeError):
             raise EduteamsException('Unable to parse JSON in user info response.')
+
+    def refresh_token(self):
+        token_url = self.get_token_url()
+
+        try:
+            token_response = requests.post(
+                token_url,
+                auth=(EDUTEAMS_CLIENT_ID, EDUTEAMS_SECRET),
+                data={
+                    'grant_type': 'refresh_token',
+                    'refresh_token': self.get_token(),
+                    'scope': 'openid',
+                },
+            )
+            if token_response.status_code != 200:
+                raise EduteamsException('Unable to get access token. Service is down.')
+            return token_response.json()['access_token']
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to get Eduteams access token. Error is %s', e)
+            raise EduteamsException('Unable to get access token.')
 
 
 class RegistrationView(generics.CreateAPIView):

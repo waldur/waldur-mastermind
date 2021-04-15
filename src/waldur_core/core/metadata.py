@@ -225,11 +225,16 @@ class WaldurAuthSocial(BaseModel):
         'https://proxy.acc.eduteams.org/OIDC/userinfo',
         description='The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.',
     )
+    REMOTE_EDUTEAMS_TOKEN_URL = Field(
+        'https://proxy.acc.researcher-access.org/OIDC/token',
+        description='The token endpoint is used to obtain tokens.',
+    )
     REMOTE_EDUTEAMS_ACCESS_TOKEN = Field(
         '', description='Token is used to authenticate against user info endpoint.'
     )
     REMOTE_EDUTEAMS_USERINFO_URL = Field(
-        '', description='It allows to get user data based on userid aka CUID.'
+        'https://proxy.acc.researcher-access.org/api/userinfo',
+        description='It allows to get user data based on userid aka CUID.',
     )
 
     class Meta:
