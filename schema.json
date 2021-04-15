@@ -2,20 +2,33 @@
   "title": "WaldurConfiguration",
   "type": "object",
   "properties": {
+    "IPSTACK_ACCESS_KEY": {
+      "title": "Ipstack Access Key",
+      "description": "Unique authentication key used to gain access to the ipstack API.",
+      "type": "string"
+    },
     "WALDUR_CORE": {
       "title": "Waldur Core",
       "default": {
+        "AUTHENTICATION_METHODS": [
+          "LOCAL_SIGNIN"
+        ],
         "SITE_LOGO": null,
-        "COUNTRIES": ["EE", "LV", "LT"],
+        "COUNTRIES": [
+          "EE",
+          "LV",
+          "LT"
+        ],
         "INVITATION_MAX_AGE": null,
+        "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": [],
+        "SELLER_COUNTRY_CODE": null,
         "EXTENSIONS_AUTOREGISTER": true,
         "TOKEN_KEY": "x-auth-token",
-        "AUTHENTICATION_METHODS": ["LOCAL_SIGNIN"],
         "INVITATIONS_ENABLED": true,
         "ALLOW_SIGNUP_WITHOUT_INVITATION": true,
         "VALIDATE_INVITATION_EMAIL": false,
-        "TOKEN_LIFETIME": 3600.0,
-        "INVITATION_LIFETIME": 604800.0,
+        "TOKEN_LIFETIME": 3600,
+        "INVITATION_LIFETIME": 604800,
         "OWNERS_CAN_MANAGE_OWNERS": false,
         "OWNER_CAN_MANAGE_CUSTOMER": false,
         "BACKEND_FIELDS_EDITABLE": true,
@@ -30,23 +43,32 @@
         "CURRENCY_NAME": "EUR",
         "NOTIFICATIONS_PROFILE_CHANGES": {
           "ENABLED": true,
-          "FIELDS": ["email", "phone_number", "job_title"]
+          "FIELDS": [
+            "email",
+            "phone_number",
+            "job_title"
+          ]
         },
         "ENABLE_ACCOUNTING_START_DATE": false,
         "USE_ATOMIC_TRANSACTION": true,
         "NOTIFICATION_SUBJECT": "Notifications from Waldur",
         "LOGGING_REPORT_DIRECTORY": "/var/log/waldur",
-        "LOGGING_REPORT_INTERVAL": 604800.0,
+        "LOGGING_REPORT_INTERVAL": 604800,
         "HTTP_CHUNK_SIZE": 50,
         "ONLY_STAFF_CAN_INVITE_USERS": false,
         "INVITATION_CREATE_MISSING_USER": false,
         "INVITATION_DISABLE_MULTIPLE_ROLES": false,
-        "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": [],
-        "ATTACHMENT_LINK_MAX_AGE": 3600.0,
-        "EMAIL_CHANGE_MAX_AGE": 86400.0,
-        "HOMEPORT_URL": "https://example.com/"
+        "ATTACHMENT_LINK_MAX_AGE": 3600,
+        "EMAIL_CHANGE_MAX_AGE": 86400,
+        "HOMEPORT_URL": "https://example.com/",
+        "ENABLE_GEOIP": true,
+        "SHOW_ALL_USERS": false
       },
-      "allOf": [{ "$ref": "#/definitions/WaldurCore" }]
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurCore"
+        }
+      ]
     },
     "WALDUR_AUTH_SOCIAL": {
       "title": "Waldur Auth Social",
@@ -71,10 +93,15 @@
         "EDUTEAMS_AUTH_URL": "https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization",
         "EDUTEAMS_TOKEN_URL": "https://proxy.acc.eduteams.org/OIDC/token",
         "EDUTEAMS_USERINFO_URL": "https://proxy.acc.eduteams.org/OIDC/userinfo",
+        "REMOTE_EDUTEAMS_TOKEN_URL": "https://proxy.acc.researcher-access.org/OIDC/token",
         "REMOTE_EDUTEAMS_ACCESS_TOKEN": "",
-        "REMOTE_EDUTEAMS_USERINFO_URL": ""
+        "REMOTE_EDUTEAMS_USERINFO_URL": "https://proxy.acc.researcher-access.org/api/userinfo"
       },
-      "allOf": [{ "$ref": "#/definitions/WaldurAuthSocial" }]
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurAuthSocial"
+        }
+      ]
     },
     "USE_PROTECTED_URL": {
       "title": "Use Protected Url",
@@ -84,22 +111,24 @@
     },
     "VERIFY_WEBHOOK_REQUESTS": {
       "title": "Verify Webhook Requests",
-      "description": "Send verified request on webhook processing.",
+      "description": "When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.",
       "default": true,
       "type": "boolean"
+    },
+    "DEFAULT_FROM_EMAIL": {
+      "title": "Default From Email",
+      "description": "Default email address to use for automated correspondence from Waldur.",
+      "default": "webmaster@localhost",
+      "type": "string"
     },
     "CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC": {
       "title": "Convert Media Urls To Mastermind Netloc",
       "default": false,
       "type": "boolean"
     },
-    "IPSTACK_ACCESS_KEY": {
-      "title": "Ipstack Access Key",
-      "default": "",
-      "type": "string"
-    },
     "IMPORT_EXPORT_USE_TRANSACTIONS": {
       "title": "Import Export Use Transactions",
+      "description": "Controls if resource importing should use database transactions. Using transactions makes imports safer as a failure during import won’t import only part of the data set.",
       "default": true,
       "type": "boolean"
     }
@@ -109,6 +138,17 @@
       "title": "WaldurCore",
       "type": "object",
       "properties": {
+        "AUTHENTICATION_METHODS": {
+          "title": "Authentication Methods",
+          "description": "List of enabled authentication methods.",
+          "default": [
+            "LOCAL_SIGNIN"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "SITE_LOGO": {
           "title": "Site Logo",
           "description": "It is used in marketplace order header.",
@@ -117,15 +157,35 @@
         "COUNTRIES": {
           "title": "Countries",
           "description": "It is used in organization creation dialog in order to limit country choices to predefined set.",
-          "default": ["EE", "LV", "LT"],
+          "default": [
+            "EE",
+            "LV",
+            "LT"
+          ],
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "INVITATION_MAX_AGE": {
           "title": "Invitation Max Age",
           "description": "Max age of invitation token. It is used in approve and reject actions.",
           "type": "number",
           "format": "time-delta"
+        },
+        "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": {
+          "title": "Protect User Details For Registration Methods",
+          "description": "List of authentication methods which are not allowed to update user details.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "SELLER_COUNTRY_CODE": {
+          "title": "Seller Country Code",
+          "description": "Specifies seller legal or effective country of registration or residence as an ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate.",
+          "type": "string"
         },
         "EXTENSIONS_AUTOREGISTER": {
           "title": "Extensions Autoregister",
@@ -138,13 +198,6 @@
           "description": "Header for token authentication.",
           "default": "x-auth-token",
           "type": "string"
-        },
-        "AUTHENTICATION_METHODS": {
-          "title": "Authentication Methods",
-          "description": "List of enabled authentication methods.",
-          "default": ["LOCAL_SIGNIN"],
-          "type": "array",
-          "items": {}
         },
         "INVITATIONS_ENABLED": {
           "title": "Invitations Enabled",
@@ -167,14 +220,14 @@
         "TOKEN_LIFETIME": {
           "title": "Token Lifetime",
           "description": "Defines for how long user token should remain valid if there was no action from user.",
-          "default": 3600.0,
+          "default": 3600,
           "type": "number",
           "format": "time-delta"
         },
         "INVITATION_LIFETIME": {
           "title": "Invitation Lifetime",
           "description": "Defines for how long invitation remains valid.",
-          "default": 604800.0,
+          "default": 604800,
           "type": "number",
           "format": "time-delta"
         },
@@ -255,7 +308,11 @@
           "description": "Allows enabling notifications about profile changes of organization owners.",
           "default": {
             "ENABLED": true,
-            "FIELDS": ["email", "phone_number", "job_title"]
+            "FIELDS": [
+              "email",
+              "phone_number",
+              "job_title"
+            ]
           },
           "type": "object"
         },
@@ -286,7 +343,7 @@
         "LOGGING_REPORT_INTERVAL": {
           "title": "Logging Report Interval",
           "description": "Files older that specified interval are filtered out.",
-          "default": 604800.0,
+          "default": 604800,
           "type": "number",
           "format": "time-delta"
         },
@@ -314,24 +371,17 @@
           "default": false,
           "type": "boolean"
         },
-        "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": {
-          "title": "Protect User Details For Registration Methods",
-          "description": "List of authentication methods which are not allowed to update user details.",
-          "default": [],
-          "type": "array",
-          "items": {}
-        },
         "ATTACHMENT_LINK_MAX_AGE": {
           "title": "Attachment Link Max Age",
           "description": "Max age of secure token for media download.",
-          "default": 3600.0,
+          "default": 3600,
           "type": "number",
           "format": "time-delta"
         },
         "EMAIL_CHANGE_MAX_AGE": {
           "title": "Email Change Max Age",
           "description": "Max age of change email request.",
-          "default": 86400.0,
+          "default": 86400,
           "type": "number",
           "format": "time-delta"
         },
@@ -340,6 +390,18 @@
           "description": "It is used for rendering callback URL in HomePort.",
           "default": "https://example.com/",
           "type": "string"
+        },
+        "ENABLE_GEOIP": {
+          "title": "Enable Geoip",
+          "description": "Enable detection of coordinates of virtual machines.",
+          "default": true,
+          "type": "boolean"
+        },
+        "SHOW_ALL_USERS": {
+          "title": "Show All Users",
+          "description": "Indicates whether user can see all other users in `api/users/` endpoint.",
+          "default": false,
+          "type": "boolean"
         }
       }
     },
@@ -467,6 +529,12 @@
           "default": "https://proxy.acc.eduteams.org/OIDC/userinfo",
           "type": "string"
         },
+        "REMOTE_EDUTEAMS_TOKEN_URL": {
+          "title": "Remote Eduteams Token Url",
+          "description": "The token endpoint is used to obtain tokens.",
+          "default": "https://proxy.acc.researcher-access.org/OIDC/token",
+          "type": "string"
+        },
         "REMOTE_EDUTEAMS_ACCESS_TOKEN": {
           "title": "Remote Eduteams Access Token",
           "description": "Token is used to authenticate against user info endpoint.",
@@ -476,7 +544,7 @@
         "REMOTE_EDUTEAMS_USERINFO_URL": {
           "title": "Remote Eduteams Userinfo Url",
           "description": "It allows to get user data based on userid aka CUID.",
-          "default": "",
+          "default": "https://proxy.acc.researcher-access.org/api/userinfo",
           "type": "string"
         }
       }

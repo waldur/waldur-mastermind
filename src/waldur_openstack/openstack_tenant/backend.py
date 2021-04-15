@@ -1761,7 +1761,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 )
             except models.SecurityGroup.DoesNotExist:
                 logger.exception(
-                    'Security group with id %s does not exist at Waldur. '
+                    'Security group with id %s does not exist in database. '
                     'Settings ID: %s' % (group_id, self.settings.id)
                 )
             else:
