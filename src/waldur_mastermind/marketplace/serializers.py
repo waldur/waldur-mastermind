@@ -2245,6 +2245,13 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
                 _('You do not have permission to create offering user.')
             )
 
+        if not not offering.secret_options.get(
+            'service_provider_can_create_offering_user'
+        ):
+            raise rf_exceptions.ValidationError(
+                _('It is not allowed to create users for current offering.')
+            )
+
         return super(OfferingUserSerializer, self).create(validated_data)
 
 
