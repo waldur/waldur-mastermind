@@ -105,3 +105,38 @@ def update_node_usage(sender, instance, created=False, **kwargs):
                 'Cluster ID: %s',
                 cluster.id,
             )
+
+
+def create_offering_user_for_rancher_user(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    try:
+        offering = marketplace_models.Offering.objects.get(scope=instance.settings)
+    except marketplace_models.Offering.DoesNotExist:
+        logger.warning(
+            'Skipping Rancher user synchronization because offering is not found. '
+            'Rancher settings ID: %s',
+            instance.settings.id,
+        )
+        return
+
+    marketplace_models.OfferingUser.objects.create(
+        offering=offering, user=instance.user, username=instance.user.username,
+    )
+
+
+def drop_offering_user_for_rancher_user(sender, instance, **kwargs):
+    try:
+        offering = marketplace_models.Offering.objects.get(scope=instance.settings)
+    except marketplace_models.Offering.DoesNotExist:
+        logger.warning(
+            'Skipping Rancher user synchronization because offering is not found. '
+            'Rancher settings ID: %s',
+            instance.settings.id,
+        )
+        return
+
+    marketplace_models.OfferingUser.objects.filter(
+        offering=offering, user=instance.user
+    ).delete()

@@ -50,5 +50,17 @@ class MarketplaceRancherConfig(AppConfig):
         signals.post_save.connect(
             handlers.update_node_usage,
             sender=rancher_models.Node,
-            dispatch_uid='support_invoices.handlers.update_node_usage',
+            dispatch_uid='waldur_mastermind.marketplace_rancher.update_node_usage',
+        )
+
+        signals.post_save.connect(
+            handlers.create_offering_user_for_rancher_user,
+            sender=rancher_models.RancherUser,
+            dispatch_uid='waldur_mastermind.marketplace_rancher.create_offering_user_for_rancher_user',
+        )
+
+        signals.pre_delete.connect(
+            handlers.drop_offering_user_for_rancher_user,
+            sender=rancher_models.RancherUser,
+            dispatch_uid='waldur_mastermind.marketplace_rancher.drop_offering_user_for_rancher_user',
         )
