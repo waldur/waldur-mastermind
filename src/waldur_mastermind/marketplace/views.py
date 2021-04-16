@@ -1125,7 +1125,12 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_owner]
 
 
-class OfferingUsersViewSet(rf_viewsets.ReadOnlyModelViewSet):
+class OfferingUsersViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    rf_viewsets.GenericViewSet,
+):
     queryset = models.OfferingUser.objects.all()
     serializer_class = serializers.OfferingUserSerializer
     lookup_field = 'uuid'

@@ -2210,7 +2210,7 @@ class OfferingReferralSerializer(
         )
 
 
-class OfferingUserSerializer(serializers.ModelSerializer):
+class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     user_uuid = serializers.ReadOnlyField(source='user.uuid')
@@ -2218,12 +2218,34 @@ class OfferingUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingUser
         fields = (
+            'user',
+            'offering',
+            'username',
             'offering_uuid',
             'offering_name',
             'user_uuid',
-            'username',
             'created',
         )
+        extra_kwargs = dict(
+            offering={
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-offering-detail',
+            },
+            user={'lookup_field': 'uuid', 'view_name': 'user-detail'},
+        )
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        offering = validated_data['offering']
+
+        if not user.is_staff and not offering.customer.has_user(
+            user, structure_models.CustomerRole.OWNER
+        ):
+            raise rf_exceptions.ValidationError(
+                _('You do not have permission to create offering user.')
+            )
+
+        return super(OfferingUserSerializer, self).create(validated_data)
 
 
 def validate_plan(plan):
