@@ -9,6 +9,7 @@ from django.utils import timezone
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_freeipa import models as freeipa_models
+from waldur_slurm import signals
 from waldur_slurm.client import SlurmClient
 from waldur_slurm.structures import Quotas
 
@@ -55,7 +56,7 @@ class SlurmBackend(ServiceBackend):
     def add_new_users(self, allocation):
         users = allocation.project.customer.get_users()
         for profile in freeipa_models.Profile.objects.filter(user__in=users):
-            self.add_user(allocation, profile.username.lower())
+            self.add_user(allocation, profile.user, profile.username.lower())
 
     def create_allocation(self, allocation):
         project = allocation.project
@@ -108,7 +109,7 @@ class SlurmBackend(ServiceBackend):
         ):
             self.delete_customer(project.customer)
 
-    def add_user(self, allocation, username):
+    def add_user(self, allocation, user, username):
         """
         Create association between user and SLURM account if it does not exist yet.
         """
@@ -122,8 +123,11 @@ class SlurmBackend(ServiceBackend):
         default_account = self.settings.options.get('default_account')
         if not self.client.get_association(username, account):
             self.client.create_association(username, account, default_account)
+            signals.slurm_association_created.send(
+                models.Allocation, allocation=allocation, user=user, username=username
+            )
 
-    def delete_user(self, allocation, username):
+    def delete_user(self, allocation, user, username):
         """
         Delete association between user and SLURM account if it exists.
         """
@@ -136,6 +140,9 @@ class SlurmBackend(ServiceBackend):
 
         if self.client.get_association(username, account):
             self.client.delete_association(username, account)
+            signals.slurm_association_deleted.send(
+                models.Allocation, allocation=allocation, user=user
+            )
 
     def set_resource_limits(self, allocation: models.Allocation):
         # TODO: add default limits configuration (https://opennode.atlassian.net/browse/WAL-3037)

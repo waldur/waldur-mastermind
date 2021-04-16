@@ -76,3 +76,39 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                     plan_period=plan_period,
                     defaults={'usage': usage, 'date': date},
                 )
+
+
+def create_offering_user_for_slurm_user(sender, allocation, user, username, **kwargs):
+    try:
+        offering = marketplace_models.Offering.objects.get(
+            scope=allocation.service_settings
+        )
+    except marketplace_models.Offering.DoesNotExist:
+        logger.warning(
+            'Skipping SLURM user synchronization because offering is not found. '
+            'SLURM settings ID: %s',
+            allocation.service_settings_id,
+        )
+        return
+
+    marketplace_models.OfferingUser.objects.create(
+        offering=offering, user=user, username=username,
+    )
+
+
+def drop_offering_user_for_slurm_user(sender, allocation, user, **kwargs):
+    try:
+        offering = marketplace_models.Offering.objects.get(
+            scope=allocation.service_settings
+        )
+    except marketplace_models.Offering.DoesNotExist:
+        logger.warning(
+            'Skipping SLURM user synchronization because offering is not found. '
+            'SLURM settings ID: %s',
+            allocation.service_settings_id,
+        )
+        return
+
+    marketplace_models.OfferingUser.objects.filter(
+        offering=offering, user=user
+    ).delete()
