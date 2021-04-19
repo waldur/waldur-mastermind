@@ -186,7 +186,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
             TenantQuotas.storage: self.size,
         }
         if self.type:
-            deltas['gigabytes_' + self.type.backend_id] = self.size / 1024
+            deltas['gigabytes_' + self.type.name] = self.size / 1024
         return deltas
 
     @classmethod

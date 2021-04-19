@@ -107,7 +107,7 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
         # Arrange
         private_settings = self.volume.service_settings
         shared_tenant = private_settings.scope
-        key = 'gigabytes_' + self.volume.type.backend_id
+        key = 'gigabytes_' + self.volume.type.name
 
         private_settings.set_quota_usage(key, self.volume.size / 1024)
         shared_tenant.set_quota_usage(key, self.volume.size / 1024)
@@ -449,7 +449,7 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def setUp(self):
         super(VolumeTypeCreateTest, self).setUp()
         self.type = factories.VolumeTypeFactory(
-            settings=self.settings, backend_id='ssd'
+            settings=self.settings, backend_id='ssd', name='ssd'
         )
         self.type_url = factories.VolumeTypeFactory.get_url(self.type)
 
@@ -466,7 +466,7 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def test_when_volume_is_created_volume_type_quota_is_updated(self):
         self.create_volume(type=self.type_url, size=1024 * 10)
 
-        key = 'gigabytes_' + self.type.backend_id
+        key = 'gigabytes_' + self.type.name
         usage = self.settings.quotas.get(name=key).usage
         self.assertEqual(usage, 10)
 
@@ -566,8 +566,8 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
     def test_when_volume_is_retyped_volume_type_quota_is_updated(self):
         # Arrange
         scope = self.volume.service_settings
-        old_type_key = 'gigabytes_' + self.volume.type.backend_id
-        new_type_key = 'gigabytes_' + self.new_type.backend_id
+        old_type_key = 'gigabytes_' + self.volume.type.name
+        new_type_key = 'gigabytes_' + self.new_type.name
         scope.set_quota_usage(old_type_key, self.volume.size / 1024)
 
         # Act
@@ -584,8 +584,8 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
     ):
         # Arrange
         scope = self.volume.service_settings.scope
-        old_type_key = 'gigabytes_' + self.volume.type.backend_id
-        new_type_key = 'gigabytes_' + self.new_type.backend_id
+        old_type_key = 'gigabytes_' + self.volume.type.name
+        new_type_key = 'gigabytes_' + self.new_type.name
         scope.set_quota_usage(old_type_key, self.volume.size / 1024)
 
         # Act
