@@ -96,6 +96,12 @@ LOGGING = {
             'level': events_log_level,
             'port': int(env.get('EVENTS_LOGSERVER_PORT', 5959)),
         },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'filters': ['is-not-event'],
+            'formatter': 'simple',
+            'level': logging_log_level,
+        },
     },
 
     # Loggers
@@ -111,13 +117,13 @@ LOGGING = {
     'loggers': {
         # Celery loggers
         'celery.worker': {
-            'handlers': [],
+            'handlers': ['console'],
         },
         'django': {
-            'handlers': [],
+            'handlers': ['console'],
         },
         'waldur_core': {
-            'handlers': ['tcp-event'],
+            'handlers': ['tcp-event', 'console'],
             'level': logging_log_level,
         },
         'requests': {
