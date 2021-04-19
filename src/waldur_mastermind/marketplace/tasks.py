@@ -1,6 +1,9 @@
+import collections
+import datetime
 import logging
 
 from celery import shared_task
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -13,6 +16,7 @@ from rest_framework import status
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.utils import create_request
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace.utils import process_order_item
 
@@ -226,3 +230,48 @@ def terminate_resources_if_project_end_date_has_been_reached():
                 )
         else:
             project.delete()
+
+
+@shared_task(name='marketplace.notify_about_stale_resource')
+def notify_about_stale_resource():
+    today = datetime.datetime.today()
+    prev_1 = today - relativedelta(months=1)
+    prev_2 = today - relativedelta(months=2)
+    items = invoices_models.InvoiceItem.objects.filter(
+        Q(invoice__month=today.month, invoice__year=today.year,)
+        | Q(invoice__month=prev_1.month, invoice__year=prev_1.year)
+        | Q(invoice__month=prev_2.month, invoice__year=prev_2.year)
+    )
+    actual_resources_ids = []
+
+    for item in items:
+        if item.price:
+            actual_resources_ids.append(item.resource.id)
+
+    resources = models.Resource.objects.exclude(id__in=actual_resources_ids).exclude(
+        Q(state=models.Resource.States.TERMINATED)
+        | Q(state=models.Resource.States.TERMINATING)
+        | Q(state=models.Resource.States.CREATING)
+    )
+    user_resources = collections.defaultdict(list)
+
+    for resource in resources:
+        owners = resource.project.customer.get_owners().exclude(email='')
+        resource_url = core_utils.format_homeport_link(
+            '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
+            project_uuid=resource.project.uuid.hex,
+            resource_uuid=resource.uuid.hex,
+        )
+
+        for user in owners:
+            user_resources[user.email].append(
+                {'resource': resource, 'resource_url': resource_url}
+            )
+
+    for key, value in user_resources.items():
+        core_utils.broadcast_mail(
+            'marketplace',
+            'notification_about_stale_resources',
+            {'resources': value},
+            [key],
+        )

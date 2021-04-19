@@ -1,0 +1,23 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Reminder about stale resources.</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    We noticed that you have stale resources that have not cost you anything for the last 3 months. <br />
+    Perhaps some of them are not needed any more?<br />
+
+    The resource names are:
+    <ul>
+        {% for resource in resources %}
+            <li><a href='{{ resource.resource_url }}'>{{ resource.resource.name }}</a></li>
+        {% endfor %}
+    </ul>
+    Thank you!
+</p>
+</body>
+</html>
