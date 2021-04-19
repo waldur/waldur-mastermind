@@ -372,7 +372,7 @@ class VolumeExtendSerializer(serializers.Serializer):
                 quota_holder.Quotas.storage, new_size - instance.size, validate=True
             )
             if instance.type:
-                key = 'gigabytes_' + instance.type.backend_id
+                key = 'gigabytes_' + instance.type.name
                 delta = (new_size - instance.size) / 1024
                 quota_holder.add_quota_usage(key, delta, validate=True)
 
@@ -466,12 +466,10 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
             if not quota_holder:
                 continue
             quota_holder.add_quota_usage(
-                'gigabytes_' + old_type.backend_id,
-                -1 * instance.size / 1024,
-                validate=True,
+                'gigabytes_' + old_type.name, -1 * instance.size / 1024, validate=True,
             )
             quota_holder.add_quota_usage(
-                'gigabytes_' + new_type.backend_id, instance.size / 1024, validate=True
+                'gigabytes_' + new_type.name, instance.size / 1024, validate=True
             )
 
         return super(VolumeRetypeSerializer, self).update(instance, validated_data)

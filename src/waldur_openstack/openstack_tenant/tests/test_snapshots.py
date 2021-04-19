@@ -136,7 +136,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         snapshot = self.fixture.snapshot
         snapshot.service_settings.set_quota_limit(
-            f'gigabytes_{snapshot.source_volume.type.backend_id}', 0
+            f'gigabytes_{snapshot.source_volume.type.name}', 0
         )
         expected_volumes_amount = models.Volume.objects.count()
 
