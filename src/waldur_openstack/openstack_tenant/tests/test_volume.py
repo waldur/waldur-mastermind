@@ -267,7 +267,7 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
 
     def test_when_snapshot_is_created_volume_type_quota_is_updated(self):
         self.create_snapshot()
-        key = 'gigabytes_' + self.fixture.volume_type.backend_id
+        key = 'gigabytes_' + self.fixture.volume_type.name
         scope = self.fixture.openstack_tenant_service_settings
         usage = scope.quotas.get(name=key).usage
         self.assertEqual(self.volume.size / 1024, usage)

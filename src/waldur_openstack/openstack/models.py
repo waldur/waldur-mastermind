@@ -247,6 +247,13 @@ class Tenant(structure_models.PrivateCloud):
         else:
             return limit
 
+    @classmethod
+    def get_quotas_names(cls):
+        volume_type_names = VolumeType.objects.values_list('name', flat=True).distinct()
+        return super(Tenant, cls).get_quotas_names() + [
+            f'gigabytes_{name}' for name in volume_type_names
+        ]
+
 
 class Router(structure_models.SubResource):
     tenant: Tenant = models.ForeignKey(

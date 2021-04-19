@@ -397,9 +397,6 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
         if not service_property:
             return
 
-        service_property.rules.all().delete()
-        group_rules = self.map_rules(service_property, resource)
-        service_property.rules.bulk_create(group_rules)
         return service_property
 
 
@@ -674,3 +671,37 @@ def sync_security_group_rule_property_when_resource_is_updated_or_created(
             remote_group=remote_group,
         ),
     )
+
+
+def sync_security_group_rule_on_delete(sender, instance, **kwargs):
+    rule = instance
+
+    if not rule.backend_id:
+        return
+
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=rule.security_group.tenant,
+            type=apps.OpenStackTenantConfig.service_name,
+        )
+    except (
+        django_exceptions.ObjectDoesNotExist,
+        django_exceptions.MultipleObjectsReturned,
+    ):
+        return
+
+    try:
+        security_group = models.SecurityGroup.objects.get(
+            settings=service_settings, backend_id=rule.security_group.backend_id
+        )
+    except django_exceptions.ObjectDoesNotExist:
+        return
+
+    try:
+        rule = models.SecurityGroupRule.objects.get(
+            security_group=security_group, backend_id=rule.backend_id
+        )
+    except django_exceptions.ObjectDoesNotExist:
+        return
+    else:
+        rule.delete()
