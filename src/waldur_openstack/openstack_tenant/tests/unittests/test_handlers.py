@@ -173,16 +173,16 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         self.assertIn(openstack_security_group.name, security_group.name)
         self.assertIn(openstack_security_group.description, security_group.description)
 
-    def test_security_group_rules_are_updated_when_one_more_rule_is_added(self):
+    def test_security_group_rules_are_created_when_one_more_rule_is_added(self):
         openstack_security_group = openstack_factories.SecurityGroupFactory(
-            tenant=self.tenant, state=StateMixin.States.UPDATING
-        )
-        openstack_factories.SecurityGroupRuleFactory(
-            security_group=openstack_security_group
+            tenant=self.tenant, state=StateMixin.States.CREATING
         )
         security_group = factories.SecurityGroupFactory(
             settings=self.service_settings,
             backend_id=openstack_security_group.backend_id,
+        )
+        openstack_factories.SecurityGroupRuleFactory(
+            security_group=openstack_security_group
         )
         openstack_security_group.set_ok()
         openstack_security_group.save()
@@ -231,6 +231,29 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         openstack_security_group.save()
 
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
+
+    def test_security_group_rules_are_deleted(self):
+        # Arrange
+        openstack_security_group = openstack_factories.SecurityGroupFactory(
+            tenant=self.tenant, state=StateMixin.States.UPDATING
+        )
+        rule = openstack_factories.SecurityGroupRuleFactory(
+            security_group=openstack_security_group
+        )
+        security_group = factories.SecurityGroupFactory(
+            settings=self.service_settings,
+            backend_id=openstack_security_group.backend_id,
+        )
+
+        # Act
+        openstack_security_group.set_ok()
+        openstack_security_group.save()
+        rule.delete()
+
+        # Assert
+        self.assertEqual(
+            security_group.rules.count(), 0, 'Security group rule has not been deleted'
+        )
 
 
 class FloatingIPHandlerTest(BaseServicePropertyTest):

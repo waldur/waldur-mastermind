@@ -158,6 +158,12 @@ class OpenStackTenantConfig(AppConfig):
             'sync_security_group_rule_property_when_resource_is_updated_or_created',
         )
 
+        signals.post_delete.connect(
+            handlers.sync_security_group_rule_on_delete,
+            sender=SecurityGroupRule,
+            dispatch_uid='openstack_tenant.handlers.sync_security_group_rule_on_delete',
+        )
+
         signals.post_save.connect(
             handlers.log_backup_schedule_creation,
             sender=models.BackupSchedule,
