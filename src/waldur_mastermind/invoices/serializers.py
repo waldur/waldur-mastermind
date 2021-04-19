@@ -117,7 +117,9 @@ class InvoiceSerializer(
         )
 
     def get_items(self, invoice):
-        items = utils.filter_invoice_items(invoice.items.all())
+        items = utils.filter_invoice_items(
+            invoice.items.order_by('project_name', 'name')
+        )
         serializer = InvoiceItemSerializer(items, many=True, context=self.context)
         return serializer.data
 
@@ -211,6 +213,7 @@ class SAFReportSerializer(serializers.Serializer):
     ARTNIMI = serializers.SerializerMethodField(method_name='get_artnimi_field')
     VALI = serializers.SerializerMethodField(method_name='get_vali_field')
     U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
+    U_GRUPPITUNNUS = serializers.ReadOnlyField(source='project_name')
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
     class Meta:
@@ -230,6 +233,7 @@ class SAFReportSerializer(serializers.Serializer):
             'ARTNIMI',
             'VALI',
             'U_KONEDEARV',
+            'U_GRUPPITUNNUS',
             'H_PERIOOD',
         )
 
@@ -279,7 +283,7 @@ class SAFReportSerializer(serializers.Serializer):
         return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
 
     def get_vali_field(self, invoice_item):
-        return 'Record no %s' % invoice_item.invoice.number
+        return f'Record no {invoice_item.invoice.number}. {invoice_item.invoice.customer.contact_details}'
 
     def get_empty_field(self, invoice_item):
         return ''
