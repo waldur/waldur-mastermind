@@ -7,6 +7,8 @@ from rest_framework import test
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import exceptions, models, tasks
 
 from . import factories, fixtures
@@ -115,3 +117,46 @@ class ProjectEndDate(test.APITransactionTestCase):
                 resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
             )
             self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
+
+
+class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
+    def setUp(self):
+        project_fixture = structure_fixtures.ProjectFixture()
+        self.owner = project_fixture.owner
+        project = project_fixture.project
+        self.resource = factories.ResourceFactory(
+            project=project, name='Test resource', state=models.Resource.States.OK
+        )
+        self.resource.offering.type = 'Test.Type'
+        self.resource.offering.save()
+
+    def test_send_notify_if_stale_resource_exists(self):
+        tasks.notify_about_stale_resource()
+        self.assertEqual(len(mail.outbox), 1)
+        subject_template_name = '%s/%s_subject.txt' % (
+            'marketplace',
+            'notification_about_stale_resources',
+        )
+        subject = core_utils.format_text(subject_template_name, {})
+        self.assertEqual(mail.outbox[0].subject, subject)
+        self.assertEqual(mail.outbox[0].to[0], self.owner.email)
+        self.assertTrue(self.resource.name in mail.outbox[0].body)
+
+    def test_do_not_send_notify_if_stale_resource_does_not_exists(self):
+        item = invoices_factories.InvoiceItemFactory(resource=self.resource)
+        item.unit_price = 10
+        item.quantity = 10
+        item.unit = invoices_models.InvoiceItem.Units.QUANTITY
+        item.save()
+
+        self.assertTrue(item.price)
+        tasks.notify_about_stale_resource()
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_send_notify_if_related_invoice_item_has_not_price(self):
+        item = invoices_factories.InvoiceItemFactory(resource=self.resource)
+        item.unit_price = 0
+        item.save()
+        self.assertFalse(item.price)
+        tasks.notify_about_stale_resource()
+        self.assertEqual(len(mail.outbox), 1)

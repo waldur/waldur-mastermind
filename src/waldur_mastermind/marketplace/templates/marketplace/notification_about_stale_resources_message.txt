@@ -1,0 +1,10 @@
+Hello!
+
+We noticed that you have stale resources that have not cost you anything for the last 3 months.
+Perhaps some of them are not needed any more?
+
+The resource names are:
+{% for resource in resources %}
+    {{ resource.resource.name }} {{ resource.resource_url }}
+{% endfor %}
+Thank you!

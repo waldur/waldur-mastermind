@@ -75,4 +75,9 @@ class MarketplaceExtension(WaldurExtension):
                 'schedule': timedelta(days=1),
                 'args': (),
             },
+            'notify_about_stale_resource': {
+                'task': 'marketplace.notify_about_stale_resource',
+                'schedule': crontab(minute=0, hour=15, day_of_month='5'),
+                'args': (),
+            },
         }
