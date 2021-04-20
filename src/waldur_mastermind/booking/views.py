@@ -9,10 +9,10 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.booking.utils import get_offering_bookings
 from waldur_mastermind.google import models as google_models
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.callbacks import (
     resource_creation_canceled,
     resource_creation_succeeded,
@@ -57,7 +57,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         core_validators.StateValidator(models.Resource.States.CREATING)
     ]
 
-    accept_permissions = [structure_permissions.is_owner]
+    accept_permissions = [marketplace_permissions.user_is_owner_or_service_manager]
 
 
 class OfferingViewSet(core_views.ReadOnlyActionsViewSet):

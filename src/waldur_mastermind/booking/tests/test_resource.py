@@ -4,7 +4,6 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -12,7 +11,7 @@ from .. import PLUGIN_NAME, utils
 from . import fixtures
 
 
-class MarketplaceFixture(structure_fixtures.ProjectFixture):
+class MarketplaceFixture(fixtures.BookingFixture):
     @cached_property
     def offering(self) -> marketplace_models.Offering:
         return marketplace_factories.OfferingFactory(
@@ -80,6 +79,7 @@ class OrderItemGetTest(test.APITransactionTestCase):
         self.assertEqual('Description', response.data['description'])
 
 
+@ddt
 class OrderItemAcceptTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         super(OrderItemAcceptTest, self).setUp()
@@ -92,8 +92,9 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
         url = '%s%s/accept/' % (reverse('booking-resource-list'), resource.uuid.hex,)
         return self.client.post(url)
 
-    def test_owner_can_accept_his_resource(self):
-        response = self.accept(self.fixture.resource)
+    @data('staff', 'owner', 'offering_owner', 'offering_service_manager')
+    def test_user_can_accept_his_resource(self, user):
+        response = self.accept(self.fixture.resource, user=getattr(self.fixture, user))
         self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
 
         self.fixture.resource.refresh_from_db()

@@ -17,7 +17,9 @@ class BookingFixture(marketplace_fixtures.MarketplaceFixture):
 
     @cached_property
     def offering_service_manager(self):
-        user = structure_factories.UserFactory()
+        user = structure_factories.UserFactory(
+            first_name='Service', last_name='Manager'
+        )
         self.offering.customer.add_user(
             user, structure_models.CustomerRole.SERVICE_MANAGER
         )

@@ -160,15 +160,30 @@ def user_can_terminate_resource(request, view, resource=None):
 
 
 def user_is_owner_or_service_manager(request, view, obj=None):
-    offering = obj
+    if not obj:
+        return
 
-    if not offering:
+    if isinstance(obj, models.Offering):
+        offering = obj
+    elif isinstance(obj, models.Resource):
+        customer = structure_permissions._get_customer(obj)
+
+        if structure_permissions._has_owner_access(request.user, customer):
+            return
+
+        offering = obj.offering
+    else:
         return
 
     if offering.has_user(request.user):
         return
 
     if structure_permissions._has_owner_access(request.user, offering.customer):
+        return
+
+    if offering.customer.has_user(
+        request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
+    ):
         return
 
     raise exceptions.PermissionDenied()
