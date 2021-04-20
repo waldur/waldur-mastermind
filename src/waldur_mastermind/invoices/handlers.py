@@ -141,67 +141,6 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
     transaction.on_commit(update_invoice)
 
 
-@transaction.atomic()
-def adjust_openstack_items_for_downtime(downtime):
-    resources = []
-
-    if downtime.offering:
-        resources.extend(
-            list(marketplace_models.Resource.objects.filter(offering=downtime.offering))
-        )
-
-    if downtime.resource:
-        resources.append(downtime.resource)
-
-    for resource in resources:
-        items = models.InvoiceItem.objects.filter(
-            downtime.get_intersection_subquery(), resource=resource,
-        )
-
-        for item in items:
-            # outside
-            if downtime.start <= item.start and item.end <= downtime.end:
-                item.create_compensation(
-                    item.name, downtime, start=item.start, end=item.end
-                )
-
-            # inside
-            elif item.start <= downtime.start and downtime.end <= item.end:
-                item.create_compensation(
-                    item.name, downtime, start=downtime.start, end=downtime.end
-                )
-
-            # left
-            elif downtime.end >= item.start and downtime.end <= item.end:
-                item.create_compensation(
-                    item.name, downtime, start=item.start, end=downtime.end
-                )
-
-            # right
-            elif downtime.start >= item.start and downtime.start <= item.end:
-                item.create_compensation(
-                    item.name, downtime, start=downtime.start, end=item.end
-                )
-
-
-def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs):
-    downtime = instance
-    if not created:
-        logger.warning(
-            'Invoice items are not adjusted when downtime record is changed. '
-            'Record ID: %s',
-            downtime.id,
-        )
-
-    adjust_openstack_items_for_downtime(downtime)
-
-
-def downtime_has_been_deleted(sender, instance, **kwargs):
-    models.InvoiceItem.objects.filter(
-        invoice__state=models.Invoice.States.PENDING, details__downtime_id=instance.id
-    ).delete()
-
-
 def projects_customer_has_been_changed(
     sender, project, old_customer, new_customer, created=False, **kwargs
 ):

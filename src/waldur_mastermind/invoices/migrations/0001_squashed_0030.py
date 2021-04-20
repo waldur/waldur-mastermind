@@ -215,7 +215,6 @@ class Migration(migrations.Migration):
                 (
                     'start',
                     models.DateTimeField(
-                        default=waldur_mastermind.invoices.models.get_default_downtime_start,
                         help_text='Date and time when downtime has started.',
                     ),
                 ),
