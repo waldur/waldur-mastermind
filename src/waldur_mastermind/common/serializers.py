@@ -1,22 +1,32 @@
 from rest_framework import serializers
 
 
+class StringListSerializer(serializers.ListField):
+    child = serializers.CharField()
+
+
+FIELD_CLASSES = {
+    'integer': serializers.IntegerField,
+    'date': serializers.DateField,
+    'time': serializers.TimeField,
+    'money': serializers.IntegerField,
+    'boolean': serializers.BooleanField,
+    'select_string': serializers.ChoiceField,
+    'select_string_multi': serializers.MultipleChoiceField,
+    'select_openstack_tenant': serializers.CharField,
+    'select_multiple_openstack_tenants': StringListSerializer,
+    'select_openstack_instance': serializers.CharField,
+    'select_multiple_openstack_instances': StringListSerializer,
+}
+
+
 def validate_options(options, attributes):
     fields = {}
 
     for name, option in options.items():
         params = {}
         field_type = option.get('type', '')
-        field_class = serializers.CharField
-
-        if field_type == 'integer':
-            field_class = serializers.IntegerField
-
-        elif field_type == 'money':
-            field_class = serializers.IntegerField
-
-        elif field_type == 'boolean':
-            field_class = serializers.BooleanField
+        field_class = FIELD_CLASSES.get(field_type, serializers.CharField)
 
         default_value = option.get('default')
         if default_value:
@@ -32,12 +42,7 @@ def validate_options(options, attributes):
                 params['max_value'] = option.get('max')
 
         if 'choices' in option:
-            field_class = serializers.ChoiceField
-            params['choices'] = option.get('choices')
-
-        if field_type == 'select_string_multi':
-            field_class = serializers.MultipleChoiceField
-            params['choices'] = option.get('choices')
+            params['choices'] = option['choices']
 
         fields[name] = field_class(**params)
 
