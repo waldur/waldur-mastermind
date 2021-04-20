@@ -140,41 +140,6 @@ class InvoiceAdmin(
     send_invoice_report.short_description = _('Update current cost for invoices')
 
 
-class ServiceDowntimeAdmin(admin.ModelAdmin):
-    list_display = (
-        'get_customer',
-        'get_project',
-        'offering',
-        'resource',
-        'start',
-        'end',
-    )
-    list_display_links = ('get_customer',)
-    search_fields = ('offering__name', 'resource__name')
-    date_hierarchy = 'start'
-
-    def get_readonly_fields(self, request, obj=None):
-        # Downtime record is protected from modifications
-        if obj is not None:
-            return self.readonly_fields + ('start', 'end', 'offering', 'resource')
-        return self.readonly_fields
-
-    def get_customer(self, downtime):
-        if downtime.offering:
-            return downtime.offering.customer
-
-        if downtime.resource:
-            return downtime.resource.customer
-
-    get_customer.short_description = _('Organization')
-
-    def get_project(self, downtime):
-        if downtime.resource:
-            return downtime.resource.project
-
-    get_project.short_description = _('Project')
-
-
 class PaymentProfileAdminForm(ModelForm):
     class Meta:
         widgets = {
@@ -194,6 +159,5 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.Invoice, InvoiceAdmin)
-admin.site.register(models.ServiceDowntime, ServiceDowntimeAdmin)
 admin.site.register(models.PaymentProfile, PaymentProfileAdmin)
 admin.site.register(models.Payment, PaymentAdmin)

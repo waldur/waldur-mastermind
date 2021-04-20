@@ -6,10 +6,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.postgres.fields import JSONField
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Q
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
@@ -316,117 +314,6 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
 
     def __str__(self):
         return self.name or '<InvoiceItem %s>' % self.pk
-
-    def create_compensation(self, name, downtime, **kwargs):
-        FIELDS = (
-            'invoice',
-            'project',
-            'project_name',
-            'project_uuid',
-            'article_code',
-            'unit',
-            'unit_price',
-            'start',
-            'end',
-            'details',
-        )
-
-        params = {}
-        for field in FIELDS:
-            try:
-                params[field] = getattr(self, field)
-            except ObjectDoesNotExist:
-                pass  # if a reference was deleted
-        params.update(kwargs)
-        if params['unit_price'] > 0:
-            params['unit_price'] *= -1
-
-        name = _('Compensation. %s') % name
-        params['details']['name'] = name
-        params['details']['downtime_id'] = downtime.id
-        params['name'] = name
-        return InvoiceItem.objects.create(**params)
-
-
-def get_default_downtime_start():
-    return timezone.now() - settings.WALDUR_INVOICES['DOWNTIME_DURATION_MINIMAL']
-
-
-class ServiceDowntime(models.Model):
-    start = models.DateTimeField(
-        default=get_default_downtime_start,
-        help_text=_('Date and time when downtime has started.'),
-    )
-    end = models.DateTimeField(
-        default=timezone.now, help_text=_('Date and time when downtime has ended.')
-    )
-    offering = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=marketplace_models.Offering,
-        blank=True,
-        null=True,
-        limit_choices_to={'billable': True},
-    )
-    resource = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=marketplace_models.Resource,
-        blank=True,
-        null=True,
-        limit_choices_to={'offering__billable': True},
-    )
-
-    def clean(self):
-        self._validate_duration()
-        self._validate_offset()
-        self._validate_intersection()
-        self._validate_resource_and_offering()
-
-    def _validate_duration(self):
-        duration = self.end - self.start
-
-        duration_min = settings.WALDUR_INVOICES['DOWNTIME_DURATION_MINIMAL']
-        if duration_min is not None and duration < duration_min:
-            raise ValidationError(
-                _('Downtime duration is too small. Minimal duration is %s')
-                % duration_min
-            )
-
-        duration_max = settings.WALDUR_INVOICES['DOWNTIME_DURATION_MAXIMAL']
-        if duration_max is not None and duration > duration_max:
-            raise ValidationError(
-                _('Downtime duration is too big. Maximal duration is %s') % duration_max
-            )
-
-    def _validate_offset(self):
-        if self.start > timezone.now() or self.end > timezone.now():
-            raise ValidationError(
-                _(
-                    'Future downtime is not supported yet. '
-                    'Please select date in the past instead.'
-                )
-            )
-
-    def _validate_resource_and_offering(self):
-        if self.offering and self.resource:
-            raise ValidationError('Cannot define an offering and a resource.')
-
-        if not (self.offering or self.resource):
-            raise ValidationError('You must define an offering or a resource.')
-
-    def get_intersection_subquery(self):
-        left = Q(start__gte=self.start, start__lte=self.end)
-        right = Q(end__gte=self.start, end__lte=self.end)
-        inside = Q(start__gte=self.start, end__lte=self.end)
-        outside = Q(start__lte=self.start, end__gte=self.end)
-        return Q(left | right | inside | outside)
-
-    def _validate_intersection(self):
-        qs = ServiceDowntime.objects.filter(self.get_intersection_subquery())
-        if qs.exists():
-            ids = ', '.join(str(item.id) for item in qs)
-            raise ValidationError(
-                _('Downtime period intersects with another period with ID: %s.') % ids
-            )
 
 
 class PaymentType(models.CharField):
