@@ -209,7 +209,7 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
                 {
                     'type': 'OpenStackTenant.Volume',
                     'name': 'ssd-volume',
-                    'backend_id': None,
+                    'backend_id': '1',
                     'description': '',
                     'extra': [
                         {'name': 'Is bootable', 'value': False},

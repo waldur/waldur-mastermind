@@ -1420,7 +1420,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             {
                 'type': get_resource_type(models.Volume),
                 'name': volume.name,
-                'backend_id': volume.id,
+                'backend_id': volume.backend_id,
                 'description': volume.description,
                 'extra': [
                     {'name': 'Is bootable', 'value': volume.bootable},
