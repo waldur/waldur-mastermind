@@ -251,10 +251,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
         deltas = {
             TenantQuotas.snapshots: 1,
             TenantQuotas.snapshots_size: self.size,
-            TenantQuotas.storage: self.size,
         }
-        if self.source_volume and self.source_volume.type:
-            deltas['gigabytes_' + self.source_volume.type.name] = self.size / 1024
         return deltas
 
     @classmethod
