@@ -265,12 +265,21 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
         response = self.create_snapshot()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_when_snapshot_is_created_volume_type_quota_is_updated(self):
-        self.create_snapshot()
-        key = 'gigabytes_' + self.fixture.volume_type.name
+    def test_user_can_create_volume_snapshot_if_storage_quotas_are_full(self):
+        self.volume.service_settings.set_quota_limit(
+            f'gigabytes_{self.volume.type.name}', 0
+        )
+        self.volume.service_settings.set_quota_limit(f'storage', 0)
+        response = self.create_snapshot()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_when_snapshot_is_created_volume_storage_quota_is_not_updated(self):
+        key = 'storage'
         scope = self.fixture.openstack_tenant_service_settings
-        usage = scope.quotas.get(name=key).usage
-        self.assertEqual(self.volume.size / 1024, usage)
+        old_usage = scope.quotas.get(name=key).usage
+        self.create_snapshot()
+        new_usage = scope.quotas.get(name=key).usage
+        self.assertEqual(old_usage, new_usage)
 
 
 @ddt
