@@ -527,9 +527,10 @@ class ServiceSettingsAdminForm(ModelForm):
                     if not options_serializer.is_valid():
                         self.add_error('options', json.dumps(options_serializer.errors))
                     else:
-                        cleaned_data['options'] = json.dumps(
-                            options_serializer.validated_data['options']
-                        )
+                        if 'options' in options_serializer.validated_data:
+                            cleaned_data['options'] = json.dumps(
+                                options_serializer.validated_data['options']
+                            )
         except ValueError:
             self.add_error('options', _('JSON is not valid'))
 
