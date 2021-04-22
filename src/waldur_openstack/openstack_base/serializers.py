@@ -33,6 +33,7 @@ class BaseOpenStackServiceSerializer(structure_serializers.ServiceOptionsSeriali
         max_length=200,
         help_text=_('Domain name. If not defined default domain will be used.'),
         required=False,
+        allow_null=True,
     )
 
     availability_zone = serializers.CharField(
@@ -60,7 +61,7 @@ class BaseOpenStackServiceSerializer(structure_serializers.ServiceOptionsSeriali
         required=False,
     )
 
-    config_drive = serializers.CharField(
+    config_drive = serializers.BooleanField(
         source='options.config_drive',
         help_text=_('Indicates whether a config drive enables metadata injection'),
         required=False,

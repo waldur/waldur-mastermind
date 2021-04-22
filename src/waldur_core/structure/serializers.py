@@ -1049,7 +1049,9 @@ class ServiceSettingsSerializer(
     )
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
     scope = core_serializers.GenericRelatedField(
-        related_models=models.BaseResource.get_all_models(), required=False
+        related_models=models.BaseResource.get_all_models(),
+        required=False,
+        allow_null=True,
     )
     options = serializers.DictField()
 

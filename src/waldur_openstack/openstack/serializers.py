@@ -82,7 +82,8 @@ class OpenStackServiceSerializer(BaseOpenStackServiceSerializer):
         required=False,
     )
 
-    dns_nameservers = serializers.CharField(
+    dns_nameservers = serializers.ListField(
+        child=serializers.CharField(),
         source='options.dns_nameservers',
         help_text=_(
             'Default value for new subnets DNS name servers. Should be defined as list.'
