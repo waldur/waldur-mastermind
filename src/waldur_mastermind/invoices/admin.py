@@ -18,14 +18,17 @@ from . import models, tasks, utils
 
 class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.StackedInline):
     model = models.InvoiceItem
-    readonly_fields = (
-        'pk',
+    fields = readonly_fields = (
+        'name',
         'price',
         'unit_price',
         'unit',
+        'measured_unit',
+        'start',
+        'end',
+        'article_code',
         'project_name',
         'project_uuid',
-        'get_factor',
         'quantity',
     )
     exclude = ('project', 'content_type', 'object_id')
