@@ -5,7 +5,6 @@ import logging
 from celery import shared_task
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -13,6 +12,7 @@ from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
+from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.utils import create_request
@@ -195,20 +195,13 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
     if expired_projects:
         try:
-            user = get_user_model().objects.get(
-                username=settings.WALDUR_MARKETPLACE[
-                    'STAFF_USERNAME_FOR_TERMINATING_RESOURCE_OF_EXPIRED_PROJECT'
-                ],
-                is_staff=True,
-                is_active=True,
+            user = core_models.User.objects.get(
+                username='system_robot', is_staff=True, is_active=True
             )
         except ObjectDoesNotExist:
             logger.error(
-                'Staff user with username %s for terminating resources '
+                'Staff user with username system_robot for terminating resources '
                 'of project with due date does not exist.'
-                % settings.WALDUR_MARKETPLACE[
-                    'STAFF_USERNAME_FOR_TERMINATING_RESOURCE_OF_EXPIRED_PROJECT'
-                ]
             )
             return
     else:

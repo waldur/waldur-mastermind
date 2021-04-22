@@ -97,7 +97,16 @@ class TerminateResource(test.APITransactionTestCase):
 
 class ProjectEndDate(test.APITransactionTestCase):
     def setUp(self):
-        structure_factories.UserFactory(username='staff', is_staff=True)
+        # We need create a system robot account because
+        # account created in a migration does not exist when test is running
+        structure_factories.UserFactory(
+            first_name='System',
+            last_name='Robot',
+            username='system_robot',
+            description='Special user used for performing actions on behalf of Waldur.',
+            is_staff=True,
+            is_active=True,
+        )
         self.fixtures = fixtures.MarketplaceFixture()
         self.fixtures.project.end_date = datetime.datetime(day=1, month=1, year=2020)
         self.fixtures.project.save()

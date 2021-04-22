@@ -22,7 +22,6 @@ class MarketplaceExtension(WaldurExtension):
             'amount: {{component.amount}}; '
             'price: {{component.price|floatformat }};'
             '{% endfor %}',
-            'STAFF_USERNAME_FOR_TERMINATING_RESOURCE_OF_EXPIRED_PROJECT': 'staff',
         }
 
     @staticmethod
