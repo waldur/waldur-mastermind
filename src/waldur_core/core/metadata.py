@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -276,3 +276,12 @@ class WaldurConfiguration(BaseModel):
         description='Controls if resource importing should use database transactions. '
         'Using transactions makes imports safer as a failure during import won’t import only part of the data set.',
     )
+    LANGUAGES: List[Tuple[str, str]] = Field(
+        (('en', 'English'), ('et', 'Eesti'),),
+        description="The list is a list of two-tuples in the format "
+        "(language code, language name) – for example, ('ja', 'Japanese'). "
+        "This specifies which languages are available for language selection.",
+    )
+
+    class Meta:
+        public_settings = ['LANGUAGES']

@@ -185,11 +185,6 @@ LOCALE_PATHS = (
     os.path.join(BASE_DIR, 'src', 'waldur_core', 'locale'),
 )
 
-LANGUAGES = (
-    ('en', 'English'),
-    ('et', 'Estonian'),
-)
-
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
