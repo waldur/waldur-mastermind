@@ -341,6 +341,14 @@ class ReadOnlyActionsViewSet(ActionsViewSet):
 def get_public_settings():
     public_settings = {}
 
+    try:
+        keys = WaldurConfiguration().Meta.public_settings
+    except AttributeError:
+        pass
+    else:
+        for s in keys:
+            public_settings[s] = getattr(settings, s, None)
+
     for (settings_name, section) in WaldurConfiguration().__fields__.items():
         type_ = section.type_
         try:
