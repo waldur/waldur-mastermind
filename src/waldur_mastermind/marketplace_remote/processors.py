@@ -43,7 +43,7 @@ class RemoteCreateResourceProcessor(
             attributes=self.order_item.attributes,
             limits=self.order_item.limits,
         )
-        self.order_item.backend_id = response.data['uuid']
+        self.order_item.backend_id = response['uuid']
         self.order_item.save()
 
 
@@ -54,7 +54,7 @@ class RemoteUpdateResourceProcessor(
         response = self.client.marketplace_resource_update_limits(
             self.order_item.resource.backend_id, self.order_item.limits,
         )
-        self.order_item.backend_id = response.data['uuid']
+        self.order_item.backend_id = response['uuid']
         self.order_item.save()
 
 
@@ -65,6 +65,6 @@ class RemoteDeleteResourceProcessor(
         response = self.client.marketplace_resource_terminate(
             self.order_item.resource.backend_id
         )
-        self.order_item.backend_id = response.data['uuid']
+        self.order_item.backend_id = response['uuid']
         self.order_item.save()
         return True
