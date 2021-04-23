@@ -483,18 +483,28 @@ class Feedback(
     core_models.UuidMixin, TimeStampedModel, core_models.StateMixin,
 ):
     class Evaluation:
-        VERY_NEGATIVE = 1
-        NEGATIVE = 2
-        NEUTRAL = 3
-        POSITIVE = 4
-        VERY_POSITIVE = 5
+        ONE = 1
+        TWO = 2
+        THREE = 3
+        FOUR = 4
+        FIVE = 5
+        SIX = 6
+        SEVEN = 7
+        EIGHT = 8
+        NINE = 9
+        TEN = 10
 
         CHOICES = (
-            (VERY_NEGATIVE, 'Very negative'),
-            (NEGATIVE, 'Negative'),
-            (NEUTRAL, 'Neutral'),
-            (POSITIVE, 'Positive'),
-            (VERY_POSITIVE, 'Very positive'),
+            (ONE, 'One'),
+            (TWO, 'Two'),
+            (THREE, 'Three'),
+            (FOUR, 'Four'),
+            (FIVE, 'Five'),
+            (SIX, 'Six'),
+            (SEVEN, 'Seven'),
+            (EIGHT, 'Eight'),
+            (NINE, 'Nine'),
+            (TEN, 'Ten'),
         )
 
     issue = models.OneToOneField(Issue, on_delete=models.CASCADE)

@@ -28,8 +28,7 @@ class FeedbackCreateTest(base.BaseTest):
             self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.post(
-            url,
-            data={'evaluation': models.Feedback.Evaluation.POSITIVE, 'token': token},
+            url, data={'evaluation': models.Feedback.Evaluation.TEN, 'token': token},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -47,8 +46,7 @@ class FeedbackCreateTest(base.BaseTest):
         token = 'token'
 
         response = self.client.post(
-            url,
-            data={'evaluation': models.Feedback.Evaluation.POSITIVE, 'token': token},
+            url, data={'evaluation': models.Feedback.Evaluation.TEN, 'token': token},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -60,8 +58,7 @@ class FeedbackCreateTest(base.BaseTest):
         token = signer.sign(issue.uuid.hex)
 
         response = self.client.post(
-            url,
-            data={'evaluation': models.Feedback.Evaluation.POSITIVE, 'token': token},
+            url, data={'evaluation': models.Feedback.Evaluation.TEN, 'token': token},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -110,12 +107,10 @@ class FeedbackNotificationTest(base.BaseTest):
 class FeedbackReportTest(base.BaseTest):
     def setUp(self):
         super(FeedbackReportTest, self).setUp()
-        factories.FeedbackFactory(evaluation=models.Feedback.Evaluation.POSITIVE)
-        factories.FeedbackFactory(evaluation=models.Feedback.Evaluation.NEGATIVE)
+        factories.FeedbackFactory(evaluation=models.Feedback.Evaluation.TEN)
+        factories.FeedbackFactory(evaluation=models.Feedback.Evaluation.SIX)
         self.avg = round(
-            (models.Feedback.Evaluation.POSITIVE + models.Feedback.Evaluation.NEGATIVE)
-            / 2,
-            2,
+            (models.Feedback.Evaluation.TEN + models.Feedback.Evaluation.SIX) / 2, 2,
         )
 
     @data(
@@ -201,7 +196,7 @@ class FeedbackGetTest(base.BaseTest):
 
         self.client.force_login(self.fixture.staff)
         response = self.client.get(
-            factories.FeedbackFactory.get_list_url(), {'evaluation': 'Negative'}
+            factories.FeedbackFactory.get_list_url(), {'evaluation': 'Two'}
         )
 
         self.assertEqual(200, response.status_code)
