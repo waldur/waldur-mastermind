@@ -175,7 +175,7 @@ class TemplateConfirmationCommentFactory(factory.DjangoModelFactory):
 
 class FeedbackFactory(factory.DjangoModelFactory):
     issue = factory.SubFactory(IssueFactory)
-    evaluation = models.Feedback.Evaluation.POSITIVE
+    evaluation = models.Feedback.Evaluation.TEN
 
     class Meta:
         model = models.Feedback
