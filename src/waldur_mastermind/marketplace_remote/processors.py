@@ -17,7 +17,7 @@ class RemoteClientMixin:
         remote_project_name = f'{local_project.customer.name} / {local_project.name}'
         remote_project_uuid = f'{local_project.customer.uuid}_{local_project.uuid}'
         remote_projects = self.client.list_projects(
-            params={'backend_id': remote_project_uuid}
+            query_params={'backend_id': remote_project_uuid}
         )
         if len(remote_projects) == 0:
             return self.client.create_project(
