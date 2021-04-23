@@ -37,7 +37,7 @@ class RemoteCreateResourceProcessor(
     def send_request(self, user):
         remote_project = self.get_or_create_project()
         response = self.client.marketplace_resource_create(
-            project_uuid=remote_project.uuid,
+            project_uuid=remote_project['uuid'],
             offering_uuid=self.order_item.offering.backend_id,
             plan_uuid=self.order_item.plan.backend_id,
             attributes=self.order_item.attributes,
