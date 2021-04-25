@@ -1,7 +1,0 @@
-Nextcloud
-
-Nextcloud is a suite of client-server software for creating and using file hosting services. It is free and open-source, allowing anyone to install and operate it on a private server.
-
-Nextcloud is an actively maintained fork of ownCloud.
-
-https://nextcloud.com/

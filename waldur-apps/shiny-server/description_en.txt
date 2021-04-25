@@ -1,5 +1,0 @@
-Shiny Server
-
-Shiny Server is a server program that makes Shiny applications available over the web.
-
-https://www.rstudio.com/products/shiny/shiny-server/

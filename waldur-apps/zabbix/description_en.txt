@@ -1,3 +1,0 @@
-Zabbix server
-
-https://www.zabbix.com

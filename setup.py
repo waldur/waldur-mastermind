@@ -19,7 +19,7 @@ setup(
     url='https://waldur.com',
     license='MIT',
     description='Ansible module for the Waldur API.',
-    long_description=open('README.rst').read(),
+    long_description=open('README.md').read(),
     py_modules=[
         'waldur_client',
         'waldur_marketplace',
