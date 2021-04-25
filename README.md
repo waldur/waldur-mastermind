@@ -11,9 +11,9 @@ management of infrastructure under Waldur through Ansible playbooks.
 
 See also: http://docs.ansible.com/ansible/modules.html
 
-# Installation
+## Installation
 
-```shell script
+```bash
 pip install ansible-waldur-module
 ```
 
@@ -40,7 +40,7 @@ pip install ansible-waldur-module
 
 ### Pass parameters to an Ansible playbook
 
-```shell script
+```bash
 ANSIBLE_LIBRARY=/usr/share/ansible-waldur/ ansible \
     -m waldur_marketplace_os_instance \
     -a "api_url=https://waldur.example.com/api/ access_token=9036194e1ac54cada3248a8c6b203bf7 name=instance-name project='Project name'" \
@@ -51,7 +51,7 @@ ANSIBLE_LIBRARY=/usr/share/ansible-waldur/ ansible \
 If you've installed Ansible Waldur module to virtual Python environment you need to specify
 path to Python interpreter and path to module library along with path to playbook:
 
-```shell script
+```bash
 ansible-playbook \
     -e ansible_python_interpreter=/home/user/ansible-env/bin/python \
     -M /home/user/ansible-env/lib/python3.8/site-packages/ \
@@ -64,18 +64,16 @@ ansible-playbook \
 
 2. Install `pre-commit` and `tox`
 
-```shell script
-
+```bash
 pip install tox pre-commit
 pre-commit install
-
 ```
 
 3. When new module is implemented, don't forget to update `py_modules` section in `setup.py` file.
 
 4. When new module is implemented, it should be covered with tests. Run tests using `tox`
 
-```shell script
+```bash
 tox
 ```
 
