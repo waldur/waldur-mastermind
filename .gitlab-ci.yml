@@ -23,3 +23,23 @@ Run unit tests:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - tox
+
+Upload configuration guide:
+  image: python:3.8-buster
+  stage: deploy
+  interruptible: true
+  rules:
+    # If changes are pushed to `develop` branch
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  variables:
+    GUIDE_PATH: docs/integrator-guide/ansible-module.md
+  script:
+    - cd /tmp/
+    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - cd waldur-docs
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - cp -vf ${CI_BUILDS_DIR}/${CI_PROJECT_PATH}/README.md $GUIDE_PATH
+    - git commit $GUIDE_PATH -m "Update configuration guide" || exit 0
+    - git branch new-configuration-guide
+    - git push --set-upstream origin new-configuration-guide:master
