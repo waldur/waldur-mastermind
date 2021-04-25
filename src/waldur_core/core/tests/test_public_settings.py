@@ -28,6 +28,8 @@ class TestPublicSettings(TestCase):
         extensions = {
             'WALDUR_CORE': {},
             'WALDUR_AUTH_SOCIAL': {},
+            'WALDUR_FREEIPA': {},
+            'WALDUR_HPC': {},
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},
             'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'},
