@@ -2,19 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class FreeIPAExtension(WaldurExtension):
-    class Settings:
-        WALDUR_FREEIPA = {
-            'ENABLED': False,
-            'HOSTNAME': 'ipa.example.com',
-            'USERNAME': 'admin',
-            'PASSWORD': 'secret',
-            'VERIFY_SSL': True,
-            'USERNAME_PREFIX': 'waldur_',
-            'GROUPNAME_PREFIX': 'waldur_',
-            'BLACKLISTED_USERNAMES': ['root'],
-            'GROUP_SYNCHRONIZATION_ENABLED': True,
-        }
-
     @staticmethod
     def django_app():
         return 'waldur_freeipa'
@@ -24,10 +11,6 @@ class FreeIPAExtension(WaldurExtension):
         from .urls import register_in
 
         return register_in
-
-    @staticmethod
-    def get_public_settings():
-        return ['USERNAME_PREFIX', 'ENABLED']
 
     @staticmethod
     def celery_tasks():
