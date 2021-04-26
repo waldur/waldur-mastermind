@@ -377,6 +377,11 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     )
     is_shared = models.BooleanField(default=False)
 
+    @property
+    def type(self):
+        key_parts = self.public_key.split(' ', 1)
+        return key_parts[0]
+
     class Meta:
         unique_together = ('user', 'name')
         verbose_name = _('SSH public key')

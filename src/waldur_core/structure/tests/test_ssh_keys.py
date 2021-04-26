@@ -38,6 +38,12 @@ class SshKeyRetrieveListTest(BaseSshKeyTest):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_get_type_of_key(self):
+        self.client.force_authenticate(self.staff)
+        url = factories.SshPublicKeyFactory.get_url(self.user_key)
+        response = self.client.get(url)
+        self.assertEqual(response.data['type'], 'ssh-rsa')
+
 
 class SshKeyCreateTest(BaseSshKeyTest):
     def test_key_user_and_name_uniqueness(self):
