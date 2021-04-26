@@ -976,6 +976,7 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
             'fingerprint',
             'user_uuid',
             'is_shared',
+            'type',
         )
         read_only_fields = ('fingerprint', 'is_shared')
         extra_kwargs = {
