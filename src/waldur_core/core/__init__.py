@@ -1,8 +1,28 @@
 import inspect
+import json
+import os
 
 import pkg_resources
 
 default_app_config = 'waldur_core.core.apps.CoreConfig'
+
+
+# WALDUR_DISABLED_EXTENSIONS environment variable contains JSON-encoded list of strings
+# each of which corresponds to Django Application name of corresponding Waldur extension.
+# By default, if this variable is not defined, then all extensions are enabled.
+# Usage example:
+# WALDUR_DISABLED_EXTENSIONS=["waldur_auth_social"] waldur runserver
+# Otherwise, only those extensions which are listed in WALDUR_EXTENSIONS are disabled.
+# Please note however that waldur_freeipa is mandatory extension for the time being.
+WALDUR_DISABLED_EXTENSIONS = os.environ.get('WALDUR_DISABLED_EXTENSIONS')
+
+MANDATORY_EXTENSIONS = ["waldur_freeipa"]
+
+if WALDUR_DISABLED_EXTENSIONS:
+    try:
+        WALDUR_DISABLED_EXTENSIONS = json.loads(WALDUR_DISABLED_EXTENSIONS)
+    except ValueError:
+        WALDUR_DISABLED_EXTENSIONS = None
 
 
 class WaldurExtension:
@@ -49,6 +69,17 @@ class WaldurExtension:
 
     @classmethod
     def get_extensions(cls):
+        for ext in cls._get_extensions():
+            if (
+                WALDUR_DISABLED_EXTENSIONS
+                and ext.django_app() in WALDUR_DISABLED_EXTENSIONS
+                and ext.django_app() not in MANDATORY_EXTENSIONS
+            ):
+                continue
+            yield ext
+
+    @classmethod
+    def _get_extensions(cls):
         """ Get a list of available extensions """
         assemblies = []
         for waldur_extension in pkg_resources.iter_entry_points('waldur_extensions'):
