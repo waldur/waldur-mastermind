@@ -1230,6 +1230,27 @@ class WaldurClient(object):
             },
         )
 
+    def get_project_permissions(self, user_uuid, project_uuid, role=None):
+        query_params = {
+            'project': project_uuid,
+            'user': user_uuid,
+        }
+        if role:
+            query_params['role'] = role
+        return self._query_resource_list(
+            self.Endpoints.ProjectPermissions, query_params
+        )
+
+    def update_project_permission(self, permission_id, new_expiration_time):
+        return self._update_resource(
+            self.Endpoints.ProjectPermissions,
+            permission_id,
+            {'expiration_time': new_expiration_time},
+        )
+
+    def remove_project_permission(self, permission_id):
+        return self._delete_resource(self.Endpoints.ProjectPermissions, permission_id)
+
     def create_customer_permission(self, user_uuid, customer_uuid, role):
         return self._create_resource(
             self.Endpoints.CustomerPermissions,
@@ -1242,6 +1263,27 @@ class WaldurClient(object):
             },
         )
 
+    def get_customer_permissions(self, user_uuid, customer_uuid, role=None):
+        query_params = {
+            'customer': customer_uuid,
+            'user': user_uuid,
+        }
+        if role:
+            query_params['role'] = role
+        return self._query_resource_list(
+            self.Endpoints.CustomerPermissions, query_params
+        )
+
+    def update_customer_permission(self, permission_id, new_expiration_time):
+        return self._update_resource(
+            self.Endpoints.CustomerPermissions,
+            permission_id,
+            {'expiration_time': new_expiration_time},
+        )
+
+    def remove_customer_permission(self, permission_id):
+        return self._delete_resource(self.Endpoints.CustomerPermissions, permission_id)
+
     def create_offering_permission(self, user_uuid, offering_uuid):
         return self._create_resource(
             self.Endpoints.OfferingPermissions,
@@ -1252,6 +1294,15 @@ class WaldurClient(object):
                 ),
             },
         )
+
+    def get_offering_permissions(self, user_uuid, offering_uuid):
+        return self._query_resource_list(
+            self.Endpoints.OfferingPermissions,
+            {'offering_uuid': offering_uuid, 'user': user_uuid,},
+        )
+
+    def remove_offering_permission(self, permission_id):
+        return self._delete_resource(self.Endpoints.OfferingPermissions, permission_id)
 
 
 def waldur_full_argument_spec(**kwargs):
