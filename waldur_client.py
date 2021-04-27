@@ -1235,22 +1235,21 @@ class WaldurClient(object):
             self.Endpoints.CustomerPermissions,
             {
                 'user': self._build_resource_url(self.Endpoints.Users, user_uuid),
-                'project': self._build_resource_url(
+                'customer': self._build_resource_url(
                     self.Endpoints.Customers, customer_uuid
                 ),
                 'role': role,
             },
         )
 
-    def create_offering_permission(self, user_uuid, offering_uuid, role):
+    def create_offering_permission(self, user_uuid, offering_uuid):
         return self._create_resource(
             self.Endpoints.OfferingPermissions,
             {
                 'user': self._build_resource_url(self.Endpoints.Users, user_uuid),
-                'project': self._build_resource_url(
+                'offering': self._build_resource_url(
                     self.Endpoints.MarketplaceOffering, offering_uuid
                 ),
-                'role': role,
             },
         )
 
