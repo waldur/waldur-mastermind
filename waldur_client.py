@@ -72,6 +72,11 @@ class WaldurClient(object):
         Customers = 'customers'
         Invoice = 'invoices'
         ComponentUsage = 'marketplace-component-usages'
+        RemoteEduteams = 'remote-eduteams'
+        ProjectPermissions = 'project-permissions'
+        CustomerPermissions = 'customer-permissions'
+        OfferingPermissions = 'marketplace-offering-permissions'
+        Users = 'users'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -278,6 +283,9 @@ class WaldurClient(object):
 
     def _get_project(self, identifier):
         return self._get_resource(self.Endpoints.Project, identifier)
+
+    def get_user(self, identifier):
+        return self._get_resource(self.Endpoints.Users, identifier)
 
     def _get_property(self, endpoint, identifier, settings_uuid):
         query = {'settings_uuid': settings_uuid}
@@ -1202,6 +1210,47 @@ class WaldurClient(object):
                 'resource_uuid': resource_uuid,
                 'date_after': date_after,
                 'date_before': date_before,
+            },
+        )
+
+    def get_remote_eduteams_user(self, cuid):
+        return self._create_resource(
+            self.Endpoints.RemoteEduteams, {'cuid': cuid,}, valid_state=200,
+        )
+
+    def create_project_permission(self, user_uuid, project_uuid, role):
+        return self._create_resource(
+            self.Endpoints.ProjectPermissions,
+            {
+                'user': self._build_resource_url(self.Endpoints.Users, user_uuid),
+                'project': self._build_resource_url(
+                    self.Endpoints.Project, project_uuid
+                ),
+                'role': role,
+            },
+        )
+
+    def create_customer_permission(self, user_uuid, customer_uuid, role):
+        return self._create_resource(
+            self.Endpoints.CustomerPermissions,
+            {
+                'user': self._build_resource_url(self.Endpoints.Users, user_uuid),
+                'project': self._build_resource_url(
+                    self.Endpoints.Customers, customer_uuid
+                ),
+                'role': role,
+            },
+        )
+
+    def create_offering_permission(self, user_uuid, offering_uuid, role):
+        return self._create_resource(
+            self.Endpoints.OfferingPermissions,
+            {
+                'user': self._build_resource_url(self.Endpoints.Users, user_uuid),
+                'project': self._build_resource_url(
+                    self.Endpoints.MarketplaceOffering, offering_uuid
+                ),
+                'role': role,
             },
         )
 
