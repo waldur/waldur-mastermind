@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
 from waldur_core import __version__
-from waldur_core.core import WaldurExtension, permissions
+from waldur_core.core import WALDUR_DISABLED_EXTENSIONS, WaldurExtension, permissions
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ensure_atomic_transaction
@@ -340,6 +340,8 @@ class ReadOnlyActionsViewSet(ActionsViewSet):
 @lru_cache(maxsize=1)
 def get_public_settings():
     public_settings = {}
+
+    public_settings['WALDUR_DISABLED_EXTENSIONS'] = WALDUR_DISABLED_EXTENSIONS
 
     try:
         keys = WaldurConfiguration().Meta.public_settings
