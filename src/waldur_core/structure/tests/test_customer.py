@@ -747,6 +747,16 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertTrue(admin.username in usernames)
         self.assertTrue(alice.username in usernames)
 
+    def test_is_service_manager_property_in_users_serializer(self):
+        user = factories.UserFactory()
+        self.fixture.customer.add_user(user, role=CustomerRole.SERVICE_MANAGER)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['is_service_manager'], True)
+
 
 @ddt
 class CustomerCountersListTest(test.APITransactionTestCase):

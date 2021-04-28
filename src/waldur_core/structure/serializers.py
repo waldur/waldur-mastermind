@@ -442,6 +442,7 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
 
 class CustomerUserSerializer(serializers.ModelSerializer):
     role = serializers.ReadOnlyField()
+    is_service_manager = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField(source='perm.expiration_time')
     permission = serializers.HyperlinkedRelatedField(
         source='perm.pk', view_name='customer_permission-detail', read_only=True,
@@ -459,6 +460,7 @@ class CustomerUserSerializer(serializers.ModelSerializer):
             'role',
             'permission',
             'projects',
+            'is_service_manager',
             'expiration_time',
         ]
         extra_kwargs = {
@@ -473,9 +475,13 @@ class CustomerUserSerializer(serializers.ModelSerializer):
         projects = models.ProjectPermission.objects.filter(
             project__customer=customer, user=user, is_active=True
         )
+        is_service_manager = customer.has_user(
+            user, role=models.CustomerRole.SERVICE_MANAGER
+        )
         setattr(user, 'perm', permission)
         setattr(user, 'role', permission and permission.role)
         setattr(user, 'projects', projects)
+        setattr(user, 'is_service_manager', is_service_manager)
         return super(CustomerUserSerializer, self).to_representation(user)
 
 
