@@ -357,6 +357,27 @@ class OfferingViewSet(
     update_attributes_permissions = [permissions.user_is_owner_or_service_manager]
     update_attributes_validators = [validate_offering_update]
 
+    @action(detail=True, methods=['post'])
+    def update_thumbnail(self, request, uuid=None):
+        offering = self.get_object()
+        serializer = serializers.OfferingThumbnailSerializer(
+            instance=offering, data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_thumbnail_permissions = [permissions.user_can_update_thumbnail]
+
+    @action(detail=True, methods=['post'])
+    def delete_thumbnail(self, request, uuid=None):
+        offering = self.get_object()
+        offering.thumbnail = None
+        offering.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    delete_thumbnail_permissions = update_thumbnail_permissions
+
     @action(detail=True)
     def customers(self, request, uuid):
         offering = self.get_object()

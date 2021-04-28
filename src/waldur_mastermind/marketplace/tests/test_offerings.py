@@ -29,6 +29,8 @@ from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 
+from . import fixtures as marketplace_fixtures
+
 
 @ddt
 class OfferingGetTest(test.APITransactionTestCase):
@@ -1459,3 +1461,65 @@ class OfferingDoiTest(test.APITransactionTestCase):
             url, {'scope': factories.OfferingFactory.get_url(self.offering)}
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class OfferingThumbnailTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+        self.url = factories.OfferingFactory.get_url(
+            offering=self.offering, action='update_thumbnail'
+        )
+        self.url_delete = factories.OfferingFactory.get_url(
+            offering=self.offering, action='delete_thumbnail'
+        )
+
+    @data('staff')
+    def test_staff_can_update_or_delete_thumbnail_of_archived_offering(self, user):
+        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.save()
+        self._user_have_access(user)
+
+    @data('offering_owner', 'service_manager', 'admin', 'manager')
+    def test_user_cannot_update_or_delete_thumbnail_of_archived_offering(self, user):
+        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.save()
+        self._user_does_not_have_access(user)
+
+    @data('staff', 'offering_owner', 'service_manager')
+    def test_user_can_update_or_delete_thumbnail(self, user):
+        self._user_have_access(user)
+
+    @data('admin', 'manager')
+    def test_user_cannot_update_or_delete_thumbnail(self, user):
+        self._user_does_not_have_access(user)
+
+    def _user_have_access(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(
+            self.url, {'thumbnail': dummy_image()}, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertTrue(self.offering.thumbnail)
+
+        response = self.client.post(self.url_delete)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        self.offering.refresh_from_db()
+        self.assertFalse(self.offering.thumbnail)
+
+    def _user_does_not_have_access(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(
+            self.url, {'thumbnail': dummy_image()}, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.offering.refresh_from_db()
+        self.assertFalse(self.offering.thumbnail)
+
+        response = self.client.post(self.url_delete)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
