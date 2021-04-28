@@ -2290,3 +2290,13 @@ class MoveResourceSerializer(serializers.Serializer):
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer, receiver=add_service_provider,
 )
+
+
+class OfferingThumbnailSerializer(
+    MarketplaceProtectedMediaSerializerMixin, serializers.HyperlinkedModelSerializer,
+):
+    thumbnail = serializers.ImageField(required=True)
+
+    class Meta:
+        model = models.Offering
+        fields = ('thumbnail',)

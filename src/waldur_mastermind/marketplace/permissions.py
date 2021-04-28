@@ -1,4 +1,5 @@
 from django.conf import settings as django_settings
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
 
 from waldur_core.structure import models as structure_models
@@ -185,5 +186,32 @@ def user_is_owner_or_service_manager(request, view, obj=None):
         request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
     ):
         return
+
+    raise exceptions.PermissionDenied()
+
+
+def user_can_update_thumbnail(request, view, obj=None):
+    if not obj:
+        return
+
+    offering = obj
+
+    if request.user.is_staff:
+        return
+
+    if offering.state not in (
+        models.Offering.States.ACTIVE,
+        models.Offering.States.DRAFT,
+        models.Offering.States.PAUSED,
+    ):
+        raise exceptions.PermissionDenied(_('You are not allowed to update a logo.'))
+    else:
+        if structure_permissions._has_owner_access(request.user, offering.customer):
+            return
+
+        if offering.customer.has_user(
+            request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
+        ):
+            return
 
     raise exceptions.PermissionDenied()

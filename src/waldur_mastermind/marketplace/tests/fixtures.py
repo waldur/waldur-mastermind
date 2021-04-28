@@ -1,5 +1,7 @@
 from django.utils.functional import cached_property
 
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -68,3 +70,19 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
         return marketplace_factories.ResourceFactory(
             offering=self.offering, plan=self.plan, project=self.project
         )
+
+    @cached_property
+    def service_manager(self):
+        user = structure_factories.UserFactory()
+        self.order_item.offering.customer.add_user(
+            user, role=structure_models.CustomerRole.SERVICE_MANAGER
+        )
+        return user
+
+    @cached_property
+    def offering_owner(self):
+        user = structure_factories.UserFactory()
+        self.order_item.offering.customer.add_user(
+            user, role=structure_models.CustomerRole.OWNER
+        )
+        return user
