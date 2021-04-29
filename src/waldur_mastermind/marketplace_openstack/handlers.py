@@ -1,18 +1,20 @@
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.common.utils import parse_datetime
+from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.utils import (
-    get_invoice_item_for_component_usage,
-    get_resource_state,
-)
+from waldur_mastermind.marketplace.utils import get_resource_state
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -389,26 +391,6 @@ def import_resource_metadata_when_resource_is_created(
         utils.import_instance_metadata(instance)
 
 
-def add_component_usage(sender, instance, created=False, **kwargs):
-    component_usage = instance
-
-    if not created and not component_usage.tracker.has_changed('usage'):
-        return
-
-    if not isinstance(component_usage.resource, marketplace_models.Resource):
-        return
-
-    if component_usage.resource.offering.type != TENANT_TYPE:
-        return
-
-    item = get_invoice_item_for_component_usage(component_usage)
-    if item:
-        usages = item.details.get('usages', {})
-        usages[component_usage.component.type] = component_usage.usage
-        item.details['usages'] = usages
-        item.save()
-
-
 def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
     if created:
         return
@@ -438,16 +420,51 @@ def update_invoice_when_resource_is_created(sender, instance, **kwargs):
 
 @transaction.atomic
 def update_invoice_when_limits_are_updated(sender, order_item, **kwargs):
-    if order_item.offering.type == TENANT_TYPE:
-        registrators.RegistrationManager.terminate(order_item.resource)
-        registrators.RegistrationManager.register(order_item.resource)
-
-
-@transaction.atomic
-def update_invoice_when_plan_is_switched(sender, instance, **kwargs):
-    if instance.offering.type == TENANT_TYPE:
-        registrators.RegistrationManager.terminate(instance)
-        registrators.RegistrationManager.register(instance)
+    if order_item.offering.type != TENANT_TYPE:
+        return
+    for component_type, new_quantity in order_item.limits.items():
+        try:
+            invoice_item = invoice_models.InvoiceItem.objects.get(
+                resource=order_item.resource,
+                details__offering_component_type=component_type,
+                invoice__state=invoice_models.Invoice.States.PENDING,
+            )
+        except ObjectDoesNotExist:
+            logger.warning(
+                'Invoice item for component %s and resource %s is not found.',
+                (component_type, order_item.resource.id),
+            )
+            continue
+        resource_limit_periods = invoice_item.details['resource_limit_periods']
+        old_period = resource_limit_periods.pop()
+        old_quantity = old_period['quantity']
+        old_start = parse_datetime(old_period['start'])
+        today = timezone.now()
+        if old_quantity >= new_quantity:
+            old_end = today.replace(hour=23, minute=59, second=59)
+            new_start = old_end + timedelta(seconds=1)
+        else:
+            new_start = today.replace(hour=0, minute=0, second=0)
+            old_end = new_start - timedelta(seconds=1)
+        old_period = utils.serialize_resource_limit_period(
+            {'start': old_start, 'end': old_end, 'quantity': old_quantity}
+        )
+        new_period = utils.serialize_resource_limit_period(
+            {
+                'start': new_start,
+                'end': invoice_utils.get_current_month_end(),
+                'quantity': new_quantity,
+            }
+        )
+        invoice_item.quantity = sum(
+            period['quantity']
+            * invoice_utils.get_full_days(
+                parse_datetime(period['start']), parse_datetime(period['end']),
+            )
+            for period in resource_limit_periods
+        )
+        resource_limit_periods.extend([old_period, new_period])
+        invoice_item.save(update_fields=['details', 'quantity'])
 
 
 def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):

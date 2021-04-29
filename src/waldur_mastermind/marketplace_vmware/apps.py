@@ -1,5 +1,4 @@
 from django.apps import AppConfig
-from django.db.models import signals
 
 
 class MarketplaceVMwareConfig(AppConfig):
@@ -10,7 +9,6 @@ class MarketplaceVMwareConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.invoices import registrators
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_vmware import models as vmware_models
         from waldur_vmware import signals as vmware_signals
@@ -18,7 +16,6 @@ class MarketplaceVMwareConfig(AppConfig):
 
         from . import (
             handlers,
-            registrators as vmware_registrators,
             processors,
             VIRTUAL_MACHINE_TYPE,
         )
@@ -54,26 +51,6 @@ class MarketplaceVMwareConfig(AppConfig):
                     factor=1024,
                 ),
             ),
-        )
-
-        registrators.RegistrationManager.add_registrator(
-            vmware_models.VirtualMachine, vmware_registrators.VirtualMachineRegistrator
-        )
-
-        vmware_signals.vm_created.connect(
-            handlers.add_new_vm_to_invoice,
-            dispatch_uid='marketplace_vmware.handlers.add_new_vm_to_invoice',
-        )
-
-        signals.pre_delete.connect(
-            handlers.terminate_invoice_when_vm_deleted,
-            sender=vmware_models.VirtualMachine,
-            dispatch_uid='marketplace_vmware.handlers.terminate_invoice_when_vm_deleted',
-        )
-
-        vmware_signals.vm_updated.connect(
-            handlers.create_invoice_item_when_vm_is_updated,
-            dispatch_uid='marketplace_vmware.handlers.create_invoice_item_when_vm_is_updated',
         )
 
         vmware_signals.vm_updated.connect(

@@ -2,25 +2,22 @@ import datetime
 import decimal
 import logging
 from calendar import monthrange
-from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.postgres.fields import JSONField
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
-from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from reversion import revisions as reversion
 
 from waldur_core.core import models as core_models
-from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
-from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import utils
@@ -221,6 +218,8 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         )
 
     def get_factor(self, current=False):
+        if self.quantity:
+            return self.quantity
         month_days = monthrange(self.start.year, self.start.month)[1]
 
         if self.unit == self.Units.QUANTITY:
@@ -290,6 +289,22 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             return _('percents from half a month')
         else:
             return _('percents from a month')
+
+    def get_project_uuid(self):
+        if self.project_uuid:
+            return self.project_uuid
+        try:
+            return structure_models.Project.all_objects.get(id=self.project_id).uuid
+        except ObjectDoesNotExist:
+            return
+
+    def get_project_name(self):
+        if self.project_name:
+            return self.project_name
+        try:
+            return structure_models.Project.all_objects.get(id=self.project_id).name
+        except ObjectDoesNotExist:
+            return
 
     @property
     def price(self):
@@ -385,134 +400,6 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
     @classmethod
     def get_url_name(cls):
         return 'payment'
-
-
-class InvoiceItemAdjuster:
-    def __init__(self, invoice, source, start, unit_price, unit):
-        self.invoice = invoice
-        self.source = source
-        self.start = start
-        self.unit_price = unit_price
-        self.unit = unit
-
-    @property
-    def invoice_items(self):
-        return InvoiceItem.objects.filter(invoice=self.invoice, resource=self.source,)
-
-    @cached_property
-    def old_item(self):
-        qs = self.invoice_items
-        if self.unit == Units.PER_DAY:
-            qs = qs.filter(end__day=self.start.day)
-        elif self.unit == Units.PER_HOUR:
-            qs = qs.filter(end__day=self.start.day, end__hour=self.start.hour)
-        elif self.unit == Units.PER_MONTH:
-            qs = qs.filter(end__month=self.start.month)
-        elif self.unit == Units.PER_HALF_MONTH:
-            if self.start.day <= 15:
-                qs = qs.filter(end__day__lte=15)
-            else:
-                qs = qs.filter(end__day__gt=15)
-        else:
-            qs = qs.none()
-        return qs.order_by('-unit_price').first()
-
-    @property
-    def old_price(self):
-        return get_price_per_day(self.old_item.unit_price, self.old_item.unit)
-
-    @property
-    def new_price(self):
-        return get_price_per_day(self.unit_price, self.unit)
-
-    def shift_forward(self):
-        """
-        Adjust old invoice item end field to the end of current unit.
-        Adjust new invoice item start field to the start of next unit.
-        """
-        end = self.old_item.end
-
-        if self.old_item.unit != self.unit and self.unit == Units.PER_MONTH:
-            end = core_utils.month_end(end)
-        elif self.old_item.unit != self.unit and self.unit == Units.PER_HALF_MONTH:
-            if end.day > 15:
-                end = core_utils.month_end(end)
-            else:
-                end = end.replace(day=15)
-        elif self.unit == Units.PER_HOUR:
-            end = end.replace(minute=59, second=59)
-        else:
-            end = end.replace(hour=23, minute=59, second=59)
-
-        start = end + timedelta(seconds=1)
-        return start, end
-
-    def shift_backward(self):
-        """
-        Adjust old invoice item end field to the end of previous unit
-        Adjust new invoice item field to the start of current unit.
-        """
-        end = self.old_item.end
-
-        if self.old_item.unit != self.unit and self.unit == Units.PER_MONTH:
-            start = core_utils.month_start(end)
-        elif self.old_item.unit != self.unit and self.unit == Units.PER_HALF_MONTH:
-            if end.day < 15:
-                start = core_utils.month_start(end)
-            else:
-                start = end.replace(day=15)
-        elif self.unit == Units.PER_HOUR:
-            start = end.replace(minute=0, second=0)
-        else:
-            start = end.replace(hour=0, minute=0, second=0)
-
-        end = start - timedelta(seconds=1)
-        return start, end
-
-    def remove_new_items(self, start):
-        """
-        Cleanup planned invoice items when new item is created.
-        """
-        qs = self.invoice_items
-        if self.unit == Units.PER_DAY:
-            qs = qs.filter(start__day=start.day)
-        elif self.unit == Units.PER_HOUR:
-            qs = qs.filter(start__day=start.day, start__hour=start.hour)
-        else:
-            qs = qs.none()
-
-        qs.delete()
-
-    def adjust(self):
-        start = self.start
-
-        if self.old_item and self.old_item.price > 0:
-            if self.old_price >= self.new_price:
-                start, end = self.shift_forward()
-            else:
-                start, end = self.shift_backward()
-
-            self.old_item.end = end
-            self.old_item.save(update_fields=['end'])
-
-        self.remove_new_items(start)
-
-        return start
-
-
-def adjust_invoice_items(invoice, source, start, unit_price, unit):
-    """
-    When resource configuration is switched, old invoice item
-    is terminated and new invoice item is created.
-    In order to avoid double counting we should ensure that
-    there're no overlapping invoice items for the same resource.
-
-    By default daily prorate is used even if plan is monthly or half-monthly.
-    Two notable exceptions are:
-    1) Switching from daily plan to monthly.
-    2) Switching between hourly plans.
-    """
-    return InvoiceItemAdjuster(invoice, source, start, unit_price, unit).adjust()
 
 
 reversion.register(InvoiceItem)

@@ -4,7 +4,6 @@ from rest_framework import test
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
-from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 
 from . import fixtures
 
@@ -51,21 +50,3 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(
             invoice.items.filter(resource_id=self.resource.id,).count(), 1,
         )
-
-    def test_create_invoice_if_other_type_resource_exists(self):
-        new_fixture = fixtures.MarketplaceFixture()
-        new_fixture.offering.type = TENANT_TYPE
-        new_fixture.offering.save()
-        new_fixture.resource.project = self.resource.project
-        new_fixture.resource.set_state_ok()
-        new_fixture.resource.save()
-
-        with freeze_time('2020-12-01'):
-            self.resource.set_state_ok()
-            self.resource.save()
-            invoice = invoices_models.Invoice.objects.get(
-                customer=self.resource.project.customer, year=2020, month=12
-            )
-            self.assertEqual(
-                invoice.items.count(), 2,
-            )

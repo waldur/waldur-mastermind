@@ -1,6 +1,5 @@
 import base64
 import datetime
-import decimal
 import logging
 import os
 import traceback
@@ -548,61 +547,6 @@ def get_offering_component_stats(offering, active_customers, start, end):
         )
 
         for item in invoice_items:
-            limits = item.details.get('limits', {})
-
-            if limits:
-                # Case when invoice item details includes limits. This is correct for openstack offering for example.
-                '''If a resource will be deleted then usages will be deleted too.
-                Then statistics will be not available.
-                Therefore we use invoice item details.'''
-                usages = item.details.get('usages', {})
-                limits.update(usages)
-
-                for limit, usage in limits.items():
-                    components = offering.estimated_components
-
-                    try:
-                        component = components.get(type=limit)
-                    except ObjectDoesNotExist:
-                        logger.error(
-                            'Limit %s of invoice item %s is not found.'
-                            % (limit, item.id)
-                        )
-                        continue
-
-                    normalized_usage = float(
-                        decimal.Decimal(usage)
-                        / decimal.Decimal(
-                            offering.component_factors.get(component.type, 1)
-                        )
-                    )
-                    other = [
-                        *filter(
-                            lambda x: x['period'] == period
-                            and x['offering_component_id'] == limit,
-                            component_stats,
-                        )
-                    ]
-                    if other:
-                        stats = other[0]
-                        stats['usage'] += normalized_usage
-                    else:
-                        stats = {
-                            'usage': normalized_usage,
-                            'description': component.description,
-                            'measured_unit': component.measured_unit,
-                            'type': component.type,
-                            'name': component.name,
-                            'period': period,
-                            'date': period_visible,
-                            'offering_component_id': component.type,
-                            # offering_component_id is needed for components uniting
-                            # of  the same offering components and periods.
-                        }
-                        component_stats.append(stats)
-                # avoid processing invoice items further if InvoiceItem contains limits details
-                continue
-
             # Case when invoice item details includes plan component data.
             plan_component_id = item.details.get('plan_component_id')
 
