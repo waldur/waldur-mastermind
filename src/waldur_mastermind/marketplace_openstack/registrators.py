@@ -1,8 +1,6 @@
-import decimal
-
 from waldur_mastermind.common.utils import mb_to_gb
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
@@ -11,76 +9,55 @@ from waldur_mastermind.marketplace_openstack import (
     TENANT_TYPE,
 )
 
+from . import utils
+
 
 class OpenStackRegistrator(MarketplaceRegistrator):
-    def get_customer(self, source):
-        return source.project.customer
+    plugin_name = TENANT_TYPE
 
-    def get_sources(self, customer):
-        return (
-            models.Resource.objects.filter(
-                project__customer=customer, offering__type=TENANT_TYPE
-            )
-            .exclude(
-                state__in=[
-                    models.Resource.States.CREATING,
-                    models.Resource.States.TERMINATED,
-                ]
-            )
-            .distinct()
-        )
+    def _get_invoice_item_name(self, source, plan_component):
+        component_type = plan_component.component.type
+        resource_name = self.get_name(source)
+        limit = source.limits.get(component_type, 0)
+        if component_type == CORES_TYPE:
+            return f'{resource_name} / {int(limit)} CPU'
+        elif component_type == RAM_TYPE:
+            return f'{resource_name} / {int(mb_to_gb(limit))} RAM'
+        elif component_type == STORAGE_TYPE:
+            return f'{resource_name} / {int(mb_to_gb(limit))} storage'
+        elif component_type.startswith('gigabytes_'):
+            return f'{resource_name} / {int(limit)} {component_type.replace("gigabytes_", "")} storage'
+        else:
+            return resource_name
 
     def _create_item(self, source, invoice, start, end, **kwargs):
-        from waldur_mastermind.marketplace import plugins
+        component_factors = {STORAGE_TYPE: 1024, RAM_TYPE: 1024}
 
-        details = self.get_details(source)
-        builtin_components = plugins.manager.get_components(source.offering.type)
-        component_factors = {c.type: c.factor for c in builtin_components}
-        unit_price = sum(
-            decimal.Decimal(source.limits.get(component.component.type, 0))
-            * component.price
-            / decimal.Decimal(component_factors.get(component.component.type, 1))
-            for component in source.plan.components.all()
-        )
+        for plan_component in source.plan.components.all():
+            offering_component = plan_component.component
+            limit = source.limits.get(offering_component.type, 0)
+            if not limit:
+                continue
+            details = self.get_component_details(source, plan_component)
+            quantity = limit / component_factors.get(offering_component.type, 1)
+            details['resource_limit_periods'] = [
+                utils.serialize_resource_limit_period(
+                    {'start': start, 'end': end, 'quantity': quantity}
+                )
+            ]
 
-        start = invoices_models.adjust_invoice_items(
-            invoice, source, start, unit_price, source.plan.unit
-        )
-
-        invoices_models.InvoiceItem.objects.create(
-            name=self.get_name(source),
-            resource=source,
-            project=source.project,
-            unit_price=unit_price,
-            unit=source.plan.unit,
-            article_code=source.plan.article_code,
-            invoice=invoice,
-            start=start,
-            end=end,
-            details=details,
-        )
-
-    def format_storage_description(self, source):
-        if STORAGE_TYPE in source.limits:
-            return '{disk} GB storage'.format(
-                disk=int(mb_to_gb(source.limits.get(STORAGE_TYPE, 0)))
+            invoices_models.InvoiceItem.objects.create(
+                name=self._get_invoice_item_name(source, plan_component),
+                resource=source,
+                project=source.project,
+                unit_price=plan_component.price,
+                unit=invoices_models.InvoiceItem.Units.PER_DAY,
+                quantity=quantity * get_full_days(start, end),
+                article_code=offering_component.article_code
+                or source.plan.article_code,
+                invoice=invoice,
+                start=start,
+                end=end,
+                details=details,
+                measured_unit=offering_component.measured_unit,
             )
-        else:
-            parts = []
-            for (k, v) in source.limits.items():
-                if k.startswith('gigabytes_') and v:
-                    parts.append(
-                        '{size} GB {type} storage'.format(
-                            size=int(v), type=k.replace('gigabytes_', '')
-                        )
-                    )
-            return ' - '.join(parts)
-
-    def get_name(self, source):
-        return '{resource} ({offering} / VPC {cores} CPU - {ram} GB RAM - {storage})'.format(
-            resource=source.name,
-            offering=source.offering.name,
-            cores=int(source.limits.get(CORES_TYPE, 0)),
-            ram=int(mb_to_gb(source.limits.get(RAM_TYPE, 0))),
-            storage=self.format_storage_description(source),
-        )

@@ -21,6 +21,8 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     measured_unit = serializers.ReadOnlyField(source='get_measured_unit')
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_name = serializers.ReadOnlyField(source='resource.name')
+    project_uuid = serializers.ReadOnlyField(source='get_project_uuid')
+    project_name = serializers.ReadOnlyField(source='get_project_name')
     details = serializers.JSONField()
 
     class Meta:
@@ -213,7 +215,7 @@ class SAFReportSerializer(serializers.Serializer):
     ARTNIMI = serializers.SerializerMethodField(method_name='get_artnimi_field')
     VALI = serializers.SerializerMethodField(method_name='get_vali_field')
     U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
-    U_GRUPPITUNNUS = serializers.ReadOnlyField(source='project_name')
+    U_GRUPPITUNNUS = serializers.ReadOnlyField(source='get_project_name')
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
     class Meta:
@@ -283,12 +285,18 @@ class SAFReportSerializer(serializers.Serializer):
         return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
 
     def get_vali_field(self, invoice_item):
-        return f'Record no {invoice_item.invoice.number}. {invoice_item.invoice.customer.contact_details}'
+        if invoice_item.invoice.customer.contact_details:
+            return f'Record no {invoice_item.invoice.number}. {invoice_item.invoice.customer.contact_details}'
+        else:
+            return f'Record no {invoice_item.invoice.number}'
 
     def get_empty_field(self, invoice_item):
         return ''
 
     def get_artnimi_field(self, invoice_item):
+        # If a single plan for an offering exists, skip it from display
+        if invoice_item.resource and invoice_item.resource.offering.plans.count() == 1:
+            return invoice_item.name
         if 'plan_name' in invoice_item.details.keys():
             return f'{invoice_item.name} / {invoice_item.details["plan_name"]}'
         else:

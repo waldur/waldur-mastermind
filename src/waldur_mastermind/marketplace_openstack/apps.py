@@ -206,12 +206,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             TENANT_TYPE, OpenStackRegistrator,
         )
 
-        signals.post_save.connect(
-            handlers.add_component_usage,
-            sender=marketplace_models.ComponentUsage,
-            dispatch_uid='waldur_mastermind.marketplace.add_component_usage',
-        )
-
         marketplace_signals.resource_creation_succeeded.connect(
             handlers.update_invoice_when_resource_is_created,
             sender=marketplace_models.Resource,
@@ -224,13 +218,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
             'update_invoice_when_limits_are_updated',
-        )
-
-        marketplace_signals.resource_plan_switch_succeeded.connect(
-            handlers.update_invoice_when_plan_is_switched,
-            sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace.'
-            'update_invoice_when_plan_is_switched',
         )
 
         marketplace_signals.resource_deletion_succeeded.connect(

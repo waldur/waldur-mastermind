@@ -6,6 +6,7 @@ from rest_framework import exceptions
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.backend import ServiceBackend
+from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.utils import import_resource_metadata
@@ -270,3 +271,14 @@ def restore_limits(resource):
         return
 
     update_limits(order_item)
+
+
+def serialize_resource_limit_period(period):
+    billing_periods = invoice_utils.get_full_days(period['start'], period['end'])
+    return {
+        'start': period['start'].isoformat(),
+        'end': period['end'].isoformat(),
+        'quantity': period['quantity'],
+        'billing_periods': billing_periods,
+        'total': str(period['quantity'] * billing_periods),
+    }

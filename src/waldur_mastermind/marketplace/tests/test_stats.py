@@ -1,5 +1,3 @@
-import decimal
-
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -256,89 +254,43 @@ class ComponentStatsTest(StatsBaseTest):
         return invoice.items.filter(resource_id=self.resource.id)
 
     def test_item_details(self):
+        sp = factories.ServiceProviderFactory(customer=self.resource.offering.customer)
         component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
             type='storage',
         )
-        usage = factories.ComponentUsageFactory(
+        factories.ComponentUsageFactory(
             resource=self.resource,
             billing_period=core_utils.month_start(timezone.now()),
             component=component,
         )
         item = self._create_items().first()
-        self.assertEqual(
+        self.assertDictEqual(
             item.details,
             {
-                'limits': self.resource.limits,
-                'usages': {usage.component.type: usage.usage},
                 'resource_name': item.resource.name,
                 'resource_uuid': item.resource.uuid.hex,
                 'service_provider_name': self.resource.offering.customer.name,
-                'service_provider_uuid': self.resource.offering.customer.uuid.hex,
+                'service_provider_uuid': sp.uuid.hex,
                 'offering_name': self.offering.name,
                 'offering_type': TENANT_TYPE,
                 'offering_uuid': self.offering.uuid.hex,
+                'plan_name': self.resource.plan.name,
+                'plan_uuid': self.resource.plan.uuid.hex,
+                'plan_component_id': self.plan_component.id,
+                'offering_component_type': self.plan_component.component.type,
+                'offering_component_name': self.plan_component.component.name,
+                'resource_limit_periods': [
+                    {
+                        'end': '2020-03-31T23:59:59.999999+00:00',
+                        'start': '2020-03-01T00:00:00+00:00',
+                        'total': '31.0',
+                        'quantity': 1.0,
+                        'billing_periods': 31,
+                    }
+                ],
             },
-        )
-
-    def test_component_stats_if_invoice_item_details_includes_limits(self):
-        component = factories.OfferingComponentFactory(
-            offering=self.resource.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='storage',
-        )
-        plan_period = factories.ResourcePlanPeriodFactory(
-            resource=self.resource, plan=self.plan,
-        )
-        usage = factories.ComponentUsageFactory(
-            resource=self.resource,
-            billing_period=core_utils.month_start(timezone.now()),
-            component=component,
-            plan_period=plan_period,
-        )
-        self._create_items()
-        self.client.force_authenticate(self.fixture.staff)
-        result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
-        component_cores = self.resource.offering.components.get(type='cores')
-        component_storage = self.resource.offering.components.get(type='storage')
-
-        self.assertEqual(
-            result.data,
-            [
-                {
-                    'description': component_cores.description,
-                    'measured_unit': component_cores.measured_unit,
-                    'name': component_cores.name,
-                    'period': '2020-03',
-                    'date': '2020-03-31T00:00:00+00:00',
-                    'type': component_cores.type,
-                    'usage': float(
-                        decimal.Decimal(self.resource.limits['cores'])
-                        / decimal.Decimal(
-                            self.resource.offering.component_factors.get(
-                                component_cores.type, 1
-                            )
-                        )
-                    ),
-                },
-                {
-                    'description': component_storage.description,
-                    'measured_unit': component_storage.measured_unit,
-                    'name': component_storage.name,
-                    'period': '2020-03',
-                    'date': '2020-03-31T00:00:00+00:00',
-                    'type': component_storage.type,
-                    'usage': float(
-                        decimal.Decimal(usage.usage)
-                        / decimal.Decimal(
-                            self.resource.offering.component_factors.get(
-                                component_storage.type, 1
-                            )
-                        )
-                    ),
-                },
-            ],
         )
 
     def test_component_stats_if_invoice_item_details_includes_plan_component_data(

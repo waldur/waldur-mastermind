@@ -69,10 +69,6 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
         disk_price = components_map['disk'] * mb_to_gb(source.total_disk)
         total_price = cores_price + ram_price + disk_price
 
-        start = invoices_models.adjust_invoice_items(
-            invoice, resource, start, total_price, plan.unit
-        )
-
         details = self.get_details(source)
         invoices_models.InvoiceItem.objects.create(
             resource=resource,

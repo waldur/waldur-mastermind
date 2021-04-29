@@ -24,7 +24,6 @@ class PriceCurrentTest(test.APITransactionTestCase):
             project=self.fixture.project,
             unit=invoice_models.InvoiceItem.Units.PER_DAY,
             unit_price=3,
-            quantity=1,
         )
 
     def test_current_price(self):
