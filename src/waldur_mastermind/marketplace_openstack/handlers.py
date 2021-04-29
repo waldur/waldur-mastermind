@@ -440,7 +440,10 @@ def update_invoice_when_limits_are_updated(sender, order_item, **kwargs):
         old_quantity = old_period['quantity']
         old_start = parse_datetime(old_period['start'])
         today = timezone.now()
-        if old_quantity >= new_quantity:
+        if old_quantity == new_quantity:
+            # Skip update if limit is the same
+            continue
+        if old_quantity > new_quantity:
             old_end = today.replace(hour=23, minute=59, second=59)
             new_start = old_end + timedelta(seconds=1)
         else:
