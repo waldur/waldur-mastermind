@@ -1230,13 +1230,15 @@ class WaldurClient(object):
             },
         )
 
-    def get_project_permissions(self, user_uuid, project_uuid, role=None):
+    def get_project_permissions(self, project_uuid, user_uuid=None, role=None):
         query_params = {
             'project': project_uuid,
-            'user': user_uuid,
         }
         if role:
             query_params['role'] = role
+        if user_uuid:
+            query_params['user'] = user_uuid
+
         return self._query_resource_list(
             self.Endpoints.ProjectPermissions, query_params
         )
@@ -1263,13 +1265,15 @@ class WaldurClient(object):
             },
         )
 
-    def get_customer_permissions(self, user_uuid, customer_uuid, role=None):
+    def get_customer_permissions(self, customer_uuid, user_uuid=None, role=None):
         query_params = {
             'customer': customer_uuid,
-            'user': user_uuid,
         }
         if role:
             query_params['role'] = role
+        if user_uuid:
+            query_params['user'] = (user_uuid,)
+
         return self._query_resource_list(
             self.Endpoints.CustomerPermissions, query_params
         )
@@ -1295,10 +1299,15 @@ class WaldurClient(object):
             },
         )
 
-    def get_offering_permissions(self, user_uuid, offering_uuid):
+    def get_offering_permissions(self, offering_uuid, user_uuid=None):
+        query_params = {
+            'offering_uuid': offering_uuid,
+        }
+        if user_uuid:
+            query_params['user'] = user_uuid
+
         return self._query_resource_list(
-            self.Endpoints.OfferingPermissions,
-            {'offering_uuid': offering_uuid, 'user': user_uuid,},
+            self.Endpoints.OfferingPermissions, query_params,
         )
 
     def remove_offering_permission(self, permission_id):
