@@ -27,9 +27,7 @@ class FeedbackCreateTest(base.BaseTest):
         if user:
             self.client.force_authenticate(getattr(self.fixture, user))
 
-        response = self.client.post(
-            url, data={'evaluation': models.Feedback.Evaluation.TEN, 'token': token},
-        )
+        response = self.client.post(url, data={'evaluation': 10, 'token': token},)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_comment_has_been_created_if_feedback_has_been_synchronized(self):
@@ -45,9 +43,7 @@ class FeedbackCreateTest(base.BaseTest):
         url = factories.FeedbackFactory.get_list_url()
         token = 'token'
 
-        response = self.client.post(
-            url, data={'evaluation': models.Feedback.Evaluation.TEN, 'token': token},
-        )
+        response = self.client.post(url, data={'evaluation': 10, 'token': token},)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_create_feedback_if_it_already_exists(self):
@@ -57,9 +53,7 @@ class FeedbackCreateTest(base.BaseTest):
         signer = signing.TimestampSigner()
         token = signer.sign(issue.uuid.hex)
 
-        response = self.client.post(
-            url, data={'evaluation': models.Feedback.Evaluation.TEN, 'token': token},
-        )
+        response = self.client.post(url, data={'evaluation': 10, 'token': token},)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
@@ -107,11 +101,9 @@ class FeedbackNotificationTest(base.BaseTest):
 class FeedbackReportTest(base.BaseTest):
     def setUp(self):
         super(FeedbackReportTest, self).setUp()
-        factories.FeedbackFactory(evaluation=models.Feedback.Evaluation.TEN)
-        factories.FeedbackFactory(evaluation=models.Feedback.Evaluation.SIX)
-        self.avg = round(
-            (models.Feedback.Evaluation.TEN + models.Feedback.Evaluation.SIX) / 2, 2,
-        )
+        factories.FeedbackFactory(evaluation=10)
+        factories.FeedbackFactory(evaluation=6)
+        self.avg = round((10 + 6) / 2, 2,)
 
     @data(
         'staff', 'global_support',
@@ -196,7 +188,7 @@ class FeedbackGetTest(base.BaseTest):
 
         self.client.force_login(self.fixture.staff)
         response = self.client.get(
-            factories.FeedbackFactory.get_list_url(), {'evaluation': 'Two'}
+            factories.FeedbackFactory.get_list_url(), {'evaluation': '2'}
         )
 
         self.assertEqual(200, response.status_code)
