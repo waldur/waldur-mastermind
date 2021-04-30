@@ -9,7 +9,12 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import signals
-from waldur_core.structure.models import Customer, CustomerRole, ProjectRole
+from waldur_core.structure.models import (
+    Customer,
+    CustomerPermission,
+    CustomerRole,
+    ProjectRole,
+)
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -756,6 +761,29 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['is_service_manager'], True)
+
+    def test_filter_by_role_if_permission_is_not_active(self):
+        user = factories.UserFactory()
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url, {'organization_role': 'service_manager'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        self.fixture.customer.add_user(user, role=CustomerRole.SERVICE_MANAGER)
+        response = self.client.get(self.url, {'organization_role': 'service_manager'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['is_service_manager'], True)
+
+        permission = CustomerPermission.objects.get(
+            customer=self.fixture.customer, user=user, role=CustomerRole.SERVICE_MANAGER
+        )
+        permission.is_active = False
+        permission.save()
+        response = self.client.get(self.url, {'organization_role': 'service_manager'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
 
 
 @ddt
