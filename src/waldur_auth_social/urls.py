@@ -9,7 +9,7 @@ urlpatterns = [
     url(r'^api-auth/keycloak/$', views.KeycloakView.as_view(), name='auth_keycloak'),
     url(r'^api-auth/eduteams/$', views.EduteamsView.as_view(), name='auth_eduteams'),
     url(
-        r'^api-auth/remote-eduteams/$',
+        r'^api/remote-eduteams/$',
         views.RemoteEduteamsView.as_view(),
         name='auth_remote_eduteams',
     ),
