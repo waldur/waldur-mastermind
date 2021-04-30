@@ -96,6 +96,7 @@ class OpenStackRegistrator(MarketplaceRegistrator):
                 'quantity': new_quantity,
             }
         )
+        resource_limit_periods.extend([old_period, new_period])
         invoice_item.quantity = sum(
             period['quantity']
             * get_full_days(
@@ -103,7 +104,6 @@ class OpenStackRegistrator(MarketplaceRegistrator):
             )
             for period in resource_limit_periods
         )
-        resource_limit_periods.extend([old_period, new_period])
         invoice_item.save(update_fields=['details', 'quantity'])
 
     @transaction.atomic
