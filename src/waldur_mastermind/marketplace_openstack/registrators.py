@@ -73,10 +73,11 @@ class OpenStackRegistrator(MarketplaceRegistrator):
         )
         resource_limit_periods = invoice_item.details['resource_limit_periods']
         old_period = resource_limit_periods.pop()
-        old_quantity = old_period['quantity']
+        old_quantity = int(old_period['quantity'])
         old_start = parse_datetime(old_period['start'])
         today = timezone.now()
         new_quantity /= component_factors.get(component_type, 1)
+        new_quantity = int(new_quantity)
         if old_quantity == new_quantity:
             # Skip update if limit is the same
             return
