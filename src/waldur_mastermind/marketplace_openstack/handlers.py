@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -9,12 +8,10 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.common.utils import parse_datetime
-from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
-from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import get_resource_state
+from waldur_mastermind.marketplace_openstack.registrators import OpenStackRegistrator
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -419,55 +416,26 @@ def update_invoice_when_resource_is_created(sender, instance, **kwargs):
 
 
 @transaction.atomic
-def update_invoice_when_limits_are_updated(sender, order_item, **kwargs):
-    if order_item.offering.type != TENANT_TYPE:
+def update_invoice_when_limits_are_updated(sender, instance, created=False, **kwargs):
+    if created:
         return
-    for component_type, new_quantity in order_item.limits.items():
-        try:
-            invoice_item = invoice_models.InvoiceItem.objects.get(
-                resource=order_item.resource,
-                details__offering_component_type=component_type,
-                invoice__state=invoice_models.Invoice.States.PENDING,
-            )
-        except ObjectDoesNotExist:
-            logger.warning(
-                'Invoice item for component %s and resource %s is not found.',
-                (component_type, order_item.resource.id),
-            )
+    resource = instance
+    if resource.offering.type != TENANT_TYPE:
+        return
+    if not resource.tracker.has_changed('limits'):
+        return
+
+    today = timezone.now()
+    invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
+        resource.project.customer, core_utils.month_start(today)
+    )
+    valid_limits = set(resource.offering.components.values_list('type', flat=True))
+    for component_type, new_quantity in resource.limits.items():
+        if component_type not in valid_limits:
             continue
-        resource_limit_periods = invoice_item.details['resource_limit_periods']
-        old_period = resource_limit_periods.pop()
-        old_quantity = old_period['quantity']
-        old_start = parse_datetime(old_period['start'])
-        today = timezone.now()
-        if old_quantity == new_quantity:
-            # Skip update if limit is the same
-            continue
-        if old_quantity > new_quantity:
-            old_end = today.replace(hour=23, minute=59, second=59)
-            new_start = old_end + timedelta(seconds=1)
-        else:
-            new_start = today.replace(hour=0, minute=0, second=0)
-            old_end = new_start - timedelta(seconds=1)
-        old_period = utils.serialize_resource_limit_period(
-            {'start': old_start, 'end': old_end, 'quantity': old_quantity}
+        OpenStackRegistrator().create_or_update_component_item(
+            resource, invoice, component_type, new_quantity
         )
-        new_period = utils.serialize_resource_limit_period(
-            {
-                'start': new_start,
-                'end': invoice_utils.get_current_month_end(),
-                'quantity': new_quantity,
-            }
-        )
-        invoice_item.quantity = sum(
-            period['quantity']
-            * invoice_utils.get_full_days(
-                parse_datetime(period['start']), parse_datetime(period['end']),
-            )
-            for period in resource_limit_periods
-        )
-        resource_limit_periods.extend([old_period, new_period])
-        invoice_item.save(update_fields=['details', 'quantity'])
 
 
 def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
@@ -557,8 +525,6 @@ def synchronize_limits_when_storage_mode_is_switched(
     for resource in resources:
         utils.import_limits_when_storage_mode_is_switched(resource)
         utils.import_usage(resource)
-        registrators.RegistrationManager.terminate(resource)
-        registrators.RegistrationManager.register(resource)
 
         serialized_resource = core_utils.serialize_instance(resource)
         transaction.on_commit(

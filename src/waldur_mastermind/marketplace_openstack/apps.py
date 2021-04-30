@@ -213,7 +213,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             'update_invoice_when_resource_is_created',
         )
 
-        marketplace_signals.resource_limit_update_succeeded.connect(
+        signals.post_save.connect(
             handlers.update_invoice_when_limits_are_updated,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
