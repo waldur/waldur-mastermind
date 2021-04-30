@@ -1,4 +1,5 @@
 import datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
 from rest_framework import serializers
@@ -276,7 +277,8 @@ class SAFReportSerializer(serializers.Serializer):
         return quantize_price(invoice_item.price)
 
     def get_tax(self, invoice_item):
-        return quantize_price(invoice_item.tax)
+        # SAF expects a specific handling of rounding for VAT
+        return invoice_item.tax.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     def get_project(self, invoice_item):
         return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['ARTPROJEKT']
