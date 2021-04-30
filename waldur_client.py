@@ -140,7 +140,9 @@ class WaldurClient(object):
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
-        return response.json()
+        if response.text:
+            return response.json()
+        return ''
 
     def _get_all(self, url, **kwargs):
         params = dict(headers=self.headers)
