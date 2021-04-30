@@ -53,6 +53,12 @@ class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendMode
         'resolution',
         'get_caller_full_name',
     )
+    readonly_fields = ('resource',)
+
+    def resource(self, obj):
+        return obj.resource
+
+    resource.short_description = 'Resource'
 
     def get_caller_full_name(self, obj):
         if obj.caller:
