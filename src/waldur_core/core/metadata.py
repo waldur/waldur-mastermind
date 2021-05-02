@@ -330,11 +330,42 @@ class WaldurFreeipa(BaseModel):
         public_settings = ['USERNAME_PREFIX', 'ENABLED']
 
 
+class WaldurSlurm(BaseModel):
+    ENABLED = Field(
+        False, description='Enable support for SLURM plugin in a deployment',
+    )
+    CUSTOMER_PREFIX = Field(
+        'waldur_customer_',
+        description='Prefix for SLURM account name corresponding to Waldur organization.',
+    )
+    PROJECT_PREFIX = Field(
+        'waldur_project_',
+        description='Prefix for SLURM account name corresponding to Waldur project.',
+    )
+    ALLOCATION_PREFIX = Field(
+        'waldur_allocation_',
+        description='Prefix for SLURM account name corresponding to Waldur allocation',
+    )
+    PRIVATE_KEY_PATH = Field(
+        '/etc/waldur/id_rsa',
+        description='Path to private key file used as SSH identity file for accessing SLURM master.',
+    )
+    DEFAULT_LIMITS = Field(
+        {
+            'CPU': 16000,  # Measured unit is CPU-hours
+            'GPU': 400,  # Measured unit is GPU-hours
+            'RAM': 100000 * 2 ** 10,  # Measured unit is MB
+        },
+        description='Default limits of account that are set when SLURM account is provisioned.',
+    )
+
+
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
     WALDUR_FREEIPA = WaldurFreeipa()
     WALDUR_HPC = WaldurHPC()
+    WALDUR_SLURM = WaldurSlurm()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
     )
