@@ -30,6 +30,7 @@ class TestPublicSettings(TestCase):
             'WALDUR_AUTH_SOCIAL': {},
             'WALDUR_FREEIPA': {},
             'WALDUR_HPC': {},
+            'WALDUR_SLURM': {},
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},
             'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'},
