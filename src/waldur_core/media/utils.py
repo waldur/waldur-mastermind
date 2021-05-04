@@ -31,7 +31,7 @@ def encode_attachment_token(user_uuid, obj, field):
         'field': field,
         'exp': expires_at,
     }
-    return str(utils.encode_jwt_token(payload), 'utf-8')
+    return utils.encode_jwt_token(payload)
 
 
 def decode_attachment_token(token):
