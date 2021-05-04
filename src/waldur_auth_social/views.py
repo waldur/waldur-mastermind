@@ -318,7 +318,7 @@ class TARAView(BaseAuthView):
         try:
             data = token_response.json()
             id_token = data['id_token']
-            return jwt.decode(id_token)
+            return jwt.decode(id_token, algorithms=['RS256'])
         except (ValueError, TypeError):
             raise TARAException('Unable to parse JSON in authentication response.')
         except KeyError:
