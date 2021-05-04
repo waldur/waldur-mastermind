@@ -334,10 +334,6 @@ class UserFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
-        current_user = request.query_params.get('current')
-        if current_user is not None and not user.is_anonymous:
-            queryset = User.objects.filter(uuid=user.uuid)
-
         if not django_settings.WALDUR_CORE.get('SHOW_ALL_USERS', False) and not (
             user.is_staff or user.is_support
         ):

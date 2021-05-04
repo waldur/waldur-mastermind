@@ -592,6 +592,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return
         super(UserViewSet, self).check_permissions(request)
 
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        serializer = self.get_serializer(request.user)
+
+        return Response(serializer.data, status=status.HTTP_200_OK,)
+
 
 class BasePermissionViewSet(viewsets.ModelViewSet):
     """
