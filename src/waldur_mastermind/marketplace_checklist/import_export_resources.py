@@ -34,8 +34,7 @@ class ChecklistResource(resources.ModelResource):
 
         if row.get('questions'):
             dataset = tablib.Dataset().load(row.get('questions'), 'json')
-            result = QuestionResource().import_data(dataset)
-            result
+            QuestionResource().import_data(dataset)
 
     class Meta:
         exclude = ('created', 'modified', 'uuid', 'customers')
