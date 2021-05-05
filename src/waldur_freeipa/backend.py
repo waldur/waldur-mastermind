@@ -246,12 +246,11 @@ class FreeIPABackend:
     def create_profile(self, profile, password=None):
         waldur_user = profile.user
         ssh_keys = self._format_ssh_keys(waldur_user)
-        first_name, last_name, _ = utils.get_names(profile.user.full_name)
 
         self._client.user_add(
             username=profile.username,
-            first_name=first_name,
-            last_name=last_name,
+            first_name=profile.user.first_name or 'N/A',
+            last_name=profile.user.last_name or 'N/A',
             full_name=waldur_user.full_name,
             mail=waldur_user.email,
             organization_unit=waldur_user.organization,
@@ -293,13 +292,13 @@ class FreeIPABackend:
                 pass
 
     def update_name(self, profile):
-        first_name, last_name, initials = utils.get_names(profile.user.full_name)
         params = {
-            'givenname': first_name,
-            'sn': last_name,
+            # First name and last name are mandatory in FreeIPA but optional in Waldur.
+            # Therefore we use placeholders to avoid validation error.
+            'givenname': profile.user.first_name or 'N/A',
+            'sn': profile.user.last_name or 'N/A',
             'cn': profile.user.full_name,
             'displayname': profile.user.full_name,
-            'initials': initials,
         }
         self._update_profile(profile, params)
 

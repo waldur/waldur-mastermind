@@ -141,6 +141,8 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
         }
         self.backend_user = {
             'name': 'Jack Dougherty',
+            'given_name': 'Jack',
+            'family_name': 'Dougherty',
             'email': 'jack.dougherty@example.com',
             'sub': '28c5353b8bb34984a8bd4169ba94c606@eduteams.org',
             'eduperson_assurance': [
