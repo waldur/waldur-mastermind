@@ -258,9 +258,8 @@ class SmartIDeeView(BaseAuthView):
 
     def create_or_update_user(self, backend_user):
         """ Authenticate user by civil number """
-        full_name = ('%s %s' % (backend_user['firstname'], backend_user['lastname']))[
-            :100
-        ]
+        first_name = backend_user['firstname']
+        last_name = backend_user['lastname']
         try:
             user = User.objects.get(civil_number=backend_user['idcode'])
         except User.DoesNotExist:
@@ -269,7 +268,8 @@ class SmartIDeeView(BaseAuthView):
                 username=generate_username(),
                 # Ilja: disabling email update from smartid.ee as it comes in as a fake object for the moment.
                 # email=backend_user['email'],
-                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
                 civil_number=backend_user['idcode'],
                 registration_method=self.provider,
             )
@@ -277,9 +277,15 @@ class SmartIDeeView(BaseAuthView):
             user.save()
         else:
             created = False
-            if user.full_name != full_name:
-                user.full_name = full_name
-                user.save()
+            update_fields = set()
+            if user.first_name != first_name:
+                user.first_name = first_name
+                update_fields.add('first_name')
+            if user.last_name != last_name:
+                user.last_name = last_name
+                update_fields.add('last_name')
+            if update_fields:
+                user.save(update_fields=update_fields)
         return user, created
 
 
@@ -364,10 +370,8 @@ class TARAView(BaseAuthView):
     def create_or_update_user(self, backend_user):
         try:
             profile_attributes = backend_user['profile_attributes']
-            full_name = (
-                '%s %s'
-                % (profile_attributes['given_name'], profile_attributes['family_name'])
-            )[:100]
+            first_name = profile_attributes['given_name']
+            last_name = profile_attributes['family_name']
             civil_number = backend_user['sub']
             # AMR stands for Authentication Method Reference
             details = {
@@ -385,7 +389,8 @@ class TARAView(BaseAuthView):
             created = True
             user = User.objects.create_user(
                 username=generate_username(),
-                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
                 civil_number=civil_number,
                 registration_method=self.provider,
                 details=details,
@@ -394,12 +399,18 @@ class TARAView(BaseAuthView):
             user.save()
         else:
             created = False
-            if user.full_name != full_name:
-                user.full_name = full_name
-                user.save()
+            update_fields = set()
+            if user.first_name != first_name:
+                user.first_name = first_name
+                update_fields.add('first_name')
+            if user.last_name != last_name:
+                user.last_name = last_name
+                update_fields.add('last_name')
             if user.details != details:
                 user.details = details
-                user.save()
+                update_fields.add('details')
+            if update_fields:
+                user.save(update_fields=update_fields)
         return user, created
 
 
@@ -463,20 +474,32 @@ class KeycloakView(BaseAuthView):
         # Preferred username is not unique. Sub in UUID.
         username = f'keycloak_f{backend_user["sub"]}'
         email = backend_user.get('email')
-        full_name = backend_user.get('name', '')
+        first_name = backend_user['given_name']
+        last_name = backend_user['family_name']
         try:
             user = User.objects.get(username=username)
-            created = False
         except User.DoesNotExist:
             created = True
             user = User.objects.create_user(
                 username=username,
                 registration_method=self.provider,
                 email=email,
-                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
             )
             user.set_unusable_password()
             user.save()
+        else:
+            created = False
+            update_fields = set()
+            if user.first_name != first_name:
+                user.first_name = first_name
+                update_fields.add('first_name')
+            if user.last_name != last_name:
+                user.last_name = last_name
+                update_fields.add('last_name')
+            if update_fields:
+                user.save(update_fields=update_fields)
         return user, created
 
 
@@ -539,7 +562,8 @@ class EduteamsView(BaseAuthView):
     def create_or_update_user(self, backend_user):
         username = backend_user["sub"]
         email = backend_user.get('email')
-        full_name = backend_user.get('name', '')
+        first_name = backend_user['given_name']
+        last_name = backend_user['family_name']
         # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-Assurance
         details = {
             'eduperson_assurance': backend_user.get('eduperson_assurance', []),
@@ -548,12 +572,21 @@ class EduteamsView(BaseAuthView):
         backend_affiliations = backend_user.get('voperson_external_affiliation', [])
         try:
             user = User.objects.get(username=username)
+            update_fields = set()
             if user.details != details:
                 user.details = details
-                user.save(update_fields=['details'])
+                update_fields.add('details')
             if user.affiliations != backend_affiliations:
                 user.affiliations = backend_affiliations
-                user.save(update_fields=['affiliations'])
+                update_fields.add('affiliations')
+            if user.first_name != first_name:
+                user.first_name = first_name
+                update_fields.add('first_name')
+            if user.last_name != last_name:
+                user.last_name = last_name
+                update_fields.add('last_name')
+            if update_fields:
+                user.save(update_fields=update_fields)
             created = False
         except User.DoesNotExist:
             created = True
@@ -561,7 +594,8 @@ class EduteamsView(BaseAuthView):
                 username=username,
                 registration_method=self.provider,
                 email=email,
-                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
                 details=details,
                 affiliations=backend_affiliations,
             )
@@ -637,7 +671,8 @@ class RemoteEduteamsView(views.APIView):
         user = User.objects.create_user(
             username=user_info['voperson_id'],
             registration_method=EduteamsView.provider,
-            full_name=user_info['name'],
+            first_name=user_info['given_name'],
+            last_name=user_info['family_name'],
             email=user_info['mail'][0],
         )
         for ssh_key in user_info.get('ssh_public_key', []):

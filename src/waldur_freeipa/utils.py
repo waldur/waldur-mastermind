@@ -25,24 +25,6 @@ def release_task_status():
     cache.set(CACHE_KEY, False)
 
 
-def get_names(full_name):
-    full_name_list = full_name.split()
-    initials = ''
-
-    if full_name_list:
-        first_name = full_name_list[0]
-        initials = first_name[0]
-    else:
-        first_name = 'N/A'
-
-    if len(full_name_list) > 1:
-        last_name = full_name_list[-1]
-        initials += last_name[0]
-    else:
-        last_name = 'N/A'
-    return first_name, last_name, initials
-
-
 def generate_username(username):
     # Prepend username suffix
     prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
