@@ -1833,16 +1833,21 @@ class ResourceSerializer(BaseItemSerializer):
             return False
         except ObjectDoesNotExist:
             return False
-        for validator in [
-            core_validators.StateValidator(
-                models.Resource.States.OK, models.Resource.States.ERRED
-            ),
-            structure_utils.check_customer_blocked,
-        ]:
-            try:
-                validator(resource)
-            except APIException:
-                return False
+        validator = core_validators.StateValidator(
+            models.Resource.States.OK, models.Resource.States.ERRED
+        )
+        try:
+            validator(resource)
+        except APIException:
+            return False
+
+        # Allow to terminate resource in soft-deleted project
+        project = structure_models.Project.all_objects.get(id=resource.project_id)
+        try:
+            structure_utils.check_customer_blocked(project)
+        except ValidationError:
+            return False
+
         if models.OrderItem.objects.filter(
             resource=resource,
             state__in=(

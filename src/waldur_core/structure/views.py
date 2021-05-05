@@ -237,7 +237,8 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         filters.CustomerAccountingStartDateFilter,
     )
     filterset_class = filters.ProjectFilter
-    destroy_validators = partial_update_validators = [utils.check_customer_blocked]
+    partial_update_validators = [utils.check_customer_blocked]
+    destroy_validators = [utils.check_customer_blocked, utils.project_is_empty]
 
     def get_serializer_context(self):
         context = super(ProjectViewSet, self).get_serializer_context()
