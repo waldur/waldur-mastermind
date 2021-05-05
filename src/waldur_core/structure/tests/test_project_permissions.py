@@ -639,8 +639,8 @@ class GetProjectUsersTest(test.APITransactionTestCase):
         self.manager = fixture.manager
 
     def test_get_users_by_default_returns_both_managers_and_admins(self):
-        users = list(self.project.get_users())
-        self.assertListEqual(users, [self.admin, self.manager])
+        users = set(self.project.get_users())
+        self.assertSetEqual(users, {self.admin, self.manager})
 
     def test_get_users_by_returns_admins(self):
         users = list(self.project.get_users(ProjectRole.ADMINISTRATOR))

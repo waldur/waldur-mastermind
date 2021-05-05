@@ -733,21 +733,24 @@ class DivisionTypesFilter(NameFilterSet):
 
 class UserRolesFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
+        customer = view.get_object()
         project_roles = request.query_params.getlist('project_role')
         organization_roles = request.query_params.getlist('organization_role')
 
         query = Q()
 
         if project_roles:
+            # Filter project permissions by current customer
             query = query | Q(
                 projectpermission__role__in=project_roles,
-                customerpermission__is_active=True,
+                projectpermission__project__customer_id=customer.id,
             )
 
         if organization_roles:
+            # Filter customer permissions by current customer
             query = query | Q(
                 customerpermission__role__in=organization_roles,
-                customerpermission__is_active=True,
+                customerpermission__customer_id=customer.id,
             )
 
         return queryset.filter(query)
