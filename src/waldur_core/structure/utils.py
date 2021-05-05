@@ -93,6 +93,22 @@ def check_customer_blocked(obj):
         raise ValidationError(_('Blocked organization is not available.'))
 
 
+def project_is_empty(obj):
+    from waldur_mastermind.marketplace.models import Resource
+
+    if (
+        Resource.objects.filter(project=obj)
+        .exclude(state=Resource.States.TERMINATED)
+        .exists()
+    ):
+        raise ValidationError(
+            _(
+                'Project contains active resources. '
+                'Please remove them before deleting project.'
+            )
+        )
+
+
 def check_project_end_date(obj):
     from waldur_core.structure import permissions
 
