@@ -1,5 +1,7 @@
 import base64
+import json
 import logging
+import urllib
 import uuid
 
 import jwt
@@ -315,10 +317,30 @@ class TARAView(BaseAuthView):
             raise TARAException('Unable to send authentication request.')
         self.check_response(token_response)
 
+        jwks_client = jwt.PyJWKClient(base_url + 'jwks')
+        try:
+            jwk_set = jwks_client.get_jwk_set()
+        except urllib.error.URLError:
+            raise TARAException('Unable to fetch JSON Web Key Set from TARA.')
+        except json.JSONDecodeError:
+            raise TARAException('Unable to parse JSON Web Key Set.')
+
+        if len(jwk_set.keys) == 0:
+            raise TARAException(
+                'Unable to validate JWT signature because JSON Web Key Set is empty.'
+            )
+
+        public_key = jwk_set.keys[0].key
+
         try:
             data = token_response.json()
             id_token = data['id_token']
-            return jwt.decode(id_token, algorithms=['RS256'])
+            return jwt.decode(
+                id_token,
+                public_key,
+                algorithms=['RS256'],
+                options={'verify_aud': False},
+            )
         except (ValueError, TypeError):
             raise TARAException('Unable to parse JSON in authentication response.')
         except KeyError:
