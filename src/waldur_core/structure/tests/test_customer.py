@@ -762,6 +762,32 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['is_service_manager'], True)
 
+    def test_user_is_not_included_in_selection_if_he_has_required_role_in_different_organization(
+        self,
+    ):
+        user = factories.UserFactory()
+        self.fixture.customer.add_user(user, role=CustomerRole.OWNER)
+        new_customer = factories.CustomerFactory()
+        new_customer.add_user(user, role=CustomerRole.SERVICE_MANAGER)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'organization_role': 'service_manager'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_user_is_not_included_in_selection_if_he_has_required_role_in_project_of_different_organization(
+        self,
+    ):
+        user = factories.UserFactory()
+        self.fixture.customer.add_user(user, role=ProjectRole.ADMINISTRATOR)
+        new_project = factories.ProjectFactory()
+        new_project.add_user(user, role=ProjectRole.MANAGER)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'project_role': 'manager'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
     def test_filter_by_role_if_permission_is_not_active(self):
         user = factories.UserFactory()
         self.client.force_authenticate(self.fixture.staff)
