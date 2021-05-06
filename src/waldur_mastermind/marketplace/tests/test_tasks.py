@@ -10,6 +10,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import exceptions, models, tasks
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from . import factories, fixtures
 
@@ -128,6 +129,7 @@ class ProjectEndDate(test.APITransactionTestCase):
             self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
 
 
+@override_marketplace_settings(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
 class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
     def setUp(self):
         project_fixture = structure_fixtures.ProjectFixture()
@@ -169,3 +171,14 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         self.assertFalse(item.price)
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_send_notify_only_for_resources_belonging_to_billable_offerings(self):
+        self.resource.offering.billable = False
+        self.resource.offering.save()
+        tasks.notify_about_stale_resource()
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_marketplace_settings(ENABLE_STALE_RESOURCE_NOTIFICATIONS=False)
+    def test_do_not_send_notify_if_configuration_is_false(self):
+        tasks.notify_about_stale_resource()
+        self.assertEqual(len(mail.outbox), 0)
