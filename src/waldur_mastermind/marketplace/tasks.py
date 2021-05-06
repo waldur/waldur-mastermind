@@ -227,6 +227,9 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
 @shared_task(name='marketplace.notify_about_stale_resource')
 def notify_about_stale_resource():
+    if not settings.WALDUR_MARKETPLACE['ENABLE_STALE_RESOURCE_NOTIFICATIONS']:
+        return
+
     today = datetime.datetime.today()
     prev_1 = today - relativedelta(months=1)
     prev_2 = today - relativedelta(months=2)
@@ -241,10 +244,14 @@ def notify_about_stale_resource():
         if item.price:
             actual_resources_ids.append(item.resource.id)
 
-    resources = models.Resource.objects.exclude(id__in=actual_resources_ids).exclude(
-        Q(state=models.Resource.States.TERMINATED)
-        | Q(state=models.Resource.States.TERMINATING)
-        | Q(state=models.Resource.States.CREATING)
+    resources = (
+        models.Resource.objects.exclude(id__in=actual_resources_ids)
+        .exclude(
+            Q(state=models.Resource.States.TERMINATED)
+            | Q(state=models.Resource.States.TERMINATING)
+            | Q(state=models.Resource.States.CREATING)
+        )
+        .exclude(offering__billable=False)
     )
     user_resources = collections.defaultdict(list)
 

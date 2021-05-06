@@ -22,6 +22,7 @@ class MarketplaceExtension(WaldurExtension):
             'amount: {{component.amount}}; '
             'price: {{component.price|floatformat }};'
             '{% endfor %}',
+            'ENABLE_STALE_RESOURCE_NOTIFICATIONS': False,
         }
 
     @staticmethod
