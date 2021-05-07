@@ -846,6 +846,8 @@ class ResourceViewSet(core_views.ActionsViewSet):
             return Response(status=status.HTTP_404_NOT_FOUND)
         resource_type = get_resource_type(resource.scope)
         serializer_class = get_resource_serializer_class(resource_type)
+        if not serializer_class:
+            return Response(status.HTTP_204_NO_CONTENT)
         serializer = serializer_class(
             instance=resource.scope, context=self.get_serializer_context()
         )

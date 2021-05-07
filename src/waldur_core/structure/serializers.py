@@ -45,12 +45,15 @@ def get_options_serializer_class(service_type):
 
 @lru_cache
 def get_resource_serializer_class(resource_type):
-    return next(
-        cls
-        for cls in BaseResourceSerializer.get_subclasses()
-        if get_resource_type(cls.Meta.model) == resource_type
-        and get_service_type(cls) is not None
-    )
+    try:
+        return next(
+            cls
+            for cls in BaseResourceSerializer.get_subclasses()
+            if get_resource_type(cls.Meta.model) == resource_type
+            and get_service_type(cls) is not None
+        )
+    except StopIteration:
+        return None
 
 
 class PermissionFieldFilteringMixin:
