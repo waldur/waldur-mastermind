@@ -280,6 +280,10 @@ class SecurityGroupRuleSerializer(
                     raise serializers.ValidationError(
                         _('"from_port" should be less or equal to "to_port"')
                     )
+            if from_port == -1 and to_port != -1:
+                raise serializers.ValidationError(
+                    _('"from_port" should not be -1 if "to_port" is defined.')
+                )
             if from_port is not None and from_port != -1 and from_port < 1:
                 raise serializers.ValidationError(
                     {
