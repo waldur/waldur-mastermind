@@ -39,6 +39,7 @@ class NodeFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Node
 
+    name = factory.Sequence(lambda n: 'node-%s' % n)
     cluster = factory.SubFactory(ClusterFactory)
     backend_id = factory.Sequence(lambda n: 'node-%s' % n)
 
