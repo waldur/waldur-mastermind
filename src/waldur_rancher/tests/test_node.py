@@ -99,7 +99,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
-        node = self.fixture.cluster.node_set.exclude(name='').get()
+        node = self.fixture.cluster.node_set.filter(
+            name='my-cluster-rancher-node-1'
+        ).get()
         self.assertEqual(len(node.initial_data['data_volumes']), 1)
 
     @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=False)
@@ -127,7 +129,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
-        node = self.fixture.cluster.node_set.exclude(name='').get()
+        node = self.fixture.cluster.node_set.filter(
+            name='my-cluster-rancher-node-1'
+        ).get()
         self.assertEqual(len(node.initial_data['data_volumes']), 1)
 
     @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=True)
@@ -244,7 +248,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
-        node = self.fixture.cluster.node_set.exclude(name='').get()
+        node = self.fixture.cluster.node_set.filter(
+            name='my-cluster-rancher-node-1'
+        ).get()
         self.assertEqual(node.initial_data['ssh_public_key'], ssh_public_key.uuid.hex)
 
     def test_node_config_formatting(self):
@@ -432,6 +438,12 @@ class NodeLinkTest(test_cluster.BaseClusterCreateTest):
     def test_link_is_disabled_when_node_is_already_linked(self):
         self.node.instance = self.instance
         self.node.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {'instance': self.instance_url})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_link_is_disabled_when_instance_is_already_linked(self):
+        factories.NodeFactory(cluster=self.cluster, instance=self.instance)
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, {'instance': self.instance_url})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
