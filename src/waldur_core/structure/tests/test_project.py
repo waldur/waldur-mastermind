@@ -153,6 +153,17 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.assertIn('New project name', response.data['name'])
         self.assertTrue(Project.objects.filter(name=data['name']).exists())
 
+    def test_update_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        data = {'backend_id': 'backend_id'}
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(self.fixture.project), data
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('backend_id', response.data['backend_id'])
+        self.assertTrue(Project.objects.filter(backend_id=data['backend_id']).exists())
+
     @data('staff', 'owner')
     def test_user_can_update_end_date(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
