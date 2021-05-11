@@ -46,7 +46,9 @@ class RancherServiceSerializer(structure_serializers.ServiceOptionsSerializer):
 
     password = serializers.CharField(max_length=100, label=_('Rancher secret key'))
 
-    base_image_name = serializers.CharField(label=_('Base image name'))
+    base_image_name = serializers.CharField(
+        source='options.base_image_name', label=_('Base image name')
+    )
 
     cloud_init_template = serializers.CharField(
         source='options.cloud_init_template',
