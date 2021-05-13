@@ -2,17 +2,17 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
-from waldur_mastermind.marketplace.models import OfferingUser
+from waldur_mastermind.marketplace.models import OfferingUser, Resource
 
-from . import factories
+from . import factories, fixtures
 
 
 @ddt
 class ListOfferingUsersTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
@@ -38,7 +38,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
 @ddt
 class CreateOfferingUsersTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
@@ -59,3 +59,47 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_list_offering_permission(self, user):
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+
+@ddt
+class ListUsersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.admin
+        self.fixture.manager
+        self.fixture.member
+
+        self.url = reverse('user-list')
+
+    @data('service_manager', 'offering_owner')
+    def test_user_should_be_able_to_see_users_connected_with_public_resources(
+        self, user
+    ):
+        self.fixture.offering.shared = True
+        self.fixture.offering.save()
+
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 4)
+
+    @data('service_manager', 'offering_owner')
+    def test_user_should_not_be_able_to_see_users_connected_with_private_resources(
+        self, user
+    ):
+        self.fixture.offering.shared = False
+        self.fixture.offering.save()
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    @data('service_manager', 'offering_owner', 'user')
+    def test_users_related_to_terminated_resources_are_not_exposed(self, user):
+        self.fixture.offering.shared = True
+        self.fixture.offering.save()
+
+        self.fixture.resource.state = Resource.States.TERMINATED
+        self.fixture.resource.save()
+
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
