@@ -447,6 +447,31 @@ class OfferingUserFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
+def user_extra_query(user):
+    customer_ids = structure_models.CustomerPermission.objects.filter(
+        user=user,
+        role__in=[
+            structure_models.CustomerRole.OWNER,
+            structure_models.CustomerRole.SERVICE_MANAGER,
+        ],
+        is_active=True,
+    ).values_list('customer_id', flat=True)
+    offering_ids = models.Offering.objects.filter(
+        shared=True, customer_id__in=customer_ids
+    ).values_list('id', flat=True)
+
+    project_ids = (
+        models.Resource.objects.filter(offering_id__in=offering_ids)
+        .exclude(state=models.Resource.States.TERMINATED)
+        .values_list('project_id', flat=True)
+    )
+    user_ids = structure_models.ProjectPermission.objects.filter(
+        project_id__in=project_ids, is_active=True
+    ).values_list('user_id', flat=True)
+
+    return Q(id__in=user_ids)
+
+
 structure_filters.ExternalCustomerFilterBackend.register(CustomerResourceFilter())
 structure_filters.ExternalCustomerFilterBackend.register(
     ServiceProviderOfferingFilter()
@@ -454,3 +479,4 @@ structure_filters.ExternalCustomerFilterBackend.register(
 structure_filters.ExternalCustomerFilterBackend.register(
     CustomerServiceProviderFilter()
 )
+structure_filters.UserFilterBackend.register_extra_query(user_extra_query)
