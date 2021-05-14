@@ -36,4 +36,9 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 'schedule': timedelta(minutes=60),
                 'args': (),
             },
+            'waldur-remote-sync-remote-project-permissions': {
+                'task': 'waldur_mastermind.marketplace_remote.sync_remote_project_permissions',
+                'schedule': timedelta(hours=6),
+                'args': (),
+            },
         }

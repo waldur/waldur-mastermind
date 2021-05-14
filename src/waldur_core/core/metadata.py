@@ -236,6 +236,9 @@ class WaldurAuthSocial(BaseModel):
         'https://proxy.acc.researcher-access.org/api/userinfo',
         description='It allows to get user data based on userid aka CUID.',
     )
+    ENABLE_EDUTEAMS_SYNC = Field(
+        False, description='Enable EduTeams synchronization with remote Waldur.'
+    )
 
     class Meta:
         public_settings = [

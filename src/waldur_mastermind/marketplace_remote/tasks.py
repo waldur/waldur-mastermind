@@ -1,13 +1,25 @@
-from django.core.exceptions import ObjectDoesNotExist
+import collections
+import logging
 
+from celery.app import shared_task
+from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from waldur_client import WaldurClientException
+
+from waldur_core.core.utils import deserialize_instance
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
     pull_fields,
+    sync_project_permission,
 )
+
+from . import PLUGIN_NAME, utils
+
+logger = logging.getLogger(__name__)
 
 OrderItemInvertStates = {key: val for val, key in models.OrderItem.States.CHOICES}
 
@@ -83,3 +95,122 @@ class UsageListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+
+
+@shared_task(
+    name='waldur_mastermind.marketplace_remote.update_remote_project_permissions'
+)
+def update_remote_project_permissions(
+    serialized_project, serialized_user, role, grant=True
+):
+    project = deserialize_instance(serialized_project)
+    user = deserialize_instance(serialized_user)
+    if not project.has_user(user, role):
+        logger.debug(
+            f'Skipping obsolete permission synchronization '
+            f'for user {user} in project {project} with role {role}.'
+        )
+        return
+
+    sync_project_permission(grant, project, role, user)
+
+
+@shared_task(
+    name='waldur_mastermind.marketplace_remote.update_remote_customer_permissions'
+)
+def update_remote_customer_permissions(
+    serialized_customer, serialized_user, role, grant=True
+):
+    customer = deserialize_instance(serialized_customer)
+    user = deserialize_instance(serialized_user)
+    if not customer.has_user(user, role):
+        logger.debug(
+            f'Skipping obsolete permission synchronization '
+            f'for user {user} in customer {customer} with role {role}.'
+        )
+        return
+
+    for project in customer.projects.all():
+        # Organization owner is mapped to project manager in remote Waldur
+        sync_project_permission(
+            grant, project, structure_models.ProjectRole.MANAGER, user
+        )
+
+
+@shared_task(
+    name='waldur_mastermind.marketplace_remote.sync_remote_project_permissions'
+)
+def sync_remote_project_permissions():
+    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+        return
+
+    for project, offerings in utils.get_projects_with_remote_offerings().items():
+        local_user_roles = utils.collect_local_user_roles(project)
+
+        for offering in offerings:
+            client = utils.get_client_for_offering(offering)
+            try:
+                remote_project_uuid, created = utils.get_or_create_remote_project(
+                    offering, project, client
+                )['uuid']
+            except WaldurClientException as e:
+                logger.debug(
+                    f'Unable to create remote project {project} in offering {offering}: {e}'
+                )
+                continue
+
+            if created:
+                utils.push_project_users(offering, project, remote_project_uuid)
+                continue
+
+            try:
+                remote_permissions = client.get_project_permissions(remote_project_uuid)
+            except WaldurClientException as e:
+                logger.debug(
+                    f'Unable to get project permissions for project {project} in offering {offering}: {e}'
+                )
+                continue
+
+            remote_user_roles = collections.defaultdict(set)
+            for remote_permission in remote_permissions:
+                remote_user_roles[remote_permission['user_username']].add(
+                    remote_permission['role']
+                )
+
+            common_usernames = set(local_user_roles.keys()) & set(
+                remote_user_roles.keys()
+            )
+            for username in common_usernames:
+
+                try:
+                    remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
+                except WaldurClientException as e:
+                    logger.debug(
+                        f'Unable to fetch remote user {username} in offering {offering}: {e}'
+                    )
+                    continue
+
+                new_roles = local_user_roles[username] - remote_user_roles[username]
+                stale_roles = remote_user_roles[username] - local_user_roles[username]
+
+                for role in new_roles:
+                    try:
+                        client.create_project_permission(
+                            remote_user_uuid, remote_project_uuid, role
+                        )
+                    except WaldurClientException as e:
+                        logger.debug(
+                            f'Unable to create permission for user [{remote_user_uuid}] with role {role} '
+                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                        )
+
+                for role in stale_roles:
+                    for permission in remote_permissions:
+                        if permission['role'] == role:
+                            try:
+                                client.remove_project_permission(str(permission['pk']))
+                            except WaldurClientException as e:
+                                logger.debug(
+                                    f'Unable to remove permission for user [{remote_user_uuid}] with role {role} '
+                                    f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                                )
