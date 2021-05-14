@@ -1791,6 +1791,7 @@ class ResourceSerializer(BaseItemSerializer):
             'name',
             'current_usages',
             'can_terminate',
+            'can_update_limits',
             'report',
         )
         read_only_fields = (
@@ -1823,6 +1824,7 @@ class ResourceSerializer(BaseItemSerializer):
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
     can_terminate = serializers.SerializerMethodField()
+    can_update_limits = serializers.SerializerMethodField()
     report = serializers.JSONField(read_only=True)
 
     def get_can_terminate(self, resource):
@@ -1857,6 +1859,9 @@ class ResourceSerializer(BaseItemSerializer):
         ).exists():
             return False
         return True
+
+    def get_can_update_limits(self, resource):
+        return plugins.manager.can_update_limits(resource.offering.type)
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
