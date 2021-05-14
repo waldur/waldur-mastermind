@@ -103,6 +103,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             service_type=OpenStackConfig.service_name,
             secret_attributes=get_secret_attributes,
             available_limits=AVAILABLE_LIMITS,
+            can_update_limits=True,
             resource_model=openstack_models.Tenant,
             get_importable_resources_backend_method='get_importable_tenants',
             import_resource_backend_method='import_tenant',

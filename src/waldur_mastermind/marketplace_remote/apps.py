@@ -19,6 +19,7 @@ class MarketplaceRemoteConfig(AppConfig):
             create_resource_processor=processors.RemoteCreateResourceProcessor,
             update_resource_processor=processors.RemoteUpdateResourceProcessor,
             delete_resource_processor=processors.RemoteDeleteResourceProcessor,
+            can_update_limits=True,
         )
 
         structure_signals.structure_role_granted.connect(

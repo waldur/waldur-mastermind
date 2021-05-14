@@ -642,6 +642,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
             offering_type='TEST_TYPE',
             create_resource_processor=test_utils.TestCreateProcessor,
             update_resource_processor=test_utils.TestUpdateScopedProcessor,
+            can_update_limits=True,
         )
 
         self.fixture = fixtures.ServiceFixture()
