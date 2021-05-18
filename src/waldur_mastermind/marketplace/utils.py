@@ -27,6 +27,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 
 from . import models, plugins
@@ -725,3 +726,14 @@ def get_invoice_item_for_component_usage(component_usage):
         return item
     except invoice_models.InvoiceItem.DoesNotExist:
         pass
+
+
+def serialize_resource_limit_period(period):
+    billing_periods = get_full_days(period['start'], period['end'])
+    return {
+        'start': period['start'].isoformat(),
+        'end': period['end'].isoformat(),
+        'quantity': period['quantity'],
+        'billing_periods': billing_periods,
+        'total': str(period['quantity'] * billing_periods),
+    }

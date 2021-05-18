@@ -5,7 +5,7 @@ from rest_framework import status, test
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
-from waldur_mastermind.common.utils import parse_date
+from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks
@@ -54,7 +54,7 @@ class StatsTest(StatsBaseTest):
     def test_reported_usage_is_aggregated_for_project_and_customer(self):
         # Arrange
         plan_period = models.ResourcePlanPeriod.objects.create(
-            start=parse_date('2019-01-01'), resource=self.resource, plan=self.plan,
+            start=parse_datetime('2019-01-01'), resource=self.resource, plan=self.plan,
         )
 
         models.ComponentUsage.objects.create(
@@ -285,8 +285,8 @@ class ComponentStatsTest(StatsBaseTest):
                     {
                         'end': '2020-03-31T23:59:59.999999+00:00',
                         'start': '2020-03-01T00:00:00+00:00',
-                        'total': '31.0',
-                        'quantity': 1.0,
+                        'total': '31',
+                        'quantity': 1,
                         'billing_periods': 31,
                     }
                 ],

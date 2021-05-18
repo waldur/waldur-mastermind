@@ -22,11 +22,9 @@ class MarketplaceOpenStackConfig(AppConfig):
             models as tenant_models,
             executors as tenant_executors,
         )
-        from waldur_mastermind.invoices import registrators
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import filters as marketplace_filters
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.marketplace import signals as marketplace_signals
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.marketplace_openstack.registrators import (
@@ -203,30 +201,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             'update_openstack_tenant_usages',
         )
 
-        registrators.RegistrationManager.add_registrator(
-            TENANT_TYPE, OpenStackRegistrator,
-        )
-
-        marketplace_signals.resource_creation_succeeded.connect(
-            handlers.update_invoice_when_resource_is_created,
-            sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace.'
-            'update_invoice_when_resource_is_created',
-        )
-
-        signals.post_save.connect(
-            handlers.update_invoice_when_limits_are_updated,
-            sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace.'
-            'update_invoice_when_limits_are_updated',
-        )
-
-        marketplace_signals.resource_deletion_succeeded.connect(
-            handlers.update_invoice_when_resource_is_deleted,
-            sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace.'
-            'update_invoice_when_resource_is_deleted',
-        )
+        OpenStackRegistrator.connect()
 
         signals.post_save.connect(
             handlers.create_offering_component_for_volume_type,

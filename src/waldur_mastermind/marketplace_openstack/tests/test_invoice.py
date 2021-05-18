@@ -106,6 +106,8 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
     def test_when_resource_is_deleted_invoice_is_updated(self):
         resource = self.create_resource(self.prices, self.limits)
         with freeze_time('2019-09-18'):
+            resource.set_state_terminating()
+            resource.save()
             self.delete_resource(resource)
         invoice_item = invoices_models.InvoiceItem.objects.filter(
             resource=resource
