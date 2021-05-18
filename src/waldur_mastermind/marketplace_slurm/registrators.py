@@ -9,7 +9,7 @@ class SlurmRegistrator(marketplace_registrators.MarketplaceRegistrator):
     plugin_name = PLUGIN_NAME
 
     @classmethod
-    def convert_usage_quantity(cls, usage, component_type):
+    def convert_quantity(cls, usage, component_type):
         minutes_in_hour = 60
         if component_type == 'ram':
             mb_in_gb = 1024

@@ -1,13 +1,18 @@
 import logging
+from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import signals
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Project
 from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.invoices.registrators import RegistrationManager
+from waldur_mastermind.invoices.utils import get_current_month_end, get_full_days
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils
@@ -149,9 +154,94 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             return '%s (%s)' % (resource.name, resource.offering.name)
 
     @classmethod
+    def create_component_item(cls, source, plan_component, invoice, start, end):
+        offering_component = plan_component.component
+        limit = source.limits.get(offering_component.type, 0)
+        if not limit:
+            return
+        details = cls.get_component_details(source, plan_component)
+        quantity = cls.convert_quantity(limit, offering_component.type)
+        details['resource_limit_periods'] = [
+            utils.serialize_resource_limit_period(
+                {'start': start, 'end': end, 'quantity': quantity}
+            )
+        ]
+
+        invoice_models.InvoiceItem.objects.create(
+            name=f'{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}',
+            resource=source,
+            project=source.project,
+            unit_price=plan_component.price,
+            unit=invoice_models.InvoiceItem.Units.PER_DAY,
+            quantity=quantity * get_full_days(start, end),
+            article_code=offering_component.article_code or source.plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+            measured_unit=offering_component.measured_unit,
+        )
+
+    @classmethod
+    def update_component_item(cls, source, component_type, invoice, new_quantity):
+        invoice_item = invoice_models.InvoiceItem.objects.get(
+            resource=source,
+            details__offering_component_type=component_type,
+            invoice=invoice,
+        )
+        resource_limit_periods = invoice_item.details['resource_limit_periods']
+        old_period = resource_limit_periods.pop()
+        old_quantity = int(old_period['quantity'])
+        old_start = parse_datetime(old_period['start'])
+        today = timezone.now()
+        new_quantity = cls.convert_quantity(new_quantity, component_type)
+        if old_quantity == new_quantity:
+            # Skip update if limit is the same
+            return
+        if old_quantity > new_quantity:
+            old_end = today.replace(hour=23, minute=59, second=59)
+            new_start = old_end + timedelta(seconds=1)
+        else:
+            new_start = today.replace(hour=0, minute=0, second=0)
+            old_end = new_start - timedelta(seconds=1)
+        old_period = utils.serialize_resource_limit_period(
+            {'start': old_start, 'end': old_end, 'quantity': old_quantity}
+        )
+        new_period = utils.serialize_resource_limit_period(
+            {
+                'start': new_start,
+                'end': get_current_month_end(),
+                'quantity': new_quantity,
+            }
+        )
+        resource_limit_periods.extend([old_period, new_period])
+        invoice_item.quantity = sum(
+            period['quantity']
+            * get_full_days(
+                parse_datetime(period['start']), parse_datetime(period['end']),
+            )
+            for period in resource_limit_periods
+        )
+        invoice_item.save(update_fields=['details', 'quantity'])
+
+    @classmethod
+    @transaction.atomic
+    def create_or_update_component_item(cls, source, invoice, component_type, quantity):
+        if invoice_models.InvoiceItem.objects.filter(
+            resource=source,
+            details__offering_component_type=component_type,
+            invoice=invoice,
+        ).exists():
+            cls.update_component_item(source, component_type, invoice, quantity)
+        else:
+            start = timezone.now()
+            end = get_current_month_end()
+            plan_component = source.plan.components.get(component__type=component_type)
+            cls.create_component_item(source, plan_component, invoice, start, end)
+
+    @classmethod
     def on_resource_post_save(cls, sender, instance, created=False, **kwargs):
         resource = instance
-
         if resource.offering.type != cls.plugin_name:
             return
 
@@ -165,6 +255,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             registrators.RegistrationManager.register(
                 resource, timezone.now(), order_type=OrderTypes.CREATE
             )
+
         if (
             resource.state == ResourceStates.TERMINATED
             and instance.tracker.previous('state') == ResourceStates.TERMINATING
@@ -177,8 +268,25 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 resource, timezone.now(), order_type=OrderTypes.UPDATE
             )
 
+        if resource.tracker.has_changed('limits'):
+            today = timezone.now()
+            invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
+                resource.project.customer, core_utils.month_start(today)
+            )
+            valid_limits = set(
+                resource.offering.components.values_list('type', flat=True)
+            )
+            for component_type, new_quantity in resource.limits.items():
+                if component_type not in valid_limits:
+                    continue
+                cls.create_or_update_component_item(
+                    resource, invoice, component_type, new_quantity
+                )
+
     @classmethod
-    def add_component_usage(cls, sender, instance, created=False, **kwargs):
+    def update_invoice_when_usage_is_reported(
+        cls, sender, instance, created=False, **kwargs
+    ):
         component_usage = instance
         resource = component_usage.resource
 
@@ -202,7 +310,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         item = utils.get_invoice_item_for_component_usage(component_usage)
         if item:
-            item.quantity = cls.convert_usage_quantity(
+            item.quantity = cls.convert_quantity(
                 component_usage.usage, offering_component.type
             )
             item.save()
@@ -237,7 +345,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 end=end,
                 details=details,
                 unit_price=plan_component.price,
-                quantity=cls.convert_usage_quantity(
+                quantity=cls.convert_quantity(
                     component_usage.usage, offering_component.type
                 ),
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
@@ -247,8 +355,12 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             )
 
     @classmethod
-    def convert_usage_quantity(cls, usage, component_type: str):
+    def convert_quantity(cls, usage, component_type: str):
         return usage
+
+    @classmethod
+    def get_component_name(cls, plan_component):
+        return plan_component.component.name
 
     @classmethod
     def connect(cls):
@@ -261,7 +373,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         )
 
         signals.post_save.connect(
-            cls.add_component_usage,
+            cls.update_invoice_when_usage_is_reported,
             sender=marketplace_models.ComponentUsage,
-            dispatch_uid='%s.add_component_usage' % cls.__name__,
+            dispatch_uid='waldur_mastermind.marketplace.'
+            'update_invoice_when_usage_is_reported_%s' % cls.__name__,
         )

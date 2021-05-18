@@ -4,14 +4,11 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import get_resource_state
-from waldur_mastermind.marketplace_openstack.registrators import OpenStackRegistrator
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -408,39 +405,6 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
         return
 
     utils.import_usage(resource)
-
-
-def update_invoice_when_resource_is_created(sender, instance, **kwargs):
-    if instance.offering.type == TENANT_TYPE:
-        registrators.RegistrationManager.register(instance)
-
-
-@transaction.atomic
-def update_invoice_when_limits_are_updated(sender, instance, created=False, **kwargs):
-    if created:
-        return
-    resource = instance
-    if resource.offering.type != TENANT_TYPE:
-        return
-    if not resource.tracker.has_changed('limits'):
-        return
-
-    today = timezone.now()
-    invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
-        resource.project.customer, core_utils.month_start(today)
-    )
-    valid_limits = set(resource.offering.components.values_list('type', flat=True))
-    for component_type, new_quantity in resource.limits.items():
-        if component_type not in valid_limits:
-            continue
-        OpenStackRegistrator().create_or_update_component_item(
-            resource, invoice, component_type, new_quantity
-        )
-
-
-def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
-    if instance.offering.type == TENANT_TYPE:
-        registrators.RegistrationManager.terminate(instance)
 
 
 def create_offering_component_for_volume_type(
