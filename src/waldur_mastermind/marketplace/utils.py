@@ -737,3 +737,13 @@ def serialize_resource_limit_period(period):
         'billing_periods': billing_periods,
         'total': str(period['quantity'] * billing_periods),
     }
+
+
+def check_customer_blocked_for_terminating(resource):
+    try:
+        project = resource.project
+    except structure_models.Project.DoesNotExist:
+        project = structure_models.Project.all_objects.get(pk=resource.project_id)
+
+    if project.customer.blocked:
+        raise rf_exceptions.ValidationError(_('Blocked organization is not available.'))

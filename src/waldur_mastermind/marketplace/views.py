@@ -867,8 +867,15 @@ class ResourceViewSet(core_views.ActionsViewSet):
                 type=models.OrderItem.Types.TERMINATE,
                 attributes=attributes,
             )
+            try:
+                project = resource.project
+            except structure_models.Project.DoesNotExist:
+                project = structure_models.Project.all_objects.get(
+                    pk=resource.project_id
+                )
+
             order = serializers.create_order(
-                project=resource.project,
+                project=project,
                 user=self.request.user,
                 items=[order_item],
                 request=request,
@@ -884,7 +891,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
         core_validators.StateValidator(
             models.Resource.States.OK, models.Resource.States.ERRED
         ),
-        structure_utils.check_customer_blocked,
+        utils.check_customer_blocked_for_terminating,
     ]
 
     @action(detail=True, methods=['post'])

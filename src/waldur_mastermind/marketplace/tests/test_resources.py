@@ -364,6 +364,12 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         item = order.items.first()
         self.assertTrue(item.attributes.get('param'))
 
+    def test_user_can_terminate_resource_if_project_has_been_soft_deleted(self):
+        self.project.is_removed = True
+        self.project.save()
+        response = self.terminate(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
 
 class PlanUsageTest(test.APITransactionTestCase):
     def setUp(self):
