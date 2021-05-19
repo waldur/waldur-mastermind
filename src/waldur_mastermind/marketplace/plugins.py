@@ -136,7 +136,17 @@ class PluginManager:
         """
         Returns Django model class which corresponds to resource.
         """
-        return self.backends.get(offering_type, {}).get('resource_model')
+        processor = self.get_processor(offering_type, 'create_resource_processor')
+
+        if not processor:
+            return
+
+        if getattr(processor, 'get_resource_model', None):
+            resource_model = processor.get_resource_model()
+        else:
+            return
+
+        return resource_model
 
     def get_importable_resources_backend_method(self, offering_type):
         return self.backends.get(offering_type, {}).get(
