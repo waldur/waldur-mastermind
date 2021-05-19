@@ -23,19 +23,18 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_category_should_be_invisible_to_unauthenticated_users(self):
         url = factories.CategoryFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_anonymous_user_can_see_category_list(self):
         url = factories.CategoryFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_anonymous_user_can_see_category_item(self):
         url = factories.CategoryFactory.get_url(self.category)
         response = self.client.get(url)
