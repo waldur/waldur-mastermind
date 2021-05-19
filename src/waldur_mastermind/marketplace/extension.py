@@ -11,7 +11,7 @@ class MarketplaceExtension(WaldurExtension):
             'OWNER_CAN_APPROVE_ORDER': True,
             'MANAGER_CAN_APPROVE_ORDER': False,
             'ADMIN_CAN_APPROVE_ORDER': False,
-            'ANONYMOUS_USER_CAN_VIEW_OFFERINGS': False,
+            'ANONYMOUS_USER_CAN_VIEW_OFFERINGS': True,
             'NOTIFY_STAFF_ABOUT_APPROVALS': False,
             'NOTIFY_ABOUT_RESOURCE_CHANGE': True,
             'DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE': True,

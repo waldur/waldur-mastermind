@@ -47,6 +47,7 @@ class OfferingGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_offerings_should_be_invisible_to_unauthenticated_users(self):
         url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
@@ -1294,27 +1295,23 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_anonymous_cannot_view_draft_offerings(self):
         url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         for offering in response.data:
             self.assertNotEqual(models.Offering.States.DRAFT, offering['state'])
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_anonymous_cannot_view_offering_scope(self):
         url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         for offering in response.data:
             self.assertNotIn('scope', offering)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_anonymous_can_view_offering_scope(self):
         url = factories.OfferingFactory.get_url(self.offerings[0])
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     @data('staff', 'owner', 'user', 'customer_support', 'admin')
     def test_authenticated_user_can_view_offering_scope(self, user):
         user = getattr(self.fixture, user)
@@ -1324,7 +1321,6 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         for offering in response.data:
             self.assertIn('scope', offering)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager', None)
     def test_private_offerings_are_hidden(self, user):
         if user:
@@ -1454,6 +1450,7 @@ class OfferingDoiTest(test.APITransactionTestCase):
         self.assertTrue('pid' in response[0])
         self.assertTrue(len(response) == 1)
 
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_anonymous_user_cannot_lookup_offering_referrals(self):
         url = factories.OfferingReferralFactory.get_list_url()
 
