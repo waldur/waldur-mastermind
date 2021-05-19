@@ -21,7 +21,8 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         except support_models.Issue.DoesNotExist:
             pass
 
-    def get_resource_model(self):
+    @classmethod
+    def get_resource_model(cls):
         return support_models.Issue
 
 

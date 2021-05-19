@@ -102,7 +102,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             secret_attributes=get_secret_attributes,
             available_limits=AVAILABLE_LIMITS,
             can_update_limits=True,
-            resource_model=openstack_models.Tenant,
             get_importable_resources_backend_method='get_importable_tenants',
             import_resource_backend_method='import_tenant',
         )
@@ -111,7 +110,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             offering_type=INSTANCE_TYPE,
             create_resource_processor=processors.InstanceCreateProcessor,
             delete_resource_processor=processors.InstanceDeleteProcessor,
-            resource_model=tenant_models.Instance,
             get_importable_resources_backend_method='get_importable_instances',
             import_resource_backend_method='import_instance',
             import_resource_executor=tenant_executors.InstancePullExecutor,
@@ -121,7 +119,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             offering_type=VOLUME_TYPE,
             create_resource_processor=processors.VolumeCreateProcessor,
             delete_resource_processor=processors.VolumeDeleteProcessor,
-            resource_model=tenant_models.Volume,
             get_importable_resources_backend_method='get_importable_volumes',
             import_resource_backend_method='import_volume',
         )

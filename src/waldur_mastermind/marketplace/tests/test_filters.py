@@ -2,7 +2,9 @@ from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace.tests import factories, fixtures
+from waldur_mastermind.marketplace.tests import utils as test_utils
 
 
 class CustomerResourcesFilterTest(test.APITransactionTestCase):
@@ -92,3 +94,27 @@ class ResourceFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'query': '192.168.42.1'})
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
+
+
+class FilterByScopeUUIDTest(test.APITransactionTestCase):
+    def setUp(self):
+        plugins.manager.register(
+            offering_type='TEST_TYPE',
+            create_resource_processor=test_utils.TestCreateProcessor,
+        )
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.offering.type = 'TEST_TYPE'
+        self.fixture.offering.save()
+        self.url = factories.ResourceFactory.get_list_url()
+        self.scope = structure_factories.TestNewInstanceFactory()
+
+    def test_scope_uuid_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'query': self.scope.uuid.hex})
+        self.assertEqual(len(response.data), 0)
+
+        self.fixture.resource.scope = self.scope
+        self.fixture.resource.save()
+        response = self.client.get(self.url, {'query': self.scope.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.fixture.resource.uuid.hex)

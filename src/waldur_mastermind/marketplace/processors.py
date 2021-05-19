@@ -350,8 +350,9 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
     viewset = NotImplementedError
     fields = NotImplementedError
 
-    def get_viewset(self):
-        return self.viewset
+    @classmethod
+    def get_viewset(cls):
+        return cls.viewset
 
     def get_fields(self):
         """
@@ -360,11 +361,12 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         """
         return self.fields
 
-    def get_resource_model(self):
+    @classmethod
+    def get_resource_model(cls):
         """
         Get resource model used by viewset from its queryset.
         """
-        return self.get_viewset().queryset.model
+        return cls.get_viewset().queryset.model
 
     def get_serializer_class(self):
         """

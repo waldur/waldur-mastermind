@@ -32,7 +32,6 @@ class MarketplaceRancherConfig(AppConfig):
                 ),
             ),
             service_type=RancherConfig.service_name,
-            resource_model=rancher_models.Cluster,
             get_importable_resources_backend_method='get_importable_clusters',
             import_resource_backend_method='import_cluster',
         )
