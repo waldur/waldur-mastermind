@@ -2,6 +2,7 @@ import json
 
 import django_filters
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from django_filters.widgets import BooleanWidget
@@ -13,6 +14,7 @@ from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import plugins
 from waldur_pid import models as pid_models
 
 from . import models
@@ -306,7 +308,10 @@ class ResourceFilter(
 
     def filter_query(self, queryset, name, value):
         if is_uuid_like(value):
-            return queryset.filter(uuid=value)
+            if queryset.filter(uuid=value).exists():
+                return queryset.filter(uuid=value)
+            else:
+                return self.filter_scope_uuid(queryset, name, value)
         else:
             return queryset.filter(
                 Q(name__icontains=value)
@@ -320,6 +325,26 @@ class ResourceFilter(
             offering__permissions__user__uuid=value,
             offering__permissions__is_active=True,
         )
+
+    def filter_scope_uuid(self, queryset, name, value):
+
+        for offering_type in plugins.manager.get_offering_types():
+            resource_model = plugins.manager.get_resource_model(offering_type)
+
+            if not resource_model:
+                continue
+
+            try:
+                obj = resource_model.objects.get(uuid=value)
+                ct = ContentType.objects.get_for_model(resource_model)
+
+                if queryset.filter(content_type=ct, object_id=obj.id).exists():
+                    return queryset.filter(content_type=ct, object_id=obj.id)
+
+            except resource_model.DoesNotExist:
+                continue
+
+        return queryset.none()
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):

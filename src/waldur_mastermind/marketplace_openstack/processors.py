@@ -10,33 +10,28 @@ from waldur_openstack.openstack_tenant import views as tenant_views
 from . import utils
 
 
-class TenantCreateProcessor(processors.CreateResourceProcessor):
-    def get_serializer_class(self):
-        return views.MarketplaceTenantViewSet.serializer_class
-
-    def get_viewset(self):
-        return views.MarketplaceTenantViewSet
+class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
+    viewset = views.MarketplaceTenantViewSet
+    fields = (
+        'name',
+        'description',
+        'user_username',
+        'user_password',
+        'subnet_cidr',
+        'skip_connection_extnet',
+        'availability_zone',
+    )
 
     def get_post_data(self):
         order_item = self.order_item
-
-        fields = (
-            'name',
-            'description',
-            'user_username',
-            'user_password',
-            'subnet_cidr',
-            'skip_connection_extnet',
-            'availability_zone',
-        )
-
-        payload = get_order_item_post_data(order_item, fields)
+        payload = get_order_item_post_data(order_item, self.get_fields())
         quotas = utils.map_limits_to_quotas(order_item.limits, order_item.offering)
 
         return dict(quotas=quotas, **payload)
 
-    def get_scope_from_response(self, response):
-        return openstack_models.Tenant.objects.get(uuid=response.data['uuid'])
+    @classmethod
+    def get_resource_model(cls):
+        return openstack_models.Tenant
 
 
 class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
