@@ -26,13 +26,13 @@ def pull_remote_group(apps, schema_editor):
                 settings=service_settings,
                 backend_id=rule_resource.remote_group.backend_id,
             )
-            rule_property = SecurityGroupRuleProperty.objects.get(
+            rule_property = SecurityGroupRuleProperty.objects.filter(
                 security_group=security_group, backend_id=rule_resource.backend_id
-            )
+            ).first()
         except ObjectDoesNotExist:
             continue
         else:
-            if rule_property.remote_group != remote_group:
+            if rule_property is not None and rule_property.remote_group != remote_group:
                 rule_property.remote_group = remote_group
                 rule_property.save(update_fields=['remote_group'])
 
