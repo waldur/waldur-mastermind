@@ -6,6 +6,7 @@ from rest_framework import status, test
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from . import factories
 
@@ -25,6 +26,7 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_screenshots_should_be_invisible_to_unauthenticated_users(self):
         url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)

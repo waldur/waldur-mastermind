@@ -9,7 +9,7 @@ from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks
-from waldur_mastermind.marketplace.tests import factories, helpers
+from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
@@ -203,7 +203,6 @@ class CostsStatsTest(StatsBaseTest):
             },
         )
 
-    @helpers.override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_stat_methods_are_not_available_for_anonymous_users(self):
         offering_url = factories.OfferingFactory.get_url(self.offering)
 
