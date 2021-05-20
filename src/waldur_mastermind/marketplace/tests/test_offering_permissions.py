@@ -1,4 +1,5 @@
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
@@ -90,6 +91,32 @@ class GrantOfferingPermissionTest(test.APITransactionTestCase):
                 self.fixture.user, CustomerRole.SERVICE_MANAGER
             )
         )
+
+
+@ddt
+@freeze_time('2020-01-01')
+class UpdateOfferingPermissionTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.permission = factories.OfferingPermissionFactory(offering=self.offering)
+        self.url = factories.OfferingPermissionFactory.get_url(self.permission)
+
+    def change_permission(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        return self.client.patch(self.url, {'expiration_time': '2021-01-01T00:00',},)
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_change_offering_permission(self, user):
+        response = self.change_permission(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('admin', 'manager')
+    def test_unauthorized_user_can_not_change_offering_permission(self, user):
+        response = self.change_permission(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @ddt

@@ -639,7 +639,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         permission = serializer.instance
         scope = getattr(permission, self.scope_field)
-        role = permission.role
+        role = getattr(permission, 'role', None)
 
         utils.check_customer_blocked(scope)
 
