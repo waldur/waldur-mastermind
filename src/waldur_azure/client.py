@@ -57,7 +57,7 @@ class AzureClient:
     @cached_property
     def compute_client(self):
         return ComputeManagementClient(
-            self.credentials, self.subscription_id, '2018-06-01'
+            self.credentials, self.subscription_id,  # '2021-03-01'
         )
 
     @cached_property

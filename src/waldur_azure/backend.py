@@ -41,17 +41,17 @@ class AzureBackend(ServiceBackend):
 
         resource_group_locations = self.client.get_resource_group_locations()
 
-        new_locations = {
+        new_locations = [
             location
             for name, location in backend_locations.items()
             if name not in cached_locations
-        }
+        ]
 
-        stale_locations = {
+        stale_locations = [
             location
             for name, location in cached_locations.items()
             if name not in backend_locations
-        }
+        ]
 
         for backend_location in new_locations:
             models.Location.objects.create(
