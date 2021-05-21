@@ -7,6 +7,7 @@ from rest_framework import serializers
 from waldur_azure.utils import generate_password, generate_username, hash_string
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.models import ServiceSettings
 
 from . import models
 
@@ -188,12 +189,12 @@ class VirtualMachineSerializer(
     @transaction.atomic
     def create(self, validated_data):
         vm_name = validated_data['name']
-        service_settings = validated_data['service_settings']
+        service_settings: ServiceSettings = validated_data['service_settings']
         project = validated_data['project']
         size = validated_data['size']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
+        resource_group_name = f'group-{uuid.uuid4().hex[:4]}-{vm_name}'
         storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
         network_name = 'net{}'.format(vm_name)
         subnet_name = 'subnet{}'.format(vm_name)

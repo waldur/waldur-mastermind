@@ -1,4 +1,8 @@
-from azure.common.credentials import ServicePrincipalCredentials
+from dataclasses import dataclass
+from typing import List
+
+from azure.core.exceptions import HttpResponseError
+from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import (
     DiskCreateOption,
@@ -6,6 +10,7 @@ from azure.mgmt.compute.models import (
     OSProfile,
     SshConfiguration,
     SshPublicKey,
+    VirtualMachineImage,
 )
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.network.models import (
@@ -23,6 +28,7 @@ from azure.mgmt.rdbms.postgresql.models import (
 )
 from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
+from azure.mgmt.storage.models import Kind, Sku, SkuName, StorageAccountCreateParameters
 from django.utils.functional import cached_property
 from msrest.exceptions import ClientException
 
@@ -31,6 +37,15 @@ from waldur_core.structure.exceptions import ServiceBackendError
 
 class AzureBackendError(ServiceBackendError):
     pass
+
+
+@dataclass
+class AzureImage:
+    image: VirtualMachineImage
+    publisher_name: str
+    offer_name: str
+    sku_name: str
+    version_name: str
 
 
 class AzureClient:
@@ -42,8 +57,10 @@ class AzureClient:
 
     @cached_property
     def credentials(self):
-        return ServicePrincipalCredentials(
-            client_id=self.client_id, secret=self.client_secret, tenant=self.tenant_id,
+        return ClientSecretCredential(
+            tenant_id=self.tenant_id,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
         )
 
     @cached_property
@@ -121,14 +138,23 @@ class AzureClient:
     def list_virtual_machine_sizes(self, location):
         try:
             return self.compute_client.virtual_machine_sizes.list(location)
-        except ClientException as exc:
+        except (HttpResponseError, ClientException) as exc:
             raise AzureBackendError(exc)
 
-    def list_virtual_machine_images(self, location):
+    def list_virtual_machine_images(
+        self, location, selected_provider=None
+    ) -> List[AzureImage]:
         try:
             publishers = self.compute_client.virtual_machine_images.list_publishers(
                 location
             )
+
+            # TODO: Figure out a better way
+            # XXX Fix a list of publishers we trust
+            if selected_provider:
+                publishers = list(
+                    filter(lambda x: (x.name in selected_provider), publishers)
+                )
 
             for publisher in publishers:
                 offers = self.compute_client.virtual_machine_images.list_offers(
@@ -146,13 +172,20 @@ class AzureClient:
                         )
 
                         for version in result_list:
-                            yield self.compute_client.virtual_machine_images.get(
-                                location,
+                            yield AzureImage(
+                                self.compute_client.virtual_machine_images.get(
+                                    location,
+                                    publisher.name,
+                                    offer.name,
+                                    sku.name,
+                                    version.name,
+                                ),
                                 publisher.name,
                                 offer.name,
                                 sku.name,
                                 version.name,
                             )
+
         except ClientException as exc:
             raise AzureBackendError(exc)
 
@@ -200,14 +233,21 @@ class AzureClient:
                 ssh=SshConfiguration(public_keys=[SshPublicKey(key_data=ssh_key),],)
             )
         try:
-            return self.compute_client.virtual_machines.create_or_update(
+            return self.compute_client.virtual_machines.begin_create_or_update(
                 resource_group_name,
                 vm_name,
                 {
                     'location': location,
                     'os_profile': os_profile,
-                    'hardware_profile': {'vm_size': size_name,},
-                    'storage_profile': {'image_reference': image_reference,},
+                    'hardware_profile': {'vm_size': size_name},
+                    'storage_profile': {
+                        'image_reference': {
+                            'publisher': image_reference['publisher'],
+                            'offer': image_reference['offer'],
+                            'sku': image_reference['sku'],
+                            'version': image_reference['version'],
+                        },
+                    },
                     'network_profile': {'network_interfaces': [{'id': nic_id,}]},
                 },
             )
@@ -248,21 +288,22 @@ class AzureClient:
 
     def create_storage_account(self, location, resource_group_name, account_name):
         try:
-            return self.storage_client.storage_accounts.create(
+            return self.storage_client.storage_accounts.begin_create(
                 resource_group_name,
                 account_name,
-                {
-                    'sku': {'name': 'standard_lrs'},
-                    'kind': 'storage',
-                    'location': location,
-                },
+                StorageAccountCreateParameters(
+                    sku=Sku(name=SkuName.standard_ragrs),
+                    kind=Kind.storage,
+                    location=location,
+                    enable_https_traffic_only=True,
+                ),
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
 
     def create_disk(self, location, resource_group_name, disk_name, disk_size_gb):
         try:
-            return self.compute_client.disks.create_or_update(
+            return self.compute_client.disks.begin_create_or_update(
                 resource_group_name,
                 disk_name,
                 {
@@ -276,7 +317,7 @@ class AzureClient:
 
     def create_network(self, location, resource_group_name, network_name, cidr):
         try:
-            return self.network_client.virtual_networks.create_or_update(
+            return self.network_client.virtual_networks.begin_create_or_update(
                 resource_group_name,
                 network_name,
                 {'location': location, 'address_space': {'address_prefixes': [cidr]}},
@@ -286,7 +327,7 @@ class AzureClient:
 
     def create_subnet(self, resource_group_name, network_name, subnet_name, cidr):
         try:
-            return self.network_client.subnets.create_or_update(
+            return self.network_client.subnets.begin_create_or_update(
                 resource_group_name,
                 network_name,
                 subnet_name,
@@ -328,7 +369,7 @@ class AzureClient:
             interface_parameters.network_security_group = {'id': security_group_id}
 
         try:
-            return self.network_client.network_interfaces.create_or_update(
+            return self.network_client.network_interfaces.begin_create_or_update(
                 resource_group_name, interface_name, interface_parameters
             )
         except ClientException as exc:
@@ -354,7 +395,7 @@ class AzureClient:
         )
 
         try:
-            return self.network_client.network_security_groups.create_or_update(
+            return self.network_client.network_security_groups.begin_create_or_update(
                 resource_group_name, network_security_group_name, security_group,
             )
         except ClientException as exc:
@@ -376,7 +417,7 @@ class AzureClient:
 
     def create_public_ip(self, location, resource_group_name, public_ip_address_name):
         try:
-            return self.network_client.public_ip_addresses.create_or_update(
+            return self.network_client.public_ip_addresses.begin_create_or_update(
                 resource_group_name, public_ip_address_name, {'location': location}
             )
         except ClientException as exc:
@@ -454,7 +495,7 @@ class AzureClient:
         end_ip_address,
     ):
         try:
-            poller = self.pgsql_client.firewall_rules.create_or_update(
+            poller = self.pgsql_client.firewall_rules.begin_create_or_update(
                 resource_group_name,
                 server_name,
                 firewall_rule_name,
@@ -482,7 +523,7 @@ class AzureClient:
         collation=None,
     ):
         try:
-            return self.pgsql_client.databases.create_or_update(
+            return self.pgsql_client.databases.begin_create_or_update(
                 resource_group_name, server_name, database_name, charset, collation,
             )
         except ClientException as exc:

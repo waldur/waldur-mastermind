@@ -14,9 +14,10 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
         serialized_resource_group = core_utils.serialize_instance(
             instance.resource_group
         )
-        serialized_storage_account = core_utils.serialize_instance(
-            instance.resource_group.storageaccount_set.get()
-        )
+        # Ilja: Why do we need those? Seems that VM can be created without it
+        # serialized_storage_account = core_utils.serialize_instance(
+        #     instance.resource_group.storageaccount_set.get()
+        # )
         serialized_network = core_utils.serialize_instance(
             instance.network_interface.subnet.network
         )
@@ -40,14 +41,14 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             core_tasks.StateTransitionTask().si(
                 serialized_resource_group, state_transition='set_ok',
             ),
-            core_tasks.BackendMethodTask().si(
-                serialized_storage_account,
-                backend_method='create_storage_account',
-                state_transition='begin_creating',
-            ),
-            core_tasks.StateTransitionTask().si(
-                serialized_storage_account, state_transition='set_ok',
-            ),
+            # core_tasks.BackendMethodTask().si(
+            #     serialized_storage_account,
+            #     backend_method='create_storage_account',
+            #     state_transition='begin_creating',
+            # ),
+            # core_tasks.StateTransitionTask().si(
+            #     serialized_storage_account, state_transition='set_ok',
+            # ),
             core_tasks.BackendMethodTask().si(
                 serialized_network,
                 backend_method='create_network',

@@ -1,6 +1,7 @@
 import logging
+from itertools import islice
 
-from waldur_azure.client import AzureBackendError, AzureClient
+from waldur_azure.client import AzureBackendError, AzureClient, AzureImage
 from waldur_core.structure.backend import ServiceBackend
 
 from . import models
@@ -26,8 +27,13 @@ class AzureBackend(ServiceBackend):
     def pull_service_properties(self):
         self.pull_locations()
 
-        location = models.Location.objects.filter(settings=self.settings).last()
+        # TODO: make sizes location aware
+        # XXX: hardcode location of sizes to northeurope
+        location = models.Location.objects.get(
+            settings=self.settings, backend_id='northeurope'
+        )
         self.pull_sizes(location)
+        self.pull_images(location)
 
     def pull_locations(self):
         cached_locations = {
@@ -36,7 +42,9 @@ class AzureBackend(ServiceBackend):
         }
 
         backend_locations = {
-            location.name: location for location in self.client.list_locations()
+            location.name: location
+            for location in self.client.list_locations()
+            if location.name == 'northeurope'  # XXX: hardcode for consistency
         }
 
         resource_group_locations = self.client.get_resource_group_locations()
@@ -57,8 +65,8 @@ class AzureBackend(ServiceBackend):
             models.Location.objects.create(
                 backend_id=backend_location.name,
                 name=backend_location.display_name,
-                latitude=backend_location.latitude,
-                longitude=backend_location.longitude,
+                latitude=backend_location.metadata.latitude,
+                longitude=backend_location.metadata.longitude,
                 settings=self.settings,
             )
 
@@ -114,34 +122,95 @@ class AzureBackend(ServiceBackend):
         for cached_public_ip in stale_public_ips:
             cached_public_ip.delete()
 
+    def pull_images(self, location):
+        cached_images = {
+            image.backend_id: image
+            for image in models.Image.objects.filter(settings=self.settings)
+        }
+
+        try:
+            backend_images = {
+                image_wrapper.image.id: image_wrapper
+                for image_wrapper in islice(
+                    self.client.list_virtual_machine_images(
+                        location.backend_id,
+                        ['MicrosoftSQLServer', 'Debian', 'Canonical'],
+                    ),
+                    10,
+                )
+            }
+        except AzureBackendError as e:
+            if e.error.code == 'NoRegisteredProviderFound':
+                backend_images = {}
+            else:
+                raise AzureBackendError(e)
+
+        new_images = {
+            backend_id: image_wrapper
+            for backend_id, image_wrapper in backend_images.items()
+            if backend_id not in cached_images
+        }
+
+        stale_images = {
+            backend_id: image
+            for backend_id, image in cached_images.items()
+            if backend_id not in backend_images
+        }
+
+        for backend_image_name in new_images:
+            backend_image: AzureImage = new_images[backend_image_name]
+            models.Image.objects.create(
+                backend_id=backend_image.image.id,
+                offer=backend_image.offer_name,
+                publisher=backend_image.publisher_name,
+                sku=backend_image.sku_name,
+                version=backend_image.version_name,
+                name=f'{backend_image.offer_name} {backend_image.version_name}',
+                settings=self.settings,
+            )
+
+        for cached_image_name in stale_images:
+            stale_images[cached_image_name].delete()
+
     def pull_sizes(self, location):
         cached_sizes = {
             size.backend_id: size
             for size in models.Size.objects.filter(settings=self.settings)
         }
 
-        backend_sizes = {
-            size.name: size
-            for size in self.client.list_virtual_machine_sizes(location.backend_id)
-        }
+        try:
+            backend_sizes = {
+                size.name: size
+                for size in self.client.list_virtual_machine_sizes(location.backend_id)
+            }
+        except AzureBackendError as e:
+            if e.error.code == 'NoRegisteredProviderFound':
+                backend_sizes = {}
+            else:
+                raise AzureBackendError(e)
 
         new_sizes = {
-            size for name, size in backend_sizes.items() if name not in cached_sizes
+            name: size
+            for name, size in backend_sizes.items()
+            if name not in cached_sizes
         }
 
         stale_sizes = {
-            size for name, size in cached_sizes.items() if name not in backend_sizes
+            name: size
+            for name, size in cached_sizes.items()
+            if name not in backend_sizes
         }
 
-        for backend_size in new_sizes:
+        for backend_size_name in new_sizes:
+            backend_size = new_sizes[backend_size_name]
             models.Size.objects.create(
                 backend_id=backend_size.name,
                 settings=self.settings,
-                **backend_size.as_dict()
+                **backend_size.as_dict(),
             )
 
-        for cached_size in stale_sizes:
-            cached_size.delete()
+        for cached_size_name in stale_sizes:
+            stale_sizes[cached_size_name].delete()
 
     def pull_resource_groups(self, service_settings, project):
         cached_groups = {
@@ -190,12 +259,21 @@ class AzureBackend(ServiceBackend):
         resource_group.save()
 
     def create_storage_account(self, storage_account):
-        poller = self.client.create_storage_account(
-            location=storage_account.resource_group.location.backend_id,
-            resource_group_name=storage_account.resource_group.name,
-            account_name=storage_account.name,
-        )
-        backend_storage_account = poller.result()
+        # Storage SDK does not support create_or_update logic, so reimplementing it
+        exists = not self.client.storage_client.storage_accounts.check_name_availability(
+            {'name': storage_account.name}
+        ).name_available
+        if not exists:
+            poller = self.client.create_storage_account(
+                location=storage_account.resource_group.location.backend_id,
+                resource_group_name=storage_account.resource_group.name,
+                account_name=storage_account.name,
+            )
+            backend_storage_account = poller.result()
+        else:
+            backend_storage_account = self.client.storage_client.storage_accounts.get_properties(
+                storage_account.resource_group.name, storage_account.name
+            )
         storage_account.backend_id = backend_storage_account.id
         storage_account.save()
 
@@ -245,7 +323,7 @@ class AzureBackend(ServiceBackend):
         nic.backend_id = backend_nic.id
         nic.save()
 
-    def create_virtual_machine(self, vm):
+    def create_virtual_machine(self, vm: models.VirtualMachine):
         poller = self.client.create_virtual_machine(
             location=vm.resource_group.location.backend_id,
             resource_group_name=vm.resource_group.name,
@@ -256,7 +334,7 @@ class AzureBackend(ServiceBackend):
                 'sku': vm.image.sku,
                 'publisher': vm.image.publisher,
                 'version': vm.image.version,
-                'offer': vm.image.name,
+                'offer': vm.image.offer,
             },
             username=vm.username,
             password=vm.password,

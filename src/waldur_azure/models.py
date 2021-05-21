@@ -25,10 +25,11 @@ class Location(CoordinatesMixin, structure_models.ServiceProperty):
 class Image(structure_models.ServiceProperty):
     publisher = models.CharField(max_length=255)
     sku = models.CharField(max_length=255)
+    offer = models.CharField(max_length=255)
     version = models.CharField(max_length=255)
 
     class Meta(structure_models.ServiceProperty.Meta):
-        ordering = ['publisher', 'name', 'sku']
+        ordering = ['publisher', 'offer', 'name', 'sku']
 
     @classmethod
     def get_url_name(cls):
