@@ -36,7 +36,9 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
         }
         for ct in [RAM_TYPE, CORES_TYPE, STORAGE_TYPE]:
             marketplace_factories.OfferingComponentFactory(
-                offering=self.offering, type=ct,
+                offering=self.offering,
+                type=ct,
+                billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
             )
 
     def create_plan(self, prices, unit=marketplace_models.Plan.Units.PER_DAY):
@@ -122,7 +124,9 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         fixture = OpenStackFixture()
         tenant = fixture.openstack_tenant
         offering_component = marketplace_models.OfferingComponent.objects.create(
-            offering=self.offering, type='gigabytes_gpfs'
+            offering=self.offering,
+            type='gigabytes_gpfs',
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
 
         plan = self.create_plan(self.prices)

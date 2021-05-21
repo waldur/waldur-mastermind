@@ -31,7 +31,10 @@ class StatsBaseTest(test.APITransactionTestCase):
             state=models.Offering.States.ACTIVE,
         )
         self.offering_component = factories.OfferingComponentFactory(
-            offering=self.offering, parent=self.category_component, type='cores'
+            offering=self.offering,
+            parent=self.category_component,
+            type='cores',
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
         )
 
 
@@ -192,7 +195,7 @@ class CostsStatsTest(StatsBaseTest):
         result = self.client.get(self.url, {'start': '2020-01', 'end': '2020-02'})
         self.assertEqual(result.status_code, status.HTTP_200_OK)
         self.assertEqual(len(result.data), 2)
-        self.assertEqual(
+        self.assertDictEqual(
             result.data[0],
             {
                 'tax': 0,
@@ -256,7 +259,7 @@ class ComponentStatsTest(StatsBaseTest):
         sp = factories.ServiceProviderFactory(customer=self.resource.offering.customer)
         component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
             type='storage',
         )
         factories.ComponentUsageFactory(
@@ -297,6 +300,10 @@ class ComponentStatsTest(StatsBaseTest):
     ):
         self.resource.offering.type = PLUGIN_NAME
         self.resource.offering.save()
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.FIXED
+        )
+        self.offering_component.save()
 
         self._create_items()
         self.client.force_authenticate(self.fixture.staff)
@@ -325,7 +332,6 @@ class ComponentStatsTest(StatsBaseTest):
         new_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            use_limit_for_billing=True,
             type=COMPONENT_TYPE,
         )
         factories.PlanComponentFactory(
@@ -340,6 +346,7 @@ class ComponentStatsTest(StatsBaseTest):
         )
         factories.ComponentUsageFactory(
             resource=self.resource,
+            date=timezone.now(),
             billing_period=core_utils.month_start(timezone.now()),
             component=new_component,
             plan_period=plan_period,

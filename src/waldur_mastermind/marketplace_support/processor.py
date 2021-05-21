@@ -1,4 +1,5 @@
 from waldur_mastermind.marketplace import processors
+from waldur_mastermind.marketplace_support import utils
 from waldur_mastermind.support import models as support_models
 
 from .views import IssueViewSet
@@ -16,7 +17,7 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
             issue = support_models.Issue.objects.get(
                 resource_object_id=self.order_item.id
             )
-            self.order_item.resource.backend_id = issue.backend_id
+            self.order_item.resource.backend_id = issue.backend_id or ''
             self.order_item.resource.save(update_fields=['backend_id'])
         except support_models.Issue.DoesNotExist:
             pass
@@ -42,3 +43,11 @@ class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
 
     def get_resource(self):
         return self.order_item.resource
+
+    def update_limits_process(self, user):
+        utils.create_issue(
+            self.order_item,
+            description=utils.format_update_limits_description(self.order_item),
+            summary='Request to update limits for %s' % self.order_item.resource.name,
+        )
+        return False
