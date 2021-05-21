@@ -90,6 +90,7 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertTrue('user_username' in response.data)
 
     def test_limits_are_not_checked_if_offering_components_limits_are_not_defined(self):
+        create_offering_components(self.offering)
         response = self.create_order(
             limits={'cores': 2, 'ram': 1024 * 10, 'storage': 1024 * 1024 * 10}
         )
@@ -136,7 +137,7 @@ class TenantCreateTest(BaseOpenStackTest):
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type='gigabytes_llvm',
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
         self.create_plan_component('gigabytes_llvm', 0.1)
 
@@ -228,7 +229,7 @@ class TenantCreateTest(BaseOpenStackTest):
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type='gigabytes_llvm',
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
 
         response = self.create_order(
@@ -708,7 +709,11 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
     def setUp(self):
         super(TenantUpdateLimitValidationTest, self).setUp()
         marketplace_models.OfferingComponent.objects.create(
-            offering=self.offering, max_value=20, min_value=2, type='cores'
+            offering=self.offering,
+            max_value=20,
+            min_value=2,
+            type='cores',
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
 
     def update_limits(self, user, resource, limits=None):
@@ -728,7 +733,7 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
 
     def test_validation_if_value_limit_in_confines(self):
         response = self.update_limits(self.fixture.staff, self.resource)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_validation_if_value_limit_more_max(self):
         response = self.update_limits(self.fixture.staff, self.resource, {'cores': 30})

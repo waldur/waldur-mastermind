@@ -255,21 +255,16 @@ def get_public_resources_url(customer):
 
 
 def validate_limits(limits, offering):
-    usage_components = (
-        offering.components.filter(
-            billing_type=models.OfferingComponent.BillingTypes.USAGE
+    if not plugins.manager.can_update_limits(offering.type):
+        raise serializers.ValidationError(
+            {'limits': _('Limits update is not supported for this resource.')}
         )
-        .exclude(disable_quotas=True)
-        .values_list('type', flat=True)
-    )
 
-    if offering.type:
-        fixed_components = offering.fixed_components.values_list('type', flat=True)
-    else:
-        fixed_components = []
-    valid_component_types = set(usage_components)
-    valid_component_types.update(plugins.manager.get_available_limits(offering.type))
-    valid_component_types.update(fixed_components)
+    valid_component_types = set(
+        offering.components.filter(
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT
+        ).values_list('type', flat=True)
+    )
     invalid_types = set(limits.keys()) - valid_component_types
     if invalid_types:
         raise serializers.ValidationError(
@@ -432,6 +427,13 @@ def get_is_usage_based(serializer, scope):
         return
 
 
+def get_is_limit_based(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.is_limit_based
+    except ObjectDoesNotExist:
+        return
+
+
 def add_marketplace_offering(sender, fields, **kwargs):
     fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
@@ -456,6 +458,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['is_usage_based'] = serializers.SerializerMethodField()
     setattr(sender, 'get_is_usage_based', get_is_usage_based)
+
+    fields['is_limit_based'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_limit_based', get_is_limit_based)
 
 
 def get_offering_costs(offering, active_customers, start, end):
@@ -557,6 +562,23 @@ def get_offering_component_stats(offering, active_customers, start, end):
             try:
                 plan_component = models.PlanComponent.objects.get(pk=plan_component_id)
                 offering_component = plan_component.component
+
+                if (
+                    offering_component.billing_type
+                    == models.OfferingComponent.BillingTypes.LIMIT
+                ):
+                    component_stats.append(
+                        {
+                            'usage': item.quantity,
+                            'description': offering_component.description,
+                            'measured_unit': offering_component.measured_unit,
+                            'type': offering_component.type,
+                            'name': offering_component.name,
+                            'period': period,
+                            'date': period_visible,
+                            'offering_component_id': offering_component.id,
+                        }
+                    )
 
                 if (
                     offering_component.billing_type

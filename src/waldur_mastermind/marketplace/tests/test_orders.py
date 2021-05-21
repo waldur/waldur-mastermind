@@ -13,6 +13,7 @@ from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 @ddt
@@ -221,14 +222,16 @@ class OrderCreateTest(test.APITransactionTestCase):
             'cpu_count': 5,
         }
 
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE, type=PLUGIN_NAME
+        )
         plan = factories.PlanFactory(offering=offering)
 
         for key in limits.keys():
             models.OfferingComponent.objects.create(
                 offering=offering,
                 type=key,
-                billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                billing_type=models.OfferingComponent.BillingTypes.LIMIT,
             )
 
         add_payload = {

@@ -1503,7 +1503,6 @@ class Migration(migrations.Migration):
             model_name='componentusage',
             name='component',
             field=models.ForeignKey(
-                limit_choices_to={'billing_type': 'usage'},
                 on_delete=django.db.models.deletion.CASCADE,
                 to='marketplace.OfferingComponent',
             ),
@@ -1531,7 +1530,6 @@ class Migration(migrations.Migration):
             model_name='componentquota',
             name='component',
             field=models.ForeignKey(
-                limit_choices_to={'billing_type': 'usage'},
                 on_delete=django.db.models.deletion.CASCADE,
                 to='marketplace.OfferingComponent',
             ),

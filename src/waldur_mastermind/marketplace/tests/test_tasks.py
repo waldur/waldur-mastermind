@@ -1,6 +1,7 @@
 import datetime
 
 from django.core import mail
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
@@ -28,7 +29,7 @@ class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
         )
         factories.PlanComponentFactory(plan=plan, component=self.offering_component)
         plan_period = models.ResourcePlanPeriod.objects.create(
-            resource=resource, plan=plan, start=datetime.datetime.now()
+            resource=resource, plan=plan, start=timezone.now()
         )
         models.ComponentUsage.objects.create(
             resource=resource,

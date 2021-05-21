@@ -68,7 +68,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
-        FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
+        LIMIT = marketplace_models.OfferingComponent.BillingTypes.LIMIT
         manager.register(
             offering_type=TENANT_TYPE,
             create_resource_processor=processors.TenantCreateProcessor,
@@ -79,7 +79,7 @@ class MarketplaceOpenStackConfig(AppConfig):
                     type=CORES_TYPE,
                     name='Cores',
                     measured_unit='cores',
-                    billing_type=FIXED,
+                    billing_type=LIMIT,
                 ),
                 # Price is stored per GiB but size is stored per MiB
                 # therefore we need to divide size by factor when price estimate is calculated.
@@ -87,14 +87,14 @@ class MarketplaceOpenStackConfig(AppConfig):
                     type=RAM_TYPE,
                     name='RAM',
                     measured_unit='GB',
-                    billing_type=FIXED,
+                    billing_type=LIMIT,
                     factor=1024,
                 ),
                 Component(
                     type=STORAGE_TYPE,
                     name='Storage',
                     measured_unit='GB',
-                    billing_type=FIXED,
+                    billing_type=LIMIT,
                     factor=1024,
                 ),
             ),

@@ -15,4 +15,4 @@ class TestUpdateScopedProcessor(processors.UpdateScopedResourceProcessor):
         pass
 
     def update_limits_process(self, user):
-        pass
+        return True

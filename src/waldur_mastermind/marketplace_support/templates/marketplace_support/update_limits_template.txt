@@ -1,0 +1,4 @@
+[Update limits for resource {{order_item.resource.scope.name}}|{{request_url}}].
+Marketplace resource UUID: {{order_item.resource.uuid.hex}}
+Old limits: {{ old_limits }}.
+New limits: {{ new_limits }}.
