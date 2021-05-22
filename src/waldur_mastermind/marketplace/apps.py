@@ -144,6 +144,7 @@ class MarketplaceConfig(AppConfig):
             delete_resource_processor=processors.BasicDeleteResourceProcessor,
             enable_usage_notifications=True,
             enable_remote_support=True,
+            can_update_limits=True,
         )
 
         marketplace_registrators.MarketplaceRegistrator.connect()

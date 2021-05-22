@@ -462,29 +462,6 @@ class Offering(
     def get_url_name(cls):
         return 'marketplace-offering'
 
-    def get_usage_components(self):
-        components = self.components.filter(
-            billing_type=OfferingComponent.BillingTypes.USAGE
-        )
-        return {component.type: component for component in components}
-
-    @cached_property
-    def fixed_components(self):
-        components = self.components.filter(
-            billing_type=OfferingComponent.BillingTypes.FIXED
-        ).exclude(disable_quotas=True)
-
-        return components
-
-    @cached_property
-    def estimated_components(self):
-        available_limits = plugins.manager.get_available_limits(self.type)
-        return self.components.filter(
-            Q(billing_type=OfferingComponent.BillingTypes.USAGE)
-            | Q(type__in=available_limits)
-            | Q(billing_type=OfferingComponent.BillingTypes.FIXED)
-        ).exclude(disable_quotas=True)
-
     @cached_property
     def component_factors(self):
         # get factor from plugin components
@@ -495,8 +472,23 @@ class Offering(
     def is_usage_based(self):
         return self.components.filter(
             billing_type=OfferingComponent.BillingTypes.USAGE,
-            use_limit_for_billing=False,
         ).exists()
+
+    def get_limit_components(self):
+        components = self.components.filter(
+            billing_type=OfferingComponent.BillingTypes.LIMIT
+        )
+        return {component.type: component for component in components}
+
+    @cached_property
+    def is_limit_based(self):
+        if not plugins.manager.can_update_limits(self.type):
+            return False
+        if not self.components.filter(
+            billing_type=OfferingComponent.BillingTypes.LIMIT
+        ).exists():
+            return False
+        return True
 
     @property
     def is_private(self):
@@ -546,10 +538,16 @@ class OfferingComponent(
         USAGE = 'usage'
         ONE_TIME = 'one'
         ON_PLAN_SWITCH = 'few'
+        LIMIT = 'limit'
 
         CHOICES = (
+            # if billing type is fixed, service provider specifies exact values of amount field of plan component model
             (FIXED, 'Fixed-price'),
+            # if billing type is usage-based billing is applied when usage report is submitted
             (USAGE, 'Usage-based'),
+            # if billing type is limit, user specifies limit when resource is provisioned or updated
+            (LIMIT, 'Limit-based'),
+            # if billing type is one-time, billing is applied once on resource activation
             (ONE_TIME, 'One-time'),
             # applies fee on resource activation and every time a plan has changed, using pricing of a new plan
             (ON_PLAN_SWITCH, 'One-time on plan switch'),
@@ -581,26 +579,18 @@ class OfferingComponent(
     billing_type = models.CharField(
         choices=BillingTypes.CHOICES, default=BillingTypes.FIXED, max_length=5
     )
+    # limit_period and limit_amount fields are used if billing_type is USAGE
     limit_period = models.CharField(
         choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=5
     )
     limit_amount = models.IntegerField(blank=True, null=True)
+    # max_value and min_value fields are used if billing_type is LIMIT
     max_value = models.IntegerField(blank=True, null=True)
     min_value = models.IntegerField(blank=True, null=True)
+    # is_boolean field allows to render checkbox in UI which set limit amount to 1
     is_boolean = models.BooleanField(default=False)
+    # default_limit field is used by UI to prefill limit values
     default_limit = models.IntegerField(blank=True, null=True)
-    disable_quotas = models.BooleanField(
-        default=False,
-        help_text=_(
-            'Do not allow user to specify quotas when offering is provisioned.'
-        ),
-    )
-    use_limit_for_billing = models.BooleanField(
-        default=False,
-        help_text=_(
-            'Charge for usage-based component is based on user-requested limit.'
-        ),
-    )
     objects = managers.MixinManager('scope')
 
     def validate_amount(self, resource, amount, date):
@@ -674,8 +664,7 @@ class Plan(
         cost = self.unit_price
 
         if limits:
-            components = self.offering.estimated_components
-            components_map = {component.type: component for component in components}
+            components_map = self.offering.get_limit_components()
             component_prices = {
                 c.component.type: c.price for c in self.components.all()
             }
@@ -791,7 +780,7 @@ class CostEstimateMixin(models.Model):
     class Meta:
         abstract = True
 
-    # Cost estimate is computed with respect to fixed plan components and usage-based limits
+    # Cost estimate is computed with respect to limit components
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, null=True, blank=True)
     limits = BetterJSONField(blank=True, default=dict)
@@ -1100,7 +1089,7 @@ class Resource(
 
     def init_quotas(self):
         if self.limits:
-            components_map = self.offering.get_usage_components()
+            components_map = self.offering.get_limit_components()
             for key, value in self.limits.items():
                 component = components_map.get(key)
                 if component:
@@ -1305,11 +1294,7 @@ class ComponentQuota(models.Model):
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='quotas'
     )
-    component = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=OfferingComponent,
-        limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE},
-    )
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,)
     limit = models.BigIntegerField(default=-1)
     usage = models.BigIntegerField(default=0)
 
@@ -1330,11 +1315,7 @@ class ComponentUsage(
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='usages'
     )
-    component = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=OfferingComponent,
-        limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE},
-    )
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,)
     usage = models.BigIntegerField(default=0)
     date = models.DateTimeField()
     plan_period = models.ForeignKey(

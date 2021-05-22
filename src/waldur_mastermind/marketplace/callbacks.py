@@ -107,6 +107,11 @@ def resource_update_succeeded(resource, validate=False):
         signals.resource_plan_switch_succeeded.send(models.Resource, instance=resource)
 
         create_resource_plan_period(resource)
+    if order_item and order_item.limits:
+        resource.limits = order_item.limits
+        resource.init_cost()
+        resource.save(update_fields=['limits', 'cost'])
+        log.log_resource_limit_update_succeeded(resource)
 
     log.log_resource_update_succeeded(resource)
     return order_item

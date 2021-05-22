@@ -47,6 +47,7 @@ from waldur_pid import models as pid_models
 from . import log, models, permissions, plugins, tasks, utils
 
 logger = logging.getLogger(__name__)
+BillingTypes = models.OfferingComponent.BillingTypes
 
 
 class MarketplaceProtectedMediaSerializerMixin(serializers.ModelSerializer):
@@ -406,8 +407,6 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             'measured_unit',
             'limit_period',
             'limit_amount',
-            'disable_quotas',
-            'use_limit_for_billing',
             'article_code',
             'max_value',
             'min_value',
@@ -425,8 +424,6 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs['max_value'] = 1
             attrs['limit_period'] = ''
             attrs['limit_amount'] = None
-            attrs['disable_quotas'] = False
-            attrs['use_limit_for_billing'] = True
         return attrs
 
     def get_factor(self, offering_component):
@@ -868,13 +865,13 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             fixed_types = {
                 component.type
                 for component in plugins.manager.get_components(offering_type)
-                if component.billing_type == models.OfferingComponent.BillingTypes.FIXED
+                if component.billing_type == BillingTypes.FIXED
             }
             if self.instance:
                 fixed_types.update(
                     set(
                         self.instance.components.filter(
-                            billing_type=models.OfferingComponent.BillingTypes.FIXED
+                            billing_type=BillingTypes.FIXED
                         ).values_list('type', flat=True)
                     )
                 )
@@ -884,8 +881,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             fixed_types = {
                 component['type']
                 for component in custom_components
-                if component['billing_type']
-                == models.OfferingComponent.BillingTypes.FIXED
+                if component['billing_type'] == BillingTypes.FIXED
             }
 
         for plan in attrs.get('plans', []):
@@ -1091,8 +1087,6 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
             'measured_unit',
             'limit_period',
             'limit_amount',
-            'disable_quotas',
-            'use_limit_for_billing',
             'article_code',
             'is_boolean',
             'default_limit',
@@ -1788,10 +1782,10 @@ class ResourceSerializer(BaseItemSerializer):
             'offering_name',
             'backend_metadata',
             'is_usage_based',
+            'is_limit_based',
             'name',
             'current_usages',
             'can_terminate',
-            'can_update_limits',
             'report',
         )
         read_only_fields = (
@@ -1823,8 +1817,8 @@ class ResourceSerializer(BaseItemSerializer):
     offering_name = serializers.ReadOnlyField(source='offering.name')
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
+    is_limit_based = serializers.ReadOnlyField(source='offering.is_limit_based')
     can_terminate = serializers.SerializerMethodField()
-    can_update_limits = serializers.SerializerMethodField()
     report = serializers.JSONField(read_only=True)
 
     def get_can_terminate(self, resource):
@@ -1859,9 +1853,6 @@ class ResourceSerializer(BaseItemSerializer):
         ).exists():
             return False
         return True
-
-    def get_can_update_limits(self, resource):
-        return plugins.manager.can_update_limits(resource.offering.type)
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
@@ -2083,6 +2074,14 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(_('Billing period is closed.'))
         return plan_period
 
+    @classmethod
+    def get_components_map(cls, offering):
+        # Allow to report usage for limit-based components
+        components = offering.components.filter(
+            billing_type__in=[BillingTypes.USAGE, BillingTypes.LIMIT]
+        )
+        return {component.type: component for component in components}
+
     def validate(self, attrs):
         attrs = super(ComponentUsageCreateSerializer, self).validate(attrs)
         plan_period = attrs['plan_period']
@@ -2095,7 +2094,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 {'resource': _('Resource is not in valid state.')}
             )
 
-        valid_components = set(offering.get_usage_components().keys())
+        valid_components = set(self.get_components_map(offering))
         actual_components = {usage['type'] for usage in attrs['usages']}
 
         missing_components = ', '.join(sorted(valid_components - actual_components))
@@ -2116,14 +2115,14 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     def save(self):
         plan_period = self.validated_data['plan_period']
         resource = plan_period.resource
-        components = resource.plan.offering.get_usage_components()
+        components_map = self.get_components_map(resource.plan.offering)
         now = timezone.now()
         billing_period = core_utils.month_start(now)
 
         for usage in self.validated_data['usages']:
             amount = usage['amount']
             description = usage.get('description', '')
-            component = components[usage['type']]
+            component = components_map[usage['type']]
             recurring = usage['recurring']
             component.validate_amount(resource, amount, now)
 

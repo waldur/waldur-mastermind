@@ -29,7 +29,3 @@ class OpenStackRegistrator(MarketplaceRegistrator):
             return f'{component_type.replace("gigabytes_", "")} storage'
         else:
             return plan_component.component.name
-
-    def _create_item(self, source, invoice, start, end, **kwargs):
-        for plan_component in source.plan.components.all():
-            self.create_component_item(source, plan_component, invoice, start, end)

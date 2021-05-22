@@ -469,6 +469,110 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         return order_item
 
 
+@ddt
+class UpdateLimitsTest(BaseTest):
+    def setUp(self):
+        super(UpdateLimitsTest, self).setUp()
+        self.old_limits = {'cpu': 10}
+        self.new_limits = {'cpu': 20}
+
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+
+        self.user = self.fixture.staff
+        self.offering = marketplace_factories.OfferingFactory(
+            state=marketplace_models.Offering.States.ACTIVE, type=PLUGIN_NAME
+        )
+
+        self.offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+        )
+        self.plan = marketplace_factories.PlanFactory(
+            offering=self.offering, unit_price=10
+        )
+        self.plan_component = marketplace_factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+        self.resource = marketplace_factories.ResourceFactory(
+            name='test_request',
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            limits=self.old_limits,
+        )
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        self.success_issue_status = 'ok'
+        support_factories.IssueStatusFactory(
+            name=self.success_issue_status,
+            type=support_models.IssueStatus.Types.RESOLVED,
+        )
+
+        self.error_issue_status = 'error'
+        support_factories.IssueStatusFactory(
+            name=self.error_issue_status, type=support_models.IssueStatus.Types.CANCELED
+        )
+
+    def test_when_issue_is_resolved_limits_are_updated(self):
+        order_item = self.get_order_item(self.success_issue_status)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(self.mock_get_active_backend().create_issue.call_count, 1)
+        self.assertEqual(
+            self.mock_get_active_backend().create_issue_links.call_count, 1
+        )
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.limits, self.new_limits)
+
+    def test_fail_case(self):
+        order_item = self.get_order_item(self.error_issue_status)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.ERRED)
+        self.assertEqual(self.resource.limits, self.old_limits)
+
+    def test_description_formatting(self):
+        issue = self.get_issue()
+        resource = issue.resource.resource
+        self.assertTrue('Update limits for resource' in issue.description)
+        self.assertTrue('CPU: 10' in issue.description)
+        self.assertTrue('CPU: 20' in issue.description)
+        self.assertTrue(resource.uuid.hex in issue.description)
+
+    def request_limit_update(self, user=None):
+        user = user or self.user
+        url = marketplace_factories.ResourceFactory.get_url(
+            resource=self.resource, action='update_limits'
+        )
+        payload = {'limits': self.new_limits}
+
+        self.client.force_authenticate(user)
+        return self.client.post(url, payload)
+
+    def get_issue(self):
+        response = self.request_limit_update()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
+        order_item = order.items.first()
+        process_order_item(order_item, self.user)
+        return get_order_item_issue(order_item)
+
+    def get_order_item(self, issue_status):
+        response = self.request_limit_update()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
+        order_item = order.items.first()
+        process_order_item(order_item, self.user)
+
+        issue = get_order_item_issue(order_item)
+        issue.status = issue_status
+        issue.save()
+        order_item.refresh_from_db()
+        return order_item
+
+
 @override_settings(task_always_eager=True)
 class NotificationTest(BaseTest):
     def setUp(self):

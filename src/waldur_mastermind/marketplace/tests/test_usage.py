@@ -22,6 +22,7 @@ class PlanPeriodsTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory()
         self.component = factories.OfferingComponentFactory(offering=self.offering)
         self.plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(plan=self.plan, component=self.component)
         self.resource = factories.ResourceFactory(
             offering=self.offering, plan=self.plan
         )

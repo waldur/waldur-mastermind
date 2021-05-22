@@ -924,10 +924,6 @@ class ResourceViewSet(core_views.ActionsViewSet):
     @action(detail=True, methods=['post'])
     def update_limits(self, request, uuid=None):
         resource = self.get_object()
-        if not plugins.manager.can_update_limits(resource.offering.type):
-            raise serializers.ValidationError(
-                _('Limits update is not supported for this resource.')
-            )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         limits = serializer.validated_data['limits']

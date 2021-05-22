@@ -10,6 +10,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_pid import models as pid_models
 
 OFFERING_OPTIONS = {
@@ -103,6 +104,7 @@ class OfferingFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'offering-%s' % n)
     category = factory.SubFactory(CategoryFactory)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
+    type = PLUGIN_NAME
 
     @classmethod
     def get_url(cls, offering=None, action=None):
@@ -260,8 +262,8 @@ class OfferingComponentFactory(factory.DjangoModelFactory):
 
     offering = factory.SubFactory(OfferingFactory)
     type = 'cpu'
+    name = 'CPU'
     billing_type = models.OfferingComponent.BillingTypes.FIXED
-    use_limit_for_billing = False
 
 
 class PlanComponentFactory(factory.DjangoModelFactory):

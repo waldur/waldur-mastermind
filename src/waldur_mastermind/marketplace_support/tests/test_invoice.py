@@ -411,16 +411,14 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         self.assertEqual(self.invoice.price, expected)
 
 
-class LimitUsageTest(InvoicesBaseTest):
+class LimitInvoiceTest(InvoicesBaseTest):
     def setUp(self):
-        super(LimitUsageTest, self).setUp()
+        super(LimitInvoiceTest, self).setUp()
         self.fixture.offering_component_cpu.billing_type = (
-            marketplace_models.OfferingComponent.BillingTypes.USAGE
+            marketplace_models.OfferingComponent.BillingTypes.LIMIT
         )
-        self.fixture.offering_component_cpu.use_limit_for_billing = True
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
-
         self.order_item.limits = {self.fixture.offering_component_cpu.type: 16}
         self.order_item.save()
 

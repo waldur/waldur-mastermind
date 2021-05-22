@@ -46,6 +46,7 @@ class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
             return
 
         utils.update_limits(self.order_item)
+        return True
 
 
 class TenantDeleteProcessor(processors.DeleteScopedResourceProcessor):
