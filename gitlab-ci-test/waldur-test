@@ -2,7 +2,7 @@
 set -e
 
 echo "[+] Install dependencies in case of absence"
-poetry install
+poetry install -vvv
 
 echo "[+] Setup test settings"
 cat > src/waldur_mastermind/test_settings.py <<-EOF

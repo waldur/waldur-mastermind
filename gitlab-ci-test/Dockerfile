@@ -19,6 +19,6 @@ COPY pyproject.toml /tmp/mnt/pyproject.toml
 COPY poetry.lock /tmp/mnt/poetry.lock
 
 # Install dependencies
-RUN cd /tmp/mnt && poetry install
+RUN cd /tmp/mnt && poetry install -vvv
 
 CMD ["/bin/sh"]
