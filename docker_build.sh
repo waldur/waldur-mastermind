@@ -4,7 +4,7 @@ set -e
 python3 -m pip install --upgrade pip
 # Upgrade setuptools to the latest
 python3 -m pip install --upgrade setuptools
-python3 -m pip install poetry==1.0.9
+python3 -m pip install poetry==1.1.4
 poetry config virtualenvs.create false
 
 # Install Python dependencies for Waldur MasterMind from PyPI
