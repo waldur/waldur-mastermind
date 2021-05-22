@@ -64,7 +64,7 @@ def format_create_description(order_item):
     )
 
     if order_item.limits:
-        components_map = order_item.offering.get_usage_components()
+        components_map = order_item.offering.get_limit_components()
         for key, value in order_item.limits.items():
             component = components_map.get(key)
             if component:
@@ -149,6 +149,28 @@ def format_update_description(order_item):
         'update_resource_template',
         {'order_item': order_item, 'request_url': request_url},
     )
+
+
+def format_limits_list(components_map, limits):
+    return ', '.join(
+        f'{components_map[key].name or components_map[key].type}: {value}'
+        for key, value in limits.items()
+    )
+
+
+def format_update_limits_description(order_item):
+    offering = order_item.resource.offering
+    request_url = get_request_link(order_item.resource)
+    components_map = offering.get_limit_components()
+    old_limits = format_limits_list(components_map, order_item.resource.limits)
+    new_limits = format_limits_list(components_map, order_item.limits)
+    context = {
+        'order_item': order_item,
+        'request_url': request_url,
+        'old_limits': old_limits,
+        'new_limits': new_limits,
+    }
+    return format_description('update_limits_template', context,)
 
 
 def format_delete_description(order_item):

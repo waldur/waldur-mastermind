@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import signals
 from django.utils import timezone
@@ -83,15 +84,18 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             offering_component = plan_component.component
 
             is_fixed = offering_component.billing_type == BillingTypes.FIXED
-            is_usage = offering_component.billing_type == BillingTypes.USAGE
             is_one = offering_component.billing_type == BillingTypes.ONE_TIME
             is_switch = offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH
+            is_limit = offering_component.billing_type == BillingTypes.LIMIT
+
+            if is_limit:
+                self.create_component_item(source, plan_component, invoice, start, end)
+                continue
 
             if (
                 is_fixed
                 or (is_one and order_type == OrderTypes.CREATE)
                 or (is_switch and order_type == OrderTypes.UPDATE)
-                or (is_usage and offering_component.use_limit_for_billing)
             ):
                 unit_price = plan_component.price
                 unit = plan.unit
@@ -102,12 +106,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 elif is_one or is_switch:
                     unit = invoice_models.Units.QUANTITY
                     quantity = 1
-                elif is_usage:
-                    unit = invoice_models.Units.QUANTITY
-                    quantity = resource.limits.get(offering_component.type, 0)
 
                 invoice_models.InvoiceItem.objects.create(
-                    name=self.get_name(resource) + ' / ' + offering_component.name,
+                    name=f'{self.get_name(resource)} / {self.get_component_name(plan_component)}',
                     details=self.get_component_details(resource, plan_component),
                     resource=resource,
                     project=resource.project,
@@ -154,6 +155,12 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             return '%s (%s)' % (resource.name, resource.offering.name)
 
     @classmethod
+    def get_total_quantity(cls, unit, value, start, end):
+        if unit == invoice_models.InvoiceItem.Units.PER_DAY:
+            return value * get_full_days(start, end)
+        return value
+
+    @classmethod
     def create_component_item(cls, source, plan_component, invoice, start, end):
         offering_component = plan_component.component
         limit = source.limits.get(offering_component.type, 0)
@@ -166,14 +173,17 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 {'start': start, 'end': end, 'quantity': quantity}
             )
         ]
+        total_quantity = cls.get_total_quantity(
+            plan_component.plan.unit, quantity, start, end
+        )
 
         invoice_models.InvoiceItem.objects.create(
             name=f'{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}',
             resource=source,
             project=source.project,
             unit_price=plan_component.price,
-            unit=invoice_models.InvoiceItem.Units.PER_DAY,
-            quantity=quantity * get_full_days(start, end),
+            unit=plan_component.plan.unit,
+            quantity=total_quantity,
             article_code=offering_component.article_code or source.plan.article_code,
             invoice=invoice,
             start=start,
@@ -215,10 +225,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             }
         )
         resource_limit_periods.extend([old_period, new_period])
+        plan_component = source.plan.components.get(component__type=component_type)
         invoice_item.quantity = sum(
-            period['quantity']
-            * get_full_days(
-                parse_datetime(period['start']), parse_datetime(period['end']),
+            cls.get_total_quantity(
+                plan_component.plan.unit,
+                period['quantity'],
+                parse_datetime(period['start']),
+                parse_datetime(period['end']),
             )
             for period in resource_limit_periods
         )
@@ -274,7 +287,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 resource.project.customer, core_utils.month_start(today)
             )
             valid_limits = set(
-                resource.offering.components.values_list('type', flat=True)
+                resource.offering.components.filter(
+                    billing_type=BillingTypes.LIMIT
+                ).values_list('type', flat=True)
             )
             for component_type, new_quantity in resource.limits.items():
                 if component_type not in valid_limits:
@@ -297,6 +312,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             return
 
         offering_component = component_usage.component
+        # It is allowed to report usage for limit-based components but they are ignored in invoicing
+        if offering_component.billing_type != BillingTypes.USAGE:
+            return
 
         plan_period = component_usage.plan_period
         if not plan_period:
@@ -315,7 +333,15 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             )
             item.save()
         else:
-            plan_component = plan.components.get(component=offering_component)
+            try:
+                plan_component = plan.components.get(component=offering_component)
+            except ObjectDoesNotExist:
+                logger.warning(
+                    'Skipping processing of component usage with ID %s because '
+                    'plan component is not defined.',
+                    component_usage.id,
+                )
+                return
             customer = resource.project.customer
             invoice, created = registrators.RegistrationManager.get_or_create_invoice(
                 customer, component_usage.date

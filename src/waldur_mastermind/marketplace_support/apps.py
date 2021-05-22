@@ -38,6 +38,7 @@ class MarketplaceSupportConfig(AppConfig):
             can_terminate_order_item=True,
             enable_usage_notifications=True,
             enable_remote_support=True,
+            can_update_limits=True,
         )
 
         core_signals.pre_serializer_fields.connect(

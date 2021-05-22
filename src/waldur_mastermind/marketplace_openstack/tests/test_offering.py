@@ -82,13 +82,6 @@ class PlanComponentsTest(test.APITransactionTestCase):
         response = self.create_offering(False)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_total_price_is_calculated_from_components(self):
-        response = self.create_offering()
-        offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
-        self.assertEqual(
-            offering.plans.first().unit_price, 10 * 10 + 100 * 100 + 1000 * 1000
-        )
-
     def create_offering(self, components=True):
         fixture = structure_fixtures.ProjectFixture()
         url = marketplace_factories.OfferingFactory.get_list_url()
@@ -116,7 +109,6 @@ class PlanComponentsTest(test.APITransactionTestCase):
         }
         if components:
             payload['plans'][0]['prices'] = self.prices
-            payload['plans'][0]['quotas'] = self.quotas
         with mock.patch('waldur_core.structure.models.ServiceSettings.get_backend'):
             return self.client.post(url, payload)
 
@@ -201,7 +193,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.assertEqual(component.offering, self.offering)
         self.assertEqual(
             component.billing_type,
-            marketplace_models.OfferingComponent.BillingTypes.FIXED,
+            marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
         self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
         self.assertEqual(component.type, 'gigabytes_' + self.volume_type.name)

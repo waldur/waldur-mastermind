@@ -49,7 +49,7 @@ class BackendTest(TestCase):
 
         template = (
             'sacctmgr --parsable2 --noheader --immediate'
-            ' modify account %s set GrpTRES=cpu=%d,gres/gpu=%d,mem=%d'
+            ' modify account %s set GrpTRESMins=cpu=%d,gres/gpu=%d,mem=%d'
         )
 
         context = (

@@ -177,28 +177,23 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
             try:
                 # self.update_limits_process method can execute not is_async
                 # because in this case an order has got only one order item.
-                self.update_limits_process(user)
-            except NotImplementedError:
-                self.order_item.set_state_erred()
-                self.order_item.save(update_fields=['state'])
-                logger.warning(
-                    'An update of limits has been called. '
-                    'But update limits process for the plugin has not been implemented. '
-                    'Order item ID: %s, Plugin: %s.',
-                    self.order_item.id,
-                    self.order_item.offering.type,
-                )
+                done = self.update_limits_process(user)
             except Exception as e:
                 signals.resource_limit_update_failed.send(
                     sender=self.order_item.resource.__class__,
                     order_item=self.order_item,
-                    error_message=str(e),
+                    error_message=str(e) or str(type(e)),
                 )
-            else:
+                return
+            if done:
                 signals.resource_limit_update_succeeded.send(
                     sender=self.order_item.resource.__class__,
                     order_item=self.order_item,
                 )
+            else:
+                with transaction.atomic():
+                    self.order_item.resource.set_state_updating()
+                    self.order_item.resource.save(update_fields=['state'])
             return
 
         resource = self.get_resource()
@@ -238,6 +233,8 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
     def update_limits_process(self, user):
         """
         This method implements limits update processing.
+        It should return True if sync operation has been successfully completed
+        and return False or None if async operation has been scheduled.
         """
         raise NotImplementedError
 
@@ -405,4 +402,4 @@ class BasicUpdateResourceProcessor(AbstractUpdateResourceProcessor):
         pass
 
     def update_limits_process(self, user):
-        pass
+        return True

@@ -35,6 +35,7 @@ class CartSubmitTest(test.APITransactionTestCase):
         manager.register(
             offering_type='TEST_TYPE',
             create_resource_processor=utils.TestCreateProcessor,
+            can_update_limits=True,
         )
         self.service_settings = structure_factories.ServiceSettingsFactory(
             type='Test', shared=True
@@ -75,7 +76,7 @@ class CartSubmitTest(test.APITransactionTestCase):
             models.OfferingComponent.objects.create(
                 offering=self.offering,
                 type=key,
-                billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                billing_type=models.OfferingComponent.BillingTypes.LIMIT,
             )
 
         return {
@@ -92,10 +93,10 @@ class CartSubmitTest(test.APITransactionTestCase):
         url = factories.CartItemFactory.get_list_url()
         payload = self.get_payload(self.fixture.project)
         response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         response = self.submit(self.fixture.project)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         order_item = models.OrderItem.objects.last()
         self.assertEqual(order_item.limits['cpu_count'], 5)
@@ -122,7 +123,6 @@ class CartSubmitTest(test.APITransactionTestCase):
                 offering=self.offering,
                 type=key,
                 billing_type=models.OfferingComponent.BillingTypes.USAGE,
-                disable_quotas=True,
             )
 
         payload = {
@@ -327,7 +327,7 @@ class CartUpdateTest(test.APITransactionTestCase):
         # Arrange
         oc = factories.OfferingComponentFactory(
             offering=self.cart_item.offering,
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
             type='cpu',
         )
         plan = factories.PlanFactory(offering=self.cart_item.offering)
@@ -341,7 +341,8 @@ class CartUpdateTest(test.APITransactionTestCase):
         # Act
         self.client.force_authenticate(self.cart_item.user)
         url = factories.CartItemFactory.get_url(item=self.cart_item)
-        self.client.patch(url, {'limits': {'cpu': 4}})
+        response = self.client.patch(url, {'limits': {'cpu': 4}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.cart_item.refresh_from_db()
 
         # Assert

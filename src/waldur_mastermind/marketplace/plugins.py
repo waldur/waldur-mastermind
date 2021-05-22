@@ -4,21 +4,13 @@ from typing import List
 
 class Component:
     def __init__(
-        self,
-        type,
-        name,
-        measured_unit,
-        billing_type,
-        factor=1,
-        disable_quotas=False,
-        description='',
+        self, type, name, measured_unit, billing_type, factor=1, description='',
     ):
         self.type = type
         self.name = name
         self.measured_unit = measured_unit
         self.billing_type = billing_type
         self.factor = factor
-        self.disable_quotas = disable_quotas
         self.description = description
 
     def _asdict(self):
@@ -29,7 +21,6 @@ class Component:
             'name': self.name,
             'measured_unit': self.measured_unit,
             'billing_type': self.billing_type,
-            'disable_quotas': self.disable_quotas,
         }
 
 
