@@ -848,13 +848,37 @@ class WaldurClient(object):
         project_uuid = self._get_project(project)['uuid']
         offering_uuid = self._get_offering(offering, project)['uuid']
         plan_uuid = plan and self._get_plan(plan)['uuid']
-        return self.marketplace_resource_create(
+        return self.marketplace_resource_create_order(
             project_uuid, offering_uuid, plan_uuid, attributes, limits
         )
 
+    def _get_resource_from_creation_order(
+        self, order_uuid, resource_field='resource_uuid', interval=10, timeout=600,
+    ):
+        waited = 0
+        while True:
+            order = self._get_resource(
+                WaldurClient.Endpoints.MarketplaceOrder, order_uuid
+            )
+            if order['items'][0]['state'] == 'erred':
+                raise InvalidStateError(order['items'][0]['error_message'])
+
+            resource_uuid = order['items'][0].get(resource_field)
+            if resource_uuid:
+                return resource_uuid
+            time.sleep(interval)
+
+            waited += interval
+            if waited >= timeout:
+                error = (
+                    'Resource reference has not been found from order item "%s" '
+                    % order_uuid
+                )
+                message = '%s. Seconds passed: %s' % (error, timeout)
+                raise TimeoutError(message)
+
     def _create_scope_via_marketplace(
         self,
-        name,
         offering,
         project,
         attributes,
@@ -867,7 +891,6 @@ class WaldurClient(object):
         """
         Create marketplace resource scope via marketplace.
 
-        :param name: the name of scope.
         :param offering: the name or UUID of marketplace offering.
         :param project: the name or UUID of the project.
         :param attributes: order item attributes.
@@ -891,29 +914,28 @@ class WaldurClient(object):
             project, offering['uuid'], attributes=attributes
         )
         order_uuid = order['uuid']
-        resource_uuid = None
-        waited = 0
-        while not resource_uuid:
-            time.sleep(interval)
-            order = self._get_resource(
-                WaldurClient.Endpoints.MarketplaceOrder, order_uuid
-            )
-            if order['items'][0]['state'] == 'erred':
-                raise InvalidStateError(order['items'][0]['error_message'])
 
-            resource_uuid = order['items'][0].get('resource_uuid')
-            waited += interval
-            if waited >= timeout:
-                error = (
-                    'Marketplace resource of scope with name "%s" is not found.' % name
-                )
-                message = '%s. Seconds passed: %s' % (error, timeout)
-                raise TimeoutError(message)
+        resource_uuid = self._get_resource_from_creation_order(order_uuid)
 
         if wait:
             self._wait_for_resource(scope_endpoint, resource_uuid, interval, timeout)
 
         return resource_uuid
+
+    def create_resource_via_marketplace(
+        self, project_uuid, offering_uuid, plan_uuid, attributes, limits
+    ):
+        order = self.create_marketplace_order(
+            project_uuid, offering_uuid, plan_uuid, attributes, limits
+        )
+        order_uuid = order['uuid']
+        marketplace_resource_uuid = self._get_resource_from_creation_order(
+            order_uuid, 'marketplace_resource_uuid'
+        )
+        return {
+            'create_order_uuid': order_uuid,
+            'marketplace_resource_uuid': marketplace_resource_uuid,
+        }
 
     def create_instance_via_marketplace(
         self,
@@ -1011,7 +1033,6 @@ class WaldurClient(object):
             attributes.update({'data_volume_type': volume_type['url']})
 
         resource_uuid = self._create_scope_via_marketplace(
-            name,
             offering['uuid'],
             project,
             attributes,
@@ -1029,7 +1050,7 @@ class WaldurClient(object):
 
     def _delete_scope_via_marketplace(self, scope_uuid, offering_type, options=None):
         resource, scope = self.get_marketplace_resource_scope(scope_uuid, offering_type)
-        return self.marketplace_resource_terminate(resource['uuid'], options)
+        return self.marketplace_resource_terminate_order(resource['uuid'], options)
 
     def delete_instance_via_marketplace(self, instance_uuid, **kwargs):
         """
@@ -1087,7 +1108,6 @@ class WaldurClient(object):
             attributes.update({'type': volume_type['url']})
 
         return self._create_scope_via_marketplace(
-            name,
             offering['uuid'],
             project,
             attributes,
@@ -1157,7 +1177,7 @@ class WaldurClient(object):
             self.Endpoints.MarketplaceOffering, offering_uuid
         )
 
-    def marketplace_resource_create(
+    def marketplace_resource_create_order(
         self, project_uuid, offering_uuid, plan_uuid=None, attributes=None, limits=None
     ):
         attributes = attributes or {}
@@ -1184,14 +1204,14 @@ class WaldurClient(object):
         }
         return self._create_resource(self.Endpoints.MarketplaceOrder, payload=payload)
 
-    def marketplace_resource_update_limits(self, resource_uuid, limits):
+    def marketplace_resource_update_limits_order(self, resource_uuid, limits):
         payload = {'limits': limits}
         url = self._build_resource_url(
             self.Endpoints.MarketplaceResources, resource_uuid, action='update_limits'
         )
         return self._post(url, valid_states=[200], json=payload)['order_uuid']
 
-    def marketplace_resource_terminate(self, resource_uuid, options=None):
+    def marketplace_resource_terminate_order(self, resource_uuid, options=None):
         if options:
             options = {'attributes': options}
         url = self._build_resource_url(
