@@ -1171,8 +1171,8 @@ class WaldurClient(object):
         }
 
         if plan_uuid:
-            order_item['plan'] = (
-                self._build_resource_url(self.Endpoints.MarketplacePlan, plan_uuid),
+            order_item['plan'] = self._build_resource_url(
+                self.Endpoints.MarketplacePlan, plan_uuid
             )
 
         # TODO: replace with checkbox data from frontend
