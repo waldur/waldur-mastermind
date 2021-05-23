@@ -20,6 +20,7 @@ setup(
     license='MIT',
     description='Ansible module for the Waldur API.',
     long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     py_modules=[
         'waldur_client',
         'waldur_marketplace',
