@@ -229,6 +229,7 @@ class BasePlanSerializer(
             'unit',
             'init_price',
             'switch_price',
+            'backend_id',
         )
         read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
