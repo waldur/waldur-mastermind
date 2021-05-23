@@ -31,6 +31,7 @@ available_categories = {
     'db': ('Databases', 'Relational DBMS'),
     'email': ('E-mail', 'E-mail services'),
     'hpc': ('HPC', 'High Performance Computing'),
+    'lumi': ('LUMI', 'LUMI HPC Offerings'),
     'licenses': ('Licenses', 'Application and OS licenses'),
     'vm': ('VMs', 'Virtual machines'),
     'vpc': ('Private clouds', 'Virtual private clouds'),
@@ -94,6 +95,21 @@ hpc_sections = {
         ('linpack', 'Linpack TFlop/s', 'integer'),
     ],
     'software': [('applications', 'Applications', 'list'),],
+}
+
+# based on https://eurohpc-ju.europa.eu/sites/default/files/2021-03/Decision%2006.2021%20-%20Access%20policy.pdf
+lumi_sections = {
+    'accessiblity_to_industry': [
+        ('accessible_to_industry', 'Accessible to industry', 'boolean'),
+    ],
+    'review': [
+        ('external_review', 'External scientific review', 'boolean'),
+        ('technical_assesment', 'Technical assessment', 'boolean'),
+    ],
+    'prerequisites': [
+        ('dmp_required', 'Data management plan', 'boolean'),
+        ('benchmark_project', 'Benchmarking required', 'boolean'),
+    ],
 }
 
 collocation_sections = {
@@ -212,6 +228,7 @@ specific_sections = {
     'consultancy': merge_two_dicts(common_expert_sections, consultancy_sections),
     'email': email_sections,
     'hpc': hpc_sections,
+    'lumi': lumi_sections,
     'operations': merge_two_dicts(common_expert_sections, operations_sections),
     'vm': merge_two_dicts(computing_common_sections, vm_sections),
     'vpc': merge_two_dicts(computing_common_sections, vpc_sections),

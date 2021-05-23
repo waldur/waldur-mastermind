@@ -30,7 +30,6 @@ class CustomersView(RemoteView):
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         params = {
-            'is_service_provider': True,
             'owned_by_current_user': True,
             'field': ['uuid', 'name', 'abbreviation', 'phone_number', 'email'],
         }
@@ -49,7 +48,8 @@ class OfferingsListView(RemoteView):
                 {'url': _('customer_uuid field must be present in query parameters')}
             )
 
-        remote_customer_uuid = request.query_params['customer_uuid']
+        # TODO: update after https://opennode.atlassian.net/browse/WAL-4093
+        # remote_customer_uuid = request.query_params['customer_uuid']
         whitelist_types = [
             offering_type
             for offering_type in plugins.manager.get_offering_types()
@@ -58,7 +58,8 @@ class OfferingsListView(RemoteView):
 
         params = {
             'shared': True,
-            'customer_uuid': remote_customer_uuid,
+            # TODO: update after https://opennode.atlassian.net/browse/WAL-4093
+            # 'customer_uuid': remote_customer_uuid,
             'type': whitelist_types,
             'field': ['uuid', 'name', 'type', 'state', 'category_title'],
         }
@@ -68,10 +69,11 @@ class OfferingsListView(RemoteView):
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
         local_offerings = list(
-            models.Offering.objects.filter(type=PLUGIN_NAME).values_list(
-                'backend_id', flat=True
-            )
+            models.Offering.objects.filter(type=PLUGIN_NAME)
+            .exclude(state=models.Offering.States.ARCHIVED)
+            .values_list('backend_id', flat=True)
         )
+
         importable_offerings = [
             offering
             for offering in remote_offerings
@@ -144,6 +146,7 @@ class OfferingCreateView(RemoteView):
         for remote_plan in remote_offering['plans']:
             local_plan = models.Plan.objects.create(
                 offering=local_offering,
+                backend_id=remote_plan['uuid'],
                 **{key: remote_plan[key] for key in PLAN_FIELDS}
             )
             remote_prices = remote_plan['prices']
