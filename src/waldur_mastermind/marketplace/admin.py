@@ -432,9 +432,7 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = fields
 
 
-class OrderAdmin(
-    core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, admin.ModelAdmin
-):
+class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
     fields = [
         'created_by',
@@ -531,7 +529,6 @@ class ResourceAdmin(admin.ModelAdmin):
         SharedOfferingFilter,
     )
     readonly_fields = (
-        'state',
         'scope_link',
         'project_link',
         'offering_link',
@@ -540,7 +537,7 @@ class ResourceAdmin(admin.ModelAdmin):
         'formatted_attributes',
         'formatted_limits',
     )
-    fields = readonly_fields + ('plan',)
+    fields = readonly_fields + ('plan', 'state')
     date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
 
