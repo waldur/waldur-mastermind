@@ -2159,6 +2159,10 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 )
                 logger.info(message)
                 log.log_component_usage_update_succeeded(usage)
+        resource.current_usages = {
+            usage['type']: usage['amount'] for usage in self.validated_data['usages']
+        }
+        resource.save(update_fields=['current_usages'])
 
 
 class OfferingFileSerializer(
