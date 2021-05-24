@@ -71,7 +71,7 @@ class PublicViewsetMixin:
             return super(PublicViewsetMixin, self).get_permissions()
 
 
-class ServiceProviderViewSet(BaseMarketplaceView):
+class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all()
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
