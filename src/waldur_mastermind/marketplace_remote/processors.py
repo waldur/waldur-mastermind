@@ -22,6 +22,8 @@ class RemoteCreateResourceProcessor(
         remote_project, _ = utils.get_or_create_remote_project(
             self.order_item.offering, self.order_item.order.project, self.client
         )
+        # TODO: refactor in https://opennode.atlassian.net/browse/WAL-4126
+        # TODO: make consistent with update/terminate
         response = self.client.marketplace_resource_create(
             project_uuid=remote_project['uuid'],
             offering_uuid=self.order_item.offering.backend_id,
@@ -29,7 +31,7 @@ class RemoteCreateResourceProcessor(
             attributes=self.order_item.attributes,
             limits=self.order_item.limits,
         )
-        self.order_item.backend_id = response['uuid']
+        self.order_item.backend_id = response['create_order_uuid']
         self.order_item.save()
 
         if settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
@@ -39,25 +41,30 @@ class RemoteCreateResourceProcessor(
                 remote_project['uuid'],
             )
 
+        return response['marketplace_resource_uuid']
+
 
 class RemoteUpdateResourceProcessor(
     RemoteClientMixin, processors.BasicUpdateResourceProcessor
 ):
     def update_limits_process(self, user):
-        response = self.client.marketplace_resource_update_limits(
+        # TODO: refactor in https://opennode.atlassian.net/browse/WAL-4126
+        response = self.client.marketplace_resource_update_limits_order(
             self.order_item.resource.backend_id, self.order_item.limits,
         )
-        self.order_item.backend_id = response['uuid']
+        self.order_item.backend_id = response
         self.order_item.save()
+        return True
 
 
 class RemoteDeleteResourceProcessor(
     RemoteClientMixin, processors.BasicDeleteResourceProcessor
 ):
     def send_request(self, user, resource):
-        response = self.client.marketplace_resource_terminate(
+        # TODO: refactor in https://opennode.atlassian.net/browse/WAL-4126
+        response = self.client.marketplace_resource_terminate_order(
             self.order_item.resource.backend_id
         )
-        self.order_item.backend_id = response['uuid']
+        self.order_item.backend_id = response
         self.order_item.save()
         return True
