@@ -28,7 +28,17 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    def test_service_provider_should_be_invisible_to_unauthenticated_users(self):
+    def test_service_provider_should_be_visible_to_unauthenticated_users_by_default(
+        self,
+    ):
+        url = factories.ServiceProviderFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_service_provider_should_be_invisible_to_unauthenticated_users_when_offerings_are_public(
+        self,
+    ):
         url = factories.ServiceProviderFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

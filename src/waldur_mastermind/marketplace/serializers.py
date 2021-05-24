@@ -91,6 +91,8 @@ class ServiceProviderSerializer(
 
     def get_fields(self):
         fields = super(ServiceProviderSerializer, self).get_fields()
+        if self.context['request'].user.is_anonymous:
+            del fields['enable_notifications']
         if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
             fields['customer_image'] = serializers.ImageField(
                 source='customer.image', read_only=True
