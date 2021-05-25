@@ -1788,6 +1788,7 @@ class ResourceSerializer(BaseItemSerializer):
             'current_usages',
             'can_terminate',
             'report',
+            'end_date',
         )
         read_only_fields = (
             'backend_metadata',
@@ -1884,7 +1885,21 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
 class ResourceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
-        fields = ('name', 'description')
+        fields = ('name', 'description', 'end_date')
+
+    def validate_end_date(self, end_date):
+        if end_date and end_date <= timezone.datetime.today().date():
+            raise serializers.ValidationError(
+                {'end_date': _('Cannot be earlier than the current date.')}
+            )
+        return end_date
+
+    def save(self, **kwargs):
+        resource = super(ResourceUpdateSerializer, self).save(**kwargs)
+        user = self.context['request'].user
+
+        if 'end_date' in self.validated_data:
+            log.log_marketplace_resource_end_date_has_been_updated(resource, user)
 
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):

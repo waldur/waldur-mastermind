@@ -1,6 +1,7 @@
 from unittest import mock
 
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -613,10 +614,10 @@ class ResourceUpdateTest(test.APITransactionTestCase):
         self.resource = self.fixture.resource
         self.url = factories.ResourceFactory.get_url(self.resource)
 
-    def make_request(self, user):
+    def make_request(self, user, payload=None):
         self.client.force_authenticate(user)
-        payload = {'name': 'new name', 'description': 'new description'}
-        return self.client.put(self.url, payload)
+        payload = payload or {'name': 'new name', 'description': 'new description'}
+        return self.client.patch(self.url, payload)
 
     def test_authorized_user_can_update_resource(self):
         response = self.make_request(self.fixture.staff)
@@ -640,6 +641,30 @@ class ResourceUpdateTest(test.APITransactionTestCase):
                 % (self.resource.name, old_name)
             ).exists()
         )
+
+    def test_authorized_user_can_update_end_date(self):
+        with freeze_time('2020-01-01'):
+            response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.resource.refresh_from_db()
+            self.assertTrue(self.resource.end_date)
+
+    def test_user_cannot_set_past_date(self):
+        with freeze_time('2022-01-01'):
+            response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_end_date_should_generate_audit_log(self):
+        with freeze_time('2020-01-01'):
+            response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.resource.refresh_from_db()
+            self.assertTrue(
+                logging_models.Event.objects.filter(
+                    message='End date of marketplace resource %s has been updated. End date: %s. User: %s.'
+                    % (self.resource.name, self.resource.end_date, self.fixture.staff)
+                ).exists()
+            )
 
 
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):
