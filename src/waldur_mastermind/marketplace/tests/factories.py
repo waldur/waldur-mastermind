@@ -326,6 +326,7 @@ class ResourceFactory(factory.DjangoModelFactory):
     offering = factory.SubFactory(OfferingFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     backend_metadata = factory.Sequence(backend_metadata_generator)
+    name = factory.Sequence(lambda n: 'resource-%s' % n)
 
     @classmethod
     def get_url(cls, resource=None, action=None):

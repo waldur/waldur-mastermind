@@ -89,6 +89,7 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_update_limits_succeeded',
             'marketplace_resource_update_limits_failed',
             'marketplace_resource_renamed',
+            'marketplace_resource_update_end_date_succeeded',
         )
         nullable_fields = ['old_name']
 
@@ -367,5 +368,29 @@ def log_marketplace_resource_renamed(resource, old_name):
         'Marketplace resource {resource_name} has been renamed.'
         ' Old name: {old_name}.',
         event_type='marketplace_resource_renamed',
+        event_context=event_context,
+    )
+
+
+def log_marketplace_resource_end_date_has_been_updated(resource, user):
+    template = (
+        'End date of marketplace resource %(resource_name)s has been updated.'
+        ' End date: %(end_date)s.'
+        ' User: %(user)s.'
+    )
+
+    context = {
+        'resource_name': resource.name,
+        'end_date': resource.end_date,
+        'user': user,
+    }
+
+    event_context = {
+        'resource': resource,
+    }
+
+    event_logger.marketplace_resource.info(
+        template % context,
+        event_type='marketplace_resource_update_end_date_succeeded',
         event_context=event_context,
     )

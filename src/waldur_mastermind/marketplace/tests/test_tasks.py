@@ -110,7 +110,9 @@ class ProjectEndDate(test.APITransactionTestCase):
             is_active=True,
         )
         self.fixtures = fixtures.MarketplaceFixture()
-        self.fixtures.project.end_date = datetime.datetime(day=1, month=1, year=2020)
+        self.fixtures.project.end_date = datetime.datetime(
+            day=1, month=1, year=2020
+        ).date()
         self.fixtures.project.save()
         self.fixtures.resource.set_state_ok()
         self.fixtures.resource.save()
@@ -183,3 +185,39 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
     def test_do_not_send_notify_if_configuration_is_false(self):
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 0)
+
+
+class ResourceEndDate(test.APITransactionTestCase):
+    def setUp(self):
+        # We need create a system robot account because
+        # account created in a migration does not exist when test is running
+        structure_factories.UserFactory(
+            first_name='System',
+            last_name='Robot',
+            username='system_robot',
+            description='Special user used for performing actions on behalf of Waldur.',
+            is_staff=True,
+            is_active=True,
+        )
+        self.fixtures = fixtures.MarketplaceFixture()
+        self.resource = self.fixtures.resource
+        self.resource.end_date = datetime.datetime(day=1, month=1, year=2020).date()
+        self.resource.set_state_ok()
+        self.resource.save()
+
+    def test_terminate_resource_if_its_end_date_has_been_reached(self):
+        with freeze_time('2020-01-01'):
+            self.assertTrue(self.resource.is_expired)
+            tasks.terminate_resource_if_its_end_date_has_been_reached()
+            self.resource.refresh_from_db()
+
+            self.assertTrue(
+                models.OrderItem.objects.filter(
+                    resource=self.fixtures.resource,
+                    type=models.OrderItem.Types.TERMINATE,
+                ).count()
+            )
+            order_item = models.OrderItem.objects.get(
+                resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
+            )
+            self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
