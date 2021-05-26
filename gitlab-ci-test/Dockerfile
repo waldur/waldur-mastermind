@@ -11,7 +11,7 @@ RUN apt-get update    &&\
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
-RUN pip3 install poetry==1.1.4
+RUN pip3 install poetry==1.1.6
 RUN poetry config virtualenvs.create false
 
 # Copy poetry files
