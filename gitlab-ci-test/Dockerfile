@@ -11,7 +11,7 @@ RUN apt-get update    &&\
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
-RUN pip3 install poetry==1.0.9
+RUN pip3 install poetry==1.1.6
 RUN poetry config virtualenvs.create false
 
 # Copy poetry files
@@ -19,6 +19,6 @@ COPY pyproject.toml /tmp/mnt/pyproject.toml
 COPY poetry.lock /tmp/mnt/poetry.lock
 
 # Install dependencies
-RUN cd /tmp/mnt && poetry install
+RUN cd /tmp/mnt && poetry install -vvv
 
 CMD ["/bin/sh"]
