@@ -10,6 +10,7 @@ from azure.mgmt.compute.models import (
     OSProfile,
     SshConfiguration,
     SshPublicKey,
+    VirtualMachine,
     VirtualMachineImage,
 )
 from azure.mgmt.network import NetworkManagementClient
@@ -73,9 +74,7 @@ class AzureClient:
 
     @cached_property
     def compute_client(self):
-        return ComputeManagementClient(
-            self.credentials, self.subscription_id,  # '2021-03-01'
-        )
+        return ComputeManagementClient(self.credentials, self.subscription_id,)
 
     @cached_property
     def storage_client(self):
@@ -131,7 +130,9 @@ class AzureClient:
 
     def delete_resource_group(self, resource_group_name):
         try:
-            return self.resource_client.resource_groups.delete(resource_group_name)
+            return self.resource_client.resource_groups.begin_delete(
+                resource_group_name
+            )
         except ClientException as exc:
             raise AzureBackendError(exc)
 
@@ -201,7 +202,7 @@ class AzureClient:
         except ClientException as exc:
             raise AzureBackendError(exc)
 
-    def get_virtual_machine(self, resource_group_name, vm_name):
+    def get_virtual_machine(self, resource_group_name, vm_name) -> VirtualMachine:
         try:
             return self.compute_client.virtual_machines.get(
                 resource_group_name, vm_name
@@ -256,7 +257,7 @@ class AzureClient:
 
     def delete_virtual_machine(self, resource_group_name, vm_name):
         try:
-            return self.compute_client.virtual_machines.delete(
+            return self.compute_client.virtual_machines.begin_delete(
                 resource_group_name, vm_name,
             )
         except ClientException as exc:
@@ -264,7 +265,7 @@ class AzureClient:
 
     def start_virtual_machine(self, resource_group_name, vm_name):
         try:
-            return self.compute_client.virtual_machines.start(
+            return self.compute_client.virtual_machines.begin_start(
                 resource_group_name, vm_name,
             )
         except ClientException as exc:
@@ -272,7 +273,7 @@ class AzureClient:
 
     def restart_virtual_machine(self, resource_group_name, vm_name):
         try:
-            return self.compute_client.virtual_machines.restart(
+            return self.compute_client.virtual_machines.begin_restart(
                 resource_group_name, vm_name,
             )
         except ClientException as exc:
@@ -280,7 +281,7 @@ class AzureClient:
 
     def stop_virtual_machine(self, resource_group_name, vm_name):
         try:
-            return self.compute_client.virtual_machines.power_off(
+            return self.compute_client.virtual_machines.begin_power_off(
                 resource_group_name, vm_name,
             )
         except ClientException as exc:
@@ -332,6 +333,22 @@ class AzureClient:
                 network_name,
                 subnet_name,
                 {'address_prefix': cidr,},
+            )
+        except ClientException as exc:
+            raise AzureBackendError(exc)
+
+    def get_subnet(self, resource_group_name, network_name, subnet_name):
+        try:
+            return self.network_client.subnets.get(
+                resource_group_name, network_name, subnet_name,
+            )
+        except ClientException as exc:
+            raise AzureBackendError(exc)
+
+    def get_network(self, resource_group_name, network_name):
+        try:
+            return self.network_client.virtual_networks.get(
+                resource_group_name, network_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -401,7 +418,7 @@ class AzureClient:
         except ClientException as exc:
             raise AzureBackendError(exc)
 
-    def get_public_ip(self, resource_group_name, public_ip_address_name):
+    def get_public_ip(self, resource_group_name: str, public_ip_address_name: str):
         try:
             return self.network_client.public_ip_addresses.get(
                 resource_group_name, public_ip_address_name
@@ -425,7 +442,7 @@ class AzureClient:
 
     def delete_public_ip(self, resource_group_name, public_ip_address_name):
         try:
-            return self.network_client.public_ip_addresses.delete(
+            return self.network_client.public_ip_addresses.begin_delete(
                 resource_group_name, public_ip_address_name
             )
         except ClientException as exc:
@@ -471,7 +488,7 @@ class AzureClient:
         if storage_mb:
             properties.storage_profile = StorageProfile(storage_mb=storage_mb)
         try:
-            poller = self.pgsql_client.servers.create(
+            poller = self.pgsql_client.servers.begin_create(
                 resource_group_name,
                 server_name,
                 ServerForCreate(properties=properties, location=location, sku=sku,),
@@ -482,7 +499,9 @@ class AzureClient:
 
     def delete_sql_server(self, resource_group_name, server_name):
         try:
-            return self.pgsql_client.servers.delete(resource_group_name, server_name)
+            return self.pgsql_client.servers.begin_delete(
+                resource_group_name, server_name
+            )
         except ClientException as exc:
             raise AzureBackendError(exc)
 
@@ -539,7 +558,7 @@ class AzureClient:
 
     def delete_sql_database(self, resource_group_name, server_name, database_name):
         try:
-            return self.pgsql_client.databases.delete(
+            return self.pgsql_client.databases.begin_delete(
                 resource_group_name, server_name, database_name,
             )
         except ClientException as exc:

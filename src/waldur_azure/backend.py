@@ -1,6 +1,8 @@
 import logging
 from itertools import islice
 
+from django.core.exceptions import ObjectDoesNotExist
+
 from waldur_azure.client import AzureBackendError, AzureClient, AzureImage
 from waldur_core.structure.backend import ServiceBackend
 
@@ -373,6 +375,127 @@ class AzureBackend(ServiceBackend):
             vm_name=virtual_machine.name,
         )
         poller.wait()
+
+    def get_importable_virtual_machines(self):
+        virtual_machines = [
+            {'name': vm.name, 'backend_id': vm.id,}
+            for vm in self.client.list_all_virtual_machines()
+        ]
+        return self.get_importable_resources(models.VirtualMachine, virtual_machines)
+
+    def import_virtual_machine(self, backend_id, project):
+        resource_group_name = backend_id.split('/')[4]
+        vm_name = backend_id.split('/')[-1]
+        backend_vm = self.client.get_virtual_machine(resource_group_name, vm_name)
+
+        location = models.Location.objects.get(
+            settings=self.settings, backend_id=backend_vm.location
+        )
+        resource_group, _ = models.ResourceGroup.objects.get_or_create(
+            service_settings=self.settings,
+            backend_id=resource_group_name,
+            project=project,
+            defaults=dict(
+                name=resource_group_name,
+                location=location,
+                state=models.ResourceGroup.States.OK,
+            ),
+        )
+
+        size = models.Size.objects.get(
+            settings=self.settings, backend_id=backend_vm.hardware_profile.vm_size
+        )
+
+        image_ref = backend_vm.storage_profile.image_reference
+        image = models.Image.objects.get(
+            settings=self.settings,
+            offer=image_ref.offer,
+            version=image_ref.exact_version,
+        )
+
+        network_interface = self.import_network_interface(
+            backend_vm, project, resource_group, location
+        )
+
+        return models.VirtualMachine.objects.create(
+            service_settings=self.settings,
+            project=project,
+            resource_group=resource_group,
+            name=vm_name,
+            network_interface=network_interface,
+            size=size,
+            image=image,
+            state=models.VirtualMachine.States.OK,
+        )
+
+    def import_network_interface(self, backend_vm, project, resource_group, location):
+        network_interface_id = backend_vm.network_profile.network_interfaces[0].id
+        try:
+            return models.NetworkInterface.objects.get(
+                resource_group=resource_group, backend_id=network_interface_id,
+            )
+        except ObjectDoesNotExist:
+            network_interface_name = network_interface_id.split('/')[-1]
+            backend_interface = self.client.get_network_interface(
+                resource_group.name, network_interface_name
+            )
+
+            subnet_id = backend_interface.ip_configurations[0].subnet.id
+            subnet_name = subnet_id.split('/')[-1]
+            network_name = subnet_id.split('/')[-3]
+
+            backend_network = self.client.get_network(resource_group.name, network_name)
+            network = models.Network.objects.create(
+                name=network_name,
+                resource_group=resource_group,
+                service_settings=self.settings,
+                project=project,
+                backend_id=network_name,
+                cidr=backend_network.address_space.address_prefixes[0],
+                state=models.Network.States.OK,
+            )
+
+            backend_subnet = self.client.get_subnet(
+                resource_group.name, network_name, subnet_name
+            )
+            subnet = models.SubNet.objects.create(
+                name=subnet_name,
+                resource_group=resource_group,
+                service_settings=self.settings,
+                project=project,
+                backend_id=subnet_name,
+                cidr=backend_subnet.address_prefix,
+                network=network,
+                state=models.SubNet.States.OK,
+            )
+
+            public_ip_address_name = backend_interface.ip_configurations[
+                0
+            ].public_ip_address.id.split('/')[-1]
+            backend_public_ip = self.client.get_public_ip(
+                resource_group.name, public_ip_address_name
+            )
+            public_ip = models.PublicIP.objects.create(
+                name=public_ip_address_name,
+                resource_group=resource_group,
+                service_settings=self.settings,
+                project=project,
+                backend_id=public_ip_address_name,
+                ip_address=backend_public_ip.ip_address,
+                location=location,
+                state=models.PublicIP.States.OK,
+            )
+
+            return models.NetworkInterface.objects.create(
+                name=network_interface_name,
+                resource_group=resource_group,
+                service_settings=self.settings,
+                project=project,
+                backend_id=network_interface_id,
+                public_ip=public_ip,
+                subnet=subnet,
+                state=models.NetworkInterface.States.OK,
+            )
 
     def create_ssh_security_group(self, network_security_group):
         poller = self.client.create_ssh_security_group(

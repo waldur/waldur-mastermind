@@ -4,6 +4,7 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_azure import models as azure_models
 from waldur_core.core import utils as core_utils
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import utils
 
@@ -35,3 +36,18 @@ def synchronize_public_ip(sender, instance, created=False, **kwargs):
             core_utils.serialize_instance(public_ip),
         )
         return
+
+
+def create_marketplace_resource_for_imported_resources(
+    sender, instance, offering=None, plan=None, **kwargs
+):
+    marketplace_models.Resource.objects.create(
+        backend_id=instance.backend_id,
+        project=instance.project,
+        state=marketplace_models.Resource.States.OK,
+        name=instance.name,
+        scope=instance,
+        created=instance.created,
+        plan=plan,
+        offering=offering,
+    )

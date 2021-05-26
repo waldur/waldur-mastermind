@@ -11,6 +11,7 @@ class MarketplaceAzureConfig(AppConfig):
         from waldur_azure.apps import AzureConfig
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_core.structure import signals as structure_signals
 
         from . import handlers, processors, VIRTUAL_MACHINE_TYPE, SQL_SERVER_TYPE
 
@@ -40,6 +41,8 @@ class MarketplaceAzureConfig(AppConfig):
             create_resource_processor=processors.VirtualMachineCreateProcessor,
             delete_resource_processor=processors.VirtualMachineDeleteProcessor,
             service_type=AzureConfig.service_name,
+            get_importable_resources_backend_method='get_importable_virtual_machines',
+            import_resource_backend_method='import_virtual_machine',
         )
 
         manager.register(
@@ -47,4 +50,11 @@ class MarketplaceAzureConfig(AppConfig):
             create_resource_processor=processors.SQLServerCreateProcessor,
             delete_resource_processor=processors.SQLServerDeleteProcessor,
             service_type=AzureConfig.service_name,
+        )
+
+        structure_signals.resource_imported.connect(
+            handlers.create_marketplace_resource_for_imported_resources,
+            sender=azure_models.VirtualMachine,
+            dispatch_uid='waldur_mastermind.marketplace_azure.'
+            'create_resource_for_imported_vm',
         )
