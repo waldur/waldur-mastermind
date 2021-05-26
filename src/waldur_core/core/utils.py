@@ -17,6 +17,7 @@ import requests
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import EmailMultiAlternatives
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
@@ -30,6 +31,7 @@ from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.encoding import force_text
+from django.utils.lru_cache import lru_cache
 from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
@@ -443,3 +445,15 @@ def get_lat_lon_from_address(address):
 def format_homeport_link(format_str='', **kwargs):
     link = settings.WALDUR_CORE['HOMEPORT_URL'] + format_str
     return link.format(**kwargs)
+
+
+@lru_cache(maxsize=1)
+def get_system_robot():
+    from waldur_core.core import models
+
+    try:
+        return models.User.objects.get(
+            username='system_robot', is_staff=True, is_active=True
+        )
+    except ObjectDoesNotExist:
+        return

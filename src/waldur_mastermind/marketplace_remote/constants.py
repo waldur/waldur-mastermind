@@ -13,6 +13,12 @@ OFFERING_COMPONENT_FIELDS = (
     'article_code',
     'measured_unit',
     'billing_type',
+    'min_value',
+    'max_value',
+    'is_boolean',
+    'default_limit',
+    'limit_period',
+    'limit_amount',
 )
 
 PLAN_FIELDS = (

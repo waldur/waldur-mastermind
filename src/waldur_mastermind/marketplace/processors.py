@@ -59,6 +59,8 @@ class BaseOrderItemProcessor:
 
 class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
     def process_order_item(self, user):
+        # scope can be a reference to a different object or a string representing
+        # unique key of a scoped object, e.g. remote UUID
         scope = self.send_request(user)
 
         with transaction.atomic():
@@ -69,7 +71,8 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
                 limits=self.order_item.limits,
                 attributes=self.order_item.attributes,
                 name=self.order_item.attributes.get('name') or '',
-                scope=scope,
+                scope=scope if scope and type(scope) != str else None,
+                backend_id=scope if scope and type(scope) == str else '',
             )
             resource.init_cost()
             resource.save()
@@ -77,7 +80,7 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
             self.order_item.resource = resource
             self.order_item.save(update_fields=['resource'])
 
-            if not scope:
+            if not scope or type(scope) == str:
                 resource_creation_succeeded(resource)
 
     def send_request(self, user):

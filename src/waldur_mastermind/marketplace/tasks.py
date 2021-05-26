@@ -6,13 +6,11 @@ from celery import shared_task
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
-from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.utils import create_request
@@ -193,34 +191,13 @@ def terminate_resources_if_project_end_date_has_been_reached():
         end_date__isnull=True
     ).filter(end_date__lte=timezone.datetime.today())
 
-    if expired_projects:
-        try:
-            user = core_models.User.objects.get(
-                username='system_robot', is_staff=True, is_active=True
-            )
-        except ObjectDoesNotExist:
-            logger.error(
-                'Staff user with username system_robot for terminating resources '
-                'of project with due date does not exist.'
-            )
-            return
-    else:
-        return
-
     for project in expired_projects:
         resources = models.Resource.objects.filter(project=project).filter(
             state__in=(models.Resource.States.OK, models.Resource.States.ERRED)
         )
 
-        for resource in resources:
-            view = views.ResourceViewSet.as_view({'post': 'terminate'})
-            response = create_request(view, user, {}, uuid=resource.uuid.hex)
-
-            if response.status_code != status.HTTP_200_OK:
-                logger.error(
-                    'Terminating resource %s has failed. %s'
-                    % (resource.uuid.hex, response.content)
-                )
+        if resources:
+            utils.schedule_resources_termination(resources)
         else:
             project.delete()
 
@@ -275,3 +252,16 @@ def notify_about_stale_resource():
             {'resources': value},
             [key],
         )
+
+
+@shared_task(name='marketplace.terminate_resource_if_its_end_date_has_been_reached')
+def terminate_resource_if_its_end_date_has_been_reached():
+    expired_resources = models.Resource.objects.exclude(
+        end_date__isnull=True,
+        state__in=(
+            models.Resource.States.TERMINATED,
+            models.Resource.States.TERMINATING,
+        ),
+    ).filter(end_date__lte=timezone.datetime.today())
+
+    utils.schedule_resources_termination(expired_resources)

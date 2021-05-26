@@ -199,6 +199,8 @@ class SubmitUsageTest(test.APITransactionTestCase):
                 billing_period=billing_period,
             ).exists()
         )
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.current_usages, {'cpu': 5, 'ram': 5})
 
     @mock.patch('waldur_mastermind.marketplace.serializers.logger')
     def test_event_log_is_created_if_component_usage_has_been_created(

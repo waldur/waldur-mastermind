@@ -1045,6 +1045,15 @@ class Resource(
     backend_metadata = BetterJSONField(blank=True, default=dict)
     report = BetterJSONField(blank=True, null=True)
     current_usages = BetterJSONField(blank=True, default=dict)
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'The date is inclusive. Once reached, '
+            'a resource will '
+            'be scheduled for termination.'
+        ),
+    )
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
 
@@ -1126,6 +1135,10 @@ class Resource(
     @classmethod
     def get_url_name(cls):
         return 'marketplace-resource'
+
+    @property
+    def is_expired(self):
+        return self.end_date and self.end_date <= timezone.datetime.today().date()
 
     def __str__(self):
         if self.name:
