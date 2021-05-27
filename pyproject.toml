@@ -19,7 +19,7 @@ classifiers=[
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.8,<3.10"
 apache-libcloud = "2.2.1"
 azure-mgmt-compute = "5.0.0"
 azure-mgmt-network = "2.0.0"
@@ -79,8 +79,6 @@ sentry-sdk = "0.13.1"
 sqlparse = "0.2.4"
 python-freeipa = "0.2.5"
 django-modeltranslation = "^0.15"
-django-storages = "^1.9.1"
-boto3 = "^1.14.18"
 django-axes = "^5.4.3"
 geopy = "^2.0.0"
 google-api-python-client = "^1.12.5"
@@ -94,6 +92,7 @@ django-upload-validator = "^1.1.5"
 pydantic = "^1.8.1"
 SQLAlchemy = "1.3.0"
 cryptography = "3.4.7"
+django-binary-database-files = "^1.0.15"
 
 [tool.poetry.dev-dependencies]
 pytest = "3.6.2"

@@ -23,6 +23,7 @@ urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^admintools/', include('admin_tools.urls')),
     url(r'^health-check/', include('health_check.urls')),
+    url(r'^media/', include('binary_database_files.urls')),
 ]
 
 if settings.WALDUR_CORE.get('EXTENSIONS_AUTOREGISTER'):
