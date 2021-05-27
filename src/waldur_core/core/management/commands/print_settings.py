@@ -7,7 +7,7 @@ from waldur_core.core.metadata import WaldurConfiguration
 
 
 def print_section(section, section_name, print_default=False):
-    print(f'** {section_name} **')
+    print(f'#### {section_name}')
     print()
     if print_default and section.default is not None and section.default != '':
         default_value = section.default

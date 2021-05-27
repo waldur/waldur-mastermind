@@ -363,12 +363,74 @@ class WaldurSlurm(BaseModel):
     )
 
 
+class WaldurMarketplace(BaseModel):
+
+    THUMBNAIL_SIZE = Field(
+        (120, 120),
+        description='Size of the thumbnail to generate when screenshot is uploaded for an offering.',
+    )
+    OWNER_CAN_APPROVE_ORDER = Field(
+        True,
+        description='If true, orders for resource can be approved by custom organization owner.',
+    )
+    MANAGER_CAN_APPROVE_ORDER = Field(
+        False,
+        description='If true, orders for resource can be approved by manager of the customer project',
+    )
+    ADMIN_CAN_APPROVE_ORDER = Field(
+        False,
+        description='If true, orders for resource can be approved by admin of the customer project',
+    )
+    ANONYMOUS_USER_CAN_VIEW_OFFERINGS = Field(
+        True,
+        description='Allow anonymous users to see shared offerings in active, paused and archived states',
+    )
+    NOTIFY_STAFF_ABOUT_APPROVALS = Field(
+        False,
+        description='If true, users with staff role are notified when request for order approval is generated',
+    )
+    NOTIFY_ABOUT_RESOURCE_CHANGE = Field(
+        True,
+        description='If true, notify users about resource changes from Marketplace perspective. Can generate duplicate events if plugins also log',
+    )
+    DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE = Field(
+        True, description='Disable only resource update events.'
+    )
+    OWNER_CAN_REGISTER_SERVICE_PROVIDER = Field(
+        False,
+        description='Allow organization owner to request or mark its organization as service provider',
+    )
+    PLAN_TEMPLATE = Field(
+        'Plan: {{ plan.name }}'
+        '{% for component in components %}\n'
+        '{{component.name}}; '
+        'amount: {{component.amount}}; '
+        'price: {{component.price|floatformat }};'
+        '{% endfor %}',
+        description='Template for a plan field',
+    )
+    ENABLE_STALE_RESOURCE_NOTIFICATIONS = Field(
+        False,
+        description='Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.',
+    )
+
+    class Meta:
+        public_settings = [
+            'OWNER_CAN_APPROVE_ORDER',
+            'MANAGER_CAN_APPROVE_ORDER',
+            'ADMIN_CAN_APPROVE_ORDER',
+            'OWNER_CAN_REGISTER_SERVICE_PROVIDER',
+            'ANONYMOUS_USER_CAN_VIEW_OFFERINGS',
+        ]
+
+
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
     WALDUR_FREEIPA = WaldurFreeipa()
     WALDUR_HPC = WaldurHPC()
     WALDUR_SLURM = WaldurSlurm()
+    WALDUR_MARKETPLACE = WaldurMarketplace()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
     )
@@ -380,7 +442,6 @@ class WaldurConfiguration(BaseModel):
         'webmaster@localhost',
         description='Default email address to use for automated correspondence from Waldur.',
     )
-    CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC = False
     IPSTACK_ACCESS_KEY: Optional[str] = Field(
         description='Unique authentication key used to gain access to the ipstack API.'
     )

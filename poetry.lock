@@ -632,6 +632,17 @@ django-appconf = ">=1.0.3"
 django-ipware = ">=3,<4"
 
 [[package]]
+name = "django-binary-database-files"
+version = "1.0.15"
+description = "A storage system for Django that stores uploaded files in both the database and file system."
+category = "main"
+optional = false
+python-versions = ">=3.6,<3.10"
+
+[package.dependencies]
+Django = ">=2.2,<3.3"
+
+[[package]]
 name = "django-cors-headers"
 version = "3.4.0"
 description = "django-cors-headers is a Django application for handling the server headers required for Cross-Origin Resource Sharing (CORS)."
@@ -2614,8 +2625,8 @@ testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.8"
-content-hash = "f29cb53cb578704c989321d483b1d4a1fc0a604d65bd76f8e6af263764f5cb56"
+python-versions = "^3.8,<3.10"
+content-hash = "5d81cde23d740580982c59fabb8648c644aab1615be94f3e8dad5b3d650470c2"
 
 [metadata.files]
 adal = [
@@ -2890,6 +2901,9 @@ django-auth-ldap = [
 django-axes = [
     {file = "django-axes-5.4.3.tar.gz", hash = "sha256:576340de84b4c40f3e9b86e7bf42e1a79626b03aa30d0778247cbde91ef57baa"},
     {file = "django_axes-5.4.3-py3-none-any.whl", hash = "sha256:c5948505ab4f9aa11805969874a23952e082d5e6a6628faebc1748205692681d"},
+]
+django-binary-database-files = [
+    {file = "django-binary-database-files-1.0.15.tar.gz", hash = "sha256:135ca57cd709642c7ff89326f2401621e728409361509d6d1297ff3998cb4d47"},
 ]
 django-cors-headers = [
     {file = "django-cors-headers-3.4.0.tar.gz", hash = "sha256:f5218f2f0bb1210563ff87687afbf10786e080d8494a248e705507ebd92d7153"},
