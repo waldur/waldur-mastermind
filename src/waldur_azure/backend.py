@@ -28,14 +28,9 @@ class AzureBackend(ServiceBackend):
 
     def pull_service_properties(self):
         self.pull_locations()
-
-        # TODO: make sizes location aware
-        # XXX: hardcode location of sizes to northeurope
-        location = models.Location.objects.get(
-            settings=self.settings, backend_id='northeurope'
-        )
-        self.pull_sizes(location)
-        self.pull_images(location)
+        self.pull_all_sizes()
+        self.pull_all_images()
+        self.pull_all_size_availability()
 
     def pull_locations(self):
         cached_locations = {
@@ -124,6 +119,10 @@ class AzureBackend(ServiceBackend):
         for cached_public_ip in stale_public_ips:
             cached_public_ip.delete()
 
+    def pull_all_images(self):
+        for location in models.Location.objects.filter(settings=self.settings):
+            self.pull_images(location)
+
     def pull_images(self, location):
         cached_images = {
             image.backend_id: image
@@ -174,6 +173,10 @@ class AzureBackend(ServiceBackend):
         for cached_image_name in stale_images:
             stale_images[cached_image_name].delete()
 
+    def pull_all_sizes(self):
+        for location in models.Location.objects.filter(settings=self.settings):
+            self.pull_sizes(location)
+
     def pull_sizes(self, location):
         cached_sizes = {
             size.backend_id: size
@@ -213,6 +216,28 @@ class AzureBackend(ServiceBackend):
 
         for cached_size_name in stale_sizes:
             stale_sizes[cached_size_name].delete()
+
+    def pull_all_size_availability(self):
+        for location in models.Location.objects.filter(settings=self.settings):
+            self.pull_size_availability(location)
+
+    def pull_size_availability(self, location):
+        zones_map = self.client.list_virtual_machine_size_availability_zones(
+            location.backend_id
+        )
+        for size_name, backend_zones in zones_map.items():
+            size = models.Size.objects.get(settings=self.settings, name=size_name)
+            cached_zones = models.SizeAvailabilityZone.objects.filter(
+                size__name=size_name, location=location
+            ).values_list('zone', flat=True)
+            new_zones = set(backend_zones) - set(cached_zones)
+            for zone in new_zones:
+                models.SizeAvailabilityZone.objects.create(
+                    location=location, size=size, zone=zone
+                )
+            models.SizeAvailabilityZone.objects.filter(
+                size__name=size_name, location=location
+            ).exclude(zone__in=backend_zones).delete()
 
     def pull_resource_groups(self, service_settings, project):
         cached_groups = {

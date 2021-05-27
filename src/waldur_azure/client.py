@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List
 
 from azure.core.exceptions import HttpResponseError
 from azure.identity import ClientSecretCredential
@@ -141,6 +141,23 @@ class AzureClient:
             return self.compute_client.virtual_machine_sizes.list(location)
         except (HttpResponseError, ClientException) as exc:
             raise AzureBackendError(exc)
+
+    def list_virtual_machine_size_availability_zones(
+        self, location: str
+    ) -> Dict[str, List[str]]:
+        try:
+            all_skus = self.compute_client.resource_skus.list(
+                filter=f"location eq '{location}'"
+            )
+        except ClientException as exc:
+            raise AzureBackendError(exc)
+        vm_skus = [sku for sku in all_skus if sku.resource_type == 'virtualMachines']
+        zones = dict()
+        for sku in vm_skus:
+            for location_info in sku.location_info:
+                if location_info.location == location:
+                    zones[sku.name] = location_info.zones
+        return zones
 
     def list_virtual_machine_images(
         self, location, selected_provider=None

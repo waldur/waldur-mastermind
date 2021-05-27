@@ -51,6 +51,12 @@ class Size(structure_models.ServiceProperty):
         return 'azure-size'
 
 
+class SizeAvailabilityZone(models.Model):
+    size = models.ForeignKey(Size, on_delete=models.CASCADE)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    zone = models.PositiveSmallIntegerField()
+
+
 class BaseResource(core_models.RuntimeStateMixin, structure_models.BaseResource):
     class Meta:
         abstract = True
