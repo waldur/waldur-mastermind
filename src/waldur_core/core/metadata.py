@@ -442,7 +442,6 @@ class WaldurConfiguration(BaseModel):
         'webmaster@localhost',
         description='Default email address to use for automated correspondence from Waldur.',
     )
-    CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC = False
     IPSTACK_ACCESS_KEY: Optional[str] = Field(
         description='Unique authentication key used to gain access to the ipstack API.'
     )

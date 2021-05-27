@@ -1,7 +1,6 @@
 import copy
 import json
 import os
-import shutil
 
 from django.core.management.base import BaseCommand
 
@@ -18,7 +17,9 @@ def export_offering(offering, path):
         filename, file_extension = os.path.splitext(offering.thumbnail.file.name)
         pic_path = os.path.join(path, offering.uuid.hex + file_extension)
 
-        shutil.copy(offering.thumbnail.file.name, pic_path)
+        with open(pic_path, 'wb') as pic_res:
+            pic_res.write(offering.thumbnail.file.file.read())
+
         data['thumbnail'] = os.path.basename(pic_path)
     else:
         pic_path = None
