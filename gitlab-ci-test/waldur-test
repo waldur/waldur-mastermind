@@ -2,7 +2,8 @@
 set -e
 
 echo "[+] Install dependencies in case of absence"
-poetry install
+pip3 install poetry==1.1.6
+poetry install -vvv
 
 echo "[+] Setup test settings"
 cat > src/waldur_mastermind/test_settings.py <<-EOF

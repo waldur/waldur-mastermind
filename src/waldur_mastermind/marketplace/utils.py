@@ -18,13 +18,14 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from PIL import Image
 from rest_framework import exceptions as rf_exceptions
-from rest_framework import serializers
+from rest_framework import serializers, status
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
@@ -769,3 +770,29 @@ def check_customer_blocked_for_terminating(resource):
 
     if project.customer.blocked:
         raise rf_exceptions.ValidationError(_('Blocked organization is not available.'))
+
+
+def schedule_resources_termination(resources):
+    from waldur_mastermind.marketplace import views
+
+    if not resources:
+        return
+
+    view = views.ResourceViewSet.as_view({'post': 'terminate'})
+    user = core_utils.get_system_robot()
+
+    if not user:
+        logger.error(
+            'Staff user with username system_robot for terminating resources '
+            'of project with due date does not exist.'
+        )
+        return
+
+    for resource in resources:
+        response = create_request(view, user, {}, uuid=resource.uuid.hex)
+
+        if response.status_code != status.HTTP_200_OK:
+            logger.error(
+                'Terminating resource %s has failed. %s'
+                % (resource.uuid.hex, response.content)
+            )
