@@ -422,6 +422,7 @@ class AzureBackend(ServiceBackend):
             project=project,
             resource_group=resource_group,
             name=vm_name,
+            backend_id=vm_name,
             network_interface=network_interface,
             size=size,
             image=image,
@@ -496,6 +497,21 @@ class AzureBackend(ServiceBackend):
                 subnet=subnet,
                 state=models.NetworkInterface.States.OK,
             )
+
+    def pull_virtual_machine(self, local_vm: models.VirtualMachine):
+        backend_vm = self.client.get_virtual_machine(
+            local_vm.resource_group.name, local_vm.name
+        )
+        new_runtime_state = self.get_virtual_machine_runtime_state(backend_vm)
+        if new_runtime_state != local_vm.runtime_state:
+            local_vm.runtime_state = new_runtime_state
+            local_vm.save(update_fields=['runtime_state'])
+
+    def get_virtual_machine_runtime_state(self, backend_vm):
+        for status in backend_vm.instance_view.statuses:
+            key, val = status.code.split('/')
+            if key == 'PowerState':
+                return val
 
     def create_ssh_security_group(self, network_security_group):
         poller = self.client.create_ssh_security_group(

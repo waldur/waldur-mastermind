@@ -54,6 +54,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     serializer_class = serializers.VirtualMachineSerializer
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
+    pull_executor = executors.VirtualMachinePullExecutor
 
     @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):

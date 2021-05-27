@@ -144,6 +144,16 @@ class VirtualMachineRestartExecutor(core_executors.ActionExecutor):
         )
 
 
+class VirtualMachinePullExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            'pull_virtual_machine',
+            state_transition='begin_updating',
+        )
+
+
 class PublicIPCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
