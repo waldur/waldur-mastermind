@@ -354,6 +354,7 @@ class AzureBackend(ServiceBackend):
             vm_name=virtual_machine.name,
         )
         poller.wait()
+        self.pull_virtual_machine(virtual_machine)
 
     def restart_virtual_machine(self, virtual_machine):
         poller = self.client.restart_virtual_machine(
@@ -361,6 +362,7 @@ class AzureBackend(ServiceBackend):
             vm_name=virtual_machine.name,
         )
         poller.wait()
+        self.pull_virtual_machine(virtual_machine)
 
     def stop_virtual_machine(self, virtual_machine):
         poller = self.client.stop_virtual_machine(
@@ -368,6 +370,7 @@ class AzureBackend(ServiceBackend):
             vm_name=virtual_machine.name,
         )
         poller.wait()
+        self.pull_virtual_machine(virtual_machine)
 
     def delete_virtual_machine(self, virtual_machine):
         poller = self.client.delete_virtual_machine(
