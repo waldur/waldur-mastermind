@@ -39,9 +39,7 @@ class AzureBackend(ServiceBackend):
         }
 
         backend_locations = {
-            location.name: location
-            for location in self.client.list_locations()
-            if location.name == 'northeurope'  # XXX: hardcode for consistency
+            location.name: location for location in self.client.list_locations()
         }
 
         resource_group_locations = self.client.get_resource_group_locations()
