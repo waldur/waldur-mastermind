@@ -31,6 +31,7 @@ class TestPublicSettings(TestCase):
             'WALDUR_FREEIPA': {},
             'WALDUR_HPC': {},
             'WALDUR_SLURM': {},
+            'WALDUR_MARKETPLACE': {},
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},
             'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'},
