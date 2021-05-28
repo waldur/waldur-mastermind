@@ -1,6 +1,7 @@
 import logging
 from itertools import islice
 
+from azure.core.exceptions import HttpResponseError
 from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_azure.client import AzureBackendError, AzureClient, AzureImage
@@ -138,7 +139,7 @@ class AzureBackend(ServiceBackend):
                     10,
                 )
             }
-        except AzureBackendError as e:
+        except HttpResponseError as e:
             if e.error.code == 'NoRegisteredProviderFound':
                 backend_images = {}
             else:
@@ -186,7 +187,7 @@ class AzureBackend(ServiceBackend):
                 size.name: size
                 for size in self.client.list_virtual_machine_sizes(location.backend_id)
             }
-        except AzureBackendError as e:
+        except HttpResponseError as e:
             if e.error.code == 'NoRegisteredProviderFound':
                 backend_sizes = {}
             else:
@@ -224,7 +225,10 @@ class AzureBackend(ServiceBackend):
             location.backend_id
         )
         for size_name, backend_zones in zones_map.items():
-            size = models.Size.objects.get(settings=self.settings, name=size_name)
+            try:
+                size = models.Size.objects.get(settings=self.settings, name=size_name)
+            except ObjectDoesNotExist:
+                continue
             cached_zones = models.SizeAvailabilityZone.objects.filter(
                 size__name=size_name, location=location
             ).values_list('zone', flat=True)

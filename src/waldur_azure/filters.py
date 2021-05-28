@@ -20,6 +20,15 @@ class SizeFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Size
 
+    location = core_filters.URLFilter(
+        view_name='azure-location-detail',
+        field_name='sizeavailabilityzone__location__uuid',
+    )
+    location_uuid = django_filters.UUIDFilter(
+        field_name='sizeavailabilityzone__location__uuid'
+    )
+    zone = django_filters.UUIDFilter(field_name='sizeavailabilityzone__zone')
+
 
 class BaseResourceGroupFilter(structure_filters.BaseResourceFilter):
     resource_group = core_filters.URLFilter(

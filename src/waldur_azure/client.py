@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, List
 
-from azure.core.exceptions import HttpResponseError
 from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import (
@@ -139,7 +138,7 @@ class AzureClient:
     def list_virtual_machine_sizes(self, location):
         try:
             return self.compute_client.virtual_machine_sizes.list(location)
-        except (HttpResponseError, ClientException) as exc:
+        except ClientException as exc:
             raise AzureBackendError(exc)
 
     def list_virtual_machine_size_availability_zones(
