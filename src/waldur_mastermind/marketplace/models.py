@@ -508,7 +508,7 @@ class Offering(
 
     def get_datacite_url(self):
         return core_utils.format_homeport_link(
-            'marketplace-offering-public/{offering_uuid}/', offering_uuid=self.uuid.hex
+            'marketplace-public-offering/{offering_uuid}/', offering_uuid=self.uuid.hex
         )
 
     def can_manage_role(self, user, role=None, timestamp=False):
