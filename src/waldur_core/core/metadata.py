@@ -363,6 +363,20 @@ class WaldurSlurm(BaseModel):
     )
 
 
+class WaldurPID(BaseModel):
+    DATACITE = Field(
+        {
+            'REPOSITORY_ID': '',
+            'PASSWORD': '',
+            'PREFIX': '',
+            'API_URL': 'https://example.com',
+            'PUBLISHER': 'Waldur',
+            'COLLECTION_DOI': '',
+        },
+        description='Settings for integration of Waldur with Datacite PID service. Collection DOI is used to aggregate generated DOIs.',
+    )
+
+
 class WaldurMarketplace(BaseModel):
 
     THUMBNAIL_SIZE = Field(
@@ -430,6 +444,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_FREEIPA = WaldurFreeipa()
     WALDUR_HPC = WaldurHPC()
     WALDUR_SLURM = WaldurSlurm()
+    WALDUR_PID = WaldurPID()
     WALDUR_MARKETPLACE = WaldurMarketplace()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
