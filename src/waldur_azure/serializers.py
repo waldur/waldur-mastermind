@@ -193,8 +193,10 @@ class VirtualMachineSerializer(
         size = attrs['size']
         image = attrs['image']
         location = attrs['location']
-        if size.location != location:
-            raise ValidationError('Size should be in the same location.')
+        if not models.SizeAvailabilityZone.objects.filter(
+            size=size, location=location
+        ).exists():
+            raise ValidationError('Size is not available in the selected location.')
         if image.location != location:
             raise ValidationError('Image should be in the same location.')
         return attrs

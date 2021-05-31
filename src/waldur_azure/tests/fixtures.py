@@ -16,7 +16,7 @@ class AzureFixture(ProjectFixture):
 
     @cached_property
     def image(self):
-        return factories.ImageFactory(settings=self.settings)
+        return factories.ImageFactory(settings=self.settings, location=self.location)
 
     @cached_property
     def size(self):
