@@ -16,6 +16,7 @@ from novaclient import exceptions as nova_exceptions
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher, pwgen
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.backend import log_backend_action
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import (
@@ -478,11 +479,12 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def _update_tenant_security_groups(self, tenant, backend_security_groups):
         for backend_security_group in backend_security_groups:
+            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
             imported_security_group = self._backend_security_group_to_security_group(
                 backend_security_group,
                 tenant=tenant,
                 service_settings=tenant.service_settings,
-                project=tenant.project,
+                project=project,
             )
 
             try:
