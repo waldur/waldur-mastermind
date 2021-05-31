@@ -25,10 +25,12 @@ class Location(CoordinatesMixin, structure_models.ServiceProperty):
 class Image(structure_models.ServiceProperty):
     publisher = models.CharField(max_length=255)
     sku = models.CharField(max_length=255)
+    offer = models.CharField(max_length=255)
     version = models.CharField(max_length=255)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
 
     class Meta(structure_models.ServiceProperty.Meta):
-        ordering = ['publisher', 'name', 'sku']
+        ordering = ['publisher', 'offer', 'name', 'sku']
 
     @classmethod
     def get_url_name(cls):
@@ -48,6 +50,12 @@ class Size(structure_models.ServiceProperty):
     @classmethod
     def get_url_name(cls):
         return 'azure-size'
+
+
+class SizeAvailabilityZone(models.Model):
+    size = models.ForeignKey(Size, on_delete=models.CASCADE)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
+    zone = models.PositiveSmallIntegerField()
 
 
 class BaseResource(core_models.RuntimeStateMixin, structure_models.BaseResource):

@@ -21,13 +21,15 @@ classifiers=[
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 apache-libcloud = "2.2.1"
-azure-mgmt-compute = "5.0.0"
-azure-mgmt-network = "2.0.0"
+azure-mgmt-compute = "20.0.0"
+azure-mgmt-network = "19.0.0"
 azure-mgmt-nspkg = "3.0.2"
-azure-mgmt-rdbms = "1.2.0"
-azure-mgmt-resource = "2.0.0"
-azure-mgmt-sql = "0.5.1"
-azure-mgmt-storage = "2.0.0"
+azure-mgmt-rdbms = "8.0.0"
+azure-mgmt-resource = "18.0.0"
+azure-mgmt-sql = "2.0.0"
+azure-mgmt-storage = "18.0.0"
+msrestazure = "0.6.4"
+azure-identity= "1.6.0"
 celery = "^5.0.5"
 croniter = "0.3.5"
 defusedxml = "0.6.0"
@@ -149,5 +151,5 @@ waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
 waldur_hpc = "waldur_hpc.extension:HPCExtension"
 
 [build-system]
-requires = ["poetry=1.0.9"]
+requires = ["poetry=1.1.6"]
 build-backend = "poetry.masonry.api"

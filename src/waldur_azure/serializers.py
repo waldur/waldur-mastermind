@@ -3,10 +3,12 @@ import uuid
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
-from waldur_azure.utils import generate_password, generate_username, hash_string
+from waldur_azure.utils import generate_password, generate_username
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.models import ServiceSettings
 
 from . import models
 
@@ -185,16 +187,29 @@ class VirtualMachineSerializer(
             )
         )
 
+    def validate(self, attrs):
+        if self.instance:
+            return
+        size = attrs['size']
+        image = attrs['image']
+        location = attrs['location']
+        if not models.SizeAvailabilityZone.objects.filter(
+            size=size, location=location
+        ).exists():
+            raise ValidationError('Size is not available in the selected location.')
+        if image.location != location:
+            raise ValidationError('Image should be in the same location.')
+        return attrs
+
     @transaction.atomic
     def create(self, validated_data):
         vm_name = validated_data['name']
-        service_settings = validated_data['service_settings']
+        service_settings: ServiceSettings = validated_data['service_settings']
         project = validated_data['project']
         size = validated_data['size']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
-        storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
+        resource_group_name = f'group-{uuid.uuid4().hex[:4]}-{vm_name}'
         network_name = 'net{}'.format(vm_name)
         subnet_name = 'subnet{}'.format(vm_name)
         nic_name = 'nic{}'.format(vm_name)
@@ -207,13 +222,6 @@ class VirtualMachineSerializer(
             project=project,
             name=resource_group_name,
             location=location,
-        )
-
-        models.StorageAccount.objects.create(
-            service_settings=service_settings,
-            project=project,
-            name=storage_account_name,
-            resource_group=resource_group,
         )
 
         network = models.Network.objects.create(

@@ -79,6 +79,7 @@ class ImageFactory(factory.DjangoModelFactory):
     sku = factory.Sequence(lambda n: 'sku-%s' % n)
     publisher = factory.Sequence(lambda n: 'pub-%s' % n)
     version = factory.Sequence(lambda n: 'v-%s' % n)
+    location = factory.SubFactory(LocationFactory)
 
     @classmethod
     def get_url(cls, image=None, action=None):
