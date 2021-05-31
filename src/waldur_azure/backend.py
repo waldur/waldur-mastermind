@@ -375,8 +375,8 @@ class AzureBackend(ServiceBackend):
         )
         backend_vm = poller.result()
         vm.backend_id = backend_vm.id
-        vm.runtime_state = backend_vm.provisioning_state
-        vm.save()
+        vm.runtime_state = self.get_virtual_machine_runtime_state(backend_vm)
+        vm.save(update_fields=['backend_id', 'runtime_state'])
 
     def start_virtual_machine(self, virtual_machine):
         poller = self.client.start_virtual_machine(
