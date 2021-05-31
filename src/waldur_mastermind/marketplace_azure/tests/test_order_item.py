@@ -53,8 +53,8 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         attributes = {
             'size': azure_factories.SizeFactory.get_url(fixture.size),
             'image': azure_factories.ImageFactory.get_url(fixture.image),
-            'name': 'database-server',
-            'location': azure_factories.LocationFactory.get_url(),
+            'name': 'virtual-machine',
+            'location': azure_factories.LocationFactory.get_url(fixture.location),
         }
         attributes.update(kwargs)
 
@@ -132,7 +132,7 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
 
 
 class SQLServerCreateTest(test.APITransactionTestCase):
-    def test_virtual_machine_is_created_when_order_item_is_processed(self):
+    def test_sql_server_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_resource_creation()
         self.assertEqual(
             order_item.state, marketplace_models.OrderItem.States.EXECUTING
