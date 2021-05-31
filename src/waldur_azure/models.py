@@ -27,6 +27,7 @@ class Image(structure_models.ServiceProperty):
     sku = models.CharField(max_length=255)
     offer = models.CharField(max_length=255)
     version = models.CharField(max_length=255)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE)
 
     class Meta(structure_models.ServiceProperty.Meta):
         ordering = ['publisher', 'offer', 'name', 'sku']

@@ -125,7 +125,9 @@ class AzureBackend(ServiceBackend):
     def pull_images(self, location):
         cached_images = {
             image.backend_id: image
-            for image in models.Image.objects.filter(settings=self.settings)
+            for image in models.Image.objects.filter(
+                settings=self.settings, location=location
+            )
         }
 
         try:
@@ -167,6 +169,7 @@ class AzureBackend(ServiceBackend):
                 version=backend_image.version_name,
                 name=f'{backend_image.offer_name} {backend_image.version_name}',
                 settings=self.settings,
+                location=location,
             )
 
         for cached_image_name in stale_images:

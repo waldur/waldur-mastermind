@@ -12,6 +12,11 @@ class ImageFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
 
+    location = core_filters.URLFilter(
+        view_name='azure-location-detail', field_name='location__uuid',
+    )
+    location_uuid = django_filters.UUIDFilter(field_name='location__uuid')
+
 
 class LocationFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
