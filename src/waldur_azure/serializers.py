@@ -3,6 +3,7 @@ import uuid
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 from waldur_azure.utils import generate_password, generate_username
 from waldur_core.core.models import SshPublicKey
@@ -185,6 +186,18 @@ class VirtualMachineSerializer(
                 'password',
             )
         )
+
+    def validate(self, attrs):
+        if self.instance:
+            return
+        size = attrs['size']
+        image = attrs['image']
+        location = attrs['location']
+        if size.location != location:
+            raise ValidationError('Size should be in the same location.')
+        if image.location != location:
+            raise ValidationError('Image should be in the same location.')
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):
