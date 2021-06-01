@@ -35,26 +35,26 @@ def is_staff(request, view, obj=None):
         raise exceptions.PermissionDenied()
 
 
-def is_owner(request, view, obj=None):
+def is_owner(request, view, obj=None, **kwargs):
     if not obj:
         return
-    customer = _get_customer(obj)
+    customer = _get_customer(obj, **kwargs)
     if not _has_owner_access(request.user, customer):
         raise exceptions.PermissionDenied()
 
 
-def is_manager(request, view, obj=None):
+def is_manager(request, view, obj=None, **kwargs):
     if not obj:
         return
-    project = _get_project(obj)
+    project = _get_project(obj, **kwargs)
     if not _has_manager_access(request.user, project):
         raise exceptions.PermissionDenied()
 
 
-def is_administrator(request, view, obj=None):
+def is_administrator(request, view, obj=None, **kwargs):
     if not obj:
         return
-    project = _get_project(obj)
+    project = _get_project(obj, **kwargs)
     if not _has_admin_access(request.user, project):
         raise exceptions.PermissionDenied()
 
@@ -75,21 +75,33 @@ def _has_admin_access(user, project):
     )
 
 
-def _get_parent_by_permission_path(obj, permission_path):
+def _get_parent_by_permission_path(obj, permission_path, soft_deleted_projects=False):
     path = getattr(obj.Permissions, permission_path, None)
     if path is None:
         return
     if path == 'self':
         return obj
-    return reduce(getattr, path.split('__'), obj)
+
+    def get_attr(o, name):
+        if soft_deleted_projects and name == 'project':
+            try:
+                return models.Project.all_objects.get(pk=o.project_id)
+            except models.Project.DoesNotExist:
+                raise AttributeError(
+                    '%s object has no attribute "project".' % obj.__class__
+                )
+
+        return getattr(o, name)
+
+    return reduce(get_attr, path.split('__'), obj)
 
 
-def _get_project(obj):
-    return _get_parent_by_permission_path(obj, 'project_path')
+def _get_project(obj, **kwargs):
+    return _get_parent_by_permission_path(obj, 'project_path', **kwargs)
 
 
-def _get_customer(obj):
-    return _get_parent_by_permission_path(obj, 'customer_path')
+def _get_customer(obj, **kwargs):
+    return _get_parent_by_permission_path(obj, 'customer_path', **kwargs)
 
 
 def check_access_to_services_management(request, view, obj=None):

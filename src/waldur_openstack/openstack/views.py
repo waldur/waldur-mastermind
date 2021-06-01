@@ -194,13 +194,21 @@ class TenantViewSet(structure_views.ResourceViewSet):
             return
         if obj.service_settings.shared:
             if settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']:
-                structure_permissions.is_manager(request, view, obj)
+                structure_permissions.is_manager(
+                    request, view, obj, soft_deleted_projects=True
+                )
             elif settings.WALDUR_OPENSTACK['ADMIN_CAN_MANAGE_TENANTS']:
-                structure_permissions.is_administrator(request, view, obj)
+                structure_permissions.is_administrator(
+                    request, view, obj, soft_deleted_projects=True
+                )
             else:
-                structure_permissions.is_owner(request, view, obj)
+                structure_permissions.is_owner(
+                    request, view, obj, soft_deleted_projects=True
+                )
         else:
-            structure_permissions.is_administrator(request, view, obj)
+            structure_permissions.is_administrator(
+                request, view, obj, soft_deleted_projects=True
+            )
 
     delete_executor = executors.TenantDeleteExecutor
     destroy_permissions = [

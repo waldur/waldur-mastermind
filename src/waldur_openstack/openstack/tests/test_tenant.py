@@ -592,6 +592,16 @@ class TenantDeleteTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(mocked_task.call_count, 0)
 
+    def test_user_can_delete_tenant_if_project_has_been_soft_deleted(self, mocked_task):
+        self.fixture.project.is_removed = True
+        self.fixture.project.save()
+        self.client.force_authenticate(getattr(self.fixture, 'owner'))
+
+        response = self.client.delete(self.get_url())
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, is_async=True, force=False)
+
     def get_url(self):
         return factories.TenantFactory.get_url(self.tenant)
 
