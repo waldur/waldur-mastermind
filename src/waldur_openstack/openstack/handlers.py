@@ -37,7 +37,9 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
     user = ssh_key.user
     tenants = structure_filters.filter_queryset_for_user(Tenant.objects.all(), user)
     for tenant in tenants:
-        if not structure_permissions._has_admin_access(user, tenant.project):
+        project = structure_models.Project.all_objects.get(id=tenant.project_id)
+
+        if not structure_permissions._has_admin_access(user, project):
             continue
         serialized_tenant = core_utils.serialize_instance(tenant)
         core_tasks.BackendMethodTask().delay(
