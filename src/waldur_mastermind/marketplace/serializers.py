@@ -1890,7 +1890,7 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         fields = ('name', 'description', 'end_date')
 
     def validate_end_date(self, end_date):
-        if end_date and end_date <= timezone.datetime.today().date():
+        if end_date and end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
                 {'end_date': _('Cannot be earlier than the current date.')}
             )
