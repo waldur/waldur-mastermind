@@ -272,7 +272,7 @@ class ProjectCreateTest(test.APITransactionTestCase):
             )
             self.assertFalse(Project.objects.filter(name=payload['name']).exists())
 
-        with freeze_time('2021-01-01'):
+        with freeze_time('2021-06-01'):
             response = self.client.post(
                 factories.ProjectFactory.get_list_url(), payload
             )

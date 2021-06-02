@@ -221,7 +221,7 @@ class ProjectSerializer(
         return clean_html(value.strip())
 
     def validate_end_date(self, end_date):
-        if end_date and end_date <= timezone.datetime.today().date():
+        if end_date and end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
                 {'end_date': _('Cannot be earlier than the current date.')}
             )

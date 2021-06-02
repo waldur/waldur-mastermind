@@ -649,9 +649,16 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             self.resource.refresh_from_db()
             self.assertTrue(self.resource.end_date)
 
+    def test_authorized_user_can_set_current_past_date(self):
+        with freeze_time('2020-01-01'):
+            response = self.make_request(self.fixture.staff, {'end_date': '2020-01-01'})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.resource.refresh_from_db()
+            self.assertTrue(self.resource.end_date)
+
     def test_user_cannot_set_past_date(self):
         with freeze_time('2022-01-01'):
-            response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+            response = self.make_request(self.fixture.staff, {'end_date': '2020-01-01'})
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_update_end_date_should_generate_audit_log(self):
