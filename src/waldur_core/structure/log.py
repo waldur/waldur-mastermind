@@ -111,7 +111,7 @@ class ResourceEventLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['resource']
-        project = resource.project
+        project = models.Project.all_objects.get(id=resource.project_id)
         return {resource, project, project.customer}
 
 
