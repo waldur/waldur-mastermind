@@ -24,7 +24,7 @@ class RemoteCreateResourceProcessor(
         )
         # TODO: refactor in https://opennode.atlassian.net/browse/WAL-4126
         # TODO: make consistent with update/terminate
-        response = self.client.marketplace_resource_create(
+        response = self.client.create_resource_via_marketplace(
             project_uuid=remote_project['uuid'],
             offering_uuid=self.order_item.offering.backend_id,
             plan_uuid=self.order_item.plan.backend_id,
