@@ -37,11 +37,6 @@ class AnalyticsExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         return {
-            'waldur-push-analytics': {
-                'task': 'analytics.push_points',
-                'schedule': timedelta(minutes=30),
-                'args': (),
-            },
             'waldur-sync-daily-quotas': {
                 'task': 'analytics.sync_daily_quotas',
                 'schedule': timedelta(hours=24),
