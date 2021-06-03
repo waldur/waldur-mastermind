@@ -72,7 +72,8 @@ def notify_order_approvers(uuid):
 @shared_task(name='marketplace.notify_about_resource_change')
 def notify_about_resource_change(event_type, context, resource_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
-    emails = resource.project.get_users().values_list('email', flat=True)
+    project = structure_models.Project.all_objects.get(id=resource.project_id)
+    emails = project.get_users().values_list('email', flat=True)
     core_utils.broadcast_mail('marketplace', event_type, context, emails)
 
 

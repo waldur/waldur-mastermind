@@ -338,11 +338,12 @@ class OpenStackBackend(BaseOpenStackBackend):
         }
 
         for backend_ip in backend_floating_ips:
+            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
             imported_floating_ip = self._backend_floating_ip_to_floating_ip(
                 backend_ip,
                 tenant=tenant,
                 service_settings=tenant.service_settings,
-                project=tenant.project,
+                project=project,
             )
             floating_ip = floating_ips.pop(imported_floating_ip.backend_id, None)
             if floating_ip is None:
@@ -425,11 +426,15 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
+        project = structure_models.Project.all_objects.get(
+            pk=local_security_group.tenant.project_id
+        )
+
         imported_security_group = self._backend_security_group_to_security_group(
             remote_security_group,
             tenant=local_security_group.tenant,
             service_settings=local_security_group.tenant.service_settings,
-            project=local_security_group.tenant.project,
+            project=project,
         )
 
         modified = update_pulled_fields(
@@ -604,13 +609,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
 
+            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
+
             defaults = {
                 'name': backend_router['name'],
                 'description': backend_router['description'],
                 'routes': backend_router['routes'],
                 'fixed_ips': fixed_ips,
                 'service_settings': tenant.service_settings,
-                'project': tenant.project,
+                'project': project,
                 'state': models.Router.States.OK,
             }
             try:
@@ -650,11 +657,12 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         for backend_port in backend_ports:
             backend_id = backend_port['id']
+            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
             defaults = {
                 'name': backend_port['name'],
                 'description': backend_port['description'],
                 'service_settings': tenant.service_settings,
-                'project': tenant.project,
+                'project': project,
                 'state': models.Port.States.OK,
                 'mac_address': backend_port['mac_address'],
                 'fixed_ips': backend_port['fixed_ips'],
@@ -712,11 +720,13 @@ class OpenStackBackend(BaseOpenStackBackend):
                     )
                     continue
 
+                project = structure_models.Project.all_objects.get(pk=tenant.project_id)
+
                 imported_network = self._backend_network_to_network(
                     backend_network,
                     tenant=tenant,
                     service_settings=tenant.service_settings,
-                    project=tenant.project,
+                    project=project,
                 )
 
                 try:
@@ -830,11 +840,15 @@ class OpenStackBackend(BaseOpenStackBackend):
                     )
                     continue
 
+                project = structure_models.Project.all_objects.get(
+                    pk=network.project_id
+                )
+
                 imported_subnet = self._backend_subnet_to_subnet(
                     backend_subnet,
                     network=network,
                     service_settings=network.service_settings,
-                    project=network.project,
+                    project=project,
                 )
 
                 try:

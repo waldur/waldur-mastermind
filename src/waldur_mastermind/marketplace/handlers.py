@@ -511,7 +511,7 @@ def delete_expired_project_if_every_resource_has_been_terminated(
     if instance.state != models.Resource.States.TERMINATED:
         return
 
-    project = instance.project
+    project = structure_models.Project.all_objects.get(pk=instance.project_id)
 
     if project.is_expired:
         resources = (
