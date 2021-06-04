@@ -1240,7 +1240,9 @@ class WaldurClient(object):
             self.Endpoints.RemoteEduteams, {'cuid': cuid,}, valid_state=200,
         )
 
-    def create_project_permission(self, user_uuid, project_uuid, role):
+    def create_project_permission(
+        self, user_uuid, project_uuid, role, expiration_time=None
+    ):
         return self._create_resource(
             self.Endpoints.ProjectPermissions,
             {
@@ -1249,6 +1251,7 @@ class WaldurClient(object):
                     self.Endpoints.Project, project_uuid
                 ),
                 'role': role,
+                'expiration_time': expiration_time,
             },
         )
 
@@ -1275,7 +1278,9 @@ class WaldurClient(object):
     def remove_project_permission(self, permission_id):
         return self._delete_resource(self.Endpoints.ProjectPermissions, permission_id)
 
-    def create_customer_permission(self, user_uuid, customer_uuid, role):
+    def create_customer_permission(
+        self, user_uuid, customer_uuid, role, expiration_time=None
+    ):
         return self._create_resource(
             self.Endpoints.CustomerPermissions,
             {
@@ -1284,6 +1289,7 @@ class WaldurClient(object):
                     self.Endpoints.Customers, customer_uuid
                 ),
                 'role': role,
+                'expiration_time': expiration_time,
             },
         )
 
