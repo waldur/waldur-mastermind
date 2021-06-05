@@ -444,6 +444,14 @@ class TenantUpdateTest(BaseTenantActionsTest):
         self.service_settings.refresh_from_db()
         self.assertEqual(self.service_settings.name, new_name)
 
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_authorized_user_can_update_description_of_tenant(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.get_url(), dict(description='new description')
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def get_url(self):
         return factories.TenantFactory.get_url(self.fixture.tenant)
 
