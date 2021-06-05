@@ -96,6 +96,27 @@ class AllocationDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
+class AllocationUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.SlurmFixture()
+        self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_authorized_user_can_update_allocation(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+
+        response = self.client.patch(self.url, {'description': 'New description.'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('member')
+    def test_non_authorized_user_can_not_update_allocation(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+
+        response = self.client.patch(self.url, {'description': 'New description.'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
 class AllocationCancelTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()

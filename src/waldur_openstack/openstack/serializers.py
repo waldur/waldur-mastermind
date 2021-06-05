@@ -680,7 +680,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         if self.instance is not None and attrs.get('name'):
             if self.instance.name != attrs['name']:
                 self._validate_tenant_name(service_settings, attrs['name'])
-        else:
+        elif attrs.get('name'):
             self._validate_tenant_name(service_settings, attrs['name'])
 
         # username generation/validation

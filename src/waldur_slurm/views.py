@@ -3,6 +3,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, response, status, viewsets
 from rest_framework.decorators import action
 
+from waldur_core.core import executors as core_executors
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
@@ -16,6 +17,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.AllocationFilter
 
     create_executor = executors.AllocationCreateExecutor
+    update_executor = core_executors.EmptyExecutor
     pull_executor = executors.AllocationPullExecutor
 
     destroy_permissions = [structure_permissions.is_administrator]
