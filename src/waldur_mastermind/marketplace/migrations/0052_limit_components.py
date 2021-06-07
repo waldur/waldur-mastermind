@@ -3,6 +3,9 @@ from django.db import migrations, models
 
 def migrate_offering_components_to_limit(apps, schema_editor):
     OfferingComponent = apps.get_model('marketplace', 'OfferingComponent')
+    OfferingComponent.objects.filter(offering__type='Packages.Template').update(
+        billing_type='limit'
+    )
     OfferingComponent.objects.filter(is_boolean=True, billing_type='usage').update(
         billing_type='limit'
     )
