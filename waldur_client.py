@@ -102,8 +102,10 @@ class WaldurClient(object):
     def _build_url(self, endpoint):
         return urljoin(self.api_url, self._ensure_trailing_slash(endpoint))
 
-    def _build_resource_url(self, endpoint, uuid, action=None):
-        parts = [endpoint, uuid]
+    def _build_resource_url(self, endpoint, uid, action=None):
+        if not is_uuid(uid):
+            uid = str(uid)
+        parts = [endpoint, uid]
         if action:
             parts.append(action)
         return self._build_url('/'.join(parts))
