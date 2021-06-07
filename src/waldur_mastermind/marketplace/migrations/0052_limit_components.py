@@ -23,7 +23,9 @@ def cleanup_resource_limits(apps, schema_editor):
         invalid_types = current_types - valid_types
         if invalid_types:
             print(f"Dropping Invalid types {invalid_types} in resource {resource.id}")
-            resource.limits = {key: val for key, val in current_types & valid_types}
+            resource.limits = {
+                ctype: resource.limits[ctype] for ctype in current_types & valid_types
+            }
             resource.save(update_fields=['limits'])
 
 
