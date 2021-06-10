@@ -4,10 +4,10 @@ import logging
 from celery.app import shared_task
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils import dateparse
 from waldur_client import WaldurClientException
 
 from waldur_core.core.utils import deserialize_instance
-from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
@@ -101,40 +101,35 @@ class UsageListPullTask(BackgroundListPullTask):
     name='waldur_mastermind.marketplace_remote.update_remote_project_permissions'
 )
 def update_remote_project_permissions(
-    serialized_project, serialized_user, role, grant=True
+    serialized_project, serialized_user, role, grant=True, expiration_time=None
 ):
     project = deserialize_instance(serialized_project)
     user = deserialize_instance(serialized_user)
-    if not project.has_user(user, role):
-        logger.debug(
-            f'Skipping obsolete permission synchronization '
-            f'for user {user} in project {project} with role {role}.'
-        )
-        return
+    new_expiration_time = (
+        dateparse.parse_datetime(expiration_time)
+        if expiration_time
+        else expiration_time
+    )
 
-    sync_project_permission(grant, project, role, user)
+    sync_project_permission(grant, project, role, user, new_expiration_time)
 
 
 @shared_task(
     name='waldur_mastermind.marketplace_remote.update_remote_customer_permissions'
 )
 def update_remote_customer_permissions(
-    serialized_customer, serialized_user, role, grant=True
+    serialized_customer, serialized_user, role, grant=True, expiration_time=None
 ):
     customer = deserialize_instance(serialized_customer)
     user = deserialize_instance(serialized_user)
-    if not customer.has_user(user, role):
-        logger.debug(
-            f'Skipping obsolete permission synchronization '
-            f'for user {user} in customer {customer} with role {role}.'
-        )
-        return
+    new_expiration_time = (
+        dateparse.parse_datetime(expiration_time)
+        if expiration_time
+        else expiration_time
+    )
 
     for project in customer.projects.all():
-        # Organization owner is mapped to project manager in remote Waldur
-        sync_project_permission(
-            grant, project, structure_models.ProjectRole.MANAGER, user
-        )
+        sync_project_permission(grant, project, role, user, new_expiration_time)
 
 
 @shared_task(
@@ -174,14 +169,16 @@ def sync_remote_project_permissions():
             remote_user_roles = collections.defaultdict(set)
             for remote_permission in remote_permissions:
                 remote_user_roles[remote_permission['user_username']].add(
-                    remote_permission['role']
+                    (
+                        remote_permission['role'],
+                        dateparse.parse_datetime(remote_permission['expiration_time']),
+                    )
                 )
 
             common_usernames = set(local_user_roles.keys()) & set(
                 remote_user_roles.keys()
             )
             for username in common_usernames:
-
                 try:
                     remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
                 except WaldurClientException as e:
@@ -193,24 +190,24 @@ def sync_remote_project_permissions():
                 new_roles = local_user_roles[username] - remote_user_roles[username]
                 stale_roles = remote_user_roles[username] - local_user_roles[username]
 
-                for role in new_roles:
+                for role, expiration_time in new_roles:
                     try:
                         client.create_project_permission(
-                            remote_user_uuid, remote_project_uuid, role
+                            remote_user_uuid, remote_project_uuid, role, expiration_time
                         )
                     except WaldurClientException as e:
                         logger.debug(
-                            f'Unable to create permission for user [{remote_user_uuid}] with role {role} '
+                            f'Unable to create permission for user [{remote_user_uuid}] with role {role} (until {expiration_time}) '
                             f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                         )
 
-                for role in stale_roles:
+                for role, expiration_time in stale_roles:
                     for permission in remote_permissions:
                         if permission['role'] == role:
                             try:
                                 client.remove_project_permission(str(permission['pk']))
                             except WaldurClientException as e:
                                 logger.debug(
-                                    f'Unable to remove permission for user [{remote_user_uuid}] with role {role} '
+                                    f'Unable to remove permission for user [{remote_user_uuid}] with role {role} (until {expiration_time}) '
                                     f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                                 )

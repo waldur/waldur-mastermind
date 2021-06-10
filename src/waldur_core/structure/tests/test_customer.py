@@ -82,6 +82,7 @@ class CustomerUserTest(CustomerBaseTest):
             sender=Customer,
             signal=signals.structure_role_granted,
             created_by=self.created_by,
+            expiration_time=None,
         )
 
     def test_add_user_doesnt_emit_structure_role_granted_if_grant_existed_before(self):

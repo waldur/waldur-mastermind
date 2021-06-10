@@ -257,6 +257,7 @@ class PermissionMixin:
             user=user,
             role=role,
             created_by=created_by,
+            expiration_time=expiration_time,
         )
 
         return permission, True
