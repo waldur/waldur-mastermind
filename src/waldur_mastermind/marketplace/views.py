@@ -189,7 +189,6 @@ class OfferingViewSet(
             return queryset.filter(
                 state__in=[
                     models.Offering.States.ACTIVE,
-                    models.Offering.States.ARCHIVED,
                     models.Offering.States.PAUSED,
                 ],
                 shared=True,
