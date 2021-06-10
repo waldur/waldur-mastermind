@@ -444,6 +444,18 @@ class TenantPullExecutor(core_executors.ActionExecutor):
             ),
         )
 
+    @classmethod
+    def get_success_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.StateTransitionTask().si(
+                serialized_instance,
+                state_transition='set_ok',
+                action='',
+                action_details={},
+            ),
+            tasks.SendSignalTenantPullSucceeded().si(serialized_instance),
+        )
+
 
 class TenantPullSecurityGroupsExecutor(core_executors.ActionExecutor):
     @classmethod

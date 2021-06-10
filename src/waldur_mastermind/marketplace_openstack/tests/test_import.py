@@ -365,6 +365,15 @@ class TenantImportTest(BaseBackendTestCase):
         self.assertEquals(tenant.user_username, service_settings.username)
         self.assertEquals(tenant.user_password, service_settings.password)
 
+    @mock.patch('waldur_mastermind.marketplace_openstack.handlers.tasks')
+    def test_import_instances_and_volumes_if_tenant_has_been_imported(self, mock_tasks):
+        marketplace_factories.CategoryFactory(default_vm_category=True)
+        marketplace_factories.CategoryFactory(default_volume_category=True)
+        response = self.import_tenant()
+
+        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
+        mock_tasks.import_instances_and_volumes_of_tenant.delay.assert_called_once()
+
     def import_tenant(self, user='staff'):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {

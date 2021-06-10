@@ -493,3 +493,25 @@ def synchronize_limits_when_storage_mode_is_switched(
         transaction.on_commit(
             lambda: tasks.push_tenant_limits.delay(serialized_resource)
         )
+
+
+def import_instances_and_volumes_if_tenant_has_been_imported(
+    sender, instance, offering=None, plan=None, **kwargs
+):
+    tenant = instance
+
+    if not (
+        marketplace_models.Category.objects.filter(default_vm_category=True).exists()
+        and marketplace_models.Category.objects.filter(
+            default_volume_category=True
+        ).exists()
+    ):
+        logger.info(
+            'An import of instances and volumes is impossible because categories for them are not setted.'
+        )
+        return
+
+    serialized_resource = core_utils.serialize_instance(tenant)
+    transaction.on_commit(
+        lambda: tasks.import_instances_and_volumes_of_tenant.delay(serialized_resource)
+    )

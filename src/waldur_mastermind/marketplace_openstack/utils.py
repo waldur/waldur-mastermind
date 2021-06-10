@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace_openstack import (
     VOLUME_TYPE,
 )
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
 
 logger = logging.getLogger(__name__)
 TenantQuotas = openstack_models.Tenant.Quotas
@@ -270,3 +271,23 @@ def restore_limits(resource):
         return
 
     update_limits(order_item)
+
+
+def import_instances_and_volumes_of_tenant(tenant):
+
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
+    except structure_models.ServiceSettings.DoesNotExist:
+        logger.error(
+            'An import of instances and volumes is impossible because service settings do not exist.'
+            'Tenant: %s' % tenant
+        )
+        return
+
+    tenant_backend = openstack_tenant_backend.OpenStackTenantBackend(service_settings)
+
+    for instance in tenant_backend.get_importable_instances():
+        tenant_backend.import_instance(instance['backend_id'], tenant.project)
+
+    for volume in tenant_backend.get_importable_volumes():
+        tenant_backend.import_volume(volume['backend_id'], tenant.project)
