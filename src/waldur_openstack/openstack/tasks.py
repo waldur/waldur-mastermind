@@ -1,6 +1,6 @@
 from waldur_core.core import tasks as core_tasks
 
-from . import models
+from . import models, signals
 
 
 class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
@@ -45,3 +45,12 @@ class TenantPullQuotas(core_tasks.BackgroundTask):
 
         for tenant in models.Tenant.objects.filter(state=models.Tenant.States.OK):
             executors.TenantPullQuotasExecutor.execute(tenant)
+
+
+class SendSignalTenantPullSucceeded(core_tasks.Task):
+    @classmethod
+    def get_description(cls, *args, **kwargs):
+        return 'Send tenant_pull_succeeded signal.'
+
+    def execute(self, tenant):
+        signals.tenant_pull_succeeded.send(models.Tenant, instance=tenant)

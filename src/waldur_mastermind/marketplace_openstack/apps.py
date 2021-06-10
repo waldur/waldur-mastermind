@@ -17,6 +17,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_openstack.openstack import models as openstack_models
+        from waldur_openstack.openstack import signals as openstack_signals
         from waldur_openstack.openstack.apps import OpenStackConfig
         from waldur_openstack.openstack_tenant import (
             models as tenant_models,
@@ -219,4 +220,18 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=marketplace_models.Offering,
             dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'synchronize_limits_when_storage_mode_is_switched',
+        )
+
+        structure_signals.resource_imported.connect(
+            handlers.import_instances_and_volumes_if_tenant_has_been_imported,
+            sender=openstack_models.Tenant,
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
+            'import_instances_and_volumes_if_tenant_has_been_imported',
+        )
+
+        openstack_signals.tenant_pull_succeeded.connect(
+            handlers.import_instances_and_volumes_if_tenant_has_been_imported,
+            sender=openstack_models.Tenant,
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
+            'import_instances_and_volumes_if_tenant_has_been_imported_if_tenant_has_been_pulled',
         )
