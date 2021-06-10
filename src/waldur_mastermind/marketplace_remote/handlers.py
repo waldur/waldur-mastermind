@@ -12,30 +12,57 @@ from . import tasks
 logger = logging.getLogger(__name__)
 
 
+def update_remote_project_permission(sender, instance, user, **kwargs):
+    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+        return
+
+    transaction.on_commit(
+        lambda: tasks.update_remote_project_permissions.delay(
+            serialize_instance(instance.project),
+            serialize_instance(instance.user),
+            instance.role,
+            True,
+            instance.expiration_time,
+        )
+    )
+
+
 def sync_permission_with_remote_project(
-    sender, structure, user, role, signal, **kwargs
+    sender, structure, user, role, signal, expiration_time=None, **kwargs
 ):
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
+
     grant = signal == structure_signals.structure_role_granted
+
     transaction.on_commit(
         lambda: tasks.update_remote_project_permissions.delay(
-            serialize_instance(structure), serialize_instance(user), role, grant
+            serialize_instance(structure),
+            serialize_instance(user),
+            role,
+            grant,
+            expiration_time,
         )
     )
 
 
 def sync_permission_with_remote_customer(
-    sender, structure, user, role, signal, **kwargs
+    sender, structure, user, role, signal, expiration_time=None, **kwargs
 ):
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
     if role != structure_models.CustomerRole.OWNER:
         # Skip support role synchronization
         return
+
     grant = signal == structure_signals.structure_role_granted
+
     transaction.on_commit(
         lambda: tasks.update_remote_customer_permissions.delay(
-            serialize_instance(structure), serialize_instance(user), role, grant
+            serialize_instance(structure),
+            serialize_instance(user),
+            role,
+            grant,
+            expiration_time,
         )
     )

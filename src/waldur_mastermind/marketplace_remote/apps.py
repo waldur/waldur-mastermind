@@ -10,7 +10,7 @@ class MarketplaceRemoteConfig(AppConfig):
         from waldur_mastermind.marketplace_remote import PLUGIN_NAME
         from waldur_mastermind.marketplace_remote import processors
         from waldur_core.structure import signals as structure_signals
-        from waldur_core.structure.models import Customer, Project
+        from waldur_core.structure.models import Customer, Project, ProjectPermission
 
         from . import handlers
 
@@ -44,4 +44,10 @@ class MarketplaceRemoteConfig(AppConfig):
             handlers.sync_permission_with_remote_customer,
             sender=Customer,
             dispatch_uid='waldur_core.structure.handlers.sync_permission_with_remote_customer_revoking',
+        )
+
+        structure_signals.structure_role_updated.connect(
+            handlers.update_remote_project_permission,
+            sender=ProjectPermission,
+            dispatch_uid='waldur_core.structure.handlers.update_remote_project_permission',
         )

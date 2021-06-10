@@ -742,6 +742,7 @@ class InvitationAcceptTest(BaseInvitationTest):
                 sender=structure_models.Project,
                 signal=signals.structure_role_granted,
                 created_by=self.customer_owner,
+                expiration_time=None,
             )
 
 
