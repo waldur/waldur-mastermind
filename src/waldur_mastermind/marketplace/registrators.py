@@ -180,7 +180,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         invoice_models.InvoiceItem.objects.create(
             name=f'{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}',
             resource=source,
-            project=source.project,
+            project=Project.all_objects.get(id=source.project_id),
             unit_price=plan_component.price,
             unit=plan_component.plan.unit,
             quantity=total_quantity,

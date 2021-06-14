@@ -31,6 +31,8 @@ class PriceEstimate(core_models.UuidMixin, models.Model):
         return structure_models.Project, structure_models.Customer
 
     def _get_sum(self, year, month, field):
+        if not self.scope:
+            return 0
         items = invoices_models.InvoiceItem.objects.filter(
             invoice__year=year, invoice__month=month
         )
