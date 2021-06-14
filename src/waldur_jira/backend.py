@@ -477,7 +477,7 @@ class JiraBackend(ServiceBackend):
             return
 
         backend_attachment = self.manager.waldur_add_attachment(
-            backend_issue, attachment.file.path
+            backend_issue, attachment.file
         )
         attachment.backend_id = backend_attachment.id
         attachment.save(update_fields=['backend_id'])
