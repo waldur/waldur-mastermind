@@ -91,7 +91,7 @@ def get_file_from_token(token):
 
 
 def send_file(file):
-    _, file_name = os.path.split(file.path)
+    _, file_name = os.path.split(file.name)
     response = HttpResponse()
     response['Content-Disposition'] = 'attachment; filename=' + file_name
     response['X-Accel-Redirect'] = file.url

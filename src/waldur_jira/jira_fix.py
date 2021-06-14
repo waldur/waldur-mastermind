@@ -72,7 +72,7 @@ def _upload_file(manager, issue, upload_file, filename):
     return attachment
 
 
-def add_attachment(manager, issue, path):
+def add_attachment(manager, issue, file):
     """
     Replace jira's method 'add_attachment' while don't well fixed this issue
     https://github.com/shazow/urllib3/issues/303
@@ -82,10 +82,8 @@ def add_attachment(manager, issue, path):
     :param path: [string]
     :return: [jira.JIRA.resources.Attachment instance]
     """
-    filename = _get_filename(path)
-
-    with open(path, 'rb') as f:
-        return _upload_file(manager, issue, f, filename)
+    _, filename = os.path.split(file.name)
+    return _upload_file(manager, issue, file.file.read(), filename)
 
 
 def service_desk(manager, id_or_key):
