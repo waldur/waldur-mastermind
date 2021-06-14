@@ -993,15 +993,30 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             return f'<Order {self.pk}>'
 
 
+class ResourceDetailsMixin(
+    CostEstimateMixin, core_models.NameMixin, core_models.DescribableMixin,
+):
+    class Meta:
+        abstract = True
+
+    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
+    attributes = BetterJSONField(blank=True, default=dict)
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'The date is inclusive. Once reached, a resource will be scheduled for termination.'
+        ),
+    )
+
+
 class Resource(
-    CostEstimateMixin,
+    ResourceDetailsMixin,
     core_models.UuidMixin,
     core_models.BackendMixin,
     TimeStampedModel,
     core_mixins.ScopeMixin,
     structure_models.StructureLoggableMixin,
-    core_models.NameMixin,
-    core_models.DescribableMixin,
 ):
     """
     Core resource is abstract model, marketplace resource is not abstract,
@@ -1040,20 +1055,9 @@ class Resource(
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
-    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
-    attributes = BetterJSONField(blank=True, default=dict)
     backend_metadata = BetterJSONField(blank=True, default=dict)
     report = BetterJSONField(blank=True, null=True)
     current_usages = BetterJSONField(blank=True, default=dict)
-    end_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text=_(
-            'The date is inclusive. Once reached, '
-            'a resource will '
-            'be scheduled for termination.'
-        ),
-    )
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
 
