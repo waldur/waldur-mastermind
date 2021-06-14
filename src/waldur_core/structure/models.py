@@ -28,7 +28,7 @@ from reversion import revisions as reversion
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.core.fields import JSONField
+from waldur_core.core.fields import COUNTRIES_DICT, JSONField
 from waldur_core.core.models import AbstractFieldTracker
 from waldur_core.core.shims import TaggableManager
 from waldur_core.core.validators import validate_cidr_list
@@ -141,7 +141,10 @@ class VATMixin(models.Model):
         help_text=_('Optional business address retrieved for the VAT number.'),
     )
 
-    country = core_fields.CountryField(blank=True)
+    country = models.CharField(max_length=2, blank=True)
+
+    def get_country_display(self):
+        return COUNTRIES_DICT.get(self.country)
 
     def get_vat_rate(self):
         charge = self.get_vat_charge()
@@ -400,22 +403,33 @@ class Division(core_models.UuidMixin, core_models.NameMixin, models.Model):
         return ' -> '.join(full_path[::-1])
 
 
-class Customer(
-    core_models.UuidMixin,
-    core_models.NameMixin,
-    core_models.DescendantMixin,
-    quotas_models.ExtendableQuotaModelMixin,
-    PermissionMixin,
-    VATMixin,
-    StructureLoggableMixin,
-    ImageModelMixin,
-    TimeStampedModel,
-    CoordinatesMixin,
-    StructureModel,
-):
-    class Permissions:
-        customer_path = 'self'
-        project_path = 'projects'
+CUSTOMER_DETAILS_FIELDS = (
+    'name',
+    'native_name',
+    'abbreviation',
+    'contact_details',
+    'agreement_number',
+    'email',
+    'phone_number',
+    'access_subnets',
+    'registration_code',
+    'homepage',
+    'domain',
+    'vat_code',
+    'postal',
+    'address',
+    'bank_name',
+    'bank_account',
+    'latitude',
+    'longitude',
+    'country',
+    'country_name',
+)
+
+
+class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
+    class Meta:
+        abstract = True
 
     native_name = models.CharField(max_length=160, default='', blank=True)
     abbreviation = models.CharField(max_length=12, blank=True)
@@ -452,6 +466,23 @@ class Customer(
     postal = models.CharField(blank=True, max_length=20)
     bank_name = models.CharField(blank=True, max_length=150)
     bank_account = models.CharField(blank=True, max_length=50)
+
+
+class Customer(
+    CustomerDetailsMixin,
+    core_models.UuidMixin,
+    core_models.DescendantMixin,
+    quotas_models.ExtendableQuotaModelMixin,
+    PermissionMixin,
+    StructureLoggableMixin,
+    ImageModelMixin,
+    TimeStampedModel,
+    StructureModel,
+):
+    class Permissions:
+        customer_path = 'self'
+        project_path = 'projects'
+
     accounting_start_date = models.DateTimeField(
         _('Start date of accounting'), default=timezone.now
     )
@@ -658,10 +689,22 @@ class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
     pass
 
 
+class ProjectDetailsMixin(core_models.DescribableMixin, core_models.NameMixin):
+    class Meta:
+        abstract = True
+
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'The date is inclusive. Once reached, all project resource will be scheduled for termination.'
+        ),
+    )
+
+
 class Project(
-    core_models.DescribableMixin,
+    ProjectDetailsMixin,
     core_models.UuidMixin,
-    core_models.NameMixin,
     core_models.DescendantMixin,
     core_models.BackendMixin,
     quotas_models.ExtendableQuotaModelMixin,
@@ -724,15 +767,6 @@ class Project(
         blank=True,
         null=True,
         on_delete=models.PROTECT,
-    )
-    end_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text=_(
-            'The date is inclusive. Once reached, '
-            'all project resource will '
-            'be scheduled for termination.'
-        ),
     )
 
     objects = SoftDeletableManager()

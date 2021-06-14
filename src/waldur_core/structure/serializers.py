@@ -29,6 +29,7 @@ from waldur_core.structure.exceptions import (
 )
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 
 User = auth.get_user_model()
@@ -156,7 +157,20 @@ class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class ProjectDetailsSerializerMixin(serializers.Serializer):
+    def validate_description(self, value):
+        return clean_html(value.strip())
+
+    def validate_end_date(self, end_date):
+        if end_date and end_date < timezone.datetime.today().date():
+            raise serializers.ValidationError(
+                {'end_date': _('Cannot be earlier than the current date.')}
+            )
+        return end_date
+
+
 class ProjectSerializer(
+    ProjectDetailsSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -217,16 +231,6 @@ class ProjectSerializer(
     def get_optional_fields(self):
         return ('quotas',)
 
-    def validate_description(self, value):
-        return clean_html(value.strip())
-
-    def validate_end_date(self, end_date):
-        if end_date and end_date < timezone.datetime.today().date():
-            raise serializers.ValidationError(
-                {'end_date': _('Cannot be earlier than the current date.')}
-            )
-        return end_date
-
     def validate(self, attrs):
         customer = (
             attrs.get('customer') if not self.instance else self.instance.customer
@@ -239,8 +243,21 @@ class ProjectSerializer(
         return attrs
 
 
+class CountrySerializerMixin(serializers.Serializer):
+    COUNTRIES = core_fields.COUNTRIES
+    if settings.WALDUR_CORE.get('COUNTRIES'):
+        COUNTRIES = [
+            item for item in COUNTRIES if item[0] in settings.WALDUR_CORE['COUNTRIES']
+        ]
+    country = serializers.ChoiceField(
+        required=False, choices=COUNTRIES, allow_blank=True
+    )
+    country_name = serializers.ReadOnlyField(source='get_country_display')
+
+
 class CustomerSerializer(
     ProtectedMediaSerializerMixin,
+    CountrySerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -255,15 +272,6 @@ class CustomerSerializer(
     )
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
 
-    COUNTRIES = core_fields.CountryField.COUNTRIES
-    if settings.WALDUR_CORE.get('COUNTRIES'):
-        COUNTRIES = [
-            item for item in COUNTRIES if item[0] in settings.WALDUR_CORE['COUNTRIES']
-        ]
-    country = serializers.ChoiceField(
-        required=False, choices=COUNTRIES, allow_blank=True
-    )
-    country_name = serializers.ReadOnlyField(source='get_country_display')
     display_name = serializers.ReadOnlyField(source='get_display_name')
     division_name = serializers.ReadOnlyField(source='division.name')
     division_uuid = serializers.ReadOnlyField(source='division.uuid')
@@ -278,9 +286,6 @@ class CustomerSerializer(
             'url',
             'uuid',
             'created',
-            'name',
-            'native_name',
-            'abbreviation',
             'division',
             'division_name',
             'division_uuid',
@@ -288,34 +293,17 @@ class CustomerSerializer(
             'division_parent_uuid',
             'division_type_name',
             'division_type_uuid',
-            'contact_details',
-            'domain',
             'display_name',
-            'agreement_number',
-            'email',
-            'phone_number',
-            'access_subnets',
             'projects',
             'owners',
             'support_users',
             'service_managers',
             'backend_id',
-            'registration_code',
-            'homepage',
             'quotas',
             'image',
-            'country',
-            'country_name',
-            'vat_code',
-            'postal',
-            'address',
-            'bank_name',
-            'bank_account',
-            'latitude',
-            'longitude',
             'default_tax_percent',
             'accounting_start_date',
-        )
+        ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             'access_subnets',
             'accounting_start_date',

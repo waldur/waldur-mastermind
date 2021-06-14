@@ -1,0 +1,2 @@
+{% load i18n %}
+{% trans 'Your submission has been rejected' %}

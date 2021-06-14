@@ -133,15 +133,8 @@ class TimestampField(serializers.Field):
             )
 
 
-class CountryField(models.CharField):
-
-    COUNTRIES = [(country.alpha2, country.name) for country in pycountry.countries]
-
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault('max_length', 2)
-        kwargs.setdefault('choices', CountryField.COUNTRIES)
-
-        super(CountryField, self).__init__(*args, **kwargs)
+COUNTRIES = [(country.alpha2, country.name) for country in pycountry.countries]
+COUNTRIES_DICT = dict(COUNTRIES)
 
 
 class StringUUID(uuid.UUID):
