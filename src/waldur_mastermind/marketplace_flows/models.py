@@ -89,7 +89,13 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
 
 
 class CustomerCreateRequest(ReviewMixin, CustomerDetailsMixin):
-    pass
+    def approve(self, user, comment=None):
+        super().approve(user, comment)
+        self.flow.project_create_request.approve(user, comment)
+
+    def reject(self, user, comment=None):
+        super().reject(user, comment)
+        self.flow.project_create_request.reject(user, comment)
 
 
 class ProjectCreateRequest(ReviewMixin, ProjectDetailsMixin):
@@ -167,7 +173,7 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
             if self.customer_create_request:
                 self.customer = Customer.objects.create(
                     **{
-                        k: getattr(self.project_create_request, k)
+                        k: getattr(self.customer_create_request, k)
                         for k in CUSTOMER_DETAILS_FIELDS
                     }
                 )
@@ -178,13 +184,18 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
                 end_date=self.project_create_request.end_date,
             )
             project.add_user(self.requested_by, ProjectRole.MANAGER)
-            order = Order.objects.create(project=project, created_by=self.requested_by)
+            order = Order.objects.create(
+                project=project,
+                created_by=self.requested_by,
+                state=Order.States.EXECUTING,
+            )
             self.order_item = OrderItem.objects.create(
                 order=order,
                 offering=self.resource_create_request.offering,
                 plan=self.resource_create_request.plan,
                 attributes=self.resource_create_request.attributes,
-                limits=self.resource_create_request.attributes,
+                limits=self.resource_create_request.limits,
+                state=OrderItem.States.EXECUTING,
             )
             self.order_item.init_cost()
             self.order_item.save()

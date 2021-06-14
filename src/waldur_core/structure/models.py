@@ -423,7 +423,6 @@ CUSTOMER_DETAILS_FIELDS = (
     'latitude',
     'longitude',
     'country',
-    'country_name',
 )
 
 
