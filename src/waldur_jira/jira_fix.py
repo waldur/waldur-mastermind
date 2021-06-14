@@ -82,7 +82,7 @@ def add_attachment(manager, issue, file):
     :param path: [string]
     :return: [jira.JIRA.resources.Attachment instance]
     """
-    _, filename = os.path.split(file.name)
+    filename = _get_filename(file.name)
     return _upload_file(manager, issue, file.file.read(), filename)
 
 
