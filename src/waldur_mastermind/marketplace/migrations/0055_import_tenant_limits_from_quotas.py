@@ -1,4 +1,3 @@
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import migrations
 
 STORAGE_MODE_FIXED = 'fixed'
@@ -31,23 +30,15 @@ def import_quotas(offering, quotas, field):
 
 def import_tenant_limits_from_quotas(apps, schema_editor):
     Resource = apps.get_model('marketplace', 'Resource')
-    ContentType = apps.get_model('contenttypes', 'ContentType')
+    Quota = apps.get_model('quotas', 'Quota')
 
     for resource in Resource.objects.filter(
         limits={}, offering__type='Packages.Template'
     ).exclude(state=TERMINATED):
-        ct = ContentType.objects.get_for_id(resource.content_type_id)
-        model_class = apps.get_model(ct.app_label, ct.model)
-
-        try:
-            tenant = model_class.objects.get(id=resource.object_id)
-        except ObjectDoesNotExist:
-            print(
-                f'Unable to get resource scope with object ID: {resource.object_id}, content type ID: {resource.content_type_id}'
-            )
-            continue
-
-        resource.limits = import_quotas(resource.offering, tenant.quotas, 'limit')
+        quotas = Quota.objects.filter(
+            content_type_id=resource.content_type_id, object_id=resource.object_id
+        )
+        resource.limits = import_quotas(resource.offering, quotas, 'limit')
         resource.save(update_fields=['limits'])
 
 
@@ -55,7 +46,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('marketplace', '0054_restore_limits'),
-        ('contenttypes', '0002_remove_content_type_name'),
     ]
 
     operations = [
