@@ -115,6 +115,12 @@ class ScreenshotsInline(admin.StackedInline):
     extra = 1
 
 
+class DivisionsInline(admin.StackedInline):
+    model = models.Offering.divisions.through
+    classes = ['collapse']
+    extra = 1
+
+
 class PlansInline(admin.StackedInline):
     model = models.Plan
     classes = ['collapse']
@@ -275,6 +281,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         OfferingComponentInline,
         GoogleCalendarInline,
         OfferingUserInline,
+        DivisionsInline,
     ]
     list_display = ('name', 'uuid', 'customer', 'state', 'category', 'billable')
     list_filter = (

@@ -30,7 +30,12 @@ class OfferingQuerySet(django_models.QuerySet):
         ).distinct()
 
     def filter_for_customer(self, value):
-        return self.filter(Q(shared=True) | Q(customer__uuid=value))
+        customer = structure_models.Customer.objects.get(uuid=value)
+        return self.filter(
+            Q(shared=True, divisions__isnull=True)
+            | Q(shared=True, divisions__isnull=False, divisions=customer.division)
+            | Q(customer__uuid=value)
+        )
 
     def filter_for_service_manager(self, value):
         return self.filter(

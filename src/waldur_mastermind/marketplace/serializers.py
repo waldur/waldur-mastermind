@@ -618,6 +618,15 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
         return offering
 
 
+class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = structure_models.Customer
+        fields = ('uuid', 'name', 'url')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
 class OfferingDetailsSerializer(
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -639,6 +648,7 @@ class OfferingDetailsSerializer(
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
+    divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Offering
@@ -683,6 +693,7 @@ class OfferingDetailsSerializer(
             'latitude',
             'longitude',
             'backend_id',
+            'divisions',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
@@ -722,6 +733,7 @@ class OfferingDetailsSerializer(
         if not user.is_authenticated:
             fields.pop('scope')
             fields.pop('scope_uuid')
+
         return fields
 
     def can_see_secret_options(self):
@@ -1766,8 +1778,26 @@ class OrderSerializer(
                     _('Terms of service for offering \'%s\' have not been accepted.')
                     % offering
                 )
-
         return items
+
+    def validate(self, attrs):
+        project = attrs['project']
+
+        for item in attrs['items']:
+            offering = item['offering']
+
+            if offering.shared and offering.divisions.count():
+                if (
+                    not project.customer.division_id
+                    or not offering.divisions.filter(
+                        id=project.customer.division_id
+                    ).exists()
+                ):
+                    raise ValidationError(
+                        _('This offering is not available for ordering.')
+                    )
+
+        return attrs
 
 
 class ResourceSerializer(BaseItemSerializer):
@@ -2337,3 +2367,21 @@ class OfferingThumbnailSerializer(
     class Meta:
         model = models.Offering
         fields = ('thumbnail',)
+
+
+class DivisionsSerializer(serializers.Serializer):
+    divisions = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.Division.objects.all(),
+        view_name='division-detail',
+        lookup_field='uuid',
+        required=False,
+        many=True,
+    )
+
+    def save(self, **kwargs):
+        offering = self.instance
+        divisions = self.validated_data['divisions']
+        offering.divisions.clear()
+
+        if divisions:
+            offering.divisions.add(*divisions)

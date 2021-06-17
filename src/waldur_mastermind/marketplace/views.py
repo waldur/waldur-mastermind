@@ -413,6 +413,26 @@ class OfferingViewSet(
         page = self.paginate_queryset(stats)
         return self.get_paginated_response(page)
 
+    @action(detail=True, methods=['post'])
+    def update_divisions(self, request, uuid):
+        offering = self.get_object()
+        serializer = serializers.DivisionsSerializer(
+            instance=offering, context={'request': request}, data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_divisions_permissions = [structure_permissions.is_owner]
+
+    @action(detail=True, methods=['post'])
+    def delete_divisions(self, request, uuid=None):
+        offering = self.get_object()
+        offering.divisions.clear()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    delete_divisions_permissions = update_divisions_permissions
+
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
     queryset = pid_models.DataciteReferral.objects.all()

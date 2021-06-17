@@ -407,6 +407,9 @@ class Offering(
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
+    divisions = models.ManyToManyField(
+        structure_models.Division, related_name='offerings', blank=True
+    )
 
     # If offering is not shared, it is available only to following user categories:
     # 1) staff user;

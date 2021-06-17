@@ -378,6 +378,28 @@ class OrderCreateTest(test.APITransactionTestCase):
             response = self.create_order(user)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_if_divisions_do_not_match_order_validation_fails(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        division = structure_factories.DivisionFactory()
+        offering.divisions.add(division)
+
+        response = self.create_order(user, offering)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_if_divisions_match_order_validation_passes(self):
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        division = structure_factories.DivisionFactory()
+        offering.divisions.add(division)
+        self.fixture.customer.division = division
+        self.fixture.customer.save()
+
+        response = self.create_order(user, offering)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Order.objects.filter(created_by=user).exists())
+        self.assertEqual(1, len(response.data['items']))
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
