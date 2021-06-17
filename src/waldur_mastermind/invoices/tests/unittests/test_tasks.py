@@ -102,11 +102,6 @@ class NotificationTest(TestCase):
         super(NotificationTest, self).tearDown()
         mock.patch.stopall()
 
-    def test_send_invoice_without_pdf(self):
-        tasks.send_invoice_notification(self.invoice.uuid, attach_file=False)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(len(mail.outbox[0].attachments), 0)
-
     def test_send_invoice_with_pdf(self):
         utils.create_invoice_pdf(self.invoice)
         tasks.send_invoice_notification(self.invoice.uuid)

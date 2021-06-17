@@ -51,7 +51,7 @@ def create_monthly_invoices():
 
 
 @shared_task(name='invoices.send_invoice_notification')
-def send_invoice_notification(invoice_uuid, attach_file=True):
+def send_invoice_notification(invoice_uuid):
     """ Sends email notification with invoice link to customer owners """
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
 
@@ -68,14 +68,13 @@ def send_invoice_notification(invoice_uuid, attach_file=True):
     attachment = None
     content_type = None
 
-    if attach_file:
-        filename = '%s_%s_%s.pdf' % (
-            settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
-            invoice.year,
-            invoice.month,
-        )
-        attachment = utils.create_invoice_pdf(invoice)
-        content_type = 'application/pdf'
+    filename = '%s_%s_%s.pdf' % (
+        settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
+        invoice.year,
+        invoice.month,
+    )
+    attachment = utils.create_invoice_pdf(invoice)
+    content_type = 'application/pdf'
 
     logger.debug(
         'About to send invoice {invoice} notification to {emails}'.format(
@@ -182,7 +181,7 @@ def send_new_invoices_notification():
     for invoice in models.Invoice.objects.filter(
         year=date.year, month=date.month
     ).exclude(customer_id__in=fixed_price_profiles):
-        send_invoice_notification.delay(invoice.uuid.hex, attach_file=False)
+        send_invoice_notification.delay(invoice.uuid.hex)
 
 
 @shared_task(name='invoices.send_notifications_about_upcoming_ends')
