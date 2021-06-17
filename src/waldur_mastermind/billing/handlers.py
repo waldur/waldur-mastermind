@@ -2,6 +2,8 @@ import logging
 
 from django.db import transaction
 
+from waldur_core.structure import models as structure_models
+
 from . import models
 
 logger = logging.getLogger(__name__)
@@ -39,10 +41,13 @@ def process_invoice_item(sender, instance, created=False, **kwargs):
         and not instance.tracker.has_changed('end')
     ):
         return
-    if not instance.project:
+
+    if not instance.project_id:
         return
     with transaction.atomic():
-        for scope in [instance.project, instance.project.customer]:
+        project = structure_models.Project.all_objects.get(pk=instance.project_id)
+
+        for scope in [project, project.customer]:
             estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
             estimate.update_total()
             estimate.save(update_fields=['total'])
