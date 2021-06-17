@@ -526,6 +526,8 @@ class ServiceTypeFilter(django_filters.Filter):
 class ServiceSettingsFilter(NameFilterSet):
     type = ServiceTypeFilter()
     state = core_filters.StateFilter()
+    customer = django_filters.UUIDFilter(field_name='customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
 
     class Meta:
         model = models.ServiceSettings
