@@ -731,8 +731,8 @@ class OfferingDetailsSerializer(
 
         user = self.context['view'].request.user
         if not user.is_authenticated:
-            fields.pop('scope')
-            fields.pop('scope_uuid')
+            fields.pop('scope', None)
+            fields.pop('scope_uuid', None)
 
         return fields
 
