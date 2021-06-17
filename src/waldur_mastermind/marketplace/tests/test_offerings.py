@@ -206,6 +206,48 @@ class OfferingFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.offering.uuid.hex)
 
+    def test_filter_limited_shared_offerings_for_customer_uuid_if_divisions_match(
+        self,
+    ):
+        # Arrange
+        self.offering.delete()
+        offering = factories.OfferingFactory(shared=True)
+        url = factories.OfferingFactory.get_list_url()
+        division = structure_factories.DivisionFactory()
+        offering.divisions.add(division)
+
+        self.fixture.customer.division = division
+        self.fixture.customer.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            url, {'allowed_customer_uuid': self.fixture.customer.uuid.hex}
+        )
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], offering.uuid.hex)
+
+    def test_filter_limited_shared_offerings_for_customer_uuid_if_divisions_do_not_match(
+        self,
+    ):
+        # Arrange
+        self.offering.delete()
+        offering = factories.OfferingFactory(shared=True)
+        url = factories.OfferingFactory.get_list_url()
+        division = structure_factories.DivisionFactory()
+        offering.divisions.add(division)
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            url, {'allowed_customer_uuid': self.fixture.customer.uuid.hex}
+        )
+
+        # Assert
+        self.assertEqual(len(response.data), 0)
+
 
 @ddt
 class OfferingCreateTest(test.APITransactionTestCase):
@@ -995,6 +1037,57 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(1, self.offering.plans.count())
+
+
+@ddt
+class OfferingDivisionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, action='update_divisions'
+        )
+        self.delete_url = factories.OfferingFactory.get_url(
+            self.offering, action='delete_divisions'
+        )
+        self.division = structure_factories.DivisionFactory()
+        self.division_url = structure_factories.DivisionFactory.get_url(self.division)
+
+    @data('staff', 'owner')
+    def test_user_can_update_divisions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'divisions': [self.division_url]})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.divisions.count(), 1)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_update_divisions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'divisions': [self.division_url]})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('staff', 'owner')
+    def test_user_can_delete_divisions(self, user):
+        self.offering.divisions.add(self.division)
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.delete_url)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.divisions.count(), 0)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_delete_divisions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
