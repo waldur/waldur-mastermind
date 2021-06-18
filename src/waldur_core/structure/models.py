@@ -1095,7 +1095,8 @@ class BaseResource(
         return context
 
     def get_parents(self):
-        return [self.service_settings, self.project]
+        project = Project.all_objects.get(id=self.project_id)
+        return [self.service_settings, project]
 
     def __str__(self):
         return self.name
