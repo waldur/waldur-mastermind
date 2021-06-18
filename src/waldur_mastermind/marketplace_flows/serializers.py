@@ -77,6 +77,19 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
     project_create_request = ProjectCreateRequestSerializer()
     resource_create_request = ResourceCreateRequestSerializer()
 
+    def get_fields(self):
+        fields = super().get_fields()
+        try:
+            request = self.context['view'].request
+        except (KeyError, AttributeError):
+            return fields
+
+        if request.method in ('PUT', 'PATCH'):
+            fields['resource_create_request'] = ResourceCreateRequestSerializer(
+                instance=self.instance.resource_create_request
+            )
+        return fields
+
     class Meta:
         model = models.FlowTracker
         fields = (
@@ -144,3 +157,17 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
 
         validated_data['requested_by'] = request.user
         return super(FlowSerializer, self).create(validated_data)
+
+    def update(self, instance, validated_data):
+        for field in (
+            'customer_create_request',
+            'project_create_request',
+            'resource_create_request',
+        ):
+            data = validated_data.pop(field, None)
+            section = getattr(instance, field)
+            if data:
+                for k, v in data.items():
+                    setattr(section, k, v)
+            section.save()
+        return super().update(instance, validated_data)
