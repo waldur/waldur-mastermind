@@ -107,7 +107,7 @@ freezegun = "0.3.7"
 mock-django = "0.6.9"
 django-cors-headers = "^3.2.1"
 attrs = "18.1.0"
-pre-commit = "^2.1.1"
+pre-commit = "^2.13.0"
 pytest-split-tests = "^1.0.9"
 
 [tool.poetry.plugins.console_scripts]
