@@ -347,6 +347,7 @@ class PaymentSerializer(
     )
     invoice_uuid = serializers.ReadOnlyField(source='invoice.uuid')
     invoice_period = serializers.SerializerMethodField(method_name='get_invoice_period')
+    customer_uuid = serializers.ReadOnlyField(source='profile.organization.uuid')
 
     def get_invoice_period(self, payment):
         if payment.invoice:
@@ -364,6 +365,7 @@ class PaymentSerializer(
             'invoice',
             'invoice_uuid',
             'invoice_period',
+            'customer_uuid',
         )
         extra_kwargs = {
             'url': {'view_name': 'payment-detail', 'lookup_field': 'uuid'},
