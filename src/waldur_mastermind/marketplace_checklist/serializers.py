@@ -48,12 +48,19 @@ class ChecklistSerializer(serializers.ModelSerializer):
         )
 
 
-class QuestionSerializer(serializers.ModelSerializer):
+class QuestionSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
     category_uuid = serializers.ReadOnlyField(source='category.uuid')
 
     class Meta:
         model = models.Question
-        fields = ('uuid', 'description', 'solution', 'category_uuid', 'correct_answer')
+        fields = (
+            'uuid',
+            'description',
+            'solution',
+            'category_uuid',
+            'correct_answer',
+            'image',
+        )
 
 
 class ImportExportQuestionSerializer(serializers.ModelSerializer):

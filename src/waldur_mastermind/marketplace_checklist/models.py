@@ -3,6 +3,7 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.media.models import ImageModelMixin
 from waldur_core.media.validators import ImageValidator
 from waldur_core.structure.models import Customer, CustomerRole, ProjectRole
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -62,7 +63,7 @@ class ChecklistProjectRole(models.Model):
     role = ProjectRole()
 
 
-class Question(core_models.UuidMixin, core_models.DescribableMixin):
+class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMixin):
     checklist = models.ForeignKey(
         to=Checklist, on_delete=models.CASCADE, related_name='questions',
     )

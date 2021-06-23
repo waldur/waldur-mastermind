@@ -12,7 +12,7 @@ class CategoryAdmin(import_export_admin.ImportExportModelAdmin):
 
 class QuestionInline(modeltranslation_admin.TranslationStackedInline):
     model = models.Question
-    fields = ('order', 'description', 'solution', 'correct_answer', 'category')
+    fields = ('order', 'description', 'solution', 'correct_answer', 'category', 'image')
 
 
 class ChecklistCustomerRoleInline(admin.StackedInline):
