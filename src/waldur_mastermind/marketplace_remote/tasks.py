@@ -10,6 +10,7 @@ from waldur_client import WaldurClientException
 from waldur_core.core.utils import deserialize_instance
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.callbacks import sync_order_item_state
 from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
@@ -45,8 +46,12 @@ class OrderItemPullTask(BackgroundPullTask):
         remote_order_item = client.get_order_item(local_order_item.backend_id)
 
         if remote_order_item['state'] != local_order_item.get_state_display():
-            local_order_item.state = OrderItemInvertStates[remote_order_item['state']]
-            local_order_item.save()
+            new_state = OrderItemInvertStates[remote_order_item['state']]
+            if local_order_item.resource:
+                sync_order_item_state(local_order_item, new_state)
+            else:
+                local_order_item.state = new_state
+                local_order_item.save(update_fields=['state'])
         pull_fields(('error_message',), local_order_item, remote_order_item)
 
 

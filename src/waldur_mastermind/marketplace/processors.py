@@ -64,24 +64,28 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
         scope = self.send_request(user)
 
         with transaction.atomic():
-            resource = models.Resource(
-                project=self.order_item.order.project,
-                offering=self.order_item.offering,
-                plan=self.order_item.plan,
-                limits=self.order_item.limits,
-                attributes=self.order_item.attributes,
-                name=self.order_item.attributes.get('name') or '',
-                scope=scope if scope and type(scope) != str else None,
-                backend_id=scope if scope and type(scope) == str else '',
-            )
-            resource.init_cost()
-            resource.save()
-            resource.init_quotas()
-            self.order_item.resource = resource
-            self.order_item.save(update_fields=['resource'])
+            resource = self.create_local_resource(scope)
 
             if not scope or type(scope) == str:
                 resource_creation_succeeded(resource)
+
+    def create_local_resource(self, scope):
+        resource = models.Resource(
+            project=self.order_item.order.project,
+            offering=self.order_item.offering,
+            plan=self.order_item.plan,
+            limits=self.order_item.limits,
+            attributes=self.order_item.attributes,
+            name=self.order_item.attributes.get('name') or '',
+            scope=scope if scope and type(scope) != str else None,
+            backend_id=scope if scope and type(scope) == str else '',
+        )
+        resource.init_cost()
+        resource.save()
+        resource.init_quotas()
+        self.order_item.resource = resource
+        self.order_item.save(update_fields=['resource'])
+        return resource
 
     def send_request(self, user):
         """
