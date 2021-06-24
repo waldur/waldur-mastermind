@@ -67,6 +67,7 @@ class WaldurClient(object):
         MarketplaceOffering = 'marketplace-offerings'
         MarketplacePlan = 'marketplace-plans'
         MarketplaceOrder = 'marketplace-orders'
+        MarketplaceOrderItem = 'marketplace-order-items'
         MarketplaceResources = 'marketplace-resources'
         MarketplaceCategories = 'marketplace-categories'
         Customers = 'customers'
@@ -852,14 +853,20 @@ class WaldurClient(object):
             project_uuid, offering_uuid, plan_uuid, attributes, limits
         )
 
+    def get_order(self, order_uuid):
+        return self._get_resource(WaldurClient.Endpoints.MarketplaceOrder, order_uuid)
+
+    def get_order_item(self, order_item_uuid):
+        return self._get_resource(
+            WaldurClient.Endpoints.MarketplaceOrderItem, order_item_uuid
+        )
+
     def _get_resource_from_creation_order(
         self, order_uuid, resource_field='resource_uuid', interval=10, timeout=600,
     ):
         waited = 0
         while True:
-            order = self._get_resource(
-                WaldurClient.Endpoints.MarketplaceOrder, order_uuid
-            )
+            order = self.get_order(order_uuid)
             if order['items'][0]['state'] == 'erred':
                 raise InvalidStateError(order['items'][0]['error_message'])
 
