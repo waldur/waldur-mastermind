@@ -248,3 +248,53 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.assertEqual(
             self.offering.plugin_options['storage_mode'], STORAGE_MODE_FIXED
         )
+
+
+@ddt
+class OfferingUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
+        )
+        self.component = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type='cores', article_code='article_code',
+        )
+        self.url = marketplace_factories.OfferingFactory.get_url(offering=self.offering)
+
+    def test_update_article_code(self):
+        payload = {
+            'components': [
+                {
+                    'type': 'cores',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'billing_type': 'fixed',
+                    'article_code': 'new_article_code',
+                }
+            ],
+        }
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.component.refresh_from_db()
+        self.assertEqual(self.component.article_code, 'new_article_code')
+
+    def test_validate_extra_components(self):
+        payload = {
+            'components': [
+                {
+                    'type': 'extra',
+                    'name': 'extra',
+                    'measured_unit': 'hours',
+                    'billing_type': 'fixed',
+                }
+            ],
+        }
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

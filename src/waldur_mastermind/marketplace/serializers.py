@@ -416,6 +416,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             'is_boolean',
             'default_limit',
             'factor',
+            'is_builtin',
         )
         extra_kwargs = {
             'billing_type': {'required': True},
@@ -867,9 +868,12 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         fixed_types = set()
 
         if builtin_components and attrs.get('components'):
-            raise serializers.ValidationError(
-                {'components': _('Extra components are not allowed.')}
-            )
+            if {c.get('type') for c in attrs.get('components')} - {
+                c.type for c in builtin_components
+            }:
+                raise serializers.ValidationError(
+                    {'components': _('Extra components are not allowed.')}
+                )
 
         elif builtin_components:
             valid_types = {component.type for component in builtin_components}
@@ -1067,16 +1071,6 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 }
             )
 
-        if updated_components & valid_types:
-            raise serializers.ValidationError(
-                {
-                    'components': _(
-                        'These components cannot be updated because they are builtin: %s'
-                    )
-                    % ', '.join(updated_components & valid_types)
-                }
-            )
-
         if removed_components:
             if resources_exist:
                 raise serializers.ValidationError(
@@ -1095,19 +1089,22 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         for key in added_components:
             new_components[key].save()
 
-        COMPONENT_KEYS = (
-            'name',
-            'description',
-            'billing_type',
-            'measured_unit',
-            'limit_period',
-            'limit_amount',
-            'article_code',
-            'is_boolean',
-            'default_limit',
-            'min_value',
-            'max_value',
-        )
+        if updated_components & valid_types:
+            COMPONENT_KEYS = ('article_code',)
+        else:
+            COMPONENT_KEYS = (
+                'name',
+                'description',
+                'billing_type',
+                'measured_unit',
+                'limit_period',
+                'limit_amount',
+                'article_code',
+                'is_boolean',
+                'default_limit',
+                'min_value',
+                'max_value',
+            )
 
         for component_key in updated_components:
             new_component = new_components[component_key]

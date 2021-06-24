@@ -613,6 +613,12 @@ class OfferingComponent(
                 % (total + amount, self.limit_amount)
             )
 
+    @property
+    def is_builtin(self):
+        return self.type in [
+            c.type for c in plugins.manager.get_components(self.offering.type)
+        ]
+
     def __str__(self):
         return str(self.name)
 
