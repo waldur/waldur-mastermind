@@ -220,8 +220,47 @@ OrderItemStateRouter = {
 }
 
 
+OrderItemHandlers = {
+    (
+        models.OrderItem.Types.CREATE,
+        models.OrderItem.States.DONE,
+    ): resource_creation_succeeded,
+    (
+        models.OrderItem.Types.CREATE,
+        models.OrderItem.States.ERRED,
+    ): resource_creation_failed,
+    (
+        models.OrderItem.Types.CREATE,
+        models.OrderItem.States.TERMINATED,
+    ): resource_creation_canceled,
+    (
+        models.OrderItem.Types.UPDATE,
+        models.OrderItem.States.DONE,
+    ): resource_update_succeeded,
+    (
+        models.OrderItem.Types.UPDATE,
+        models.OrderItem.States.ERRED,
+    ): resource_update_failed,
+    (
+        models.OrderItem.Types.TERMINATE,
+        models.OrderItem.States.DONE,
+    ): resource_deletion_succeeded,
+    (
+        models.OrderItem.Types.TERMINATE,
+        models.OrderItem.States.ERRED,
+    ): resource_deletion_failed,
+}
+
+
 def sync_resource_state(instance, resource):
     key = (instance.tracker.previous('state'), instance.state)
     func = StateRouter.get(key)
     if func:
         func(resource)
+
+
+def sync_order_item_state(order_item, new_state):
+    key = (order_item.type, new_state)
+    func = OrderItemHandlers.get(key)
+    if func:
+        func(order_item.resource)
