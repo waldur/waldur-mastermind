@@ -11,6 +11,7 @@ from waldur_core.core.utils import deserialize_instance
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_item_state
+from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
@@ -50,6 +51,9 @@ class OrderItemPullTask(BackgroundPullTask):
             if local_order_item.resource:
                 sync_order_item_state(local_order_item, new_state)
             else:
+                resource_uuid = remote_order_item.get('marketplace_resource_uuid')
+                if resource_uuid:
+                    create_local_resource(local_order_item, resource_uuid)
                 local_order_item.state = new_state
                 local_order_item.save(update_fields=['state'])
         pull_fields(('error_message',), local_order_item, remote_order_item)

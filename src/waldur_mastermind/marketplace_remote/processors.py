@@ -16,22 +16,25 @@ class RemoteClientMixin:
 
 
 class RemoteCreateResourceProcessor(
-    RemoteClientMixin, processors.BasicCreateResourceProcessor
+    RemoteClientMixin, processors.BaseOrderItemProcessor
 ):
+    def validate_order_item(self, request):
+        # TODO: Implement validation
+        pass
+
     def process_order_item(self, user):
         remote_project, _ = utils.get_or_create_remote_project(
             self.order_item.offering, self.order_item.order.project, self.client
         )
-        response = self.client.create_resource_via_marketplace(
+        response = self.client.marketplace_resource_create_order(
             project_uuid=remote_project['uuid'],
             offering_uuid=self.order_item.offering.backend_id,
             plan_uuid=self.order_item.plan.backend_id,
             attributes=self.order_item.attributes,
             limits=self.order_item.limits,
         )
-        self.order_item.backend_id = response['create_order_uuid']
+        self.order_item.backend_id = response['uuid']
         self.order_item.save()
-        self.create_local_resource(response['marketplace_resource_uuid'])
 
         if settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
             utils.push_project_users(

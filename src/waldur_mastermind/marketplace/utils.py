@@ -796,3 +796,22 @@ def schedule_resources_termination(resources):
                 'Terminating resource %s has failed. %s'
                 % (resource.uuid.hex, response.content)
             )
+
+
+def create_local_resource(order_item, scope):
+    resource = models.Resource(
+        project=order_item.order.project,
+        offering=order_item.offering,
+        plan=order_item.plan,
+        limits=order_item.limits,
+        attributes=order_item.attributes,
+        name=order_item.attributes.get('name') or '',
+        scope=scope if scope and type(scope) != str else None,
+        backend_id=scope if scope and type(scope) == str else '',
+    )
+    resource.init_cost()
+    resource.save()
+    resource.init_quotas()
+    order_item.resource = resource
+    order_item.save(update_fields=['resource'])
+    return resource

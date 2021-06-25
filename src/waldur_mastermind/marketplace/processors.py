@@ -7,7 +7,7 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.utils import validate_limits
+from waldur_mastermind.marketplace.utils import create_local_resource, validate_limits
 
 logger = logging.getLogger(__name__)
 
@@ -64,28 +64,10 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
         scope = self.send_request(user)
 
         with transaction.atomic():
-            resource = self.create_local_resource(scope)
+            resource = create_local_resource(self.order_item, scope)
 
             if not scope or type(scope) == str:
                 resource_creation_succeeded(resource)
-
-    def create_local_resource(self, scope):
-        resource = models.Resource(
-            project=self.order_item.order.project,
-            offering=self.order_item.offering,
-            plan=self.order_item.plan,
-            limits=self.order_item.limits,
-            attributes=self.order_item.attributes,
-            name=self.order_item.attributes.get('name') or '',
-            scope=scope if scope and type(scope) != str else None,
-            backend_id=scope if scope and type(scope) == str else '',
-        )
-        resource.init_cost()
-        resource.save()
-        resource.init_quotas()
-        self.order_item.resource = resource
-        self.order_item.save(update_fields=['resource'])
-        return resource
 
     def send_request(self, user):
         """
