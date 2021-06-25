@@ -41,7 +41,7 @@ class OrderItemPullTest(test.APITransactionTestCase):
         super(OrderItemPullTest, self).tearDown()
         mock.patch.stopall()
 
-    def test_when_creation_order_item_succeeds_resource_is_updated(self):
+    def test_when_order_item_succeeds_resource_is_updated(self):
         # Arrange
         self.client_mock().get_order_item.return_value = {
             'state': 'done',
@@ -58,7 +58,7 @@ class OrderItemPullTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, Resource.States.OK)
 
-    def test_when_creation_order_item_fails_resource_is_updated(self):
+    def test_when_order_item_fails_resource_is_updated(self):
         # Arrange
         self.client_mock().get_order_item.return_value = {
             'state': 'erred',
@@ -75,3 +75,20 @@ class OrderItemPullTest(test.APITransactionTestCase):
 
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, Resource.States.ERRED)
+
+    def test_when_creation_order_succeeds_resource_is_created(self):
+        # Arrange
+        self.client_mock().get_order_item.return_value = {
+            'state': 'done',
+            'marketplace_resource_uuid': 'marketplace_resource_uuid',
+            'error_message': '',
+        }
+        self.order_item.resource = None
+        self.order_item.save()
+
+        # Act
+        OrderItemPullTask().run(serialize_instance(self.order_item))
+
+        # Assert
+        self.order_item.refresh_from_db()
+        self.assertIsNotNone(self.order_item.resource)
