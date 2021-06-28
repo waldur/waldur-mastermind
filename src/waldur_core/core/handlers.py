@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth.hashers import is_password_usable
 from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 
@@ -53,13 +54,20 @@ def log_user_save(sender, instance, created=False, **kwargs):
     else:
         old_values = instance._old_values
 
-        password_changed = instance.password != old_values['password']
+        password_changed = (
+            is_password_usable(old_values['password'])
+            and instance.password != old_values['password']
+        )
         activation_changed = instance.is_active != old_values['is_active']
-        token_lifetime_changed = instance.token_lifetime != old_values['token_lifetime']
+        token_lifetime_changed = bool(
+            old_values['token_lifetime']
+            and instance.token_lifetime != old_values['token_lifetime']
+        )
         user_updated = any(
             old_value != getattr(instance, field_name)
             for field_name, old_value in old_values.items()
-            if field_name not in ('password', 'is_active', 'last_login')
+            if field_name
+            not in ('password', 'is_active', 'last_login', 'token_lifetime')
         )
 
         if password_changed:
