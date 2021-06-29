@@ -33,6 +33,7 @@ class UserEventLogger(EventLogger):
         event_types = (
             'user_creation_succeeded',
             'user_update_succeeded',
+            'user_details_update_succeeded',
             'user_deletion_succeeded',
             'user_password_updated',
             'user_token_lifetime_updated',

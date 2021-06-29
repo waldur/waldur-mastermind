@@ -4,7 +4,7 @@ from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 
 from waldur_core.core.log import event_logger
-from waldur_core.core.models import StateMixin
+from waldur_core.core.models import StateMixin, User
 
 
 def create_auth_token(sender, instance, created=False, **kwargs):
@@ -63,11 +63,11 @@ def log_user_save(sender, instance, created=False, **kwargs):
             old_values['token_lifetime']
             and instance.token_lifetime != old_values['token_lifetime']
         )
+        user_details_changed = instance.details != old_values['details']
         user_updated = any(
             old_value != getattr(instance, field_name)
             for field_name, old_value in old_values.items()
-            if field_name
-            not in ('password', 'is_active', 'last_login', 'token_lifetime')
+            if field_name in User.WHITELIST_FIELDS
         )
 
         if password_changed:
@@ -98,9 +98,28 @@ def log_user_save(sender, instance, created=False, **kwargs):
                 event_context={'affected_user': instance},
             )
 
-        if user_updated:
+        if user_details_changed:
             event_logger.user.info(
-                'User {affected_user_username} has been updated.',
+                'Details for {affected_user_username} have been updated from %s to %s.'
+                % (
+                    str(old_values['details']).strip("{}"),
+                    str(instance.details).strip("{}"),
+                ),
+                event_type='user_details_update_succeeded',
+                event_context={'affected_user': instance},
+            )
+
+        if user_updated:
+            diff = [
+                f"{field_name}: {old_value} -> {getattr(instance, field_name)}"
+                for field_name, old_value in old_values.items()
+                if field_name in User.WHITELIST_FIELDS
+                and old_value != getattr(instance, field_name)
+            ]
+
+            event_logger.user.info(
+                'User {affected_user_username} has been updated. Details:\n%s'
+                % "\n".join(diff),
                 event_type='user_update_succeeded',
                 event_context={'affected_user': instance},
             )
