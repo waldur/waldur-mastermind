@@ -252,6 +252,26 @@ class User(
     backend_id = models.CharField(max_length=255, blank=True)
     first_name = models.CharField(_('first name'), max_length=100, blank=True)
     last_name = models.CharField(_('last name'), max_length=100, blank=True)
+    WHITELIST_FIELDS = [
+        'is_superuser',
+        'description',
+        'username',
+        'civil_number',
+        'native_name',
+        'phone_number',
+        'organization',
+        'job_title',
+        'email',
+        'is_staff',
+        'is_support',
+        'preferred_language',
+        'competence',
+        'backend_id',
+        'is_identity_manager',
+        'affiliations',
+        'first_name',
+        'last_name',
+    ]
 
     @property
     def full_name(self):
