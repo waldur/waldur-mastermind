@@ -1241,6 +1241,19 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         check_resource_backend_id,
     ]
 
+    @action(detail=True, methods=['post'])
+    def unlink(self, request, resource, uuid=None):
+        """
+        Delete resource from the database without scheduling operations on backend
+        and without checking current state of the resource. It is intended to be used
+        for removing resource stuck in transitioning state.
+        """
+        obj = self.get_object()
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    unlink_permissions = [permissions.is_staff]
+
 
 class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
     permission_classes = ()
