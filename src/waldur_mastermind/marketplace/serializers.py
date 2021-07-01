@@ -953,8 +953,13 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
 
     def _update_limits(self, offering, limits):
         for key, values in limits.items():
+            min_value = values.get('min_value') or values.get('min')
+            max_value = values.get('max_value') or values.get('max')
+
             models.OfferingComponent.objects.filter(offering=offering, type=key).update(
-                min_value=values.get('min'), max_value=values.get('max'),
+                min_value=min_value,
+                max_value=max_value,
+                article_code=values.get('article_code', ''),
             )
 
 
@@ -973,9 +978,24 @@ class OfferingCreateSerializer(OfferingModifySerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        limits = validated_data.pop('limits', {})
         plans = validated_data.pop('plans', [])
-        custom_components = validated_data.pop('components', [])
+
+        limits = validated_data.pop('limits', {})
+
+        if not limits:
+            custom_components = []
+            limits = {}
+
+            for component in validated_data.pop('components', []):
+                if component['type'] in [
+                    c.type
+                    for c in plugins.manager.get_components(validated_data['type'])
+                ]:
+                    limits[component['type']] = component
+                else:
+                    custom_components.append(component)
+        else:
+            custom_components = validated_data.pop('components', [])
 
         validated_data = self._create_service(validated_data)
 
