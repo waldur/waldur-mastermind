@@ -1038,6 +1038,14 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(1, self.offering.plans.count())
 
+    def test_update_offering_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {'backend_id': 'new_backend_id'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.backend_id, 'new_backend_id')
+
 
 @ddt
 class OfferingDivisionsTest(test.APITransactionTestCase):
