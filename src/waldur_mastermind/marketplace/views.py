@@ -1026,7 +1026,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    set_backend_id_permissions = [structure_permissions.is_staff]
+    set_backend_id_permissions = [permissions.user_is_owner_or_service_manager]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
 
     @action(detail=True, methods=['post'])

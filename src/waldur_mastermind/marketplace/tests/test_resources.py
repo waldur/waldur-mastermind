@@ -879,6 +879,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.project, self.project)
 
 
+@ddt
 class ResourceBackendIDTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -888,13 +889,20 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
             self.resource, action='set_backend_id'
         )
 
+        service_manager = UserFactory()
+        self.resource.offering.customer.add_user(
+            service_manager, role=structure_models.CustomerRole.SERVICE_MANAGER
+        )
+        setattr(self.fixture, 'service_manager', service_manager)
+
     def make_request(self, role):
         self.client.force_authenticate(role)
         payload = {'backend_id': 'new_backend_id'}
         return self.client.post(self.url, payload)
 
-    def test_staff_can_set_backend_id_of_resource(self):
-        response = self.make_request(self.fixture.staff)
+    @data('staff', 'owner', 'service_manager')
+    def test_user_can_set_backend_id_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.backend_id, 'new_backend_id')
