@@ -705,7 +705,6 @@ class OfferingDetailsSerializer(
             'state',
             'paused_reason',
             'citation_count',
-            'backend_id',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
