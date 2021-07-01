@@ -250,6 +250,126 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         )
 
 
+class OfferingCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.customer_url = structure_factories.CustomerFactory.get_url(
+            customer=self.fixture.customer
+        )
+        self.category_url = marketplace_factories.CategoryFactory.get_url()
+        self.url = marketplace_factories.OfferingFactory.get_list_url()
+        mock_backend_patch = mock.patch(
+            'waldur_openstack.openstack_base.backend.BaseOpenStackBackend.get_client'
+        )
+        mock_backend_patch.start()
+        mock_executors_patch = mock.patch(
+            'waldur_mastermind.marketplace_openstack.views.executors'
+        )
+        mock_executors_patch.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_create_offering(self):
+        payload = self._get_payload()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(name='TEST').exists()
+        )
+        self.assertTrue(
+            marketplace_models.OfferingComponent.objects.filter(
+                offering__name='TEST'
+            ).exists()
+        )
+        component = marketplace_models.OfferingComponent.objects.get(
+            offering__name='TEST', type='cores'
+        )
+        self.assertEqual(component.article_code, 'artcode1')
+        self.assertEqual(component.min_value, 1)
+        self.assertEqual(component.max_value, 100)
+
+    def _get_payload(self):
+        return {
+            "name": "TEST",
+            "category": self.category_url,
+            "customer": self.customer_url,
+            "type": TENANT_TYPE,
+            "service_attributes": {
+                "backend_url": "https://193.0.0.1:5000/v3/",
+                "username": "admin",
+                "password": "password",
+                "tenant_name": "admin",
+                "external_network_id": "admin",
+            },
+            "shared": True,
+            "attributes": {},
+            "plugin_options": {"storage_mode": "fixed"},
+            "components": [
+                {
+                    "type": "cores",
+                    "name": "Cores",
+                    "measured_unit": "cores",
+                    "billing_type": "limit",
+                    "limit_period": None,
+                    "article_code": "artcode1",
+                    "min_value": 1,
+                    "max_value": 100,
+                },
+                {
+                    "type": "ram",
+                    "name": "RAM",
+                    "measured_unit": "GB",
+                    "billing_type": "limit",
+                    "limit_period": None,
+                    "article_code": "artcode2",
+                    "min_value": 1024,
+                    "max_value": 102400,
+                },
+                {
+                    "type": "storage",
+                    "name": "Storage",
+                    "measured_unit": "GB",
+                    "billing_type": "limit",
+                    "limit_period": None,
+                    "article_code": "artcode3",
+                    "min_value": 1024,
+                    "max_value": 102400,
+                },
+            ],
+        }
+
+    def test_create_offering_with_limits(self):
+        payload = self._get_payload()
+        payload.pop('components')
+        payload['limits'] = {
+            'cores': {'min': 1, 'max': 100},
+            'ram': {'min': 1024, 'max': 102400},
+            'storage': {'min': 1024, 'max': 102400},
+        }
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(name='TEST').exists()
+        )
+        self.assertTrue(
+            marketplace_models.OfferingComponent.objects.filter(
+                offering__name='TEST'
+            ).exists()
+        )
+        component = marketplace_models.OfferingComponent.objects.get(
+            offering__name='TEST', type='cores'
+        )
+        self.assertEqual(component.min_value, 1)
+        self.assertEqual(component.max_value, 100)
+
+
 @ddt
 class OfferingUpdateTest(test.APITransactionTestCase):
     def setUp(self):
