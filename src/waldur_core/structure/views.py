@@ -28,9 +28,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import models as logging_models
-from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
-from waldur_core.structure.exceptions import ServiceBackendNotImplemented
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.signals import structure_role_updated
@@ -361,8 +359,6 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         utils.check_customer_blocked(customer)
 
-        customer.validate_quota_change({'nc_project_count': 1}, raise_exception=True)
-
         super(ProjectViewSet, self).perform_create(serializer)
 
     @action(detail=True, filter_backends=[filters.GenericRoleFilter])
@@ -604,37 +600,21 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
     """
     This is a base class for both customer and project permissions.
     scope_field is required parameter, it should be either 'customer' or 'project'.
-    quota_scope_field is optional parameter, it is used in order to validate quotas on permission creation.
     """
 
     scope_field = None
-    quota_scope_field = None
 
     def perform_create(self, serializer):
         scope = serializer.validated_data[self.scope_field]
         role = serializer.validated_data.get('role')
-        affected_user = serializer.validated_data['user']
         expiration_time = serializer.validated_data.get('expiration_time')
 
         if not scope.can_manage_role(self.request.user, role, expiration_time):
             raise PermissionDenied()
 
         utils.check_customer_blocked(scope)
-        self.validate_quota_change(scope, affected_user)
 
         super(BasePermissionViewSet, self).perform_create(serializer)
-
-    def validate_quota_change(self, scope, affected_user):
-        if self.quota_scope_field:
-            quota_scope = getattr(scope, self.quota_scope_field)
-        else:
-            quota_scope = scope
-        if not isinstance(quota_scope, QuotaModelMixin):
-            return
-        if not quota_scope.get_users().filter(pk=affected_user.pk).exists():
-            quota_scope.validate_quota_change(
-                {'nc_user_count': 1}, raise_exception=True
-            )
 
     def perform_update(self, serializer):
         permission = serializer.instance
@@ -697,7 +677,6 @@ class ProjectPermissionViewSet(BasePermissionViewSet):
     )
     filterset_class = filters.ProjectPermissionFilter
     scope_field = 'project'
-    quota_scope_field = 'customer'
 
     def list(self, request, *args, **kwargs):
         """
@@ -1011,47 +990,6 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
     update_validators = partial_update_validators = [utils.check_customer_blocked]
 
     destroy_permissions = [can_user_update_settings]
-
-    @action(detail=True)
-    def stats(self, request, uuid=None):
-        """
-        This endpoint returns allocation of resources for current service setting.
-        Answer is service-specific dictionary. Example output for OpenStack:
-
-        * vcpu - maximum number of vCPUs (from hypervisors)
-        * vcpu_quota - maximum number of vCPUs(from quotas)
-        * vcpu_usage - current number of used vCPUs
-
-        * ram - total size of memory for allocation (from hypervisors)
-        * ram_quota - maximum number of memory (from quotas)
-        * ram_usage - currently used memory size on all physical hosts
-
-        * storage - total available disk space on all physical hosts (from hypervisors)
-        * storage_quota - maximum number of storage (from quotas)
-        * storage_usage - currently used storage on all physical hosts
-
-        {
-            'vcpu': 10,
-            'vcpu_quota': 7,
-            'vcpu_usage': 5,
-            'ram': 1000,
-            'ram_quota': 700,
-            'ram_usage': 500,
-            'storage': 10000,
-            'storage_quota': 7000,
-            'storage_usage': 5000
-        }
-        """
-
-        service_settings = self.get_object()
-        backend = service_settings.get_backend()
-
-        try:
-            stats = backend.get_stats()
-        except ServiceBackendNotImplemented:
-            stats = {}
-
-        return Response(stats, status=status.HTTP_200_OK)
 
 
 class BaseCounterView(viewsets.GenericViewSet):

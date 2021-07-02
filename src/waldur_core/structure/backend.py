@@ -71,9 +71,6 @@ class ServiceBackend:
     def get_monthly_cost_estimate(self, resource):
         raise ServiceBackendNotImplemented
 
-    def get_stats(self):
-        raise ServiceBackendNotImplemented
-
     @staticmethod
     def gb2mb(val):
         return int(val * 1024) if val else 0

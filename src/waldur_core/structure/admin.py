@@ -165,18 +165,6 @@ class ProtectedModelMixin:
             return response
 
 
-class ResourceCounterFormMixin:
-    def get_vm_count(self, obj):
-        return obj.quotas.get(name=obj.Quotas.nc_vm_count).usage
-
-    get_vm_count.short_description = _('VM count')
-
-    def get_private_cloud_count(self, obj):
-        return obj.quotas.get(name=obj.Quotas.nc_private_cloud_count).usage
-
-    get_private_cloud_count.short_description = _('Private cloud count')
-
-
 class CustomerAdminForm(ModelForm):
     owners = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
@@ -280,7 +268,6 @@ class CustomerAdminForm(ModelForm):
 class CustomerAdmin(
     VersionAdmin,
     FormRequestAdminMixin,
-    ResourceCounterFormMixin,
     NativeNameAdminMixin,
     ProtectedModelMixin,
     admin.ModelAdmin,
@@ -324,14 +311,12 @@ class CustomerAdmin(
         'abbreviation',
         'created',
         'accounting_start_date',
-        'get_vm_count',
-        'get_private_cloud_count',
     )
     list_filter = ('blocked', 'division')
     search_fields = ('name', 'uuid', 'abbreviation')
     date_hierarchy = 'created'
     readonly_fields = ('uuid',)
-    inlines = [QuotaInline]
+    inlines = []
 
     def get_readonly_fields(self, request, obj=None):
         fields = super(CustomerAdmin, self).get_readonly_fields(request, obj)
@@ -426,11 +411,7 @@ class ProjectAdminForm(ModelForm):
 
 
 class ProjectAdmin(
-    FormRequestAdminMixin,
-    ResourceCounterFormMixin,
-    ProtectedModelMixin,
-    ChangeReadonlyMixin,
-    admin.ModelAdmin,
+    FormRequestAdminMixin, ProtectedModelMixin, ChangeReadonlyMixin, admin.ModelAdmin,
 ):
     form = ProjectAdminForm
 
@@ -450,12 +431,9 @@ class ProjectAdmin(
         'customer',
         'created',
         'get_type_name',
-        'get_vm_count',
-        'get_private_cloud_count',
     ]
     search_fields = ['name', 'uuid']
     change_readonly_fields = ['customer']
-    inlines = [QuotaInline]
     actions = ('cleanup',)
 
     class Cleanup(ExecutorAdminAction):

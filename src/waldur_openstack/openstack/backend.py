@@ -2236,28 +2236,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         storage = sum(self.gb2mb(v.size) for v in volumes + snapshots)
         return storage
 
-    def get_stats(self):
-        tenants = models.Tenant.objects.filter(service_settings=self.settings)
-        quota_names = ('vcpu', 'ram', 'storage')
-        quota_values = models.Tenant.get_sum_of_quotas_as_dict(
-            tenants, quota_names=quota_names, fields=['limit']
-        )
-        quota_stats = {
-            'vcpu_quota': quota_values.get('vcpu', -1.0),
-            'ram_quota': quota_values.get('ram', -1.0),
-            'storage_quota': quota_values.get('storage', -1.0),
-        }
-
-        stats = {}
-        for quota in self.settings.quotas.all():
-            name = quota.name.replace('openstack_', '')
-            if name not in quota_names:
-                continue
-            stats[name] = quota.limit
-            stats[name + '_usage'] = quota.usage
-        stats.update(quota_stats)
-        return stats
-
     @log_backend_action()
     def create_port(self, port: models.Port, serialized_network: models.Network):
         neutron = self.neutron_admin_client

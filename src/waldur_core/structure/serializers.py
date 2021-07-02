@@ -20,7 +20,6 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
-from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.exceptions import (
@@ -176,8 +175,6 @@ class ProjectSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
-
     class Meta:
         model = models.Project
         fields = (
@@ -190,7 +187,6 @@ class ProjectSerializer(
             'customer_native_name',
             'customer_abbreviation',
             'description',
-            'quotas',
             'created',
             'type',
             'type_name',
@@ -219,17 +215,10 @@ class ProjectSerializer(
             'customer__native_name',
             'customer__abbreviation',
         )
-        return (
-            queryset.select_related('customer')
-            .only(*related_fields)
-            .prefetch_related('quotas')
-        )
+        return queryset.select_related('customer').only(*related_fields)
 
     def get_filtered_field_names(self):
         return ('customer',)
-
-    def get_optional_fields(self):
-        return ('quotas',)
 
     def validate(self, attrs):
         customer = (
@@ -270,7 +259,6 @@ class CustomerSerializer(
     service_managers = BasicUserSerializer(
         source='get_service_managers', many=True, read_only=True
     )
-    quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
 
     display_name = serializers.ReadOnlyField(source='get_display_name')
     division_name = serializers.ReadOnlyField(source='division.name')
@@ -299,7 +287,6 @@ class CustomerSerializer(
             'support_users',
             'service_managers',
             'backend_id',
-            'quotas',
             'image',
             'default_tax_percent',
             'accounting_start_date',
@@ -343,7 +330,7 @@ class CustomerSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.prefetch_related('quotas', 'projects')
+        return queryset.prefetch_related('projects')
 
     def validate(self, attrs):
         country = attrs.get('country')
@@ -1044,7 +1031,6 @@ class ServiceSettingsSerializer(
         choice_mappings={v: k for k, v in core_models.StateMixin.States.CHOICES},
         read_only=True,
     )
-    quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
     scope = core_serializers.GenericRelatedField(
         related_models=models.BaseResource.get_all_models(),
         required=False,
@@ -1066,7 +1052,6 @@ class ServiceSettingsSerializer(
             'customer_name',
             'customer_native_name',
             'terms_of_services',
-            'quotas',
             'scope',
             'options',
         )
@@ -1083,7 +1068,7 @@ class ServiceSettingsSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.select_related('customer').prefetch_related('quotas')
+        return queryset.select_related('customer')
 
     def get_fields(self):
         fields = super(ServiceSettingsSerializer, self).get_fields()

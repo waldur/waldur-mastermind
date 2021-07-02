@@ -513,28 +513,6 @@ class Customer(
             target_models=lambda: BaseResource.get_all_models(),
             path_to_scope='project.customer',
         )
-        nc_vm_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: VirtualMachine.get_all_models(),
-            path_to_scope='project.customer',
-        )
-        nc_private_cloud_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: PrivateCloud.get_all_models(),
-            path_to_scope='project.customer',
-        )
-        nc_storage_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Storage.get_all_models(),
-            path_to_scope='project.customer',
-        )
-        nc_volume_size = quotas_fields.TotalQuotaField(
-            target_models=lambda: Volume.get_all_models(),
-            path_to_scope='customer',
-            target_field='size',
-        )
-        nc_snapshot_size = quotas_fields.TotalQuotaField(
-            target_models=lambda: Snapshot.get_all_models(),
-            path_to_scope='customer',
-            target_field='size',
-        )
 
     def get_log_fields(self):
         return ('uuid', 'name', 'abbreviation', 'contact_details')
@@ -724,33 +702,6 @@ class Project(
         nc_resource_count = quotas_fields.CounterQuotaField(
             target_models=lambda: BaseResource.get_all_models(),
             path_to_scope='project',
-        )
-        nc_vm_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: VirtualMachine.get_all_models(),
-            path_to_scope='project',
-        )
-        nc_private_cloud_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: PrivateCloud.get_all_models(),
-            path_to_scope='project',
-        )
-        nc_storage_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Storage.get_all_models(), path_to_scope='project',
-        )
-        nc_volume_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Volume.get_all_models(), path_to_scope='project',
-        )
-        nc_snapshot_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: Snapshot.get_all_models(), path_to_scope='project',
-        )
-        nc_volume_size = quotas_fields.TotalQuotaField(
-            target_models=lambda: Volume.get_all_models(),
-            path_to_scope='project',
-            target_field='size',
-        )
-        nc_snapshot_size = quotas_fields.TotalQuotaField(
-            target_models=lambda: Snapshot.get_all_models(),
-            path_to_scope='project',
-            target_field='size',
         )
 
     customer = models.ForeignKey(
