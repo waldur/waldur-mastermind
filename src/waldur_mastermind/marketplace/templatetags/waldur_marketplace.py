@@ -1,5 +1,5 @@
 from django import template
-from django.conf import settings
+from django.template.loader import get_template
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_mastermind.marketplace import plugins
@@ -58,5 +58,5 @@ def plan_details(plan):
             }
         )
 
-    plan_template = template.Template(settings.WALDUR_MARKETPLACE.get('PLAN_TEMPLATE'))
+    plan_template = get_template('marketplace/marketplace_plan_template.txt').template
     return plan_template.render(template.Context(context, autoescape=False))

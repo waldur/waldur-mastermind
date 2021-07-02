@@ -414,15 +414,6 @@ class WaldurMarketplace(BaseModel):
         False,
         description='Allow organization owner to request or mark its organization as service provider',
     )
-    PLAN_TEMPLATE = Field(
-        'Plan: {{ plan.name }}'
-        '{% for component in components %}\n'
-        '{{component.name}}; '
-        'amount: {{component.amount}}; '
-        'price: {{component.price|floatformat }};'
-        '{% endfor %}',
-        description='Template for a plan field',
-    )
     ENABLE_STALE_RESOURCE_NOTIFICATIONS = Field(
         False,
         description='Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.',

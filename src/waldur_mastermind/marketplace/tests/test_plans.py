@@ -1,6 +1,6 @@
 from ddt import data, ddt
 from django import template
-from django.conf import settings
+from django.template.loader import get_template
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status, test
 
@@ -186,9 +186,9 @@ class PlanRenderTest(test.APITransactionTestCase):
                 },
             ],
         }
-        plan_template = template.Template(
-            settings.WALDUR_MARKETPLACE.get('PLAN_TEMPLATE')
-        )
+        plan_template = get_template(
+            'marketplace/marketplace_plan_template.txt'
+        ).template
         rendered_plan_expected = plan_template.render(
             template.Context(context, autoescape=False)
         )
