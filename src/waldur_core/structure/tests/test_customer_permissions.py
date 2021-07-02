@@ -208,17 +208,6 @@ class CustomerPermissionGrantTest(CustomerPermissionBaseTest):
             expected_status=status.HTTP_201_CREATED,
         )
 
-    def test_staff_cannot_grant_permission_if_customer_quota_exceeded(self):
-        affected_customer = 'first'
-        self.customers[affected_customer].set_quota_limit('nc_user_count', 0)
-
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='no_role',
-            affected_customer=affected_customer,
-            expected_status=status.HTTP_409_CONFLICT,
-        )
-
     def test_staff_cannot_grant_existing_role_within_any_customer(self):
         self.assert_user_access_to_permission_granting(
             login_user='staff',

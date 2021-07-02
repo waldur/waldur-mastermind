@@ -310,16 +310,6 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
                 expected_status=status.HTTP_201_CREATED,
             )
 
-    def test_staff_cannot_grant_new_role_if_customer_quota_were_exceeded(self):
-        project = 'project11'
-        self.projects[project].customer.set_quota_limit('nc_user_count', 0)
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='no_role',
-            affected_project=project,
-            expected_status=status.HTTP_409_CONFLICT,
-        )
-
     def test_staff_cannot_grant_existing_role_within_any_project(self):
         for user, project, role in self.all_roles:
             self.assert_user_access_to_permission_granting(

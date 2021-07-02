@@ -17,44 +17,23 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
-            name='nc_volume_count',
+            name='nc_user_count',
             date=parse_date('2018-10-01'),
             usage=10,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
-            name='nc_volume_count',
+            name='nc_user_count',
             date=parse_date('2018-10-02'),
             usage=11,
         )
 
         models.DailyQuotaHistory.objects.create(
             scope=self.project,
-            name='nc_volume_count',
+            name='nc_user_count',
             date=parse_date('2018-10-03'),
             usage=12,
-        )
-
-        models.DailyQuotaHistory.objects.create(
-            scope=self.project,
-            name='nc_snapshot_count',
-            date=parse_date('2018-10-01'),
-            usage=5,
-        )
-
-        models.DailyQuotaHistory.objects.create(
-            scope=self.project,
-            name='nc_snapshot_count',
-            date=parse_date('2018-10-02'),
-            usage=6,
-        )
-
-        models.DailyQuotaHistory.objects.create(
-            scope=self.project,
-            name='nc_snapshot_count',
-            date=parse_date('2018-10-03'),
-            usage=7,
         )
 
     def test_daily_quotas_are_serialized(self):
@@ -65,14 +44,13 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
             'start': '2018-09-30',
             'end': '2018-10-04',
             'scope': scope,
-            'quota_names': ['nc_volume_count', 'nc_snapshot_count'],
+            'quota_names': ['nc_user_count'],
         }
         response = self.client.get(url, request)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         expected = {
-            'nc_volume_count': [0, 10, 11, 12, 12],
-            'nc_snapshot_count': [0, 5, 6, 7, 7],
+            'nc_user_count': [0, 10, 11, 12, 12],
         }
         self.assertDictEqual(response.data, expected)
 
@@ -82,12 +60,13 @@ class TestDailyQuotasImport(test.APITransactionTestCase):
         with freeze_time('2018-10-01'):
             self.fixture = structure_fixtures.ProjectFixture()
             self.project = self.fixture.project
+            self.project.set_quota_usage('nc_user_count', 0)
 
         with freeze_time('2018-10-03'):
-            self.project.set_quota_usage('nc_volume_count', 10)
+            self.project.set_quota_usage('nc_user_count', 10)
 
         with freeze_time('2018-10-05'):
-            self.project.set_quota_usage('nc_volume_count', 30)
+            self.project.set_quota_usage('nc_user_count', 30)
 
     def test_quotas_usage_history_is_imported_correctly(self):
         with freeze_time('2018-10-06'):
@@ -95,7 +74,7 @@ class TestDailyQuotasImport(test.APITransactionTestCase):
 
         actual = list(
             models.DailyQuotaHistory.objects.filter(
-                scope=self.project, name='nc_volume_count',
+                scope=self.project, name='nc_user_count',
             )
             .order_by('date')
             .values('date', 'usage')
@@ -117,11 +96,11 @@ class TestDailyQuotasTask(test.APITransactionTestCase):
         self.project = self.fixture.project
 
     def test_quotas_are_synced(self):
-        self.project.set_quota_usage('nc_volume_count', 30)
+        self.project.set_quota_usage('nc_user_count', 30)
         models.DailyQuotaHistory.objects.all().delete()
         tasks.sync_daily_quotas()
         actual = models.DailyQuotaHistory.objects.get(
-            scope=self.project, name='nc_volume_count', date=timezone.now().date()
+            scope=self.project, name='nc_user_count', date=timezone.now().date()
         ).usage
         self.assertEqual(30, actual)
 
@@ -132,8 +111,8 @@ class TestDailyQuotasSignalHandler(testcases.TestCase):
         self.project = self.fixture.project
 
     def test_quotas_are_synced(self):
-        self.project.set_quota_usage('nc_volume_count', 30)
+        self.project.set_quota_usage('nc_user_count', 30)
         actual = models.DailyQuotaHistory.objects.get(
-            scope=self.project, name='nc_volume_count', date=timezone.now().date()
+            scope=self.project, name='nc_user_count', date=timezone.now().date()
         ).usage
         self.assertEqual(30, actual)

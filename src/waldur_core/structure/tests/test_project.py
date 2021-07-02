@@ -8,7 +8,6 @@ from freezegun import freeze_time
 from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
-from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import executors, models, permissions, signals
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
@@ -238,15 +237,6 @@ class ProjectCreateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Project.objects.filter(name=data['name']).exists())
-
-    def test_owner_cannot_create_project_if_customer_quota_were_exceeded(self):
-        self.fixture.customer.set_quota_limit('nc_project_count', 0)
-        data = self._get_valid_project_payload(self.fixture.customer)
-        self.client.force_authenticate(self.fixture.owner)
-
-        response = self.client.post(factories.ProjectFactory.get_list_url(), data)
-
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_customer_support_cannot_create_project(self):
         self.client.force_authenticate(self.fixture.customer_support)
@@ -582,53 +572,6 @@ class ProjectCountersListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {'users': 2})
-
-
-@ddt
-class ProjectQuotasTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.quota = self.fixture.project.quotas.get(name=Project.Quotas.nc_vm_count)
-
-    def update_quota(self):
-        url = quota_factories.QuotaFactory.get_url(self.quota)
-        return self.client.put(url, {'limit': 100})
-
-    @data('staff', 'owner')
-    def test_authorized_user_can_edit_project_quota(self, user):
-        self.client.force_login(getattr(self.fixture, user))
-
-        response = self.update_quota()
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.quota.refresh_from_db()
-        self.assertEqual(self.quota.limit, 100)
-
-    @data('admin', 'manager')
-    def test_non_authorized_user_can_not_edit_project_quota(self, user):
-        self.client.force_login(getattr(self.fixture, user))
-
-        response = self.update_quota()
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        self.quota.refresh_from_db()
-        self.assertNotEqual(self.quota.limit, 100)
-
-
-class ProjectQuotasListTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.url = factories.ProjectFactory.get_url(self.fixture.project)
-
-    def test_quotas_are_hidden_by_default(self):
-        self.client.force_login(self.fixture.admin)
-        response = self.client.get(self.url)
-        self.assertTrue('quotas' not in response.data)
-
-    def test_quotas_are_visible_if_explicitly_requested(self):
-        self.client.force_login(self.fixture.admin)
-        response = self.client.get(self.url, {'fields': ['quotas', 'name']})
-        self.assertTrue('quotas' not in response.data)
 
 
 class TestExecutor(executors.BaseCleanupExecutor):
