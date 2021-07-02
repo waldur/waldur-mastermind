@@ -1,0 +1,3 @@
+Plan: {{ plan.name }}{% for component in components %}
+{{component.name}}; amount: {{component.amount}}; price: {{component.price|floatformat }};
+{% endfor %}
