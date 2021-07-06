@@ -985,6 +985,11 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             'total_cost',
         )
 
+    @property
+    def type(self):
+        if self.items.count():
+            return self.items.first().get_type_display()
+
     def _get_log_context(self, entity_name):
         context = super(Order, self)._get_log_context(entity_name)
         context['order_items'] = [
@@ -1262,6 +1267,9 @@ class OrderItem(
         pass
 
     def clean(self):
+        if self.order.items.count() and self.order.items.first().type != self.type:
+            raise ValidationError(_('Types of items in one order must be the same'))
+
         offering = self.offering
         project = self.order.project
         customer = project.customer

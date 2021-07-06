@@ -216,6 +216,14 @@ class OrderFilter(django_filters.FilterSet):
             for db_value, representation in models.Order.States.CHOICES
         },
     )
+    type = django_filters.MultipleChoiceFilter(
+        choices=[
+            (representation, representation)
+            for db_value, representation in models.RequestTypeMixin.Types.CHOICES
+        ],
+        method='filter_items_type',
+        label='Items type',
+    )
     o = django_filters.OrderingFilter(
         fields=('created', 'approved_at', 'total_cost', 'state')
     )
@@ -223,6 +231,19 @@ class OrderFilter(django_filters.FilterSet):
     class Meta:
         model = models.Order
         fields = []
+
+    def filter_items_type(self, queryset, name, value):
+        type_ids = []
+
+        for v in value:
+            for type_id, type_name in models.RequestTypeMixin.Types.CHOICES:
+                if type_name == v:
+                    type_ids.append(type_id)
+
+        order_ids = models.OrderItem.objects.filter(type__in=type_ids).values_list(
+            'order_id', flat=True
+        )
+        return queryset.filter(id__in=order_ids)
 
 
 class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):

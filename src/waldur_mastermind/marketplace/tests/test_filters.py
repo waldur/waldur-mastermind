@@ -1,8 +1,8 @@
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import utils as test_utils
 
@@ -118,3 +118,25 @@ class FilterByScopeUUIDTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'query': self.scope.uuid.hex})
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.fixture.resource.uuid.hex)
+
+
+class OrderFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = factories.OrderFactory.get_list_url()
+
+    def test_order_items_type_filter_positive(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'type': 'Create'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+    def test_order_items_type_filter_negative(self):
+        self.fixture.order_item.type = models.RequestTypeMixin.Types.UPDATE
+        self.fixture.order_item.save()
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'type': 'Create'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)

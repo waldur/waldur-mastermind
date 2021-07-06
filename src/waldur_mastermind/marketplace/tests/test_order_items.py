@@ -1,18 +1,19 @@
 import unittest
 
 from ddt import data, ddt
+from django.core.exceptions import ValidationError
 from rest_framework import status, test
 
 from waldur_core.quotas import signals as quota_signals
-from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
 class OrderItemFilterTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(
@@ -62,7 +63,7 @@ class OrderItemFilterTest(test.APITransactionTestCase):
 @ddt
 class ItemCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(
@@ -119,7 +120,7 @@ class ItemCreateTest(test.APITransactionTestCase):
 @ddt
 class ItemUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(
@@ -165,7 +166,7 @@ class ItemUpdateTest(test.APITransactionTestCase):
 @ddt
 class ItemDeleteTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(
@@ -210,7 +211,7 @@ class ItemDeleteTest(test.APITransactionTestCase):
 @ddt
 class ItemTerminateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.offering = factories.OfferingFactory(type='Support.OfferingTemplate')
@@ -254,7 +255,7 @@ class ItemTerminateTest(test.APITransactionTestCase):
 
 class AggregateResourceCountTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ServiceFixture()
+        self.fixture = structure_fixtures.ServiceFixture()
         self.project = self.fixture.project
         self.customer = self.fixture.customer
         self.plan = factories.PlanFactory()
@@ -316,3 +317,16 @@ class AggregateResourceCountTest(test.APITransactionTestCase):
             ).count,
             1,
         )
+
+
+class ItemValidateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def test_types_of_items_in_one_order_must_be_the_same(self):
+        new_item = factories.OrderItemFactory(
+            order=self.fixture.order,
+            offering=self.fixture.offering,
+            type=models.RequestTypeMixin.Types.UPDATE,
+        )
+        self.assertRaises(ValidationError, new_item.clean)
