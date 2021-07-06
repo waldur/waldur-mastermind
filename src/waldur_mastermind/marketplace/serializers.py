@@ -1732,6 +1732,7 @@ class OrderSerializer(
             'items',
             'total_cost',
             'file',
+            'type',
         )
         read_only_fields = (
             'created_by',
