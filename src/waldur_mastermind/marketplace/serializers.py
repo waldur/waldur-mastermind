@@ -31,6 +31,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import ServiceSettingsSerializer
 from waldur_mastermind.common import exceptions
@@ -1040,6 +1041,11 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         if validated_data.get('shared'):
             service_settings.shared = True
             service_settings.save()
+
+        # XXX: dirty hack to trigger pulling of services after saving
+        transaction.on_commit(
+            lambda: ServiceSettingsCreateExecutor.execute(service_settings)
+        )
         validated_data['scope'] = service_settings
         return validated_data
 
