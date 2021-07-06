@@ -874,6 +874,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 raise serializers.ValidationError(
                     {'components': _('Extra components are not allowed.')}
                 )
+            valid_types = {component.type for component in builtin_components}
 
         elif builtin_components:
             valid_types = {component.type for component in builtin_components}
