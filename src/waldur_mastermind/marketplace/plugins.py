@@ -160,9 +160,17 @@ class PluginManager:
 
     def get_change_attributes_for_view(self, offering_type):
         """
-        Return a function for attributes showing.
+        Return a function for showing attributes.
         """
         return self.backends.get(offering_type, {}).get('change_attributes_for_view')
+
+    def get_components_filter(self, offering_type):
+        """
+        Return a function for filtering offering components.
+        This function is expected to receive offering and components queryset.
+        It should return filtered components queryset as a result.
+        """
+        return self.backends.get(offering_type, {}).get('components_filter')
 
     def enable_usage_notifications(self, offering_type):
         return self.backends.get(offering_type, {}).get(
