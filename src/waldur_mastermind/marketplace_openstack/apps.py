@@ -8,6 +8,17 @@ def get_secret_attributes():
         return 'user_username', 'user_password'
 
 
+def components_filter(offering, qs):
+    from . import STORAGE_MODE_FIXED, AVAILABLE_LIMITS, STORAGE_TYPE
+
+    storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+    if storage_mode == STORAGE_MODE_FIXED:
+        qs = qs.filter(type__in=AVAILABLE_LIMITS)
+    else:
+        qs = qs.exclude(type=STORAGE_TYPE)
+    return qs
+
+
 class MarketplaceOpenStackConfig(AppConfig):
     name = 'waldur_mastermind.marketplace_openstack'
     verbose_name = 'Marketplace OpenStack'
@@ -101,6 +112,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             ),
             service_type=OpenStackConfig.service_name,
             secret_attributes=get_secret_attributes,
+            components_filter=components_filter,
             available_limits=AVAILABLE_LIMITS,
             can_update_limits=True,
             get_importable_resources_backend_method='get_importable_tenants',

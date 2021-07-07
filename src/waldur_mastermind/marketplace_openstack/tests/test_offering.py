@@ -421,6 +421,47 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class OfferingDetailsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
+        )
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type='cores'
+        )
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type='ram'
+        )
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type='storage'
+        )
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type='gigabytes_ssd'
+        )
+        self.url = marketplace_factories.OfferingFactory.get_url(offering=self.offering)
+
+    def test_when_storage_mode_is_fixed_offering_components_are_filtered(self):
+        self.offering.plugin_options['storage_mode'] = STORAGE_MODE_FIXED
+        self.offering.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        actual_types = {component['type'] for component in response.data['components']}
+        expected_types = {'cores', 'ram', 'storage'}
+        self.assertEqual(actual_types, expected_types)
+
+    def test_when_storage_mode_is_dynamic_offering_components_are_filtered(self):
+        self.offering.plugin_options['storage_mode'] = STORAGE_MODE_DYNAMIC
+        self.offering.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        actual_types = {component['type'] for component in response.data['components']}
+        expected_types = {'cores', 'ram', 'gigabytes_ssd'}
+        self.assertEqual(actual_types, expected_types)
+
+
 @ddt
 class OfferingNameTest(test.APITransactionTestCase):
     def setUp(self):

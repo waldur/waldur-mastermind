@@ -775,6 +775,9 @@ class OfferingDetailsSerializer(
 
     def get_components(self, offering):
         qs = (offering.parent or offering).components
+        func = manager.get_components_filter(offering.type)
+        if func:
+            qs = func(offering, qs)
         return OfferingComponentSerializer(qs, many=True, context=self.context).data
 
     def get_filtered_plans(self, offering):
