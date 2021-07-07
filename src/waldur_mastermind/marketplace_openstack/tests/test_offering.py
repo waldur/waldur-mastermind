@@ -24,6 +24,7 @@ from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
 
 from .. import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE
+from . import fixtures
 from .utils import BaseOpenStackTest, override_plugin_settings
 
 
@@ -418,3 +419,21 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt
+class OfferingNameTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceOpenStackFixture()
+
+    @data(INSTANCE_TYPE, VOLUME_TYPE)
+    def test_renaming_openstack_tenant_should_also_rename_linked_private_offerings(
+        self, offering_type
+    ):
+        offering = marketplace_factories.OfferingFactory(
+            type=offering_type, scope=self.fixture.private_settings,
+        )
+        self.fixture.openstack_tenant.name = 'new_name'
+        self.fixture.openstack_tenant.save()
+        offering.refresh_from_db()
+        self.assertTrue('new_name' in offering.name)
