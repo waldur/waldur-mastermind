@@ -515,3 +515,27 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
     transaction.on_commit(
         lambda: tasks.import_instances_and_volumes_of_tenant.delay(serialized_resource)
     )
+
+
+def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs):
+    tenant = instance
+
+    if not instance.tracker.has_changed('name'):
+        return
+
+    service_settings = structure_models.ServiceSettings.objects.filter(
+        object_id=tenant.id, content_type=ContentType.objects.get_for_model(tenant)
+    )
+
+    for ss in service_settings:
+        offerings = marketplace_models.Offering.objects.filter(
+            object_id=ss.id, content_type=ContentType.objects.get_for_model(ss)
+        )
+
+        for offering in offerings.filter(type=INSTANCE_TYPE):
+            offering.name = utils.get_offering_name_for_instance(tenant)
+            offering.save(update_fields=['name'])
+
+        for offering in offerings.filter(type=VOLUME_TYPE):
+            offering.name = utils.get_offering_name_for_volume(tenant)
+            offering.save(update_fields=['name'])
