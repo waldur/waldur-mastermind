@@ -23,7 +23,7 @@ def fill_project(apps, schema_editor):
             tenant = Tenant.objects.get(id=service_settings.object_id)
         except ObjectDoesNotExist:
             continue
-        offering.project = tenant.service_project_link.project
+        offering.project = tenant.project
         offering.save(update_fields=['project'])
 
 
