@@ -736,6 +736,14 @@ class OrderItemViewSet(BaseMarketplaceView):
             {'details': 'Order item has been rejected.'}, status=status.HTTP_200_OK,
         )
 
+    def order_items_reject_validator(order_item):
+        if not order_item:
+            return
+        if order_item.state == models.OrderItem.States.TERMINATED:
+            raise rf_exceptions.ValidationError()
+
+    reject_validators = [order_items_reject_validator]
+
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         order_item = self.get_object()
