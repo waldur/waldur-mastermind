@@ -330,3 +330,62 @@ class ItemValidateTest(test.APITransactionTestCase):
             type=models.RequestTypeMixin.Types.UPDATE,
         )
         self.assertRaises(ValidationError, new_item.clean)
+
+
+@ddt
+class ItemRejectTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.manager = self.fixture.manager
+        self.offering = factories.OfferingFactory(
+            type='Support.OfferingTemplate', customer=self.fixture.customer
+        )
+        self.order = factories.OrderFactory(
+            project=self.project, created_by=self.manager
+        )
+        self.order_item = factories.OrderItemFactory(
+            order=self.order, offering=self.offering
+        )
+
+    @data(
+        'staff', 'owner',
+    )
+    def test_authorized_user_can_reject_item(self, user):
+        response = self.reject_item(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, models.OrderItem.States.TERMINATED)
+
+    @data(
+        'admin', 'manager',
+    )
+    def test_user_cannot_reject_item(self, user):
+        response = self.reject_item(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(models.OrderItem.States.TERMINATED,)
+    def test_order_item_cannot_be_rejected_if_it_is_in_terminated_state(self, state):
+        self.order_item.state = state
+        self.order_item.save()
+        response = self.reject_item('staff')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data(
+        models.OrderItem.States.DONE,
+        models.OrderItem.States.ERRED,
+        models.OrderItem.States.TERMINATING,
+        models.OrderItem.States.EXECUTING,
+        models.OrderItem.States.PENDING,
+    )
+    def test_order_item_can_be_rejected_if_it_is_not_in_terminated_state(self, state):
+        self.order_item.state = state
+        self.order_item.save()
+        response = self.reject_item('staff')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def reject_item(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OrderItemFactory.get_url(self.order_item, 'reject')
+        return self.client.post(url)
