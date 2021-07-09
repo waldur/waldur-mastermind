@@ -436,7 +436,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
 class OrderItemInline(admin.TabularInline):
     model = models.OrderItem
     fields = ('offering', 'state', 'attributes', 'cost', 'plan', 'resource')
-    readonly_fields = fields
+    readonly_fields = ('offering', 'attributes', 'cost', 'plan', 'resource')
 
 
 class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
