@@ -1163,6 +1163,55 @@ class WaldurClient(object):
     def list_customers(self, **kwargs):
         return self._query_resource_list(self.Endpoints.Customers, **kwargs)
 
+    def create_customer(
+        self,
+        name,
+        email,
+        address,
+        registration_code,
+        backend_id=None,
+        abbreviation="",
+        bank_account="",
+        bank_name="",
+        contact_details="",
+        country="",
+        display_name="",
+        domain="",
+        homepage="",
+        native_name="",
+        latitude=None,
+        longitude=None,
+        owners=[],
+        phone_number="",
+        postal="",
+        support_users=[],
+        vat_code="",
+    ):
+        payload = {
+            'abbreviation': abbreviation,
+            'address': address,
+            'bank_account': bank_account,
+            'bank_name': bank_name,
+            'contact_details': contact_details,
+            'country': country,
+            'display_name': display_name,
+            'domain': domain,
+            'email': email,
+            'homepage': homepage,
+            'name': name,
+            'native_name': native_name,
+            'registration_code': registration_code,
+            'backend_id': backend_id,
+            'latitude': latitude,
+            'longitude': longitude,
+            'owners': owners,
+            'phone_number': phone_number,
+            'postal': postal,
+            'support_users': support_users,
+            'vat_code': vat_code,
+        }
+        return self._create_resource(self.Endpoints.Customers, payload=payload)
+
     def list_projects(self, **kwargs):
         return self._query_resource_list(self.Endpoints.Project, **kwargs)
 
