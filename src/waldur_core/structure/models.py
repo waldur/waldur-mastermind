@@ -697,6 +697,106 @@ class Project(
 
     GLOBAL_COUNT_QUOTA_NAME = 'nc_global_project_count'
 
+    OECD_FOS_2007_CODES = (
+        ('1.1', _('Mathematics')),
+        ('1.2', _('Computer and information sciences')),
+        ('1.3', _('Physical sciences')),
+        ('1.4', _('Chemical sciences')),
+        ('1.5', _('Earth and related environmental sciences')),
+        ('1.6', _('Biological sciences')),
+        ('1.7', _('Other natural sciences')),
+        ('2.1', _('Civil engineering')),
+        (
+            '2.2',
+            _(
+                'Electrical engineering, electronic engineering, information engineering'
+            ),
+        ),
+        ('2.3', _('Mechanical engineering')),
+        ('2.4', _('Chemical engineering')),
+        ('2.5', _('Materials engineering')),
+        ('2.6', _('Medical engineering')),
+        ('2.7', _('Environmental engineering')),
+        ('2.8', _('Systems engineering')),
+        ('2.9', _('Environmental biotechnology')),
+        ('2.10', _('Industrial biotechnology')),
+        ('2.11', _('Nano technology')),
+        ('2.12', _('Other engineering and technologies')),
+        ('3.1', _('Basic medicine')),
+        ('3.2', _('Clinical medicine')),
+        ('3.3', _('Health sciences')),
+        ('3.4', _('Health biotechnology')),
+        ('3.5', _('Other medical sciences')),
+        ('4.1', _('Agriculture, forestry, and fisheries')),
+        ('4.2', _('Animal and dairy science')),
+        ('4.3', _('Veterinary science')),
+        ('4.4', _('Agricultural biotechnology')),
+        ('4.5', _('Other agricultural sciences')),
+        ('5.1', _('Psychology')),
+        ('5.2', _('Economics and business')),
+        ('5.3', _('Educational sciences')),
+        ('5.4', _('Sociology')),
+        ('5.5', _('Law')),
+        ('5.6', _('Political science')),
+        ('5.7', _('Social and economic geography')),
+        ('5.8', _('Media and communications')),
+        ('5.9', _('Other social sciences')),
+        ('6.1', _('History and archaeology')),
+        ('6.2', _('Languages and literature')),
+        ('6.3', _('Philosophy, ethics and religion')),
+        ('6.4', _('Arts (arts, history of arts, performing arts, music)')),
+        ('6.5', _('Other humanities')),
+    )
+
+    OECD_FOS_2007_CODES = (
+        ('1.1', 'Mathematics'),
+        ('1.2', 'Computer and information sciences'),
+        ('1.3', 'Physical sciences'),
+        ('1.4', 'Chemical sciences'),
+        ('1.5', 'Earth and related environmental sciences'),
+        ('1.6', 'Biological sciences'),
+        ('1.7', 'Other natural sciences'),
+        ('2.1', 'Civil engineering'),
+        (
+            '2.2',
+            'Electrical engineering, electronic engineering, information engineering',
+        ),
+        ('2.3', 'Mechanical engineering'),
+        ('2.4', 'Chemical engineering'),
+        ('2.5', 'Materials engineering'),
+        ('2.6', 'Medical engineering'),
+        ('2.7', 'Environmental engineering'),
+        ('2.8', 'Systems engineering'),
+        ('2.9', 'Environmental biotechnology'),
+        ('2.10', 'Industrial biotechnology'),
+        ('2.11', 'Nano technology'),
+        ('2.12', 'Other engineering and technologies'),
+        ('3.1', 'Basic medicine'),
+        ('3.2', 'Clinical medicine'),
+        ('3.3', 'Health sciences'),
+        ('3.4', 'Health biotechnology'),
+        ('3.5', 'Other medical sciences'),
+        ('4.1', 'Agriculture, forestry, and fisheries'),
+        ('4.2', 'Animal and dairy science'),
+        ('4.3', 'Veterinary science'),
+        ('4.4', 'Agricultural biotechnology'),
+        ('4.5', 'Other agricultural sciences'),
+        ('5.1', 'Psychology'),
+        ('5.2', 'Economics and business'),
+        ('5.3', 'Educational sciences'),
+        ('5.4', 'Sociology'),
+        ('5.5', 'Law'),
+        ('5.6', 'Political science'),
+        ('5.7', 'Social and economic geography'),
+        ('5.8', 'Media and communications'),
+        ('5.9', 'Other social sciences'),
+        ('6.1', 'History and archaeology'),
+        ('6.2', 'Languages and literature'),
+        ('6.3', 'Philosophy, ethics and religion'),
+        ('6.4', 'Arts (arts, history of arts, performing arts, music)'),
+        ('6.5', 'Other humanities'),
+    )
+
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_resource_count = quotas_fields.CounterQuotaField(
@@ -717,6 +817,9 @@ class Project(
         blank=True,
         null=True,
         on_delete=models.PROTECT,
+    )
+    oecd_fos_2007_code = models.CharField(
+        choices=OECD_FOS_2007_CODES, null=True, blank=True, max_length=80
     )
 
     objects = SoftDeletableManager()
