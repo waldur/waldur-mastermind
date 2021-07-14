@@ -308,6 +308,14 @@ class ProjectCreateTest(test.APITransactionTestCase):
 
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_project_oecd_fos_2007_code(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload['oecd_fos_2007_code'] = '1.1'
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual('1.1', response.data['oecd_fos_2007_code'])
+
     def _get_valid_project_payload(self, customer):
         return {
             'name': 'New project name',

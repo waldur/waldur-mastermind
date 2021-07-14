@@ -192,6 +192,7 @@ class ProjectSerializer(
             'type_name',
             'backend_id',
             'end_date',
+            'oecd_fos_2007_code',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
