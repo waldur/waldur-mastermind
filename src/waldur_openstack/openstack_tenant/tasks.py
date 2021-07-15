@@ -165,7 +165,10 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
         )
         for schedule in schedules:
             existing_resources = self._get_resources(schedule)
-            if existing_resources.count() >= schedule.maximal_number_of_resources:
+            if (
+                schedule.maximal_number_of_resources > 0
+                and existing_resources.count() >= schedule.maximal_number_of_resources
+            ):
                 self._schedule_exceeding_resources_deletion(
                     schedule, existing_resources
                 )
