@@ -306,11 +306,14 @@ class Attachment(
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
+    class Meta:
+        unique_together = ('issue', 'backend_id')
+
     issue = models.ForeignKey(
         on_delete=models.CASCADE, to=Issue, related_name='attachments'
     )
     file = models.FileField(upload_to='support_attachments')
-    backend_id = models.CharField(max_length=255, unique=True)
+    backend_id = models.CharField(max_length=255)
     mime_type = models.CharField(_('MIME type'), max_length=100, blank=True)
     file_size = models.PositiveIntegerField(_('Filesize, B'), blank=True, null=True)
     thumbnail = models.FileField(
