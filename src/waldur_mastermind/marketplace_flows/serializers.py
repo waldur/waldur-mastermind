@@ -74,6 +74,7 @@ class ResourceCreateRequestSerializer(BaseItemSerializer, ReviewSerializerMixin)
 class FlowSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
     customer_create_request = CustomerCreateRequestSerializer(required=False)
+    customer_name = serializers.ReadOnlyField(source='customer.name')
     project_create_request = ProjectCreateRequestSerializer()
     resource_create_request = ResourceCreateRequestSerializer()
 
@@ -96,6 +97,7 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
             'uuid',
             'url',
             'customer',
+            'customer_name',
             'order_item',
             'customer_create_request',
             'project_create_request',
@@ -135,7 +137,11 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
                 _('customer_create_request and customer are mutually exclusive.')
             )
 
-        if customer and request.user not in customer.get_users():
+        if (
+            customer
+            and not request.user.is_staff
+            and request.user not in customer.get_users()
+        ):
             raise serializers.ValidationError(
                 _('User is not connected to this customer.')
             )
@@ -169,5 +175,6 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
             if data:
                 for k, v in data.items():
                     setattr(section, k, v)
-            section.save()
+            if section:
+                section.save()
         return super().update(instance, validated_data)
