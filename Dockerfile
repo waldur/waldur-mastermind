@@ -40,9 +40,8 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
     libnss3-dev             \
     gtk-doc-tools           \
     man2html-base           \
-    xsltproc
-
-RUN mkdir xmlsec1               && \
+    xsltproc               && \
+    mkdir xmlsec1               && \
     cd xmlsec1                  && \
     apt-get source xmlsec1      && \
     cd xmlsec1-1*               && \
