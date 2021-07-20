@@ -1212,6 +1212,17 @@ class WaldurClient(object):
         }
         return self._create_resource(self.Endpoints.Customers, payload=payload)
 
+    def delete_customer(self, customer):
+        """
+        Delete a customer by UUID or URL
+
+        :param customer: customer's UUID or URL
+        :return: deleted customer information
+        """
+        if is_uuid(customer):
+            return self._delete_resource(self.Endpoints.Customers, customer)
+        return self._delete_resource_by_url(customer)
+
     def list_projects(self, **kwargs):
         return self._query_resource_list(self.Endpoints.Project, **kwargs)
 
@@ -1224,6 +1235,17 @@ class WaldurClient(object):
             'backend_id': backend_id,
         }
         return self._create_resource(self.Endpoints.Project, payload=payload)
+
+    def delete_project(self, project):
+        """
+        Delete a project by UUID or URL
+
+        :param project: project's UUID or URL
+        :return: deleted project information
+        """
+        if is_uuid(project):
+            return self._delete_resource(self.Endpoints.Project, project)
+        return self._delete_resource_by_url(project)
 
     def list_marketplace_offerings(self, **kwargs):
         return self._query_resource_list(self.Endpoints.MarketplaceOffering, **kwargs)
