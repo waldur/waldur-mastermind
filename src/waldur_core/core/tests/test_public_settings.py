@@ -32,6 +32,7 @@ class TestPublicSettings(TestCase):
             'WALDUR_HPC': {},
             'WALDUR_SLURM': {},
             'WALDUR_PID': {},
+            'WALDUR_AUTH_SAML2': {},
             'WALDUR_MARKETPLACE': {},
             'WALDUR_EXTENSION_1': {'ENABLED': False},
             'WALDUR_EXTENSION_2': {'ENABLED': True},

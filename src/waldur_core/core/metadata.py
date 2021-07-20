@@ -1,7 +1,10 @@
+import datetime
 from datetime import timedelta
 from typing import List, Optional, Tuple
 
+import saml2
 from pydantic import BaseModel, Field
+from saml2.entity_category.edugain import COC
 
 
 class WaldurCore(BaseModel):
@@ -429,6 +432,108 @@ class WaldurMarketplace(BaseModel):
         ]
 
 
+class WaldurAuthSAML2(BaseModel):
+
+    NAME = Field(
+        'saml2',
+        description='Name used for assigning the registration method to the user',
+    )
+    XMLSEC_BINARY = Field(
+        '/usr/bin/xmlsec1', description='Full path to the xmlsec1 binary program'
+    )
+    BASE_URL = Field(
+        '',
+        description='URL required for assertion consumer, single logout services and entity ID',
+    )
+    ATTRIBUTE_MAP_DIR = Field('', description='Directory with attribute mapping')
+    DEBUG = Field(False, description='Set to True to output debugging information')
+    IDP_METADATA_LOCAL = Field([], description='IdPs metadata XML files stored locally')
+    IDP_METADATA_REMOTE = Field(
+        [], description='IdPs metadata XML files stored remotely'
+    )
+    LOG_FILE = Field(
+        '', description='Empty to disable logging SAML2-related stuff to file'
+    )
+    LOG_LEVEL = Field('INFO', description='Log level for SAML2')
+    LOGOUT_REQUESTS_SIGNED = Field(
+        'true', description='Indicates if the entity will sign the logout requests'
+    )
+    AUTHN_REQUESTS_SIGNED = Field(
+        'true',
+        description='Indicates if the authentication requests sent should be signed by default',
+    )
+    SIGNATURE_ALGORITHM: str = Field(
+        None,
+        description='Identifies the Signature algorithm URL according to the XML Signature specification (SHA1 is used by default)',
+    )
+    DIGEST_ALGORITHM: str = Field(
+        None,
+        description='Identifies the Message Digest algorithm URL according to the XML Signature specification (SHA1 is used by default)',
+    )
+    NAMEID_FORMAT: str = Field(
+        None,
+        description='Identified NameID format to use. None means default, empty string ("") disables addition of entity',
+    )
+    CERT_FILE = Field('', description='PEM formatted certificate chain file')
+    KEY_FILE = Field('', description='PEM formatted certificate key file')
+    REQUIRED_ATTRIBUTES = Field(
+        [], description='SAML attributes that are required to identify a user'
+    )
+    OPTIONAL_ATTRIBUTES = Field(
+        [], description='SAML attributes that may be useful to have but not required'
+    )
+    SAML_ATTRIBUTE_MAPPING = Field(
+        {}, description='Mapping between SAML attributes and User fields'
+    )
+    ORGANIZATION = Field(
+        {},
+        description='Organization responsible for the service (you can set multilanguage information here)',
+    )
+    CATEGORIES = Field([COC], description='Links to the entity categories')
+    PRIVACY_STATEMENT_URL = Field(
+        'http://example.com/privacy-policy/',
+        description='URL with privacy statement (required by CoC)',
+    )
+    DISPLAY_NAME = Field(
+        'Service provider display name',
+        description='Service provider display name (required by CoC)',
+    )
+    DESCRIPTION = Field(
+        'Service provider description',
+        description='Service provider description (required by CoC)',
+    )
+    REGISTRATION_POLICY = Field(
+        'http://example.com/registration-policy/',
+        description='Registration policy required by mdpi',
+    )
+    REGISTRATION_AUTHORITY = Field(
+        'http://example.com/registration-authority/',
+        description='Registration authority required by mdpi',
+    )
+    REGISTRATION_INSTANT = Field(
+        datetime.datetime(2017, 1, 1).isoformat(),
+        description='Registration instant time required by mdpi',
+    )
+    ENABLE_SINGLE_LOGOUT = Field(False, description='')
+    ALLOW_TO_SELECT_IDENTITY_PROVIDER = Field(True, description='')
+    IDENTITY_PROVIDER_URL: str = Field(None, description='')
+    IDENTITY_PROVIDER_LABEL: str = Field(None, description='')
+    DEFAULT_BINDING = Field(saml2.BINDING_HTTP_POST, description='')
+    DISCOVERY_SERVICE_URL: str = Field(None, description='')
+    DISCOVERY_SERVICE_LABEL: str = Field(None, description='')
+
+    class Meta:
+        public_settings = [
+            'ENABLE_SINGLE_LOGOUT',
+            'ALLOW_TO_SELECT_IDENTITY_PROVIDER',
+            'IDENTITY_PROVIDER_URL',
+            'IDENTITY_PROVIDER_LABEL',
+            'DISCOVERY_SERVICE_URL',
+            'DISCOVERY_SERVICE_LABEL',
+            'BASE_URL',
+        ]
+
+
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
@@ -437,6 +542,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()
     WALDUR_MARKETPLACE = WaldurMarketplace()
+    WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
     )
