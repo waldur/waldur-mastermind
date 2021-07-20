@@ -109,17 +109,17 @@ class Saml2LoginView(BaseSaml2View):
         sign_requests = getattr(conf, '_sp_authn_requests_signed', False)
         if sign_requests:
             signature_algorithm = (
-                settings.WALDUR_AUTH_SAML2.get('signature_algorithm') or SIG_RSA_SHA1
+                settings.WALDUR_AUTH_SAML2.get('SIGNATURE_ALGORITHM') or SIG_RSA_SHA1
             )
             digest_algorithm = (
-                settings.WALDUR_AUTH_SAML2.get('digest_algorithm') or DIGEST_SHA1
+                settings.WALDUR_AUTH_SAML2.get('DIGEST_ALGORITHM') or DIGEST_SHA1
             )
 
             kwargs['sign'] = True
             kwargs['sigalg'] = signature_algorithm
             kwargs['digest_alg'] = digest_algorithm
 
-        nameid_format = settings.WALDUR_AUTH_SAML2.get('nameid_format')
+        nameid_format = settings.WALDUR_AUTH_SAML2.get('NAMEID_FORMAT')
         if nameid_format or nameid_format == "":  # "" is a valid setting in pysaml2
             kwargs['nameid_format'] = nameid_format
 
@@ -237,7 +237,7 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         if user is None:
             return login_failed(_('SAML2 authentication failed.'))
 
-        registration_method = settings.WALDUR_AUTH_SAML2.get('name', 'saml2')
+        registration_method = settings.WALDUR_AUTH_SAML2.get('NAME', 'saml2')
         if user.registration_method != registration_method:
             user.registration_method = registration_method
             user.save(update_fields=['registration_method'])
