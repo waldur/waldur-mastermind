@@ -42,6 +42,8 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
+        self.offering.secret_options['service_provider_can_create_offering_user'] = True
+        self.offering.save()
 
     def create_offering_user(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -54,6 +56,15 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
     def test_authorized_user_can_create_offering_user(self, user):
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
+
+    @data('staff', 'owner')
+    def test_offering_does_not_allow_to_create_user(self, user):
+        self.offering.secret_options[
+            'service_provider_can_create_offering_user'
+        ] = False
+        self.offering.save()
+        response = self.create_offering_user(user)
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
 
     @data('admin', 'manager')
     def test_unauthorized_user_can_not_list_offering_permission(self, user):
