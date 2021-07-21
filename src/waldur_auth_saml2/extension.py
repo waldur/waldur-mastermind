@@ -181,15 +181,3 @@ class SAML2Extension(WaldurExtension):
         from .urls import urlpatterns
 
         return urlpatterns
-
-    @staticmethod
-    def celery_tasks():
-        from datetime import timedelta
-
-        return {
-            'waldur-auth-saml2-sync-providers': {
-                'task': 'waldur_auth_saml2.sync_providers',
-                'schedule': timedelta(minutes=60),
-                'args': (),
-            },
-        }

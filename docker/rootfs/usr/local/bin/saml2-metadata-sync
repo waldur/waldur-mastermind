@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+echo "INFO: Fetching saml2 metadata"
+
+mkdir -p /etc/waldur/saml2/metadata/
+
+if [ -n "$TAAT_METADATA_URL" ]; then
+  curl $TAAT_METADATA_URL -o /etc/waldur/saml2/metadata/taat_metadata.xml
+fi
+
+if [ -n "$EDUGAIN_METADATA_URL" ]; then
+  curl $EDUGAIN_METADATA_URL -o /etc/waldur/saml2/metadata/edugain_metadata.xml
+fi
+
+if [ -n "$HAKA_TEST_METADATA_URL" ]; then
+  curl $HAKA_TEST_METADATA_URL -o /etc/waldur/saml2/metadata/haka_test_metadata.xml
+fi
+
+if [ -n "$HAKA_PROD_METADATA_URL" ]; then
+  curl $HAKA_PROD_METADATA_URL -o /etc/waldur/saml2/metadata/haka_prod_metadata.xml
+fi
+
+gosu waldur sh -c "waldur sync_saml2_providers"
+
+exit 0
