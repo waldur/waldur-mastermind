@@ -245,6 +245,8 @@ class WaldurClient(object):
 
     def _query_resource_list(self, endpoint, query_params):
         url = self._build_url(endpoint)
+        if query_params is None:
+            query_params = {}
         query_params.setdefault('page_size', 200)
         return self._get_all(url, params=query_params)
 
