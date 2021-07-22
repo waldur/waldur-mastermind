@@ -1160,8 +1160,8 @@ class WaldurClient(object):
 
             return resource, True
 
-    def list_customers(self, **kwargs):
-        return self._query_resource_list(self.Endpoints.Customers, **kwargs)
+    def list_customers(self, filters=None):
+        return self._query_resource_list(self.Endpoints.Customers, filters)
 
     def create_customer(
         self,
@@ -1169,7 +1169,7 @@ class WaldurClient(object):
         email,
         address,
         registration_code,
-        backend_id=None,
+        backend_id="",
         abbreviation="",
         bank_account="",
         bank_name="",
@@ -1181,10 +1181,8 @@ class WaldurClient(object):
         native_name="",
         latitude=None,
         longitude=None,
-        owners=[],
         phone_number="",
         postal="",
-        support_users=[],
         vat_code="",
     ):
         payload = {
@@ -1204,10 +1202,8 @@ class WaldurClient(object):
             'backend_id': backend_id,
             'latitude': latitude,
             'longitude': longitude,
-            'owners': owners,
             'phone_number': phone_number,
             'postal': postal,
-            'support_users': support_users,
             'vat_code': vat_code,
         }
         return self._create_resource(self.Endpoints.Customers, payload=payload)
@@ -1223,8 +1219,8 @@ class WaldurClient(object):
             return self._delete_resource(self.Endpoints.Customers, customer)
         return self._delete_resource_by_url(customer)
 
-    def list_projects(self, **kwargs):
-        return self._query_resource_list(self.Endpoints.Project, **kwargs)
+    def list_projects(self, filters=None):
+        return self._query_resource_list(self.Endpoints.Project, filters)
 
     def create_project(self, customer_uuid, name, backend_id=None):
         payload = {
@@ -1247,8 +1243,8 @@ class WaldurClient(object):
             return self._delete_resource(self.Endpoints.Project, project)
         return self._delete_resource_by_url(project)
 
-    def list_marketplace_offerings(self, **kwargs):
-        return self._query_resource_list(self.Endpoints.MarketplaceOffering, **kwargs)
+    def list_marketplace_offerings(self, filters=None):
+        return self._query_resource_list(self.Endpoints.MarketplaceOffering, filters)
 
     def get_marketplace_offering(self, offering_uuid):
         return self._query_resource_by_uuid(
