@@ -1166,9 +1166,9 @@ class WaldurClient(object):
     def create_customer(
         self,
         name,
-        email,
-        address,
-        registration_code,
+        email="",
+        address="",
+        registration_code="",
         backend_id="",
         abbreviation="",
         bank_account="",
