@@ -71,9 +71,7 @@ def get_or_create_remote_project(offering, project, client=None):
     remote_customer_uuid = options['customer_uuid']
     remote_project_name = f'{project.customer.name} / {project.name}'
     remote_project_uuid = f'{project.customer.uuid}_{project.uuid}'
-    remote_projects = client.list_projects(
-        query_params={'backend_id': remote_project_uuid}
-    )
+    remote_projects = client.list_projects({'backend_id': remote_project_uuid})
     if len(remote_projects) == 0:
         response = client.create_project(
             customer_uuid=remote_customer_uuid,
