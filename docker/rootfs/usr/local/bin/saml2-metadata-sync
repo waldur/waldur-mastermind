@@ -6,21 +6,26 @@ echo "INFO: Fetching saml2 metadata"
 mkdir -p /etc/waldur/saml2/metadata/
 
 if [ -n "$TAAT_METADATA_URL" ]; then
-  curl $TAAT_METADATA_URL -o /etc/waldur/saml2/metadata/taat_metadata.xml
+  echo "INFO: Fetching TAAT metadata from $TAAT_METADATA_UR"
+  curl -s $TAAT_METADATA_URL -o /etc/waldur/saml2/metadata/taat_metadata.xml
 fi
 
 if [ -n "$EDUGAIN_METADATA_URL" ]; then
-  curl $EDUGAIN_METADATA_URL -o /etc/waldur/saml2/metadata/edugain_metadata.xml
+  echo "INFO: Fetching EDUGAIN metadata from $EDUGAIN_METADATA_URL"
+  curl -s $EDUGAIN_METADATA_URL -o /etc/waldur/saml2/metadata/edugain_metadata.xml
 fi
 
 if [ -n "$HAKA_TEST_METADATA_URL" ]; then
-  curl $HAKA_TEST_METADATA_URL -o /etc/waldur/saml2/metadata/haka_test_metadata.xml
+  echo "INFO: Fetching Haka Test metadata from $HAKA_TEST_METADATA_URL"
+  curl -s $HAKA_TEST_METADATA_URL -o /etc/waldur/saml2/metadata/haka_test_metadata.xml
 fi
 
 if [ -n "$HAKA_PROD_METADATA_URL" ]; then
-  curl $HAKA_PROD_METADATA_URL -o /etc/waldur/saml2/metadata/haka_prod_metadata.xml
+  echo "INFO: Fetching Haka Prod metadata from $HAKA_PROD_METADATA_URL"
+  curl -s $HAKA_PROD_METADATA_URL -o /etc/waldur/saml2/metadata/haka_prod_metadata.xml
 fi
 
+echo "INFO: Saml2 providers sync"
 waldur sync_saml2_providers
 
-exit 0
+echo "INFO: Finished"
