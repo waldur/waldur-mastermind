@@ -1974,6 +1974,8 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
         fields = ('end_date',)
 
     def validate_end_date(self, end_date):
+        if not end_date:
+            return
         invoice_threshold = timezone.datetime.today() - datetime.timedelta(days=90)
         if InvoiceItem.objects.filter(
             invoice__created__gt=invoice_threshold, resource=self.instance
