@@ -21,6 +21,6 @@ if [ -n "$HAKA_PROD_METADATA_URL" ]; then
   curl $HAKA_PROD_METADATA_URL -o /etc/waldur/saml2/metadata/haka_prod_metadata.xml
 fi
 
-gosu waldur sh -c "waldur sync_saml2_providers"
+waldur sync_saml2_providers
 
 exit 0

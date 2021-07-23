@@ -69,7 +69,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             self.new_user.username
         )
         self.client_mock().list_projects.assert_called_once_with(
-            query_params={'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
+            {'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
         )
         self.client_mock().get_project_permissions.assert_called_once_with(
             REMOTE_PROJECT_UUID, REMOTE_USER_UUID, ProjectRole.ADMINISTRATOR,
@@ -85,7 +85,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             self.new_user.username
         )
         self.client_mock().list_projects.assert_called_once_with(
-            query_params={'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
+            {'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
         )
         self.client_mock().get_project_permissions.assert_called_once_with(
             REMOTE_PROJECT_UUID, REMOTE_USER_UUID, ProjectRole.ADMINISTRATOR,

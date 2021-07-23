@@ -34,7 +34,7 @@ class CustomersView(RemoteView):
             'field': ['uuid', 'name', 'abbreviation', 'phone_number', 'email'],
         }
         try:
-            customers = client.list_customers(query_params=params)
+            customers = client.list_customers(params)
         except WaldurClientException as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response(customers)
@@ -64,7 +64,7 @@ class OfferingsListView(RemoteView):
             'field': ['uuid', 'name', 'type', 'state', 'category_title'],
         }
         try:
-            remote_offerings = client.list_marketplace_offerings(query_params=params)
+            remote_offerings = client.list_marketplace_offerings(params)
         except WaldurClientException as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
