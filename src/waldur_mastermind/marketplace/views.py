@@ -79,8 +79,8 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['GET', 'POST'])
     def api_secret_code(self, request, uuid=None):
-        """ On GET request - return service provider api_secret_code.
-            On POST - generate new service provider api_secret_code.
+        """On GET request - return service provider api_secret_code.
+        On POST - generate new service provider api_secret_code.
         """
         service_provider = self.get_object()
         if request.method == 'GET':
@@ -1049,6 +1049,26 @@ class ResourceViewSet(core_views.ActionsViewSet):
 
     submit_report_permissions = [structure_permissions.is_staff]
     submit_report_serializer_class = serializers.ResourceReportSerializer
+
+    @action(detail=True, methods=['post'])
+    def set_end_date_by_provider(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data, instance=resource)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        transaction.on_commit(
+            lambda: tasks.notify_about_resource_termination.delay(
+                resource.uuid.hex, request.user.uuid.hex
+            )
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_end_date_by_provider_permissions = [
+        permissions.user_is_service_provider_owner_or_service_provider_manager
+    ]
+    set_end_date_by_provider_serializer_class = (
+        serializers.ResourceEndDateByProviderSerializer
+    )
 
 
 class ProjectChoicesViewSet(ListAPIView):

@@ -5,6 +5,7 @@ import logging
 from celery import shared_task
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q, Sum
@@ -21,6 +22,9 @@ from waldur_mastermind.marketplace.utils import process_order_item
 from . import exceptions, models, utils, views
 
 logger = logging.getLogger(__name__)
+
+
+User = get_user_model()
 
 
 def approve_order(order, user):
@@ -266,3 +270,29 @@ def terminate_resource_if_its_end_date_has_been_reached():
     ).filter(end_date__lte=timezone.datetime.today())
 
     utils.schedule_resources_termination(expired_resources)
+
+
+@shared_task(name='marketplace.notify_about_resource_termination')
+def notify_about_resource_termination(resource_uuid, user_uuid):
+    resource = models.Resource.objects.get(uuid=resource_uuid)
+    user = User.objects.get(uuid=user_uuid)
+    admin_emails = set(
+        resource.project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
+        .exclude(email='')
+        .values_list('email', flat=True)
+    )
+    manager_emails = set(
+        resource.project.get_users(structure_models.ProjectRole.MANAGER)
+        .exclude(email='')
+        .values_list('email', flat=True)
+    )
+    emails = admin_emails | manager_emails
+    resource_url = core_utils.format_homeport_link(
+        '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
+        project_uuid=resource.project.uuid.hex,
+        resource_uuid=resource.uuid.hex,
+    )
+    context = {'resource': resource, 'user': user, 'resource_url': resource_url}
+    core_utils.broadcast_mail(
+        'marketplace', 'marketplace_resource_terminatate_scheduled', context, emails
+    )
