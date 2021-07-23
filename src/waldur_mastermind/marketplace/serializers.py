@@ -37,6 +37,7 @@ from waldur_core.structure.serializers import ServiceSettingsSerializer
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace.permissions import (
     check_availability_of_auto_approving,
 )
@@ -1965,6 +1966,28 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
 
         if 'end_date' in self.validated_data:
             log.log_marketplace_resource_end_date_has_been_updated(resource, user)
+
+
+class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ('end_date',)
+
+    def validate_end_date(self, end_date):
+        invoice_threshold = timezone.datetime.today() - datetime.timedelta(days=90)
+        if InvoiceItem.objects.filter(
+            invoice__created__gt=invoice_threshold, resource=self.instance
+        ).exists():
+            raise serializers.ValidationError(
+                'Service provider can not set end date of the resource which has been used for the last 90 days.'
+            )
+
+        min_end_date = timezone.datetime.today() + datetime.timedelta(days=7)
+        if end_date < min_end_date.date():
+            raise serializers.ValidationError(
+                _('Please set at least 7 days in advance.')
+            )
+        return end_date
 
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):

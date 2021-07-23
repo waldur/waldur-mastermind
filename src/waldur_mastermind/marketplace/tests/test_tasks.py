@@ -76,6 +76,28 @@ class NotificationTest(test.APITransactionTestCase):
         self.assertTrue(resource.name in mail.outbox[0].subject)
 
 
+class ResourceEndDateTest(test.APITransactionTestCase):
+    def test_notify_about_resource_scheduled_termination(self):
+        fixture = fixtures.MarketplaceFixture()
+        admin = fixture.admin
+        manager = fixture.manager
+        tasks.notify_about_resource_termination(
+            fixture.resource.uuid, fixture.offering_owner.uuid,
+        )
+        recipients = {m.to[0] for m in mail.outbox}
+        self.assertEqual(recipients, {admin.email, manager.email})
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertTrue(fixture.resource.name in mail.outbox[0].body)
+        self.assertTrue(fixture.resource.name in mail.outbox[0].subject)
+
+    def test_mail_is_not_sent_if_there_are_no_project_admin_or_manager(self):
+        fixture = fixtures.MarketplaceFixture()
+        tasks.notify_about_resource_termination(
+            fixture.resource.uuid, fixture.offering_owner.uuid,
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+
 class TerminateResource(test.APITransactionTestCase):
     def setUp(self):
         fixture = structure_fixtures.UserFixture()

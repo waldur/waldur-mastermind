@@ -9,6 +9,7 @@ from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
+from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks, utils
@@ -672,6 +673,67 @@ class ResourceUpdateTest(test.APITransactionTestCase):
                     % (self.resource.name, self.resource.end_date, self.fixture.staff)
                 ).exists()
             )
+
+
+class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, 'set_end_date_by_provider'
+        )
+
+    def make_request(self, user, payload):
+        self.client.force_authenticate(user)
+        return self.client.post(self.url, payload)
+
+    @freeze_time('2020-01-01')
+    def test_resource_is_not_used_for_last_3_months_and_end_date_is_7_days_in_future(
+        self,
+    ):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        with freeze_time('2020-05-01'):
+            response = self.make_request(
+                self.fixture.offering_owner, {'end_date': '2020-05-08'}
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.resource.refresh_from_db()
+            self.assertEqual(self.resource.end_date, parse_date('2020-05-08'))
+
+    @freeze_time('2020-01-01')
+    def test_resource_is_not_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
+        self,
+    ):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        with freeze_time('2020-05-01'):
+            response = self.make_request(
+                self.fixture.offering_owner, {'end_date': '2020-05-05'}
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time('2020-01-01')
+    def test_resource_is_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
+        self,
+    ):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        response = self.make_request(
+            self.fixture.offering_owner, {'end_date': '2020-01-05'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time('2020-01-01')
+    def test_resource_is_used_for_last_3_months_and_end_date_is_more_than_7_days_in_future(
+        self,
+    ):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        response = self.make_request(
+            self.fixture.offering_owner, {'end_date': '2020-01-10'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):

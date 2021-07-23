@@ -193,6 +193,21 @@ def user_is_owner_or_service_manager(request, view, obj=None):
     raise exceptions.PermissionDenied()
 
 
+def user_is_service_provider_owner_or_service_provider_manager(request, view, obj=None):
+    if not obj:
+        return
+
+    if structure_permissions._has_owner_access(request.user, obj.offering.customer):
+        return
+
+    if obj.offering.customer.has_user(
+        request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
+    ):
+        return
+
+    raise exceptions.PermissionDenied()
+
+
 def user_can_update_thumbnail(request, view, obj=None):
     if not obj:
         return
