@@ -12,6 +12,7 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import ugettext_lazy as _
 from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
+from netaddr import IPNetwork, all_matching_cidrs
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
@@ -1068,8 +1069,26 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             options = network.service_settings.options
             attrs['allocation_pools'] = _generate_subnet_allocation_pool(cidr)
             attrs.setdefault('dns_nameservers', options.get('dns_nameservers', []))
+            self.check_cidr_overlap(network.service_settings, cidr)
 
         return attrs
+
+    def check_cidr_overlap(self, service_settings, new_cidr):
+        cidr_list = list(
+            models.SubNet.objects.filter(service_settings=service_settings).values_list(
+                'cidr', flat=True
+            )
+        )
+        for old_cidr in cidr_list:
+            old_ipnet = IPNetwork(old_cidr)
+            new_ipnet = IPNetwork(new_cidr)
+            if all_matching_cidrs(new_ipnet, [old_cidr]) or all_matching_cidrs(
+                old_ipnet, [new_cidr]
+            ):
+                raise serializers.ValidationError(
+                    _("CIDR %(new_cidr)s overlaps with CIDR %(old_cidr)s")
+                    % dict(new_cidr=new_cidr, old_cidr=old_cidr)
+                )
 
     def update(self, instance, validated_data):
         host_routes = validated_data.pop('host_routes', [])
