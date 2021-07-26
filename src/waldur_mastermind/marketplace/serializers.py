@@ -62,7 +62,9 @@ class MarketplaceProtectedMediaSerializerMixin(serializers.ModelSerializer):
 
 
 class ServiceProviderSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    MarketplaceProtectedMediaSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
         model = models.ServiceProvider
@@ -78,6 +80,7 @@ class ServiceProviderSerializer(
             'customer_image',
             'customer_abbreviation',
             'customer_native_name',
+            'image',
         )
         related_paths = {'customer': ('uuid', 'name', 'native_name', 'abbreviation')}
         protected_fields = ('customer',)

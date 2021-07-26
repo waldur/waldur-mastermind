@@ -40,6 +40,7 @@ User = get_user_model()
 class ServiceProvider(
     core_models.UuidMixin,
     core_models.DescribableMixin,
+    structure_models.ImageModelMixin,
     structure_models.StructureModel,
     TimeStampedModel,
 ):
