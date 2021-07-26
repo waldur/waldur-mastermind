@@ -144,7 +144,7 @@ class OpenStackClient:
     def nova(self):
         try:
             return nova_client.Client(
-                version='2',
+                version='2.19',
                 session=self.session.keystone_session,
                 endpoint_type='publicURL',
             )
