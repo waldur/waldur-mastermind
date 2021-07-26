@@ -858,6 +858,9 @@ class WaldurClient(object):
     def get_order(self, order_uuid):
         return self._get_resource(WaldurClient.Endpoints.MarketplaceOrder, order_uuid)
 
+    def list_orders(self, filters=None):
+        return self._query_resource_list(self.Endpoints.MarketplaceOrder, filters)
+
     def get_order_item(self, order_item_uuid):
         return self._get_resource(
             WaldurClient.Endpoints.MarketplaceOrderItem, order_item_uuid
