@@ -3,6 +3,7 @@ from django.core import mail
 from rest_framework import status, test
 
 from waldur_core.core.utils import format_homeport_link
+from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models, tasks, utils
@@ -142,7 +143,7 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def update_service_provider(self, user, payload=None):
+    def update_service_provider(self, user, payload=None, **kwargs):
         if not payload:
             payload = {'enable_notifications': False}
 
@@ -151,7 +152,7 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.ServiceProviderFactory.get_url(service_provider)
 
-        response = self.client.patch(url, payload)
+        response = self.client.patch(url, payload, **kwargs)
         service_provider.refresh_from_db()
 
         return response, service_provider
@@ -182,6 +183,20 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         )
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_upload_service_provider_image(self):
+        payload = {'image': dummy_image()}
+        response, service_provider = self.update_service_provider(
+            'staff', payload=payload, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(service_provider.image)
+
+        url = factories.ServiceProviderFactory.get_url(service_provider)
+        response = self.client.patch(url, {'image': None})
+        service_provider.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertFalse(service_provider.image)
 
 
 @ddt
