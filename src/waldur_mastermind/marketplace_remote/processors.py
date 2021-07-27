@@ -33,7 +33,7 @@ class RemoteCreateResourceProcessor(
             attributes=self.order_item.attributes,
             limits=self.order_item.limits,
         )
-        self.order_item.backend_id = response['uuid']
+        self.order_item.backend_id = response['items'][0]['uuid']
         self.order_item.save()
 
         if settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
