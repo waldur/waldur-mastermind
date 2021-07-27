@@ -1,12 +1,12 @@
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import permissions, status
+from rest_framework import decorators, permissions, status
 from rest_framework.response import Response
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.views import ActionsViewSet
 
-from . import filters, models, serializers, tasks
+from . import filters, models, serializers, tasks, utils
 
 
 class NotificationViewSet(ActionsViewSet):
@@ -32,3 +32,13 @@ class NotificationViewSet(ActionsViewSet):
             status=status.HTTP_201_CREATED,
             headers=headers,
         )
+
+    @decorators.action(detail=False, methods=['post'])
+    def dry_run(self, request, *args, **kwargs):
+        serializer = serializers.DryRunNotificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        query = serializer.validated_data.get('query')
+        matching_users = utils.get_users_for_query(query)
+
+        return Response(len(matching_users), status=status.HTTP_200_OK,)
