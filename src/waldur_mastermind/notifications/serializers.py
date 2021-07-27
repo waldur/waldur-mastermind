@@ -90,3 +90,10 @@ class CreateNotificationSerializer(serializers.ModelSerializer):
 
     def format_options(self, options):
         return [{'name': option.name, 'uuid': option.uuid.hex} for option in options]
+
+
+class DryRunNotificationSerializer(serializers.Serializer):
+    query = QuerySerializer(write_only=True)
+
+    class Meta:
+        fields = ('query',)
