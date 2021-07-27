@@ -1442,6 +1442,9 @@ class OfferingUser(models.Model):
     username = models.CharField(max_length=100, blank=True, null=True)
     created = AutoCreatedField()
 
+    def get_log_fields(self):
+        return ('offering', 'user', 'username')
+
 
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
