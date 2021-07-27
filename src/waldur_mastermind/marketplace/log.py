@@ -137,12 +137,26 @@ class MarketplaceOfferingPermissionEventLogger(EventLogger):
         return {event_context['offering'].customer}
 
 
+class MarketplaceOfferingUserEventLogger(EventLogger):
+    offering_user = models.OfferingUser
+
+    class Meta:
+        event_types = (
+            'marketplace_offering_user_created',
+            'marketplace_offering_user_deleted',
+        )
+        event_groups = {
+            'users': event_types,
+        }
+
+
 event_logger.register('marketplace_order', MarketplaceOrderLogger)
 event_logger.register('marketplace_resource', MarketplaceResourceLogger)
 event_logger.register('marketplace_component_usage', MarketplaceComponentUsageLogger)
 event_logger.register(
     'marketplace_offering_permission', MarketplaceOfferingPermissionEventLogger
 )
+event_logger.register('marketplace_offering_user', MarketplaceOfferingUserEventLogger)
 
 
 def log_order_created(order):
@@ -393,4 +407,20 @@ def log_marketplace_resource_end_date_has_been_updated(resource, user):
         template % context,
         event_type='marketplace_resource_update_end_date_succeeded',
         event_context=event_context,
+    )
+
+
+def log_offering_user_created(offering_user):
+    event_logger.marketplace_offering_user.info(
+        f'Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been created.',
+        event_type='marketplace_offering_user_created',
+        event_context={'offering_user': offering_user},
+    )
+
+
+def log_offering_user_deleted(offering_user):
+    event_logger.marketplace_offering_user.info(
+        f'Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been deleted.',
+        event_type='marketplace_offering_user_deleted',
+        event_context={'offering_user': offering_user},
     )

@@ -197,3 +197,15 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace.'
             'delete_expired_project_if_every_resource_has_been_terminated',
         )
+
+        signals.post_save.connect(
+            handlers.log_offering_user_created,
+            sender=models.OfferingUser,
+            dispatch_uid='waldur_mastermind.marketplace.log_offering_user_created',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_offering_user_deleted,
+            sender=models.OfferingUser,
+            dispatch_uid='waldur_mastermind.marketplace.log_offering_user_deleted',
+        )

@@ -526,3 +526,13 @@ def delete_expired_project_if_every_resource_has_been_terminated(
         )
         if not resources:
             project.delete()
+
+
+def log_offering_user_created(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+    log.log_offering_user_created(instance)
+
+
+def log_offering_user_deleted(sender, instance, **kwargs):
+    log.log_offering_user_deleted(instance)

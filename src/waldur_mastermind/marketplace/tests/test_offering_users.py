@@ -2,6 +2,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.logging.models import Event
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.models import OfferingUser, Resource
@@ -114,3 +115,29 @@ class ListUsersTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
+
+
+class OfferingUsersHandlerTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def test_when_offering_user_is_created_audit_log_is_generated(self):
+        OfferingUser.objects.create(
+            offering=self.fixture.offering, user=self.fixture.user, username='user',
+        )
+        self.assertTrue(
+            Event.objects.filter(
+                event_type='marketplace_offering_user_created'
+            ).exists()
+        )
+
+    def test_when_offering_user_is_deleted_audit_log_is_generated(self):
+        offering_user = OfferingUser.objects.create(
+            offering=self.fixture.offering, user=self.fixture.user, username='user',
+        )
+        offering_user.delete()
+        self.assertTrue(
+            Event.objects.filter(
+                event_type='marketplace_offering_user_deleted'
+            ).exists()
+        )
