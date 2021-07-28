@@ -638,7 +638,7 @@ class NestedSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
         if 'id' in data:
             try:
                 return models.SecurityGroupRule.objects.get(id=data['id'])
-            except models.SecurityGroup:
+            except models.SecurityGroup.DoesNotExist:
                 raise serializers.ValidationError(
                     _('Security group with id %s does not exist') % data['id']
                 )
