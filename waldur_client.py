@@ -597,6 +597,11 @@ class WaldurClient(object):
 
         return result[0], scope
 
+    def get_marketplace_resource(self, resource_uuid):
+        return self._get_resource(
+            WaldurClient.Endpoints.MarketplaceResources, resource_uuid
+        )
+
     def get_instance_via_marketplace(self, name, project=None):
         """Get an openstack instance via marketplace.
 
