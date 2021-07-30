@@ -80,6 +80,9 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
+        if self.instance is None:
+            return fields
+
         try:
             request = self.context['view'].request
         except (KeyError, AttributeError):
