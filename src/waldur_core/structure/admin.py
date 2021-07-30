@@ -8,7 +8,6 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
-from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models as django_models
 from django.db import transaction
@@ -45,6 +44,8 @@ from waldur_core.structure.serializers import (
     get_options_serializer_class,
 )
 from waldur_geo_ip import tasks as geo_ip_tasks
+
+from .widgets import ScrolledSelectMultiple
 
 logger = logging.getLogger(__name__)
 
@@ -169,21 +170,17 @@ class CustomerAdminForm(ModelForm):
     owners = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
         required=False,
-        widget=FilteredSelectMultiple(verbose_name=_('Owners'), is_stacked=False),
+        widget=ScrolledSelectMultiple(verbose_name=_('Owners')),
     )
     support_users = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
         required=False,
-        widget=FilteredSelectMultiple(
-            verbose_name=_('Support users'), is_stacked=False
-        ),
+        widget=ScrolledSelectMultiple(verbose_name=_('Support users')),
     )
     service_managers = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
         required=False,
-        widget=FilteredSelectMultiple(
-            verbose_name=_('Service managers'), is_stacked=False
-        ),
+        widget=ScrolledSelectMultiple(verbose_name=_('Service managers')),
     )
 
     def __init__(self, *args, **kwargs):
@@ -336,17 +333,17 @@ class ProjectAdminForm(ModelForm):
     admins = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
         required=False,
-        widget=FilteredSelectMultiple(verbose_name=_('Admins'), is_stacked=False),
+        widget=ScrolledSelectMultiple(verbose_name=_('Admins')),
     )
     managers = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
         required=False,
-        widget=FilteredSelectMultiple(verbose_name=_('Managers'), is_stacked=False),
+        widget=ScrolledSelectMultiple(verbose_name=_('Managers')),
     )
     members = ModelMultipleChoiceField(
         User.objects.all().order_by('first_name', 'last_name'),
         required=False,
-        widget=FilteredSelectMultiple(verbose_name=_('Members'), is_stacked=False),
+        widget=ScrolledSelectMultiple(verbose_name=_('Members')),
     )
 
     def __init__(self, *args, **kwargs):
