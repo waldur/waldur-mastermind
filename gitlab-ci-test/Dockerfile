@@ -1,6 +1,6 @@
 # Use to avoid pull rate limit for Docker Hub images
 ARG DOCKER_REGISTRY=docker.io/
-FROM ${REGISTRY}library/python:3.8
+FROM ${DOCKER_REGISTRY}library/python:3.8
 
 # Install necessary packages
 RUN apt-get update    &&\
