@@ -8,7 +8,7 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/python-module-release.yml"
 
-image: "themattrix/tox:latest"
+image: "registry.hpc.ut.ee/mirror/themattrix/tox:latest"
 
 variables:
   GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/ansible-waldur-module.git"
@@ -25,7 +25,7 @@ Run unit tests:
     - tox
 
 Upload configuration guide:
-  image: python:3.8-buster
+  image: "registry.hpc.ut.ee/mirror/library/python:3.8-buster"
   stage: deploy
   interruptible: true
   rules:
