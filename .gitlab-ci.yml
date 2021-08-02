@@ -106,17 +106,19 @@ Build docker image for tests:
     - name: "$CI_REGISTRY/waldur/waldur-pipelines/docker:19.03.12-dind"
       alias: docker
       command: ["--mtu=1400"]
+  variables:
+    DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   script:
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT
     - cat docker/rootfs/COMMIT
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build . -f gitlab-ci-test/Dockerfile -t $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+    - docker build . -f gitlab-ci-test/Dockerfile -t $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
     - docker push $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
 
 Lint docker image:
   extends: .Lint docker image template
   variables:
-    IMAGE: opennode/waldur-mastermind:latest
+    IMAGE: registry.hpc.ut.ee/mirror/opennode/waldur-mastermind:latest
 
 Lint dockerfile:
   extends: .Lint dockerfile template
