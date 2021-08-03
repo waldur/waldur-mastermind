@@ -118,7 +118,7 @@ Build docker image for tests:
 Lint docker image:
   extends: .Lint docker image template
   variables:
-    IMAGE: registry.hpc.ut.ee/mirror/opennode/waldur-mastermind:latest
+    IMAGE: opennode/waldur-mastermind:latest
 
 Lint dockerfile:
   extends: .Lint dockerfile template
