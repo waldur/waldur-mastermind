@@ -164,7 +164,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     def create_component_item(cls, source, plan_component, invoice, start, end):
         offering_component = plan_component.component
         limit = source.limits.get(offering_component.type, 0)
-        if not limit:
+        if not limit or limit == -1:
             return
         details = cls.get_component_details(source, plan_component)
         quantity = cls.convert_quantity(limit, offering_component.type)
