@@ -39,9 +39,15 @@ def create_monthly_invoices():
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
     for customer in customers.iterator():
-        registrators.RegistrationManager.get_or_create_invoice(
-            customer, core_utils.month_start(date)
-        )
+        try:
+            registrators.RegistrationManager.get_or_create_invoice(
+                customer, core_utils.month_start(date)
+            )
+        except Exception:
+            # Continue processing even if some customers could not be processed
+            logger.exception(
+                'Unable to create monthly invoice for customer %s', customer
+            )
 
     if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
         send_invoice_report.delay()
