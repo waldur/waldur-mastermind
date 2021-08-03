@@ -80,6 +80,7 @@ class ServiceProviderSerializer(
             'customer_image',
             'customer_abbreviation',
             'customer_native_name',
+            'customer_country',
             'image',
         )
         related_paths = {'customer': ('uuid', 'name', 'native_name', 'abbreviation')}
@@ -93,6 +94,7 @@ class ServiceProviderSerializer(
         }
 
     customer_image = ProtectedImageField(source='customer.image', read_only=True)
+    customer_country = serializers.CharField(source='customer.country', read_only=True)
 
     def get_fields(self):
         fields = super(ServiceProviderSerializer, self).get_fields()
