@@ -29,10 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 def backend_internal_ip_to_internal_ip(backend_internal_ip, **kwargs):
+    fixed_ips = backend_internal_ip['fixed_ips']
+
     internal_ip = models.InternalIP(
         backend_id=backend_internal_ip['id'],
         mac_address=backend_internal_ip['mac_address'],
-        fixed_ips=backend_internal_ip['fixed_ips'],
+        fixed_ips=fixed_ips,
         allowed_address_pairs=backend_internal_ip.get('allowed_address_pairs', []),
     )
 
@@ -42,9 +44,8 @@ def backend_internal_ip_to_internal_ip(backend_internal_ip, **kwargs):
     if 'instance' not in kwargs:
         internal_ip._instance_backend_id = backend_internal_ip['device_id']
     if 'subnet' not in kwargs:
-        internal_ip._subnet_backend_id = backend_internal_ip['fixed_ips'][0][
-            'subnet_id'
-        ]
+        if fixed_ips:
+            internal_ip._subnet_backend_id = fixed_ips[0]['subnet_id']
 
     internal_ip._device_owner = backend_internal_ip['device_owner']
 
