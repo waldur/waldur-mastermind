@@ -11,7 +11,7 @@ from . import executors, filters, log, models, serializers
 
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Image.objects.all()
+    queryset = models.Image.objects.all().order_by('name')
     serializer_class = serializers.ImageSerializer
     filterset_class = filters.ImageFilter
     lookup_field = 'uuid'
@@ -28,14 +28,14 @@ class RegionViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class SizeViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Size.objects.all()
+    queryset = models.Size.objects.all().order_by('name')
     serializer_class = serializers.SizeSerializer
     filterset_class = filters.SizeFilter
     lookup_field = 'uuid'
 
 
 class DropletViewSet(structure_views.ResourceViewSet):
-    queryset = models.Droplet.objects.all()
+    queryset = models.Droplet.objects.all().order_by('name')
     serializer_class = serializers.DropletSerializer
     filterset_class = filters.DropletFilter
     create_executor = executors.DropletCreateExecutor

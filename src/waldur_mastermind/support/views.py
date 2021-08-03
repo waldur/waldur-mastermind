@@ -114,7 +114,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
 
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.Priority.objects.all()
+    queryset = models.Priority.objects.all().order_by('name')
     serializer_class = serializers.PrioritySerializer
     filterset_class = filters.PriorityFilter
     lookup_field = 'uuid'
@@ -213,14 +213,14 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
 class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
-    queryset = models.Template.objects.all()
+    queryset = models.Template.objects.all().order_by('name')
     lookup_field = 'uuid'
     serializer_class = serializers.TemplateSerializer
 
 
 class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     lookup_field = 'uuid'
-    queryset = models.Feedback.objects.all()
+    queryset = models.Feedback.objects.all().order_by('created')
     disabled_actions = ['update', 'partial_update', 'destroy']
     permission_classes = (core_permissions.ActionsPermission,)
     create_permissions = ()

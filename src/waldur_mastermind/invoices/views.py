@@ -245,7 +245,7 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     ) = partial_update_permissions = destroy_permissions = enable_permissions = [
         structure_permissions.is_staff
     ]
-    queryset = models.PaymentProfile.objects.all()
+    queryset = models.PaymentProfile.objects.all().order_by('name')
     serializer_class = serializers.PaymentProfileSerializer
 
     @action(detail=True, methods=['post'])
@@ -276,7 +276,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
     ) = link_to_invoice_permissions = unlink_from_invoice_permissions = [
         structure_permissions.is_staff
     ]
-    queryset = models.Payment.objects.all()
+    queryset = models.Payment.objects.all().order_by('created')
     serializer_class = serializers.PaymentSerializer
 
     @action(detail=True, methods=['post'])

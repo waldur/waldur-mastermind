@@ -12,7 +12,7 @@ from . import executors, filters, models, serializers
 
 
 class AllocationViewSet(structure_views.ResourceViewSet):
-    queryset = models.Allocation.objects.all()
+    queryset = models.Allocation.objects.all().order_by('name')
     serializer_class = serializers.AllocationSerializer
     filterset_class = filters.AllocationFilter
 
@@ -41,7 +41,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
 
 
 class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.AllocationUserUsage.objects.all()
+    queryset = models.AllocationUserUsage.objects.all().order_by('user__firstname')
     serializer_class = serializers.AllocationUserUsageSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -50,7 +50,7 @@ class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
 
 class AssociationViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
-    queryset = models.Association.objects.all()
+    queryset = models.Association.objects.all().order_by('username')
     serializer_class = serializers.AssociationSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)

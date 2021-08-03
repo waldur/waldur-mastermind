@@ -32,7 +32,7 @@ class SizeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class InstanceViewSet(structure_views.ResourceViewSet):
-    queryset = models.Instance.objects.all()
+    queryset = models.Instance.objects.all().order_by('name')
     filterset_class = filters.InstanceFilter
     serializer_class = serializers.InstanceSerializer
     create_executor = executors.InstanceCreateExecutor
@@ -116,7 +116,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
 
 class VolumeViewSet(structure_views.ResourceViewSet):
-    queryset = models.Volume.objects.all()
+    queryset = models.Volume.objects.all().order_by('name')
     serializer_class = serializers.VolumeSerializer
     create_executor = executors.VolumeCreateExecutor
     delete_executor = executors.VolumeDeleteExecutor

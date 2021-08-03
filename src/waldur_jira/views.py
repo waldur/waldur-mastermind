@@ -24,14 +24,14 @@ class JiraPermissionMixin:
 
 
 class ProjectTemplateViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.ProjectTemplate.objects.all()
+    queryset = models.ProjectTemplate.objects.all().order_by('name')
     filterset_class = filters.ProjectTemplateFilter
     serializer_class = serializers.ProjectTemplateSerializer
     lookup_field = 'uuid'
 
 
 class ProjectViewSet(structure_views.ResourceViewSet):
-    queryset = models.Project.objects.all()
+    queryset = models.Project.objects.all().order_by('name')
     filterset_class = filters.ProjectFilter
     serializer_class = serializers.ProjectSerializer
     create_executor = executors.ProjectCreateExecutor
@@ -43,14 +43,14 @@ class ProjectViewSet(structure_views.ResourceViewSet):
 
 
 class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.IssueType.objects.all()
+    queryset = models.IssueType.objects.all().order_by('name')
     filterset_class = filters.IssueTypeFilter
     serializer_class = serializers.IssueTypeSerializer
     lookup_field = 'uuid'
 
 
 class PriorityViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Priority.objects.all()
+    queryset = models.Priority.objects.all().order_by('name')
     serializer_class = serializers.PrioritySerializer
     filterset_class = filters.PriorityFilter
     lookup_field = 'uuid'

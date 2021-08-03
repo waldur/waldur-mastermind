@@ -35,13 +35,13 @@ class LocationViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ResourceGroupViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.ResourceGroup.objects.all()
+    queryset = models.ResourceGroup.objects.all().order_by('name')
     serializer_class = serializers.ResourceGroupSerializer
     lookup_field = 'uuid'
 
 
 class PublicIPViewSet(structure_views.ResourceViewSet):
-    queryset = models.PublicIP.objects.all()
+    queryset = models.PublicIP.objects.all().order_by('name')
     filterset_class = filters.PublicIPFilter
     serializer_class = serializers.PublicIPSerializer
     create_executor = executors.PublicIPCreateExecutor
@@ -49,7 +49,7 @@ class PublicIPViewSet(structure_views.ResourceViewSet):
 
 
 class VirtualMachineViewSet(structure_views.ResourceViewSet):
-    queryset = models.VirtualMachine.objects.all()
+    queryset = models.VirtualMachine.objects.all().order_by('name')
     filterset_class = filters.VirtualMachineFilter
     serializer_class = serializers.VirtualMachineSerializer
     create_executor = executors.VirtualMachineCreateExecutor
@@ -100,7 +100,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
 
 class SQLServerViewSet(structure_views.ResourceViewSet):
-    queryset = models.SQLServer.objects.all()
+    queryset = models.SQLServer.objects.all().order_by('name')
     filterset_class = filters.SQLServerFilter
     serializer_class = serializers.SQLServerSerializer
     create_executor = executors.SQLServerCreateExecutor
@@ -129,7 +129,7 @@ class SQLServerViewSet(structure_views.ResourceViewSet):
 
 
 class SQLDatabaseViewSet(structure_views.ResourceViewSet):
-    queryset = models.SQLDatabase.objects.all()
+    queryset = models.SQLDatabase.objects.all().order_by('name')
     filterset_class = filters.SQLDatabaseFilter
     serializer_class = serializers.SQLDatabaseSerializer
     create_executor = executors.SQLDatabaseCreateExecutor

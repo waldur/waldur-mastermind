@@ -22,7 +22,9 @@ from . import PLUGIN_NAME, executors, filters, serializers
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME).order_by(
+        'name'
+    )
     filter_backends = (
         DjangoFilterBackend,
         filters.ResourceOwnerOrCreatorFilterBackend,
@@ -61,7 +63,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Offering.objects.filter(type=PLUGIN_NAME)
+    queryset = models.Offering.objects.filter(type=PLUGIN_NAME).order_by('name')
     filter_backends = (
         DjangoFilterBackend,
         filters.CustomersFilterBackend,

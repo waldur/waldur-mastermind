@@ -53,7 +53,7 @@ class OptionalReadonlyViewset:
 
 
 class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
-    queryset = models.Cluster.objects.all()
+    queryset = models.Cluster.objects.all().order_by('name')
     serializer_class = serializers.ClusterSerializer
     filterset_class = filters.ClusterFilter
     update_executor = executors.ClusterUpdateExecutor
@@ -427,7 +427,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
 
 
 class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Project.objects.all()
+    queryset = models.Project.objects.all().order_by('name')
     serializer_class = serializers.ProjectSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ProjectFilter
@@ -443,7 +443,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Namespace.objects.all()
+    queryset = models.Namespace.objects.all().order_by('name')
     serializer_class = serializers.NamespaceSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.NamespaceFilter
@@ -479,7 +479,7 @@ class TemplateVersionView(APIView):
 
 
 class ApplicationViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
-    queryset = models.Application.objects.all()
+    queryset = models.Application.objects.all().order_by('name')
     serializer_class = serializers.ApplicationSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ApplicationFilter
@@ -577,7 +577,7 @@ class IngressViewSet(
     SyncDestroyMixin,
     structure_views.ResourceViewSet,
 ):
-    queryset = models.Ingress.objects.all()
+    queryset = models.Ingress.objects.all().order_by('name')
     serializer_class = serializers.IngressSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.IngressFilter
@@ -593,7 +593,7 @@ class ServiceViewSet(
     SyncDestroyMixin,
     structure_views.ResourceViewSet,
 ):
-    queryset = models.Service.objects.all()
+    queryset = models.Service.objects.all().order_by('name')
     serializer_class = serializers.ServiceSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ServiceFilter

@@ -37,7 +37,7 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
 
 
 class VirtualMachineViewSet(structure_views.ResourceViewSet):
-    queryset = models.VirtualMachine.objects.all()
+    queryset = models.VirtualMachine.objects.all().order_by('name')
     serializer_class = serializers.VirtualMachineSerializer
     filterset_class = filters.VirtualMachineFilter
     pull_executor = executors.VirtualMachinePullExecutor
@@ -295,35 +295,35 @@ class DiskViewSet(structure_views.ResourceViewSet):
 
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Template.objects.all()
+    queryset = models.Template.objects.all().order_by('name')
     serializer_class = serializers.TemplateSerializer
     filterset_class = filters.TemplateFilter
     lookup_field = 'uuid'
 
 
 class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Cluster.objects.all()
+    queryset = models.Cluster.objects.all().order_by('name')
     serializer_class = serializers.ClusterSerializer
     filterset_class = filters.ClusterFilter
     lookup_field = 'uuid'
 
 
 class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Network.objects.all()
+    queryset = models.Network.objects.all().order_by('name')
     serializer_class = serializers.NetworkSerializer
     filterset_class = filters.NetworkFilter
     lookup_field = 'uuid'
 
 
 class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Datastore.objects.all()
+    queryset = models.Datastore.objects.all().order_by('name')
     serializer_class = serializers.DatastoreSerializer
     filterset_class = filters.DatastoreFilter
     lookup_field = 'uuid'
 
 
 class FolderViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Folder.objects.all()
+    queryset = models.Folder.objects.all().order_by('name')
     serializer_class = serializers.FolderSerializer
     filterset_class = filters.FolderFilter
     lookup_field = 'uuid'

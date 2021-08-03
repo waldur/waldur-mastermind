@@ -10,7 +10,7 @@ from . import filters, models, serializers, tasks, utils
 
 
 class NotificationViewSet(ActionsViewSet):
-    queryset = models.Notification.objects.all()
+    queryset = models.Notification.objects.all().order_by('author')
     create_serializer_class = serializers.CreateNotificationSerializer
     serializer_class = serializers.ReadNotificationSerializer
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]

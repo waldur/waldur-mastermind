@@ -72,7 +72,7 @@ class PublicViewsetMixin:
 
 
 class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
-    queryset = models.ServiceProvider.objects.all()
+    queryset = models.ServiceProvider.objects.all().order_by('customer__name')
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
     api_secret_code_permissions = [structure_permissions.is_owner]
@@ -462,7 +462,9 @@ class OfferingPermissionViewSet(structure_views.BasePermissionViewSet):
 class OfferingPermissionLogViewSet(
     mixins.RetrieveModelMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
 ):
-    queryset = models.OfferingPermission.objects.filter(is_active=None)
+    queryset = models.OfferingPermission.objects.filter(is_active=None).order_by(
+        'offering__name'
+    )
     serializer_class = serializers.OfferingPermissionLogSerializer
     filter_backends = (
         structure_filters.GenericRoleFilter,
@@ -592,7 +594,7 @@ class ScreenshotViewSet(
     core_views.UpdateReversionMixin,
     BaseMarketplaceView,
 ):
-    queryset = models.Screenshot.objects.all()
+    queryset = models.Screenshot.objects.all().order_by('offering__name')
     serializer_class = serializers.ScreenshotSerializer
     filterset_class = filters.ScreenshotFilter
 
@@ -1177,7 +1179,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
 
 class OfferingFileViewSet(core_views.ActionsViewSet):
-    queryset = models.OfferingFile.objects.all()
+    queryset = models.OfferingFile.objects.all().order_by('name')
     filterset_class = filters.OfferingFileFilter
     filter_backends = [DjangoFilterBackend]
     serializer_class = serializers.OfferingFileSerializer
