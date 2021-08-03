@@ -40,7 +40,7 @@ def approve_order(order, user):
     )
 
 
-@shared_task(name='marketplace.process_order')
+@shared_task
 def process_order(serialized_order, serialized_user):
     order = core_utils.deserialize_instance(serialized_order)
     user = core_utils.deserialize_instance(serialized_user)
@@ -48,13 +48,13 @@ def process_order(serialized_order, serialized_user):
         process_order_item(item, user)
 
 
-@shared_task(name='marketplace.create_screenshot_thumbnail')
+@shared_task
 def create_screenshot_thumbnail(uuid):
     screenshot = models.Screenshot.objects.get(uuid=uuid)
     utils.create_screenshot_thumbnail(screenshot)
 
 
-@shared_task(name='marketplace.notify_order_approvers')
+@shared_task
 def notify_order_approvers(uuid):
     order = models.Order.objects.get(uuid=uuid)
     users = order.get_approvers()
@@ -73,7 +73,7 @@ def notify_order_approvers(uuid):
     core_utils.broadcast_mail('marketplace', 'notification_approval', context, emails)
 
 
-@shared_task(name='marketplace.notify_about_resource_change')
+@shared_task
 def notify_about_resource_change(event_type, context, resource_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     project = structure_models.Project.all_objects.get(id=resource.project_id)
@@ -177,7 +177,7 @@ def send_notifications_about_usages():
             )
 
 
-@shared_task(name='marketplace.terminate_resource')
+@shared_task
 def terminate_resource(serialized_resource, serialized_user):
     resource = core_utils.deserialize_instance(serialized_resource)
     user = core_utils.deserialize_instance(serialized_user)
@@ -189,7 +189,7 @@ def terminate_resource(serialized_resource, serialized_user):
 
 
 @shared_task(
-    name='marketplace.terminate_resources_if_project_end_date_has_been_reached'
+    name='waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached'
 )
 def terminate_resources_if_project_end_date_has_been_reached():
     expired_projects = structure_models.Project.objects.exclude(
@@ -207,7 +207,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
             project.delete()
 
 
-@shared_task(name='marketplace.notify_about_stale_resource')
+@shared_task(name='waldur_mastermind.marketplace.notify_about_stale_resource')
 def notify_about_stale_resource():
     if not settings.WALDUR_MARKETPLACE['ENABLE_STALE_RESOURCE_NOTIFICATIONS']:
         return
@@ -259,7 +259,9 @@ def notify_about_stale_resource():
         )
 
 
-@shared_task(name='marketplace.terminate_resource_if_its_end_date_has_been_reached')
+@shared_task(
+    name='waldur_mastermind.marketplace.terminate_resource_if_its_end_date_has_been_reached'
+)
 def terminate_resource_if_its_end_date_has_been_reached():
     expired_resources = models.Resource.objects.exclude(
         end_date__isnull=True,
@@ -272,7 +274,7 @@ def terminate_resource_if_its_end_date_has_been_reached():
     utils.schedule_resources_termination(expired_resources)
 
 
-@shared_task(name='marketplace.notify_about_resource_termination')
+@shared_task
 def notify_about_resource_termination(resource_uuid, user_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     user = User.objects.get(uuid=user_uuid)
