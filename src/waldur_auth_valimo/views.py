@@ -12,7 +12,7 @@ validate_valimo = validate_authentication_method('VALIMO')
 class AuthResultViewSet(
     core_mixins.CreateExecutorMixin, mixins.CreateModelMixin, viewsets.GenericViewSet
 ):
-    queryset = models.AuthResult.objects.all()
+    queryset = models.AuthResult.objects.all().order_by('user')
     serializer_class = serializers.AuthResultSerializer
     permission_classes = ()
     lookup_field = 'uuid'

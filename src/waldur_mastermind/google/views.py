@@ -18,7 +18,7 @@ from .backend import GoogleAuthorize
 class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = marketplace_models.ServiceProvider.objects.exclude(
         googlecredentials__isnull=True
-    )
+    ).order_by('customer__name')
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     serializer_class = marketplace_serializers.ServiceProviderSerializer
     lookup_field = 'uuid'
@@ -50,7 +50,9 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class GoogleCredentialsViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = marketplace_models.ServiceProvider.objects.all()
+    queryset = marketplace_models.ServiceProvider.objects.all().order_by(
+        'customer__name'
+    )
     serializer_class = marketplace_serializers.ServiceProviderSerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)

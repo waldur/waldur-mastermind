@@ -179,7 +179,7 @@ class SecurityGroupViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class VolumeViewSet(structure_views.ResourceViewSet):
-    queryset = models.Volume.objects.all()
+    queryset = models.Volume.objects.all().order_by('name')
     serializer_class = serializers.VolumeSerializer
     filterset_class = filters.VolumeFilter
 

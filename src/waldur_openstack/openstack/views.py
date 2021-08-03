@@ -35,7 +35,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Image.objects.all()
+    queryset = models.Image.objects.all().order_by('name')
     serializer_class = serializers.ImageSerializer
     lookup_field = 'uuid'
     filterset_class = filters.ImageFilter
@@ -49,7 +49,7 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class SecurityGroupViewSet(structure_views.ResourceViewSet):
-    queryset = models.SecurityGroup.objects.all()
+    queryset = models.SecurityGroup.objects.all().order_by('tenant__name')
     serializer_class = serializers.SecurityGroupSerializer
     filterset_class = filters.SecurityGroupFilter
     disabled_actions = ['create']
@@ -181,7 +181,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
 
 
 class TenantViewSet(structure_views.ResourceViewSet):
-    queryset = models.Tenant.objects.all()
+    queryset = models.Tenant.objects.all().order_by('name')
     serializer_class = serializers.TenantSerializer
     filterset_class = structure_filters.BaseResourceFilter
 
@@ -417,7 +417,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
 
 class RouterViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
-    queryset = models.Router.objects.all()
+    queryset = models.Router.objects.all().order_by('tenant__name')
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.RouterFilter
     serializer_class = serializers.RouterSerializer
@@ -461,7 +461,7 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class PortViewSet(structure_views.ResourceViewSet):
-    queryset = models.Port.objects.all()
+    queryset = models.Port.objects.all().order_by('network__name')
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PortFilter
     serializer_class = serializers.PortSerializer
@@ -471,7 +471,7 @@ class PortViewSet(structure_views.ResourceViewSet):
 
 
 class NetworkViewSet(structure_views.ResourceViewSet):
-    queryset = models.Network.objects.all()
+    queryset = models.Network.objects.all().order_by('name')
     serializer_class = serializers.NetworkSerializer
     filterset_class = filters.NetworkFilter
 
@@ -522,7 +522,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
 
 
 class SubNetViewSet(structure_views.ResourceViewSet):
-    queryset = models.SubNet.objects.all()
+    queryset = models.SubNet.objects.all().order_by('network')
     serializer_class = serializers.SubNetSerializer
     filterset_class = filters.SubNetFilter
 
