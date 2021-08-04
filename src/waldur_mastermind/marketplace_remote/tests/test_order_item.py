@@ -92,3 +92,4 @@ class OrderItemPullTest(test.APITransactionTestCase):
         # Assert
         self.order_item.refresh_from_db()
         self.assertIsNotNone(self.order_item.resource)
+        self.assertEqual(Resource.States.OK, self.order_item.resource.state)
