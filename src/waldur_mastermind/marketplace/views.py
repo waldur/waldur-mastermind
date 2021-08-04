@@ -1049,7 +1049,9 @@ class ResourceViewSet(core_views.ActionsViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    submit_report_permissions = [structure_permissions.is_staff]
+    submit_report_permissions = [
+        permissions.user_is_service_provider_owner_or_service_provider_manager
+    ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
     @action(detail=True, methods=['post'])

@@ -974,6 +974,7 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+@ddt
 class ResourceReportTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -984,12 +985,25 @@ class ResourceReportTest(test.APITransactionTestCase):
         )
         self.valid_report = [{'header': 'Section header', 'body': 'Section body'}]
 
+        service_manager = UserFactory()
+        self.resource.offering.customer.add_user(
+            service_manager, role=structure_models.CustomerRole.SERVICE_MANAGER
+        )
+        setattr(self.fixture, 'service_manager', service_manager)
+
+        service_owner = UserFactory()
+        self.resource.offering.customer.add_user(
+            service_owner, role=structure_models.CustomerRole.OWNER
+        )
+        setattr(self.fixture, 'service_owner', service_manager)
+
     def make_request(self, role, payload):
         self.client.force_authenticate(role)
         return self.client.post(self.url, {'report': payload})
 
-    def test_staff_can_submit_report(self):
-        response = self.make_request(self.fixture.staff, self.valid_report)
+    @data('staff', 'service_owner', 'service_manager')
+    def test_user_can_submit_report(self, user):
+        response = self.make_request(getattr(self.fixture, user), self.valid_report)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.report, self.valid_report)
