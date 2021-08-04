@@ -48,14 +48,13 @@ class OrderItemPullTask(BackgroundPullTask):
 
         if remote_order_item['state'] != local_order_item.get_state_display():
             new_state = OrderItemInvertStates[remote_order_item['state']]
-            if local_order_item.resource:
-                sync_order_item_state(local_order_item, new_state)
-            else:
+            if not local_order_item.resource:
                 resource_uuid = remote_order_item.get('marketplace_resource_uuid')
                 if resource_uuid:
                     create_local_resource(local_order_item, resource_uuid)
                 local_order_item.state = new_state
                 local_order_item.save(update_fields=['state'])
+            sync_order_item_state(local_order_item, new_state)
         pull_fields(('error_message',), local_order_item, remote_order_item)
 
 
