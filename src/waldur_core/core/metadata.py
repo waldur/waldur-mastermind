@@ -336,6 +336,30 @@ class WaldurFreeipa(BaseModel):
         public_settings = ['USERNAME_PREFIX', 'ENABLED']
 
 
+class WaldurKeycloak(BaseModel):
+    ENABLED = Field(
+        False,
+        description='Enable integration of group provisioning in configured Keycloak',
+    )
+    BASE_URL = Field(
+        'http://localhost:8080/auth', description='Base URL of Keycloak server'
+    )
+    REALM = Field('waldur', description='Realm used by Waldur')
+    CLIENT_ID = Field('waldur', description='Identification of Waldur client app')
+    CLIENT_SECRET = Field(
+        'UUID', description='Credentials are generated in Keycloak admin console'
+    )
+    USERNAME = Field(
+        'admin', description='Username of Keycloak user with administrative privileges'
+    )
+    PASSWORD = Field(
+        'secret', description='Password of Keycloak user with administrative privileges'
+    )
+
+    class Meta:
+        public_settings = ['ENABLED']
+
+
 class WaldurSlurm(BaseModel):
     ENABLED = Field(
         False, description='Enable support for SLURM plugin in a deployment',
@@ -538,6 +562,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
     WALDUR_FREEIPA = WaldurFreeipa()
+    WALDUR_KEYCLOAK = WaldurKeycloak()
     WALDUR_HPC = WaldurHPC()
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()

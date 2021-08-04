@@ -150,6 +150,7 @@ waldur_vmware = "waldur_vmware.extension:VMwareExtension"
 waldur_pid = "waldur_pid.extension:PIDExtension"
 waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
 waldur_hpc = "waldur_hpc.extension:HPCExtension"
+waldur_keycloak = "waldur_keycloak.extension:KeycloakExtension"
 
 [build-system]
 requires = ["poetry=1.1.6"]
