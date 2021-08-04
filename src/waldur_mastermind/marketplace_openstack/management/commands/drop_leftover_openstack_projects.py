@@ -21,6 +21,48 @@ class Command(BaseCommand):
             action='store_true',
             help='Don\'t make any changes, instead show what projects would be deleted.',
         )
+        parser.add_argument(
+            '--fuzzy-matching',
+            action='store_true',
+            help='Try to detect leftovers by name.',
+        )
+
+    def collect_leftovers_by_id(self, offering, remote_projects):
+        remote_project_ids = {project.id for project in remote_projects}
+        local_project_ids = set(
+            Resource.objects.filter(offering=offering, state=Resource.States.TERMINATED)
+            .exclude(backend_id='')
+            .values_list('backend_id', flat=True)
+        )
+        return local_project_ids & remote_project_ids
+
+    def collect_leftovers_by_name(
+        self, offering, remote_projects,
+    ):
+        # Some resources do not have backend_id so we use name instead
+        # Since name can be reused names of existing resources are filtered out
+        local_resources = Resource.objects.filter(
+            offering=offering, state=Resource.States.TERMINATED
+        )
+        local_project_names = set(local_resources.values_list('name', flat=True)) - set(
+            Resource.objects.filter(
+                offering=offering, state=Resource.States.OK
+            ).values_list('name', flat=True)
+        )
+        leftovers = set()
+        remote_project_names = {project.name for project in remote_projects}
+        remote_project_ids = {project.id for project in remote_projects}
+        for project_name in local_project_names & remote_project_names:
+            try:
+                resource = local_resources.get(name=project_name)
+            except MultipleObjectsReturned:
+                pass
+            else:
+                if not resource.backend_id:
+                    pass
+                else:
+                    leftovers.add(resource.backend_id)
+        return leftovers & remote_project_ids
 
     def handle(self, *args, **options):
         try:
@@ -38,18 +80,13 @@ class Command(BaseCommand):
             )
             return
 
-        local_resources = Resource.objects.filter(
-            offering=offering, state=Resource.States.TERMINATED
-        )
         keystone = backend.keystone_admin_client
         remote_projects = keystone.projects.list()
 
-        # First let's check projects by their IDs since they are guaranteed to be unique
-        remote_project_ids = {project.id for project in remote_projects}
-        local_project_ids = set(
-            local_resources.exclude(backend_id='').values_list('backend_id', flat=True)
-        )
-        leftovers = local_project_ids & remote_project_ids
+        leftovers = self.collect_leftovers_by_id(offering, remote_projects)
+        if options['fuzzy_matching']:
+            leftovers |= self.collect_leftovers_by_name(offering, remote_projects)
+
         if leftovers:
             self.stdout.write(
                 'Projects with following IDs are going to be deleted %s'
@@ -58,37 +95,3 @@ class Command(BaseCommand):
             if not options['dry_run']:
                 for project_id in leftovers:
                     keystone.projects.delete(project_id)
-
-        # Some resources do not have backend_id so let's use name instead
-        # since project names are unique to their domain
-        local_project_names = set(
-            local_resources.exclude(name='').values_list('name', flat=True)
-        )
-        remote_project_names = {project.name for project in remote_projects}
-        leftovers = local_project_names & remote_project_names
-        if leftovers:
-            self.stdout.write(
-                'Projects with following names are going to be deleted %s'
-                % ', '.join(leftovers)
-            )
-            if not options['dry_run']:
-                for project_name in leftovers:
-                    try:
-                        resource = local_resources.get(name=project_name)
-                    except MultipleObjectsReturned:
-                        self.stdout.write(
-                            self.style.ERROR(
-                                'Skipping deletion of resource because its name is not unique: %s.'
-                                % project_name
-                            )
-                        )
-                    else:
-                        if not resource.backend_id:
-                            self.stdout.write(
-                                self.style.ERROR(
-                                    'Skipping deletion of resource because it does not have backend_id: %s.'
-                                    % project_name
-                                )
-                            )
-                        else:
-                            keystone.projects.delete(resource.backend_id)
