@@ -150,8 +150,8 @@ Upload configuration guide:
     - cd waldur-docs
     - waldur print_settings > $CONF_GUIDE_PATH
     - waldur print_commands > $CLI_GUIDE_PATH
-    - git commit $CONF_GUIDE_PATH -m "Update configuration guide" || exit 0
-    - git commit $CLI_GUIDE_PATH -m "Update CLI guide" || exit 0
+    - git add $CONF_GUIDE_PATH $CLI_GUIDE_PATH
+    - git commit -m "Update configuration and CLI guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
   before_script: []
