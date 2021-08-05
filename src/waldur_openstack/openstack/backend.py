@@ -2159,7 +2159,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             else:
                 subnet = neutron.show_subnet(subnet_id)['subnet']
                 # Subnet for router interface must have a gateway IP.
-                if not subnet.gateway_ip:
+                if not subnet['gateway_ip']:
                     return
                 ports = neutron.list_ports(
                     device_id=router['id'], tenant_id=tenant_id, network_id=network_id
