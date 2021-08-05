@@ -138,7 +138,8 @@ Upload configuration guide:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
-    GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
+    CONF_GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
+    CLI_GUIDE_PATH: docs/admin-guide/mastermind-configuration/cli-guide.md
     DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
   script:
     - poetry install
@@ -147,8 +148,9 @@ Upload configuration guide:
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
-    - waldur print_settings > $GUIDE_PATH
-    - git commit $GUIDE_PATH -m "Update configuration guide" || exit 0
+    - waldur print_settings > $CONF_GUIDE_PATH
+    - waldur print_commands > $CLI_GUIDE_PATH
+    - git commit $CONF_GUIDE_PATH -m "Update configuration and CLI guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
   before_script: []

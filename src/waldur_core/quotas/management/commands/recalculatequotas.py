@@ -6,7 +6,7 @@ from waldur_core.quotas.utils import get_models_with_quotas
 
 
 class Command(BaseCommand):
-    """ Recalculate all quotas """
+    help = """Recalculate all quotas"""
 
     def handle(self, *args, **options):
         # TODO: implement other quotas recalculation
