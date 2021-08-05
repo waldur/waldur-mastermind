@@ -5,7 +5,7 @@ from ... import executors, handlers, models
 
 
 class Command(BaseCommand):
-    help_text = "Add default security groups with given names to all tenants."
+    help = "Add default security groups with given names to all tenants."
 
     def add_arguments(self, parser):
         parser.add_argument('names', nargs='+', type=str)
