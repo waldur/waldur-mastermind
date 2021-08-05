@@ -21,6 +21,12 @@ class SupportFixture:
         )
 
     @cached_property
+    def second_success_issue_status(self):
+        return support_factories.IssueStatusFactory(
+            name='Done', type=support_models.IssueStatus.Types.RESOLVED,
+        )
+
+    @cached_property
     def fail_issue_status(self):
         return support_factories.IssueStatusFactory(
             name='Cancelled', type=support_models.IssueStatus.Types.CANCELED,
@@ -99,3 +105,15 @@ class IssueStatusHandlerTest(BaseTest):
 
         self.fixture.order.refresh_from_db()
         self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
+
+    def test_use_second_resolve_state(self):
+        self.fixture.issue.status = self.fixture.success_issue_status.name
+        self.fixture.issue.save()
+
+        self.fixture.order_item.refresh_from_db()
+        self.assertEqual(
+            self.fixture.order_item.state, self.fixture.order_item.States.DONE
+        )
+
+        self.fixture.issue.status = self.fixture.second_success_issue_status.name
+        self.fixture.issue.save()

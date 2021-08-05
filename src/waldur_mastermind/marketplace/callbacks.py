@@ -50,8 +50,11 @@ def resource_creation_succeeded(resource, validate=False):
         models.OrderItem.States.DONE,
         validate,
     )
-    resource.set_state_ok()
-    resource.save(update_fields=['state'])
+
+    if resource.state != resource.States.OK:
+        resource.set_state_ok()
+        resource.save(update_fields=['state'])
+
     if resource.plan:
         create_resource_plan_period(resource)
 
@@ -81,8 +84,10 @@ def resource_creation_canceled(resource, validate=False):
         models.OrderItem.States.TERMINATED,
         validate,
     )
-    resource.set_state_terminated()
-    resource.save(update_fields=['state'])
+
+    if resource.state != resource.States.TERMINATED:
+        resource.set_state_terminated()
+        resource.save(update_fields=['state'])
 
     log.log_resource_creation_canceled(resource)
     return order_item
