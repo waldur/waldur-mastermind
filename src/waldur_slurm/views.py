@@ -41,7 +41,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
 
 
 class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.AllocationUserUsage.objects.all().order_by('user__firstname')
+    queryset = models.AllocationUserUsage.objects.all().order_by('year', 'month')
     serializer_class = serializers.AllocationUserUsageSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
