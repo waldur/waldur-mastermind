@@ -3,8 +3,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import migrations, models
 
-import waldur_mastermind.marketplace.models
-
 
 def set_default_tenant_flag_to_categories(apps, schema_editor):
     Category = apps.get_model('marketplace', 'Category')
@@ -31,9 +29,6 @@ class Migration(migrations.Migration):
             field=models.BooleanField(
                 default=False,
                 help_text='Set to true if this category is for OpenStack Tenant. Only one category can have "true" value.',
-                validators=[
-                    waldur_mastermind.marketplace.models.validate_tenant_category_flag
-                ],
             ),
         ),
         migrations.RunPython(set_default_tenant_flag_to_categories),
