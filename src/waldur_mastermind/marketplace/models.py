@@ -100,36 +100,6 @@ class ServiceProvider(
         super(ServiceProvider, self).save(*args, **kwargs)
 
 
-def validate_vm_category_flag(value):
-    if value:
-        category = Category.objects.filter(default_vm_category=True).first()
-        if category:
-            raise ValidationError(
-                _('%(category)s is already default VM category.'),
-                params={'category': category},
-            )
-
-
-def validate_volume_category_flag(value):
-    if value:
-        category = Category.objects.filter(default_volume_category=True).first()
-        if category:
-            raise ValidationError(
-                _('%(category)s is already default Volume category.'),
-                params={'category': category},
-            )
-
-
-def validate_tenant_category_flag(value):
-    if value:
-        category = Category.objects.filter(default_tenant_category=True).first()
-        if category:
-            raise ValidationError(
-                _('%(category)s is already default Tenant category.'),
-                params={'category': category},
-            )
-
-
 class Category(
     core_models.BackendMixin,
     core_models.UuidMixin,
@@ -150,22 +120,39 @@ class Category(
         help_text=_(
             'Set to "true" if this category is for OpenStack VM. Only one category can have "true" value.'
         ),
-        validators=[validate_vm_category_flag],
     )
     default_volume_category = models.BooleanField(
         default=False,
         help_text=_(
             'Set to true if this category is for OpenStack Volume. Only one category can have "true" value.'
         ),
-        validators=[validate_volume_category_flag],
     )
     default_tenant_category = models.BooleanField(
         default=False,
         help_text=_(
             'Set to true if this category is for OpenStack Tenant. Only one category can have "true" value.'
         ),
-        validators=[validate_tenant_category_flag],
     )
+
+    def clean_fields(self, exclude=None):
+        super().clean_fields(exclude=exclude)
+
+        for flag in [
+            'default_volume_category',
+            'default_vm_category',
+            'default_tenant_category',
+        ]:
+            if getattr(self, flag):
+                category = (
+                    Category.objects.filter(**{flag: True}).exclude(id=self.id).first()
+                )
+                if category:
+                    raise ValidationError(
+                        {
+                            flag: _('%s is already %s.')
+                            % (category, flag.replace('_', ' ')),
+                        }
+                    )
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         offering_count = quotas_fields.QuotaField(is_backend=True)
