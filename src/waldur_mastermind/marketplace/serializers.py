@@ -1340,9 +1340,9 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
 
 
 class BaseItemSerializer(
+    core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
-    core_serializers.RestrictedSerializerMixin,
 ):
     class Meta:
         fields = (
@@ -1487,7 +1487,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
         if not user.is_staff and not user.is_support:
             del fields['error_traceback']
 
-        if method == 'GET':
+        if method == 'GET' and 'attributes' in fields:
             fields['attributes'] = serializers.ReadOnlyField(source='safe_attributes')
         return fields
 

@@ -95,6 +95,12 @@ class ResourceFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
 
+    def test_field_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url, {'field': ['state', 'offering']})
+        self.assertTrue(all([len(fields) == 2 for fields in response.data]))
+
 
 class FilterByScopeUUIDTest(test.APITransactionTestCase):
     def setUp(self):
