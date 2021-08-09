@@ -1045,3 +1045,48 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         self.resource.save()
         response = self.make_request()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@ddt
+class ResourceSetStateTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.user = self.fixture.user
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.producerOwner = self.fixture.owner
+
+        self.consumerFixture = fixtures.ProjectFixture()
+        self.consumerOwner = self.consumerFixture.owner
+        self.consumerProject = self.consumerFixture.project
+
+        self.resource = factories.ResourceFactory(
+            project=self.consumerProject, offering=self.offering
+        )
+
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, action='set_state_by_provider'
+        )
+
+    @data('ok', 'terminated', 'erred')
+    def test_customer_owner_can_change_resource_state(self, state):
+        self.client.force_authenticate(self.producerOwner)
+        states_dict = {
+            'ok': models.Resource.States.OK,
+            'erred': models.Resource.States.ERRED,
+            'terminated': models.Resource.States.TERMINATED,
+        }
+
+        response = self.client.post(self.url, {'state': state})
+        self.resource.refresh_from_db()
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(states_dict[state], self.resource.state)
+
+    @data('ok', 'terminated', 'erred')
+    def test_requesting_user_can_not_chage_resource_state(self, state):
+        self.client.force_authenticate(self.consumerOwner)
+
+        response = self.client.post(self.url, {'state': 'state'})
+        self.assertEqual(403, response.status_code)
+        self.resource.refresh_from_db()
+        self.assertEqual(models.Resource.States.CREATING, self.resource.state)

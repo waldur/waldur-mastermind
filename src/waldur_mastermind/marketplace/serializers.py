@@ -2021,6 +2021,10 @@ class ResourceBackendIDSerializer(serializers.ModelSerializer):
         fields = ('backend_id',)
 
 
+class ResourceStateSerializer(serializers.Serializer):
+    state = serializers.ChoiceField(['ok', 'erred', 'terminated'])
+
+
 class ReportSectionSerializer(serializers.Serializer):
     header = serializers.CharField()
     body = serializers.CharField()
