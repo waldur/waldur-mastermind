@@ -3,10 +3,14 @@ import logging
 from django.conf import settings
 from django.utils.functional import cached_property
 
-from waldur_mastermind.marketplace import processors
+from waldur_core.core.utils import serialize_instance
+from waldur_mastermind.marketplace import models, processors
 from waldur_mastermind.marketplace_remote import utils
+from waldur_mastermind.marketplace_remote.tasks import OrderItemStatePullTask
 
 logger = logging.getLogger(__name__)
+
+ResourceInvertStates = {key: val for val, key in models.Resource.States.CHOICES}
 
 
 class RemoteClientMixin:
@@ -33,7 +37,8 @@ class RemoteCreateResourceProcessor(
             attributes=self.order_item.attributes,
             limits=self.order_item.limits,
         )
-        self.order_item.backend_id = response['items'][0]['uuid']
+        # NB: As a backend_id of local OrderItem, uuid of a remote Order is used
+        self.order_item.backend_id = response['uuid']
         self.order_item.save()
 
         if settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
@@ -42,6 +47,10 @@ class RemoteCreateResourceProcessor(
                 self.order_item.order.project,
                 remote_project['uuid'],
             )
+
+        OrderItemStatePullTask().apply_async(
+            args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+        )
 
 
 class RemoteUpdateResourceProcessor(
@@ -53,6 +62,11 @@ class RemoteUpdateResourceProcessor(
         )
         self.order_item.backend_id = response
         self.order_item.save()
+
+        OrderItemStatePullTask().apply_async(
+            args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+        )
+
         return False
 
 
@@ -65,4 +79,9 @@ class RemoteDeleteResourceProcessor(
         )
         self.order_item.backend_id = response
         self.order_item.save()
+
+        OrderItemStatePullTask().apply_async(
+            args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+        )
+
         return False

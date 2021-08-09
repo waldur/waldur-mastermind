@@ -43,9 +43,8 @@ class OrderItemPullTest(test.APITransactionTestCase):
 
     def test_when_order_item_succeeds_resource_is_updated(self):
         # Arrange
-        self.client_mock().get_order_item.return_value = {
-            'state': 'done',
-            'error_message': '',
+        self.client_mock().get_order.return_value = {
+            'items': [{'state': 'done', 'error_message': '',}]
         }
 
         # Act
@@ -60,9 +59,8 @@ class OrderItemPullTest(test.APITransactionTestCase):
 
     def test_when_order_item_fails_resource_is_updated(self):
         # Arrange
-        self.client_mock().get_order_item.return_value = {
-            'state': 'erred',
-            'error_message': 'Invalid credentials',
+        self.client_mock().get_order.return_value = {
+            'items': [{'state': 'erred', 'error_message': 'Invalid credentials',}]
         }
 
         # Act
@@ -78,10 +76,14 @@ class OrderItemPullTest(test.APITransactionTestCase):
 
     def test_when_creation_order_succeeds_resource_is_created(self):
         # Arrange
-        self.client_mock().get_order_item.return_value = {
-            'state': 'done',
-            'marketplace_resource_uuid': 'marketplace_resource_uuid',
-            'error_message': '',
+        self.client_mock().get_order.return_value = {
+            'items': [
+                {
+                    'state': 'done',
+                    'marketplace_resource_uuid': 'marketplace_resource_uuid',
+                    'error_message': '',
+                }
+            ]
         }
         self.order_item.resource = None
         self.order_item.save()
