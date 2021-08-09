@@ -5,7 +5,6 @@ from waldur_core.logging.loggers import EventLogger, event_logger
 User = get_user_model()
 
 provider_event_type_mapping = {
-    'facebook': 'auth_logged_in_with_facebook',
     'smartid.ee': 'auth_logged_in_with_smartid_ee',
     'tara': 'auth_logged_in_with_tara',
     'keycloak': 'auth_logged_in_with_keycloak',
