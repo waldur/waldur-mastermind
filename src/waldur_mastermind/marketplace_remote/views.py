@@ -59,7 +59,7 @@ class OfferingsListView(RemoteView):
         params = {
             'shared': True,
             # TODO: update after https://opennode.atlassian.net/browse/WAL-4093
-            # 'customer_uuid': remote_customer_uuid,
+            # 'allowed_customer_uuid': remote_customer_uuid,
             'type': whitelist_types,
             'field': ['uuid', 'name', 'type', 'state', 'category_title'],
         }

@@ -1270,7 +1270,7 @@ class OfferingPermissionSerializer(
         ) + structure_serializers.BasePermissionSerializer.Meta.fields
         related_paths = dict(
             offering=('name', 'uuid'),
-            **structure_serializers.BasePermissionSerializer.Meta.related_paths
+            **structure_serializers.BasePermissionSerializer.Meta.related_paths,
         )
         protected_fields = ('offering', 'user', 'created_by', 'created')
         extra_kwargs = {
@@ -1749,6 +1749,7 @@ class OrderSerializer(
             'total_cost',
             'file',
             'type',
+            'error_message',
         )
         read_only_fields = (
             'created_by',
@@ -1777,6 +1778,13 @@ class OrderSerializer(
             'marketplace-order-pdf',
             kwargs={'uuid': obj.uuid.hex},
             request=self.context['request'],
+        )
+
+    error_message = serializers.SerializerMethodField()
+
+    def get_error_message(self, obj: models.Order):
+        return '\n'.join(
+            [f'{item.uuid}: {item.error_message}' for item in obj.items.all()]
         )
 
     @transaction.atomic

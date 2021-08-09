@@ -44,18 +44,28 @@ class OfferingListPullTask(BackgroundListPullTask):
 class OrderItemPullTask(BackgroundPullTask):
     def pull(self, local_order_item):
         client = get_client_for_offering(local_order_item.offering)
-        remote_order_item = client.get_order_item(local_order_item.backend_id)
+        remote_order = client.get_order(local_order_item.backend_id)
+        remote_order_item = remote_order['items'][0]
 
         if remote_order_item['state'] != local_order_item.get_state_display():
             new_state = OrderItemInvertStates[remote_order_item['state']]
-            if not local_order_item.resource:
+            if (
+                not local_order_item.resource
+                and local_order_item.type == models.OrderItem.Types.CREATE
+            ):
                 resource_uuid = remote_order_item.get('marketplace_resource_uuid')
                 if resource_uuid:
                     create_local_resource(local_order_item, resource_uuid)
-                local_order_item.state = new_state
-                local_order_item.save(update_fields=['state'])
             sync_order_item_state(local_order_item, new_state)
         pull_fields(('error_message',), local_order_item, remote_order_item)
+
+
+class OrderItemStatePullTask(OrderItemPullTask):
+    def pull(self, local_order_item):
+        super(OrderItemStatePullTask, self).pull(local_order_item)
+        local_order_item.refresh_from_db()
+        if local_order_item.state not in models.OrderItem.States.TERMINAL_STATES:
+            self.retry()
 
 
 class OrderItemListPullTask(BackgroundListPullTask):
