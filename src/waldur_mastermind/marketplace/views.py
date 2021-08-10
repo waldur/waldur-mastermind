@@ -1081,7 +1081,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
         resource.report = serializer.validated_data['report']
         resource.save(update_fields=['report'])
 
-        return Response(status=status.HTTP_200_OK)
+        return Response({'status': _('Report is submitted')}, status=status.HTTP_200_OK)
 
     submit_report_permissions = [
         permissions.user_is_service_provider_owner_or_service_provider_manager
