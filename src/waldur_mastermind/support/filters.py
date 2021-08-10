@@ -1,3 +1,5 @@
+import collections
+
 import django_filters
 
 from waldur_core.core import filters as core_filters
@@ -5,6 +7,29 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 
 from . import models
+
+
+class KeyOrderingFilter(django_filters.OrderingFilter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.extra['choices'] += [
+            ('key', 'Key'),
+            ('-key', 'Key (descending)'),
+        ]
+
+    def filter(self, qs, value):
+        if isinstance(value, collections.Iterable) and any(
+            v in ['key', '-key'] for v in value
+        ):
+            qs = qs.extra(
+                select={'num_key': r"COALESCE(substring(key from '\d+'), '0')::int"}
+            )
+            if 'key' in value:
+                return super().filter(qs, ['num_key'])
+
+            return super().filter(qs, ['-num_key'])
+
+        return super().filter(qs, value)
 
 
 class IssueFilter(django_filters.FilterSet):
@@ -42,12 +67,11 @@ class IssueFilter(django_filters.FilterSet):
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, 'caller')
 
-    o = django_filters.OrderingFilter(
+    o = KeyOrderingFilter(
         fields=(
             ('created', 'created'),
             ('modified', 'modified'),
             ('type', 'type'),
-            ('key', 'key'),
             ('status', 'status'),
             ('priority', 'priority'),
             ('summary', 'summary'),
