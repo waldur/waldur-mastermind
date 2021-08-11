@@ -320,8 +320,8 @@ class KeycloakView(OAuthView):
         # Preferred username is not unique. Sub in UUID.
         username = f'keycloak_f{backend_user["sub"]}'
         email = backend_user.get('email')
-        first_name = backend_user['given_name']
-        last_name = backend_user['family_name']
+        first_name = backend_user.get('given_name', '')
+        last_name = backend_user.get('family_name', '')
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
