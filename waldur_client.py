@@ -1,5 +1,7 @@
 import json
 import time
+from dataclasses import dataclass
+from typing import Dict, List
 from urllib.parse import urlencode, urljoin
 from uuid import UUID
 
@@ -46,6 +48,13 @@ class InvalidStateError(WaldurClientException):
     """Thrown when a resource transitions to the error state."""
 
     pass
+
+
+@dataclass
+class ComponentUsage:
+    component_type: str
+    amount: int
+    description: str = ''
 
 
 class WaldurClient(object):
@@ -601,6 +610,64 @@ class WaldurClient(object):
         return self._get_resource(
             WaldurClient.Endpoints.MarketplaceResources, resource_uuid
         )
+
+    def list_marketplace_resources(
+        self,
+        provider_uuid: str = None,
+        state: str = None,
+        offering_uuid: str = None,
+        fields: List[str] = None,
+    ):
+        params = {}
+        if provider_uuid is not None:
+            params['provider_uuid'] = provider_uuid
+        if state is not None:
+            params['state'] = state
+        if offering_uuid is not None:
+            params['offering_uuid'] = offering_uuid
+        if fields is not None:
+            if type(fields) is not list:
+                fields = [fields]
+            params['field'] = fields
+
+        return self._query_resource_list(self.Endpoints.MarketplaceResources, params,)
+
+    def marketplace_resource_set_state(self, resource_uuid: str, state: str):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources,
+            resource_uuid,
+            action='set_state_by_provider',
+        )
+        payload = {'state': state}
+        return self._post(url, valid_states=[200], json=payload)
+
+    def marketplace_resource_set_backend_id(self, resource_uuid: str, backend_id: str):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource_uuid, action='set_backend_id',
+        )
+        payload = {'backend_id': backend_id}
+        return self._post(url, valid_states=[200], json=payload)
+
+    def marketplace_resource_submit_report(
+        self, resource_uuid: str, report: List[Dict[str, str]]
+    ):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource_uuid, action='submit_report'
+        )
+        payload = {'report': report}
+        return self._post(url, valid_states=[200], json=payload)
+
+    def marketplace_resource_get_team(self, resource_uuid: str):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource_uuid, action='team'
+        )
+        return self._get(url, valid_states=[200])
+
+    def marketplace_resource_get_plan_periods(self, resource_uuid: str):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceResources, resource_uuid, action='plan_periods'
+        )
+        return self._get(url, valid_states=[200])
 
     def get_instance_via_marketplace(self, name, project=None):
         """Get an openstack instance via marketplace.
@@ -1318,6 +1385,23 @@ class WaldurClient(object):
                 'date_before': date_before,
             },
         )
+
+    def create_component_usages(
+        self, plan_period_uuid: str, usages: List[ComponentUsage]
+    ):
+        url = self._build_url(f'{self.Endpoints.ComponentUsage}/set_usage/')
+        payload = {
+            'plan_period': plan_period_uuid,
+            'usages': [
+                {
+                    'type': usage.component_type,
+                    'amount': usage.amount,
+                    'description': usage.description,
+                }
+                for usage in usages
+            ],
+        }
+        return self._post(url, valid_states=[201], json=payload)
 
     def get_remote_eduteams_user(self, cuid):
         return self._create_resource(
