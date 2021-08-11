@@ -13,7 +13,7 @@ from . import utils
 logger = logging.getLogger(__name__)
 
 
-@shared_task('waldur_firecrest.pull_jobs')
+@shared_task(name='waldur_firecrest.pull_jobs')
 def pull_jobs():
     for offering_user in OfferingUser.objects.filter(offering__type=PLUGIN_NAME):
         try:
