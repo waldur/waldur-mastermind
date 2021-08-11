@@ -1049,6 +1049,7 @@ class BaseResource(
 
     class Meta:
         abstract = True
+        ordering = ['-created']
 
     class Permissions:
         customer_path = 'project__customer'
