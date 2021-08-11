@@ -1051,17 +1051,15 @@ class ResourceDetailsTest(test.APITransactionTestCase):
 class ResourceSetStateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()
-        self.project = self.fixture.project
-        self.user = self.fixture.user
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
-        self.producerOwner = self.fixture.owner
+        self.producer_owner = self.fixture.owner
 
-        self.consumerFixture = fixtures.ProjectFixture()
-        self.consumerOwner = self.consumerFixture.owner
-        self.consumerProject = self.consumerFixture.project
+        self.consumer_fixture = fixtures.ProjectFixture()
+        self.consumer_owner = self.consumer_fixture.owner
+        self.consumer_project = self.consumer_fixture.project
 
         self.resource = factories.ResourceFactory(
-            project=self.consumerProject, offering=self.offering
+            project=self.consumer_project, offering=self.offering
         )
 
         self.url = factories.ResourceFactory.get_url(
@@ -1069,8 +1067,8 @@ class ResourceSetStateTest(test.APITransactionTestCase):
         )
 
     @data('ok', 'terminated', 'erred')
-    def test_customer_owner_can_change_resource_state(self, state):
-        self.client.force_authenticate(self.producerOwner)
+    def test_service_owner_can_change_resource_state(self, state):
+        self.client.force_authenticate(self.producer_owner)
         states_dict = {
             'ok': models.Resource.States.OK,
             'erred': models.Resource.States.ERRED,
@@ -1082,11 +1080,41 @@ class ResourceSetStateTest(test.APITransactionTestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(states_dict[state], self.resource.state)
 
-    @data('ok', 'terminated', 'erred')
-    def test_requesting_user_can_not_chage_resource_state(self, state):
-        self.client.force_authenticate(self.consumerOwner)
+    def test_consumer_can_not_change_resource_state(self):
+        self.client.force_authenticate(self.consumer_owner)
 
-        response = self.client.post(self.url, {'state': 'state'})
+        response = self.client.post(self.url, {'state': 'ok'})
         self.assertEqual(403, response.status_code)
         self.resource.refresh_from_db()
         self.assertEqual(models.Resource.States.CREATING, self.resource.state)
+
+
+class ResourceGetTeamTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.service_owner = self.fixture.owner
+        self.admin = self.fixture.admin
+
+        self.resource = factories.ResourceFactory(
+            project=self.project, offering=self.offering
+        )
+
+        self.url = factories.ResourceFactory.get_url(self.resource, action='team')
+
+    def test_service_owner_can_get_resource_team(self):
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.url)
+        users = response.data
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(users))
+        user = users[0]
+        self.assertEqual(self.admin.full_name, user['full_name'])
+
+    def test_user_can_not_get_resource_team(self):
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get(self.url)
+        self.assertEqual(403, response.status_code)
