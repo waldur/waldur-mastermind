@@ -43,7 +43,10 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.registry import get_resource_type
-from waldur_core.structure.serializers import get_resource_serializer_class
+from waldur_core.structure.serializers import (
+    ProjectUserSerializer,
+    get_resource_serializer_class,
+)
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
@@ -1107,6 +1110,25 @@ class ResourceViewSet(core_views.ActionsViewSet):
     set_end_date_by_provider_serializer_class = (
         serializers.ResourceEndDateByProviderSerializer
     )
+
+    # Service provider endpoint only
+    @action(detail=True, methods=['get'])
+    def team(self, request, uuid=None):
+        resource = self.get_object()
+        project = resource.project
+
+        return Response(
+            ProjectUserSerializer(
+                instance=project.get_users(),
+                many=True,
+                context={'project': project, 'request': request},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    team_permissions = [
+        permissions.user_is_service_provider_owner_or_service_provider_manager
+    ]
 
 
 class ProjectChoicesViewSet(ListAPIView):
