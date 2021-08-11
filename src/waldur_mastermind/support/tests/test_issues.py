@@ -5,7 +5,7 @@ from ddt import data, ddt
 from django.conf import settings
 from jira import Issue, User
 from jira.resources import IssueType, RequestType
-from rest_framework import status
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
@@ -638,3 +638,25 @@ class IssueCommentTest(base.BaseTest):
 
     def _get_valid_payload(self):
         return {'description': 'Comment description'}
+
+
+class IssueOrderingTest(test.APITransactionTestCase):
+    def test_1(self):
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        factories.IssueFactory(key='TST')
+        factories.IssueFactory(key='TST-1')
+        factories.IssueFactory(key='TST-11')
+        factories.IssueFactory(key='TST-2')
+        factories.IssueFactory(key='TST-21')
+        staff = structure_factories.UserFactory(is_staff=True)
+
+        self.client.force_authenticate(staff)
+
+        response = self.client.get(
+            factories.IssueFactory.get_list_url(), data={'o': 'key'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            ['TST', 'TST-1', 'TST-2', 'TST-11', 'TST-21'],
+            [k['key'] for k in response.data],
+        )
