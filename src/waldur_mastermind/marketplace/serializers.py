@@ -83,6 +83,7 @@ class ServiceProviderSerializer(
             'customer_country',
             'image',
             'division',
+            'description',
         )
         related_paths = {'customer': ('uuid', 'name', 'native_name', 'abbreviation')}
         protected_fields = ('customer',)
