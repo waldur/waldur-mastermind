@@ -58,6 +58,8 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     category_uuid = django_filters.UUIDFilter(field_name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
+    description = django_filters.CharFilter(lookup_expr='icontains')
+    keyword = django_filters.CharFilter(method='filter_keyword', label='Keyword')
     o = django_filters.OrderingFilter(fields=('name', 'created', 'type'))
     type = LooseMultipleChoiceFilter()
 
@@ -92,6 +94,15 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
             else:
                 queryset = queryset.filter(attributes__contains={k: v})
         return queryset
+
+    def filter_keyword(self, queryset, name, value):
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(description__icontains=value)
+            | Q(customer__name__icontains=value)
+            | Q(customer__abbreviation__icontains=value)
+            | Q(customer__native_name__icontains=value)
+        )
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):

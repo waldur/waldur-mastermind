@@ -248,6 +248,19 @@ class OfferingFilterTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(len(response.data), 0)
 
+    def test_filter_keyword(self):
+        factories.OfferingFactory(name='name keyword')
+        factories.OfferingFactory(description='description Keyword')
+        offering = factories.OfferingFactory()
+        offering.customer.name = 'name keyword'
+        offering.customer.save()
+        url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 4)
+        response = self.client.get(url, {'keyword': 'keyword'})
+        self.assertEqual(len(response.data), 3)
+
 
 @ddt
 class OfferingCreateTest(test.APITransactionTestCase):
