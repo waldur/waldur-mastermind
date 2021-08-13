@@ -324,6 +324,14 @@ class WaldurClient(object):
     def get_user(self, identifier):
         return self._get_resource(self.Endpoints.Users, identifier)
 
+    def list_users(self):
+        url = self._build_url(self.Endpoints.Users)
+        return self._get_all(url)
+
+    def list_ssh_keys(self):
+        url = self._build_url(self.Endpoints.SshKey)
+        return self._get_all(url)
+
     def _get_property(self, endpoint, identifier, settings_uuid):
         query = {'settings_uuid': settings_uuid}
         if is_uuid(identifier):
