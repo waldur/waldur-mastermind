@@ -48,8 +48,7 @@ class OfferingsListView(RemoteView):
                 {'url': _('customer_uuid field must be present in query parameters')}
             )
 
-        # TODO: update after https://opennode.atlassian.net/browse/WAL-4093
-        # remote_customer_uuid = request.query_params['customer_uuid']
+        remote_customer_uuid = request.query_params['customer_uuid']
         whitelist_types = [
             offering_type
             for offering_type in plugins.manager.get_offering_types()
@@ -58,8 +57,7 @@ class OfferingsListView(RemoteView):
 
         params = {
             'shared': True,
-            # TODO: update after https://opennode.atlassian.net/browse/WAL-4093
-            # 'allowed_customer_uuid': remote_customer_uuid,
+            'allowed_customer_uuid': remote_customer_uuid,
             'type': whitelist_types,
             'field': ['uuid', 'name', 'type', 'state', 'category_title'],
         }
