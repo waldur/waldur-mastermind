@@ -3,8 +3,10 @@ import logging
 from celery import shared_task
 
 from waldur_auth_social.models import OAuthToken
+from waldur_core.core.utils import deserialize_instance
 from waldur_core.structure.models import ProjectPermission
 from waldur_firecrest.client import FirecrestException
+from waldur_firecrest.models import Job
 from waldur_mastermind.marketplace.models import OfferingUser
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 
@@ -53,3 +55,41 @@ def pull_jobs():
             utils.pull_jobs(api_url, token, service_settings, project)
         except FirecrestException:
             logger.exception('Unable to pull SLURM jobs using API %s', api_url)
+
+
+@shared_task(name='waldur_firecrest.submit_job')
+def submit_job(serialized_job):
+    job = deserialize_instance(serialized_job)
+    try:
+        oauth_token = OAuthToken.objects.get(provider='keycloak', user=job.user)
+    except OAuthToken.DoesNotExist:
+        logger.debug('OAuth token for user %s is not found', job.user)
+        job.state = Job.States.ERRED
+        job.error_message = 'OAuth token is not found'
+        job.save()
+        return
+
+    token = oauth_token.access_token
+    if not token:
+        logger.debug('Access token for user %s is not found', job.user)
+        job.state = Job.States.ERRED
+        job.error_message = 'Access token is not found'
+        job.save()
+        return
+
+    api_url = job.service_settings.options.get('firecrest_api_url')
+    if not api_url:
+        logger.debug(
+            'Service settings %s does not have Firecrest API URL', job.service_settings
+        )
+        job.state = Job.States.ERRED
+        job.error_message = 'Service does not have Firecrest API URL'
+        job.save()
+        return
+
+    try:
+        utils.submit_job(api_url, token, job)
+    except FirecrestException as e:
+        job.state = Job.States.ERRED
+        job.error_message = str(e)
+        job.save()

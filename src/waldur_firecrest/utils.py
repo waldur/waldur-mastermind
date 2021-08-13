@@ -29,6 +29,7 @@ def pull_jobs(api_url, token, service_settings, project):
             defaults={
                 'name': job_details['name'],
                 'runtime_state': job_details['state'],
+                'state': Job.States.OK,
             },
         )
         if created:
@@ -37,3 +38,25 @@ def pull_jobs(api_url, token, service_settings, project):
                 job.backend_id,
                 project.id,
             )
+
+
+def submit_job(api_url, token, job):
+    client = FirecrestClient(api_url, token)
+    task_id = client.submit_job(job.file.file)
+
+    while True:
+        task = client.get_task(task_id)
+        if task['status'] in ['200', '400']:
+            break
+        time.sleep(2)
+
+    if task['status'] != '200':
+        job.state = Job.States.ERRED
+        job.error_message = task['data']
+        job.save()
+
+    job_id = task['data']['jobid']
+    job.backend_id = job_id
+    job.report = task['data']['result']
+    job.state = Job.States.OK
+    job.save()

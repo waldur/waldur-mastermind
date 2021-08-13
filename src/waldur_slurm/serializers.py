@@ -44,6 +44,12 @@ class SlurmServiceSerializer(structure_serializers.ServiceOptionsSerializer):
         required=False,
     )
 
+    firecrest_api_url = rf_serializers.CharField(
+        source='options.firecrest_api_url',
+        label=_('FirecREST API base URL'),
+        required=False,
+    )
+
 
 class AllocationSerializer(
     structure_serializers.BaseResourceSerializer,
