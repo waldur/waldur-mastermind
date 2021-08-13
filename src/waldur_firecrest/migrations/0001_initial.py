@@ -113,7 +113,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={'abstract': False, 'ordering': ['-created']},
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,

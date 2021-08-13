@@ -18,19 +18,25 @@ class FirecrestClient:
             'X-Machine-Name': machinename,
         }
 
-    def _get(self, url, params=None):
+    def _request(self, method, url, **kwargs):
         try:
-            response = requests.get(
-                self.api_url + url, headers=self.headers, params=params,
+            response = requests.request(
+                method, self.api_url + url, headers=self.headers, **kwargs
             )
         except requests.exceptions.RequestException:
-            raise FirecrestException('Unable to get Firecrest data.')
+            raise FirecrestException('Unable to perform Firecrest API request.')
         if response.ok:
             return response.json()
         else:
             raise FirecrestException(
                 f'Message: {response.reason}, status code: {response.status_code}'
             )
+
+    def _get(self, url, **kwargs):
+        return self._request('get', url, **kwargs)
+
+    def _post(self, url, **kwargs):
+        return self._request('post', url, **kwargs)
 
     def list_jobs(self, page_size=25, page_number=0):
         """
@@ -45,3 +51,6 @@ class FirecrestClient:
         Returns Firecrest task details by its ID.
         """
         return self._get(f'tasks/{task_id}')['task']
+
+    def submit_job(self, fileobject):
+        return self._post('compute/jobs/upload', files={'file': fileobject})['task_id']

@@ -11,6 +11,10 @@ def get_resource_type(model):
 
 
 def get_service_type(model):
+    try:
+        return model.get_service_name()
+    except AttributeError:
+        pass
     app_config = apps.get_containing_app_config(model.__module__)
     return getattr(app_config, 'service_name', None)
 
