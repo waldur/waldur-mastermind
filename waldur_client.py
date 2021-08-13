@@ -109,6 +109,7 @@ class WaldurClient(object):
         OfferingPermissions = 'marketplace-offering-permissions'
         Users = 'users'
         UserInvitations = 'user-invitations'
+        OfferingUsers = 'marketplace-offering-users'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -1537,6 +1538,27 @@ class WaldurClient(object):
         }
 
         return self._create_resource(self.Endpoints.UserInvitations, payload)
+
+    def create_remote_offering_user(
+        self, offering: str, user: str, username: str = None
+    ):
+        if is_uuid(offering):
+            offering = self._build_resource_url(
+                self.Endpoints.MarketplaceOffering, offering
+            )
+
+        if is_uuid(user):
+            user = self._build_resource_url(self.Endpoints.Users, user)
+
+        payload = {
+            'offering': offering,
+            'user': user,
+        }
+
+        if username is not None:
+            payload['username'] = username
+
+        return self._create_resource(self.Endpoints.OfferingUsers, payload)
 
 
 def waldur_full_argument_spec(**kwargs):
