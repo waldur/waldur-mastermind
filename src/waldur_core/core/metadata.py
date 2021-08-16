@@ -62,8 +62,12 @@ class WaldurCore(BaseModel):
         description='Allows to render native name field in customer and user forms.',
     )
     SITE_NAME = Field(
-        'Waldur MasterMind',
-        description='It is used in email notifications in order to refer to the current deployment in user-friendly way.',
+        'Waldur', description='Human-friendly name of the Waldur deployment.',
+    )
+    SITE_DESCRIPTION = Field(
+        'User-friendly platform for managing projects, teams and resources in a self-service manner. Fully digital '
+        'delivery of service offerings to the customers.',
+        description='Description of the Waldur deployment.',
     )
     SITE_ADDRESS = Field(
         'Default address', description='It is used in marketplace order header.'
@@ -155,6 +159,12 @@ class WaldurCore(BaseModel):
 
     class Meta:
         public_settings = [
+            'CURRENCY_NAME',
+            'SITE_NAME',
+            'SITE_EMAIL',
+            'SITE_ADDRESS',
+            'SITE_PHONE',
+            'SITE_DESCRIPTION',
             'AUTHENTICATION_METHODS',
             'INVITATIONS_ENABLED',
             'ALLOW_SIGNUP_WITHOUT_INVITATION',
