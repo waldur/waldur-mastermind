@@ -17,6 +17,7 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
     git                     \
     libldap2-dev            \
     libsasl2-dev            \
+    libgnutls28-dev         \
     ldap-utils              \
     lcov                    \
     python3-dev             \
