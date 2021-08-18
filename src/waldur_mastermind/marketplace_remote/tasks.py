@@ -4,11 +4,13 @@ import logging
 from celery.app import shared_task
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils import dateparse
+from django.utils import dateparse, timezone
 from waldur_client import WaldurClientException
 
 from waldur_core.core.utils import deserialize_instance
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_item_state
 from waldur_mastermind.marketplace.utils import create_local_resource
@@ -110,6 +112,96 @@ class UsagePullTask(BackgroundPullTask):
 class UsageListPullTask(BackgroundListPullTask):
     name = 'waldur_mastermind.marketplace_remote.pull_usage'
     pull_task = UsagePullTask
+
+    def get_pulled_objects(self):
+        return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+
+
+class InvoicePullTask(BackgroundPullTask):
+    def pull(self, local_resource: models.Resource):
+        client = get_client_for_offering(local_resource.offering)
+        remote_customer_uuid = local_resource.offering.secret_options['customer_uuid']
+        local_customer = local_resource.project.customer
+        now = timezone.now()
+
+        invoice = client.get_invoice_for_customer(
+            remote_customer_uuid, now.year, now.month
+        )
+
+        # TODO: drop this in favor of backend filtering: https://opennode.atlassian.net/browse/WAL-4268
+        remote_invoice_items = [
+            item
+            for item in invoice['items']
+            if item['resource_uuid'] == local_resource.backend_id
+        ]
+
+        local_invoice, _ = RegistrationManager.get_or_create_invoice(
+            local_customer, now
+        )
+        local_invoice_items = local_invoice.items.filter(resource=local_resource)
+        local_item_names = set([item.name for item in local_invoice_items])
+        remote_item_names = set([item['name'] for item in remote_invoice_items])
+        new_item_names = remote_item_names - local_item_names
+        stale_item_names = local_item_names - remote_item_names
+        existing_item_names = local_item_names & remote_item_names
+
+        if len(stale_item_names) > 0:
+            invoice_models.InvoiceItem.objects.filter(
+                name__in=stale_item_names
+            ).delete()
+            logger.info(
+                f'The following invoice items for resource [uuid={local_resource.uuid}] have been deleted: {stale_item_names}'
+            )
+
+        new_invoice_items = [
+            item for item in remote_invoice_items if item['name'] in new_item_names
+        ]
+        for item in new_invoice_items:
+            invoice_models.InvoiceItem.objects.create(
+                resource=local_resource,
+                invoice=local_invoice,
+                start=dateparse.parse_datetime(item['start']),
+                end=dateparse.parse_datetime(item['end']),
+                name=item['name'],
+                project=local_resource.project,
+                unit=item['unit'],
+                measured_unit=item['measured_unit'],
+                article_code=item['article_code'],
+                unit_price=item['unit_price'],
+                details=item['details'],
+                quantity=item['quantity'],
+            )
+
+        existing_invoice_items = [
+            item for item in remote_invoice_items if item['name'] in existing_item_names
+        ]
+        for item in existing_invoice_items:
+            local_item = local_invoice_items.get(name=item['name'],)
+            local_item.start = dateparse.parse_datetime(item['start'])
+            local_item.end = dateparse.parse_datetime(item['end'])
+            local_item.measured_unit = item['measured_unit']
+            local_item.details = item['details']
+            local_item.quantity = item['quantity']
+            local_item.article_code = item['article_code']
+            local_item.unit_price = item['unit_price']
+            local_item.unit = item['unit']
+            local_item.save(
+                update_fields=[
+                    'start',
+                    'end',
+                    'measured_unit',
+                    'details',
+                    'quantity',
+                    'article_code',
+                    'unit_price',
+                    'unit',
+                ]
+            )
+
+
+class InvoiceListPullTask(BackgroundListPullTask):
+    name = 'waldur_mastermind.marketplace_remote.pull_invoice'
+    pull_task = InvoicePullTask
 
     def get_pulled_objects(self):
         return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
