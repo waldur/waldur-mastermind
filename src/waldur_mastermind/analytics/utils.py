@@ -1,9 +1,7 @@
 import logging
 from datetime import timedelta
 
-from django.conf import settings
 from django.utils import timezone
-from influxdb import InfluxDBClient, exceptions
 from reversion.models import Version
 
 from waldur_core.structure.models import Customer, Project
@@ -11,19 +9,6 @@ from waldur_core.structure.models import Customer, Project
 from . import models
 
 logger = logging.getLogger(__name__)
-
-
-def get_influxdb_client():
-    if settings.WALDUR_ANALYTICS['ENABLED']:
-        options = settings.WALDUR_ANALYTICS['INFLUXDB']
-        return InfluxDBClient(**options)
-
-
-def write_points(client, points):
-    try:
-        client.write_points(points)
-    except (exceptions.InfluxDBClientError, exceptions.InfluxDBServerError) as e:
-        logger.warning('Unable to write to InfluxDB %s', e)
 
 
 def import_daily_usage():

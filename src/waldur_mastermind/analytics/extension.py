@@ -5,18 +5,8 @@ from waldur_core.core import WaldurExtension
 
 class AnalyticsExtension(WaldurExtension):
     class Settings:
-        # See also: http://influxdb-python.readthedocs.io/en/latest/api-documentation.html#influxdbclient
         WALDUR_ANALYTICS = {
             'ENABLED': False,
-            'INFLUXDB': {
-                'host': 'localhost',
-                'port': 8086,
-                'username': 'USERNAME',
-                'password': 'PASSWORD',
-                'database': 'DATABASE',
-                'ssl': False,
-                'verify_ssl': False,
-            },
             'DAILY_QUOTA_LIFETIME': timedelta(days=31),
         }
 

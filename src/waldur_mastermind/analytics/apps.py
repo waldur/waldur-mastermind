@@ -8,7 +8,6 @@ class AnalyticsConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas.models import Quota
-        from waldur_core.structure.models import BaseResource
 
         from . import handlers
 
@@ -17,22 +16,3 @@ class AnalyticsConfig(AppConfig):
             sender=Quota,
             dispatch_uid='waldur_mastermind.analytics.handlers.update_daily_quotas',
         )
-
-        for index, model in enumerate(BaseResource.get_all_models()):
-            signals.post_save.connect(
-                handlers.log_resource_created,
-                sender=model,
-                dispatch_uid=(
-                    'waldur_mastermind.analytics.handlers.'
-                    'log_resource_created_{}_{}'.format(model.__name__, index)
-                ),
-            )
-
-            signals.post_delete.connect(
-                handlers.log_resource_deleted,
-                sender=model,
-                dispatch_uid=(
-                    'waldur_mastermind.analytics.handlers.'
-                    'log_resource_deleted_{}_{}'.format(model.__name__, index)
-                ),
-            )
