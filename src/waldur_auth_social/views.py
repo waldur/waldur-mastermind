@@ -123,7 +123,7 @@ class OAuthView(RefreshTokenMixin, views.APIView):
                 self.provider, 'Authentication response does not contain token.'
             )
 
-        refresh_token = token_data.get('refresh_token')
+        refresh_token = token_data.get('refresh_token', '')
 
         try:
             user_response = self.get_user_response(access_token)
