@@ -17,7 +17,7 @@ from waldur_mastermind.marketplace.tests.factories import (
     ResourceFactory,
 )
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
-from waldur_mastermind.marketplace_remote.tasks import InvoicePullTask
+from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
 
 
 class InvoiceItemPullTest(test.APITransactionTestCase):
@@ -73,7 +73,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             ).count(),
         )
 
-        InvoicePullTask().run(serialize_instance(self.resource))
+        ResourceInvoicePullTask().run(serialize_instance(self.resource))
         self.assertEqual(
             1,
             Invoice.objects.filter(
@@ -81,7 +81,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             ).count(),
         )
 
-        InvoicePullTask().run(serialize_instance(self.resource))
+        ResourceInvoicePullTask().run(serialize_instance(self.resource))
         self.assertEqual(
             1,
             Invoice.objects.filter(
@@ -95,7 +95,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             'items': [{'resource_uuid': self.resource.backend_id, **item_data,}]
         }
         today = datetime.date.today()
-        InvoicePullTask().run(serialize_instance(self.resource))
+        ResourceInvoicePullTask().run(serialize_instance(self.resource))
         invoice = Invoice.objects.get(
             customer__uuid=self.customer.uuid, year=today.year, month=today.month
         )
@@ -117,7 +117,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         InvoiceItemFactory(
             invoice=invoice, resource=self.resource, **item_data,
         )
-        InvoicePullTask().run(serialize_instance(self.resource))
+        ResourceInvoicePullTask().run(serialize_instance(self.resource))
         self.assertEqual(
             0,
             InvoiceItem.objects.filter(
@@ -141,7 +141,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
         self.assertNotEqual(new_month_end, item.end)
 
-        InvoicePullTask().run(serialize_instance(self.resource))
+        ResourceInvoicePullTask().run(serialize_instance(self.resource))
 
         item.refresh_from_db()
         self.assertEqual(new_quantity, item.quantity)
