@@ -156,6 +156,10 @@ class WaldurCore(BaseModel):
         False,
         description='Indicates whether user can see all other users in `api/users/` endpoint.',
     )
+    TRANSLATION_DOMAIN = Field(
+        '',
+        description='Identifier of translation domain applied to current deployment.',
+    )
 
     class Meta:
         public_settings = [
@@ -174,6 +178,7 @@ class WaldurCore(BaseModel):
             'NATIVE_NAME_ENABLED',
             'ONLY_STAFF_MANAGES_SERVICES',
             'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',
+            'TRANSLATION_DOMAIN',
         ]
 
 

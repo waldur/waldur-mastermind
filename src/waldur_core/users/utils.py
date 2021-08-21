@@ -7,8 +7,9 @@ from rest_framework import serializers
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.constants import get_domain_message
 from waldur_core.core.utils import pwgen
-from waldur_core.structure.models import ProjectRole
+from waldur_core.structure.models import CustomerRole, ProjectRole
 from waldur_core.users import models
 from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
@@ -18,19 +19,24 @@ from waldur_freeipa.utils import generate_username
 
 def get_invitation_context(invitation, sender):
     if invitation.project_role is not None:
-        context = dict(type=_('project'), name=invitation.project.name)
-        role_prefix = (
-            _('project')
-            if invitation.project_role == ProjectRole.MANAGER
-            else _('system')
+        role_display = {
+            ProjectRole.MANAGER: 'project manager',
+            ProjectRole.MEMBER: 'project member',
+            ProjectRole.ADMINISTRATOR: 'system administrator',
+        }.get(invitation.project_role, invitation.get_project_role_display())
+        context = dict(
+            type=_('project'),
+            name=invitation.project.name,
+            role=_(get_domain_message(role_display)),
         )
-        context['role'] = '%s %s' % (role_prefix, invitation.get_project_role_display())
-
     else:
+        role_display = {CustomerRole.OWNER: 'organization owner',}.get(
+            invitation.customer_role, invitation.get_customer_role_display()
+        )
         context = dict(
             type=_('organization'),
             name=invitation.customer.name,
-            role=invitation.get_customer_role_display(),
+            role=_(get_domain_message(role_display)),
         )
 
     context['sender'] = sender
