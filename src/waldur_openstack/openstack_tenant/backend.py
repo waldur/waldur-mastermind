@@ -1917,7 +1917,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-        return url['console']['url']
+        # newer API seems to return remote_console sometimes. According to spec it should be 'console'
+        if 'console' in url:
+            return url['console']['url']
+        elif 'remote_console' in url:
+            return url['remote_console']['url']
 
     @log_backend_action()
     def get_console_output(self, instance, length=None):
