@@ -139,6 +139,13 @@ class PluginManager:
 
         return resource_model
 
+    def get_importable_offering_types(self):
+        return {
+            offering_type
+            for offering_type in self.get_offering_types()
+            if self.get_importable_resources_backend_method(offering_type)
+        }
+
     def get_importable_resources_backend_method(self, offering_type):
         return self.backends.get(offering_type, {}).get(
             'get_importable_resources_backend_method'

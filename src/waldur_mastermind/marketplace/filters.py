@@ -113,6 +113,10 @@ class OfferingCustomersFilterBackend(BaseFilterBackend):
 class OfferingImportableFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         if 'importable' in request.query_params:
+            queryset = queryset.filter(
+                type__in=plugins.manager.get_importable_offering_types()
+            )
+
             user = request.user
 
             if user.is_staff:
