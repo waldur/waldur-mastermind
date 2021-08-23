@@ -592,6 +592,14 @@ class PlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
         return PlanUsageReporter(self, request).get_report()
 
 
+class PlanComponentViewSet(rf_viewsets.ReadOnlyModelViewSet):
+    queryset = models.PlanComponent.objects.filter(
+        plan__offering__shared=True, plan__offering__state=models.Offering.States.ACTIVE
+    )
+    serializer_class = serializers.PlanComponentSerializer
+    lookup_field = 'uuid'
+
+
 class ScreenshotViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,

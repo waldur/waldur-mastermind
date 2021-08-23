@@ -629,6 +629,28 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
         return offering
 
 
+class PlanComponentSerializer(serializers.ModelSerializer):
+    offering_name = serializers.ReadOnlyField(source='plan.offering.name')
+    plan_name = serializers.ReadOnlyField(source='plan.name')
+    plan_unit = serializers.ReadOnlyField(source='plan.unit')
+    component_name = serializers.ReadOnlyField(source='component.name')
+    measured_unit = serializers.ReadOnlyField(source='component.measured_unit')
+    billing_type = serializers.ReadOnlyField(source='component.billing_type')
+
+    class Meta:
+        model = models.PlanComponent
+        fields = (
+            'offering_name',
+            'plan_name',
+            'plan_unit',
+            'component_name',
+            'measured_unit',
+            'billing_type',
+            'amount',
+            'price',
+        )
+
+
 class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = structure_models.Customer
