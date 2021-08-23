@@ -423,7 +423,7 @@ class SyncUser:
                             rancher_user_cluster_link = models.RancherUserClusterLink.objects.create(
                                 user=rancher_user, role=role, cluster_id=cluster_id
                             )
-                            backend.create_cluster_role(rancher_user_cluster_link)
+                            backend.create_cluster_user_role(rancher_user_cluster_link)
 
                         has_change = True
                     except exceptions.RancherException as e:

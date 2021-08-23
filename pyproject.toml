@@ -151,6 +151,7 @@ waldur_google = "waldur_mastermind.google.extension:GoogleExtension"
 waldur_hpc = "waldur_hpc.extension:HPCExtension"
 waldur_keycloak = "waldur_keycloak.extension:KeycloakExtension"
 waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
+waldur_keycloak_rancher = "waldur_keycloak_rancher.extension:KeycloakRancherExtension"
 
 [build-system]
 requires = ["poetry=1.1.6"]

@@ -392,7 +392,13 @@ class RancherBackend(ServiceBackend):
             user.is_active = True
             user.save()
 
-    def create_cluster_role(self, link):
+    def get_or_create_cluster_group_role(self, group_id, cluster_id, role):
+        if not self.client.get_cluster_group_role(group_id, cluster_id, role):
+            self.client.create_cluster_group_role(group_id, cluster_id, role)
+            return True
+        return False
+
+    def create_cluster_user_role(self, link):
         role = None
 
         if link.role == models.ClusterRole.CLUSTER_OWNER:
@@ -401,7 +407,7 @@ class RancherBackend(ServiceBackend):
         if link.role == models.ClusterRole.CLUSTER_MEMBER:
             role = ClusterRoles.cluster_member
 
-        response = self.client.create_cluster_role(
+        response = self.client.create_cluster_user_role(
             link.user.backend_id, link.cluster.backend_id, role
         )
         link_id = response['id']
