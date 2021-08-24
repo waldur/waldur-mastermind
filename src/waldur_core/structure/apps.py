@@ -120,7 +120,7 @@ class StructureConfig(AppConfig):
             dispatch_uid='waldur_core.structure.handlers.revoke_roles_on_project_deletion',
         )
 
-        resource_and_subresources = (
+        resource_and_subresources = set(
             BaseResource.get_all_models() + SubResource.get_all_models()
         )
         for index, model in enumerate(resource_and_subresources):
