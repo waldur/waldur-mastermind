@@ -4,7 +4,8 @@ from celery import shared_task
 from django.conf import settings
 
 from waldur_keycloak.models import ProjectGroup
-from waldur_rancher.models import Cluster, ClusterRole
+from waldur_rancher.enums import ClusterRoles
+from waldur_rancher.models import Cluster
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def sync_groups():
                 backend.get_or_create_cluster_group_role(
                     f'keycloakoidc_group://{project.name}',
                     cluster.backend_id,
-                    ClusterRole.CLUSTER_MEMBER,
+                    ClusterRoles.cluster_member,
                 )
             except Exception:
                 logger.warning(
