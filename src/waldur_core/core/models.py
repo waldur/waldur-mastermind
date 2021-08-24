@@ -16,7 +16,7 @@ from django.utils import timezone as django_timezone
 from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
-from django_fsm import FSMIntegerField, transition
+from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
@@ -458,7 +458,7 @@ class RuntimeStateMixin(models.Model):
         return cls.RuntimeStates.OFFLINE
 
 
-class StateMixin(ErrorMessageMixin):
+class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
     class States:
         CREATION_SCHEDULED = 5
         CREATING = 6
