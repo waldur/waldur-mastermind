@@ -160,6 +160,11 @@ class WaldurCore(BaseModel):
         '',
         description='Identifier of translation domain applied to current deployment.',
     )
+    ORGANIZATION_SUBNETS_VISIBLE = Field(
+        False,
+        description='Render list of subnets from where connection to '
+        'self-service is allowed in organization details dialog.',
+    )
 
     class Meta:
         public_settings = [
@@ -179,6 +184,7 @@ class WaldurCore(BaseModel):
             'ONLY_STAFF_MANAGES_SERVICES',
             'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',
             'TRANSLATION_DOMAIN',
+            'ORGANIZATION_SUBNETS_VISIBLE',
         ]
 
 
