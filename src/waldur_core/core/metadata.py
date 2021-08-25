@@ -160,6 +160,9 @@ class WaldurCore(BaseModel):
         '',
         description='Identifier of translation domain applied to current deployment.',
     )
+    ORGANIZATION_DOMAIN_VISIBLE = Field(
+        False, description='Allows to hide domain field in organization detail.'
+    )
     ORGANIZATION_SUBNETS_VISIBLE = Field(
         False,
         description='Render list of subnets from where connection to '
@@ -184,6 +187,7 @@ class WaldurCore(BaseModel):
             'ONLY_STAFF_MANAGES_SERVICES',
             'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',
             'TRANSLATION_DOMAIN',
+            'ORGANIZATION_DOMAIN_VISIBLE',
             'ORGANIZATION_SUBNETS_VISIBLE',
         ]
 
