@@ -5,7 +5,7 @@ from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
-from django.db.models import F, Sum
+from django.db.models import Sum
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from reversion import revisions as reversion
@@ -162,12 +162,12 @@ class QuotaModelMixin(models.Model):
     @transaction.atomic
     def add_quota_usage(self, quota_name, usage_delta, validate=False):
         if usage_delta < 0:
-            # Avoid race conditions by using F expressions.
-            # See also: https://docs.djangoproject.com/en/dev/ref/models/expressions/#avoiding-race-conditions-using-f
             # Skip update if it would result in negative value.
-            return self.quotas.filter(name=quota_name, usage__gte=-usage_delta).update(
-                usage=F('usage') + usage_delta
-            )
+            # We need to use save so that pre_save/post_save signals are emitted.
+            for quota in self.quotas.filter(name=quota_name, usage__gte=-usage_delta):
+                quota.usage += usage_delta
+                quota.save(update_fields=['usage'])
+                return
         quota = self.get_or_create_quota(quota_name)
         if validate and quota.is_exceeded(usage_delta):
             raise exceptions.QuotaValidationError(
