@@ -109,6 +109,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     kubeconfig_file_validators = [
         core_validators.StateValidator(models.Cluster.States.OK)
     ]
+    kubeconfig_file_permissions = [structure_permissions.is_staff]
 
     @decorators.action(detail=True, methods=['post'])
     def import_yaml(self, request, uuid=None):
