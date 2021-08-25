@@ -603,6 +603,9 @@ class WaldurConfiguration(BaseModel):
         "(language code, language name) – for example, ('ja', 'Japanese'). "
         "This specifies which languages are available for language selection.",
     )
+    LANGUAGE_CODE = Field(
+        'en', description='Represents the name of a default language.'
+    )
 
     class Meta:
-        public_settings = ['LANGUAGES']
+        public_settings = ['LANGUAGES', 'LANGUAGE_CODE']

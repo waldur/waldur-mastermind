@@ -173,10 +173,6 @@ SESSION_SAVE_EVERY_REQUEST = True
 
 WSGI_APPLICATION = 'waldur_core.server.wsgi.application'
 
-# Internationalization
-# https://docs.djangoproject.com/en/2.2/topics/i18n/
-LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
 
 USE_I18N = True
