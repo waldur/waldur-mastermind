@@ -73,10 +73,12 @@ class WaldurCore(BaseModel):
         'Default address', description='It is used in marketplace order header.'
     )
     SITE_EMAIL = Field(
-        'Default email', description='It is used in marketplace order header.'
+        'Default email',
+        description='It is used in marketplace order header and UI footer.',
     )
     SITE_PHONE = Field(
-        'Default phone', description='It is used in marketplace order header.'
+        'Default phone',
+        description='It is used in marketplace order header and UI footer.',
     )
     SITE_LOGO: Optional[str] = Field(
         description='It is used in marketplace order header.'
@@ -165,6 +167,11 @@ class WaldurCore(BaseModel):
         description='Render list of subnets from where connection to '
         'self-service is allowed in organization details dialog.',
     )
+    GOOGLE_ANALYTICS_ID = Field(
+        '',
+        description='Identifier associated with your account and '
+        'used by Google Analytics to collect the data.',
+    )
 
     class Meta:
         public_settings = [
@@ -185,6 +192,7 @@ class WaldurCore(BaseModel):
             'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',
             'TRANSLATION_DOMAIN',
             'ORGANIZATION_SUBNETS_VISIBLE',
+            'GOOGLE_ANALYTICS_ID',
         ]
 
 
