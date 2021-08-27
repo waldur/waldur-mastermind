@@ -185,7 +185,7 @@ class WaldurCore(BaseModel):
     )
     DOCS_URL = Field('', description='Renders link to docs in header')
     EXTERNAL_LINKS: List[ExternalLink] = Field(
-        '',
+        [],
         description='Render external links in dropdown in header. '
         'Each item should be object with label and url fields. '
         'For example: {"label": "Helpdesk", "url": "https://example.com/"}',
