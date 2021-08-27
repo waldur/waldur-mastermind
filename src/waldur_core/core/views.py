@@ -26,6 +26,7 @@ from rest_framework.views import exception_handler as rf_exception_handler
 from waldur_core import __version__
 from waldur_core.core import WALDUR_DISABLED_EXTENSIONS, WaldurExtension, permissions
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
+from waldur_core.core.features import FEATURES
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import AuthTokenSerializer
@@ -394,6 +395,12 @@ def get_public_settings():
 @permission_classes((rf_permissions.AllowAny,))
 def configuration_detail(request):
     return Response(get_public_settings())
+
+
+@api_view(['GET'])
+@permission_classes((rf_permissions.AllowAny,))
+def features_description(request):
+    return Response(FEATURES)
 
 
 def redirect_with(url_template, **kwargs):
