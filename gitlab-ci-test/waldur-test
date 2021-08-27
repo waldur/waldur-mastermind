@@ -36,3 +36,6 @@ pytest \
     --cov=src/ \
     --ds=waldur_mastermind.test_settings \
     src
+
+# Check default configuration
+DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null
