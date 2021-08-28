@@ -33,7 +33,7 @@ class FeatureSection(metaclass=FeatureSectionMetaclass):
 class CustomerSection(FeatureSection):
     class Meta:
         key = 'customer'
-        description = 'Features related to organization workspace'
+        description = 'Organization workspace'
 
     category_resources_list = Feature(
         'Render component usage charts in organization dashboard.'
@@ -60,7 +60,7 @@ class CustomerSection(FeatureSection):
 class ProjectSection(FeatureSection):
     class Meta:
         key = 'project'
-        description = 'Features related to project workspace'
+        description = 'Project workspace'
 
     member_role = Feature('Allow to grant user a project member role.')
 
@@ -70,7 +70,7 @@ class ProjectSection(FeatureSection):
 class UserSection(FeatureSection):
     class Meta:
         key = 'user'
-        description = 'Features related to user workspace'
+        description = 'User workspace'
 
     preferred_language = Feature('Render preferred language column in users list.')
 
@@ -86,7 +86,7 @@ class UserSection(FeatureSection):
 class MarktplaceSection(FeatureSection):
     class Meta:
         key = 'marketplace'
-        description = 'Features related to marketplace offerings and resources'
+        description = 'Marketplace offerings and resources'
 
     offering_document = Feature('Allow to attach document to marketplace offering.')
 
@@ -102,7 +102,7 @@ class MarktplaceSection(FeatureSection):
 class SupportSection(FeatureSection):
     class Meta:
         key = 'support'
-        description = 'Features related to support workspace'
+        description = 'Support workspace'
 
     activity_stream = Feature('Render list of recent comments in support dashboard.')
 
@@ -144,7 +144,7 @@ class SupportSection(FeatureSection):
 class InvitationsSection(FeatureSection):
     class Meta:
         key = 'invitations'
-        description = 'Features related to invitations management'
+        description = 'Invitations management'
 
     conceal_civil_number = Feature(
         'Conceal civil number in invitation creation dialog.'
@@ -164,7 +164,7 @@ class InvitationsSection(FeatureSection):
 class InvoiceSection(FeatureSection):
     class Meta:
         key = 'invoice'
-        description = 'Features related to invoice management'
+        description = 'Invoice management'
 
     events = Feature('Render list of events related to invoice item in modal dialog.')
 
@@ -172,7 +172,7 @@ class InvoiceSection(FeatureSection):
 class OpenstackSection(FeatureSection):
     class Meta:
         key = 'openstack'
-        description = 'Features related to OpenStack resources provisioning'
+        description = 'OpenStack resources provisioning'
 
     volume_types = Feature(
         'Allow to select OpenStack volume type when instance or volume is provisioned.'
@@ -182,7 +182,7 @@ class OpenstackSection(FeatureSection):
 class RancherSection(FeatureSection):
     class Meta:
         key = 'rancher'
-        description = 'Features related to Rancher resources provisioning'
+        description = 'Rancher resources provisioning'
 
     volume_mount_point = Feature(
         'Allow to select mount point for data volume when Rancher cluster is provisioned.'
@@ -192,7 +192,7 @@ class RancherSection(FeatureSection):
 class SlurmSection(FeatureSection):
     class Meta:
         key = 'slurm'
-        description = 'Features related to SLURM resources provisioning'
+        description = 'SLURM resources provisioning'
 
     jobs = Feature(
         'Render list of SLURM jobs as a separate tab in allocation details page.'
