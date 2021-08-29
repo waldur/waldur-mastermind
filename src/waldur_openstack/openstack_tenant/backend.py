@@ -135,6 +135,8 @@ class InternalIPSynchronizer:
         for remote_ip in self.remote_ips:
 
             # Check if related subnet exists.
+            if not hasattr(remote_ip, '_subnet_backend_id'):
+                continue
             subnet = self.subnets.get(remote_ip._subnet_backend_id)
             if subnet is None:
                 logger.warning(
