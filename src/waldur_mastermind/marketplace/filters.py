@@ -508,6 +508,22 @@ class OfferingUserFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
+class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
+    class Meta:
+        model = models.Category
+        fields = []
+
+    customer_uuid = django_filters.UUIDFilter(
+        method='filter_customer_uuid', label='Customer UUID'
+    )
+
+    def filter_customer_uuid(self, queryset, name, value):
+        category_ids = models.Offering.objects.filter(customer__uuid=value).values_list(
+            'category_id', flat=True
+        )
+        return queryset.filter(id__in=category_ids)
+
+
 def user_extra_query(user):
     customer_ids = structure_models.CustomerPermission.objects.filter(
         user=user,

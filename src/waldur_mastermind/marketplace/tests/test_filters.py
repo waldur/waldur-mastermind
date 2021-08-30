@@ -146,3 +146,26 @@ class OrderFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'type': 'Create'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
+
+
+class CategoryFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.category = self.offering.category
+        self.customer = self.offering.customer
+        self.url = factories.CategoryFactory.get_list_url()
+
+    def test_customer_uuid_filter_positive(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'customer_uuid': self.customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(response.data[0]['uuid'], self.category.uuid.hex)
+
+    def test_customer_uuid_filter_negative(self):
+        new_customer = structure_factories.CustomerFactory()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'customer_uuid': new_customer.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
