@@ -116,6 +116,7 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
     serializer_class = serializers.CategorySerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CategoryFilter
 
     create_permissions = (
         update_permissions
