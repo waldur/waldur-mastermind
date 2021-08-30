@@ -649,3 +649,8 @@ class BackendMixin(models.Model):
         abstract = True
 
     backend_id = models.CharField(max_length=255, blank=True)
+
+
+class Feature(models.Model):
+    key = models.TextField(max_length=255, unique=True)
+    value = models.BooleanField(default=False)
