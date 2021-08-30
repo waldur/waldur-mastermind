@@ -10,7 +10,6 @@ from django.db.models import ProtectedError
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.encoding import force_text
-from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from django.views.generic import TemplateView
 from rest_framework import exceptions
@@ -24,7 +23,12 @@ from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
 from waldur_core import __version__
-from waldur_core.core import WALDUR_DISABLED_EXTENSIONS, WaldurExtension, permissions
+from waldur_core.core import (
+    WALDUR_DISABLED_EXTENSIONS,
+    WaldurExtension,
+    models,
+    permissions,
+)
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
 from waldur_core.core.metadata import WaldurConfiguration
@@ -254,7 +258,7 @@ class ProtectedViewSet(
     rf_mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
-    """ All default operations except update and delete """
+    """All default operations except update and delete"""
 
     pass
 
@@ -319,7 +323,7 @@ class ActionsViewSet(viewsets.ModelViewSet):
         self.validate_object_action(self.action)
 
     def validate_object_action(self, action_name, obj=None):
-        """ Execute validation for actions that are related to particular object """
+        """Execute validation for actions that are related to particular object"""
         action_method = getattr(self, action_name)
         if not getattr(action_method, 'detail', False) and action_name not in (
             'update',
@@ -338,11 +342,26 @@ class ReadOnlyActionsViewSet(ActionsViewSet):
     disabled_actions = ['create', 'update', 'partial_update', 'destroy']
 
 
-@lru_cache(maxsize=1)
+def get_feature_values():
+    feature_values = {
+        feature.key: feature.value for feature in models.Feature.objects.all()
+    }
+    return {
+        section['key']: {
+            feature['key']: feature_values.get(
+                f'{section["key"]}.{feature["key"]}', False
+            )
+            for feature in section['items']
+        }
+        for section in FEATURES
+    }
+
+
 def get_public_settings():
     public_settings = {}
 
     public_settings['WALDUR_DISABLED_EXTENSIONS'] = WALDUR_DISABLED_EXTENSIONS
+    public_settings['FEATURES'] = get_feature_values()
 
     try:
         keys = WaldurConfiguration().Meta.public_settings
@@ -403,6 +422,26 @@ def features_description(request):
     return Response(FEATURES)
 
 
+@api_view(['POST'])
+@permission_classes((rf_permissions.IsAdminUser,))
+def feature_values(request):
+    if not isinstance(request.data, dict):
+        return Response(
+            data='Dictionary is expected.', status=status.HTTP_400_BAD_REQUEST
+        )
+    updated = 0
+    for section in FEATURES:
+        for feature in section['items']:
+            feature_value = request.data.get(section['key'], {}).get(feature['key'])
+            if feature_value is not None:
+                models.Feature.objects.update_or_create(
+                    key=f'{section["key"]}.{feature["key"]}',
+                    defaults=dict(value=feature_value),
+                )
+                updated += 1
+    return Response(data=f'{updated} features are updated.', status=status.HTTP_200_OK)
+
+
 def redirect_with(url_template, **kwargs):
     params = urlencode(kwargs)
     url = '%s?%s' % (url_template, params)
@@ -431,7 +470,7 @@ def logout_failed(message):
 
 
 class CheckExtensionMixin:
-    """ Raise exception if extension is disabled """
+    """Raise exception if extension is disabled"""
 
     extension_name = NotImplemented
 
