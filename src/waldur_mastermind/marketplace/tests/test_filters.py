@@ -62,6 +62,25 @@ class ServiceProviderFilterTest(test.APITransactionTestCase):
     def test_list_is_empty_if_offering_does_not_have_customers(self):
         self.assertEqual(0, len(self.list_customers(self.service_provider2.uuid.hex)))
 
+    def test_filter_customer_keyword(self):
+        list_url = factories.ServiceProviderFactory.get_list_url()
+        provider_1 = factories.ServiceProviderFactory()
+        factories.ServiceProviderFactory()
+        provider_1.customer.name = 'It is test_name.'
+        provider_1.customer.abbreviation = 'test abbr'
+        provider_1.customer.save()
+        self.client.force_authenticate(self.fixture1.staff)
+
+        response = self.client.get(list_url, {'customer_keyword': 'test_name'})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(response.data[0]['uuid'], provider_1.uuid.hex)
+
+        response = self.client.get(list_url, {'customer_keyword': 'abbr'})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(response.data[0]['uuid'], provider_1.uuid.hex)
+
 
 class ResourceFilterTest(test.APITransactionTestCase):
     def setUp(self):

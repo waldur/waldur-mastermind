@@ -25,11 +25,19 @@ class ServiceProviderFilter(django_filters.FilterSet):
         view_name='customer-detail', field_name='customer__uuid'
     )
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
+    customer_keyword = django_filters.CharFilter(method='filter_customer_keyword')
     o = django_filters.OrderingFilter(fields=(('customer__name', 'customer_name'),))
 
     class Meta:
         model = models.ServiceProvider
         fields = []
+
+    def filter_customer_keyword(self, queryset, name, value):
+        return queryset.filter(
+            Q(customer__name__icontains=value)
+            | Q(customer__abbreviation__icontains=value)
+            | Q(customer__native_name__icontains=value)
+        )
 
 
 class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
