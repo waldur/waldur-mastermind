@@ -50,6 +50,10 @@ class SupportExtension(WaldurExtension):
         ISSUE_FEEDBACK_TOKEN_PERIOD = 7
 
     @staticmethod
+    def get_public_settings():
+        return ['ENABLED']
+
+    @staticmethod
     def django_app():
         return 'waldur_mastermind.support'
 
