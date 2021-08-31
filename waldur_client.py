@@ -1460,6 +1460,9 @@ class WaldurClient(object):
             self.Endpoints.ProjectPermissions, query_params
         )
 
+    def list_project_permissions(self, filters=None):
+        return self._query_resource_list(self.Endpoints.ProjectPermissions, filters)
+
     def update_project_permission(self, permission_id, new_expiration_time):
         return self._update_resource(
             self.Endpoints.ProjectPermissions,
@@ -1497,6 +1500,9 @@ class WaldurClient(object):
         return self._query_resource_list(
             self.Endpoints.CustomerPermissions, query_params
         )
+
+    def list_customer_permissions(self, filters=None):
+        return self._query_resource_list(self.Endpoints.CustomerPermissions, filters)
 
     def update_customer_permission(self, permission_id, new_expiration_time):
         return self._update_resource(
