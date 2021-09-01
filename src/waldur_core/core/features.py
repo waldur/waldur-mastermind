@@ -39,8 +39,6 @@ class CustomerSection(FeatureSection):
         'Render component usage charts in organization dashboard.'
     )
 
-    project_cost_details = Feature('Render estimated cost column in projects list.')
-
     project_requests = Feature(
         'Render list of project creation requests in organization dashboard.'
     )
@@ -65,6 +63,8 @@ class ProjectSection(FeatureSection):
     member_role = Feature('Allow to grant user a project member role.')
 
     team = Feature('Enable team management in project workspace.')
+
+    estimated_cost = Feature('Render estimated cost column in projects list.')
 
 
 class UserSection(FeatureSection):
