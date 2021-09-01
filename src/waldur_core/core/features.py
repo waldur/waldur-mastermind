@@ -106,6 +106,10 @@ class MarktplaceSection(FeatureSection):
         'Render list of private marketplace service providers in organization workspace.'
     )
 
+    import_resources = Feature(
+        'Allow to import resources from service provider to project.'
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:
