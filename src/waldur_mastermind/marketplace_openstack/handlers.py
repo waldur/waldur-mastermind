@@ -13,7 +13,7 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE, tasks, utils
+from . import INSTANCE_TYPE, STORAGE_MODE_FIXED, TENANT_TYPE, VOLUME_TYPE, tasks, utils
 
 logger = logging.getLogger(__name__)
 States = marketplace_models.Resource.States
@@ -420,6 +420,16 @@ def create_offering_component_for_volume_type(
             'marketplace because offering for service settings is not have found. '
             'Settings ID: %s',
             instance.settings.id,
+        )
+        return
+
+    storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+    if storage_mode == STORAGE_MODE_FIXED:
+        logger.debug(
+            'Skipping synchronization of volume type with '
+            'marketplace because offering has fixed storage mode enabled. '
+            'Offering ID: %s',
+            offering.id,
         )
         return
 

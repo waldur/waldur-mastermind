@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace_openstack import (
 )
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
+from waldur_openstack.openstack.tests.factories import VolumeTypeFactory
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
 
 from .. import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE
@@ -183,7 +184,9 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
+            type=TENANT_TYPE,
+            scope=self.fixture.openstack_service_settings,
+            plugin_options={'storage_mode': STORAGE_MODE_DYNAMIC},
         )
         self.volume_type = self.fixture.volume_type
 
@@ -198,6 +201,22 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         )
         self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
         self.assertEqual(component.type, 'gigabytes_' + self.volume_type.name)
+
+    def test_offering_component_for_volume_type_is_not_created_if_storage_mode_is_fixed(
+        self,
+    ):
+        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_FIXED}
+        self.offering.save()
+
+        new_volume_type = VolumeTypeFactory(
+            settings=self.fixture.openstack_service_settings
+        )
+
+        self.assertFalse(
+            marketplace_models.OfferingComponent.objects.filter(
+                scope=new_volume_type
+            ).exists()
+        )
 
     def test_offering_component_name_is_updated(self):
         self.volume_type.name = 'new name'

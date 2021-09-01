@@ -28,6 +28,7 @@ from .. import (
     CORES_TYPE,
     INSTANCE_TYPE,
     RAM_TYPE,
+    STORAGE_MODE_DYNAMIC,
     STORAGE_TYPE,
     TENANT_TYPE,
     VOLUME_TYPE,
@@ -76,6 +77,7 @@ class TenantCreateTest(BaseOpenStackTest):
             scope=self.fixture.openstack_service_settings,
             type=TENANT_TYPE,
             state=marketplace_models.Offering.States.ACTIVE,
+            plugin_options={'storage_mode': STORAGE_MODE_DYNAMIC},
         )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
 
