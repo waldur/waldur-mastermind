@@ -54,6 +54,12 @@ class CustomerSection(FeatureSection):
 
     show_domain = Feature('Allows to hide domain field in organization detail.')
 
+    billing = Feature('Render billing menu in organization sidebar.')
+
+    team = Feature('Enable team management in organization workspace.')
+
+    events = Feature('Enable audit log in organization workspace.')
+
 
 class ProjectSection(FeatureSection):
     class Meta:
@@ -65,6 +71,8 @@ class ProjectSection(FeatureSection):
     team = Feature('Enable team management in project workspace.')
 
     estimated_cost = Feature('Render estimated cost column in projects list.')
+
+    events = Feature('Enable audit log in project workspace.')
 
 
 class UserSection(FeatureSection):
@@ -139,6 +147,10 @@ class SupportSection(FeatureSection):
     )
 
     vm_type_overview = Feature('Enable VM type overview in support workspace.')
+
+    offering_comments = Feature(
+        'Render comments tab in request-based item details page.'
+    )
 
 
 class InvitationsSection(FeatureSection):
