@@ -91,7 +91,7 @@ class UserSection(FeatureSection):
     )
 
 
-class MarktplaceSection(FeatureSection):
+class MarketplaceSection(FeatureSection):
     class Meta:
         key = 'marketplace'
         description = 'Marketplace offerings and resources'
@@ -109,6 +109,12 @@ class MarktplaceSection(FeatureSection):
     import_resources = Feature(
         'Allow to import resources from service provider to project.'
     )
+
+    conceal_prices = Feature('Render prices in shopping cart and order details.')
+
+    terms_of_service = Feature('Render terms of service when offering is ordered.')
+
+    review = Feature('Allow to write a review for marketplace offering.')
 
 
 class SupportSection(FeatureSection):
