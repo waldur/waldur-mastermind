@@ -474,7 +474,7 @@ class ExportImportPlanComponentSerializer(serializers.ModelSerializer):
 
 class ExportImportPlanSerializer(serializers.ModelSerializer):
     """Serializer for export and import of plan from/to an exported offering.
-    This serializer differs from PlanDetailsSerializer in methods and fields. """
+    This serializer differs from PlanDetailsSerializer in methods and fields."""
 
     components = ExportImportPlanComponentSerializer(many=True)
     offering_id = serializers.IntegerField(write_only=True, required=False)
@@ -1914,11 +1914,11 @@ class ResourceSerializer(BaseItemSerializer):
     project = serializers.HyperlinkedRelatedField(
         lookup_field='uuid', view_name='project-detail', read_only=True,
     )
-    project_uuid = serializers.ReadOnlyField(source='project.uuid')
-    project_name = serializers.ReadOnlyField(source='project.name')
-    project_description = serializers.ReadOnlyField(source='project.description')
-    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
-    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    project_uuid = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
+    project_description = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    customer_uuid = serializers.SerializerMethodField()
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     # If resource is usage-based, frontend would render button to show and report usage
@@ -1926,6 +1926,27 @@ class ResourceSerializer(BaseItemSerializer):
     is_limit_based = serializers.ReadOnlyField(source='offering.is_limit_based')
     can_terminate = serializers.SerializerMethodField()
     report = serializers.JSONField(read_only=True)
+
+    def get_project_uuid(self, resource):
+        return structure_models.Project.all_objects.get(id=resource.project_id).uuid
+
+    def get_project_name(self, resource):
+        return structure_models.Project.all_objects.get(id=resource.project_id).name
+
+    def get_project_description(self, resource):
+        return structure_models.Project.all_objects.get(
+            id=resource.project_id
+        ).description
+
+    def get_customer_uuid(self, resource):
+        return structure_models.Project.all_objects.get(
+            id=resource.project_id
+        ).customer.uuid
+
+    def get_customer_name(self, resource):
+        return structure_models.Project.all_objects.get(
+            id=resource.project_id
+        ).customer.name
 
     def get_can_terminate(self, resource):
         view = self.context['view']
@@ -2415,7 +2436,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
 
 
 def validate_plan(plan):
-    """"
+    """ "
     Ensure that maximum amount of resources with current plan is not reached yet.
     """
     if not plan.is_active:
