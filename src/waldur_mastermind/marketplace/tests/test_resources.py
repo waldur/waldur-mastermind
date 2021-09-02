@@ -84,6 +84,20 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], resource.uuid.hex)
 
+    def test_resource_contains_project_and_customer_data_after_project_deletion(self):
+        expected_data = {
+            'project_name': self.project.name,
+            'project_uuid': self.project.uuid,
+            'project_description': self.project.description,
+            'customer_name': self.project.customer.name,
+            'customer_uuid': self.project.customer.uuid,
+        }
+
+        self.project.delete()
+        response_data = self.get_resource().data
+        for key, value in expected_data.items():
+            self.assertEqual(value, response_data[key])
+
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
