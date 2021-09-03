@@ -8,9 +8,8 @@ from django.db import models, transaction
 from django.db.models import Sum
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
-from reversion import revisions as reversion
 
-from waldur_core.core.models import DescendantMixin, ReversionMixin, UuidMixin
+from waldur_core.core.models import DescendantMixin, UuidMixin
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.logging.models import AlertThresholdMixin
 from waldur_core.quotas import exceptions, fields, managers
@@ -18,10 +17,7 @@ from waldur_core.quotas import exceptions, fields, managers
 logger = logging.getLogger(__name__)
 
 
-@reversion.register(fields=['usage', 'limit'])
-class Quota(
-    UuidMixin, AlertThresholdMixin, LoggableMixin, ReversionMixin, models.Model
-):
+class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, models.Model):
     """
     Abstract quota for any resource.
 

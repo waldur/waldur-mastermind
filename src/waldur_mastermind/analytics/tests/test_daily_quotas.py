@@ -1,12 +1,11 @@
 from django.test import testcases
 from django.utils import timezone
-from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.analytics import models, tasks, utils
+from waldur_mastermind.analytics import models, tasks
 from waldur_mastermind.common.utils import parse_date
 
 
@@ -53,41 +52,6 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
             'nc_user_count': [0, 10, 11, 12, 12],
         }
         self.assertDictEqual(response.data, expected)
-
-
-class TestDailyQuotasImport(test.APITransactionTestCase):
-    def setUp(self):
-        with freeze_time('2018-10-01'):
-            self.fixture = structure_fixtures.ProjectFixture()
-            self.project = self.fixture.project
-            self.project.set_quota_usage('nc_user_count', 0)
-
-        with freeze_time('2018-10-03'):
-            self.project.set_quota_usage('nc_user_count', 10)
-
-        with freeze_time('2018-10-05'):
-            self.project.set_quota_usage('nc_user_count', 30)
-
-    def test_quotas_usage_history_is_imported_correctly(self):
-        with freeze_time('2018-10-06'):
-            utils.import_daily_usage()
-
-        actual = list(
-            models.DailyQuotaHistory.objects.filter(
-                scope=self.project, name='nc_user_count',
-            )
-            .order_by('date')
-            .values('date', 'usage')
-        )
-        expected = [
-            {'date': parse_date('2018-10-01'), 'usage': 0,},
-            {'date': parse_date('2018-10-02'), 'usage': 0,},
-            {'date': parse_date('2018-10-03'), 'usage': 10,},
-            {'date': parse_date('2018-10-04'), 'usage': 10,},
-            {'date': parse_date('2018-10-05'), 'usage': 30,},
-            {'date': parse_date('2018-10-06'), 'usage': 30,},
-        ]
-        self.assertEqual(expected, actual)
 
 
 class TestDailyQuotasTask(test.APITransactionTestCase):

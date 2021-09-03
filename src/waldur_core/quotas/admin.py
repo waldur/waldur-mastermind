@@ -3,7 +3,6 @@ from django.contrib.contenttypes import models as ct_models
 from django.contrib.contenttypes.admin import GenericTabularInline
 from django.forms import ModelForm
 
-from waldur_core.core.admin import ReversionAdmin
 from waldur_core.quotas import models, utils
 
 
@@ -61,7 +60,7 @@ class QuotaForm(ModelForm):
     #     return field.is_backend
 
 
-class QuotaAdmin(QuotaFieldTypeLimit, ReversionAdmin):
+class QuotaAdmin(QuotaFieldTypeLimit, admin.ModelAdmin):
     list_display = ['scope', 'name', 'limit', 'usage']
     list_filter = ['name', QuotaScopeClassListFilter]
 
