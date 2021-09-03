@@ -10,22 +10,22 @@ class FeaturesTest(test.APITransactionTestCase):
         self.client.force_login(user)
 
         response = self.client.get('/api/configuration/')
-        self.assertFalse(response.data['FEATURES']['MARKETPLACE']['FLOWS'])
+        self.assertFalse(response.data['FEATURES']['marketplace']['flows'])
 
         response = self.client.post(
-            '/api/feature-values/', {'MARKETPLACE': {'FLOWS': True}}
+            '/api/feature-values/', {'marketplace': {'flows': True}}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get('/api/configuration/')
-        self.assertTrue(models.Feature.objects.get(key="MARKETPLACE.FLOWS").value)
+        self.assertTrue(models.Feature.objects.get(key="marketplace.flows").value)
 
     def test_non_staff_can_not_update_features(self):
         user = UserFactory()
         self.client.force_login(user)
 
         response = self.client.post(
-            '/api/feature-values/', {'MARKETPLACE': {'FLOWS': True}}
+            '/api/feature-values/', {'marketplace': {'flows': True}}
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -34,6 +34,6 @@ class FeaturesTest(test.APITransactionTestCase):
         self.client.force_login(user)
 
         response = self.client.post(
-            '/api/feature-values/', {'MARKETPLACE': {'FOO': True}}
+            '/api/feature-values/', {'marketplace': {'foo': True}}
         )
         self.assertEqual(response.data, '0 features are updated.')
