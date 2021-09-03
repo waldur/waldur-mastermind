@@ -13,7 +13,7 @@ class FeatureSectionMetaclass(type):
     def __new__(self, name, bases, attrs):
         if 'Meta' in attrs:
             section = {
-                'key': attrs['Meta'].key.upper(),
+                'key': attrs['Meta'].key,
                 'description': attrs['Meta'].description,
                 'items': [],
             }
@@ -21,7 +21,7 @@ class FeatureSectionMetaclass(type):
             for key, feature in attrs.items():
                 if isinstance(feature, Feature):
                     section['items'].append(
-                        {'key': key.upper(), 'description': feature.description}
+                        {'key': key, 'description': feature.description}
                     )
         return type.__new__(self, name, bases, attrs)
 
