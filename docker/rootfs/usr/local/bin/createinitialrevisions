@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+echo "INFO: Creating initial revisions..."
+gosu waldur sh -c "waldur createinitialrevisions"
+
+exit 0
