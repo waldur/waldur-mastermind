@@ -20,7 +20,6 @@ from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
-from reversion.models import Version
 
 from waldur_core.core.fields import CronScheduleField, UUIDField
 from waldur_core.core.validators import (
@@ -529,50 +528,6 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
     @lru_cache(maxsize=1)
     def get_all_models(cls):
         return [model for model in apps.get_models() if issubclass(model, cls)]
-
-
-class ReversionMixin:
-    """ Store historical values of instance, using django-reversion.
-
-        Note: `ReversionMixin` model should be registered in django-reversion,
-              using one of supported methods:
-              http://django-reversion.readthedocs.org/en/latest/api.html#registering-models-with-django-reversion
-    """
-
-    def get_version_fields(self):
-        """ Get field that are tracked in object history versions. """
-        options = reversion._get_options(self)
-        return options.fields or [
-            f.name for f in self._meta.fields if f not in options.exclude
-        ]
-
-    def _is_version_duplicate(self):
-        """ Define should new version be created for object or no.
-
-            Reasons to provide custom check instead of default `ignore_revision_duplicates`:
-             - no need to compare all revisions - it is OK if right object version exists in any revision;
-             - need to compare object attributes (not serialized data) to avoid
-               version creation on wrong <float> vs <int> comparison;
-        """
-        if self.id is None:
-            return False
-        try:
-            latest_version = Version.objects.get_for_object(self).latest(
-                'revision__date_created'
-            )
-        except Version.DoesNotExist:
-            return False
-        latest_version_object = latest_version._object_version.object
-        fields = self.get_version_fields()
-        return all(
-            [getattr(self, f) == getattr(latest_version_object, f) for f in fields]
-        )
-
-    def save(self, **kwargs):
-        if self._is_version_duplicate():
-            return super(ReversionMixin, self).save(**kwargs)
-        with reversion.create_revision():
-            return super(ReversionMixin, self).save(**kwargs)
 
 
 # XXX: consider renaming it to AffinityMixin

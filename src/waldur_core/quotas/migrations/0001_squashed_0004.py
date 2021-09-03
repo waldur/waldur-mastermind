@@ -47,11 +47,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            bases=(
-                waldur_core.logging.loggers.LoggableMixin,
-                waldur_core.core.models.ReversionMixin,
-                models.Model,
-            ),
+            bases=(waldur_core.logging.loggers.LoggableMixin, models.Model,),
         ),
         migrations.AlterUniqueTogether(
             name='quota', unique_together=set([('name', 'content_type', 'object_id')]),
