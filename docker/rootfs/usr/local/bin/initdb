@@ -13,4 +13,7 @@ gosu waldur sh -c "waldur update_translation_fields"
 echo "INFO: Recalculating quotas..."
 gosu waldur sh -c "waldur recalculatequotas"
 
+echo "INFO: Loading features..."
+gosu waldur sh -c "load_features /etc/waldur/features.json"
+
 exit 0
