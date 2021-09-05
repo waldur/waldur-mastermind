@@ -140,6 +140,7 @@ Upload configuration guide:
   variables:
     CONF_GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
     CLI_GUIDE_PATH: docs/admin-guide/mastermind-configuration/cli-guide.md
+    FEATURES_GUIDE_PATH: docs/admin-guide/mastermind-configuration/features.md
     DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
   script:
     - poetry install
@@ -149,6 +150,7 @@ Upload configuration guide:
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
     - waldur print_settings > $CONF_GUIDE_PATH
+    - waldur print_features > $FEATURES_GUIDE_PATH
     - waldur print_commands > $CLI_GUIDE_PATH
     - git add $CONF_GUIDE_PATH $CLI_GUIDE_PATH
     - git commit -m "Update configuration and CLI guide" || exit 0

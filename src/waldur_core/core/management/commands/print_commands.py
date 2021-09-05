@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand
 BLACK_LIST = [
     'print_commands',
     'print_settings',
+    'print_features',
     'print_schema',
     'export_api_docs',
     'export_api_docs',
