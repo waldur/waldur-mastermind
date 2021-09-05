@@ -7,7 +7,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for section in sorted(FEATURES, key=lambda section: section['key']):
             for feature in sorted(section['items'], key=lambda section: section['key']):
-                print(
-                    f'* **{section["key"]}.{feature["key"]}**: {feature["description"]}'
-                )
+                print(f'### {section["key"]}.{feature["key"]}')
+                print()
+                print(feature["description"])
                 print()
