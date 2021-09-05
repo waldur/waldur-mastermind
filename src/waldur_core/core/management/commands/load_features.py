@@ -51,6 +51,7 @@ class Command(DryRunCommand):
                         if feature.value != value:
                             feature.value = value
                             feature.save(update_fields=['value'])
+                            self.style.NOTICE(f'Setting {key} to {value}.')
                             changed += 1
                     except Feature.DoesNotExist:
                         Feature.objects.create(key=key, value=value)
