@@ -48,21 +48,22 @@ class Command(DryRunCommand):
             else:
                 changed = 0
                 for key, value in features.items():
-                    if (
-                        Feature.objects.filter(key=key)
-                        .exclude(value=value)
-                        .update(value=value)
-                    ):
+                    try:
+                        feature = Feature.objects.get(key=key)
+                        if feature.value != value:
+                            feature.value = value
+                            feature.save(update_fields=['value'])
+                            changed += 1
+                    except Feature.DoesNotExist:
+                        Feature.objects.create(key=key, value=value)
                         changed += 1
                 if changed == 0:
                     self.stdout.write(
-                        self.style.SUCCESS((f'No features have been updated.'))
+                        self.style.SUCCESS('No features have been updated.')
                     )
                 elif changed == 1:
-                    self.stdout.write(
-                        self.style.SUCCESS((f'1 feature has been updated.'))
-                    )
+                    self.stdout.write(self.style.SUCCESS('1 feature has been updated.'))
                 else:
                     self.stdout.write(
-                        self.style.SUCCESS((f'{changed} features have been updated.'))
+                        self.style.SUCCESS(f'{changed} features have been updated.')
                     )
