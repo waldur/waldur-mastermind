@@ -14,6 +14,6 @@ echo "INFO: Recalculating quotas..."
 gosu waldur sh -c "waldur recalculatequotas"
 
 echo "INFO: Loading features..."
-gosu waldur sh -c "load_features /etc/waldur/features.json"
+gosu waldur sh -c "waldur load_features /etc/waldur/features.json"
 
 exit 0
