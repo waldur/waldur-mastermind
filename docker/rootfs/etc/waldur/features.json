@@ -1,0 +1,20 @@
+{
+"customer.billing": true,
+"marketplace.import_resources": true,
+"user.notifications": true,
+"project.estimated_cost": true,
+"support.users": true,
+"support.customers_list": true,
+"support.resources_treemap": true,
+"support.shared_providers": true,
+"customer.team": true,
+"project.team": true,
+"support.offering_comments": false,
+"marketplace.private_offerings": true,
+"openstack.volume_types": true,
+"marketplace.terms_of_service": true,
+"project.member_role": true,
+"user.ssh_keys": true,
+"customer.events": true,
+"project.events": true
+}
