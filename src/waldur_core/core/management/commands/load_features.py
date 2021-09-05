@@ -40,9 +40,7 @@ class Command(DryRunCommand):
                     if old_value != new_value:
                         self.stdout.write(
                             self.style.SUCCESS(
-                                (
-                                    f'Feature {key} would be changed from {old_value} to {new_value}'
-                                )
+                                f'Feature {key} would be changed from {old_value} to {new_value}'
                             )
                         )
             else:
