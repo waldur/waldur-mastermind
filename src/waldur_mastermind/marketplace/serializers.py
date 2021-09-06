@@ -164,10 +164,18 @@ class CategorySerializer(
 
     @staticmethod
     def eager_load(queryset, request):
-        offerings = (
-            models.Offering.objects.filter(state=models.Offering.States.ACTIVE)
-            .filter(category=OuterRef('pk'))
-            .filter_for_user(request.user)
+        offerings_states = request.GET.getlist('customers_offerings_state')
+        customer_uuid = request.GET.get('customer_uuid')
+
+        if offerings_states and customer_uuid:
+            offerings = models.Offering.objects.filter(state__in=offerings_states)
+        else:
+            offerings = models.Offering.objects.filter(
+                state=models.Offering.States.ACTIVE
+            )
+
+        offerings = offerings.filter(category=OuterRef('pk')).filter_for_user(
+            request.user
         )
 
         allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')
@@ -177,6 +185,9 @@ class CategorySerializer(
         project_uuid = request.query_params.get('project_uuid')
         if project_uuid and core_utils.is_uuid_like(project_uuid):
             offerings = offerings.filter_for_project(project_uuid)
+
+        if customer_uuid:
+            offerings = offerings.filter(customer__uuid=customer_uuid)
 
         offerings = offerings.annotate(count=Count('*')).values('count')
 
