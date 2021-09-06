@@ -203,15 +203,16 @@ class WaldurCore(BaseModel):
     )
 
     INVITATION_CIVIL_NUMBER_LABEL = Field(
-        'Custom label for civil number field in invitation creation dialog.'
+        description='Custom label for civil number field in invitation creation dialog.'
     )
 
     INVITATION_CIVIL_NUMBER_HELP_TEXT = Field(
-        'Help text for civil number field in invitation creation dialog.'
+        'Must start with a country prefix ie EE34501234215',
+        description='Help text for civil number field in invitation creation dialog.',
     )
 
     INVITATION_TAX_NUMBER_LABEL = Field(
-        'Custom label for tax number field in invitation creation dialog.'
+        description='Custom label for tax number field in invitation creation dialog.'
     )
 
     class Meta:
