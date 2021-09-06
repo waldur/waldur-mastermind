@@ -202,6 +202,18 @@ class WaldurCore(BaseModel):
         "Possible values are: job_title, registration_method, phone_number",
     )
 
+    INVITATION_CIVIL_NUMBER_LABEL = Field(
+        'Custom label for civil number field in invitation creation dialog.'
+    )
+
+    INVITATION_CIVIL_NUMBER_HELP_TEXT = Field(
+        'Help text for civil number field in invitation creation dialog.'
+    )
+
+    INVITATION_TAX_NUMBER_LABEL = Field(
+        'Custom label for tax number field in invitation creation dialog.'
+    )
+
     class Meta:
         public_settings = [
             'CURRENCY_NAME',
@@ -228,6 +240,9 @@ class WaldurCore(BaseModel):
             'FULL_PAGE_TITLE',
             'USER_MANDATORY_FIELDS',
             'USER_REGISTRATION_HIDDEN_FIELDS',
+            'INVITATION_CIVIL_NUMBER_LABEL',
+            'INVITATION_CIVIL_NUMBER_HELP_TEXT',
+            'INVITATION_TAX_NUMBER_LABEL',
         ]
 
 
