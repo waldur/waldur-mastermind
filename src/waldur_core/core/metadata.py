@@ -182,6 +182,8 @@ class WaldurCore(BaseModel):
         'Each item should be object with label and url fields. '
         'For example: {"label": "Helpdesk", "url": "https://example.com/"}',
     )
+    SHORT_PAGE_TITLE = Field('Waldur')
+    FULL_PAGE_TITLE = Field('Waldur | Cloud Service Management')
 
     class Meta:
         public_settings = [
@@ -205,6 +207,8 @@ class WaldurCore(BaseModel):
             'SUPPORT_PORTAL_URL',
             'DOCS_URL',
             'EXTERNAL_LINKS',
+            'SHORT_PAGE_TITLE',
+            'FULL_PAGE_TITLE',
         ]
 
 
