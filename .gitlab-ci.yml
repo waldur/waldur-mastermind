@@ -55,6 +55,19 @@ Run unit tests:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
     # If event is related to a created merge request
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - Dockerfile
+        - docker/**/*
+        - README.rst
+        - LICENSE.md
+        - .*
+        - MANIFEST.in
+        - schema.json
+        - docs/*
+        - docs/**/*
+        - docs/***/*
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   services:
     - name: "$CI_REGISTRY/waldur/waldur-pipelines/postgres:12-alpine"
       alias: postgres
@@ -95,6 +108,21 @@ Run unit tests:
       junit: report.xml
       cobertura: coverage.xml
   parallel: 10
+
+Try building docker image:
+  image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+  stage: test
+  interruptible: true
+  rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - Dockerfile
+        - docker/**/*
+  script:
+    - docker build -t waldur-mastermind:$CI_COMMIT_REF_SLUG .
 
 Build docker image for tests:
   stage: build
