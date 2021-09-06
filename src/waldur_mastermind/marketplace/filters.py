@@ -525,11 +525,25 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         method='filter_customer_uuid', label='Customer UUID'
     )
 
+    customers_offerings_state = django_filters.MultipleChoiceFilter(
+        choices=models.Offering.States.CHOICES,
+        label='Customers offerings state',
+        method='filter_customers_offerings_state',
+    )
+
     def filter_customer_uuid(self, queryset, name, value):
-        category_ids = models.Offering.objects.filter(customer__uuid=value).values_list(
-            'category_id', flat=True
-        )
+        states = self.request.GET.getlist('customers_offerings_state')
+        offerings = models.Offering.objects.filter(customer__uuid=value)
+
+        if states:
+            offerings = offerings.filter(state__in=states)
+
+        category_ids = offerings.values_list('category_id', flat=True)
+
         return queryset.filter(id__in=category_ids)
+
+    def filter_customers_offerings_state(self, queryset, name, value):
+        return queryset
 
 
 def user_extra_query(user):
