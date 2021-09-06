@@ -166,6 +166,10 @@ class SupportSection(FeatureSection):
         'Render comments tab in request-based item details page.'
     )
 
+    conceal_change_request = Feature(
+        'Conceal "Change request" from a selection of issue types for non-staff/non-support users.'
+    )
+
 
 class InvitationsSection(FeatureSection):
     class Meta:
