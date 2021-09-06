@@ -60,6 +60,10 @@ class CustomerSection(FeatureSection):
 
     events = Feature('Enable audit log in organization workspace.')
 
+    hide_organization_billing_step = Feature(
+        'Hide billing step in organization creation wizard.'
+    )
+
 
 class ProjectSection(FeatureSection):
     class Meta:
