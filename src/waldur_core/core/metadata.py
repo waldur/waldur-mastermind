@@ -182,8 +182,25 @@ class WaldurCore(BaseModel):
         'Each item should be object with label and url fields. '
         'For example: {"label": "Helpdesk", "url": "https://example.com/"}',
     )
-    SHORT_PAGE_TITLE = Field('Waldur')
-    FULL_PAGE_TITLE = Field('Waldur | Cloud Service Management')
+    SHORT_PAGE_TITLE = Field(
+        'Waldur', description="it is used as prefix for page title."
+    )
+    FULL_PAGE_TITLE = Field(
+        'Waldur | Cloud Service Management',
+        description="It is used as default page title if it's not specified explicitly.",
+    )
+    USER_MANDATORY_FIELDS: List[str] = Field(
+        ['full_name', 'email'],
+        description="List of user profile attributes that would be required for filling in HomePort. "
+        "Note that backend will not be affected. If a mandatory field is missing in profile, "
+        "a profile edit view will be forced upon user on any HomePort logged in action. "
+        "Possible values are: description, email, full_name, job_title, organization, phone_number",
+    )
+    USER_REGISTRATION_HIDDEN_FIELDS: List[str] = Field(
+        ['registration_method', 'job_title', 'phone_number', 'organization',],
+        description="List of user profile attributes that would be concealed on registration form in HomePort. "
+        "Possible values are: job_title, registration_method, phone_number",
+    )
 
     class Meta:
         public_settings = [
@@ -209,6 +226,8 @@ class WaldurCore(BaseModel):
             'EXTERNAL_LINKS',
             'SHORT_PAGE_TITLE',
             'FULL_PAGE_TITLE',
+            'USER_MANDATORY_FIELDS',
+            'USER_REGISTRATION_HIDDEN_FIELDS',
         ]
 
 
