@@ -190,6 +190,20 @@ class InvitationsSection(FeatureSection):
         'same project or organization using invitation.'
     )
 
+    show_tax_number = Feature('Show tax number field in invitation creation form.')
+
+    tax_number_required = Feature(
+        'Make tax number field mandatory in invitation creation form.'
+    )
+
+    civil_number_required = Feature(
+        'Make civil number field mandatory in invitation creation form.'
+    )
+
+    require_user_details = Feature(
+        'Render "Show user details" button in invitation creation form.'
+    )
+
 
 class InvoiceSection(FeatureSection):
     class Meta:
