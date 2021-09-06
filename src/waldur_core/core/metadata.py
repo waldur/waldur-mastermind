@@ -217,6 +217,10 @@ class WaldurCore(BaseModel):
         description='Custom label for tax number field in invitation creation dialog.',
     )
 
+    HOMEPORT_SENTRY_DSN: Optional[str] = Field(
+        description='Sentry Data Source Name for Waldur HomePort project.'
+    )
+
     class Meta:
         public_settings = [
             'CURRENCY_NAME',
@@ -246,6 +250,7 @@ class WaldurCore(BaseModel):
             'INVITATION_CIVIL_NUMBER_LABEL',
             'INVITATION_CIVIL_NUMBER_HELP_TEXT',
             'INVITATION_TAX_NUMBER_LABEL',
+            'HOMEPORT_SENTRY_DSN',
         ]
 
 
