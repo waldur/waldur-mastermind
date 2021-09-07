@@ -158,7 +158,9 @@ class Invoice(core_models.UuidMixin, models.Model):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
-class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
+class InvoiceItem(
+    core_models.UuidMixin, common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin
+):
     """
     It is expected that get_scope_type method is defined as class method in scope class
     as it is used in generic invoice item serializer.

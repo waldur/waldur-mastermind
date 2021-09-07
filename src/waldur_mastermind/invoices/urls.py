@@ -3,6 +3,7 @@ from waldur_mastermind.invoices import views
 
 def register_in(router):
     router.register(r'invoices', views.InvoiceViewSet, basename='invoice')
+    router.register(r'invoice-items', views.InvoiceItemViewSet, basename='invoice-item')
     router.register(
         r'payment-profiles', views.PaymentProfileViewSet, basename='payment-profile',
     )

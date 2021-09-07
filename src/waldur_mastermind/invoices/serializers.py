@@ -29,6 +29,8 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.InvoiceItem
         fields = (
+            'uuid',
+            'url',
             'name',
             'price',
             'tax',
@@ -50,7 +52,34 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'resource_name',
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            'url': {'lookup_field': 'uuid', 'view_name': 'invoice-item-detail'},
+            'resource': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-resource-detail',
+            },
+        }
+
+
+class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.InvoiceItem
+        fields = (
+            'invoice',
+            'resource',
+            'uuid',
+            'article_code',
+            'unit_price',
+            'unit',
+            'quantity',
+            'measured_unit',
+            'name',
+            'start',
+            'end',
+            'details',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'invoice-item-detail'},
+            'invoice': {'lookup_field': 'uuid', 'view_name': 'invoice-detail'},
             'resource': {
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-resource-detail',

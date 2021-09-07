@@ -232,6 +232,25 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         return Response(result, status=status.HTTP_200_OK)
 
 
+class InvoiceItemViewSet(core_views.ActionsViewSet):
+    queryset = models.InvoiceItem.objects.all()
+    serializer_class = serializers.InvoiceItemDetailSerializer
+    lookup_field = 'uuid'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_staff:
+            return qs
+        else:
+            return qs.none()
+
+    create_permissions = (
+        update_permissions
+    ) = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_staff
+    ]
+
+
 class PaymentProfileViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     filter_backends = (
