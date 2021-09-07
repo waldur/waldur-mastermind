@@ -391,6 +391,8 @@ class Offering(
     native_name = models.CharField(max_length=160, default='', blank=True)
     native_description = models.CharField(max_length=500, default='', blank=True)
     terms_of_service = models.TextField(blank=True)
+    terms_of_service_link = models.URLField(blank=True)
+    privacy_policy_link = models.URLField(blank=True)
 
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)

@@ -704,6 +704,8 @@ class OfferingDetailsSerializer(
             'description',
             'full_description',
             'terms_of_service',
+            'terms_of_service_link',
+            'privacy_policy_link',
             'customer',
             'customer_uuid',
             'customer_name',
