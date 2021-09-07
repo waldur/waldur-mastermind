@@ -518,7 +518,10 @@ class RemoteEduteamsView(views.APIView):
         try:
             token_response = requests.post(
                 token_url,
-                auth=(EDUTEAMS_CLIENT_ID, EDUTEAMS_SECRET),
+                auth=(
+                    settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_CLIENT_ID'],
+                    settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_SECRET'],
+                ),
                 data={
                     'grant_type': 'refresh_token',
                     'refresh_token': self.get_token(),
