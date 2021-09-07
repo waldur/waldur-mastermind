@@ -54,6 +54,106 @@ class OfferingGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class OfferingPlanInfoTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(shared=True)
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.FIXED,
+        )
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.plan_component = factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+
+    def test_plan_info(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self._check_plan_info(models.OfferingComponent.BillingTypes.FIXED, 'fixed')
+        self._check_plan_info(
+            models.OfferingComponent.BillingTypes.USAGE, 'usage-based'
+        )
+        self._check_plan_info(
+            models.OfferingComponent.BillingTypes.ONE_TIME, 'one-time'
+        )
+        self._check_plan_info(
+            models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH, 'on-plan-switch'
+        )
+
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.FIXED,
+            type='ram',
+            name='RAM',
+        )
+        self.plan_component = factories.PlanComponentFactory(
+            plan=self.plan, component=offering_component
+        )
+
+        self._check_plan_info(
+            models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH, 'mixed'
+        )
+
+    def test_minimal_price(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.LIMIT
+        )
+        self.plan_component.price = 10
+        self._check_minimal_price(10)
+
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.FIXED
+        )
+        self.plan_component.price = 100
+        self.plan_component.amount = 0
+        self._check_minimal_price(100)
+
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.FIXED
+        )
+        self.plan_component.price = 100
+        self.plan_component.amount = 1
+        self._check_minimal_price(100)
+
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.ONE_TIME
+        )
+        self.plan_component.price = 200
+        self._check_minimal_price(200)
+
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
+        )
+        self.plan_component.price = 300
+        self._check_minimal_price(0)
+
+        self.offering_component.billing_type = (
+            models.OfferingComponent.BillingTypes.USAGE
+        )
+        self.plan_component.price = 500
+        self._check_minimal_price(0)
+
+    def _check_minimal_price(self, minimal_price):
+        self.offering_component.save()
+        self.plan_component.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['plans'][0]['minimal_price'], minimal_price)
+
+    def _check_plan_info(self, billing_type, plan_type):
+        self.offering_component.billing_type = billing_type
+        self.offering_component.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['plans'][0]['plan_type'], plan_type)
+
+
 @ddt
 class SecretOptionsTests(test.APITransactionTestCase):
     def setUp(self):
