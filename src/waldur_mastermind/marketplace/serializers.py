@@ -265,6 +265,8 @@ class BasePlanSerializer(
         if method == 'GET':
             fields['prices'] = serializers.SerializerMethodField()
             fields['quotas'] = serializers.SerializerMethodField()
+            fields['plan_type'] = serializers.SerializerMethodField()
+            fields['minimal_price'] = serializers.SerializerMethodField()
         return fields
 
     def get_prices(self, plan):
@@ -272,6 +274,55 @@ class BasePlanSerializer(
 
     def get_quotas(self, plan):
         return {item.component.type: item.amount for item in plan.components.all()}
+
+    def get_plan_type(self, plan):
+        plan_type = None
+        components_types = set()
+
+        for plan_component in plan.components.all():
+            offering_component = plan_component.component
+
+            if plan_component.price:
+                components_types.add(offering_component.billing_type)
+
+        if len(components_types) == 1:
+            if models.OfferingComponent.BillingTypes.USAGE in components_types:
+                plan_type = 'usage-based'
+            if models.OfferingComponent.BillingTypes.FIXED in components_types:
+                plan_type = 'fixed'
+            if models.OfferingComponent.BillingTypes.ONE_TIME in components_types:
+                plan_type = 'one-time'
+            if models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH in components_types:
+                plan_type = 'on-plan-switch'
+        elif len(components_types) > 1:
+            plan_type = 'mixed'
+
+        return plan_type
+
+    def get_minimal_price(self, plan):
+        price = 0
+
+        for plan_component in plan.components.all():
+            offering_component = plan_component.component
+
+            if plan_component.price:
+                if (
+                    offering_component.billing_type
+                    == models.OfferingComponent.BillingTypes.LIMIT
+                ):
+                    price += plan_component.price
+                elif (
+                    offering_component.billing_type
+                    == models.OfferingComponent.BillingTypes.FIXED
+                ):
+                    price += plan_component.price * (plan_component.amount or 1)
+                elif (
+                    offering_component.billing_type
+                    == models.OfferingComponent.BillingTypes.ONE_TIME
+                ):
+                    price += plan_component.price
+
+        return price
 
     def validate_description(self, value):
         return clean_html(value)
