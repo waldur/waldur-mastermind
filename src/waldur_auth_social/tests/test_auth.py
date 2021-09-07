@@ -202,6 +202,8 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
         'REMOTE_EDUTEAMS_ACCESS_TOKEN': '28c5353b8bb34984a8bd4169ba94c606',
         'REMOTE_EDUTEAMS_USERINFO_URL': 'https://proxy.acc.researcher-access.org/api/userinfo',
         'REMOTE_EDUTEAMS_TOKEN_URL': 'https://proxy.acc.researcher-access.org/OIDC/token',
+        'REMOTE_EDUTEAMS_CLIENT_ID': 'WaldurId',
+        'REMOTE_EDUTEAMS_SECRET': 'WaldurSecret',
     }
 )
 class RemoteEduteamsTest(test.APITransactionTestCase):
