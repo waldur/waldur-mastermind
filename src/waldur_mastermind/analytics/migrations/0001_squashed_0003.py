@@ -3,12 +3,6 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
-def import_quotas(apps, schema_editor):
-    from waldur_mastermind.analytics.utils import import_daily_usage
-
-    import_daily_usage()
-
-
 class Migration(migrations.Migration):
 
     initial = True
@@ -46,7 +40,6 @@ class Migration(migrations.Migration):
                 ),
             ],
         ),
-        migrations.RunPython(import_quotas),
         migrations.AlterField(
             model_name='dailyquotahistory',
             name='content_type',
