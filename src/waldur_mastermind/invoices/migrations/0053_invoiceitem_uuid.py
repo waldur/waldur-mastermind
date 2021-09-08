@@ -1,6 +1,6 @@
 import uuid
 
-from django.db import migrations
+from django.db import migrations, models
 
 import waldur_core.core.fields
 
@@ -20,9 +20,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='invoiceitem',
-            name='uuid',
-            field=waldur_core.core.fields.UUIDField(null=True),
+            model_name='invoiceitem', name='uuid', field=models.UUIDField(null=True),
         ),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(
