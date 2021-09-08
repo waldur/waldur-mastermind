@@ -9,7 +9,7 @@ description = "Waldur MasterMind is a hybrid cloud orchestrator."
 authors = ["OpenNode Team <info@opennodecloud.com>"]
 license = "MIT"
 homepage = "https://waldur.com"
-documentation = "http://docs.waldur.com"
+documentation = "https://docs.waldur.com"
 classifiers=[
   "Framework :: Django",
   "Intended Audience :: Developers",
