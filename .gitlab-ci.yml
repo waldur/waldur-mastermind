@@ -56,18 +56,9 @@ Run unit tests:
     # If event is related to a created merge request
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
-        - Dockerfile
-        - docker/**/*
-        - README.rst
-        - LICENSE.md
-        - .*
-        - MANIFEST.in
-        - schema.json
-        - docs/*
-        - docs/**/*
-        - docs/***/*
-      when: never
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+        - src/**/*
+        - pyproject.toml
+        - poetry.lock
   services:
     - name: "$CI_REGISTRY/waldur/waldur-pipelines/postgres:12-alpine"
       alias: postgres
