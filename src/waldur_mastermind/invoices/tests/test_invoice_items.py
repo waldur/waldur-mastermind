@@ -24,6 +24,9 @@ class InvoiceItemCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(1, self.fixture.invoice.items.count())
         self.assertEqual(self.resource, self.fixture.invoice.items.get().resource)
+        self.assertEqual(
+            self.resource.project, self.fixture.invoice.items.get().project
+        )
 
     def test_non_staff_can_not_create_invoice_item(self):
         self.client.force_authenticate(self.fixture.user)

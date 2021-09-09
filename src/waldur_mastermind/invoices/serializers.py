@@ -86,6 +86,12 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
+    def create(self, validated_data):
+        resource = validated_data.get('resource')
+        if resource:
+            validated_data['project'] = resource.project
+        return super().create(validated_data)
+
 
 class InvoiceSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
