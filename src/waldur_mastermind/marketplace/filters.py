@@ -330,6 +330,9 @@ class ResourceFilter(
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     project_name = django_filters.CharFilter(field_name='project__name')
     customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    customer = core_filters.URLFilter(
+        view_name='customer-detail', field_name='project__customer__uuid'
+    )
     service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
