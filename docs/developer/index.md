@@ -1,0 +1,16 @@
+# Developer documentation
+
+- [Workflow](workflow.md)
+- [Documentation](documentation.md)
+- [Settings policy](settings-policy.md)
+- [Permissions](permissions.md)
+- [Managed entities](managed-entities.md)
+- [Logging](logging.md)
+- [Quotas](quotas.md)
+- [Tasks and executors](tasks-and-executors.md)
+- [How to write serializers](how-to-write-serializers.md)
+- [How to write views](how-to-write-views.md)
+- [How to write tests](how-to-write-tests.md)
+- [How to write docs](how-to-write-docs.md)
+- [Internationalization](i18n.md)
+- [Django axes usage](django-axes.md)
