@@ -1,42 +1,9 @@
 from rest_framework import status, test
 
 from waldur_mastermind.invoices.tests import factories, fixtures
-from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class InvoiceItemCreateTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.InvoiceFixture()
-        self.resource = marketplace_factories.ResourceFactory()
-        self.payload = {
-            'invoice': factories.InvoiceFactory.get_url(self.fixture.invoice),
-            'name': 'First invoice item',
-            'quantity': 10,
-            'unit_price': 7,
-            'resource': marketplace_factories.ResourceFactory.get_url(self.resource),
-        }
-
-    def test_staff_can_create_invoice_item(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(
-            factories.InvoiceItemFactory.get_list_url(), self.payload
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(1, self.fixture.invoice.items.count())
-        self.assertEqual(self.resource, self.fixture.invoice.items.get().resource)
-        self.assertEqual(
-            self.resource.project, self.fixture.invoice.items.get().project
-        )
-
-    def test_non_staff_can_not_create_invoice_item(self):
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.post(
-            factories.InvoiceItemFactory.get_list_url(), self.payload
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
-class InvoiceDeleteTest(test.APITransactionTestCase):
+class InvoiceItemDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -55,24 +22,61 @@ class InvoiceDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class InvoiceUpdateTest(test.APITransactionTestCase):
+class InvoiceItemUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
-    def test_staff_can_update_invoice_item(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(
+    def update_invoice_item(self, user):
+        self.client.force_authenticate(user)
+        return self.client.patch(
             factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
-            {'name': 'Updated name'},
+            {'article_code': 'AA11'},
         )
+
+    def test_staff_can_update_invoice_item(self):
+        response = self.update_invoice_item(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.invoice_item.refresh_from_db()
-        self.assertEqual('Updated name', self.fixture.invoice_item.name)
+        self.assertEqual('AA11', self.fixture.invoice_item.article_code)
 
     def test_non_staff_can_not_update_invoice_item(self):
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.patch(
-            factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
-            {'name': 'Updated name'},
+        response = self.update_invoice_item(self.fixture.user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class InvoiceItemCompensationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.item = self.fixture.invoice_item
+
+    def create_compensation(self, user, offering_component_name='Compensation'):
+        self.client.force_authenticate(user)
+        url = factories.InvoiceItemFactory.get_url(self.item, 'create_compensation')
+        return self.client.post(
+            url, {'offering_component_name': offering_component_name}
         )
+
+    def test_staff_can_create_compensation(self):
+        response = self.create_compensation(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_new_invoice_item_has_valid_details(self):
+        self.create_compensation(self.fixture.staff)
+        new_invoice_item = self.fixture.invoice.items.last()
+        self.assertEqual(
+            str(new_invoice_item.details['original_invoice_item_uuid']),
+            str(self.item.uuid),
+        )
+        self.assertEqual(
+            new_invoice_item.details['offering_component_name'], 'Compensation'
+        )
+
+    def test_compensation_for_invoice_item_with_negative_price_is_invalid(self):
+        self.item.unit_price *= -1
+        self.item.save()
+        response = self.create_compensation(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_non_staff_can_not_create_compensation(self):
+        response = self.create_compensation(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import uuid
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
@@ -233,6 +234,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
+    disabled_actions = ['create']
     queryset = models.InvoiceItem.objects.all()
     serializer_class = serializers.InvoiceItemDetailSerializer
     lookup_field = 'uuid'
@@ -244,7 +246,50 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         else:
             return qs.none()
 
-    create_permissions = (
+    @transaction.atomic
+    @action(detail=True, methods=['post'])
+    def create_compensation(self, request, **kwargs):
+        invoice_item = self.get_object()
+
+        serializer = self.get_serializer_class()(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering_component_name = serializer.validated_data['offering_component_name']
+
+        if invoice_item.unit_price < 0:
+            return Response(
+                'Can not create compensation for invoice item with negative unit price.',
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        year, month = utils.get_current_year(), utils.get_current_month()
+        invoice, _ = models.Invoice.objects.get_or_create(
+            customer=invoice_item.invoice.customer, month=month, year=year,
+        )
+
+        # Fill new invoice item details
+        if not invoice_item.details:
+            invoice_item.details = {}
+        invoice_item.details['original_invoice_item_uuid'] = invoice_item.uuid.hex
+        invoice_item.details['offering_component_name'] = offering_component_name
+
+        # Save new invoice item to database
+        invoice_item.invoice = invoice
+        invoice_item.pk = None
+        invoice_item.uuid = uuid.uuid4()
+        invoice_item.unit_price *= -1
+        invoice_item.save()
+
+        return Response(
+            {'invoice_item_uuid': invoice_item.uuid.hex},
+            status=status.HTTP_201_CREATED,
+        )
+
+    create_compensation_serializer_class = serializers.InvoiceItemCompensationSerializer
+
+    update_serializer_class = serializers.InvoiceItemUpdateSerializer
+
+    partial_update_serializer_class = serializers.InvoiceItemUpdateSerializer
+
+    create_compensation_permissions = (
         update_permissions
     ) = partial_update_permissions = destroy_permissions = [
         structure_permissions.is_staff
