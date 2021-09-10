@@ -52,7 +52,7 @@ common quota.
 
 ## Check is quota exceeded
 
-To check is one separate quota exceeded - use ``is_exceeded`` method of quota.  It can receive usage delta or
+To check is one separate quota exceeded - use ``is_exceeded`` method of quota. It can receive usage delta or
 threshold and check is quota exceeds considering delta and/or threshold.
 
 To check is any of object or his ancestors quotas exceeded - use ``validate_quota_change`` method of object with quotas.

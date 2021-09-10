@@ -1,22 +1,19 @@
-# Welcome to Waldur MasterMind documentation!
+# Developer documentation
 
-Waldur MasterMind is a RESTful server for management of IT
-infrastructure. It uses a project-based approach for separation of
-managed resources (VMs, subnets, applications and more).
-
-Features include:
-
-- flexible user and project management;
-- delegation of privileges natural for enterprise setups: owners, managers and administrators;
-- support for multiple IaaS back-ends;
-- support for billing.
-
-## Outline
-
-- [Guide](guide/index)
-- [Developer](developer/index)
-- [Plugins](plugins/index)
-
-## License
-
-Waldur MasterMind plugin is open-source under MIT license.
+- [Installation from source code](install-from-src.md)
+- [Workflow](workflow.md)
+- [Documentation](documentation.md)
+- [Settings policy](settings-policy.md)
+- [Permissions](permissions.md)
+- [Managed entities](managed-entities.md)
+- [Resource actions](resource-actions.md)
+- [Logging](logging.md)
+- [Background processing](background.md)
+- [Quotas](quotas.md)
+- [Tasks and executors](tasks-and-executors.md)
+- [How to write serializers](how-to-write-serializers.md)
+- [How to write views](how-to-write-views.md)
+- [How to write tests](how-to-write-tests.md)
+- [How to write docs](how-to-write-docs.md)
+- [Internationalization](i18n.md)
+- [Plugins](plugins/index.md)
