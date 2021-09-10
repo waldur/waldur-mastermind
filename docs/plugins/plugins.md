@@ -19,26 +19,11 @@ should be implemented.
 Add an entry point of name `waldur_extensions` to your package
 `setup.py`. Example:
 
-``` python
-entry_points={
-    'waldur_extensions': ('waldur_demo = waldur_demo.extension:DemoExtension',)
-}
-```
-
-## Plugin structure
-
-In order to create proper plugin repository structure, please execute
-following steps:
-
-1. [Install cookiecutter](https://cookiecutter.readthedocs.org/en/latest/installation.html)
-2. Install Waldur plugin cookiecutter:
-
-> ``` bash
-> cookiecutter https://github.com/opennode/cookiecutter-waldur-plugin.git
+> ``` python
+> entry_points={
+>     'waldur_extensions': ('waldur_demo = waldur_demo.extension:DemoExtension',)
+> }
 > ```
-
-You will be prompted to enter values of some variables. Note, that in
-brackets will be suggested default values.
 
 ## Plugin documentation
 
