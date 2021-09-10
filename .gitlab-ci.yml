@@ -172,7 +172,6 @@ Upload configuration guide:
     - waldur print_settings > $CONF_GUIDE_PATH
     - waldur print_features > $FEATURES_GUIDE_PATH
     - waldur print_commands > $CLI_GUIDE_PATH
-    - mkdir -pv $DEVELOPER_DOCS_PATH $ADMIN_PLUGINS_DOCS_PATH $USER_DOCS_PATH || true
     - cp -rv $CI_PROJECT_DIR/docs/ > $DEVELOPER_DOCS_PATH
     - git add $CONF_GUIDE_PATH $FEATURES_GUIDE_PATH $CLI_GUIDE_PATH $DEVELOPER_DOCS_PATH
     - git commit -m "Update configuration, CLI guide and developer guide" || exit 0
