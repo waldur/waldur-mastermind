@@ -35,12 +35,12 @@ Common uses include:
 * Support of multiple authentication and authorization mechanisms
 * Billing and fine grained accounting
 
-Automated Provisioning:
+Automated provisioning:
 * OpenStack
 * SLURM
 * Kubernetes clusters using Rancher
 
-## Quick Install Guide
+## Quick install guide
 
 * [Deploy using docker-compose](https://docs.waldur.com/admin-guide/deployment/docker-compose/)
 * [Deploy on Kubernetes using Helm](https://docs.waldur.com/admin-guide/deployment/helm/)
@@ -61,6 +61,6 @@ Waldur MasterMind is released under MIT license.
 
 Waldur is an open-source project co-developed by OpenNode and University of Tartu. [Contribution](https://docs.waldur.com/about/contributing/) rules are maintained at documentation website.
 
-## Commercial Support
+## Commercial support
 
 For professional support and integration services please contact <info@opennodecloud.com>.
