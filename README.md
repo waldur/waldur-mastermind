@@ -11,22 +11,7 @@ Common uses include:
 
 [![Docs](https://img.shields.io/badge/Docs-docs.waldur.com-green)](https://docs.waldur.com)
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**
-
-- [Waldur MasterMind](#waldur-mastermind)
-  - [Features](#features)
-  - [Quick Install Guide](#quick-install-guide)
-  - [Development environment setup](#development-environment-setup)
-  - [Documentation](#documentation)
-  - [License](#license)
-  - [Contribution](#contribution)
-  - [Commercial Support](#commercial-support)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-![Waldur Screenshot](https://waldur.com/assets/img/screenshot-slider/homeport-org-dashboard.png)
+![Waldur Screenshot](https://docs.waldur.com/about/img/org-dashboard.png)
 
 ## Features
 
