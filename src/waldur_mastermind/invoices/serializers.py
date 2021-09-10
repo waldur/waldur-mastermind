@@ -93,6 +93,16 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
         return super().create(validated_data)
 
 
+class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.InvoiceItem
+        fields = ('article_code',)
+
+
+class InvoiceItemCompensationSerializer(serializers.Serializer):
+    offering_component_name = serializers.CharField()
+
+
 class InvoiceSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
