@@ -9,4 +9,11 @@ class InvitationAdmin(admin.ModelAdmin):
     search_fields = ('email', 'customer__name')
 
 
+class GroupInvitationAdmin(admin.ModelAdmin):
+    list_display = ('created', 'created_by', 'customer', 'project')
+    list_filter = ('created',)
+    search_fields = ('customer__name', 'project__name')
+
+
 admin.site.register(models.Invitation, InvitationAdmin)
+admin.site.register(models.GroupInvitation, GroupInvitationAdmin)

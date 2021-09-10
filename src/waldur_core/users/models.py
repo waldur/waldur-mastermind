@@ -7,11 +7,55 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
 
+class BaseInvitation(core_models.UuidMixin, TimeStampedModel):
+    class Meta:
+        abstract = True
+
+    created_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=settings.AUTH_USER_MODEL,
+        related_name='+',
+        blank=True,
+        null=True,
+    )
+
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Customer,
+        verbose_name=_('organization'),
+    )
+    customer_role = structure_models.CustomerRole(
+        verbose_name=_('organization role'), null=True, blank=True
+    )
+
+    project = models.ForeignKey(
+        on_delete=models.CASCADE, to=structure_models.Project, blank=True, null=True,
+    )
+    project_role = structure_models.ProjectRole(null=True, blank=True)
+
+
+class GroupInvitation(BaseInvitation):
+    is_active = models.BooleanField(default=True)
+
+    class Permissions:
+        customer_path = 'customer'
+
+    def get_expiration_time(self):
+        return self.created + settings.WALDUR_CORE['GROUP_INVITATION_LIFETIME']
+
+    def cancel(self):
+        self.is_active = False
+        self.save(update_fields=['is_active'])
+
+    def __str__(self):
+        if self.customer_role:
+            return '%s %s' % (self.customer, self.customer_role)
+
+        return '%s %s' % (self.project, self.project_role)
+
+
 class Invitation(
-    core_models.UuidMixin,
-    TimeStampedModel,
-    core_models.ErrorMessageMixin,
-    core_models.UserDetailsMixin,
+    BaseInvitation, core_models.ErrorMessageMixin, core_models.UserDetailsMixin,
 ):
     class Permissions:
         customer_path = 'customer'
@@ -33,13 +77,6 @@ class Invitation(
             (EXPIRED, 'Expired'),
         )
 
-    created_by = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=settings.AUTH_USER_MODEL,
-        related_name='+',
-        blank=True,
-        null=True,
-    )
     approved_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
@@ -47,25 +84,6 @@ class Invitation(
         blank=True,
         null=True,
     )
-
-    customer = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=structure_models.Customer,
-        verbose_name=_('organization'),
-        related_name='invitations',
-    )
-    customer_role = structure_models.CustomerRole(
-        verbose_name=_('organization role'), null=True, blank=True
-    )
-
-    project = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=structure_models.Project,
-        related_name='invitations',
-        blank=True,
-        null=True,
-    )
-    project_role = structure_models.ProjectRole(null=True, blank=True)
 
     state = models.CharField(
         max_length=10, choices=State.CHOICES, default=State.PENDING

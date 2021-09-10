@@ -37,6 +37,10 @@ class WaldurCore(BaseModel):
     INVITATION_LIFETIME = Field(
         timedelta(weeks=1), description='Defines for how long invitation remains valid.'
     )
+    GROUP_INVITATION_LIFETIME = Field(
+        timedelta(weeks=1),
+        description='Defines for how long group invitation remains valid.',
+    )
     OWNERS_CAN_MANAGE_OWNERS = Field(
         False,
         description='Enables organization owners to manage other organization owners.',

@@ -241,6 +241,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(hours=24),
         'args': (),
     },
+    'cancel_expired_group_invitations': {
+        'task': 'waldur_core.users.cancel_expired_group_invitations',
+        'schedule': timedelta(hours=24),
+        'args': (),
+    },
     'structure-set-erred-stuck-resources': {
         'task': 'waldur_core.structure.SetErredStuckResources',
         'schedule': timedelta(hours=1),

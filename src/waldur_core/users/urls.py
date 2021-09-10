@@ -5,3 +5,8 @@ def register_in(router):
     router.register(
         r'user-invitations', views.InvitationViewSet, basename='user-invitation'
     )
+    router.register(
+        r'user-group-invitations',
+        views.GroupInvitationViewSet,
+        basename='user-group-invitation',
+    )
