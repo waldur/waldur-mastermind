@@ -308,6 +308,7 @@ class BaseOpenStackBackend(ServiceBackend):
                 'security_group_rule'
             ],
             Tenant.Quotas.floating_ip_count: neutron_quotas['floatingip'],
+            Tenant.Quotas.port_count: neutron_quotas['port'],
             Tenant.Quotas.network_count: neutron_quotas['network'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet'],
         }
@@ -362,6 +363,7 @@ class BaseOpenStackBackend(ServiceBackend):
                 'security_group_rule'
             ]['used'],
             Tenant.Quotas.floating_ip_count: neutron_quotas['floatingip']['used'],
+            Tenant.Quotas.port_count: neutron_quotas['port']['used'],
             Tenant.Quotas.network_count: neutron_quotas['network']['used'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet']['used'],
             # Cinder quotas

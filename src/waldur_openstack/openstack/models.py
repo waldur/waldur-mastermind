@@ -175,6 +175,7 @@ class Tenant(structure_models.PrivateCloud):
         security_group_count = QuotaField(default_limit=100, is_backend=True)
         security_group_rule_count = QuotaField(default_limit=100, is_backend=True)
         floating_ip_count = QuotaField(default_limit=50, is_backend=True)
+        port_count = QuotaField(is_backend=True)
         volumes = QuotaField(default_limit=50, is_backend=True)
         volumes_size = QuotaField(is_backend=True)
         snapshots = QuotaField(default_limit=50, is_backend=True)
