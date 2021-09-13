@@ -428,6 +428,8 @@ class AttachmentSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
+    file_name = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Attachment
         fields = (
@@ -439,6 +441,7 @@ class AttachmentSerializer(
             'file',
             'mime_type',
             'file_size',
+            'file_name',
             'thumbnail',
             'backend_id',
         )
@@ -448,6 +451,10 @@ class AttachmentSerializer(
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
         )
         related_paths = dict(issue=('key',),)
+
+    def get_file_name(self, attachment):
+        _, file_name = os.path.split(attachment.file.name)
+        return file_name
 
     def validate(self, attrs):
         filename, file_extension = os.path.splitext(attrs['file'].name)
