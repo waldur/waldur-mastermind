@@ -480,7 +480,9 @@ class JiraBackend(ServiceBackend):
             backend_issue, attachment.file
         )
         attachment.backend_id = backend_attachment.id
-        attachment.save(update_fields=['backend_id'])
+        attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
+        attachment.file_size = backend_attachment.size
+        attachment.save(update_fields=['backend_id', 'mime_type', 'file_size'])
 
     @reraise_exceptions
     def delete_attachment(self, attachment):

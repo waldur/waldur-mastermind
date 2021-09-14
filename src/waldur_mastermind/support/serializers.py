@@ -445,7 +445,13 @@ class AttachmentSerializer(
             'thumbnail',
             'backend_id',
         )
-        read_only_fields = ('backend_id',)
+        read_only_fields = (
+            'mime_type',
+            'file_size',
+            'file_name',
+            'thumbnail',
+            'backend_id',
+        )
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
