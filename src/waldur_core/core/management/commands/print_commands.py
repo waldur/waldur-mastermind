@@ -9,7 +9,7 @@ BLACK_LIST = [
     'print_features',
     'print_schema',
     'export_api_docs',
-    'export_api_docs',
+    'print_events',
 ]
 
 

@@ -17,3 +17,4 @@
 - [How to write docs](how-to-write-docs.md)
 - [Internationalization](i18n.md)
 - [Plugins](plugins/index.md)
+- [Events](events.md)
