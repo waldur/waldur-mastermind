@@ -22,7 +22,11 @@ class UsersFilterTest(test.APITransactionTestCase):
         owner = self.fixture.owner
         manager = self.fixture.manager
         users = get_users_for_query(
-            {'customer_roles': [CustomerRole.OWNER], 'offerings': [self.offering]}
+            {
+                'customers': [self.fixture.customer],
+                'customer_roles': [CustomerRole.OWNER],
+                'offerings': [self.offering],
+            }
         )
         self.assertIn(owner, users)
         self.assertNotIn(manager, users)
@@ -31,7 +35,11 @@ class UsersFilterTest(test.APITransactionTestCase):
         manager = self.fixture.manager
         admin = self.fixture.admin
         users = get_users_for_query(
-            {'project_roles': [ProjectRole.MANAGER], 'offerings': [self.offering]}
+            {
+                'projects': [self.fixture.project],
+                'project_roles': [ProjectRole.MANAGER],
+                'offerings': [self.offering],
+            }
         )
         self.assertIn(manager, users)
         self.assertNotIn(admin, users)
