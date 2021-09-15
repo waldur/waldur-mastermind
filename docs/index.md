@@ -2,7 +2,6 @@
 
 - [Installation from source code](install-from-src.md)
 - [Workflow](workflow.md)
-- [Documentation](documentation.md)
 - [Settings policy](settings-policy.md)
 - [Permissions](permissions.md)
 - [Managed entities](managed-entities.md)
@@ -15,6 +14,7 @@
 - [How to write views](how-to-write-views.md)
 - [How to write tests](how-to-write-tests.md)
 - [How to write docs](how-to-write-docs.md)
+- [How to add a new language](how-to-add-new-language.md)
 - [Internationalization](i18n.md)
 - [Plugins](plugins/index.md)
 - [Events](events.md)
