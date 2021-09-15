@@ -74,16 +74,12 @@ class WaldurCore(BaseModel):
         'delivery of service offerings to the customers.',
         description='Description of the Waldur deployment.',
     )
-    SITE_ADDRESS = Field(
-        'Default address', description='It is used in marketplace order header.'
-    )
+    SITE_ADDRESS = Field('', description='It is used in marketplace order header.')
     SITE_EMAIL = Field(
-        'Default email',
-        description='It is used in marketplace order header and UI footer.',
+        '', description='It is used in marketplace order header and UI footer.',
     )
     SITE_PHONE = Field(
-        'Default phone',
-        description='It is used in marketplace order header and UI footer.',
+        '', description='It is used in marketplace order header and UI footer.',
     )
     SITE_LOGO: Optional[str] = Field(
         description='It is used in marketplace order header.'
