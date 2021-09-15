@@ -36,13 +36,15 @@ class Command(BaseCommand):
             if not hasattr(section.type_, '__fields__')
         ]
 
+        print('# Configuration guide', end='\n\n')
+
         for (section_name, section) in nested:
             type_ = section.type_
             default_value = pprint.pformat(section.default.dict())
             print(f'## {section_name} plugin')
             print()
             print(
-                f'Default value: \n```python\n{section_name} = {default_value}\n```\n'
+                f'Default value:\n\n```python\n{section_name} = {default_value}\n```\n'
             )
             for field_name, field in sorted(type_.__fields__.items()):
                 print_section(field, field_name)

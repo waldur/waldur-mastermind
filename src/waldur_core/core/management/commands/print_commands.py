@@ -21,7 +21,7 @@ class Command(BaseCommand):
                 continue
             command = load_command_class(path, name)
             commands.append((name, command))
-        print('# CLI guide')
+        print('# CLI guide', end='\n\n')
         for name, command in sorted(commands, key=lambda x: x[0]):
             parser = ArgumentParser(prog=f'waldur {name}', add_help=False)
             command.add_arguments(parser)
