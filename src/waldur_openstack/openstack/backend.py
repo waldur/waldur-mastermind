@@ -905,7 +905,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             enable_dhcp=backend_subnet['enable_dhcp'],
             gateway_ip=backend_subnet.get('gateway_ip'),
             dns_nameservers=backend_subnet['dns_nameservers'],
-            host_routes=backend_subnet.get('host_routes', []),
+            host_routes=sorted(
+                backend_subnet.get('host_routes', []), key=lambda x: tuple(x.values())
+            ),
             backend_id=backend_subnet['id'],
             state=models.SubNet.States.OK,
         )
@@ -1967,20 +1969,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             backend_subnet['id'], backend_subnet['network_id']
         )
 
-        subnet = models.SubNet(
-            name=backend_subnet['name'],
-            description=backend_subnet['description'],
-            allocation_pools=backend_subnet['allocation_pools'],
-            host_routes=backend_subnet['host_routes'],
-            dns_nameservers=backend_subnet['dns_nameservers'],
-            cidr=backend_subnet['cidr'],
-            ip_version=backend_subnet.get('ip_version'),
-            gateway_ip=backend_subnet.get('gateway_ip'),
-            enable_dhcp=backend_subnet.get('enable_dhcp', False),
-            state=models.Network.States.OK,
-            is_connected=is_connected,
-        )
-        return subnet
+        return self._backend_subnet_to_subnet(backend_subnet, is_connected=is_connected)
 
     def is_subnet_connected(self, subnet_backend_id, subnet_network_backend_id):
         neutron = self.neutron_admin_client
