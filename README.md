@@ -1,10 +1,11 @@
-![Waldur Logo](https://waldur.com/assets/img/logo-header-color.png)
+<img src="https://waldur.com/assets/img/logo.svg" alt="Waldur Logo" width="400"/>
 
 # Waldur MasterMind
 
 Waldur is a cloud management, orchestration and accounting system. Used in government clouds, universities, HPC centres and mid-to-large enterprises.
 
 Common uses include:
+* HPC centres
 * Private and public cloud
 * Service marketplace
 * Federated infrastructure
