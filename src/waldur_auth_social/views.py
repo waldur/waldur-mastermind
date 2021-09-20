@@ -433,6 +433,8 @@ class EduteamsView(OAuthView):
 
 
 class RemoteEduteamsView(views.APIView):
+    provider = 'remote_eduteams'
+
     def post(self, request, *args, **kwargs):
         if not request.user.is_identity_manager:
             return Response(
