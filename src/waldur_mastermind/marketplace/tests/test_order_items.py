@@ -344,8 +344,12 @@ class ItemRejectTest(test.APITransactionTestCase):
         self.order = factories.OrderFactory(
             project=self.project, created_by=self.manager
         )
+        resource = factories.ResourceFactory(offering=self.offering)
         self.order_item = factories.OrderItemFactory(
-            order=self.order, offering=self.offering
+            resource=resource,
+            order=self.order,
+            offering=self.offering,
+            state=models.OrderItem.States.EXECUTING,
         )
 
     @data(
@@ -383,6 +387,58 @@ class ItemRejectTest(test.APITransactionTestCase):
         self.order_item.save()
         response = self.reject_item('staff')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_when_create_order_item_with_basic_offering_is_rejected_resource_is_marked_as_terminated(
+        self,
+    ):
+        self.offering.type = 'Marketplace.Basic'
+        self.offering.save()
+
+        self.reject_item('owner')
+        self.order_item.refresh_from_db()
+        self.assertEqual(
+            models.Resource.States.TERMINATED, self.order_item.resource.state
+        )
+
+    def test_when_update_order_item_with_basic_offering_is_rejected_resource_is_marked_as_erred(
+        self,
+    ):
+        self.offering.type = 'Marketplace.Basic'
+        self.offering.save()
+        self.order_item.type = models.OrderItem.Types.UPDATE
+        self.order_item.save()
+
+        plan_period = factories.ResourcePlanPeriodFactory()
+        old_plan = plan_period.plan
+        old_plan.offering = self.offering
+        old_plan.save()
+
+        old_limits = {'unit': 50}
+        resource = self.order_item.resource
+        resource.plan = old_plan
+        resource.limits = old_limits
+        resource.save()
+
+        plan_period.resource = resource
+        plan_period.save()
+
+        self.reject_item('owner')
+        self.order_item.refresh_from_db()
+        self.assertEqual(models.Resource.States.ERRED, self.order_item.resource.state)
+        self.assertEqual(old_plan, self.order_item.resource.plan)
+        self.assertEqual(old_limits, self.order_item.resource.limits)
+
+    def test_when_terminate_order_item_with_basic_offering_is_rejected_resource_is_marked_as_erred(
+        self,
+    ):
+        self.offering.type = 'Marketplace.Basic'
+        self.offering.save()
+        self.order_item.type = models.OrderItem.Types.TERMINATE
+        self.order_item.save()
+
+        self.reject_item('owner')
+        self.order_item.refresh_from_db()
+        self.assertEqual(models.Resource.States.ERRED, self.order_item.resource.state)
 
     def reject_item(self, user):
         user = getattr(self.fixture, user)
