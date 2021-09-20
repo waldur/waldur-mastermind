@@ -463,6 +463,77 @@ class OrderApproveTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
+    def test_when_create_order_item_with_basic_offering_is_created_resource_is_marked_as_creating(
+        self, mocked_delay
+    ):
+        mocked_delay.side_effect = process_order
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type='Marketplace.Basic'
+        )
+        order_item = factories.OrderItemFactory(offering=offering, order=self.order)
+        self.approve_order(self.fixture.owner)
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.resource.state, models.Resource.States.CREATING)
+
+    @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
+    def test_when_update_order_item_with_basic_offering_is_approved_resource_is_marked_as_ok(
+        self, mocked_delay
+    ):
+        mocked_delay.side_effect = process_order
+        new_limits = {'unit': 100}
+
+        plan_period = factories.ResourcePlanPeriodFactory()
+        old_plan = plan_period.plan
+        offering = old_plan.offering
+        offering.customer = self.fixture.customer
+        offering.type = 'Marketplace.Basic'
+        offering.save()
+
+        resource = plan_period.resource
+        resource.plan = old_plan
+        resource.offering = offering
+        resource.limits = {'unit': 50}
+        resource.save()
+
+        order_item = factories.OrderItemFactory(
+            offering=offering,
+            order=self.order,
+            type=models.OrderItem.Types.UPDATE,
+            resource=resource,
+            limits=new_limits,
+        )
+        new_plan = order_item.plan
+
+        self.approve_order(self.fixture.owner)
+        self.approve_order_item(self.fixture.owner, order_item)
+
+        order_item.refresh_from_db()
+
+        self.assertEqual(order_item.resource.state, models.Resource.States.OK)
+        self.assertEqual(order_item.resource.limits, new_limits)
+        self.assertEqual(order_item.resource.plan, new_plan)
+
+    @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
+    def test_when_terminate_order_item_with_basic_offering_is_approved_resource_is_marked_as_terminated(
+        self, mocked_delay
+    ):
+        mocked_delay.side_effect = process_order
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type='Marketplace.Basic'
+        )
+        resource = factories.ResourceFactory(offering=offering)
+        order_item = factories.OrderItemFactory(
+            offering=offering,
+            order=self.order,
+            type=models.OrderItem.Types.TERMINATE,
+            resource=resource,
+        )
+        self.approve_order(self.fixture.owner)
+        self.approve_order_item(self.fixture.owner, order_item)
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.resource.state, models.Resource.States.TERMINATED)
+
+    @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
     def test_when_order_with_basic_offering_is_approved_resource_is_marked_as_ok(
         self, mocked_delay
     ):
@@ -472,6 +543,7 @@ class OrderApproveTest(test.APITransactionTestCase):
         )
         order_item = factories.OrderItemFactory(offering=offering, order=self.order)
         self.approve_order(self.fixture.owner)
+        self.approve_order_item(self.fixture.owner, order_item)
         order_item.refresh_from_db()
         self.assertEqual(order_item.resource.state, models.Resource.States.OK)
 
@@ -488,6 +560,14 @@ class OrderApproveTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url)
         self.order.refresh_from_db()
+        return response
+
+    def approve_order_item(self, user, order_item):
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            factories.OrderItemFactory.get_url(order_item, 'approve',)
+        )
         return response
 
     def ensure_user_can_approve_order(self, user):

@@ -371,6 +371,10 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
 
 
 class BasicCreateResourceProcessor(AbstractCreateResourceProcessor):
+    def process_order_item(self, user):
+        with transaction.atomic():
+            create_local_resource(self.order_item, None)
+
     def send_request(self, user):
         pass
 
@@ -380,15 +384,15 @@ class BasicCreateResourceProcessor(AbstractCreateResourceProcessor):
 
 class BasicDeleteResourceProcessor(AbstractDeleteResourceProcessor):
     def send_request(self, user, resource):
-        return True
+        return False
 
 
 class BasicUpdateResourceProcessor(AbstractUpdateResourceProcessor):
     def send_request(self, user):
-        return True
+        return False
 
     def validate_request(self, request):
         pass
 
     def update_limits_process(self, user):
-        return True
+        return False

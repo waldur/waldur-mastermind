@@ -48,6 +48,7 @@ from waldur_core.structure.serializers import (
     get_resource_serializer_class,
 )
 from waldur_core.structure.signals import resource_imported
+from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
 
@@ -730,15 +731,15 @@ class OrderItemViewSet(BaseMarketplaceView):
             )
 
         try:
-            order_item.set_state_terminated()
-            order_item.save()
-
+            if order_item.type == models.OrderItem.Types.CREATE and order_item.resource:
+                callbacks.resource_creation_canceled(order_item.resource)
+            if order_item.type == models.OrderItem.Types.UPDATE and order_item.resource:
+                callbacks.resource_update_failed(order_item.resource)
             if (
-                order_item.state == models.OrderItem.Types.CREATE
+                order_item.type == models.OrderItem.Types.TERMINATE
                 and order_item.resource
             ):
-                order_item.resource.set_state_terminated()
-                order_item.resource.save()
+                callbacks.resource_deletion_failed(order_item.resource)
         except TransitionNotAllowed:
             return Response(
                 {
@@ -775,15 +776,15 @@ class OrderItemViewSet(BaseMarketplaceView):
             )
 
         try:
-            order_item.set_state_done()
-            order_item.save()
-
+            if order_item.type == models.OrderItem.Types.CREATE and order_item.resource:
+                callbacks.resource_creation_succeeded(order_item.resource)
+            if order_item.type == models.OrderItem.Types.UPDATE and order_item.resource:
+                callbacks.resource_update_succeeded(order_item.resource)
             if (
-                order_item.state == models.OrderItem.Types.CREATE
+                order_item.type == models.OrderItem.Types.TERMINATE
                 and order_item.resource
             ):
-                order_item.resource.set_state_ok()
-                order_item.resource.save()
+                callbacks.resource_deletion_succeeded(order_item.resource)
         except TransitionNotAllowed:
             return Response(
                 {
