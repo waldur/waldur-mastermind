@@ -316,6 +316,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'citation_count',
         'latitude',
         'longitude',
+        'image',
     )
     readonly_fields = (
         'rating',
