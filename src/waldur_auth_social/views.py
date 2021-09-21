@@ -11,8 +11,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 
+from waldur_auth_social.mixins import EduteamsCreateOrUpdateUserMixin
 from waldur_auth_social.models import OAuthToken
-from waldur_core.core.models import SshPublicKey
 from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
 
 from . import tasks
@@ -349,7 +349,7 @@ class KeycloakView(OAuthView):
         return user, created
 
 
-class EduteamsView(OAuthView):
+class EduteamsView(OAuthView, EduteamsCreateOrUpdateUserMixin):
     provider = 'eduteams'
 
     def get_token_response(self, validated_data):
@@ -367,72 +367,8 @@ class EduteamsView(OAuthView):
         headers = {'Authorization': f'Bearer {access_token}'}
         return requests.get(EDUTEAMS_USERINFO_URL, headers=headers)
 
-    def create_or_update_user(self, backend_user):
-        username = backend_user["sub"]
-        email = backend_user.get('email')
-        first_name = backend_user['given_name']
-        last_name = backend_user['family_name']
-        # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-Assurance
-        details = {
-            'eduperson_assurance': backend_user.get('eduperson_assurance', []),
-        }
-        # https://wiki.geant.org/display/eduTEAMS/Attributes+available+to+Relying+Parties#AttributesavailabletoRelyingParties-AffiliationwithinHomeOrganization
-        backend_affiliations = backend_user.get('voperson_external_affiliation', [])
-        try:
-            user = User.objects.get(username=username)
-            update_fields = set()
-            if user.details != details:
-                user.details = details
-                update_fields.add('details')
-            if user.affiliations != backend_affiliations:
-                user.affiliations = backend_affiliations
-                update_fields.add('affiliations')
-            if user.first_name != first_name:
-                user.first_name = first_name
-                update_fields.add('first_name')
-            if user.last_name != last_name:
-                user.last_name = last_name
-                update_fields.add('last_name')
-            if update_fields:
-                user.save(update_fields=update_fields)
-            created = False
-        except User.DoesNotExist:
-            created = True
-            user = User.objects.create_user(
-                username=username,
-                registration_method=self.provider,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                details=details,
-                affiliations=backend_affiliations,
-            )
-            user.set_unusable_password()
-            user.save()
 
-        existing_keys_map = {
-            key.public_key: key
-            for key in SshPublicKey.objects.filter(
-                user=user, name__startswith='eduteams_'
-            )
-        }
-        eduteams_keys = backend_user.get('ssh_public_key', [])
-
-        new_keys = set(eduteams_keys) - set(existing_keys_map.keys())
-        stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
-
-        for key in new_keys:
-            name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
-            new_key = SshPublicKey(user=user, name=name, public_key=key)
-            new_key.save()
-
-        for key in stale_keys:
-            existing_keys_map[key].delete()
-
-        return user, created
-
-
-class RemoteEduteamsView(views.APIView):
+class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
     provider = 'remote_eduteams'
 
     def post(self, request, *args, **kwargs):
@@ -475,23 +411,7 @@ class RemoteEduteamsView(views.APIView):
             )
         except User.DoesNotExist:
             user_info = self.get_user_info(username)
-            return self.create_user(user_info)
-
-    def create_user(self, user_info):
-        user = User.objects.create_user(
-            username=user_info['voperson_id'],
-            registration_method=EduteamsView.provider,
-            first_name=user_info['given_name'],
-            last_name=user_info['family_name'],
-            email=user_info['mail'][0],
-        )
-        for ssh_key in user_info.get('ssh_public_key', []):
-            name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
-            new_key = SshPublicKey(user=user, name=name, public_key=ssh_key)
-            new_key.save()
-        user.set_unusable_password()
-        user.save()
-        return user
+            return self.create_or_update_user(user_info)[0]
 
     def get_user_info(self, cuid: str) -> dict:
         user_url = f'{self.get_userinfo_url()}/{cuid}'
@@ -532,7 +452,8 @@ class RemoteEduteamsView(views.APIView):
             )
             if token_response.status_code != 200:
                 raise OAuthException(
-                    self.provider, 'Unable to get access token. Service is down.'
+                    EduteamsView.provider,
+                    'Unable to get access token. Service is down.',
                 )
             return token_response.json()['access_token']
         except requests.exceptions.RequestException as e:
