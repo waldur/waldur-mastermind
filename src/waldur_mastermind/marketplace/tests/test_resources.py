@@ -1061,48 +1061,6 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-@ddt
-class ResourceSetStateTest(test.APITransactionTestCase):
-    def setUp(self) -> None:
-        self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
-        self.producer_owner = self.fixture.owner
-
-        self.consumer_fixture = fixtures.ProjectFixture()
-        self.consumer_owner = self.consumer_fixture.owner
-        self.consumer_project = self.consumer_fixture.project
-
-        self.resource = factories.ResourceFactory(
-            project=self.consumer_project, offering=self.offering
-        )
-
-        self.url = factories.ResourceFactory.get_url(
-            self.resource, action='set_state_by_provider'
-        )
-
-    @data('ok', 'terminated', 'erred')
-    def test_service_owner_can_change_resource_state(self, state):
-        self.client.force_authenticate(self.producer_owner)
-        states_dict = {
-            'ok': models.Resource.States.OK,
-            'erred': models.Resource.States.ERRED,
-            'terminated': models.Resource.States.TERMINATED,
-        }
-
-        response = self.client.post(self.url, {'state': state})
-        self.resource.refresh_from_db()
-        self.assertEqual(200, response.status_code)
-        self.assertEqual(states_dict[state], self.resource.state)
-
-    def test_consumer_can_not_change_resource_state(self):
-        self.client.force_authenticate(self.consumer_owner)
-
-        response = self.client.post(self.url, {'state': 'ok'})
-        self.assertEqual(403, response.status_code)
-        self.resource.refresh_from_db()
-        self.assertEqual(models.Resource.States.CREATING, self.resource.state)
-
-
 class ResourceGetTeamTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()
