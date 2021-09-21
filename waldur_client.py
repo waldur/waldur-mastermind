@@ -922,7 +922,7 @@ class WaldurClient(object):
             return self._get_resource(
                 self.Endpoints.MarketplaceOffering,
                 offering,
-                {'project_uuid': project_uuid},
+                {'project_uuid': project_uuid, 'state': ['Active', 'Paused']},
             )
         else:
             return
