@@ -663,15 +663,6 @@ class WaldurClient(object):
 
         return self._query_resource_list(self.Endpoints.MarketplaceResources, params,)
 
-    def marketplace_resource_set_state(self, resource_uuid: str, state: ResourceState):
-        url = self._build_resource_url(
-            self.Endpoints.MarketplaceResources,
-            resource_uuid,
-            action='set_state_by_provider',
-        )
-        payload = {'state': state.value}
-        return self._post(url, valid_states=[200], json=payload)
-
     def marketplace_resource_set_backend_id(self, resource_uuid: str, backend_id: str):
         url = self._build_resource_url(
             self.Endpoints.MarketplaceResources, resource_uuid, action='set_backend_id',
@@ -968,6 +959,18 @@ class WaldurClient(object):
         return self._get_resource(
             WaldurClient.Endpoints.MarketplaceOrderItem, order_item_uuid
         )
+
+    def marketplace_order_item_approve(self, order_item_uuid: str):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceOrderItem, order_item_uuid, action='approve',
+        )
+        return self._post(url, valid_states=[200])
+
+    def marketplace_order_item_reject(self, order_item_uuid: str):
+        url = self._build_resource_url(
+            self.Endpoints.MarketplaceOrderItem, order_item_uuid, action='reject',
+        )
+        return self._post(url, valid_states=[200])
 
     def _get_resource_from_creation_order(
         self, order_uuid, resource_field='resource_uuid', interval=10, timeout=600,
