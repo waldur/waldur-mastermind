@@ -937,40 +937,6 @@ class ResourceViewSet(core_views.ActionsViewSet):
     ]
 
     @action(detail=True, methods=['post'])
-    def set_state_by_provider(self, request, uuid=None):
-        resource = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        new_state = serializer.validated_data['state']
-        old_state = resource.state
-        try:
-            getattr(resource, f'set_state_{new_state}')()
-            resource.save()
-        except TransitionNotAllowed:
-            return Response(
-                {
-                    'status': f"Can't switch from state '{resource.get_state_display()}' to '{new_state}'."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        logger.info(
-            '%s has changed state from %s to %s',
-            request.user.full_name,
-            old_state,
-            new_state,
-        )
-
-        return Response(
-            {'status': _('Resource state has been changed.')},
-            status=status.HTTP_200_OK,
-        )
-
-    set_state_by_provider_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
-    ]
-    set_state_by_provider_serializer_class = serializers.ResourceStateSerializer
-
-    @action(detail=True, methods=['post'])
     def switch_plan(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
