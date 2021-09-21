@@ -318,6 +318,7 @@ class Offering(
     LoggableMixin,
     pid_mixins.DataciteMixin,
     CoordinatesMixin,
+    structure_models.ImageModelMixin,
 ):
     class States:
         DRAFT = 1

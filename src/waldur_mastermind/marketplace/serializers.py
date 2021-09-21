@@ -791,6 +791,7 @@ class OfferingDetailsSerializer(
             'longitude',
             'backend_id',
             'divisions',
+            'image',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
