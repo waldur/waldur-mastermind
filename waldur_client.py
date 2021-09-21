@@ -960,6 +960,9 @@ class WaldurClient(object):
             WaldurClient.Endpoints.MarketplaceOrderItem, order_item_uuid
         )
 
+    def list_order_items(self, filters=None):
+        return self._query_resource_list(self.Endpoints.MarketplaceOrderItem, filters)
+
     def marketplace_order_item_approve(self, order_item_uuid: str):
         url = self._build_resource_url(
             self.Endpoints.MarketplaceOrderItem, order_item_uuid, action='approve',
