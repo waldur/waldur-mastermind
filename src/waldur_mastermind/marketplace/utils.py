@@ -199,19 +199,6 @@ def get_order_item_url(order_item):
     )
 
 
-def fill_activated_field(apps, schema_editor):
-    # We cannot use RequestTypeMixin.Types.CREATE and OrderItem.States.Done because this function called in migrations
-    state_done = 3
-    type_create = 1
-
-    OrderItem = apps.get_model('marketplace', 'OrderItem')
-
-    for order_item in OrderItem.objects.filter(type=type_create, state=state_done):
-        if not order_item.activated and order_item.resource:
-            order_item.activated = order_item.resource.created
-            order_item.save()
-
-
 def get_info_about_missing_usage_reports():
     now = timezone.now()
     billing_period = core_utils.month_start(now)
