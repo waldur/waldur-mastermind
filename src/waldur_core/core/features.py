@@ -114,7 +114,7 @@ class MarketplaceSection(FeatureSection):
         'Allow to import resources from service provider to project.'
     )
 
-    conceal_prices = Feature('Render prices in shopping cart and order details.')
+    conceal_prices = Feature('Do not render prices in shopping cart and order details.')
 
     terms_of_service = Feature('Render terms of service when offering is ordered.')
 
