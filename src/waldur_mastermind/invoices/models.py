@@ -3,6 +3,7 @@ import decimal
 import logging
 from calendar import monthrange
 
+from dateutil.parser import parse as parse_datetime
 from django.conf import settings
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ObjectDoesNotExist
@@ -328,6 +329,15 @@ class InvoiceItem(
     def terminate(self, end=None):
         self.end = end or timezone.now()
         self.save(update_fields=['end'])
+
+        resource_limit_periods = self.details.get('resource_limit_periods')
+        if resource_limit_periods:
+            last_period = resource_limit_periods[-1]
+            last_period['end'] = self.end.isoformat()
+            last_period['billing_periods'] = utils.get_full_days(
+                parse_datetime(last_period['start']), self.end
+            )
+            self.save(update_fields=['details'])
 
     def __str__(self):
         return self.name or '<InvoiceItem %s>' % self.pk

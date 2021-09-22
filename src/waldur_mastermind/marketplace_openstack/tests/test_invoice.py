@@ -1,8 +1,10 @@
 from unittest import mock
 
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -115,6 +117,23 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
             resource=resource
         ).last()
         self.assertEqual(invoice_item.end.day, 18)
+
+    def test_resource_limit_period_is_updated_when_resource_is_terminated(self):
+        resource = self.create_resource(self.prices, self.limits)
+        with freeze_time('2019-09-18'):
+            resource.set_state_terminating()
+            resource.save()
+            resource.set_state_terminated()
+            resource.save()
+            invoice_item = invoices_models.InvoiceItem.objects.filter(
+                resource=resource
+            ).last()
+            self.assertEqual(
+                parse_datetime(
+                    invoice_item.details['resource_limit_periods'][-1]['end']
+                ),
+                timezone.now(),
+            )
 
 
 class StorageModeInvoiceTest(BaseTenantInvoiceTest):
