@@ -154,3 +154,13 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
         self.assertEqual(
             response.data['google_calendar_is_public'], self.google_calendar.public
         )
+
+    def test_marketplace_offering_serializer_has_google_calendar_link(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('google_calendar_link' in response.data.keys())
+        self.assertEqual(
+            response.data['google_calendar_link'], self.google_calendar.http_link
+        )

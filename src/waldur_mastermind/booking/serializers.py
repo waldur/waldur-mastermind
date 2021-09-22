@@ -125,3 +125,21 @@ def add_google_calendar_info(sender, fields, **kwargs):
 core_signals.pre_serializer_fields.connect(
     add_google_calendar_info, sender=marketplace_serializers.OfferingDetailsSerializer
 )
+
+
+def get_google_calendar_link(serializer, offering):
+    try:
+        return offering.googlecalendar.http_link
+    except AttributeError:
+        return
+
+
+def add_google_calendar_link(sender, fields, **kwargs):
+    fields['google_calendar_link'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_google_calendar_link', get_google_calendar_link)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=marketplace_serializers.OfferingDetailsSerializer,
+    receiver=add_google_calendar_link,
+)
