@@ -218,3 +218,25 @@ class CategoryFilterTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
+
+
+class PlanComponentFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture_1 = fixtures.MarketplaceFixture()
+        self.fixture_2 = fixtures.MarketplaceFixture()
+        self.fixture_1.offering.shared = True
+        self.fixture_1.offering.state = models.Offering.States.ACTIVE
+        self.fixture_1.offering.save()
+        self.fixture_2.offering.shared = True
+        self.fixture_2.offering.state = models.Offering.States.ACTIVE
+        self.fixture_2.offering.save()
+        self.url = factories.PlanComponentFactory.get_list_url()
+
+    def test_offering_uuid_filter(self):
+        self.client.force_authenticate(self.fixture_1.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.json()), 2)
+        response = self.client.get(
+            self.url, {'offering_uuid': self.fixture_1.offering.uuid.hex},
+        )
+        self.assertEqual(len(response.json()), 1)
