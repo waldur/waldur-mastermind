@@ -549,6 +549,16 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         return queryset
 
 
+class PlanComponentFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.PlanComponent
+        fields = []
+
+    offering_uuid = django_filters.UUIDFilter(
+        field_name='plan__offering__uuid', label='Offering UUID'
+    )
+
+
 def user_extra_query(user):
     customer_ids = structure_models.CustomerPermission.objects.filter(
         user=user,

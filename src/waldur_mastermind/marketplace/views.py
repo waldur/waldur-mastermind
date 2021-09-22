@@ -599,6 +599,7 @@ class PlanComponentViewSet(rf_viewsets.ReadOnlyModelViewSet):
         plan__offering__shared=True, plan__offering__state=models.Offering.States.ACTIVE
     )
     serializer_class = serializers.PlanComponentSerializer
+    filterset_class = filters.PlanComponentFilter
     lookup_field = 'uuid'
 
 

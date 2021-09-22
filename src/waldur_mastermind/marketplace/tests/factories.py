@@ -275,6 +275,11 @@ class PlanComponentFactory(factory.DjangoModelFactory):
     price = Decimal(10)
     amount = 1
 
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-plan-component-list')
+        return url if action is None else url + action + '/'
+
 
 class OrderItemFactory(factory.DjangoModelFactory):
     class Meta:
