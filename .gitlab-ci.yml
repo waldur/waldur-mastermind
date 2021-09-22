@@ -112,6 +112,12 @@ Try building docker image:
       changes:
         - Dockerfile
         - docker/**/*
+  services:
+    - name: "$CI_REGISTRY/waldur/waldur-pipelines/docker:19.03.12-dind"
+      alias: docker
+      command: ["--mtu=1400"]
+  variables:
+    DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   script:
     - docker build -t waldur-mastermind:$CI_COMMIT_REF_SLUG .
 
