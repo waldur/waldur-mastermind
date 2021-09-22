@@ -101,7 +101,6 @@ Run unit tests:
   parallel: 10
 
 Try building docker image:
-  image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
   stage: test
   interruptible: true
   rules:
