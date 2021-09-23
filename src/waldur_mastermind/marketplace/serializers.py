@@ -1,5 +1,6 @@
 import datetime
 import logging
+from functools import lru_cache
 
 import jwt
 from django.conf import settings
@@ -1616,11 +1617,11 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
         source='order.created_by.civil_number'
     )
 
-    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
-    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
+    customer_name = serializers.SerializerMethodField()
+    customer_uuid = serializers.SerializerMethodField()
 
-    project_name = serializers.ReadOnlyField(source='order.project.name')
-    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
+    project_name = serializers.SerializerMethodField()
+    project_uuid = serializers.SerializerMethodField()
 
     old_plan_name = serializers.ReadOnlyField(source='old_plan.name')
     new_plan_name = serializers.ReadOnlyField(source='plan.name')
@@ -1644,6 +1645,26 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             return False
 
         return True
+
+    @lru_cache(maxsize=1)
+    def _get_project(self, order_item: models.OrderItem):
+        return structure_models.Project.all_objects.get(id=order_item.order.project_id)
+
+    def get_customer_uuid(self, order_item: models.OrderItem):
+        project = self._get_project(order_item)
+        return project.customer.uuid
+
+    def get_customer_name(self, order_item: models.OrderItem):
+        project = self._get_project(order_item)
+        return project.customer.name
+
+    def get_project_uuid(self, order_item: models.OrderItem):
+        project = self._get_project(order_item)
+        return project.uuid
+
+    def get_project_name(self, order_item: models.OrderItem):
+        project = self._get_project(order_item)
+        return project.name
 
 
 class CartItemSerializer(BaseRequestSerializer):
