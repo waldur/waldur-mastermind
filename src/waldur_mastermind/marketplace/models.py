@@ -600,7 +600,7 @@ class OfferingComponent(
 
         if total + amount > self.limit_amount:
             raise rf_exceptions.ValidationError(
-                _('Total amount exceeds exceeds limit. Total amount: %s, limit: %s.')
+                _('Total amount exceeds limit. Total amount: %s, limit: %s.')
                 % (total + amount, self.limit_amount)
             )
 
