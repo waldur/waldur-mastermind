@@ -3,6 +3,7 @@ import logging
 from functools import lru_cache
 
 import jwt
+from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -167,6 +168,12 @@ class CategorySerializer(
     def eager_load(queryset, request):
         offerings_states = request.GET.getlist('customers_offerings_state')
         customer_uuid = request.GET.get('customer_uuid')
+        shared = request.GET.get('shared')
+
+        try:
+            shared = forms.NullBooleanField().to_python(shared)
+        except rf_exceptions.ValidationError:
+            shared = None
 
         if offerings_states and customer_uuid:
             offerings = models.Offering.objects.filter(state__in=offerings_states)
@@ -189,6 +196,9 @@ class CategorySerializer(
 
         if customer_uuid:
             offerings = offerings.filter(customer__uuid=customer_uuid)
+
+        if shared is not None:
+            offerings = offerings.filter(shared=shared)
 
         offerings = offerings.annotate(count=Count('*')).values('count')
 
