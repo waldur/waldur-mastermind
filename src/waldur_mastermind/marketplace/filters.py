@@ -558,6 +558,12 @@ class PlanComponentFilter(django_filters.FilterSet):
         field_name='plan__offering__uuid', label='Offering UUID'
     )
 
+    shared = django_filters.BooleanFilter(
+        widget=BooleanWidget, field_name='plan__offering__shared'
+    )
+
+    archived = django_filters.BooleanFilter(field_name='plan__archived',)
+
 
 def user_extra_query(user):
     customer_ids = structure_models.CustomerPermission.objects.filter(

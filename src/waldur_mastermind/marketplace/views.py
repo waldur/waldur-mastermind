@@ -594,13 +594,16 @@ class PlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
         return PlanUsageReporter(self, request).get_report()
 
 
-class PlanComponentViewSet(rf_viewsets.ReadOnlyModelViewSet):
-    queryset = models.PlanComponent.objects.filter(
-        plan__offering__shared=True, plan__offering__state=models.Offering.States.ACTIVE
-    )
+class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
+    queryset = models.PlanComponent.objects.filter()
     serializer_class = serializers.PlanComponentSerializer
     filterset_class = filters.PlanComponentFilter
     lookup_field = 'uuid'
+
+    def get_queryset(self):
+        queryset = super(PlanComponentViewSet, self).get_queryset()
+        if self.request.user.is_anonymous:
+            return queryset.filter(plan__offering__shared=True,)
 
 
 class ScreenshotViewSet(
