@@ -219,6 +219,29 @@ class CategoryFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
+    def test_offering_count_if_shared_is_passed(self):
+        factories.OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            state=models.Offering.States.ACTIVE,
+            shared=False,
+        )
+        url = factories.CategoryFactory.get_url(self.category)
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['offering_count'], 2)
+
+        response = self.client.get(url, {'shared': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['offering_count'], 1)
+
+        response = self.client.get(url, {'shared': False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['offering_count'], 1)
+
 
 class PlanComponentFilterTest(test.APITransactionTestCase):
     def setUp(self):
