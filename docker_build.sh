@@ -10,9 +10,6 @@ poetry config virtualenvs.create false
 # Install Python dependencies for Waldur MasterMind from PyPI
 poetry install --no-dev
 
-# Uninstall odfpy because it is optional and GPL
-pip uninstall -y odfpy
-
 # Compile i18n messages
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 django-admin compilemessages
