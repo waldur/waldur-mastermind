@@ -204,6 +204,7 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
         'REMOTE_EDUTEAMS_TOKEN_URL': 'https://proxy.acc.researcher-access.org/OIDC/token',
         'REMOTE_EDUTEAMS_CLIENT_ID': 'WaldurId',
         'REMOTE_EDUTEAMS_SECRET': 'WaldurSecret',
+        'REMOTE_EDUTEAMS_ENABLED': True,
     }
 )
 class RemoteEduteamsTest(test.APITransactionTestCase):
@@ -220,7 +221,8 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(
-            response.data, 'Only identity manager is allowed to sync remote users.'
+            response.data,
+            'Only staff and identity manager is allowed to sync remote users.',
         )
 
     def test_when_user_already_exists_local_uuid_is_returned(self):
