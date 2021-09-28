@@ -375,8 +375,11 @@ class WaldurAuthSocial(BaseModel):
         '', description='ID of application used for OAuth authentication.'
     )
     REMOTE_EDUTEAMS_SECRET = Field('', description='Application secret key.')
+    REMOTE_EDUTEAMS_ENABLED: bool = Field(
+        False, description='Enable remote eduTEAMS extension.'
+    )
     ENABLE_EDUTEAMS_SYNC = Field(
-        False, description='Enable EduTeams synchronization with remote Waldur.'
+        False, description='Enable eduTEAMS synchronization with remote Waldur.'
     )
 
     class Meta:
@@ -391,6 +394,7 @@ class WaldurAuthSocial(BaseModel):
             'EDUTEAMS_CLIENT_ID',
             'EDUTEAMS_LABEL',
             'EDUTEAMS_AUTH_URL',
+            'REMOTE_EDUTEAMS_ENABLED',
         ]
 
 

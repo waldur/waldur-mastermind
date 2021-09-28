@@ -372,19 +372,15 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
     provider = 'remote_eduteams'
 
     def post(self, request, *args, **kwargs):
-        if not request.user.is_identity_manager:
+        if not request.user.is_staff and not request.user.is_identity_manager:
             return Response(
-                'Only identity manager is allowed to sync remote users.',
+                'Only staff and identity manager is allowed to sync remote users.',
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if (
-            not self.get_token()
-            or not self.get_userinfo_url()
-            or not self.get_token_url()
-        ):
+        if not self.extension_is_enabled():
             return Response(
-                'Remote Eduteams user sync is disabled.',
+                'Remote eduTEAMS user sync is disabled.',
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -394,6 +390,9 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
 
         user = self.get_or_create_user(cuid)
         return Response({'uuid': user.uuid.hex})
+
+    def extension_is_enabled(self):
+        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']
 
     def get_token(self):
         return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ACCESS_TOKEN']
@@ -421,7 +420,7 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
                 user_url, headers={'Authorization': f'Bearer {access_token}'}
             )
         except requests.exceptions.RequestException as e:
-            logger.warning('Unable to get Eduteams user info. Error is %s', e)
+            logger.warning('Unable to get eduTEAMS user info. Error is %s', e)
             raise OAuthException(self.provider, 'Unable to get user info.')
 
         if user_response.status_code != 200:
@@ -457,7 +456,7 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
                 )
             return token_response.json()['access_token']
         except requests.exceptions.RequestException as e:
-            logger.warning('Unable to get Eduteams access token. Error is %s', e)
+            logger.warning('Unable to get eduTEAMS access token. Error is %s', e)
             raise OAuthException(self.provider, 'Unable to get access token.')
 
 
