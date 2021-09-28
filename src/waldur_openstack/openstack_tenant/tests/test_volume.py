@@ -634,6 +634,8 @@ class VolumeFilterTest(test.APITransactionTestCase):
 
         new_fixture = fixtures.OpenStackTenantFixture()
         volume2 = new_fixture.volume
+        volume2.name = 'OTHER'
+        volume2.save()
 
         response = self.client.get(
             self.url, {'attach_instance_uuid': self.instance.uuid.hex}
