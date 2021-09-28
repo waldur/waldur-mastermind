@@ -232,6 +232,19 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'])
+    def set_backend_id(self, request, uuid=None):
+        invoice = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        backend_id = serializer.validated_data['backend_id']
+        invoice.backend_id = backend_id
+        invoice.save()
+        return Response(status=status.HTTP_200_OK)
+
+    set_backend_id_permissions = [structure_permissions.is_staff]
+    set_backend_id_serializer_class = serializers.BackendIdSerializer
+
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
     disabled_actions = ['create']

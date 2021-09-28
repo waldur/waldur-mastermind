@@ -75,6 +75,7 @@ class InvoiceAdmin(
         'year',
         'month',
         'pdf_file',
+        'backend_id',
     ]
     readonly_fields = ('customer', 'total', 'year', 'month', 'pdf_file')
     list_display = ('customer', 'total', 'year', 'month', 'state', 'payment_type')
