@@ -461,3 +461,31 @@ class InvoicePaidTest(test.APITransactionTestCase):
         date = datetime.date.today()
         response = self.client.post(self.url, data={'date': date}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@ddt
+class UpdateBackendIdTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.url = factories.InvoiceFactory.get_url(
+            self.fixture.invoice, action='set_backend_id'
+        )
+
+    @data('staff')
+    def test_user_can_set_backend_id(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'backend_id': 'backend_id'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.invoice.refresh_from_db()
+        self.assertEqual(self.fixture.invoice.backend_id, 'backend_id')
+
+        response = self.client.post(self.url, {'backend_id': ''})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.invoice.refresh_from_db()
+        self.assertEqual(self.fixture.invoice.backend_id, '')
+
+    @data('manager', 'admin', 'user')
+    def test_user_cannot_set_backend_id(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'backend_id': 'backend_id'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -33,7 +33,7 @@ def get_created_date():
     return datetime.date(now.year, now.month, 1)
 
 
-class Invoice(core_models.UuidMixin, models.Model):
+class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
     class Permissions:
