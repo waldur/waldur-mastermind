@@ -222,7 +222,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(
             response.data,
-            'Only staff and identity manager is allowed to sync remote users.',
+            'Only staff and identity manager are allowed to sync remote users.',
         )
 
     def test_when_user_already_exists_local_uuid_is_returned(self):

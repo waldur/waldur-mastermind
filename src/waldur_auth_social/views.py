@@ -374,7 +374,7 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
     def post(self, request, *args, **kwargs):
         if not request.user.is_staff and not request.user.is_identity_manager:
             return Response(
-                'Only staff and identity manager is allowed to sync remote users.',
+                'Only staff and identity manager are allowed to sync remote users.',
                 status=status.HTTP_403_FORBIDDEN,
             )
 
