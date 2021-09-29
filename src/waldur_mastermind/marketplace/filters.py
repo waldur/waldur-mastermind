@@ -558,6 +558,8 @@ class PlanComponentFilter(django_filters.FilterSet):
         field_name='plan__offering__uuid', label='Offering UUID'
     )
 
+    plan_uuid = django_filters.UUIDFilter(field_name='plan__uuid', label='Plan UUID')
+
     shared = django_filters.BooleanFilter(
         widget=BooleanWidget, field_name='plan__offering__shared'
     )
