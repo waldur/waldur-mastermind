@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace import utils
 logger = logging.getLogger(__name__)
 
 BillingTypes = marketplace_models.OfferingComponent.BillingTypes
+LimitPeriods = marketplace_models.OfferingComponent.LimitPeriods
 OrderTypes = marketplace_models.OrderItem.Types
 ResourceStates = marketplace_models.Resource.States
 
@@ -89,6 +90,16 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             is_limit = offering_component.billing_type == BillingTypes.LIMIT
 
             if is_limit:
+                # Avoid creating invoice item for limit-based components
+                # if limit period is total and resource is not being created
+                if offering_component.limit_period == LimitPeriods.TOTAL:
+                    if order_type == OrderTypes.CREATE:
+                        self.create_component_item(
+                            source, plan_component, invoice, start, end
+                        )
+                        continue
+                    else:
+                        continue
                 self.create_component_item(source, plan_component, invoice, start, end)
                 continue
 
@@ -177,12 +188,19 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             plan_component.plan.unit, quantity, start, end
         )
 
+        unit = plan_component.plan.unit
+        if (
+            plan_component.component.billing_type == BillingTypes.LIMIT
+            and plan_component.component.limit_period == LimitPeriods.TOTAL
+        ):
+            unit = invoice_models.Units.QUANTITY
+
         invoice_models.InvoiceItem.objects.create(
             name=f'{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}',
             resource=source,
             project=Project.all_objects.get(id=source.project_id),
             unit_price=plan_component.price,
-            unit=plan_component.plan.unit,
+            unit=unit,
             quantity=total_quantity,
             article_code=offering_component.article_code or source.plan.article_code,
             invoice=invoice,
@@ -294,9 +312,69 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             for component_type, new_quantity in resource.limits.items():
                 if component_type not in valid_limits:
                     continue
-                cls.create_or_update_component_item(
-                    resource, invoice, component_type, new_quantity
+                offering_component = resource.offering.components.get(
+                    type=component_type
                 )
+                if (
+                    offering_component.billing_type == BillingTypes.LIMIT
+                    and offering_component.limit_period == LimitPeriods.TOTAL
+                ):
+                    cls.create_invoice_item_for_total_limit(
+                        resource,
+                        invoice,
+                        component_type,
+                        new_quantity,
+                        offering_component,
+                    )
+                else:
+                    cls.create_or_update_component_item(
+                        resource, invoice, component_type, new_quantity
+                    )
+
+    @classmethod
+    def create_invoice_item_for_total_limit(
+        cls, resource, invoice, component_type, new_quantity, offering_component
+    ):
+        if resource.state != ResourceStates.OK:
+            return
+        related_invoice_items = invoice_models.InvoiceItem.objects.filter(
+            resource=resource, details__offering_component_type=component_type,
+        )
+        if not related_invoice_items.exists():
+            cls.create_or_update_component_item(
+                resource, invoice, component_type, new_quantity
+            )
+        else:
+            total = 0
+            for invoice_item in related_invoice_items:
+                if invoice_item.unit_price < 0:
+                    total -= invoice_item.quantity
+                else:
+                    total += invoice_item.quantity
+            diff = new_quantity - total
+            if diff == 0:
+                return
+            plan_component = resource.plan.components.get(
+                component__type=component_type
+            )
+            details = cls.get_component_details(resource, plan_component)
+            start = timezone.now()
+            end = get_current_month_end()
+            invoice_models.InvoiceItem.objects.create(
+                name=f'{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}',
+                resource=resource,
+                project=Project.all_objects.get(id=resource.project_id),
+                unit_price=plan_component.price if diff > 0 else -plan_component.price,
+                unit=invoice_models.Units.QUANTITY,
+                quantity=diff if diff > 0 else -diff,
+                article_code=offering_component.article_code
+                or resource.plan.article_code,
+                invoice=invoice,
+                start=start,
+                end=end,
+                details=details,
+                measured_unit=offering_component.measured_unit,
+            )
 
     @classmethod
     def update_invoice_when_usage_is_reported(
