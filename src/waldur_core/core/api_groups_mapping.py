@@ -31,4 +31,5 @@ API_GROUPS = {
         '/api/support-feedback-average-report/',
         '/api/support-feedback-report/',
     ],
+    'accounting': ['/api/invoices/', '/api/invoice-items/',],
 }
