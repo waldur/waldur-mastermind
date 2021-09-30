@@ -165,6 +165,7 @@ Upload configuration guide:
     CONF_GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
     CLI_GUIDE_PATH: docs/admin-guide/mastermind-configuration/cli-guide.md
     FEATURES_GUIDE_PATH: docs/admin-guide/mastermind-configuration/features.md
+    TEMPLATES_LIST_PATH: docs/admin-guide/mastermind-configuration/templates.md
     DEVELOPER_DOCS_PATH: docs/developer-guide
     DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
   script:
@@ -178,10 +179,10 @@ Upload configuration guide:
     - waldur print_features > $FEATURES_GUIDE_PATH
     - waldur print_commands > $CLI_GUIDE_PATH
     - waldur print_events > $CI_PROJECT_DIR/docs/events.md
-    - waldur print_templates > $CI_PROJECT_DIR/docs/templates.md
+    - waldur print_templates > $TEMPLATES_LIST_PATH
     - cp -rv $CI_PROJECT_DIR/docs/* $DEVELOPER_DOCS_PATH
-    - git add $CONF_GUIDE_PATH $FEATURES_GUIDE_PATH $CLI_GUIDE_PATH $DEVELOPER_DOCS_PATH
-    - git commit -m "Update configuration, CLI guide and developer guide" || exit 0
+    - git add $CONF_GUIDE_PATH $FEATURES_GUIDE_PATH $CLI_GUIDE_PATH $DEVELOPER_DOCS_PATH $TEMPLATES_LIST_PATH
+    - git commit -m "Update configuration, CLI and developer guide" || exit 0
     - git branch new-configuration-guide
     - git push --set-upstream origin new-configuration-guide:master
   before_script: []
