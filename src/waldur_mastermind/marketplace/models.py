@@ -573,7 +573,7 @@ class OfferingComponent(
     billing_type = models.CharField(
         choices=BillingTypes.CHOICES, default=BillingTypes.FIXED, max_length=5
     )
-    # limit_period and limit_amount fields are used if billing_type is USAGE
+    # limit_period and limit_amount fields are used if billing_type is USAGE or LIMIT
     limit_period = models.CharField(
         choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=5
     )
