@@ -81,6 +81,7 @@ class OfferingPlanInfoTest(test.APITransactionTestCase):
         self._check_plan_info(
             models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH, 'on-plan-switch'
         )
+        self._check_plan_info(models.OfferingComponent.BillingTypes.LIMIT, 'limit')
 
         offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
