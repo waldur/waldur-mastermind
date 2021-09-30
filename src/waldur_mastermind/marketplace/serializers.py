@@ -305,6 +305,8 @@ class BasePlanSerializer(
                 plan_type = 'one-time'
             if models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH in components_types:
                 plan_type = 'on-plan-switch'
+            if models.OfferingComponent.BillingTypes.LIMIT in components_types:
+                plan_type = 'limit'
         elif len(components_types) > 1:
             plan_type = 'mixed'
 
