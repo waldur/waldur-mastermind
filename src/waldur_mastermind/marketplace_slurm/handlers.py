@@ -91,8 +91,8 @@ def create_offering_user_for_slurm_user(sender, allocation, user, username, **kw
         )
         return
 
-    marketplace_models.OfferingUser.objects.create(
-        offering=offering, user=user, username=username,
+    marketplace_models.OfferingUser.objects.update_or_create(
+        offering=offering, user=user, defaults={'username': username},
     )
 
 

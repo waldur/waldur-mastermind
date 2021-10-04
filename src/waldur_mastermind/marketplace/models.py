@@ -1432,6 +1432,9 @@ class OfferingUser(models.Model):
     username = models.CharField(max_length=100, blank=True, null=True)
     created = AutoCreatedField()
 
+    class Meta:
+        unique_together = ('offering', 'user')
+
     def get_log_fields(self):
         return ('offering', 'user', 'username')
 
