@@ -25,3 +25,9 @@ def register_in(router):
         views.FlowViewSet,
         basename='marketplace-resource-creation-flow',
     )
+
+    router.register(
+        r'marketplace-offering-activate-requests',
+        views.OfferingActivateRequestViewSet,
+        basename='marketplace-offering-activate-request',
+    )

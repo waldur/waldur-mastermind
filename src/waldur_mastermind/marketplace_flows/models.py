@@ -14,7 +14,12 @@ from waldur_core.structure.models import (
     ProjectDetailsMixin,
     ProjectRole,
 )
-from waldur_mastermind.marketplace.models import Order, OrderItem, ResourceDetailsMixin
+from waldur_mastermind.marketplace.models import (
+    Offering,
+    Order,
+    OrderItem,
+    ResourceDetailsMixin,
+)
 
 User = get_user_model()
 
@@ -201,3 +206,36 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
             self.order_item.save()
             self.state = self.States.APPROVED
             self.save(update_fields=['customer', 'order_item', 'state'])
+
+
+class OfferingStateRequest(ReviewMixin, UuidMixin):
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    offering = models.ForeignKey(
+        on_delete=models.CASCADE, to=Offering, null=True, blank=True, related_name='+'
+    )
+
+    @transaction.atomic
+    def approve(self, user, comment=None):
+        self.reviewed_by = user
+        self.review_comment = comment
+        self.reviewed_at = timezone.now()
+        self.state = self.States.APPROVED
+        self.save(
+            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+        )
+        self.offering.activate()
+        self.offering.save(update_fields=['state'])
+
+    @transaction.atomic
+    def reject(self, user, comment=None):
+        self.reviewed_by = user
+        self.review_comment = comment
+        self.reviewed_at = timezone.now()
+        self.state = self.States.REJECTED
+        self.save(
+            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+        )
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-offering-activate-request'

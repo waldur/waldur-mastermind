@@ -141,3 +141,45 @@ class FlowViewSet(ActionsViewSet):
             return qs
         # Allow to see user's own requests only
         return qs.filter(requested_by=self.request.user)
+
+
+class OfferingActivateRequestViewSet(ReviewViewSet):
+    lookup_field = 'uuid'
+    queryset = models.OfferingStateRequest.objects.all()
+    approve_permissions = reject_permissions = [structure_permissions.is_staff]
+    filterset_class = filters.OfferingActivateRequestFilter
+    serializer_class = serializers.OfferingActivateRequestSerializer
+    disabled_actions = ['destroy', 'update', 'partial_update']
+
+    def get_queryset(self):
+        qs = super(OfferingActivateRequestViewSet, self).get_queryset()
+        if self.request.user.is_staff:
+            return qs
+        # Allow to see user's own requests only
+        return qs.filter(requested_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def submit(self, request, **kwargs):
+        review_request = self.get_object()
+        review_request.submit()
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, **kwargs):
+        review_request = self.get_object()
+        review_request.cancel()
+        return Response(status=status.HTTP_200_OK)
+
+    approve_validators = reject_validators = [
+        core_validators.StateValidator(models.ReviewMixin.States.PENDING)
+    ]
+
+    submit_validators = [
+        core_validators.StateValidator(models.ReviewMixin.States.DRAFT)
+    ]
+
+    cancel_validators = [
+        core_validators.StateValidator(
+            models.ReviewMixin.States.DRAFT, models.ReviewMixin.States.PENDING
+        )
+    ]
