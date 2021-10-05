@@ -65,3 +65,8 @@ class FlowFilter(django_filters.FilterSet):
         field_name='requested_by__uuid', view_name='user-detail'
     )
     user_uuid = django_filters.UUIDFilter(field_name='requested_by__uuid')
+
+
+class OfferingActivateRequestFilter(django_filters.FilterSet):
+    state = ReviewStateFilter()
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')

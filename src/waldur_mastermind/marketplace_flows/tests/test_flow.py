@@ -8,10 +8,13 @@ from waldur_mastermind.marketplace.tests.factories import OfferingFactory, PlanF
 from waldur_mastermind.marketplace_flows.models import (
     CustomerCreateRequest,
     FlowTracker,
+    OfferingStateRequest,
     ProjectCreateRequest,
     ResourceCreateRequest,
 )
 from waldur_mastermind.marketplace_support.tests.fixtures import SupportFixture
+
+from . import factories
 
 
 class CreateResourceFlowTest(test.APITransactionTestCase):
@@ -393,3 +396,152 @@ class FlowApproveTest(FlowOperationsTest):
         self.assertTrue(
             self.flow.order_item.order.project.has_user(self.flow.requested_by)
         )
+
+
+class CreateOfferingStateRequestTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.list_url = reverse('marketplace-offering-activate-request-list')
+        self.fixture = SupportFixture()
+        self.offering = self.fixture.offering
+        self.offering.state = Offering.States.DRAFT
+        self.offering.save()
+        self.plan = self.fixture.plan
+        self.user = UserFactory()
+        self.offering_url = OfferingFactory.get_url(self.offering)
+
+    def test_user_can_create_request(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            OfferingStateRequest.objects.filter(requested_by=self.user).exists()
+        )
+
+    def test_user_cannot_create_request_if_offering_state_is_not_draft(self):
+        self.client.force_authenticate(self.user)
+        self.offering.state = Offering.States.ACTIVE
+        self.offering.save()
+        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_cannot_create_request_twice(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_can_get_only_his_requests(self):
+        factories.OfferingStateRequestFactory(requested_by=self.user)
+        factories.OfferingStateRequestFactory()
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(len(response.data), 1)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.list_url)
+        self.assertEqual(len(response.data), 2)
+
+    def test_staff_can_approve_request(self):
+        offering_request = factories.OfferingStateRequestFactory(
+            requested_by=self.user,
+            state=OfferingStateRequest.States.PENDING,
+            offering=self.offering,
+        )
+        approve_url = factories.OfferingStateRequestFactory.get_url(
+            offering_request, 'approve'
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(approve_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, Offering.States.ACTIVE)
+        offering_request.refresh_from_db()
+        self.assertEqual(offering_request.state, OfferingStateRequest.States.APPROVED)
+
+        response = self.client.post(approve_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_staff_can_reject_request(self):
+        offering_request = factories.OfferingStateRequestFactory(
+            requested_by=self.user,
+            state=OfferingStateRequest.States.PENDING,
+            offering=self.offering,
+        )
+        reject_url = factories.OfferingStateRequestFactory.get_url(
+            offering_request, 'reject'
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(reject_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, Offering.States.DRAFT)
+        offering_request.refresh_from_db()
+        self.assertEqual(offering_request.state, OfferingStateRequest.States.REJECTED)
+
+        response = self.client.post(reject_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_user_cannot_approve_or_reject_request(self):
+        offering_request = factories.OfferingStateRequestFactory(
+            requested_by=self.user,
+            state=OfferingStateRequest.States.PENDING,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(self.user)
+
+        approve_url = factories.OfferingStateRequestFactory.get_url(
+            offering_request, 'approve'
+        )
+        response = self.client.post(approve_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        approve_url = factories.OfferingStateRequestFactory.get_url(
+            offering_request, 'reject'
+        )
+        response = self.client.post(approve_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_user_can_submit_request(self):
+        offering_request = factories.OfferingStateRequestFactory(
+            requested_by=self.user,
+            state=OfferingStateRequest.States.DRAFT,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(self.user)
+
+        submit_url = factories.OfferingStateRequestFactory.get_url(
+            offering_request, 'submit'
+        )
+        response = self.client.post(submit_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_request.refresh_from_db()
+        self.assertEqual(offering_request.state, OfferingStateRequest.States.PENDING)
+
+        response = self.client.post(submit_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_user_can_cancel_request(self):
+        offering_request = factories.OfferingStateRequestFactory(
+            requested_by=self.user,
+            state=OfferingStateRequest.States.DRAFT,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(self.user)
+
+        cancel_url = factories.OfferingStateRequestFactory.get_url(
+            offering_request, 'cancel'
+        )
+        response = self.client.post(cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_request.refresh_from_db()
+        self.assertEqual(offering_request.state, OfferingStateRequest.States.CANCELED)
+
+        response = self.client.post(cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
