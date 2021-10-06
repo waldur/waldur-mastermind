@@ -1,7 +1,7 @@
 # Add a new language for translatable models
 
 For translating fields of some models we use
-[django modeltranslation](<https://django-modeltranslation.readthedocs.io/en/latest/>).
+[django modeltranslation](https://django-modeltranslation.readthedocs.io/en/latest/).
 
 ## First run
 

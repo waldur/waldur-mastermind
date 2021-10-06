@@ -52,13 +52,13 @@ Here are the guidelines for writing good log events.
 
    1. log `Environment %s creation has been started.` within HTTP request handler;
 
-   2. log `Environment %s has been created.` at the end of background task.
+   1. log `Environment %s has been created.` at the end of background task.
 
   **Failure flow:**
 
    1. log `Environment %s creation has been started.` within HTTP request handler;
 
-   2. log `Environment %s creation has failed.` at the end of background task.
+   1. log `Environment %s creation has failed.` at the end of background task.
 
 * For actions that can be processed within HTTP request handler log only success.
 
