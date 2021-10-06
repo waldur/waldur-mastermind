@@ -169,7 +169,7 @@ class WebHook(BaseHook):
 
 
 class EmailHook(BaseHook):
-    email = models.EmailField(max_length=75)
+    email = models.EmailField(max_length=320)
 
     def process(self, event):
         if not self.email:

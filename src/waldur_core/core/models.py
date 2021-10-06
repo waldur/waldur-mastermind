@@ -196,7 +196,7 @@ class User(
         null=True,
         default=None,
     )
-    email = models.EmailField(_('email address'), max_length=75, blank=True)
+    email = models.EmailField(_('email address'), max_length=320, blank=True)
 
     is_staff = models.BooleanField(
         _('staff status'),
