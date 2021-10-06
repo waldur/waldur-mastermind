@@ -14,6 +14,8 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/lint-dockerfile.yaml"
   - project: "waldur/waldur-pipelines"
+    file: "/templates/test/lint-md-files.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/deploy/dev-env-update.yml"
 
 variables:

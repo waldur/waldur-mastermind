@@ -5,6 +5,7 @@
 Waldur is a cloud management, orchestration and accounting system. Used in government clouds, universities, HPC centres and mid-to-large enterprises.
 
 Common uses include:
+
 * HPC centres
 * Private and public cloud
 * Service marketplace
@@ -22,6 +23,7 @@ Common uses include:
 * Billing and fine grained accounting
 
 Automated provisioning:
+
 * OpenStack
 * SLURM
 * Kubernetes clusters using Rancher

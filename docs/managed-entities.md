@@ -32,21 +32,21 @@ from an initial REST API call and then query state changes of the entity.
 
 1. View receives request for entity change.
 
-2. If request contains any data - view passes request to serializer for validation.
+1. If request contains any data - view passes request to serializer for validation.
 
-3. View extracts operations specific information from validated data and saves entity via serializer.
+1. View extracts operations specific information from validated data and saves entity via serializer.
 
-4. View starts executor with saved instance and operation specific information as input.
+1. View starts executor with saved instance and operation specific information as input.
 
-5. Executor handles entity states checks and transition.
+1. Executor handles entity states checks and transition.
 
-6. Executor schedules celery tasks to perform asynchronous operations.
+1. Executor schedules celery tasks to perform asynchronous operations.
 
-7. View returns response.
+1. View returns response.
 
-8. Tasks asynchronously call backend methods to perform required operation.
+1. Tasks asynchronously call backend methods to perform required operation.
 
-9. Callback tasks changes instance state after backend method execution.
+1. Callback tasks changes instance state after backend method execution.
 
 ## Simplified schema of operations flow
 

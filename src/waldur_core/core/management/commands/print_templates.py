@@ -32,7 +32,7 @@ class Command(BaseCommand):
                         full_path.endswith('.html') or full_path.endswith('.txt')
                     ):
                         _, extension = os.path.splitext(fname)
-                        print(f'### {fname}', end=BLANK_LINE)
+                        print(f'### {fname} ({app})', end=BLANK_LINE)
                         print(f'``` {extension[1:]}')
                         with open(full_path, 'r') as template_file:
                             for line in template_file.readlines():

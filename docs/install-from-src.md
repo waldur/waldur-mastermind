@@ -17,7 +17,7 @@
   - OS X:
   `brew install openssl; export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"; export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"`
 
-**Waldur MasterMind installation**
+## Waldur MasterMind installation
 
 1. Install poetry:
 
@@ -25,14 +25,14 @@
 > pip3 install poetry
 > ```
 
-2. Get the code:
+1. Get the code:
 
 > ``` bash
 > git clone https://github.com/opennode/waldur-mastermind.git
 > cd waldur-mastermind
 > ```
 
-3. Install Waldur in development mode along with dependencies:
+1. Install Waldur in development mode along with dependencies:
 
 > ``` bash
 > poetry install
@@ -48,14 +48,14 @@
 > export PKG_CONFIG_PATH="/opt/homebrew/opt/libffi/lib/pkgconfig"
 > ```
 
-4. Create and edit settings file (see 'Configuration' section for details):
+1. Create and edit settings file (see 'Configuration' section for details):
 
 > ``` bash
 > cp src/waldur_core/server/settings.py.example src/waldur_core/server/settings.py
 > vi src/waldur_core/server/settings.py
 > ```
 
-5. Initialise PostgreSQL database:
+1. Initialise PostgreSQL database:
 
 > ``` bash
 > createdb waldur
@@ -63,14 +63,14 @@
 > poetry run waldur migrate --noinput
 > ```
 
-6. Collect static data \-- static files will be copied to `./static/`
-in the same directory:
+1. Collect static data \-- static files will be copied to `./static/`
+    in the same directory:
 
 > ``` bash
 > poetry run waldur collectstatic --noinput
 > ```
 
-7. Start Waldur:
+1. Start Waldur:
 
 > ``` bash
 > poetry run waldur runserver

@@ -1,8 +1,8 @@
 # Development guidelines
 
 1. Follow [PEP8](https://python.org/dev/peps/pep-0008/)
-2. Use [git flow](https://github.com/nvie/gitflow)
-3. Write docstrings
+1. Use [git flow](https://github.com/nvie/gitflow)
+1. Write docstrings
 
 ## Flow for feature tasks
 
@@ -16,7 +16,7 @@
 
 - Perform brilliant work (don't forget about tests!)
 - Verify that tests are passing.
-- Push all changes to origin (https://code.opennodecloud.com)
+- Push all changes to origin (<https://code.opennodecloud.com/>)
 - Create a Merge Request and assign it to a reviewer. Make sure that MR can be merged automatically. If not, resolve
    the conflicts by merging develop branch into yours:
 
