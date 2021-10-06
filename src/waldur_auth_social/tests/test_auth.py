@@ -214,31 +214,6 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.valid_cuid = (
             '87b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org'
         )
-
-    def test_unauthorized_user_can_not_sync_remote_users(self):
-        user = structure_factories.UserFactory()
-        self.client.force_login(user)
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(
-            response.data,
-            'Only staff and identity manager are allowed to sync remote users.',
-        )
-
-    def test_when_user_already_exists_local_uuid_is_returned(self):
-        eduteams_user = structure_factories.UserFactory(
-            registration_method='eduteams',
-            username=self.valid_cuid,
-            email='john@snow.me',
-        )
-        user = structure_factories.UserFactory(is_identity_manager=True)
-        self.client.force_login(user)
-        response = self.client.post(self.url, {'cuid': eduteams_user.username})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(response.data['uuid'], eduteams_user.uuid.hex)
-
-    @responses.activate
-    def test_when_user_does_not_exist_remote_api_is_called(self):
         user_url = (
             f'https://proxy.acc.researcher-access.org/api/userinfo/{self.valid_cuid}'
         )
@@ -261,6 +236,19 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
                 ],
             },
         )
+
+    def test_unauthorized_user_can_not_sync_remote_users(self):
+        user = structure_factories.UserFactory()
+        self.client.force_login(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data,
+            'Only staff and identity manager are allowed to sync remote users.',
+        )
+
+    @responses.activate
+    def test_when_user_does_not_exist_remote_api_is_called(self):
         user = structure_factories.UserFactory(is_identity_manager=True)
         self.client.force_login(user)
 
@@ -273,3 +261,54 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
 
         keys = SshPublicKey.objects.filter(user=new_user)
         self.assertEqual(keys.count(), 1)
+
+    @responses.activate
+    def test_staff_can_trigger_remote_user_sync(self):
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        response = self.client.post(self.url, {'cuid': self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @responses.activate
+    def test_when_user_exists_it_is_updated(self):
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        remote_user = structure_factories.UserFactory(
+            username=self.valid_cuid, email='foo@example.com'
+        )
+
+        response = self.client.post(self.url, {'cuid': self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        remote_user.refresh_from_db()
+        self.assertEqual(remote_user.email, "john@snow.me")
+        self.assertEqual(remote_user.full_name, "John Snow")
+
+        keys = SshPublicKey.objects.filter(user=remote_user)
+        self.assertEqual(keys.count(), 1)
+
+    @responses.activate
+    @mock.patch('waldur_core.core.handlers.event_logger')
+    def test_when_user_is_updated_events_are_emitted(self, mock_event_logger):
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        structure_factories.UserFactory(
+            first_name='Steve',
+            last_name='Jobs',
+            username=self.valid_cuid,
+            email='steve@jobs.com',
+        )
+
+        self.client.post(self.url, {'cuid': self.valid_cuid})
+
+        msg = mock_event_logger.user.info.call_args[0][0]
+        test_msg = (
+            'User {affected_user_username} has been updated. Details:\n'
+            'email: steve@jobs.com -> john@snow.me\n'
+            'first_name: Steve -> John\n'
+            'last_name: Jobs -> Snow'
+        )
+        self.assertEqual(test_msg, msg)
