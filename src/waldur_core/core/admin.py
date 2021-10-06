@@ -22,8 +22,10 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 from jsoneditor.forms import JSONEditor
 from rest_framework import permissions as rf_permissions
+from rest_framework.exceptions import ParseError
 from reversion.admin import VersionAdmin
 
+from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
 
@@ -263,7 +265,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
         ),
         (
             _('Important dates'),
-            {'fields': ('last_login', 'date_joined', 'agreement_date')},
+            {'fields': ('last_login', 'date_joined', 'agreement_date', 'last_sync')},
         ),
         (
             _('Authentication backend details'),
@@ -278,6 +280,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
         'project_roles',
         'uuid',
         'last_login',
+        'last_sync',
         'date_joined',
         'format_details',
     )
@@ -330,6 +333,28 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
 
     format_details.allow_tags = True
     format_details.short_description = _('Details')
+
+    actions = ['pull_remote_user']
+
+    def pull_remote_user(self, request, queryset):
+        if not settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
+            messages.error(
+                request,
+                _('Remote eduTEAMS account synchronization extension is disabled.'),
+            )
+            return
+        for remote_user in queryset:
+            if remote_user.registration_method == 'eduteams':
+                try:
+                    pull_remote_eduteams_user(remote_user.username)
+                except ParseError:
+                    messages.error(
+                        request,
+                        _('Unable to pull remote eduTEAMS account %s.')
+                        % remote_user.username,
+                    )
+
+    pull_remote_user.short_description = 'Pull remote eduTEAMS users'
 
 
 class SshPublicKeyAdmin(VersionAdmin):

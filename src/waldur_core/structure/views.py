@@ -20,6 +20,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import managers as core_managers
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
@@ -594,6 +595,18 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
 
         return Response(serializer.data, status=status.HTTP_200_OK,)
+
+    @action(detail=True, methods=['post'])
+    def pull_remote_user(self, request, uuid=None):
+        user = self.get_object()
+        if user.registration_method != 'eduteams':
+            raise ValidationError(_('User is not managed by eduTEAMS.'))
+        if not django_settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
+            raise ValidationError(
+                _('Remote eduTEAMS account synchronization extension is disabled.')
+            )
+        pull_remote_eduteams_user(user.username)
+        return Response(status=status.HTTP_200_OK)
 
 
 class BasePermissionViewSet(viewsets.ModelViewSet):

@@ -8,11 +8,15 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import generics, status, views
 from rest_framework.authtoken.models import Token
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from waldur_auth_social.mixins import EduteamsCreateOrUpdateUserMixin
+from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import OAuthToken
+from waldur_auth_social.utils import (
+    create_or_update_eduteams_user,
+    pull_remote_eduteams_user,
+)
 from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
 
 from . import tasks
@@ -47,19 +51,6 @@ validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
 validate_local_signup = validate_authentication_method('LOCAL_SIGNUP')
 
 User = get_user_model()
-
-
-class OAuthException(APIException):
-    status_code = status.HTTP_401_UNAUTHORIZED
-
-    def __init__(self, provider, error_message, error_description=None):
-        self.message = '%s error: %s' % (provider, error_message)
-        if error_description:
-            self.message = '%s (%s)' % (self.message, error_description)
-        super(OAuthException, self).__init__(detail=self.message)
-
-    def __str__(self):
-        return self.message
 
 
 def generate_username():
@@ -349,7 +340,7 @@ class KeycloakView(OAuthView):
         return user, created
 
 
-class EduteamsView(OAuthView, EduteamsCreateOrUpdateUserMixin):
+class EduteamsView(OAuthView):
     provider = 'eduteams'
 
     def get_token_response(self, validated_data):
@@ -367,10 +358,11 @@ class EduteamsView(OAuthView, EduteamsCreateOrUpdateUserMixin):
         headers = {'Authorization': f'Bearer {access_token}'}
         return requests.get(EDUTEAMS_USERINFO_URL, headers=headers)
 
+    def create_or_update_user(self, backend_user):
+        return create_or_update_eduteams_user(backend_user)
 
-class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
-    provider = 'remote_eduteams'
 
+class RemoteEduteamsView(views.APIView):
     def post(self, request, *args, **kwargs):
         if not request.user.is_staff and not request.user.is_identity_manager:
             return Response(
@@ -378,7 +370,7 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if not self.extension_is_enabled():
+        if not settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
             return Response(
                 'Remote eduTEAMS user sync is disabled.',
                 status=status.HTTP_403_FORBIDDEN,
@@ -388,76 +380,8 @@ class RemoteEduteamsView(views.APIView, EduteamsCreateOrUpdateUserMixin):
         serializer.is_valid(raise_exception=True)
         cuid = serializer.validated_data['cuid']
 
-        user = self.get_or_create_user(cuid)
+        user = pull_remote_eduteams_user(cuid)
         return Response({'uuid': user.uuid.hex})
-
-    def extension_is_enabled(self):
-        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']
-
-    def get_token(self):
-        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ACCESS_TOKEN']
-
-    def get_userinfo_url(self):
-        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_USERINFO_URL']
-
-    def get_token_url(self):
-        return settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_TOKEN_URL']
-
-    def get_or_create_user(self, username):
-        try:
-            return User.objects.get(
-                username=username, registration_method=EduteamsView.provider
-            )
-        except User.DoesNotExist:
-            user_info = self.get_user_info(username)
-            return self.create_or_update_user(user_info)[0]
-
-    def get_user_info(self, cuid: str) -> dict:
-        user_url = f'{self.get_userinfo_url()}/{cuid}'
-        access_token = self.refresh_token()
-        try:
-            user_response = requests.get(
-                user_url, headers={'Authorization': f'Bearer {access_token}'}
-            )
-        except requests.exceptions.RequestException as e:
-            logger.warning('Unable to get eduTEAMS user info. Error is %s', e)
-            raise OAuthException(self.provider, 'Unable to get user info.')
-
-        if user_response.status_code != 200:
-            raise OAuthException(self.provider, 'Unable to get user info.')
-
-        try:
-            return user_response.json()
-        except (ValueError, TypeError):
-            raise OAuthException(
-                self.provider, 'Unable to parse JSON in user info response.'
-            )
-
-    def refresh_token(self):
-        token_url = self.get_token_url()
-
-        try:
-            token_response = requests.post(
-                token_url,
-                auth=(
-                    settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_CLIENT_ID'],
-                    settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_SECRET'],
-                ),
-                data={
-                    'grant_type': 'refresh_token',
-                    'refresh_token': self.get_token(),
-                    'scope': 'openid',
-                },
-            )
-            if token_response.status_code != 200:
-                raise OAuthException(
-                    EduteamsView.provider,
-                    'Unable to get access token. Service is down.',
-                )
-            return token_response.json()['access_token']
-        except requests.exceptions.RequestException as e:
-            logger.warning('Unable to get eduTEAMS access token. Error is %s', e)
-            raise OAuthException(self.provider, 'Unable to get access token.')
 
 
 class RegistrationView(generics.CreateAPIView):
