@@ -10,6 +10,7 @@ BLACK_LIST = [
     'print_schema',
     'export_api_docs',
     'print_events',
+    'print_templates',
 ]
 
 
@@ -30,7 +31,7 @@ class Command(BaseCommand):
             print(command.help.strip().replace('  ', ' '))
             print()
             if parser._actions:
-                print('```')
+                print('```bash')
                 parser.print_help()
                 print('```')
                 print()
