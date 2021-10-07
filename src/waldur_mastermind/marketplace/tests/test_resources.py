@@ -715,6 +715,13 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
             self.resource.refresh_from_db()
             self.assertEqual(self.resource.end_date, parse_date('2020-05-08'))
 
+            self.assertTrue(
+                logging_models.Event.objects.filter(
+                    message__contains='End date of marketplace resource %s has been updated by provider.'
+                    % self.resource.name
+                ).exists()
+            )
+
     @freeze_time('2020-01-01')
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
         self,
@@ -748,6 +755,51 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
             self.fixture.offering_owner, {'end_date': '2020-01-10'}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt
+class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, 'set_end_date_by_staff'
+        )
+
+    def make_request(self, user, payload):
+        self.client.force_authenticate(user)
+        return self.client.post(self.url, payload)
+
+    @freeze_time('2020-01-01')
+    @data('staff',)
+    def test_user_can_set_end_date(self, user):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        with freeze_time('2020-05-01'):
+            response = self.make_request(
+                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.resource.refresh_from_db()
+            self.assertEqual(self.resource.end_date, parse_date('2020-05-08'))
+
+            self.assertTrue(
+                logging_models.Event.objects.filter(
+                    message__contains='End date of marketplace resource %s has been updated by staff.'
+                    % self.resource.name
+                ).exists()
+            )
+
+    @freeze_time('2020-01-01')
+    @data('offering_owner', 'service_manager')
+    def test_user_cannot_set_end_date(self, user):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        with freeze_time('2020-05-01'):
+            response = self.make_request(
+                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+            )
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):

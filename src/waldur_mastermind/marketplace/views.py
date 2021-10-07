@@ -52,7 +52,7 @@ from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
 
-from . import filters, models, permissions, plugins, serializers, tasks, utils
+from . import filters, log, models, permissions, plugins, serializers, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -1071,25 +1071,43 @@ class ResourceViewSet(core_views.ActionsViewSet):
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
-    @action(detail=True, methods=['post'])
-    def set_end_date_by_provider(self, request, uuid=None):
+    def _set_end_date(self, request, is_staff_action):
         resource = self.get_object()
-        serializer = self.get_serializer(data=request.data, instance=resource)
+        serializer = serializers.ResourceEndDateByProviderSerializer(
+            data=request.data, instance=resource, context={'request': request}
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         transaction.on_commit(
             lambda: tasks.notify_about_resource_termination.delay(
-                resource.uuid.hex, request.user.uuid.hex
+                resource.uuid.hex, request.user.uuid.hex, is_staff_action
             )
         )
+
+        if not is_staff_action:
+            log.log_marketplace_resource_end_date_has_been_updated_by_provider(
+                resource, request.user
+            )
+        else:
+            log.log_marketplace_resource_end_date_has_been_updated_by_staff(
+                resource, request.user
+            )
+
         return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def set_end_date_by_provider(self, request, uuid=None):
+        return self._set_end_date(request, False)
 
     set_end_date_by_provider_permissions = [
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
-    set_end_date_by_provider_serializer_class = (
-        serializers.ResourceEndDateByProviderSerializer
-    )
+
+    @action(detail=True, methods=['post'])
+    def set_end_date_by_staff(self, request, uuid=None):
+        return self._set_end_date(request, True)
+
+    set_end_date_by_staff_permissions = [structure_permissions.is_staff]
 
     # Service provider endpoint only
     @action(detail=True, methods=['get'])

@@ -275,7 +275,7 @@ def terminate_resource_if_its_end_date_has_been_reached():
 
 
 @shared_task
-def notify_about_resource_termination(resource_uuid, user_uuid):
+def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=None):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     user = User.objects.get(uuid=user_uuid)
     admin_emails = set(
@@ -295,6 +295,15 @@ def notify_about_resource_termination(resource_uuid, user_uuid):
         resource_uuid=resource.uuid.hex,
     )
     context = {'resource': resource, 'user': user, 'resource_url': resource_url}
-    core_utils.broadcast_mail(
-        'marketplace', 'marketplace_resource_terminatate_scheduled', context, emails
-    )
+
+    if is_staff_action:
+        core_utils.broadcast_mail(
+            'marketplace',
+            'marketplace_resource_terminatate_scheduled_staff',
+            context,
+            emails,
+        )
+    else:
+        core_utils.broadcast_mail(
+            'marketplace', 'marketplace_resource_terminatate_scheduled', context, emails
+        )

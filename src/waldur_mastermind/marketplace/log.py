@@ -386,8 +386,8 @@ def log_marketplace_resource_renamed(resource, old_name):
     )
 
 
-def log_marketplace_resource_end_date_has_been_updated(resource, user):
-    template = (
+def log_marketplace_resource_end_date_has_been_updated(resource, user, template=None):
+    template = template or (
         'End date of marketplace resource %(resource_name)s has been updated.'
         ' End date: %(end_date)s.'
         ' User: %(user)s.'
@@ -408,6 +408,26 @@ def log_marketplace_resource_end_date_has_been_updated(resource, user):
         event_type='marketplace_resource_update_end_date_succeeded',
         event_context=event_context,
     )
+
+
+def log_marketplace_resource_end_date_has_been_updated_by_provider(resource, user):
+    template = (
+        'End date of marketplace resource %(resource_name)s has been updated by provider.'
+        ' End date: %(end_date)s.'
+        ' User: %(user)s.'
+    )
+
+    log_marketplace_resource_end_date_has_been_updated(resource, user, template)
+
+
+def log_marketplace_resource_end_date_has_been_updated_by_staff(resource, user):
+    template = (
+        'End date of marketplace resource %(resource_name)s has been updated by staff.'
+        ' End date: %(end_date)s.'
+        ' User: %(user)s.'
+    )
+
+    log_marketplace_resource_end_date_has_been_updated(resource, user, template)
 
 
 def log_offering_user_created(offering_user):

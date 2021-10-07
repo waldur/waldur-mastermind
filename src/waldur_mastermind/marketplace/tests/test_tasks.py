@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 from django.core import mail
 from django.utils import timezone
@@ -96,6 +97,29 @@ class ResourceEndDateTest(test.APITransactionTestCase):
             fixture.resource.uuid, fixture.offering_owner.uuid,
         )
         self.assertEqual(len(mail.outbox), 0)
+
+    @patch('waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail')
+    def test_notification_uses_different_templates_for_staff_and_other_users(
+        self, mock_broadcast_mail
+    ):
+        fixture = fixtures.MarketplaceFixture()
+        tasks.notify_about_resource_termination(
+            fixture.resource.uuid, fixture.offering_owner.uuid, False
+        )
+        mock_broadcast_mail.assert_called()
+        self.assertEqual(
+            mock_broadcast_mail.call_args[0][1],
+            'marketplace_resource_terminatate_scheduled',
+        )
+
+        tasks.notify_about_resource_termination(
+            fixture.resource.uuid, fixture.offering_owner.uuid, True
+        )
+        mock_broadcast_mail.assert_called()
+        self.assertEqual(
+            mock_broadcast_mail.call_args[0][1],
+            'marketplace_resource_terminatate_scheduled_staff',
+        )
 
 
 class TerminateResource(test.APITransactionTestCase):
