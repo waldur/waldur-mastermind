@@ -110,6 +110,7 @@ class WaldurClient(object):
         Users = 'users'
         UserInvitations = 'user-invitations'
         OfferingUsers = 'marketplace-offering-users'
+        ServiceProviders = 'marketplace-service-providers'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -1579,6 +1580,32 @@ class WaldurClient(object):
             payload['username'] = username
 
         return self._create_resource(self.Endpoints.OfferingUsers, payload)
+
+    def list_service_provider_users(self, service_provider_uuid):
+        endpoint = self._build_resource_url(
+            self.Endpoints.ServiceProviders, service_provider_uuid, 'users'
+        )
+        return self._query_resource_list(endpoint)
+
+    def list_service_provider_projects(self, service_provider_uuid):
+        endpoint = self._build_resource_url(
+            self.Endpoints.ServiceProviders, service_provider_uuid, 'projects'
+        )
+        return self._query_resource_list(endpoint)
+
+    def list_service_provider_project_permissions(self, service_provider_uuid):
+        endpoint = self._build_resource_url(
+            self.Endpoints.ServiceProviders,
+            service_provider_uuid,
+            'project_permissions',
+        )
+        return self._query_resource_list(endpoint)
+
+    def list_service_provider_ssh_keys(self, service_provider_uuid):
+        endpoint = self._build_resource_url(
+            self.Endpoints.ServiceProviders, service_provider_uuid, 'keys'
+        )
+        return self._query_resource_list(endpoint)
 
 
 def waldur_full_argument_spec(**kwargs):
