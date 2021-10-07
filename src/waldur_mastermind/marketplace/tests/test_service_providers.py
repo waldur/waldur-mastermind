@@ -4,9 +4,11 @@ from rest_framework import status, test
 
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from . import factories
@@ -15,7 +17,7 @@ from . import factories
 @ddt
 class ServiceProviderGetTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.service_provider = factories.ServiceProviderFactory(
             customer=self.fixture.customer
         )
@@ -69,7 +71,7 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
 @ddt
 class ServiceProviderRegisterTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
     @data('staff')
@@ -126,7 +128,7 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
 @ddt
 class ServiceProviderUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
     @data('staff', 'owner')
@@ -202,7 +204,7 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
 @ddt
 class ServiceProviderDeleteTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.service_provider = factories.ServiceProviderFactory(customer=self.customer)
 
@@ -274,7 +276,7 @@ class CustomerSerializerTest(test.APITransactionTestCase):
 
 class ServiceProviderNotificationTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.CustomerFixture()
+        self.fixture = structure_fixtures.CustomerFixture()
         self.fixture.owner
         self.service_provider = factories.ServiceProviderFactory(
             customer=self.fixture.customer
@@ -316,3 +318,90 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             organization_uuid=self.fixture.customer.uuid,
         )
         self.assertTrue(public_resources_url in mail.outbox[0].body)
+
+
+class ConsumerProjectListTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.mp_fixture = fixtures.MarketplaceFixture()
+
+        self.consumer_project = self.mp_fixture.project
+        self.consumable_resource = self.mp_fixture.resource
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.mp_fixture.service_provider, action='projects'
+        )
+
+    def test_service_provider_can_view_project_with_purchased_resource(self):
+        self.client.force_login(self.mp_fixture.offering_owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(
+            self.consumer_project.uuid.hex, [item['uuid'] for item in response.data]
+        )
+
+
+class ConsumerSshKeyListTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.mp_fixture = fixtures.MarketplaceFixture()
+
+        self.consumer_project = self.mp_fixture.project
+        self.consumable_resource = self.mp_fixture.resource
+        self.admin = self.mp_fixture.admin
+        self.ssh_key = structure_factories.SshPublicKeyFactory(
+            user=self.admin, is_shared=True,
+        )
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.mp_fixture.service_provider, action='keys'
+        )
+
+    def test_service_provider_can_view_ssh_keys_from_project_with_purchased_resource(
+        self,
+    ):
+        self.client.force_login(self.mp_fixture.offering_owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(self.ssh_key.uuid.hex, [item['uuid'] for item in response.data])
+
+
+class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.mp_fixture = fixtures.MarketplaceFixture()
+
+        self.consumer_project = self.mp_fixture.project
+        self.consumable_resource = self.mp_fixture.resource
+        self.admin = self.mp_fixture.admin
+        self.permission = structure_models.ProjectPermission.objects.get(
+            user=self.admin, project=self.consumer_project, is_active=True,
+        )
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.mp_fixture.service_provider, action='project_permissions'
+        )
+
+    def test_service_provider_can_view_project_permissions_in_project_with_purchased_resource(
+        self,
+    ):
+        self.client.force_login(self.mp_fixture.offering_owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(self.permission.id, [item['pk'] for item in response.data])
+
+
+class ConsumerUserListTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.mp_fixture = fixtures.MarketplaceFixture()
+
+        self.consumer_project = self.mp_fixture.project
+        self.consumable_resource = self.mp_fixture.resource
+        self.admin = self.mp_fixture.admin
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.mp_fixture.service_provider, action='users'
+        )
+
+    def test_service_provider_can_view_users_in_project_with_purchased_resource(self,):
+        self.client.force_login(self.mp_fixture.offering_owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn(self.admin.uuid.hex, [item['uuid'] for item in response.data])
