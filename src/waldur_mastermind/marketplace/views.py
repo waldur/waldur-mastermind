@@ -30,6 +30,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
+from waldur_core.core import models as core_models
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
@@ -79,7 +80,11 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all().order_by('customer__name')
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
-    api_secret_code_permissions = [structure_permissions.is_owner]
+    api_secret_code_permissions = (
+        projects_permissions
+    ) = project_permissions_permissions = keys_permissions = users_permissions = [
+        structure_permissions.is_owner
+    ]
 
     @action(detail=True, methods=['GET', 'POST'])
     def api_secret_code(self, request, uuid=None):
@@ -102,6 +107,66 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
                 },
                 status=status.HTTP_200_OK,
             )
+
+    def get_customer_project_ids(self):
+        service_provider = self.get_object()
+        offering_ids = models.Offering.objects.filter(
+            shared=True, customer=service_provider.customer
+        ).values_list('id', flat=True)
+        project_ids = (
+            models.Resource.objects.filter(offering_id__in=offering_ids)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list('project_id', flat=True)
+        )
+        return project_ids
+
+    @action(detail=True, methods=['GET'])
+    def projects(self, request, uuid=None):
+        project_ids = self.get_customer_project_ids()
+        projects = structure_models.Project.objects.filter(id__in=project_ids)
+        page = self.paginate_queryset(projects)
+        serializer = structure_serializers.ProjectSerializer(
+            page, many=True, context={'request': request}
+        )
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=['GET'])
+    def project_permissions(self, request, uuid=None):
+        project_ids = self.get_customer_project_ids()
+        permissions = structure_models.ProjectPermission.objects.filter(
+            project_id__in=project_ids, is_active=True
+        )
+        page = self.paginate_queryset(permissions)
+        serializer = structure_serializers.ProjectPermissionLogSerializer(
+            page, many=True, context={'request': request}
+        )
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=['GET'])
+    def keys(self, request, uuid=None):
+        project_ids = self.get_customer_project_ids()
+        user_ids = structure_models.ProjectPermission.objects.filter(
+            project_id__in=project_ids, is_active=True
+        ).values_list('user_id', flat=True)
+        keys = core_models.SshPublicKey.objects.filter(user_id__in=user_ids)
+        page = self.paginate_queryset(keys)
+        serializer = structure_serializers.SshKeySerializer(
+            page, many=True, context={'request': request}
+        )
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=['GET'])
+    def users(self, request, uuid=None):
+        project_ids = self.get_customer_project_ids()
+        user_ids = structure_models.ProjectPermission.objects.filter(
+            project_id__in=project_ids, is_active=True
+        ).values_list('user_id', flat=True)
+        users = core_models.User.objects.filter(id__in=user_ids)
+        page = self.paginate_queryset(users)
+        serializer = structure_serializers.UserSerializer(
+            page, many=True, context={'request': request}
+        )
+        return self.get_paginated_response(serializer.data)
 
     def check_related_resources(request, view, obj=None):
         if obj and obj.has_active_offerings:
