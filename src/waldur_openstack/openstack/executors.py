@@ -43,7 +43,24 @@ class SecurityGroupPullExecutor(core_executors.ActionExecutor):
         )
 
 
-class SecurityGroupDeleteExecutor(core_executors.DeleteExecutor):
+class SecurityGroupDeleteExecutor(core_executors.BaseExecutor):
+    """
+    Security group is being deleted in the last task instead of
+    using separate DeleteTask from DeleteExecutorMixin so that
+    deletion is performed transactionally.
+    """
+
+    @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        instance.schedule_deleting()
+        instance.save(update_fields=['state'])
+
+    @classmethod
+    def get_failure_signature(
+        cls, instance, serialized_instance, force=False, **kwargs
+    ):
+        return core_tasks.ErrorStateTransitionTask().s(serialized_instance)
+
     @classmethod
     def get_task_signature(cls, security_group, serialized_security_group, **kwargs):
         state_transition_task = core_tasks.StateTransitionTask().si(
