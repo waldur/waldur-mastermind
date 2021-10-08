@@ -461,6 +461,10 @@ class WaldurClient(object):
         resource = self._query_resource_by_uuid(self.Endpoints.Instance, uuid)
         return len(resource['external_ips']) > 0
 
+    def list_tenants(self, filters=None):
+        endpoint = self._build_url(self.Endpoints.Tenant)
+        return self._query_resource_list(endpoint, filters)
+
     def create_security_group(
         self,
         tenant,
