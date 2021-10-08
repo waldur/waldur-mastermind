@@ -19,62 +19,61 @@
 
 ## Waldur MasterMind installation
 
-1. Install poetry:
+### Install poetry
 
-> ``` bash
-> pip3 install poetry
-> ```
+``` bash
+pip3 install poetry
+```
 
-1. Get the code:
+### Get the code
 
-> ``` bash
-> git clone https://github.com/opennode/waldur-mastermind.git
-> cd waldur-mastermind
-> ```
+``` bash
+git clone https://github.com/opennode/waldur-mastermind.git
+cd waldur-mastermind
+```
 
-1. Install Waldur in development mode along with dependencies:
+### Install Waldur in development mode along with dependencies
 
-> ``` bash
-> poetry install
-> poetry run pre-commit install
-> ```
+``` bash
+poetry install
+poetry run pre-commit install
+```
 
 **NB**: If you use a machine with Apple M1 CPU, run this before:
 
-> ``` bash
-> export optflags="-Wno-error=implicit-function-declaration"
-> export LDFLAGS="-L/opt/homebrew/opt/libffi/lib"
-> export CPPFLAGS="-I/opt/homebrew/opt/libffi/include"
-> export PKG_CONFIG_PATH="/opt/homebrew/opt/libffi/lib/pkgconfig"
-> ```
+``` bash
+export optflags="-Wno-error=implicit-function-declaration"
+export LDFLAGS="-L/opt/homebrew/opt/libffi/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/libffi/include"
+export PKG_CONFIG_PATH="/opt/homebrew/opt/libffi/lib/pkgconfig"
+```
 
-1. Create and edit settings file (see 'Configuration' section for details):
+### Create and edit settings file (see 'Configuration' section for details)
 
-> ``` bash
-> cp src/waldur_core/server/settings.py.example src/waldur_core/server/settings.py
-> vi src/waldur_core/server/settings.py
-> ```
+``` bash
+cp src/waldur_core/server/settings.py.example src/waldur_core/server/settings.py
+vi src/waldur_core/server/settings.py
+```
 
-1. Initialise PostgreSQL database:
+### Initialise PostgreSQL database
 
-> ``` bash
-> createdb waldur
-> createuser waldur
-> poetry run waldur migrate --noinput
-> ```
+``` bash
+createdb waldur
+createuser waldur
+poetry run waldur migrate --noinput
+```
 
-1. Collect static data \-- static files will be copied to `./static/`
-    in the same directory:
+### Collect static data \-- static files will be copied to `./static/` in the same directory
 
-> ``` bash
-> poetry run waldur collectstatic --noinput
-> ```
+``` bash
+poetry run waldur collectstatic --noinput
+```
 
-1. Start Waldur:
+- Start Waldur:
 
-> ``` bash
-> poetry run waldur runserver
-> ```
+``` bash
+poetry run waldur runserver
+```
 
 ## Configuration
 
