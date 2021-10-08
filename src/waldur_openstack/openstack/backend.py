@@ -1618,6 +1618,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
         security_group.decrease_backend_quotas_usage()
+        security_group.delete()
 
     def detach_security_group_from_all_instances(self, security_group):
         connected_instances = self.get_instances_connected_to_security_groups(
