@@ -1585,13 +1585,13 @@ class WaldurClient(object):
         endpoint = self._build_resource_url(
             self.Endpoints.ServiceProviders, service_provider_uuid, 'users'
         )
-        return self._query_resource_list(endpoint)
+        return self._query_resource_list(endpoint, None)
 
     def list_service_provider_projects(self, service_provider_uuid):
         endpoint = self._build_resource_url(
             self.Endpoints.ServiceProviders, service_provider_uuid, 'projects'
         )
-        return self._query_resource_list(endpoint)
+        return self._query_resource_list(endpoint, None)
 
     def list_service_provider_project_permissions(self, service_provider_uuid):
         endpoint = self._build_resource_url(
@@ -1599,13 +1599,13 @@ class WaldurClient(object):
             service_provider_uuid,
             'project_permissions',
         )
-        return self._query_resource_list(endpoint)
+        return self._query_resource_list(endpoint, None)
 
     def list_service_provider_ssh_keys(self, service_provider_uuid):
         endpoint = self._build_resource_url(
             self.Endpoints.ServiceProviders, service_provider_uuid, 'keys'
         )
-        return self._query_resource_list(endpoint)
+        return self._query_resource_list(endpoint, None)
 
 
 def waldur_full_argument_spec(**kwargs):
