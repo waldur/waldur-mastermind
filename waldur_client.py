@@ -1581,6 +1581,10 @@ class WaldurClient(object):
 
         return self._create_resource(self.Endpoints.OfferingUsers, payload)
 
+    def list_service_providers(self, filters):
+        endpoint = self._build_url(self.Endpoints.ServiceProviders)
+        return self._query_resource_list(endpoint, filters)
+
     def list_service_provider_users(self, service_provider_uuid):
         endpoint = self._build_resource_url(
             self.Endpoints.ServiceProviders, service_provider_uuid, 'users'
