@@ -46,5 +46,9 @@ if [[ -f "/etc/waldur/saml2/sp.pem" ]] ; then
   chown waldur:waldur /var/lib/waldur/sp.pem
 fi
 
+if [[ -f "/etc/waldur/id_rsa" ]]; then
+  chown waldur:waldur /etc/waldur/id_rsa
+fi
+
 echo "INFO: Spawning $@"
 exec /tini -- "$@"
