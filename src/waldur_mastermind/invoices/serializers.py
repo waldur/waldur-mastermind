@@ -47,7 +47,6 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'project_uuid',
             'quantity',
             'details',
-            'usage_days',
             'resource',
             'resource_uuid',
             'resource_name',
@@ -263,7 +262,7 @@ class SAFReportSerializer(serializers.Serializer):
     YKSUS = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
     PARTNER = serializers.SerializerMethodField(method_name='get_partner')
     ARTIKKEL = serializers.ReadOnlyField(source='article_code')
-    KOGUS = serializers.SerializerMethodField(method_name='get_quantity')
+    KOGUS = serializers.IntegerField(source='quantity')
     SUMMA = serializers.SerializerMethodField(method_name='get_total')
     RMAKSUSUM = serializers.SerializerMethodField(method_name='get_tax')
     RMAKSULIPP = serializers.SerializerMethodField(method_name='get_vat')
@@ -324,9 +323,6 @@ class SAFReportSerializer(serializers.Serializer):
     def get_due_date(self, invoice_item):
         date = invoice_item.invoice.due_date
         return self.format_date(date)
-
-    def get_quantity(self, invoice_item):
-        return invoice_item.get_factor(False)
 
     def get_total(self, invoice_item):
         return quantize_price(invoice_item.price)

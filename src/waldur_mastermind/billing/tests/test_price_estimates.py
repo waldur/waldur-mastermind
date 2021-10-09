@@ -123,7 +123,7 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
     def test_when_invoice_item_is_created_total_is_updated(self, scope):
         invoice = invoice_factories.InvoiceFactory(customer=self.fixture.customer)
         invoice_factories.InvoiceItemFactory(
-            invoice=invoice, project=self.fixture.project, unit_price=10
+            invoice=invoice, project=self.fixture.project, unit_price=10, quantity=31
         )
         estimate = models.PriceEstimate.objects.get(scope=getattr(self.fixture, scope))
         self.assertAlmostEqual(
@@ -134,7 +134,7 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
     def test_when_invoice_item_is_updated_total_is_updated_too(self, scope):
         invoice = invoice_factories.InvoiceFactory(customer=self.fixture.customer)
         invoice_item = invoice_factories.InvoiceItemFactory(
-            invoice=invoice, project=self.fixture.project, unit_price=10
+            invoice=invoice, project=self.fixture.project, unit_price=10, quantity=31
         )
         invoice_item.unit_price = 11
         invoice_item.save(update_fields=['unit_price'])
