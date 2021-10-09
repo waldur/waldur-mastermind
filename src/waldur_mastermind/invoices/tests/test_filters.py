@@ -20,6 +20,7 @@ class InvoiceFilterTest(test.APITransactionTestCase):
             invoice=self.fixture.invoice,
             unit_price=10,
             resource=resource_1,
+            quantity=1,
         )
         factories.InvoiceItemFactory(
             name='OFFERING-003',
@@ -27,6 +28,7 @@ class InvoiceFilterTest(test.APITransactionTestCase):
             invoice=self.fixture.invoice,
             unit_price=10,
             resource=resource_2,
+            quantity=1,
         )
         user = self.fixture.staff
         self.client.force_authenticate(user)

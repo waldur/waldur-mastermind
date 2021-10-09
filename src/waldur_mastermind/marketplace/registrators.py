@@ -114,6 +114,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
                 if is_fixed:
                     unit_price *= plan_component.amount
+                    quantity = invoice_models.get_quantity(unit, start, end)
                 elif is_one or is_switch:
                     unit = invoice_models.Units.QUANTITY
                     quantity = 1

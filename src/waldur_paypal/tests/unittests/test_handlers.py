@@ -26,6 +26,7 @@ class CreateInvoiceTest(TestCase):
                 "country_code": "US",
             },
         }
+        self.usage_days = 15
 
     def _get_valid_invoice(self):
         invoice = mock.Mock()
@@ -57,11 +58,11 @@ class CreateInvoiceTest(TestCase):
             item = mock.Mock()
             item.unit = 'day'
             item.unit_price = 10
-            item.usage_days = 15
-            item.price = item.unit_price * item.usage_days
+            item.quantity = self.usage_days
+            item.price = item.unit_price * self.usage_days
             item.tax = 15
             item.start = timezone.now()
-            item.end = item.start + timezone.timedelta(days=item.usage_days)
+            item.end = item.start + timezone.timedelta(days=self.usage_days)
             item.name = 'invoice item #%s' % i
             items.append(item)
 
@@ -99,4 +100,4 @@ class CreateInvoiceTest(TestCase):
             self.assertEqual(
                 created_item.unit_of_measure, models.InvoiceItem.UnitsOfMeasure.AMOUNT
             )
-            self.assertEqual(created_item.quantity, original_item.usage_days)
+            self.assertEqual(created_item.quantity, self.usage_days)

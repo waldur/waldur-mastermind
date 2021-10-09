@@ -3,6 +3,7 @@ import logging
 from functools import lru_cache
 
 import jwt
+from dateutil.parser import parse as parse_datetime
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -2596,3 +2597,65 @@ class DivisionsSerializer(serializers.Serializer):
 
         if divisions:
             offering.divisions.add(*divisions)
+
+
+class OfferingCostSerializer(serializers.Serializer):
+    period = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+    tax = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+
+    def get_period(self, record):
+        return '%s-%02d' % (record['invoice__year'], record['invoice__month'])
+
+    def get_total(self, record):
+        return round(record['computed_tax'] + record['computed_price'], 2)
+
+    def get_price(self, record):
+        return round(record['computed_price'], 2)
+
+    def get_tax(self, record):
+        return round(record['computed_tax'], 2)
+
+
+class OfferingComponentStatSerializer(serializers.Serializer):
+    period = serializers.SerializerMethodField()
+    date = serializers.SerializerMethodField()
+    usage = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    measured_unit = serializers.SerializerMethodField()
+    type = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField()
+
+    def get_date(self, record):
+        date = parse_datetime(self.get_period(record))
+        # for consistency with usage resource usage reporting, assume values at the beginning of the last day
+        return (
+            core_utils.month_end(date)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .isoformat()
+        )
+
+    def get_usage(self, record):
+        return record['total_quantity']
+
+    def get_period(self, record):
+        return '%s-%02d' % (record['invoice__year'], record['invoice__month'])
+
+    def get_component_attr(self, record, attrname):
+        component = self.context['offering_components_map'].get(
+            record['details__offering_component_type']
+        )
+        return component and getattr(component, attrname)
+
+    def get_description(self, record):
+        return self.get_component_attr(record, 'description')
+
+    def get_measured_unit(self, record):
+        return self.get_component_attr(record, 'measured_unit')
+
+    def get_type(self, record):
+        return self.get_component_attr(record, 'type')
+
+    def get_name(self, record):
+        return self.get_component_attr(record, 'name')

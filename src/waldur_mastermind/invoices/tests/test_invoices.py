@@ -355,7 +355,7 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
 
     @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_not_delete_customer_with_non_empty_invoice(self):
-        factories.InvoiceItemFactory(invoice=self.invoice, unit_price=100)
+        factories.InvoiceItemFactory(invoice=self.invoice, unit_price=100, quantity=10)
 
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)

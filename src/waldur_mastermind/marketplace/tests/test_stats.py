@@ -194,14 +194,12 @@ class CostsStatsTest(StatsBaseTest):
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(self.url, {'start': '2020-01', 'end': '2020-02'})
         self.assertEqual(result.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(result.data), 2)
         self.assertDictEqual(
             result.data[0],
             {
                 'tax': 0,
                 'total': self.plan_component.price * 31,
                 'price': self.plan_component.price * 31,
-                'price_current': self.plan_component.price * 31,
                 'period': '2020-01',
             },
         )

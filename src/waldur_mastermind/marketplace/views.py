@@ -12,6 +12,7 @@ from django.db.models import (
     Q,
     Subquery,
 )
+from django.db.models.aggregates import Sum
 from django.http import HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -49,6 +50,7 @@ from waldur_core.structure.serializers import (
     get_resource_serializer_class,
 )
 from waldur_core.structure.signals import resource_imported
+from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
@@ -461,27 +463,66 @@ class OfferingViewSet(
 
     customers_permissions = [structure_permissions.is_owner]
 
-    @action(detail=True)
-    def costs(self, request, uuid):
+    def get_stats(self, get_queryset, serializer, serializer_context=None):
         offering = self.get_object()
-        active_customers = utils.get_active_customers(request, self)
-        start, end = utils.get_start_and_end_dates_from_request(request)
-        costs = utils.get_offering_costs(offering, active_customers, start, end)
-        page = self.paginate_queryset(costs)
+        active_customers = utils.get_active_customers(self.request, self)
+        start, end = utils.get_start_and_end_dates_from_request(self.request)
+        invoice_items = invoice_models.InvoiceItem.objects.filter(
+            details__offering_uuid=offering.uuid.hex,
+            invoice__customer__in=active_customers,
+            invoice__created__gte=start,
+            invoice__created__lte=end,
+        )
+        queryset = get_queryset(invoice_items)
+        serializer = serializer(
+            instance=queryset, many=True, context=serializer_context
+        )
+        page = self.paginate_queryset(serializer.data)
         return self.get_paginated_response(page)
+
+    @action(detail=True)
+    def costs(self, *args, **kwargs):
+        return self.get_stats(
+            utils.get_offering_costs, serializers.OfferingCostSerializer
+        )
 
     costs_permissions = [structure_permissions.is_owner]
 
     @action(detail=True)
-    def component_stats(self, request, uuid):
+    def component_stats(self, *args, **kwargs):
         offering = self.get_object()
-        active_customers = utils.get_active_customers(request, self)
-        start, end = utils.get_start_and_end_dates_from_request(request)
-        stats = utils.get_offering_component_stats(
-            offering, active_customers, start, end
+        offering_components_map = {
+            component.type: component for component in offering.components.all()
+        }
+
+        def get_offering_component_stats(invoice_items):
+            return (
+                invoice_items.filter(
+                    details__offering_component_type__in=offering_components_map.keys()
+                )
+                .values(
+                    'details__offering_component_type',
+                    'invoice__year',
+                    'invoice__month',
+                )
+                .order_by(
+                    'details__offering_component_type',
+                    'invoice__year',
+                    'invoice__month',
+                )
+                .annotate(total_quantity=Sum('quantity'))
+            )
+
+        serializer_context = {
+            'offering_components_map': offering_components_map,
+        }
+        return self.get_stats(
+            get_offering_component_stats,
+            serializers.OfferingComponentStatSerializer,
+            serializer_context,
         )
-        page = self.paginate_queryset(stats)
-        return self.get_paginated_response(page)
+
+    component_stats_permissions = [structure_permissions.is_owner]
 
     @action(detail=True, methods=['post'])
     def update_divisions(self, request, uuid):

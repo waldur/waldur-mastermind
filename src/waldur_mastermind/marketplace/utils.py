@@ -6,13 +6,14 @@ import traceback
 from io import BytesIO
 
 import pdfkit
-from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import F, Sum
+from django.db.models.fields import FloatField
+from django.db.models.functions.math import Ceil
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -451,39 +452,13 @@ def add_marketplace_offering(sender, fields, **kwargs):
     setattr(sender, 'get_is_limit_based', get_is_limit_based)
 
 
-def get_offering_costs(offering, active_customers, start, end):
-    costs = []
-    date = start
-
-    while date <= end:
-        year = date.year
-        month = date.month
-
-        invoice_items = invoice_models.InvoiceItem.objects.filter(
-            details__offering_uuid=offering.uuid.hex,
-            project__customer__in=active_customers,
-            invoice__year=year,
-            invoice__month=month,
-        )
-
-        stats = {
-            'tax': 0,
-            'total': 0,
-            'price': 0,
-            'price_current': 0,
-            'period': '%s-%02d' % (year, month),
-        }
-        for item in invoice_items:
-            stats['tax'] += item.tax
-            stats['total'] += item.total
-            stats['price'] += item.price
-            stats['price_current'] += item.price_current
-
-        costs.append(stats)
-
-        date += relativedelta(months=1)
-
-    return costs
+def get_offering_costs(invoice_items):
+    price = Ceil(F('quantity') * F('unit_price') * 100) / 100
+    tax_rate = F('invoice__tax_percent') / 100
+    return invoice_items.values('invoice__year', 'invoice__month').annotate(
+        computed_price=Sum(price, output_field=FloatField()),
+        computed_tax=Sum(price * tax_rate, output_field=FloatField()),
+    )
 
 
 def get_offering_customers(offering, active_customers):
@@ -515,128 +490,6 @@ def get_active_customers(request, view):
     return structure_filters.AccountingStartDateFilter().filter_queryset(
         request, customers, view
     )
-
-
-def get_offering_component_stats(offering, active_customers, start, end):
-    component_stats = []
-
-    resources = models.Resource.objects.filter(
-        offering=offering, project__customer__in=active_customers,
-    )
-    resources_ids = resources.values_list('id', flat=True)
-    date = start
-
-    while date <= end:
-        year = date.year
-        month = date.month
-        period = '%s-%02d' % (year, month)
-        # for consistency with usage resource usage reporting, assume values at the beginning of the last day
-        period_visible = (
-            core_utils.month_end(date)
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-            .isoformat()
-        )
-        invoice_items = invoice_models.InvoiceItem.objects.filter(
-            resource_id__in=resources_ids, invoice__year=year, invoice__month=month,
-        )
-
-        for item in invoice_items:
-            # Case when invoice item details includes plan component data.
-            plan_component_id = item.details.get('plan_component_id')
-
-            if not plan_component_id:
-                continue
-
-            try:
-                plan_component = models.PlanComponent.objects.get(pk=plan_component_id)
-                offering_component = plan_component.component
-
-                if (
-                    offering_component.billing_type
-                    == models.OfferingComponent.BillingTypes.LIMIT
-                ):
-                    component_stats.append(
-                        {
-                            'usage': item.quantity,
-                            'description': offering_component.description,
-                            'measured_unit': offering_component.measured_unit,
-                            'type': offering_component.type,
-                            'name': offering_component.name,
-                            'period': period,
-                            'date': period_visible,
-                            'offering_component_id': offering_component.id,
-                        }
-                    )
-
-                if (
-                    offering_component.billing_type
-                    == models.OfferingComponent.BillingTypes.USAGE
-                ):
-                    if [
-                        *filter(
-                            lambda x: x['period'] == period
-                            and x['offering_component_id'] == offering_component.id,
-                            component_stats,
-                        )
-                    ]:
-                        continue
-
-                    usages = models.ComponentUsage.objects.filter(
-                        component=offering_component, billing_period=date
-                    ).aggregate(usage=Sum('usage'))['usage']
-
-                    component_stats.append(
-                        {
-                            'usage': usages,
-                            'description': offering_component.description,
-                            'measured_unit': offering_component.measured_unit,
-                            'type': offering_component.type,
-                            'name': offering_component.name,
-                            'period': period,
-                            'date': period_visible,
-                            'offering_component_id': offering_component.id,
-                        }
-                    )
-
-                if (
-                    offering_component.billing_type
-                    == models.OfferingComponent.BillingTypes.FIXED
-                ):
-                    other = [
-                        *filter(
-                            lambda x: x['period'] == period
-                            and x['offering_component_id'] == offering_component.id,
-                            component_stats,
-                        )
-                    ]
-                    if other:
-                        other[0]['usage'] += item.get_factor()
-                        continue
-
-                    component_stats.append(
-                        {
-                            'usage': item.get_factor(),
-                            'description': offering_component.description,
-                            'measured_unit': offering_component.measured_unit,
-                            'type': offering_component.type,
-                            'name': offering_component.name,
-                            'period': period,
-                            'date': period_visible,
-                            'offering_component_id': offering_component.id,
-                        }
-                    )
-
-            except models.PlanComponent.DoesNotExist:
-                logger.error(
-                    'PlanComponent with id %s is not found.' % plan_component_id
-                )
-
-        date += relativedelta(months=1)
-
-    # delete internal data
-    [s.pop('offering_component_id', None) for s in component_stats]
-
-    return component_stats
 
 
 class MoveResourceException(Exception):

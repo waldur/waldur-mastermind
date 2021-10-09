@@ -73,7 +73,7 @@ def create_invoice(sender, invoice, issuer_details, **kwargs):
             invoice=paypal_invoice,
             price=item.price,
             tax=item.tax,
-            quantity=helpers.get_invoice_item_quantity(item),
+            quantity=item.quantity,
             unit_price=item.unit_price,
             unit_of_measure=helpers.convert_unit_of_measure(item.unit),
             name=item.name,

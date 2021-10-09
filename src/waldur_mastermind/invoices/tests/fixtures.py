@@ -17,4 +17,5 @@ class InvoiceFixture(marketplace_fixtures.MarketplaceFixture):
             project=self.project,
             invoice=self.invoice,
             unit_price=10,
+            quantity=30,
         )

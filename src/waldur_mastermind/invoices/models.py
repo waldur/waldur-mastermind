@@ -159,18 +159,67 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
+def get_quantity(unit, start, end):
+    """
+    For fixed components this method computes number of billing periods resource
+    was used from the time it was purchased or from the start of current month
+    till the time it was terminated or billing plan has been switched or end of current month.
+    """
+    month_days = monthrange(start.year, start.month)[1]
+
+    if unit == Units.PER_HOUR:
+        return utils.get_full_hours(start, end)
+    elif unit == Units.PER_DAY:
+        return utils.get_full_days(start, end)
+    elif unit == Units.PER_HALF_MONTH:
+        if (start.day == 1 and end.day == 15) or (
+            start.day == 16 and end.day == month_days
+        ):
+            return 1
+        elif start.day == 1 and end.day == month_days:
+            return 2
+        elif start.day == 1 and end.day > 15:
+            return quantize_price(1 + (end.day - 15) / decimal.Decimal(month_days / 2))
+        elif start.day < 16 and end.day == month_days:
+            return quantize_price(
+                1 + (16 - start.day) / decimal.Decimal(month_days / 2)
+            )
+        else:
+            return quantize_price(
+                (end.day - start.day + 1) / decimal.Decimal(month_days / 2.0)
+            )
+    # By default PER_MONTH
+    else:
+        if start.day == 1 and end.day == month_days:
+            return 1
+
+        use_days = (end - start).days + 1
+        return quantize_price(decimal.Decimal(use_days) / month_days)
+
+
 class InvoiceItem(
     core_models.UuidMixin, common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin
 ):
     """
     It is expected that get_scope_type method is defined as class method in scope class
     as it is used in generic invoice item serializer.
+
+    1) For fixed components quantity field stores number of days or hours resource
+    was used from the time it was purchased or from the start of current month
+    till the time it was terminated or billing plan has been switched or end of current month.
+
+    2) For usage-based components quantity field stores amount of quota reported for the resource
+    during the current billing period (ie month).
+
+    3) For limit-based components quantity field stores amount of quota requested
+    for the resource during provisioning. If limit type is monthly, this value is copied from
+    previous billing period until resource is terminated.
     """
 
     invoice = models.ForeignKey(
         on_delete=models.CASCADE, to=Invoice, related_name='items'
     )
-    quantity = models.PositiveIntegerField(default=0)
+    quantity = models.DecimalField(default=0, max_digits=22, decimal_places=7)
     measured_unit = models.CharField(
         max_length=30, help_text=_('Unit of measurement, for example, GB.'), blank=True
     )
@@ -216,60 +265,29 @@ class InvoiceItem(
         return self.price + self.tax
 
     def _price(self, current=False):
-        return quantize_price(
-            self.unit_price * decimal.Decimal(self.get_factor(current))
-        )
-
-    def get_factor(self, current=False):
-        if self.quantity:
-            return self.quantity
-        month_days = monthrange(self.start.year, self.start.month)[1]
-
-        if self.unit == self.Units.QUANTITY:
-            return self.quantity
-        elif self.unit == self.Units.PER_HOUR:
-            if current:
-                return utils.get_full_hours(self.start, min(self.end, timezone.now()))
-            else:
-                return utils.get_full_hours(self.start, self.end)
-        elif self.unit == self.Units.PER_DAY:
-            if current:
-                return utils.get_full_days(self.start, min(self.end, timezone.now()))
-            else:
-                return self.usage_days
-        elif self.unit == self.Units.PER_HALF_MONTH:
-            if (self.start.day == 1 and self.end.day == 15) or (
-                self.start.day == 16 and self.end.day == month_days
-            ):
-                return 1
-            elif self.start.day == 1 and self.end.day == month_days:
-                return 2
-            elif self.start.day == 1 and self.end.day > 15:
-                return quantize_price(
-                    1 + (self.end.day - 15) / decimal.Decimal(month_days / 2)
+        """
+        For components billed daily and hourly this method returns estimated price if `current` is True.
+        Otherwise, it returns total price calculated using `quantity` field.
+        It is assumed that value of `quantity` field is updated automatically when invoice item is terminated.
+        """
+        quantity = self.quantity
+        if current:
+            if self.unit == self.Units.PER_HOUR:
+                quantity = utils.get_full_hours(
+                    self.start, min(self.end, timezone.now())
                 )
-            elif self.start.day < 16 and self.end.day == month_days:
-                return quantize_price(
-                    1 + (16 - self.start.day) / decimal.Decimal(month_days / 2)
+            if self.unit == self.Units.PER_DAY:
+                quantity = utils.get_full_days(
+                    self.start, min(self.end, timezone.now())
                 )
-            else:
-                return quantize_price(
-                    (self.end.day - self.start.day + 1)
-                    / decimal.Decimal(month_days / 2.0)
-                )
-        # By default PER_MONTH
-        else:
-            if self.start.day == 1 and self.end.day == month_days:
-                return 1
 
-            use_days = (self.end - self.start).days + 1
-            return quantize_price(decimal.Decimal(use_days) / month_days)
+        return quantize_price(self.unit_price * decimal.Decimal(quantity))
 
     def get_measured_unit(self):
         if self.measured_unit:
             return self.measured_unit
 
-        plural = self.get_factor() > 1
+        plural = self.quantity > 1
 
         if self.unit == self.Units.QUANTITY:
             if not self.resource or not self.resource.scope:
@@ -317,18 +335,34 @@ class InvoiceItem(
     def price_current(self):
         return self._price(current=True)
 
-    @property
-    def usage_days(self):
+    def update_quantity(self):
         """
-        Returns the number of days resource was used from the time
-        it was purchased or from the start of current month
+        For fixed-price component quantity is updated when item is terminated.
+        For usage-based component quantity is updated when usage is reported.
+        For limit-based component quantity is updated when limit is updated.
         """
-        full_days = utils.get_full_days(self.start, self.end)
-        return full_days
+        plan_component_id = self.details.get('plan_component_id')
+        if not plan_component_id:
+            return
+        try:
+            plan_component = marketplace_models.PlanComponent.objects.get(
+                id=plan_component_id
+            )
+        except marketplace_models.PlanComponent.DoesNotExist:
+            return
+        if (
+            plan_component.component.billing_type
+            == marketplace_models.OfferingComponent.BillingTypes.FIXED
+        ):
+            new_quantity = get_quantity(self.unit, self.start, self.end)
+            if new_quantity != self.quantity:
+                self.quantity = new_quantity
+            self.save(update_fields=['quantity'])
 
     def terminate(self, end=None):
         self.end = end or timezone.now()
         self.save(update_fields=['end'])
+        self.update_quantity()
 
         resource_limit_periods = self.details.get('resource_limit_periods')
         if resource_limit_periods:
