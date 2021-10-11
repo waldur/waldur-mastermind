@@ -1,6 +1,7 @@
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from waldur_core.structure.models import Customer, CustomerRole
+from waldur_core.structure.models import Customer, CustomerRole, Project
 from waldur_mastermind.marketplace.models import Resource
 
 
@@ -11,7 +12,13 @@ def get_customer_users(customer, roles):
     elif CustomerRole.OWNER in roles:
         users |= set(customer.get_owners())
     else:
-        users |= set(customer.get_users())
+        # If customer role is specified we should not include all project users
+        users |= set(
+            get_user_model().objects.filter(
+                customerpermission__customer=customer,
+                customerpermission__is_active=True,
+            )
+        )
     return users
 
 
@@ -45,17 +52,18 @@ def get_users_for_query(query):
             Q(offering__in=offerings) | Q(offering__parent__in=offerings)
         ).exclude(state=Resource.States.TERMINATED)
 
-        projects = filter(
-            lambda project: project.id
-            in related_resources.values_list('project_id', flat=True),
-            projects,
-        )
+        project_ids = related_resources.values_list('project_id', flat=True)
+        if projects:
+            projects = filter(lambda project: project.id in project_ids, projects)
+        # If customer role is specified we should not include all project users
+        elif not customer_roles:
+            projects = Project.objects.filter(id__in=project_ids)
 
-        customers = filter(
-            lambda customer: customer.id
-            in related_resources.values_list('project__customer_id', flat=True),
-            customers,
-        )
+        customer_ids = related_resources.values_list('project__customer_id', flat=True)
+        if customers:
+            customers = filter(lambda customer: customer.id in customer_ids, customers)
+        else:
+            customers = Customer.objects.filter(id__in=customer_ids)
 
     for customer in customers:
         users |= get_customer_users(customer, customer_roles)
