@@ -362,6 +362,7 @@ class ResourceFilter(
         else:
             return queryset.filter(
                 Q(name__icontains=value)
+                | Q(backend_id=value)
                 | Q(backend_metadata__external_ips__icontains=value)
                 | Q(backend_metadata__internal_ips__icontains=value)
             )
