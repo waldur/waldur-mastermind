@@ -989,19 +989,6 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
             )
         return value
 
-    def get_fields(self):
-        fields = super(SshKeySerializer, self).get_fields()
-
-        try:
-            user = self.context['request'].user
-        except (KeyError, AttributeError):
-            return fields
-
-        if not user.is_staff:
-            del fields['user_uuid']
-
-        return fields
-
 
 class MoveProjectSerializer(serializers.Serializer):
     customer = NestedCustomerSerializer(
