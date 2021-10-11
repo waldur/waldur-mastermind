@@ -90,10 +90,10 @@ def get_remote_eduteams_user_info(username):
         )
     except requests.exceptions.RequestException as e:
         logger.warning('Unable to get eduTEAMS user info. Error is %s', e)
-        raise ParseError('Unable to get user info.')
+        raise ParseError('Unable to get user info for %s' % user_url)
 
     if user_response.status_code != 200:
-        raise ParseError('Unable to get user info.')
+        raise ParseError('Unable to get user info for %s' % user_url)
 
     try:
         return user_response.json()
