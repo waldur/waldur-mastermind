@@ -1491,7 +1491,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                     **self._import_security_group_rule(backend_rule),
                 )
                 event_logger.openstack_security_group_rule.info(
-                    'Extra security group rule %s has been deleted in backend'
+                    'Extra security group rule %s has been deleted in '
+                    'backend because it is not defined in Waldur.'
                     % str(security_group_rule),
                     event_type='openstack_security_group_rule_deleted',
                     event_context={'security_group_rule': security_group_rule},
@@ -1516,8 +1517,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                     nc_rule.backend_id,
                 )
                 event_logger.openstack_security_group_rule.info(
-                    'Security group rule %s has been deleted from backend.'
-                    % str(nc_rule),
+                    'Security group rule %s has been deleted '
+                    'from backend because it has different params.' % str(nc_rule),
                     event_type='openstack_security_group_rule_deleted',
                     event_context={'security_group_rule': nc_rule},
                 )
