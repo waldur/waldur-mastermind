@@ -29,6 +29,28 @@ class InvoiceLogger(EventLogger):
 event_logger.register('invoice', InvoiceLogger)
 
 
+class InvoiceItemLogger(EventLogger):
+    customer = 'structure.Customer'
+
+    class Meta:
+        event_types = (
+            'invoice_item_created',
+            'invoice_item_updated',
+            'invoice_item_deleted',
+        )
+        event_groups = {
+            'customers': event_types,
+            'invoices': event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['customer']}
+
+
+event_logger.register('invoice_item', InvoiceItemLogger)
+
+
 class PaymentLogger(EventLogger):
     amount = decimal.Decimal
     customer = 'structure.Customer'

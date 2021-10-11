@@ -291,10 +291,45 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoice_item.unit_price *= -1
         invoice_item.save()
 
+        log.event_logger.invoice_item.info(
+            f'Invoice item {invoice_item.name} has been created.',
+            event_type='invoice_item_created',
+            event_context={'customer': invoice_item.invoice.customer,},
+        )
+
         return Response(
             {'invoice_item_uuid': invoice_item.uuid.hex},
             status=status.HTTP_201_CREATED,
         )
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_values = {
+            field: getattr(instance, field.attname) for field in instance._meta.fields
+        }
+        invoice_item = serializer.save()
+        diff = ', '.join(
+            [
+                f'{field.name}: {old_values.get(field.name)} -> {getattr(invoice_item, field.name, None)}'
+                for field, value in old_values.items()
+                if value != getattr(invoice_item, field.attname, None)
+            ]
+        )
+        log.event_logger.invoice_item.info(
+            f'Invoice item {invoice_item.name} has been updated. Details: {diff}.',
+            event_type='invoice_item_updated',
+            event_context={'customer': invoice_item.invoice.customer,},
+        )
+        return invoice_item
+
+    def perform_destroy(self, instance):
+        invoice_item = instance
+        log.event_logger.invoice_item.info(
+            f'Invoice item {invoice_item.name} has been deleted.',
+            event_type='invoice_item_deleted',
+            event_context={'customer': invoice_item.invoice.customer,},
+        )
+        invoice_item.delete()
 
     create_compensation_serializer_class = serializers.InvoiceItemCompensationSerializer
 
