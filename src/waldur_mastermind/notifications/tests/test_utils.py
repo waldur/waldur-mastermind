@@ -66,3 +66,17 @@ class UsersFilterTest(test.APITransactionTestCase):
         self.assertNotIn(manager, users)
         self.assertNotIn(admin, users)
         self.assertIn(owner, users)
+
+    def test_if_customer_is_not_defined_related_resources_are_used(self):
+        owner = self.fixture.owner
+        users = get_users_for_query(
+            {'customer_roles': [CustomerRole.OWNER], 'offerings': [self.offering],}
+        )
+        self.assertIn(owner, users)
+
+    def test_if_project_is_not_defined_related_resources_are_used(self):
+        manager = self.fixture.manager
+        users = get_users_for_query(
+            {'project_roles': [ProjectRole.MANAGER], 'offerings': [self.offering],}
+        )
+        self.assertIn(manager, users)
