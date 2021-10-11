@@ -77,23 +77,37 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=['POST'])
     def set_rules(self, request, uuid=None):
-        """ WARNING! Auto-generated HTML form is wrong for this endpoint. List should be defined as input.
+        """WARNING! Auto-generated HTML form is wrong for this endpoint. List should be defined as input.
 
-            Example:
-            [
-                {
-                    "protocol": "tcp",
-                    "from_port": 1,
-                    "to_port": 10,
-                    "cidr": "10.1.1.0/24"
-                }
-            ]
+        Example:
+        [
+            {
+                "protocol": "tcp",
+                "from_port": 1,
+                "to_port": 10,
+                "cidr": "10.1.1.0/24"
+            }
+        ]
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
 
-        executors.PushSecurityGroupRulesExecutor().execute(self.get_object())
+        security_group = self.get_object()
+        old_rules = serializers.DebugSecurityGroupRuleSerializer(
+            security_group.rules.all(), many=True
+        )
+
+        logger.info(
+            'About to set rules for security group with ID %s. Old rules: %s. New rules: %s',
+            security_group.id,
+            old_rules.data,
+            request.data,
+        )
+
+        serializer.save()
+        security_group.refresh_from_db()
+
+        executors.PushSecurityGroupRulesExecutor().execute(security_group)
         return response.Response(
             {'status': _('Rules update was successfully scheduled.')},
             status=status.HTTP_202_ACCEPTED,

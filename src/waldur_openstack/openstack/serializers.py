@@ -198,6 +198,11 @@ class FloatingIPAttachSerializer(serializers.Serializer):
     )
 
 
+class DebugSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
+    class Meta(BaseSecurityGroupRuleSerializer.Meta):
+        model = models.SecurityGroupRule
+
+
 class SecurityGroupRuleSerializer(
     BaseSecurityGroupRuleSerializer, serializers.HyperlinkedModelSerializer
 ):
