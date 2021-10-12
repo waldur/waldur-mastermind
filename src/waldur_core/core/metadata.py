@@ -214,7 +214,7 @@ class WaldurCore(BaseModel):
         [],
         description='Render external links in dropdown in header. '
         'Each item should be object with label and url fields. '
-        'For example: {"label": "Helpdesk", "url": "https://example.com/"}',
+        'For example: {"label": "Helpdesk", "url": "`https://example.com/`"}',
     )
     SHORT_PAGE_TITLE = Field(
         'Waldur', description="it is used as prefix for page title."
