@@ -12,3 +12,5 @@ Additional Info:
     {% endif %}
     - Affected resource: {{issue.resource}}
 {% endif %}
+- Site name: {{ settings.WALDUR_CORE.SITE_NAME }}
+- Site URL: {{ settings.WALDUR_CORE.HOMEPORT_URL }}

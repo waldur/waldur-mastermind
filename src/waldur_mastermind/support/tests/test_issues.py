@@ -453,6 +453,15 @@ class IssueCreateTest(IssueCreateBaseTest):
             issue.summary, '%s: test_issue\n' % self.fixture.customer.abbreviation
         )
 
+    def test_site_name_included_in_description(self):
+        factories.SupportUserFactory(user=self.fixture.staff)
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data=self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue('example.com' in response.data['description'])
+
     def _create_confirmation_comment(self, expected_body):
         user = self.fixture.staff
         factories.SupportUserFactory(user=user)
@@ -641,7 +650,7 @@ class IssueCommentTest(base.BaseTest):
 
 
 class IssueOrderingTest(test.APITransactionTestCase):
-    def test_1(self):
+    def test_issue_ordering(self):
         settings.WALDUR_SUPPORT['ENABLED'] = True
         factories.IssueFactory(key='TST')
         factories.IssueFactory(key='TST-1')
