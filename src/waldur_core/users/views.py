@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -12,8 +13,9 @@ from rest_framework.response import Response
 from waldur_core.core.views import ProtectedViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import serializers as structure_serializers
 from waldur_core.users import filters, models, serializers, tasks
-from waldur_core.users.utils import parse_invitation_token
+from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
 
 User = get_user_model()
 
@@ -29,22 +31,6 @@ class InvitationViewSet(ProtectedViewSet):
     filterset_class = filters.InvitationFilter
     lookup_field = 'uuid'
 
-    def can_manage_invitation_with(
-        self, customer, customer_role=None, project_role=None
-    ):
-        user = self.request.user
-        if user.is_staff:
-            return True
-
-        is_owner = customer.has_user(user, structure_models.CustomerRole.OWNER)
-        can_manage_owners = settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
-
-        # It is assumed that either customer_role or project_role is not None
-        if customer_role:
-            return is_owner and can_manage_owners
-        if project_role:
-            return is_owner
-
     def perform_create(self, serializer):
         project = serializer.validated_data.get('project')
         if project:
@@ -55,7 +41,9 @@ class InvitationViewSet(ProtectedViewSet):
         customer_role = serializer.validated_data.get('customer_role')
         project_role = serializer.validated_data.get('project_role')
 
-        if not self.can_manage_invitation_with(customer, customer_role, project_role):
+        if not can_manage_invitation_with(
+            self.request.user, customer, customer_role, project_role
+        ):
             raise PermissionDenied()
 
         invitation = serializer.save()
@@ -127,8 +115,11 @@ class InvitationViewSet(ProtectedViewSet):
     def send(self, request, uuid=None):
         invitation = self.get_object()
 
-        if not self.can_manage_invitation_with(
-            invitation.customer, invitation.customer_role, invitation.project_role
+        if not can_manage_invitation_with(
+            self.request.user,
+            invitation.customer,
+            invitation.customer_role,
+            invitation.project_role,
         ):
             raise PermissionDenied()
         elif invitation.state not in (
@@ -155,8 +146,11 @@ class InvitationViewSet(ProtectedViewSet):
     def cancel(self, request, uuid=None):
         invitation = self.get_object()
 
-        if not self.can_manage_invitation_with(
-            invitation.customer, invitation.customer_role, invitation.project_role
+        if not can_manage_invitation_with(
+            self.request.user,
+            invitation.customer,
+            invitation.customer_role,
+            invitation.project_role,
         ):
             raise PermissionDenied()
         elif invitation.state != models.Invitation.State.PENDING:
@@ -235,3 +229,82 @@ class InvitationViewSet(ProtectedViewSet):
         invitation = self.get_object()
         serializer = serializers.PendingInvitationDetailsSerializer(instance=invitation)
         return Response(serializer.data)
+
+
+class GroupInvitationViewSet(ProtectedViewSet):
+    queryset = models.GroupInvitation.objects.all().order_by('-created')
+    serializer_class = serializers.GroupInvitationSerializer
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = (rf_permissions.IsAuthenticated,)
+    filterset_class = filters.GroupInvitationFilter
+    lookup_field = 'uuid'
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        user = request.user
+        if not user.is_staff:
+            customer_ids = structure_models.CustomerPermission.objects.filter(
+                user=user, is_active=True, role=structure_models.CustomerRole.OWNER
+            ).values_list('customer_id', flat=True)
+            queryset = queryset.filter(customer_id__in=customer_ids)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def projects(self, request, uuid=None):
+        invitation = self.get_object()
+
+        if invitation.project:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        projects = structure_serializers.NestedProjectSerializer(
+            instance=invitation.customer.projects.all(),
+            read_only=True,
+            context={'request': request},
+            many=True,
+        )
+        return Response(projects.data, status=status.HTTP_200_OK,)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, uuid=None):
+        invitation = self.get_object()
+
+        if not can_manage_invitation_with(
+            self.request.user,
+            invitation.customer,
+            invitation.customer_role,
+            invitation.project_role,
+        ):
+            raise PermissionDenied()
+        elif not invitation.is_active:
+            raise ValidationError(_('Only pending invitation can be canceled.'))
+
+        invitation.cancel()
+        return Response(
+            {'detail': _('Invitation has been successfully canceled.')},
+            status=status.HTTP_200_OK,
+        )
+
+    def perform_create(self, serializer):
+        project = serializer.validated_data.get('project')
+        if project:
+            customer = project.customer
+        else:
+            customer = serializer.validated_data.get('customer')
+
+        customer_role = serializer.validated_data.get('customer_role')
+        project_role = serializer.validated_data.get('project_role')
+
+        if not can_manage_invitation_with(
+            self.request.user, customer, customer_role, project_role
+        ):
+            raise PermissionDenied()
+
+        serializer.save()

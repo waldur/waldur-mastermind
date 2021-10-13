@@ -28,6 +28,27 @@ class InvitationFilter(django_filters.FilterSet):
         ]
 
 
+class GroupInvitationFilter(django_filters.FilterSet):
+    project = django_filters.UUIDFilter(field_name='project__uuid',)
+    project_url = core_filters.URLFilter(
+        view_name='project-detail', field_name='project__uuid',
+    )
+    customer = django_filters.UUIDFilter(field_name='customer__uuid',)
+    customer_url = core_filters.URLFilter(
+        view_name='customer-detail', field_name='customer__uuid',
+    )
+
+    o = django_filters.OrderingFilter(fields=('state', 'created'))
+
+    class Meta:
+        model = models.GroupInvitation
+        fields = [
+            'customer_role',
+            'project_role',
+            'is_active',
+        ]
+
+
 class InvitationCustomerFilterBackend(BaseFilterBackend):
     url_filter = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid',

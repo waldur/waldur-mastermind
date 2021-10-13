@@ -9,6 +9,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.constants import get_domain_message
 from waldur_core.core.utils import pwgen
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import CustomerRole, ProjectRole
 from waldur_core.users import models
 from waldur_freeipa import tasks
@@ -159,3 +160,17 @@ def get_or_create_profile(user, username, password):
 
 def get_invitation_link(uuid):
     return core_utils.format_homeport_link('invitation/{uuid}/', uuid=uuid)
+
+
+def can_manage_invitation_with(user, customer, customer_role=None, project_role=None):
+    if user.is_staff:
+        return True
+
+    is_owner = customer.has_user(user, structure_models.CustomerRole.OWNER)
+    can_manage_owners = settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
+
+    # It is assumed that either customer_role or project_role is not None
+    if customer_role:
+        return is_owner and can_manage_owners
+    if project_role:
+        return is_owner
