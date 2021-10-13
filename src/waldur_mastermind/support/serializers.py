@@ -38,7 +38,9 @@ def render_issue_template(config_name, issue):
         raw = issue_settings[config_name]
         template = Template(raw)
 
-    return template.render(Context({'issue': issue}, autoescape=False))
+    return template.render(
+        Context({'issue': issue, 'settings': settings}, autoescape=False)
+    )
 
 
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
