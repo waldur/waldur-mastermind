@@ -1,4 +1,7 @@
+from django.db import transaction
+
 from waldur_mastermind.marketplace import processors
+from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_support import utils
 from waldur_mastermind.support import models as support_models
 
@@ -12,15 +15,14 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         return {'uuid': str(self.order_item.uuid)}
 
     def process_order_item(self, user):
-        super(CreateRequestProcessor, self).process_order_item(user)
-        try:
-            issue = support_models.Issue.objects.get(
-                resource_object_id=self.order_item.id
-            )
-            self.order_item.resource.backend_id = issue.backend_id or ''
-            self.order_item.resource.save(update_fields=['backend_id'])
-        except support_models.Issue.DoesNotExist:
-            pass
+        with transaction.atomic():
+            resource = create_local_resource(self.order_item, None)
+            issue = self.send_request(user)
+
+            if issue:
+                resource.scope = issue
+                resource.backend_id = issue.backend_id or ''
+                resource.save()
 
     @classmethod
     def get_resource_model(cls):

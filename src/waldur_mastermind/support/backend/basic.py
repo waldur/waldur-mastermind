@@ -31,3 +31,6 @@ class BasicBackend(SupportBackend):
 
     def pull_priorities(self):
         return
+
+    def create_issue_links(self, *args, **kwargs):
+        return
