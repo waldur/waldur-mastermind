@@ -73,6 +73,8 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
             logger.debug(e, exc_info=True)
 
     def on_pull_success(self, instance):
+        if not isinstance(instance, core_models.StateMixin):
+            return
         if instance.state == instance.States.ERRED:
             instance.recover()
             instance.error_message = ''
