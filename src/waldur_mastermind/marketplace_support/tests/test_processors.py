@@ -130,6 +130,13 @@ class RequestCreateTest(BaseTest):
         issue = get_order_item_issue(order_item)
         self.assertTrue(name in issue.description)
 
+    def test_resource_UUID_is_propagated(self):
+        order_item = self.submit_order_item()
+        order_item.refresh_from_db()
+        resource = order_item.resource
+        issue = get_order_item_issue(order_item)
+        self.assertTrue(resource.uuid.hex in issue.description)
+
     def test_issue_caller_is_equal_order_created_by(self):
         fixture = fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(

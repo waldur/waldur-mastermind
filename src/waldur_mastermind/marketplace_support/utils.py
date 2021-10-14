@@ -59,6 +59,7 @@ def format_create_description(order_item):
             {
                 'order_item': order_item,
                 'order_item_url': get_order_item_url(order_item),
+                'resource': order_item.resource,
             },
         )
     )
