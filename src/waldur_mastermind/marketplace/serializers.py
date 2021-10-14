@@ -170,6 +170,7 @@ class CategorySerializer(
         offerings_states = request.GET.getlist('customers_offerings_state')
         customer_uuid = request.GET.get('customer_uuid')
         shared = request.GET.get('shared')
+        has_offerings = request.GET.get('has_offerings')
 
         try:
             shared = forms.NullBooleanField().to_python(shared)
@@ -210,6 +211,8 @@ class CategorySerializer(
 
         offering_count = Subquery(offerings[:1], output_field=IntegerField())
         queryset = queryset.annotate(offering_count=offering_count)
+        if has_offerings:
+            queryset = queryset.filter(offering_count__gt=0)
         return queryset.prefetch_related('sections', 'sections__attributes')
 
     class Meta:
