@@ -128,7 +128,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         projects = structure_models.Project.objects.filter(id__in=project_ids)
         page = self.paginate_queryset(projects)
         serializer = structure_serializers.ProjectSerializer(
-            page, many=True, context={'request': request}
+            page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
 
@@ -140,7 +140,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         )
         page = self.paginate_queryset(permissions)
         serializer = structure_serializers.ProjectPermissionLogSerializer(
-            page, many=True, context={'request': request}
+            page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
 
@@ -153,7 +153,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         keys = core_models.SshPublicKey.objects.filter(user_id__in=user_ids)
         page = self.paginate_queryset(keys)
         serializer = structure_serializers.SshKeySerializer(
-            page, many=True, context={'request': request}
+            page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
 
@@ -166,7 +166,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         users = core_models.User.objects.filter(id__in=user_ids)
         page = self.paginate_queryset(users)
         serializer = structure_serializers.UserSerializer(
-            page, many=True, context={'request': request}
+            page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
 
