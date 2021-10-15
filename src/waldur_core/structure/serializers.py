@@ -900,7 +900,7 @@ class UserSerializer(
 
     def _can_see_token(self, user):
         # Nobody apart from the user herself can see her token.
-        # User can see the token either via details view or /api/users/?current
+        # User can see the token either via details view or /api/users/me
 
         if isinstance(self.instance, list) and len(self.instance) == 1:
             return self.instance[0] == user
