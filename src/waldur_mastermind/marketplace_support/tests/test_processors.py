@@ -17,7 +17,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace.utils import process_order_item
+from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support.utils import get_order_item_issue
 from waldur_mastermind.support import models as support_models
@@ -314,7 +314,7 @@ class RequestDeleteTest(RequestActionBaseTest):
         response = self.request_resource_termination()
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        process_order_item(order_item, self.user)
+        test_utils.process_order_item(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
         return support_models.Issue.objects.get(
@@ -329,7 +329,7 @@ class RequestDeleteTest(RequestActionBaseTest):
         if order_item.order.state != marketplace_models.Order.States.EXECUTING:
             order_item.order.approve()
             order_item.order.save()
-        process_order_item(order_item, self.user)
+        test_utils.process_order_item(order_item, self.user)
 
         issue = get_order_item_issue(order_item)
         issue.status = issue_status
@@ -460,14 +460,14 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         response = self.request_switch_plan()
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        process_order_item(order_item, self.user)
+        test_utils.process_order_item(order_item, self.user)
         return get_order_item_issue(order_item)
 
     def get_order_item(self, issue_status):
         response = self.request_switch_plan()
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        process_order_item(order_item, self.user)
+        test_utils.process_order_item(order_item, self.user)
 
         issue = get_order_item_issue(order_item)
         issue.status = issue_status
@@ -563,7 +563,7 @@ class UpdateLimitsTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        process_order_item(order_item, self.user)
+        test_utils.process_order_item(order_item, self.user)
         return get_order_item_issue(order_item)
 
     def get_order_item(self, issue_status):
@@ -571,7 +571,7 @@ class UpdateLimitsTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        process_order_item(order_item, self.user)
+        test_utils.process_order_item(order_item, self.user)
 
         issue = get_order_item_issue(order_item)
         issue.status = issue_status

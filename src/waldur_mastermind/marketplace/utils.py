@@ -64,8 +64,6 @@ def process_order_item(order_item: models.OrderItem, user):
         return
 
     try:
-        order_item.set_state_executing()
-        order_item.save(update_fields=['state'])
         processor(order_item).process_order_item(user)
     except Exception as e:
         # Here it is necessary to catch all exceptions.

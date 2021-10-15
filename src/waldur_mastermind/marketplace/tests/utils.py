@@ -1,5 +1,11 @@
 from waldur_core.structure.tests.views import TestNewInstanceViewSet
-from waldur_mastermind.marketplace import processors
+from waldur_mastermind.marketplace import processors, utils
+
+
+def process_order_item(order_item, user):
+    order_item.set_state_executing()
+    order_item.save(update_fields=['state'])
+    utils.process_order_item(order_item, user)
 
 
 class TestCreateProcessor(processors.BaseCreateResourceProcessor):

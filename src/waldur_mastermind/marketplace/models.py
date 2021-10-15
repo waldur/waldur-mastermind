@@ -1218,6 +1218,15 @@ class OrderItem(
     output = models.TextField(blank=True)
     tracker = FieldTracker()
 
+    reviewed_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=core_models.User,
+        blank=True,
+        null=True,
+        related_name='+',
+    )
+    reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
+
     class Permissions:
         customer_path = 'order__project__customer'
         project_path = 'order__project'

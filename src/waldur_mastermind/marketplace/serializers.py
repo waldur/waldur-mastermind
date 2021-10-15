@@ -1620,11 +1620,15 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'can_terminate',
             'fixed_price',
             'activation_price',
+            'reviewed_by',
+            'reviewed_at',
         )
 
     order_uuid = serializers.ReadOnlyField(source='order.uuid')
     order_approved_at = serializers.ReadOnlyField(source='order.approved_at')
     order_approved_by = serializers.ReadOnlyField(source='order.approved_by.full_name')
+
+    reviewed_by = serializers.ReadOnlyField(source='reviewed_by.username')
 
     created_by_full_name = serializers.ReadOnlyField(
         source='order.created_by.full_name'

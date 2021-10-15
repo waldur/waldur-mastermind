@@ -32,6 +32,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
 from waldur_core.core import models as core_models
+from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
@@ -824,87 +825,55 @@ class OrderItemViewSet(BaseMarketplaceView):
         structure_permissions.is_administrator
     ]
 
+    def order_item_is_pending(order_item):
+        if not order_item:
+            return
+        if order_item.state in (
+            models.OrderItem.States.PENDING,
+            models.OrderItem.States.EXECUTING,
+        ):
+            return
+        raise rf_exceptions.ValidationError('Order item is not in pending state.')
+
+    approve_permissions = [permissions.can_approve_order_item]
+
+    reject_permissions = [permissions.can_reject_order_item]
+
+    reject_validators = approve_validators = [order_item_is_pending]
+
     @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         order_item = self.get_object()
-        if (
-            not order_item.offering.customer.has_user(
-                request.user, structure_models.CustomerRole.OWNER
-            )
-            and not request.user.is_staff
-        ):
-            return Response(
-                {
-                    'details': 'Order item could not be rejected because user is not owner of service provider.'
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
-        try:
-            if order_item.type == models.OrderItem.Types.CREATE and order_item.resource:
-                callbacks.resource_creation_canceled(order_item.resource)
-            if order_item.type == models.OrderItem.Types.UPDATE and order_item.resource:
-                callbacks.resource_update_failed(order_item.resource)
-            if (
-                order_item.type == models.OrderItem.Types.TERMINATE
-                and order_item.resource
-            ):
-                callbacks.resource_deletion_failed(order_item.resource)
-        except TransitionNotAllowed:
-            return Response(
-                {
-                    'details': 'Order item could not be rejected because it has been already processed.'
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+        if order_item.resource:
+            callbacks.sync_order_item_state(
+                order_item, models.OrderItem.States.TERMINATED
             )
-        return Response(
-            {'details': 'Order item has been rejected.'}, status=status.HTTP_200_OK,
-        )
-
-    def order_items_reject_validator(order_item):
-        if not order_item:
-            return
-        if order_item.state == models.OrderItem.States.TERMINATED:
-            raise rf_exceptions.ValidationError()
-
-    reject_validators = [order_items_reject_validator]
+        else:
+            order_item.reviewed_at = timezone.now()
+            order_item.reviewed_by = request.user
+            order_item.set_state_terminated()
+            order_item.save()
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         order_item = self.get_object()
-        if (
-            not order_item.offering.customer.has_user(
-                request.user, structure_models.CustomerRole.OWNER
-            )
-            and not request.user.is_staff
-        ):
-            return Response(
-                {
-                    'details': 'Order item could not be approved because user is not owner of service provider.'
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
-        try:
-            if order_item.type == models.OrderItem.Types.CREATE and order_item.resource:
-                callbacks.resource_creation_succeeded(order_item.resource)
-            if order_item.type == models.OrderItem.Types.UPDATE and order_item.resource:
-                callbacks.resource_update_succeeded(order_item.resource)
-            if (
-                order_item.type == models.OrderItem.Types.TERMINATE
-                and order_item.resource
-            ):
-                callbacks.resource_deletion_succeeded(order_item.resource)
-        except TransitionNotAllowed:
-            return Response(
-                {
-                    'details': 'Order item could not be approved because it has been already processed.'
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+        if order_item.resource:
+            callbacks.sync_order_item_state(order_item, models.OrderItem.States.DONE)
+        else:
+            order_item.reviewed_at = timezone.now()
+            order_item.reviewed_by = request.user
+            order_item.set_state_executing()
+            order_item.save()
+            transaction.on_commit(
+                lambda: tasks.process_order_item.delay(
+                    core_utils.serialize_instance(order_item),
+                    core_utils.serialize_instance(request.user),
+                )
             )
-        return Response(
-            {'details': 'Order item has been approved.'}, status=status.HTTP_200_OK,
-        )
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):

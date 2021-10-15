@@ -17,7 +17,6 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
-from waldur_mastermind.marketplace.utils import process_order_item
 
 from . import exceptions, models, utils, views
 
@@ -42,10 +41,23 @@ def approve_order(order, user):
 
 @shared_task
 def process_order(serialized_order, serialized_user):
+    # Skip remote plugin because it is going to processed
+    # only after it gets approved by service provider
+    from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
+
     order = core_utils.deserialize_instance(serialized_order)
     user = core_utils.deserialize_instance(serialized_user)
-    for item in order.items.all():
-        process_order_item(item, user)
+    for item in order.items.exclude(offering__type=REMOTE_PLUGIN_NAME):
+        item.set_state_executing()
+        item.save(update_fields=['state'])
+        utils.process_order_item(item, user)
+
+
+@shared_task
+def process_order_item(serialized_order_item, serialized_user):
+    order_item = core_utils.deserialize_instance(serialized_order_item)
+    user = core_utils.deserialize_instance(serialized_user)
+    utils.process_order_item(order_item, user)
 
 
 @shared_task

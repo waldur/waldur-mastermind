@@ -375,15 +375,8 @@ class ItemRejectTest(test.APITransactionTestCase):
         response = self.reject_item('staff')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data(
-        models.OrderItem.States.DONE,
-        models.OrderItem.States.ERRED,
-        models.OrderItem.States.TERMINATING,
-        models.OrderItem.States.EXECUTING,
-        models.OrderItem.States.PENDING,
-    )
-    def test_order_item_can_be_rejected_if_it_is_not_in_terminated_state(self, state):
-        self.order_item.state = state
+    def test_order_item_can_be_rejected_if_it_is_in_pending_state(self):
+        self.order_item.state = models.OrderItem.States.PENDING
         self.order_item.save()
         response = self.reject_item('staff')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

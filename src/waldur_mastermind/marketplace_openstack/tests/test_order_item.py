@@ -8,8 +8,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
-from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.utils import create_offering_components
 from waldur_mastermind.marketplace_openstack.tests import fixtures as package_fixtures
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
@@ -676,7 +676,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
     def test_resource_limits_have_been_updated_if_backend_does_not_raise_exception(
         self,
     ):
-        marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
+        test_utils.process_order_item(self.order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits, self.quotas)
         self.order_item.refresh_from_db()
@@ -688,7 +688,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
         self.mock_get_backend().push_tenant_quotas = mock.Mock(
             side_effect=Exception('foo')
         )
-        marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
+        test_utils.process_order_item(self.order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits, {})
         self.order_item.refresh_from_db()
@@ -701,7 +701,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
         del self.quotas['storage']
         self.quotas['gigabytes_lvmdriver-1'] = 10
         self.quotas['gigabytes_backup'] = 30
-        marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
+        test_utils.process_order_item(self.order_item, self.fixture.staff)
         _, quotas = self.mock_get_backend().push_tenant_quotas.call_args[0]
         self.assertTrue('gigabytes_lvmdriver-1' in quotas)
         self.assertEqual(quotas['storage'], 40 * 1024)
