@@ -174,6 +174,8 @@ class WaldurClient(object):
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
+        if method == 'head':
+            return response
         if response.text:
             return response.json()
         return ''
@@ -211,8 +213,15 @@ class WaldurClient(object):
 
         return result
 
+    def _get_count(self, url):
+        response = self._head(url)
+        return int(response.headers['X-Result-Count'])
+
     def _get(self, url, valid_states, **kwargs):
         return self._make_request('get', url, valid_states, 1, **kwargs)
+
+    def _head(self, url):
+        return self._make_request('head', url, valid_states=[200])
 
     def _post(self, url, valid_states, **kwargs):
         return self._make_request('post', url, valid_states, 3, **kwargs)
@@ -328,6 +337,10 @@ class WaldurClient(object):
     def list_users(self):
         url = self._build_url(self.Endpoints.Users)
         return self._get_all(url)
+
+    def count_users(self):
+        url = self._build_url(self.Endpoints.Users)
+        return self._get_count(url)
 
     def list_ssh_keys(self):
         url = self._build_url(self.Endpoints.SshKey)
@@ -667,6 +680,10 @@ class WaldurClient(object):
             params['field'] = fields
 
         return self._query_resource_list(self.Endpoints.MarketplaceResources, params,)
+
+    def count_marketplace_resources(self):
+        url = self._build_url(self.Endpoints.MarketplaceResources)
+        return self._get_count(url)
 
     def marketplace_resource_set_backend_id(self, resource_uuid: str, backend_id: str):
         url = self._build_resource_url(
@@ -1282,6 +1299,10 @@ class WaldurClient(object):
     def list_customers(self, filters=None):
         return self._query_resource_list(self.Endpoints.Customers, filters)
 
+    def count_customers(self):
+        url = self._build_url(self.Endpoints.Customers)
+        return self._get_count(url)
+
     def create_customer(
         self,
         name,
@@ -1340,6 +1361,10 @@ class WaldurClient(object):
 
     def list_projects(self, filters=None):
         return self._query_resource_list(self.Endpoints.Project, filters)
+
+    def count_projects(self):
+        url = self._build_url(self.Endpoints.Project)
+        return self._get_count(url)
 
     def create_project(self, customer_uuid, name, backend_id=None):
         payload = {
