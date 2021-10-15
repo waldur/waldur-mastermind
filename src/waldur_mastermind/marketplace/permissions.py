@@ -208,6 +208,31 @@ def user_is_service_provider_owner_or_service_provider_manager(request, view, ob
     raise exceptions.PermissionDenied()
 
 
+def can_approve_order_item(request, view, obj=None):
+    if not obj:
+        return
+
+    if structure_permissions._has_owner_access(request.user, obj.offering.customer):
+        return
+
+    raise exceptions.PermissionDenied()
+
+
+def can_reject_order_item(request, view, obj=None):
+    if not obj:
+        return
+
+    if structure_permissions._has_owner_access(
+        request.user, obj.order.project.customer
+    ):
+        return
+
+    if structure_permissions._has_owner_access(request.user, obj.offering.customer):
+        return
+
+    raise exceptions.PermissionDenied()
+
+
 def user_can_update_thumbnail(request, view, obj=None):
     if not obj:
         return

@@ -247,12 +247,20 @@ OrderItemHandlers = {
         models.OrderItem.States.ERRED,
     ): resource_update_failed,
     (
+        models.OrderItem.Types.UPDATE,
+        models.OrderItem.States.TERMINATED,
+    ): resource_update_failed,
+    (
         models.OrderItem.Types.TERMINATE,
         models.OrderItem.States.DONE,
     ): resource_deletion_succeeded,
     (
         models.OrderItem.Types.TERMINATE,
         models.OrderItem.States.ERRED,
+    ): resource_deletion_failed,
+    (
+        models.OrderItem.Types.TERMINATE,
+        models.OrderItem.States.TERMINATED,
     ): resource_deletion_failed,
 }
 

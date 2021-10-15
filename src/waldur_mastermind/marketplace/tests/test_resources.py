@@ -12,7 +12,7 @@ from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks, utils
+from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -926,7 +926,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         order_item = models.OrderItem.objects.get(
             type=models.OrderItem.Types.UPDATE, resource=self.resource,
         )
-        utils.process_order_item(order_item, self.fixture.staff)
+        test_utils.process_order_item(order_item, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits['vcpu'], 10)
 
