@@ -535,6 +535,10 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         method='filter_customers_offerings_state',
     )
 
+    has_shared = django_filters.BooleanFilter(
+        method='filter_has_shared', label='Has shared'
+    )
+
     def filter_customer_uuid(self, queryset, name, value):
         states = self.request.GET.getlist('customers_offerings_state')
         offerings = models.Offering.objects.filter(customer__uuid=value)
@@ -548,6 +552,12 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
 
     def filter_customers_offerings_state(self, queryset, name, value):
         return queryset
+
+    def filter_has_shared(self, queryset, name, value):
+        category_ids = models.Offering.objects.filter(shared=True).values_list(
+            'category_id', flat=True
+        )
+        return queryset.filter(id__in=category_ids)
 
 
 class PlanComponentFilter(django_filters.FilterSet):
