@@ -78,6 +78,8 @@ class ProjectSection(FeatureSection):
 
     events = Feature('Enable audit log in project workspace.')
 
+    oecd_fos_2007_code = Feature('Enable OECD code.')
+
 
 class UserSection(FeatureSection):
     class Meta:
