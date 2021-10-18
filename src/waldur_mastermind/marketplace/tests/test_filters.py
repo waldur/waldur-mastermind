@@ -249,6 +249,22 @@ class CategoryFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.category.uuid.hex)
 
+    def test_category_has_shared(self):
+        self.offering.shared = False
+        self.offering.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'has_shared': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        self.offering.shared = True
+        self.offering.save()
+
+        response = self.client.get(self.url, {'has_shared': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
 
 class PlanComponentFilterTest(test.APITransactionTestCase):
     def setUp(self):
