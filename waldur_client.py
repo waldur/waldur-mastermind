@@ -301,6 +301,8 @@ class WaldurClient(object):
         :return: a resource as a dictionary.
         :raises: WaldurClientException if resource could not be received or response failed.
         """
+        if not value:
+            raise WaldurClientException('Empty ID is not allowed.')
         if is_uuid(value):
             return self._query_resource_by_uuid(endpoint, value, extra)
         else:
