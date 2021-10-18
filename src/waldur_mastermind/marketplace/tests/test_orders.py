@@ -25,28 +25,40 @@ class OrderGetTest(test.APITransactionTestCase):
         self.order = factories.OrderFactory(
             project=self.project, created_by=self.manager
         )
+        self.url = factories.OrderFactory.get_list_url()
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_orders_should_be_visible_to_colleagues_and_staff(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.OrderFactory.get_list_url()
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
+
+    def test_service_provider_can_see_order(self):
+        # Arrange
+        user = structure_factories.UserFactory()
+        order_item = factories.OrderItemFactory(order=self.order)
+        order_item.offering.customer.add_user(user, CustomerRole.OWNER)
+
+        # Act
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.order.uuid.hex)
 
     @data('user')
     def test_orders_should_be_invisible_to_other_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.OrderFactory.get_list_url()
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
     def test_items_should_be_invisible_to_unauthenticated_users(self):
-        url = factories.OrderFactory.get_list_url()
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
