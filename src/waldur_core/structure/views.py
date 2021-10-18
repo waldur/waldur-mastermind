@@ -394,6 +394,15 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     move_project_serializer_class = serializers.MoveProjectSerializer
     move_project_permissions = [permissions.is_staff]
 
+    @action(detail=False, methods=['get'])
+    def oecd_codes(self, request):
+        return Response(
+            [
+                {'value': value, 'label': label}
+                for (value, label) in models.Project.OECD_FOS_2007_CODES
+            ]
+        )
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
