@@ -9,11 +9,6 @@ from . import models, utils
 class ProfileSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-
-    agree_with_policy = serializers.BooleanField(
-        write_only=True, help_text=_('User must agree with the policy.')
-    )
-
     class Meta:
         model = models.Profile
         fields = (
@@ -21,7 +16,6 @@ class ProfileSerializer(
             'username',
             'agreement_date',
             'is_active',
-            'agree_with_policy',
         )
         protected_fields = ('username', 'agreement_date')
         read_only_fields = ('is_active',)
@@ -38,12 +32,6 @@ class ProfileSerializer(
                 {'details': _('User already has profile.')}
             )
         validated_data['user'] = user
-
-        # Check if user agrees with policy
-        if not validated_data.pop('agree_with_policy'):
-            raise serializers.ValidationError(
-                {'agree_with_policy': _('User must agree with the policy.')}
-            )
 
         validated_data['username'] = utils.generate_username(validated_data['username'])
 

@@ -37,24 +37,13 @@ class ProfileValidateTest(BaseProfileTest):
 
     @override_plugin_settings(ENABLED=True, BLACKLISTED_USERNAMES=['root'])
     def test_blacklisted_username_is_not_allowed(self):
-        response = self.client.post(
-            self.url, {'username': 'root', 'agree_with_policy': True}
-        )
+        response = self.client.post(self.url, {'username': 'root'})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn('username', response.data)
 
-    def test_user_should_agree_with_policy(self):
-        response = self.client.post(
-            self.url, {'username': 'VALID', 'agree_with_policy': False}
-        )
-        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('agree_with_policy', response.data)
-
     def test_profile_should_be_unique(self):
         factories.ProfileFactory(user=self.user)
-        response = self.client.post(
-            self.url, {'username': 'VALID', 'agree_with_policy': True}
-        )
+        response = self.client.post(self.url, {'username': 'VALID'})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn('details', response.data)
 
@@ -63,7 +52,7 @@ class ProfileValidateTest(BaseProfileTest):
 class ProfileCreateTest(BaseProfileTest):
     def setUp(self):
         super(ProfileCreateTest, self).setUp()
-        self.valid_data = {'username': 'alice', 'agree_with_policy': True}
+        self.valid_data = {'username': 'alice'}
 
     def test_profile_creation_fails_if_username_is_not_available(self, mock_client):
         mock_client().user_add.side_effect = freeipa_exceptions.DuplicateEntry()
