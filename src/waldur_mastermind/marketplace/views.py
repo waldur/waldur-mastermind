@@ -726,11 +726,33 @@ class ScreenshotViewSet(
 class OrderViewSet(BaseMarketplaceView):
     queryset = models.Order.objects.all()
     serializer_class = serializers.OrderSerializer
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OrderFilter
     destroy_validators = partial_update_validators = [
         structure_utils.check_customer_blocked
     ]
+
+    def get_queryset(self):
+        """
+        Orders are available to both service provider and service consumer.
+        """
+        if self.request.user.is_staff or self.request.user.is_support:
+            return self.queryset
+
+        return self.queryset.filter(
+            Q(
+                project__permissions__user=self.request.user,
+                project__permissions__is_active=True,
+            )
+            | Q(
+                project__customer__permissions__user=self.request.user,
+                project__customer__permissions__is_active=True,
+            )
+            | Q(
+                items__offering__customer__permissions__user=self.request.user,
+                items__offering__customer__permissions__is_active=True,
+            )
+        ).distinct()
 
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
@@ -810,7 +832,7 @@ class PluginViewSet(views.APIView):
 
 class OrderItemViewSet(BaseMarketplaceView):
     queryset = models.OrderItem.objects.all()
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (DjangoFilterBackend,)
     serializer_class = serializers.OrderItemDetailsSerializer
     filterset_class = filters.OrderItemFilter
 
@@ -824,6 +846,28 @@ class OrderItemViewSet(BaseMarketplaceView):
     destroy_permissions = terminate_permissions = [
         structure_permissions.is_administrator
     ]
+
+    def get_queryset(self):
+        """
+        OrderItems are available to both service provider and service consumer.
+        """
+        if self.request.user.is_staff or self.request.user.is_support:
+            return self.queryset
+
+        return self.queryset.filter(
+            Q(
+                order__project__permissions__user=self.request.user,
+                order__project__permissions__is_active=True,
+            )
+            | Q(
+                order__project__customer__permissions__user=self.request.user,
+                order__project__customer__permissions__is_active=True,
+            )
+            | Q(
+                offering__customer__permissions__user=self.request.user,
+                offering__customer__permissions__is_active=True,
+            )
+        ).distinct()
 
     def order_item_is_pending(order_item):
         if not order_item:
