@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from rest_framework import status, test
 
 from waldur_core.quotas import signals as quota_signals
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -57,6 +59,21 @@ class OrderItemFilterTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], order_item.uuid.hex)
+
+    def test_service_provider_can_see_order(self):
+        # Arrange
+        user = structure_factories.UserFactory()
+        self.order_item.offering.customer.add_user(
+            user, structure_models.CustomerRole.OWNER
+        )
+
+        # Act
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.order_item.uuid.hex)
 
 
 @unittest.skip('OrderItem creation is irrelevant now.')
