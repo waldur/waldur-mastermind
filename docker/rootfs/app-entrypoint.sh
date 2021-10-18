@@ -47,4 +47,4 @@ if [[ -f "/etc/waldur/saml2/sp.pem" ]] ; then
 fi
 
 echo "INFO: Spawning $@"
-exec /tini -- "$@"
+exec tini -- "$@"

@@ -14,20 +14,11 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
 
 FROM python:3.8
 
-# Add tini
-ENV TINI_VERSION=v0.19.0
-RUN curl -L https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini -o /tini && \
-    chmod +x /tini
-
-# Add gosu
-ENV GOSU_VERSION=1.12
-RUN curl -L https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64 -o /usr/local/bin/gosu && \
-    chmod +x /usr/local/bin/gosu
-
 # Install necessary packages
 RUN apt-get update       && \
     apt-get install -y      \
     git                     \
+    gosu                    \
     libldap2-dev            \
     libsasl2-dev            \
     ldap-utils              \
@@ -42,6 +33,7 @@ RUN apt-get update       && \
     libxml2-dev             \
     libxslt-dev             \
     libyaml-dev             \
+    tini                    \
     uwsgi-src               \
     xfonts-75dpi            \
     xfonts-base             \
