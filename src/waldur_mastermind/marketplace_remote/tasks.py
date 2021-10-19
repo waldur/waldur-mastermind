@@ -265,9 +265,10 @@ def sync_remote_project_permissions():
         for offering in offerings:
             client = utils.get_client_for_offering(offering)
             try:
-                remote_project_uuid, created = utils.get_or_create_remote_project(
+                remote_project, created = utils.get_or_create_remote_project(
                     offering, project, client
-                )['uuid']
+                )
+                remote_project_uuid = remote_project['uuid']
             except WaldurClientException as e:
                 logger.debug(
                     f'Unable to create remote project {project} in offering {offering}: {e}'
