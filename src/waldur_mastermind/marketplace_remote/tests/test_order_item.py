@@ -35,6 +35,7 @@ class OrderItemPullTest(test.APITransactionTestCase):
             offering=offering,
             resource=self.resource,
             state=OrderItem.States.EXECUTING,
+            backend_id='BACKEND_ID',
         )
 
     def tearDown(self):
