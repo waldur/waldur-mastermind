@@ -289,10 +289,13 @@ def sync_remote_project_permissions():
 
             remote_user_roles = collections.defaultdict(set)
             for remote_permission in remote_permissions:
+                remote_expiration_time = remote_permission['expiration_time']
                 remote_user_roles[remote_permission['user_username']].add(
                     (
                         remote_permission['role'],
-                        dateparse.parse_datetime(remote_permission['expiration_time']),
+                        dateparse.parse_datetime(remote_expiration_time)
+                        if remote_expiration_time
+                        else remote_expiration_time,
                     )
                 )
 
