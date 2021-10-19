@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db import transaction
 from django.utils.functional import cached_property
 
 from waldur_core.core.utils import serialize_instance
@@ -48,8 +49,10 @@ class RemoteCreateResourceProcessor(
                 remote_project['uuid'],
             )
 
-        OrderItemStatePullTask().apply_async(
-            args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+        transaction.on_commit(
+            lambda: OrderItemStatePullTask().apply_async(
+                args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+            )
         )
 
 
@@ -63,8 +66,10 @@ class RemoteUpdateResourceProcessor(
         self.order_item.backend_id = response
         self.order_item.save()
 
-        OrderItemStatePullTask().apply_async(
-            args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+        transaction.on_commit(
+            lambda: OrderItemStatePullTask().apply_async(
+                args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+            )
         )
 
         return False
@@ -80,8 +85,10 @@ class RemoteDeleteResourceProcessor(
         self.order_item.backend_id = response
         self.order_item.save()
 
-        OrderItemStatePullTask().apply_async(
-            args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+        transaction.on_commit(
+            lambda: OrderItemStatePullTask().apply_async(
+                args=[serialize_instance(self.order_item)], kwargs={}, max_retries=19
+            )
         )
 
         return False

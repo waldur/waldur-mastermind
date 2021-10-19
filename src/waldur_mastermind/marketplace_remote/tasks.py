@@ -45,6 +45,8 @@ class OfferingListPullTask(BackgroundListPullTask):
 
 class OrderItemPullTask(BackgroundPullTask):
     def pull(self, local_order_item):
+        if not local_order_item.backend_id:
+            return
         client = get_client_for_offering(local_order_item.offering)
         remote_order = client.get_order(local_order_item.backend_id)
         remote_order_item = remote_order['items'][0]
@@ -75,8 +77,10 @@ class OrderItemListPullTask(BackgroundListPullTask):
     pull_task = OrderItemPullTask
 
     def get_pulled_objects(self):
-        return models.OrderItem.objects.filter(offering__type=PLUGIN_NAME).exclude(
-            state__in=models.OrderItem.States.TERMINAL_STATES
+        return (
+            models.OrderItem.objects.filter(offering__type=PLUGIN_NAME)
+            .exclude(state__in=models.OrderItem.States.TERMINAL_STATES)
+            .exclude(backend_id='')
         )
 
 
