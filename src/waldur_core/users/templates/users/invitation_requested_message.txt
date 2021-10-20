@@ -1,7 +1,7 @@
 Hello!
 
 {{ sender }} has created invitation request for the following user
-to join {{ name }} {{ type }} in {{ role|lower }} role.
+to join {{ name }} {{ type }} in {{ role }} role.
 
 {% if invitation.civil_number %}
 Civil number: {{ invitation.civil_number }}

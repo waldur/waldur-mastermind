@@ -6,7 +6,13 @@ DOMAIN_MESSAGES = {
         'project manager': 'co-PI',
         'system administrator': 'member',
         'project member': 'guest',
-    }
+    },
+    'academic_shared': {
+        'organization owner': 'resource llocator',
+        'project manager': 'PI',
+        'system administrator': 'co-PI',
+        'project member': 'member',
+    },
 }
 
 

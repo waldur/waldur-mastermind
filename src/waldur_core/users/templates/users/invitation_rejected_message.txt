@@ -6,4 +6,4 @@ Full name: {{ invitation.full_name }}
 
 Target: {{ name }} {{ type }}
 
-Role: {{ role|lower }}
+Role: {{ role }}
