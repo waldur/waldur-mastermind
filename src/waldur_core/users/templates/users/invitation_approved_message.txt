@@ -1,6 +1,6 @@
 Hello!
 
-{{ sender }} has invited you to join {{ name }} {{ type }} in {{ role|lower }} role.
+{{ sender }} has invited you to join {{ name }} {{ type }} in {{ role }} role.
 Please visit the link below to sign up and accept your invitation:
 {{ link }}
 
