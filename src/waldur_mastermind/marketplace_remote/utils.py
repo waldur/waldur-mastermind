@@ -58,7 +58,13 @@ def get_projects_with_remote_offerings():
     )
     projects_with_offerings = defaultdict(set)
     for pair in pairs:
-        project = structure_models.Project.objects.get(pk=pair['project'])
+        try:
+            project = structure_models.Project.objects.get(pk=pair['project'])
+        except structure_models.Project.DoesNotExist:
+            logger.debug(
+                f'Skipping resource from a removed project with PK {pair["project"]}'
+            )
+            continue
         offering = marketplace_models.Offering.objects.get(pk=pair['offering'])
         projects_with_offerings[project].add(offering)
     return projects_with_offerings
