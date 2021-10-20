@@ -360,4 +360,4 @@ def filter_by_full_name(queryset, value, field=''):
     field = field and field + '__'
     return queryset.annotate(
         concatenated_name=Concat(field + 'first_name', V(' '), field + 'last_name')
-    ).filter(concatenated_name__unaccent__icontains=value)
+    ).filter(concatenated_name__icontains=value)
