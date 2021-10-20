@@ -1,7 +1,6 @@
 import dataclasses
 import json
 import time
-from dataclasses import dataclass
 from enum import Enum
 from typing import List
 from urllib.parse import urlencode, urljoin
@@ -52,7 +51,7 @@ class InvalidStateError(WaldurClientException):
     pass
 
 
-@dataclass
+@dataclasses.dataclass
 class ComponentUsage:
     # TODO: rename to 'component_type' after https://opennode.atlassian.net/browse/WAL-4259 is done
     type: str
@@ -60,7 +59,7 @@ class ComponentUsage:
     description: str = ''
 
 
-@dataclass
+@dataclasses.dataclass
 class ResourceReportRecord:
     header: str
     body: str
@@ -80,37 +79,38 @@ class ProjectRole(Enum):
 
 class WaldurClient(object):
     class Endpoints(object):
-        Provider = 'service-settings'
-        Project = 'projects'
+        ComponentUsage = 'marketplace-component-usages'
+        CustomerPermissions = 'customer-permissions'
+        Customers = 'customers'
         Flavor = 'openstacktenant-flavors'
-        Subnet = 'openstacktenant-subnets'
         FloatingIP = 'openstacktenant-floating-ips'
-        SecurityGroup = 'openstacktenant-security-groups'
         Image = 'openstacktenant-images'
         Instance = 'openstacktenant-instances'
-        Snapshot = 'openstacktenant-snapshots'
-        SshKey = 'keys'
-        Tenant = 'openstack-tenants'
-        TenantSecurityGroup = 'openstack-security-groups'
-        Volume = 'openstacktenant-volumes'
-        VolumeType = 'openstacktenant-volume-types'
+        Invoice = 'invoices'
+        MarketplaceCategories = 'marketplace-categories'
         MarketplaceOffering = 'marketplace-offerings'
-        MarketplacePlan = 'marketplace-plans'
         MarketplaceOrder = 'marketplace-orders'
         MarketplaceOrderItem = 'marketplace-order-items'
+        MarketplacePlan = 'marketplace-plans'
         MarketplaceResources = 'marketplace-resources'
-        MarketplaceCategories = 'marketplace-categories'
-        Customers = 'customers'
-        Invoice = 'invoices'
-        ComponentUsage = 'marketplace-component-usages'
-        RemoteEduteams = 'remote-eduteams'
-        ProjectPermissions = 'project-permissions'
-        CustomerPermissions = 'customer-permissions'
         OfferingPermissions = 'marketplace-offering-permissions'
-        Users = 'users'
-        UserInvitations = 'user-invitations'
         OfferingUsers = 'marketplace-offering-users'
+        Project = 'projects'
+        ProjectPermissions = 'project-permissions'
+        ProjectTypes = 'project-types'
+        Provider = 'service-settings'
+        RemoteEduteams = 'remote-eduteams'
+        SecurityGroup = 'openstacktenant-security-groups'
         ServiceProviders = 'marketplace-service-providers'
+        Snapshot = 'openstacktenant-snapshots'
+        SshKey = 'keys'
+        Subnet = 'openstacktenant-subnets'
+        Tenant = 'openstack-tenants'
+        TenantSecurityGroup = 'openstack-security-groups'
+        UserInvitations = 'user-invitations'
+        Users = 'users'
+        Volume = 'openstacktenant-volumes'
+        VolumeType = 'openstacktenant-volume-types'
 
     marketplaceScopeEndpoints = {
         'OpenStackTenant.Instance': Endpoints.Instance,
@@ -1308,24 +1308,24 @@ class WaldurClient(object):
     def create_customer(
         self,
         name,
-        email="",
-        address="",
-        registration_code="",
-        backend_id="",
-        abbreviation="",
-        bank_account="",
-        bank_name="",
-        contact_details="",
-        country="",
-        display_name="",
-        domain="",
-        homepage="",
-        native_name="",
+        email='',
+        address='',
+        registration_code='',
+        backend_id='',
+        abbreviation='',
+        bank_account='',
+        bank_name='',
+        contact_details='',
+        country='',
+        display_name='',
+        domain='',
+        homepage='',
+        native_name='',
         latitude=None,
         longitude=None,
-        phone_number="",
-        postal="",
-        vat_code="",
+        phone_number='',
+        postal='',
+        vat_code='',
     ):
         payload = {
             'abbreviation': abbreviation,
@@ -1368,15 +1368,40 @@ class WaldurClient(object):
         url = self._build_url(self.Endpoints.Project)
         return self._get_count(url)
 
-    def create_project(self, customer_uuid, name, backend_id=None):
-        payload = {
+    def _serialize_project(
+        self,
+        name=None,
+        backend_id=None,
+        description='',
+        end_date=None,
+        oecd_fos_2007_code=None,
+        type_uuid=None,
+    ):
+        type_url = type_uuid and self._build_resource_url(
+            self.Endpoints.ProjectTypes, type_uuid
+        )
+        return {
             'name': name,
-            'customer': self._build_resource_url(
-                self.Endpoints.Customers, customer_uuid
-            ),
             'backend_id': backend_id,
+            'description': description,
+            'end_date': end_date,
+            'oecd_fos_2007_code': oecd_fos_2007_code,
+            'type': type_url,
         }
+
+    def create_project(self, customer_uuid, name, **kwargs):
+        payload = self._serialize_project(name=name, **kwargs)
+        payload['customer'] = self._build_resource_url(
+            self.Endpoints.Customers, customer_uuid
+        )
+
         return self._create_resource(self.Endpoints.Project, payload=payload)
+
+    def update_project(self, project_uuid, **kwargs):
+        payload = self._serialize_project(**kwargs)
+        return self._update_resource(
+            self.Endpoints.Project, project_uuid, payload=payload
+        )
 
     def delete_project(self, project):
         """
