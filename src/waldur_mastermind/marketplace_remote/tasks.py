@@ -16,6 +16,7 @@ from waldur_mastermind.marketplace.callbacks import sync_order_item_state
 from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.utils import (
+    INVALID_RESOURCE_STATES,
     get_client_for_offering,
     pull_fields,
     sync_project_permission,
@@ -335,3 +336,42 @@ def sync_remote_project_permissions():
                                     f'Unable to remove permission for user [{remote_user_uuid}] with role {role} (until {expiration_time}) '
                                     f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                                 )
+
+
+@shared_task(name='waldur_mastermind.marketplace_remote.sync_remote_projects')
+def sync_remote_projects():
+    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+        return
+    for project, offerings in utils.get_projects_with_remote_offerings().items():
+        for offering in offerings:
+            client = utils.get_client_for_offering(offering)
+            try:
+                utils.update_remote_project(offering, project, client)
+            except WaldurClientException:
+                logger.exception(
+                    f'Unable to update remote project {project} in offering {offering}'
+                )
+                continue
+
+
+@shared_task
+def sync_remote_project(serialized_project):
+    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+        return
+    project = deserialize_instance(serialized_project)
+    offering_ids = (
+        models.Resource.objects.filter(project=project, offering__type=PLUGIN_NAME)
+        .exclude(state__in=INVALID_RESOURCE_STATES)
+        .values_list('offering_id', flat=True)
+        .distinct()
+    )
+    offerings = models.Offering.objects.filter(id__in=offering_ids)
+    for offering in offerings:
+        client = utils.get_client_for_offering(offering)
+        try:
+            utils.update_remote_project(offering, project, client)
+        except WaldurClientException:
+            logger.exception(
+                f'Unable to update remote project {project} in offering {offering}'
+            )
+            continue

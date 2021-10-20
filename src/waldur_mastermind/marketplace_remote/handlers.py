@@ -66,3 +66,14 @@ def sync_permission_with_remote_customer(
             expiration_time,
         )
     )
+
+
+def sync_remote_project(sender, instance, created=False, **kwargs):
+    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+        return
+
+    if created:
+        return
+    transaction.on_commit(
+        lambda: tasks.sync_remote_project.delay(serialize_instance(instance))
+    )

@@ -190,6 +190,7 @@ class ProjectSerializer(
             'created',
             'type',
             'type_name',
+            'type_uuid',
             'backend_id',
             'end_date',
             'oecd_fos_2007_code',
@@ -201,7 +202,7 @@ class ProjectSerializer(
         }
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation'),
-            'type': ('name',),
+            'type': ('name', 'uuid'),
         }
 
     @staticmethod
