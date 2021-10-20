@@ -77,12 +77,35 @@ def get_or_create_remote_project(offering, project, client=None):
             customer_uuid=remote_customer_uuid,
             name=remote_project_name,
             backend_id=remote_project_uuid,
+            description=project.description,
+            end_date=project.end_date and project.end_date.isoformat(),
+            oecd_fos_2007_code=project.oecd_fos_2007_code,
+            type_uuid=project.type and project.type.uuid.hex,
         )
         return response, True
     elif len(remote_projects) == 1:
         return remote_projects[0], False
     else:
         raise ValidationError('There are multiple projects in remote Waldur.')
+
+
+def update_remote_project(offering, project, client=None):
+    if not client:
+        client = get_client_for_offering(offering)
+    remote_project_name = f'{project.customer.name} / {project.name}'
+    remote_project_uuid = f'{project.customer.uuid}_{project.uuid}'
+    remote_projects = client.list_projects({'backend_id': remote_project_uuid})
+    if len(remote_projects) == 1:
+        remote_project = remote_projects[0]
+        payload = dict(
+            name=remote_project_name,
+            description=project.description,
+            end_date=project.end_date and project.end_date.isoformat(),
+            oecd_fos_2007_code=project.oecd_fos_2007_code,
+            type_uuid=project.type and project.type.uuid.hex,
+        )
+        if any(remote_project[key] != value for key, value in payload.items()):
+            client.update_project(project_uuid=remote_project['uuid'], **payload)
 
 
 def create_or_update_project_permission(

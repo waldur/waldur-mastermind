@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db.models import signals
 
 
 class MarketplaceRemoteConfig(AppConfig):
@@ -25,29 +26,35 @@ class MarketplaceRemoteConfig(AppConfig):
         structure_signals.structure_role_granted.connect(
             handlers.sync_permission_with_remote_project,
             sender=Project,
-            dispatch_uid='waldur_core.structure.handlers.sync_permission_with_remote_project_granting',
+            dispatch_uid='marketplace_remote.sync_permission_with_remote_project_granting',
         )
 
         structure_signals.structure_role_revoked.connect(
             handlers.sync_permission_with_remote_project,
             sender=Project,
-            dispatch_uid='waldur_core.structure.handlers.sync_permission_with_remote_project_revoking',
+            dispatch_uid='marketplace_remote.sync_permission_with_remote_project_revoking',
         )
 
         structure_signals.structure_role_granted.connect(
             handlers.sync_permission_with_remote_customer,
             sender=Customer,
-            dispatch_uid='waldur_core.structure.handlers.sync_permission_with_remote_customer_granting',
+            dispatch_uid='marketplace_remote.sync_permission_with_remote_customer_granting',
         )
 
         structure_signals.structure_role_revoked.connect(
             handlers.sync_permission_with_remote_customer,
             sender=Customer,
-            dispatch_uid='waldur_core.structure.handlers.sync_permission_with_remote_customer_revoking',
+            dispatch_uid='marketplace_remote.sync_permission_with_remote_customer_revoking',
         )
 
         structure_signals.structure_role_updated.connect(
             handlers.update_remote_project_permission,
             sender=ProjectPermission,
-            dispatch_uid='waldur_core.structure.handlers.update_remote_project_permission',
+            dispatch_uid='marketplace_remote.update_remote_project_permission',
+        )
+
+        signals.post_save.connect(
+            handlers.sync_remote_project,
+            sender=Project,
+            dispatch_uid='marketplace_remote.sync_remote_project',
         )

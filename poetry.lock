@@ -39,7 +39,7 @@ requests = ">=2.6.0"
 type = "git"
 url = "https://github.com/opennode/ansible-waldur-module.git"
 reference = "develop"
-resolved_reference = "105401a8c4e3a8d898b029f253772e1456979b64"
+resolved_reference = "61b619a17a15086391de60d74c3cb056c576fd9e"
 
 [[package]]
 name = "apache-libcloud"

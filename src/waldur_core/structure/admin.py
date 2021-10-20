@@ -432,13 +432,31 @@ class ProjectAdmin(
     ]
     search_fields = ['name', 'uuid']
     change_readonly_fields = ['customer']
-    actions = ('cleanup',)
+    actions = ('cleanup', 'sync_remote')
 
     class Cleanup(ExecutorAdminAction):
         executor = executors.ProjectCleanupExecutor
         short_description = _('Delete projects with all resources')
 
     cleanup = Cleanup()
+
+    def sync_remote(self, request, queryset):
+        from waldur_mastermind.marketplace_remote.tasks import sync_remote_project
+
+        sync_remote_project.delay(
+            [core_utils.serialize_instance(project) for project in queryset]
+        )
+        tasks_scheduled = queryset.count()
+        message = ungettext(
+            'Remote project synchronization has been scheduled for one project .',
+            'Remote project synchronization has been scheduled for %(tasks_scheduled)d projects.',
+            tasks_scheduled,
+        )
+        message = message % {'tasks_scheduled': tasks_scheduled}
+
+        self.message_user(request, message)
+
+    sync_remote.short_description = _('Sync project in remote offerings')
 
     def get_type_name(self, project):
         return project.type and project.type.name or ''
