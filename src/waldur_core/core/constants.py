@@ -8,7 +8,7 @@ DOMAIN_MESSAGES = {
         'project member': 'guest',
     },
     'academic_shared': {
-        'organization owner': 'resource llocator',
+        'organization owner': 'resource allocator',
         'project manager': 'PI',
         'system administrator': 'co-PI',
         'project member': 'member',
