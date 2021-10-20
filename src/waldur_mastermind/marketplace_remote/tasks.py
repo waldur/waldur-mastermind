@@ -44,6 +44,23 @@ class OfferingListPullTask(BackgroundListPullTask):
         return models.Offering.objects.filter(type=PLUGIN_NAME)
 
 
+class ResourcePullTask(BackgroundPullTask):
+    def pull(self, local_resource):
+        client = get_client_for_offering(local_resource.offering)
+        remote_resource = client.get_marketplace_resource(local_resource.backend_id)
+        pull_fields(['report',], local_resource, remote_resource)
+
+
+class ResourceListPullTask(BackgroundListPullTask):
+    name = 'waldur_mastermind.marketplace_remote.pull_resources'
+    pull_task = ResourcePullTask
+
+    def get_pulled_objects(self):
+        return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
+            backend_id=''
+        )
+
+
 class OrderItemPullTask(BackgroundPullTask):
     def pull(self, local_order_item):
         if not local_order_item.backend_id:
