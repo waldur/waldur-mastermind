@@ -85,7 +85,9 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     filterset_class = filters.ServiceProviderFilter
     api_secret_code_permissions = (
         projects_permissions
-    ) = project_permissions_permissions = keys_permissions = users_permissions = [
+    ) = (
+        project_permissions_permissions
+    ) = keys_permissions = users_permissions = set_offerings_username_permissions = [
         structure_permissions.is_owner
     ]
 
@@ -178,6 +180,45 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             )
 
     destroy_permissions = [structure_permissions.is_owner, check_related_resources]
+
+    @action(detail=True, methods=['POST'])
+    def set_offerings_username(self, request, uuid=None):
+        serializer: serializers.SetOfferingUsersSerializer = self.get_serializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        user_uuid = serializer.validated_data['user_uuid']
+        username = serializer.validated_data['username']
+
+        try:
+            user = core_models.User.objects.get(uuid=user_uuid)
+        except core_models.User.DoesNotExist:
+            validation_message = f'A user with the uuid [{user_uuid}] is not found.'
+            raise rf_exceptions.ValidationError(_(validation_message))
+
+        user_projects_ids = structure_models.ProjectPermission.objects.filter(
+            user=user, is_active=True,
+        ).values_list('project_id', flat=True)
+        offering_ids = (
+            models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
+            .filter(
+                project_id__in=user_projects_ids,
+                offering__customer=self.get_object().customer,
+            )
+            .values_list('offering_id', flat=True)
+        )
+
+        for offering_id in offering_ids:
+            models.OfferingUser.objects.update_or_create(
+                user=user, offering_id=offering_id, defaults={'username': username}
+            )
+
+        return Response(
+            {'detail': _('Offering users have been set.'),},
+            status=status.HTTP_201_CREATED,
+        )
+
+    set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
 
 
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
