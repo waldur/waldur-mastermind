@@ -1637,6 +1637,20 @@ class WaldurClient(object):
 
         return self._create_resource(self.Endpoints.OfferingUsers, payload)
 
+    def set_offerings_username(
+        self, service_provider_uuid: str, user_uuid: str, username: str
+    ):
+        endpoint = self._build_resource_url(
+            self.Endpoints.ServiceProviders,
+            service_provider_uuid,
+            'set_offerings_username',
+        )
+        payload = {
+            'user_uuid': user_uuid,
+            'username': username,
+        }
+        return self._post(endpoint, valid_states=[201], json=payload)
+
     def list_remote_offering_users(self, filters):
         return self._query_resource_list(self.Endpoints.OfferingUsers, filters)
 
