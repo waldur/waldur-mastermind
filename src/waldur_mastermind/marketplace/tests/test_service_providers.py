@@ -405,3 +405,62 @@ class ConsumerUserListTest(test.APITransactionTestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertIn(self.admin.uuid.hex, [item['uuid'] for item in response.data])
+
+
+class SetOfferingUsersTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.MarketplaceFixture()
+
+        self.consumer_project = self.fixture.project
+        self.consumable_resource = self.fixture.resource
+        self.offering = self.fixture.offering
+        self.admin = self.fixture.admin
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.fixture.service_provider, action='set_offerings_username',
+        )
+
+    def test_offering_user_creation(self):
+        self.assertEqual(
+            0,
+            models.OfferingUser.objects.filter(
+                user=self.admin, offering=self.offering
+            ).count(),
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url,
+            {'user_uuid': self.admin.uuid, 'username': 'SET_OFFERING_USERNAME',},
+        )
+
+        self.assertEqual(201, response.status_code)
+        self.assertEqual(
+            1,
+            models.OfferingUser.objects.filter(
+                user=self.admin, offering=self.offering
+            ).count(),
+        )
+        offering_user = models.OfferingUser.objects.get(
+            user=self.admin, offering=self.offering
+        )
+        self.assertEqual('SET_OFFERING_USERNAME', offering_user.username)
+
+    def test_offering_user_update(self):
+        models.OfferingUser.objects.create(
+            offering=self.offering, user=self.admin, username='ADMIN_OLD',
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url, {'user_uuid': self.admin.uuid, 'username': 'ADMIN_NEW',},
+        )
+
+        self.assertEqual(201, response.status_code)
+        self.assertEqual(
+            1,
+            models.OfferingUser.objects.filter(
+                user=self.admin, offering=self.offering
+            ).count(),
+        )
+        offering_user = models.OfferingUser.objects.get(
+            user=self.admin, offering=self.offering
+        )
+        self.assertEqual('ADMIN_NEW', offering_user.username)

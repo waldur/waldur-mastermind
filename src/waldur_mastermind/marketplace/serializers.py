@@ -120,6 +120,11 @@ class ServiceProviderSerializer(
         return attrs
 
 
+class SetOfferingsUsernameSerializer(serializers.Serializer):
+    user_uuid = serializers.UUIDField()
+    username = serializers.CharField()
+
+
 class NestedAttributeOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.AttributeOption
