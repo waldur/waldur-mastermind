@@ -10,7 +10,7 @@ class OpenStackTenantExtension(WaldurExtension):
                 'OpenStackTenant.Volume': 4,
                 'OpenStackTenant.Snapshot': 4,
             },
-            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': False,
+            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': True,
             'REQUIRE_AVAILABILITY_ZONE': False,
         }
 

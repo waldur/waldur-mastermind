@@ -1080,16 +1080,16 @@ class InstanceConsoleTest(InstanceActionsTest):
         self.mock_console.assert_called_once_with(self.instance)
 
     @data('admin', 'manager', 'owner')
-    def test_action_not_available_for_users(self, user):
+    @helpers.override_openstack_tenant_settings(
+        ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=False
+    )
+    def test_action_not_available_for_users_if_this_is_disabled_in_settings(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data('staff', 'admin', 'manager', 'owner')
-    @helpers.override_openstack_tenant_settings(
-        ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=True
-    )
-    def test_action_available_for_users_if_this_allowed_in_settings(self, user):
+    def test_action_available_for_users(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
