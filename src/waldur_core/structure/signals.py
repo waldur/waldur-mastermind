@@ -13,3 +13,5 @@ structure_role_updated = Signal(providing_args=['instance', 'user'])
 resource_imported = Signal(providing_args=['instance', 'plan', 'offering'])
 
 project_moved = Signal(providing_args=['project', 'old_customer', 'new_customer'])
+
+permissions_request_approved = Signal(providing_args=['permission', 'structure'])

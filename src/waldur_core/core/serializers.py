@@ -400,3 +400,7 @@ class DateRangeFilterSerializer(serializers.Serializer):
         if ('start' in data) ^ ('end' in data):
             raise serializers.ValidationError(_('Both parameters must be specified.'))
         return data
+
+
+class ReviewCommentSerializer(serializers.Serializer):
+    comment = serializers.CharField(required=False)

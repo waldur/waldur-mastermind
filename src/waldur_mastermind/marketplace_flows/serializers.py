@@ -13,10 +13,6 @@ from waldur_mastermind.marketplace.serializers import BaseItemSerializer
 from . import models
 
 
-class ReviewCommentSerializer(serializers.Serializer):
-    comment = serializers.CharField(required=False)
-
-
 class ReviewSerializerMixin(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
     uuid = serializers.ReadOnlyField(source='flow.uuid')

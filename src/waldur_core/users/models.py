@@ -1,10 +1,12 @@
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.signals import permissions_request_approved
 
 
 class BaseInvitation(core_models.UuidMixin, TimeStampedModel):
@@ -131,3 +133,33 @@ class Invitation(
 
     def __str__(self):
         return self.email
+
+
+class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
+    class Permissions:
+        customer_path = 'invitation__customer'
+
+    invitation = models.ForeignKey(on_delete=models.PROTECT, to=GroupInvitation)
+
+    created_by = models.ForeignKey(
+        on_delete=models.PROTECT, to=settings.AUTH_USER_MODEL, related_name='+',
+    )
+
+    @transaction.atomic
+    def approve(self, user, comment=None):
+        super().approve(user, comment)
+
+        if self.invitation.project_role:
+            permission, created = self.invitation.project.add_user(
+                self.created_by, self.invitation.project_role
+            )
+            structure = self.invitation.project
+        elif self.invitation.customer_role:
+            permission, created = self.invitation.customer.add_user(
+                self.created_by, self.invitation.customer_role
+            )
+            structure = self.invitation.customer
+
+        permissions_request_approved.send(
+            sender=self.__class__, permission=permission, structure=structure,
+        )

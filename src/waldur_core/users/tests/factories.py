@@ -72,3 +72,26 @@ class CustomerGroupInvitationFactory(GroupInvitationBaseFactory):
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     customer_role = structure_models.CustomerRole.OWNER
+
+
+class PermissionRequestFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.PermissionRequest
+
+    invitation = factory.SubFactory(CustomerGroupInvitationFactory)
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+    state = models.PermissionRequest.States.PENDING
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('user-permission-request-list')
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_url(cls, request=None, action=None):
+        if request is None:
+            request = cls()
+        url = 'http://testserver' + reverse(
+            'user-permission-request-detail', kwargs={'uuid': request.uuid.hex}
+        )
+        return url if action is None else url + action + '/'

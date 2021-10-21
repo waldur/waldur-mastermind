@@ -119,7 +119,6 @@ class Migration(migrations.Migration):
                     'customer',
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='invitations',
                         to='structure.Customer',
                         verbose_name='organization',
                     ),
@@ -130,7 +129,6 @@ class Migration(migrations.Migration):
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='invitations',
                         to='structure.Project',
                     ),
                 ),

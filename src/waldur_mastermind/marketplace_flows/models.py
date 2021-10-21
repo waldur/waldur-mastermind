@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
-from django.utils import timezone
-from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core.mixins import ReviewMixin as CoreReviewMixin
+from waldur_core.core.mixins import ReviewStateMixin
 from waldur_core.core.models import UuidMixin
 from waldur_core.structure.models import (
     CUSTOMER_DETAILS_FIELDS,
@@ -24,73 +24,17 @@ from waldur_mastermind.marketplace.models import (
 User = get_user_model()
 
 
-class ReviewStateMixin(models.Model):
+class ReviewMixin(CoreReviewMixin):
     class Meta:
         abstract = True
 
-    class States:
-        DRAFT = 1
-        PENDING = 2
-        APPROVED = 3
-        REJECTED = 4
-        CANCELED = 5
-
-        CHOICES = (
-            (DRAFT, 'draft'),
-            (PENDING, 'pending'),
-            (APPROVED, 'approved'),
-            (REJECTED, 'rejected'),
-            (CANCELED, 'canceled'),
-        )
-
-    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
-
-    def submit(self):
-        self.state = self.States.PENDING
-        self.save(update_fields=['state'])
-
-    def cancel(self):
-        self.state = self.States.CANCELED
-        self.save(update_fields=['state'])
-
-
-class ReviewMixin(ReviewStateMixin, TimeStampedModel):
-    class Meta:
-        abstract = True
-
-    reviewed_by = models.ForeignKey(
-        on_delete=models.CASCADE, to=User, null=True, blank=True, related_name='+'
-    )
-
-    reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
-
-    review_comment = models.TextField(null=True, blank=True)
-
-    @transaction.atomic
     def approve(self, user, comment=None):
-        self.reviewed_by = user
-        self.review_comment = comment
-        self.reviewed_at = timezone.now()
-        self.state = self.States.APPROVED
-        self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
-        )
+        super().approve(user, comment)
         self.flow.approve()
 
-    @transaction.atomic
     def reject(self, user, comment=None):
-        self.reviewed_by = user
-        self.review_comment = comment
-        self.reviewed_at = timezone.now()
-        self.state = self.States.REJECTED
-        self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
-        )
+        super().reject(user, comment)
         self.flow.reject()
-
-    @property
-    def is_rejected(self):
-        return self.state == self.States.REJECTED
 
 
 class CustomerCreateRequest(ReviewMixin, CustomerDetailsMixin):
@@ -208,7 +152,7 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
             self.save(update_fields=['customer', 'order_item', 'state'])
 
 
-class OfferingStateRequest(ReviewMixin, UuidMixin):
+class OfferingStateRequest(CoreReviewMixin, UuidMixin):
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, null=True, blank=True, related_name='+'
@@ -216,25 +160,9 @@ class OfferingStateRequest(ReviewMixin, UuidMixin):
 
     @transaction.atomic
     def approve(self, user, comment=None):
-        self.reviewed_by = user
-        self.review_comment = comment
-        self.reviewed_at = timezone.now()
-        self.state = self.States.APPROVED
-        self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
-        )
+        super().approve(user, comment)
         self.offering.activate()
         self.offering.save(update_fields=['state'])
-
-    @transaction.atomic
-    def reject(self, user, comment=None):
-        self.reviewed_by = user
-        self.review_comment = comment
-        self.reviewed_at = timezone.now()
-        self.state = self.States.REJECTED
-        self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
-        )
 
     @classmethod
     def get_url_name(cls):

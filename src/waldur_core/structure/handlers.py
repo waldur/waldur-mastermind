@@ -390,3 +390,13 @@ def change_email_has_been_requested(sender, instance, created=False, **kwargs):
     transaction.on_commit(
         lambda: tasks.send_change_email_notification.delay(request_serialized)
     )
+
+
+def permissions_request_approved(sender, permission, structure, **kwargs):
+    permission_serialized = core_utils.serialize_instance(permission)
+    structure_serialized = core_utils.serialize_instance(structure)
+    transaction.on_commit(
+        lambda: tasks.send_structure_role_granted_notification.delay(
+            permission_serialized, structure_serialized
+        )
+    )

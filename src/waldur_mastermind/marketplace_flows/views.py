@@ -4,6 +4,7 @@ from rest_framework import exceptions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import permissions as structure_permissions
@@ -50,7 +51,7 @@ class ReviewViewSet(ActionsViewSet):
 
     approve_serializer_class = (
         reject_serializer_class
-    ) = serializers.ReviewCommentSerializer
+    ) = core_serializers.ReviewCommentSerializer
     approve_validators = reject_validators = [
         core_validators.StateValidator(models.ReviewMixin.States.PENDING)
     ]
