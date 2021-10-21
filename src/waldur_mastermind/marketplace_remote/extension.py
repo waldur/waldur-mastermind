@@ -26,6 +26,11 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 'schedule': timedelta(minutes=60),
                 'args': (),
             },
+            'waldur-remote-pull-offering-users': {
+                'task': 'waldur_mastermind.marketplace_remote.pull_offering_users',
+                'schedule': timedelta(minutes=60),
+                'args': (),
+            },
             'waldur-remote-pull-resources': {
                 'task': 'waldur_mastermind.marketplace_remote.pull_resources',
                 'schedule': timedelta(minutes=60),
