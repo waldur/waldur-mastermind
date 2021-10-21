@@ -16,6 +16,7 @@ class StructureConfig(AppConfig):
             TagMixin,
             VirtualMachine,
         )
+        from waldur_core.users.models import PermissionRequest
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
         from waldur_core.quotas import signals as quota_signals
@@ -200,4 +201,10 @@ class StructureConfig(AppConfig):
             handlers.change_email_has_been_requested,
             sender=ChangeEmailRequest,
             dispatch_uid='waldur_core.structure.handlers.change_email_has_been_requested',
+        )
+
+        structure_signals.permissions_request_approved.connect(
+            handlers.permissions_request_approved,
+            sender=PermissionRequest,
+            dispatch_uid='waldur_core.structure.handlers.permissions_request_approved',
         )

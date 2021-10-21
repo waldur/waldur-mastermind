@@ -3,9 +3,11 @@ import uuid
 import django_filters
 from django.conf import settings
 from django.db.models import Q
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
+from waldur_core.structure import filters as structure_filters
 from waldur_core.users import models
 
 
@@ -49,6 +51,26 @@ class GroupInvitationFilter(django_filters.FilterSet):
         ]
 
 
+class PermissionRequestFilter(django_filters.FilterSet):
+    state = django_filters.MultipleChoiceFilter(
+        choices=models.PermissionRequest.States.CHOICES
+    )
+    project = django_filters.UUIDFilter(field_name='invitation__project__uuid')
+    customer = django_filters.UUIDFilter(field_name='invitation__customer__uuid')
+    is_active = django_filters.BooleanFilter(field_name='invitation__is_active')
+
+    o = django_filters.OrderingFilter(fields=('state', 'created'))
+
+    class Meta:
+        model = models.PermissionRequest
+        fields = [
+            'state',
+            'customer',
+            'project',
+            'is_active',
+        ]
+
+
 class InvitationCustomerFilterBackend(BaseFilterBackend):
     url_filter = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid',
@@ -86,3 +108,13 @@ class PendingInvitationFilter(BaseFilterBackend):
             queryset = queryset.filter(email=request.user.email)
 
         return queryset
+
+
+class PermissionRequestFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        queryset_created_by = queryset.filter(created_by=request.user)
+        queryset = DjangoFilterBackend().filter_queryset(request, queryset, view)
+        queryset = structure_filters.GenericRoleFilter().filter_queryset(
+            request, queryset, view
+        )
+        return queryset.union(queryset_created_by)

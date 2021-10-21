@@ -275,3 +275,18 @@ def create_customer_permission_reviews():
         if not customer.get_users().count():
             continue
         structure_models.CustomerPermissionReview.objects.create(customer=customer)
+
+
+@shared_task
+def send_structure_role_granted_notification(
+    permission_serialized, structure_serialized
+):
+    permission = core_utils.deserialize_instance(permission_serialized)
+    structure = core_utils.deserialize_instance(structure_serialized)
+    email = permission.user.email
+
+    if not email:
+        return
+
+    context = {'permission': permission, 'structure': structure}
+    core_utils.broadcast_mail('structure', 'structure_role_granted', context, [email])

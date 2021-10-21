@@ -10,3 +10,9 @@ def register_in(router):
         views.GroupInvitationViewSet,
         basename='user-group-invitation',
     )
+
+    router.register(
+        r'user-permission-requests',
+        views.PermissionRequestViewSet,
+        basename='user-permission-request',
+    )

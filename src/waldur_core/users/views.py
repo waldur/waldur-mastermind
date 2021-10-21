@@ -10,7 +10,9 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
-from waldur_core.core.views import ProtectedViewSet
+from waldur_core.core import serializers as core_serializers
+from waldur_core.core import validators as core_validators
+from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
@@ -292,6 +294,31 @@ class GroupInvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=['post'])
+    def request(self, request, uuid=None):
+        invitation = self.get_object()
+
+        if not invitation.is_active:
+            raise ValidationError(_('Only pending invitation can be requested.'))
+
+        if (
+            models.PermissionRequest.objects.filter(
+                invitation=invitation, created_by=self.request.user
+            )
+            .exclude(state=models.PermissionRequest.States.REJECTED)
+            .exists()
+        ):
+            raise ValidationError(_('Request has been created already.'))
+
+        permission_request = models.PermissionRequest.objects.create(
+            invitation=invitation, created_by=self.request.user,
+        )
+
+        permission_request.submit()
+        return Response(
+            {'uuid': permission_request.uuid.hex}, status=status.HTTP_200_OK,
+        )
+
     def perform_create(self, serializer):
         project = serializer.validated_data.get('project')
         if project:
@@ -308,3 +335,44 @@ class GroupInvitationViewSet(ProtectedViewSet):
             raise PermissionDenied()
 
         serializer.save()
+
+
+class PermissionRequestViewSet(ReadOnlyActionsViewSet):
+    queryset = models.PermissionRequest.objects.all().order_by('-created')
+    serializer_class = serializers.PermissionRequestSerializer
+    filter_backends = (filters.PermissionRequestFilterBackend,)
+    filterset_class = filters.PermissionRequestFilter
+    lookup_field = 'uuid'
+
+    def perform_action(self, request, uuid, action_name):
+        permission_request = self.get_object()
+
+        if not can_manage_invitation_with(
+            self.request.user,
+            permission_request.invitation.customer,
+            permission_request.invitation.customer_role,
+            permission_request.invitation.project_role,
+        ):
+            raise PermissionDenied()
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get('comment')
+
+        getattr(permission_request, action_name)(self.request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, uuid=None):
+        return self.perform_action(request, uuid, 'approve')
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, uuid=None):
+        return self.perform_action(request, uuid, 'reject')
+
+    approve_serializer_class = (
+        reject_serializer_class
+    ) = core_serializers.ReviewCommentSerializer
+    approve_validators = reject_validators = [
+        core_validators.StateValidator(models.PermissionRequest.States.PENDING)
+    ]

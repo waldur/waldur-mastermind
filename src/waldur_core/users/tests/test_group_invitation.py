@@ -3,10 +3,13 @@ from datetime import timedelta
 from ddt import data, ddt
 from django.conf import settings
 from django.utils import timezone
+from mock import patch
 from rest_framework import status
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
@@ -402,4 +405,183 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
 
         self.assertEqual(
             models.GroupInvitation.objects.get(uuid=invitation.uuid).is_active, False
+        )
+
+
+@ddt
+class RequestCreateTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.group_invitation = factories.CustomerGroupInvitationFactory(
+            customer=self.customer, customer_role=self.customer_role
+        )
+        self.url = factories.CustomerGroupInvitationFactory.get_url(
+            self.group_invitation, 'request'
+        )
+
+    @data('staff', 'customer_owner', 'project_admin', 'project_manager', 'user')
+    def test_create_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            models.PermissionRequest.objects.filter(
+                invitation=self.group_invitation
+            ).exists()
+        )
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt
+class RequestRetrieveTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
+            customer=self.customer, customer_role=self.customer_role
+        )
+        self.permission_request = factories.PermissionRequestFactory(
+            invitation=self.customer_group_invitation,
+        )
+        self.url = factories.PermissionRequestFactory.get_url(self.permission_request)
+        self.url_list = factories.PermissionRequestFactory.get_list_url()
+
+    @data('staff', 'customer_owner')
+    def test_user_can_get_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.get(self.url_list)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('project_admin', 'project_manager', 'user')
+    def test_user_cannot_get_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.get(self.url_list)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_user_can_see_requests_submitted_by_himself(self):
+        self.client.force_authenticate(user=self.permission_request.created_by)
+        response = self.client.get(self.url_list)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@ddt
+class RequestApproveTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
+            customer=self.customer, customer_role=self.customer_role
+        )
+        self.permission_request = factories.PermissionRequestFactory(
+            invitation=self.customer_group_invitation,
+        )
+        self.url = factories.PermissionRequestFactory.get_url(
+            self.permission_request, 'approve'
+        )
+        self.created_by = self.permission_request.created_by
+
+    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
+    @data('staff', 'customer_owner')
+    def test_user_can_approve_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.permission_request.refresh_from_db()
+        self.assertEqual(
+            self.permission_request.state, models.PermissionRequest.States.APPROVED
+        )
+        self.assertTrue(
+            structure_models.CustomerPermission.objects.filter(
+                user=self.permission_request.created_by, customer=self.customer,
+            ).exists()
+        )
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
+    @data('customer_owner', 'created_by')
+    def test_user_cannot_approve_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.permission_request.refresh_from_db()
+        self.assertEqual(
+            self.permission_request.state, models.PermissionRequest.States.PENDING
+        )
+
+    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
+    @patch('waldur_core.structure.handlers.tasks')
+    def test_task_notification_calling(self, mock_tasks):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_tasks.send_structure_role_granted_notification.delay.assert_called_once()
+        permission = structure_models.CustomerPermission.objects.get(
+            user=self.permission_request.created_by, customer=self.customer,
+        )
+        mock_tasks.send_structure_role_granted_notification.delay.assert_called_once_with(
+            core_utils.serialize_instance(permission),
+            core_utils.serialize_instance(self.customer),
+        )
+
+    @patch('waldur_core.core.utils.send_mail_with_attachment')
+    def test_task_notification(self, mock_send_mail_with_attachment):
+        permission = structure_factories.CustomerPermissionFactory()
+        structure_tasks.send_structure_role_granted_notification(
+            core_utils.serialize_instance(permission),
+            core_utils.serialize_instance(permission.customer),
+        )
+        mock_send_mail_with_attachment.assert_called_once()
+
+
+@ddt
+class RequestRejectTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
+            customer=self.customer, customer_role=self.customer_role
+        )
+        self.permission_request = factories.PermissionRequestFactory(
+            invitation=self.customer_group_invitation,
+        )
+        self.url = factories.PermissionRequestFactory.get_url(
+            self.permission_request, 'reject'
+        )
+
+    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
+    @data('staff', 'customer_owner')
+    def test_user_can_reject_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.permission_request.refresh_from_db()
+        self.assertEqual(
+            self.permission_request.state, models.PermissionRequest.States.REJECTED
+        )
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
+    @data('customer_owner')
+    def test_user_cannot_reject_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.permission_request.refresh_from_db()
+        self.assertEqual(
+            self.permission_request.state, models.PermissionRequest.States.PENDING
         )

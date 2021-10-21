@@ -1,14 +1,20 @@
 from functools import wraps
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db import transaction
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django_fsm import FSMIntegerField
+from model_utils.models import TimeStampedModel
 from rest_framework import response, status
 
 from waldur_core.core import models
+
+User = get_user_model()
 
 
 def ensure_atomic_transaction(func):
@@ -122,3 +128,74 @@ class ScopeMixin(django_models.Model):
     )
     object_id = django_models.PositiveIntegerField(null=True, blank=True)
     scope = GenericForeignKey('content_type', 'object_id')
+
+
+class ReviewStateMixin(django_models.Model):
+    class Meta:
+        abstract = True
+
+    class States:
+        DRAFT = 1
+        PENDING = 2
+        APPROVED = 3
+        REJECTED = 4
+        CANCELED = 5
+
+        CHOICES = (
+            (DRAFT, 'draft'),
+            (PENDING, 'pending'),
+            (APPROVED, 'approved'),
+            (REJECTED, 'rejected'),
+            (CANCELED, 'canceled'),
+        )
+
+    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+
+    def submit(self):
+        self.state = self.States.PENDING
+        self.save(update_fields=['state'])
+
+    def cancel(self):
+        self.state = self.States.CANCELED
+        self.save(update_fields=['state'])
+
+
+class ReviewMixin(ReviewStateMixin, TimeStampedModel):
+    class Meta:
+        abstract = True
+
+    reviewed_by = django_models.ForeignKey(
+        on_delete=django_models.CASCADE,
+        to=User,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+
+    reviewed_at = django_models.DateTimeField(editable=False, null=True, blank=True)
+
+    review_comment = django_models.TextField(null=True, blank=True)
+
+    @transaction.atomic
+    def approve(self, user, comment=None):
+        self.reviewed_by = user
+        self.review_comment = comment
+        self.reviewed_at = timezone.now()
+        self.state = self.States.APPROVED
+        self.save(
+            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+        )
+
+    @transaction.atomic
+    def reject(self, user, comment=None):
+        self.reviewed_by = user
+        self.review_comment = comment
+        self.reviewed_at = timezone.now()
+        self.state = self.States.REJECTED
+        self.save(
+            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+        )
+
+    @property
+    def is_rejected(self):
+        return self.state == self.States.REJECTED

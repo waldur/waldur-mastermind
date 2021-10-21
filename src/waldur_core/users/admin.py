@@ -15,5 +15,12 @@ class GroupInvitationAdmin(admin.ModelAdmin):
     search_fields = ('customer__name', 'project__name')
 
 
+class PermissionRequestAdmin(admin.ModelAdmin):
+    list_display = ('created', 'created_by', 'invitation', 'state')
+    list_filter = ('created',)
+    search_fields = ('invitation__customer__name', 'invitation__project__name')
+
+
 admin.site.register(models.Invitation, InvitationAdmin)
 admin.site.register(models.GroupInvitation, GroupInvitationAdmin)
+admin.site.register(models.PermissionRequest, PermissionRequestAdmin)
