@@ -44,11 +44,74 @@ class OfferingListPullTask(BackgroundListPullTask):
         return models.Offering.objects.filter(type=PLUGIN_NAME)
 
 
+class OfferingUserPullTask(BackgroundPullTask):
+    def pull(self, local_offering):
+        client = get_client_for_offering(local_offering)
+        remote_offering_users = {
+            remote_offering_user['user_username']: remote_offering_user['username']
+            for remote_offering_user in client.list_remote_offering_users(
+                {'offering_uuid': local_offering.backend_id}
+            )
+        }
+        local_offering_users = {
+            offering_user.user.username: offering_user.username
+            for offering_user in models.OfferingUser.objects.filter(
+                offering=local_offering
+            )
+        }
+        usernames = set(remote_offering_users.values()) | set(
+            local_offering_users.keys()
+        )
+        user_map = {
+            user.username: user
+            for user in models.User.objects.filter(username__in=usernames)
+        }
+
+        missing = set(remote_offering_users.keys()) - set(local_offering_users.keys())
+        for local_username in missing:
+            user = user_map[local_username]
+            models.OfferingUser.objects.create(
+                user=user,
+                offering=local_offering,
+                username=remote_offering_users[local_username],
+            )
+
+        stale = set(local_offering_users.keys()) - set(remote_offering_users.keys())
+        for local_username in stale:
+            user = user_map[local_username]
+            offering_user = models.OfferingUser.objects.get(
+                user=user, offering=local_offering
+            )
+            offering_user.delete()
+
+        common = set(local_offering_users.keys()) & set(remote_offering_users.keys())
+        for local_username in common:
+            remote_username = remote_offering_users[local_username]
+            if local_offering_users[local_username] == remote_username:
+                continue
+            user = user_map[local_username]
+            offering_user = models.OfferingUser.objects.get(
+                user=user, offering=local_offering
+            )
+            offering_user.username = remote_username
+            offering_user.save(update_fields=['username'])
+
+
+class OfferingUserListPullTask(BackgroundListPullTask):
+    name = 'waldur_mastermind.marketplace_remote.pull_offering_users'
+    pull_task = OfferingUserPullTask
+
+    def get_pulled_objects(self):
+        return models.Offering.objects.filter(type=PLUGIN_NAME)
+
+
 class ResourcePullTask(BackgroundPullTask):
     def pull(self, local_resource):
         client = get_client_for_offering(local_resource.offering)
         remote_resource = client.get_marketplace_resource(local_resource.backend_id)
-        pull_fields(['report',], local_resource, remote_resource)
+        pull_fields(
+            ['report',], local_resource, remote_resource,
+        )
 
 
 class ResourceListPullTask(BackgroundListPullTask):
