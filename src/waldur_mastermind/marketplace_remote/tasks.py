@@ -332,7 +332,12 @@ def sync_remote_project_permissions():
                 for role, expiration_time in new_roles:
                     try:
                         client.create_project_permission(
-                            remote_user_uuid, remote_project_uuid, role, expiration_time
+                            remote_user_uuid,
+                            remote_project_uuid,
+                            role,
+                            expiration_time.isoformat()
+                            if expiration_time
+                            else expiration_time,
                         )
                     except WaldurClientException as e:
                         logger.debug(
