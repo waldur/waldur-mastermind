@@ -317,10 +317,7 @@ def sync_remote_project_permissions():
                     )
                 )
 
-            common_usernames = set(local_user_roles.keys()) & set(
-                remote_user_roles.keys()
-            )
-            for username in common_usernames:
+            for username in local_user_roles.keys():
                 try:
                     remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
                 except WaldurClientException as e:
