@@ -4,10 +4,12 @@ import uuid
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework.exceptions import ParseError
 
 from waldur_core.core.models import SshPublicKey
+from waldur_core.core.validators import validate_ssh_public_key
 
 User = get_user_model()
 
@@ -63,6 +65,14 @@ def create_or_update_eduteams_user(backend_user):
     stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
 
     for key in new_keys:
+        try:
+            validate_ssh_public_key(key)
+        except ValidationError:
+            logger.debug(
+                'Skipping invalid SSH key synchronization for remote eduTEAMS user %s',
+                username,
+            )
+            continue
         name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
         new_key = SshPublicKey(user=user, name=name, public_key=key)
         new_key.save()

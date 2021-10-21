@@ -164,7 +164,7 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
                 'https://refeds/ATP/ePA-1d',
             ],
             'ssh_public_key': [
-                'ssh-ed25519 AAAAC3NqaC1lZDI1TTE5AAAAIJ4pfKk7hRdUVeMfrKdLYhxdKy92nVPuHDlVVvZMyqeP'
+                'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHaD5EERMoDJvjH9p4wR19MFX6y+VI6J6432cI5x4PjT'
             ],
             'voperson_external_affiliation': ['faculty@helsinki.fi'],
         }
@@ -173,13 +173,14 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
             url='https://proxy.acc.eduteams.org/OIDC/token',
             json={"access_token": "random_token", 'refresh_token': 'random_token'},
         )
+
+    def test_details_are_imported(self):
         responses.add(
             method='GET',
             url='https://proxy.acc.eduteams.org/OIDC/userinfo',
             json=self.backend_user,
         )
 
-    def test_details_are_imported(self):
         response = self.client.post(reverse('auth_eduteams'), self.valid_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         user = User.objects.get(
@@ -195,6 +196,23 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
         self.assertEqual(ssh_key.public_key, self.backend_user['ssh_public_key'][0])
         self.assertTrue(ssh_key.name.startswith('eduteams_'))
         self.assertEqual(user.affiliations, ['faculty@helsinki.fi'])
+
+    def test_invalid_ssh_keys_are_ignored_valid_are_saved(self):
+        self.backend_user['ssh_public_key'].append('THIS_IS_INVALID_SSH_KEY')
+
+        responses.add(
+            method='GET',
+            url='https://proxy.acc.eduteams.org/OIDC/userinfo',
+            json=self.backend_user,
+        )
+
+        response = self.client.post(reverse('auth_eduteams'), self.valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(
+            username='28c5353b8bb34984a8bd4169ba94c606@eduteams.org'
+        )
+        ssh_key = SshPublicKey.objects.get(user=user)
+        self.assertEqual(ssh_key.public_key, self.backend_user['ssh_public_key'][0])
 
 
 @override_settings(
@@ -232,7 +250,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
                 "family_name": "Snow",
                 "mail": ["john@snow.me"],
                 "ssh_public_key": [
-                    'ssh-ed25519 AAAAC3NqaC1lZDI1TTE5AAAAIJ4pfKk7hRdUVeMfrKdLYhxdKy92nVPuHDlVVvZMyqeP'
+                    'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHaD5EERMoDJvjH9p4wR19MFX6y+VI6J6432cI5x4PjT'
                 ],
             },
         )
