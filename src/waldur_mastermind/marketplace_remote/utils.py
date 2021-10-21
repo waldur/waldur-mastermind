@@ -225,7 +225,7 @@ def push_project_users(offering, project, remote_project_uuid):
 def collect_local_user_roles(project):
     permissions = defaultdict(set)
     for permission in structure_models.ProjectPermission.objects.filter(
-        project=project, is_active=True,
+        project=project, is_active=True, user__registration_method='eduteams'
     ):
         permissions[permission.user.username].add(
             (permission.role, permission.expiration_time)
@@ -234,6 +234,7 @@ def collect_local_user_roles(project):
         customer=project.customer,
         is_active=True,
         role=structure_models.CustomerRole.OWNER,
+        user__registration_method='eduteams',
     ):
         # Organization owner is mapped to project manager in remote Waldur
         permissions[permission.user.username].add(

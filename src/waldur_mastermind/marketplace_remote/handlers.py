@@ -33,6 +33,9 @@ def sync_permission_with_remote_project(
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
 
+    if user.registration_method != 'eduteams':
+        return
+
     grant = signal == structure_signals.structure_role_granted
 
     transaction.on_commit(
@@ -51,6 +54,10 @@ def sync_permission_with_remote_customer(
 ):
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
+
+    if user.registration_method != 'eduteams':
+        return
+
     if role != structure_models.CustomerRole.OWNER:
         # Skip support role synchronization
         return

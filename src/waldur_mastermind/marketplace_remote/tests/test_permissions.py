@@ -21,7 +21,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.mp_fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.mp_fixture.project
-        self.new_user = UserFactory()
+        self.new_user = UserFactory(registration_method='eduteams')
 
         resource = self.mp_fixture.resource
         resource.set_state_ok()
