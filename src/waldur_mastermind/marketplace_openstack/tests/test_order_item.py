@@ -86,6 +86,7 @@ class TenantCreateTest(BaseOpenStackTest):
         response = self.create_order(user=user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
     def test_mandatory_attributes_are_checked(self):
         response = self.create_order(dict(user_username=None))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -90,7 +90,7 @@ class OpenStackExtension(WaldurExtension):
             # change cost of the project: delete tenants, change their configuration
             'MANAGER_CAN_MANAGE_TENANTS': False,
             'ADMIN_CAN_MANAGE_TENANTS': False,
-            'TENANT_CREDENTIALS_VISIBLE': True,
+            'TENANT_CREDENTIALS_VISIBLE': False,
         }
 
     @staticmethod
