@@ -173,7 +173,11 @@ def sync_project_permission(grant, project, role, user, expiration_time):
         if grant:
             try:
                 create_or_update_project_permission(
-                    client, remote_project_uuid, remote_user_uuid, role, expiration_time
+                    client,
+                    remote_project_uuid,
+                    remote_user_uuid,
+                    role,
+                    expiration_time.isoformat() if expiration_time else expiration_time,
                 )
             except WaldurClientException as e:
                 logger.debug(
