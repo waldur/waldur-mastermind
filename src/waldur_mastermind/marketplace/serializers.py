@@ -2502,6 +2502,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     user_uuid = serializers.ReadOnlyField(source='user.uuid')
+    user_username = serializers.ReadOnlyField(source='user.username')
 
     class Meta:
         model = models.OfferingUser
@@ -2512,6 +2513,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
             'offering_uuid',
             'offering_name',
             'user_uuid',
+            'user_username',
             'created',
         )
         extra_kwargs = dict(
