@@ -247,7 +247,9 @@ class InvoiceItem(
     project = models.ForeignKey(
         structure_models.Project, on_delete=models.SET_NULL, null=True
     )
-    project_name = models.CharField(max_length=150, blank=True)
+    project_name = models.CharField(
+        max_length=structure_models.PROJECT_NAME_LENGTH, blank=True
+    )
     project_uuid = models.CharField(max_length=32, blank=True)
 
     tracker = FieldTracker()
