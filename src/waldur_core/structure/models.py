@@ -31,7 +31,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
 from waldur_core.core.models import AbstractFieldTracker
 from waldur_core.core.shims import TaggableManager
-from waldur_core.core.validators import validate_cidr_list
+from waldur_core.core.validators import validate_cidr_list, validate_name
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
@@ -666,9 +666,17 @@ class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
     pass
 
 
-class ProjectDetailsMixin(core_models.DescribableMixin, core_models.NameMixin):
+PROJECT_NAME_LENGTH = 500
+
+
+class ProjectDetailsMixin(core_models.DescribableMixin):
     class Meta:
         abstract = True
+
+    # NameMixin is not used because it has too strict limitation for max_length.
+    name = models.CharField(
+        _('name'), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
+    )
 
     end_date = models.DateField(
         null=True,
