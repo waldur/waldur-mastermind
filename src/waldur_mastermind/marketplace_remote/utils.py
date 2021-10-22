@@ -50,14 +50,14 @@ def get_remote_offerings_for_project(project):
 
 
 def get_projects_with_remote_offerings():
-    pairs = (
+    projects_with_offerings = defaultdict(set)
+    resource_pairs = (
         marketplace_models.Resource.objects.filter(offering__type=PLUGIN_NAME)
         .exclude(state__in=INVALID_RESOURCE_STATES)
         .values('offering', 'project')
         .distinct()
     )
-    projects_with_offerings = defaultdict(set)
-    for pair in pairs:
+    for pair in resource_pairs:
         try:
             project = structure_models.Project.objects.get(pk=pair['project'])
         except structure_models.Project.DoesNotExist:
@@ -67,6 +67,29 @@ def get_projects_with_remote_offerings():
             continue
         offering = marketplace_models.Offering.objects.get(pk=pair['offering'])
         projects_with_offerings[project].add(offering)
+
+    order_item_pairs = (
+        marketplace_models.OrderItem.objects.filter(
+            offering__type=PLUGIN_NAME,
+            state__in=(
+                marketplace_models.OrderItem.States.PENDING,
+                marketplace_models.OrderItem.States.EXECUTING,
+            ),
+        )
+        .values('offering', 'order__project')
+        .distinct()
+    )
+    for pair in order_item_pairs:
+        try:
+            project = structure_models.Project.objects.get(pk=pair['order__project'])
+        except structure_models.Project.DoesNotExist:
+            logger.debug(
+                f'Skipping order item from a removed project with PK {pair["order__project"]}'
+            )
+            continue
+        offering = marketplace_models.Offering.objects.get(pk=pair['offering'])
+        projects_with_offerings[project].add(offering)
+
     return projects_with_offerings
 
 
