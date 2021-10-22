@@ -199,9 +199,9 @@ def sync_project_permission(grant, project, role, user, expiration_time):
 def push_project_users(offering, project, remote_project_uuid):
     client = get_client_for_offering(offering)
 
-    permissions = collect_local_user_roles(project)
+    permissions = collect_local_permissions(project)
 
-    for username, roles in permissions.items():
+    for username, (role, expiration_time) in permissions.items():
         try:
             remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
         except WaldurClientException as e:
@@ -210,25 +210,25 @@ def push_project_users(offering, project, remote_project_uuid):
             )
             continue
 
-        for role, expiration_time in roles:
-            try:
-                create_or_update_project_permission(
-                    client, remote_project_uuid, remote_user_uuid, role, expiration_time
-                )
-            except WaldurClientException as e:
-                logger.debug(
-                    f'Unable to create permission for user [{remote_user_uuid}] with role {role} '
-                    f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
-                )
+        try:
+            create_or_update_project_permission(
+                client, remote_project_uuid, remote_user_uuid, role, expiration_time
+            )
+        except WaldurClientException as e:
+            logger.debug(
+                f'Unable to create permission for user [{remote_user_uuid}] with role {role} '
+                f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+            )
 
 
-def collect_local_user_roles(project):
-    permissions = defaultdict(set)
+def collect_local_permissions(project):
+    permissions = defaultdict()
     for permission in structure_models.ProjectPermission.objects.filter(
         project=project, is_active=True, user__registration_method='eduteams'
     ):
-        permissions[permission.user.username].add(
-            (permission.role, permission.expiration_time)
+        permissions[permission.user.username] = (
+            permission.role,
+            permission.expiration_time,
         )
     for permission in structure_models.CustomerPermission.objects.filter(
         customer=project.customer,
@@ -237,7 +237,8 @@ def collect_local_user_roles(project):
         user__registration_method='eduteams',
     ):
         # Organization owner is mapped to project manager in remote Waldur
-        permissions[permission.user.username].add(
-            (structure_models.ProjectRole.MANAGER, permission.expiration_time)
+        permissions[permission.user.username] = (
+            structure_models.ProjectRole.MANAGER,
+            permission.expiration_time,
         )
     return permissions

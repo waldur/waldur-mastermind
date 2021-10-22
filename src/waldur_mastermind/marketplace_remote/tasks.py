@@ -341,7 +341,9 @@ def sync_remote_project_permissions():
         return
 
     for project, offerings in utils.get_projects_with_remote_offerings().items():
-        local_user_roles = utils.collect_local_user_roles(project)
+        local_permissions = utils.collect_local_permissions(project)
+        if not local_permissions:
+            continue
 
         for offering in offerings:
             client = utils.get_client_for_offering(offering)
@@ -368,19 +370,17 @@ def sync_remote_project_permissions():
                 )
                 continue
 
-            remote_user_roles = collections.defaultdict(set)
+            remote_user_roles = collections.defaultdict()
             for remote_permission in remote_permissions:
                 remote_expiration_time = remote_permission['expiration_time']
-                remote_user_roles[remote_permission['user_username']].add(
-                    (
-                        remote_permission['role'],
-                        dateparse.parse_datetime(remote_expiration_time)
-                        if remote_expiration_time
-                        else remote_expiration_time,
-                    )
+                remote_user_roles[remote_permission['user_username']] = (
+                    remote_permission['role'],
+                    dateparse.parse_datetime(remote_expiration_time)
+                    if remote_expiration_time
+                    else remote_expiration_time,
                 )
 
-            for username in local_user_roles.keys():
+            for username, (new_role, new_expiration_time) in local_permissions.items():
                 try:
                     remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
                 except WaldurClientException as e:
@@ -389,35 +389,70 @@ def sync_remote_project_permissions():
                     )
                     continue
 
-                new_roles = local_user_roles[username] - remote_user_roles[username]
-                stale_roles = remote_user_roles[username] - local_user_roles[username]
-
-                for role, expiration_time in new_roles:
+                if username not in remote_user_roles:
                     try:
                         client.create_project_permission(
                             remote_user_uuid,
                             remote_project_uuid,
-                            role,
-                            expiration_time.isoformat()
-                            if expiration_time
-                            else expiration_time,
+                            new_role,
+                            new_expiration_time.isoformat()
+                            if new_expiration_time
+                            else new_expiration_time,
                         )
                     except WaldurClientException as e:
                         logger.debug(
-                            f'Unable to create permission for user [{remote_user_uuid}] with role {role} (until {expiration_time}) '
+                            f'Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) '
                             f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                         )
+                    continue
 
-                for role, expiration_time in stale_roles:
-                    for permission in remote_permissions:
-                        if permission['role'] == role:
-                            try:
-                                client.remove_project_permission(str(permission['pk']))
-                            except WaldurClientException as e:
-                                logger.debug(
-                                    f'Unable to remove permission for user [{remote_user_uuid}] with role {role} (until {expiration_time}) '
-                                    f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
-                                )
+                old_role, old_expiration_time = remote_user_roles[username]
+
+                old_permission_id = None
+                for permission in remote_permissions:
+                    if permission['role'] == old_role:
+                        old_permission_id = str(permission['pk'])
+
+                if not old_permission_id:
+                    continue
+
+                if old_role != new_role:
+                    try:
+                        client.remove_project_permission(old_permission_id)
+                    except WaldurClientException as e:
+                        logger.debug(
+                            f'Unable to remove permission for user [{remote_user_uuid}] with role {old_role} '
+                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                        )
+                    try:
+                        client.create_project_permission(
+                            remote_user_uuid,
+                            remote_project_uuid,
+                            new_role,
+                            new_expiration_time.isoformat()
+                            if new_expiration_time
+                            else new_expiration_time,
+                        )
+                    except WaldurClientException as e:
+                        logger.debug(
+                            f'Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) '
+                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                        )
+                    continue
+
+                if old_expiration_time != new_expiration_time:
+                    try:
+                        client.update_project_permission(
+                            old_permission_id,
+                            new_expiration_time.isoformat()
+                            if new_expiration_time
+                            else new_expiration_time,
+                        )
+                    except WaldurClientException as e:
+                        logger.debug(
+                            f'Unable to update permission for user [{remote_user_uuid}] with role {old_role} (until {new_expiration_time}) '
+                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                        )
 
 
 @shared_task(name='waldur_mastermind.marketplace_remote.sync_remote_projects')
