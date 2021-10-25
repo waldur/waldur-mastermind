@@ -113,7 +113,7 @@ def get_remote_eduteams_user_info(username):
 
 
 def refresh_remote_eduteams_token():
-    access_token = cache.get('REMOTE_EDUTEAMS_REFRESH_TOKEN')
+    access_token = cache.get('REMOTE_EDUTEAMS_ACCESS_TOKEN')
     if access_token:
         return access_token
     try:
@@ -132,13 +132,13 @@ def refresh_remote_eduteams_token():
             },
         )
         if token_response.status_code != 200:
-            raise ParseError('Unable to get refresh token. Service is down.')
+            raise ParseError('Unable to get access token. Service is down.')
         try:
             access_token = token_response.json()['access_token']
-            cache.set('REMOTE_EDUTEAMS_REFRESH_TOKEN', 30 * 60)
+            cache.set('REMOTE_EDUTEAMS_ACCESS_TOKEN', 30 * 60)
             return access_token
         except (ValueError, TypeError):
-            raise ParseError('Unable to parse JSON in refresh token response.')
+            raise ParseError('Unable to parse JSON in access token response.')
     except requests.exceptions.RequestException as e:
         logger.warning('Unable to get eduTEAMS access token. Error is %s', e)
         raise ParseError('Unable to get access token.')
