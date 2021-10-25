@@ -542,6 +542,8 @@ class AzureBackend(ServiceBackend):
             local_vm.save(update_fields=['runtime_state'])
 
     def get_virtual_machine_runtime_state(self, backend_vm):
+        if backend_vm.instance_view is None:
+            return ''
         for status in backend_vm.instance_view.statuses:
             key, val = status.code.split('/')
             if key == 'PowerState':
