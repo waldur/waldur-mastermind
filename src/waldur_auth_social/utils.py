@@ -4,6 +4,7 @@ import uuid
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework.exceptions import ParseError
@@ -112,6 +113,9 @@ def get_remote_eduteams_user_info(username):
 
 
 def refresh_remote_eduteams_token():
+    access_token = cache.get('REMOTE_EDUTEAMS_ACCESS_TOKEN')
+    if access_token:
+        return access_token
     try:
         token_response = requests.post(
             settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_TOKEN_URL'],
@@ -130,7 +134,9 @@ def refresh_remote_eduteams_token():
         if token_response.status_code != 200:
             raise ParseError('Unable to get access token. Service is down.')
         try:
-            return token_response.json()['access_token']
+            access_token = token_response.json()['access_token']
+            cache.set('REMOTE_EDUTEAMS_ACCESS_TOKEN', 30 * 60)
+            return access_token
         except (ValueError, TypeError):
             raise ParseError('Unable to parse JSON in refresh token response.')
     except requests.exceptions.RequestException as e:
