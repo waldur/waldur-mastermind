@@ -1616,6 +1616,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'customer_uuid',
             'project_name',
             'project_uuid',
+            'project_description',
             'old_plan_name',
             'new_plan_name',
             'old_plan_uuid',
@@ -1647,6 +1648,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
 
     project_name = serializers.SerializerMethodField()
     project_uuid = serializers.SerializerMethodField()
+    project_description = serializers.SerializerMethodField()
 
     old_plan_name = serializers.ReadOnlyField(source='old_plan.name')
     new_plan_name = serializers.ReadOnlyField(source='plan.name')
@@ -1690,6 +1692,10 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
     def get_project_name(self, order_item: models.OrderItem):
         project = self._get_project(order_item)
         return project.name
+
+    def get_project_description(self, order_item: models.OrderItem):
+        project = self._get_project(order_item)
+        return project.description
 
 
 class CartItemSerializer(BaseRequestSerializer):
