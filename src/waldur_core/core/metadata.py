@@ -368,7 +368,7 @@ class WaldurAuthSocial(BaseModel):
         'https://proxy.acc.researcher-access.org/OIDC/token',
         description='The token endpoint is used to obtain tokens.',
     )
-    REMOTE_EDUTEAMS_ACCESS_TOKEN = Field(
+    REMOTE_EDUTEAMS_REFRESH_TOKEN = Field(
         '', description='Token is used to authenticate against user info endpoint.'
     )
     REMOTE_EDUTEAMS_USERINFO_URL = Field(
