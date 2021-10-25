@@ -192,7 +192,8 @@ class AzureBackend(ServiceBackend):
             }
         except HttpResponseError as e:
             if e.error.code == 'NoRegisteredProviderFound':
-                backend_sizes = {}
+                logger.warning('Unable to fetch sizes for Azure, %s', e)
+                return
             else:
                 raise AzureBackendError(e)
 
