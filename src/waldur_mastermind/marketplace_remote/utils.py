@@ -222,7 +222,7 @@ def sync_project_permission(grant, project, role, user, expiration_time):
 def push_project_users(offering, project, remote_project_uuid):
     client = get_client_for_offering(offering)
 
-    permissions = collect_local_permissions(project)
+    permissions = collect_local_permissions(offering, project)
 
     for username, (role, expiration_time) in permissions.items():
         try:
@@ -244,7 +244,7 @@ def push_project_users(offering, project, remote_project_uuid):
             )
 
 
-def collect_local_permissions(project):
+def collect_local_permissions(offering, project):
     permissions = defaultdict()
     for permission in structure_models.ProjectPermission.objects.filter(
         project=project, is_active=True, user__registration_method='eduteams'
@@ -253,6 +253,9 @@ def collect_local_permissions(project):
             permission.role,
             permission.expiration_time,
         )
+    # Skip mapping for owners if offering belongs to the same customer
+    if offering.customer == project.customer:
+        return permissions
     for permission in structure_models.CustomerPermission.objects.filter(
         customer=project.customer,
         is_active=True,

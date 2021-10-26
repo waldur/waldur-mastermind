@@ -208,3 +208,23 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.client.create_project_permission.assert_called_once_with(
             self.remote_user_uuid, self.remote_project_uuid, 'manager', None
         )
+
+    def test_skip_mapping_for_owners_if_offering_belongs_to_the_same_customer(self):
+        # Arrange
+        self.fixture.owner.registration_method = 'eduteams'
+        self.fixture.owner.save()
+
+        self.resource.project.customer = self.fixture.resource.offering.customer
+        self.resource.project.save()
+
+        self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
+        self.client.get_remote_eduteams_user.return_value = {
+            'uuid': self.remote_user_uuid
+        }
+        self.client.get_project_permissions.return_value = []
+
+        # Act
+        tasks.sync_remote_project_permissions()
+
+        # Assert
+        self.assertEqual(self.client.create_project_permission.call_count, 0)
