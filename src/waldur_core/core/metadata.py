@@ -74,8 +74,7 @@ class WaldurCore(BaseModel):
         'Waldur', description='Human-friendly name of the Waldur deployment.',
     )
     SITE_DESCRIPTION = Field(
-        'User-friendly platform for managing projects, teams and resources in a self-service manner. Fully digital '
-        'delivery of service offerings to the customers.',
+        'Your single pane of control for managing projects, teams and resources in a self-service manner.',
         description='Description of the Waldur deployment.',
     )
     SITE_ADDRESS = Field('', description='It is used in marketplace order header.')
