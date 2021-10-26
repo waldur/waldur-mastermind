@@ -575,7 +575,8 @@ class InternalIP(openstack_base_models.Port):
     tracker = FieldTracker()
 
     def __str__(self):
-        return self.backend_id
+        # This method should not return None
+        return self.backend_id or f'InternalIP <{self.id}>'
 
     class Meta:
         unique_together = ('backend_id', 'settings')
