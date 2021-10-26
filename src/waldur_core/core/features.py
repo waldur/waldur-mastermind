@@ -206,6 +206,10 @@ class InvitationsSection(FeatureSection):
         'Render "Show user details" button in invitation creation form.'
     )
 
+    show_group_invitations = Feature(
+        'Render elements supporting group invitation management.'
+    )
+
 
 class InvoiceSection(FeatureSection):
     class Meta:
