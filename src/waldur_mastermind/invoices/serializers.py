@@ -2,6 +2,8 @@ import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -12,6 +14,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models, utils
 
@@ -96,7 +99,58 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
 class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.InvoiceItem
-        fields = ('article_code',)
+        fields = ('article_code', 'quantity')
+        extra_kwargs = {'quantity': {'required': False}}
+
+    def update(self, instance, validated_data):
+        """
+        Update related ComponentUsage when quantity is being updated.
+        """
+        quantity = validated_data.get('quantity')
+        if quantity is None:
+            return super().update(instance, validated_data)
+
+        invoice_item = instance
+        resource = invoice_item.resource
+        if not resource:
+            raise ValidationError(
+                _('Marketplace resource is not defined in invoice item.')
+            )
+
+        plan_component_id = invoice_item.details.get('plan_component_id')
+        if not plan_component_id:
+            raise ValidationError(
+                _('Plan component is not defined in invoice item details.')
+            )
+        try:
+            plan_component = marketplace_models.PlanComponent.objects.get(
+                id=plan_component_id
+            )
+        except marketplace_models.PlanComponent.DoesNotExist:
+            raise ValidationError(_('Related plan component is not found.'))
+        offering_component = plan_component.component
+        if (
+            offering_component.billing_type
+            != marketplace_models.OfferingComponent.BillingTypes.USAGE
+        ):
+            raise ValidationError(_('Offering component is not usage-based.'))
+
+        component_usage = (
+            marketplace_models.ComponentUsage.objects.filter(
+                resource=resource,
+                component=offering_component,
+                billing_period__year=invoice_item.invoice.year,
+                billing_period__month=invoice_item.invoice.month,
+            )
+            .order_by('date')
+            .last()
+        )
+        if not component_usage:
+            raise ValidationError(_('Component usage is not found.'))
+        component_usage.usage = quantity
+        component_usage.save(update_fields=['usage'])
+
+        return super().update(instance, validated_data)
 
 
 class InvoiceItemCompensationSerializer(serializers.Serializer):
