@@ -1,8 +1,11 @@
+from datetime import date
 from unittest import mock
 
 from rest_framework import status, test
 
 from waldur_mastermind.invoices.tests import factories, fixtures
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class InvoiceItemDeleteTest(test.APITransactionTestCase):
@@ -62,6 +65,44 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
             event_type='invoice_item_updated',
             event_context={'customer': self.fixture.invoice_item.invoice.customer,},
         )
+
+    def test_when_quantity_is_updated_component_usage_is_updated_too(self):
+        # Arrange
+        item = self.fixture.invoice_item
+        resource = marketplace_factories.ResourceFactory()
+        offering = resource.offering
+        item.resource = resource
+        offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering,)
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=plan, component=offering_component
+        )
+        item.details['plan_component_id'] = plan_component.id
+        item.save()
+        billing_period = date(year=item.invoice.year, month=item.invoice.month, day=1)
+        component_usage = marketplace_factories.ComponentUsageFactory(
+            resource=resource,
+            component=offering_component,
+            billing_period=billing_period,
+            usage=100,
+        )
+
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
+            {'quantity': 200},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component_usage.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(component_usage.usage, 200)
+        self.assertEqual(item.quantity, 200)
 
 
 class InvoiceItemCompensationTest(test.APITransactionTestCase):
