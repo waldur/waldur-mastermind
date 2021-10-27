@@ -4,6 +4,7 @@ import factory.fuzzy
 from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
+from waldur_core.core.utils import normalize_unicode
 from waldur_core.structure import models
 
 from . import TestConfig
@@ -35,6 +36,10 @@ class UserFactory(factory.DjangoModelFactory):
         if extracted:
             for customer in extracted:
                 self.customers.add(customer)
+
+    @factory.post_generation
+    def query_field(self, create, extracted, **kwargs):
+        self.query_field = normalize_unicode(self.first_name + ' ' + self.last_name)
 
     @classmethod
     def get_url(cls, user=None, action=None):
