@@ -22,6 +22,7 @@ from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
 from waldur_core.core.fields import CronScheduleField, UUIDField
+from waldur_core.core.utils import normalize_unicode
 from waldur_core.core.validators import (
     MinCronValueValidator,
     validate_name,
@@ -252,6 +253,7 @@ class User(
     backend_id = models.CharField(max_length=255, blank=True)
     first_name = models.CharField(_('first name'), max_length=100, blank=True)
     last_name = models.CharField(_('last name'), max_length=100, blank=True)
+    query_field = models.CharField(max_length=300, blank=True)
     WHITELIST_FIELDS = [
         'is_superuser',
         'description',
@@ -282,6 +284,7 @@ class User(
         names = value.split()
         self.first_name = ' '.join(names[:1])
         self.last_name = ' '.join(names[1:])
+        self.query_field = normalize_unicode(value)
 
     tracker = FieldTracker()
     objects = UserManager()

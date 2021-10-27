@@ -96,9 +96,9 @@ def month_end(date):
 
 
 def pwgen(pw_len=16):
-    """ Generate a random password with the given length.
-        Allowed chars does not have "I" or "O" or letters and
-        digits that look similar -- just to avoid confusion.
+    """Generate a random password with the given length.
+    Allowed chars does not have "I" or "O" or letters and
+    digits that look similar -- just to avoid confusion.
     """
     return get_random_string(
         pw_len, 'abcdefghjkmnpqrstuvwxyz' 'ABCDEFGHJKLMNPQRSTUVWXYZ' '23456789'

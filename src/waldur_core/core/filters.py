@@ -3,8 +3,6 @@ from urllib.parse import urlparse
 
 import django_filters
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Value as V
-from django.db.models.functions import Concat
 from django.forms.fields import MultipleChoiceField
 from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
@@ -14,6 +12,7 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import utils as core_utils
 
 
 class GenericKeyFilterBackend(BaseFilterBackend):
@@ -358,6 +357,6 @@ class ExtendedOrderingFilter(django_filters.OrderingFilter):
 
 def filter_by_full_name(queryset, value, field=''):
     field = field and field + '__'
-    return queryset.annotate(
-        concatenated_name=Concat(field + 'first_name', V(' '), field + 'last_name')
-    ).filter(concatenated_name__icontains=value)
+    return queryset.filter(
+        **{field + 'query_field__icontains': core_utils.normalize_unicode(value)}
+    )
