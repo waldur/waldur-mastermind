@@ -1,6 +1,9 @@
+import mock
+from django.conf import settings
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests.factories import CustomerFactory, UserFactory
 from waldur_mastermind.marketplace.models import Offering
@@ -13,6 +16,7 @@ from waldur_mastermind.marketplace_flows.models import (
     ResourceCreateRequest,
 )
 from waldur_mastermind.marketplace_support.tests.fixtures import SupportFixture
+from waldur_mastermind.support import models as support_models
 
 from . import factories
 
@@ -545,3 +549,33 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
 
         response = self.client.post(cancel_url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch('waldur_mastermind.support.views.backend')
+    def test_create_related_issue(self, mock_backend):
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            OfferingStateRequest.objects.filter(requested_by=self.user).exists()
+        )
+        self.assertTrue(support_models.Issue.objects.filter(caller=self.user).exists())
+        mock_backend.get_active_backend().create_issue.assert_called_once()
+
+    @mock.patch('waldur_mastermind.support.views.backend')
+    def test_do_not_create_request_if_related_jira_issue_has_not_been_created(
+        self, mock_backend
+    ):
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        self.client.force_authenticate(self.user)
+
+        def create_issue(*args, **kwargs):
+            raise ServiceBackendError()
+
+        mock_backend.get_active_backend().create_issue = create_issue
+        self.assertRaises(
+            ServiceBackendError,
+            self.client.post,
+            self.list_url,
+            {'offering': self.offering_url},
+        )

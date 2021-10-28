@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, status
@@ -10,7 +11,7 @@ from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import CustomerRole
 
-from . import filters, models, serializers
+from . import filters, models, serializers, utils
 
 
 def is_owner_of_service_provider(request, view, obj=None):
@@ -158,6 +159,11 @@ class OfferingActivateRequestViewSet(ReviewViewSet):
             return qs
         # Allow to see user's own requests only
         return qs.filter(requested_by=self.request.user)
+
+    @transaction.atomic()
+    def perform_create(self, serializer):
+        offering_request = serializer.save()
+        utils.create_issue(offering_request)
 
     @action(detail=True, methods=['post'])
     def submit(self, request, **kwargs):
