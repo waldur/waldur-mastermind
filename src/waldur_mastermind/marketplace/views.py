@@ -27,7 +27,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import status, views
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
@@ -910,44 +910,42 @@ class OrderItemViewSet(BaseMarketplaceView):
             )
         ).distinct()
 
-    def order_item_is_pending(order_item):
-        if not order_item:
-            return
-        if order_item.state in (
-            models.OrderItem.States.PENDING,
-            models.OrderItem.States.EXECUTING,
-        ):
-            return
-        raise rf_exceptions.ValidationError('Order item is not in pending state.')
-
     approve_permissions = [permissions.can_approve_order_item]
 
     reject_permissions = [permissions.can_reject_order_item]
 
-    reject_validators = approve_validators = [order_item_is_pending]
+    # Approve action is enabled for service provider, and
+    # reject action is enabled for both provider and consumer.
+    # Pending order item for remote offering is executed after it is approved by service provider.
 
     @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         order_item = self.get_object()
 
-        if order_item.resource:
+        if order_item.state == models.OrderItem.States.EXECUTING:
+            if not order_item.resource:
+                raise ValidationError('Order item does not have a resource.')
             callbacks.sync_order_item_state(
                 order_item, models.OrderItem.States.TERMINATED
             )
-        else:
+        elif order_item.state == models.OrderItem.States.PENDING:
             order_item.reviewed_at = timezone.now()
             order_item.reviewed_by = request.user
             order_item.set_state_terminated()
             order_item.save()
+        else:
+            raise ValidationError('Order item is not in executing or pending state.')
         return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         order_item = self.get_object()
 
-        if order_item.resource:
+        if order_item.state == models.OrderItem.States.EXECUTING:
+            if not order_item.resource:
+                raise ValidationError('Order item does not have a resource.')
             callbacks.sync_order_item_state(order_item, models.OrderItem.States.DONE)
-        else:
+        elif order_item.state == models.OrderItem.States.PENDING:
             order_item.reviewed_at = timezone.now()
             order_item.reviewed_by = request.user
             order_item.set_state_executing()
@@ -958,6 +956,8 @@ class OrderItemViewSet(BaseMarketplaceView):
                     core_utils.serialize_instance(request.user),
                 )
             )
+        else:
+            raise ValidationError('Order item is not in executing or pending state.')
         return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
