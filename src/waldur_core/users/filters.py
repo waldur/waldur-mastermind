@@ -57,8 +57,7 @@ class PermissionRequestFilter(django_filters.FilterSet):
     )
     project = django_filters.UUIDFilter(field_name='invitation__project__uuid')
     customer = django_filters.UUIDFilter(field_name='invitation__customer__uuid')
-    is_active = django_filters.BooleanFilter(field_name='invitation__is_active')
-
+    invitation = django_filters.UUIDFilter(field_name='invitation__uuid')
     o = django_filters.OrderingFilter(fields=('state', 'created'))
 
     class Meta:
@@ -67,7 +66,7 @@ class PermissionRequestFilter(django_filters.FilterSet):
             'state',
             'customer',
             'project',
-            'is_active',
+            'invitation',
         ]
 
 

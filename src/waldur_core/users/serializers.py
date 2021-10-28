@@ -45,11 +45,11 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
             'expires',
             'created_by_full_name',
             'created_by_username',
+            'is_active',
         )
         read_only_fields = (
             'url',
             'uuid',
-            'state',
             'created',
             'expires',
         )
