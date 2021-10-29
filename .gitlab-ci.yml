@@ -19,7 +19,6 @@ include:
     file: "/templates/deploy/dev-env-update.yml"
 
 variables:
-  GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/waldur-mastermind.git"
   GITHUB_WALDUR_REPO_URL: "git@github.com:waldur/waldur-mastermind.git"
 
 before_script:
