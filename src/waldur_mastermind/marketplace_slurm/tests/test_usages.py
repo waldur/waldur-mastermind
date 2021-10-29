@@ -65,8 +65,8 @@ class ComponentUsageTest(test.APITransactionTestCase):
         backend.sync_usage()
         self.allocation.refresh_from_db()
 
-        self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2 * 2)
-        self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
+        self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2)
+        self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2)
 
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(

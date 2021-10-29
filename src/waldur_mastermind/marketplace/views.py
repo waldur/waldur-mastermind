@@ -183,9 +183,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['POST'])
     def set_offerings_username(self, request, uuid=None):
-        serializer: serializers.SetOfferingUsersSerializer = self.get_serializer(
-            data=request.data
-        )
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user_uuid = serializer.validated_data['user_uuid']
         username = serializer.validated_data['username']

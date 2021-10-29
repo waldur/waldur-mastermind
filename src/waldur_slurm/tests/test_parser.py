@@ -43,17 +43,17 @@ class ParserTest(TestCase):
 
     def test_total_cpu_is_calculated_correctly(self):
         total = self.report[VALID_ALLOCATION]['TOTAL_ACCOUNT_USAGE']
-        expected = 1 + 2 * 2 * 2
+        expected = 1 + 2 * 2
         self.assertEqual(total.cpu, expected)
 
     def test_total_gpu_is_calculated_correctly(self):
         total = self.report[VALID_ALLOCATION]['TOTAL_ACCOUNT_USAGE']
-        expected = 1 + 2 * 2 * 2
+        expected = 1 + 2 * 2
         self.assertEqual(total.gpu, expected)
 
     def test_total_ram_is_calculated_correctly(self):
         total = self.report[VALID_ALLOCATION]['TOTAL_ACCOUNT_USAGE']
-        expected = (1 + 2 * 2) * 51200
+        expected = (1 + 2) * 51200
         self.assertEqual(total.ram, expected)
 
     def test_if_resource_is_omitted_default_value_is_zero(self):

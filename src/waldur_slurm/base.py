@@ -182,9 +182,9 @@ class BaseReportLine(metaclass=abc.ABCMeta):
     @cached_property
     def quotas(self):
         return Quotas(
-            self.cpu * self.duration * self.node,
-            self.gpu * self.duration * self.node,
-            self.ram * self.duration * self.node,
+            self.cpu * self.duration,
+            self.gpu * self.duration,
+            self.ram * self.duration,
         )
 
     def __str__(self):

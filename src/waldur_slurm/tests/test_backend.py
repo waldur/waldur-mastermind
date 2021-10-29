@@ -92,9 +92,9 @@ class BackendTest(TestCase):
         backend.sync_usage()
         self.allocation.refresh_from_db()
 
-        self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2 * 2)
-        self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
-        self.assertEqual(self.allocation.ram_usage, (1 + 2 * 2) * 51200)
+        self.assertEqual(self.allocation.cpu_usage, 1 + 2 * 2)
+        self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2)
+        self.assertEqual(self.allocation.ram_usage, (1 + 2) * 51200)
 
     @freeze_time('2017-10-16')
     @mock.patch('subprocess.check_output')
@@ -121,9 +121,9 @@ class BackendTest(TestCase):
         user2_allocation_usage = models.AllocationUserUsage.objects.get(
             allocation=self.allocation, year=2017, month=10, user=user2
         )
-        self.assertEqual(user2_allocation_usage.cpu_usage, 2 * 2 * 2)
-        self.assertEqual(user2_allocation_usage.gpu_usage, 2 * 2 * 2)
-        self.assertEqual(user2_allocation_usage.ram_usage, 2 * 2 * 51200)
+        self.assertEqual(user2_allocation_usage.cpu_usage, 2 * 2)
+        self.assertEqual(user2_allocation_usage.gpu_usage, 2 * 2)
+        self.assertEqual(user2_allocation_usage.ram_usage, 2 * 51200)
 
     @mock.patch('subprocess.check_output')
     def test_set_default_resource_limits(self, check_output):
