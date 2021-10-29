@@ -11,7 +11,6 @@ include:
 image: "registry.hpc.ut.ee/mirror/themattrix/tox:latest"
 
 variables:
-  GITHUB_OPENNODE_REPO_URL: "git@github.com:opennode/ansible-waldur-module.git"
   GITHUB_WALDUR_REPO_URL: "git@github.com:waldur/ansible-waldur-module.git"
 
 Run unit tests:
