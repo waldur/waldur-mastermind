@@ -133,7 +133,7 @@ def update_remote_project(offering, project, client=None):
             oecd_fos_2007_code=project.oecd_fos_2007_code,
             type_uuid=project.type and project.type.uuid.hex,
         )
-        if any(remote_project[key] != value for key, value in payload.items()):
+        if any(remote_project.get(key) != value for key, value in payload.items()):
             client.update_project(project_uuid=remote_project['uuid'], **payload)
 
 
