@@ -13,8 +13,9 @@ RUN apt-get update    &&\
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
-RUN pip3 install poetry==1.1.6
+RUN pip3 install poetry==1.1.11
 RUN poetry config virtualenvs.create false
+RUN poetry config experimental.new-installer false
 
 # Copy poetry files
 COPY pyproject.toml /tmp/mnt/pyproject.toml

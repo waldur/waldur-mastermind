@@ -153,5 +153,5 @@ waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_keycloak_rancher = "waldur_keycloak_rancher.extension:KeycloakRancherExtension"
 
 [build-system]
-requires = ["poetry=1.1.6"]
+requires = ["poetry=1.1.11"]
 build-backend = "poetry.masonry.api"

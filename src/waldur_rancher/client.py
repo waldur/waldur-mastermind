@@ -231,6 +231,12 @@ class RancherClient:
             },
         )
 
+    def create_project_user_role(self, user_id, project_id, role):
+        return self._post(
+            'projectroletemplatebindings',
+            json={'roleTemplateId': role, 'projectId': project_id, 'userId': user_id,},
+        )
+
     def get_projects_roles(self):
         return self._get('projectroletemplatebindings')['data']
 
