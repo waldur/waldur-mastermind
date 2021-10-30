@@ -25,3 +25,30 @@ def process_flow_state_change(sender, instance, created=False, **kwargs):
         )
     elif flow.state == models.FlowTracker.States.REJECTED:
         transaction.on_commit(lambda: tasks.send_mail_for_rejected_flow.delay(flow.id))
+
+
+def approve_reject_offering_state_request_when_related_issue_is_resolved(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    issue = instance
+
+    if not issue.tracker.has_changed('status'):
+        return
+
+    try:
+        offering_request = models.OfferingStateRequest.objects.get(issue_id=issue.id)
+
+        user = issue.assignee.user if issue.assignee else None
+
+        if issue.resolved is None:
+            return
+        elif issue.resolved:
+            offering_request.approve(user)
+        else:
+            offering_request.reject(user)
+
+    except models.OfferingStateRequest.DoesNotExist:
+        pass
