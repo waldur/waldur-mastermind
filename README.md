@@ -9,7 +9,7 @@ management of infrastructure under Waldur through Ansible playbooks.
 - SLURM HPC management
 - Common client for Waldur APIs in Python.
 
-See also: http://docs.ansible.com/ansible/modules.html
+See also: <http://docs.ansible.com/ansible/modules.html>
 
 ## Installation
 
@@ -48,6 +48,7 @@ ANSIBLE_LIBRARY=/usr/share/ansible-waldur/ ansible \
 ```
 
 ### Running playbook using virtual Python environment
+
 If you've installed Ansible Waldur module to virtual Python environment you need to specify
 path to Python interpreter and path to module library along with path to playbook:
 
@@ -60,22 +61,20 @@ ansible-playbook \
 
 ## Contributing
 
-1. See general guidelines: https://docs.ansible.com/ansible/latest/dev_guide/developing_modules_general.html
+1. See general guidelines: <https://docs.ansible.com/ansible/latest/dev_guide/developing_modules_general.html>
+1. Install `pre-commit` and `tox`
 
-2. Install `pre-commit` and `tox`
+   ```bash
+   pip install tox pre-commit
+   pre-commit install
+   ```
 
-```bash
-pip install tox pre-commit
-pre-commit install
-```
+1. When new module is implemented, don't forget to update `py_modules` section in `setup.py` file.
+1. When new module is implemented, it should be covered with tests. Run tests using `tox`
 
-3. When new module is implemented, don't forget to update `py_modules` section in `setup.py` file.
+   ```bash
+   tox
+   ```
 
-4. When new module is implemented, it should be covered with tests. Run tests using `tox`
-
-```bash
-tox
-```
-
-5. Module name should consist of three parts separated by underscore: `waldur`, plugin name, entity name.
-For example, `waldur_os_snapshot` refers to OpenStack (OS) as plugin name and snapshot as entity name.
+1. Module name should consist of three parts separated by underscore: `waldur`, plugin name,
+   entity name. For example, `waldur_os_snapshot` refers to OpenStack (OS) as plugin name and snapshot as entity name.
