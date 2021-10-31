@@ -6,6 +6,8 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/release/sync-to-github.yml"
   - project: "waldur/waldur-pipelines"
+    file: "/templates/test/lint-md-files.yml"
+  - project: "waldur/waldur-pipelines"
     file: "/templates/release/python-module-release.yml"
 
 image: "registry.hpc.ut.ee/mirror/themattrix/tox:latest"
