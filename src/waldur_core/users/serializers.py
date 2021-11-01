@@ -173,6 +173,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             'uuid',
             'invitation',
             'state',
+            'created',
             'created_by_full_name',
             'created_by_username',
             'reviewed_by_full_name',
