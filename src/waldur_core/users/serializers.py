@@ -52,6 +52,7 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
             'uuid',
             'created',
             'expires',
+            'is_active',
         )
         extra_kwargs = {
             'url': {
