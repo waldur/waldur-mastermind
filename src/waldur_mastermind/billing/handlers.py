@@ -34,12 +34,12 @@ def update_estimates_for_customer(customer):
 
 
 def process_invoice_item(sender, instance, created=False, **kwargs):
-    if (
-        not created
-        and not instance.tracker.has_changed('unit_price')
-        and not instance.tracker.has_changed('start')
-        and not instance.tracker.has_changed('end')
-    ):
+    if not created and not set(instance.tracker.changed()) & {
+        'unit_price',
+        'start',
+        'end',
+        'quantity',
+    }:
         return
 
     if not instance.project_id:
