@@ -111,8 +111,8 @@ class PendingInvitationFilter(BaseFilterBackend):
 
 class PermissionRequestFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        queryset_created_by = queryset.filter(created_by=request.user)
         queryset = DjangoFilterBackend().filter_queryset(request, queryset, view)
+        queryset_created_by = queryset.filter(created_by=request.user)
         queryset = structure_filters.GenericRoleFilter().filter_queryset(
             request, queryset, view
         )
