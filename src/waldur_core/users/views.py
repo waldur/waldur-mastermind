@@ -168,10 +168,10 @@ class InvitationViewSet(ProtectedViewSet):
         detail=True, methods=['post'], filter_backends=[filters.PendingInvitationFilter]
     )
     def accept(self, request, uuid=None):
-        """ Accept invitation for current user.
+        """Accept invitation for current user.
 
-            To replace user's email with email from invitation - add parameter
-            'replace_email' to request POST body.
+        To replace user's email with email from invitation - add parameter
+        'replace_email' to request POST body.
         """
         invitation = self.get_object()
 
@@ -340,7 +340,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
 class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     queryset = models.PermissionRequest.objects.all().order_by('-created')
     serializer_class = serializers.PermissionRequestSerializer
-    filter_backends = (filters.PermissionRequestFilterBackend,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.PermissionRequestFilter
     lookup_field = 'uuid'
 

@@ -3,11 +3,9 @@ import uuid
 import django_filters
 from django.conf import settings
 from django.db.models import Q
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
-from waldur_core.structure import filters as structure_filters
 from waldur_core.users import models
 
 
@@ -107,13 +105,3 @@ class PendingInvitationFilter(BaseFilterBackend):
             queryset = queryset.filter(email=request.user.email)
 
         return queryset
-
-
-class PermissionRequestFilterBackend(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        queryset = DjangoFilterBackend().filter_queryset(request, queryset, view)
-        queryset_created_by = queryset.filter(created_by=request.user)
-        queryset = structure_filters.GenericRoleFilter().filter_queryset(
-            request, queryset, view
-        )
-        return queryset.union(queryset_created_by)

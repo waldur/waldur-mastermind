@@ -135,9 +135,14 @@ class Invitation(
         return self.email
 
 
+def filter_own_requests(user):
+    return PermissionRequest.objects.filter(created_by=user)
+
+
 class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     class Permissions:
         customer_path = 'invitation__customer'
+        build_query = filter_own_requests
 
     invitation = models.ForeignKey(on_delete=models.PROTECT, to=GroupInvitation)
 
