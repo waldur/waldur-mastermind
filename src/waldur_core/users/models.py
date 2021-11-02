@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models.query_utils import Q
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -136,7 +137,7 @@ class Invitation(
 
 
 def filter_own_requests(user):
-    return PermissionRequest.objects.filter(created_by=user)
+    return Q(created_by=user)
 
 
 class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
