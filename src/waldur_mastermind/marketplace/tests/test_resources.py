@@ -757,9 +757,9 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('staff', 'offering_owner', 'service_manager', 'service_support')
+    @data('staff', 'offering_owner', 'service_manager', 'global_support')
     @freeze_time('2020-01-01')
-    def test_1(self, user):
+    def test_permission_positive(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
 
@@ -771,7 +771,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
 
     @data('admin', 'manager', 'member', 'owner', 'customer_support')
     @freeze_time('2020-01-01')
-    def test_2(self, user):
+    def test_permission_negative(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
 
