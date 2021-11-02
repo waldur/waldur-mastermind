@@ -358,6 +358,9 @@ def get_feature_values():
 
 
 def get_public_settings():
+    cached_settings = cache.get('API_CONFIGURATION')
+    if cached_settings:
+        return cached_settings
     public_settings = {}
 
     public_settings['WALDUR_DISABLED_EXTENSIONS'] = WALDUR_DISABLED_EXTENSIONS
@@ -407,6 +410,7 @@ def get_public_settings():
             for s, v in ext.get_dynamic_settings().items():
                 public_settings[settings_name][s] = v
 
+    cache.set('API_CONFIGURATION', public_settings)
     return public_settings
 
 
@@ -439,6 +443,8 @@ def feature_values(request):
                     defaults=dict(value=feature_value),
                 )
                 updated += 1
+    if updated:
+        cache.delete('API_CONFIGURATION')
     return Response(data=f'{updated} features are updated.', status=status.HTTP_200_OK)
 
 
