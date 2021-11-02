@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
@@ -10,6 +11,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import CustomerRole
+from waldur_mastermind.support import models as support_models
 
 from . import filters, models, serializers, utils
 
@@ -163,7 +165,18 @@ class OfferingActivateRequestViewSet(ReviewViewSet):
     @transaction.atomic()
     def perform_create(self, serializer):
         offering_request = serializer.save()
-        utils.create_issue(offering_request)
+
+        if settings.WALDUR_SUPPORT['ENABLED']:
+            response = utils.create_issue(offering_request)
+
+            if response.status_code == status.HTTP_201_CREATED:
+                offering_request.submit()
+                offering_request.issue = support_models.Issue.objects.get(
+                    uuid=response.data['uuid']
+                )
+                offering_request.save()
+            else:
+                raise exceptions.ValidationError(response.rendered_content)
 
     @action(detail=True, methods=['post'])
     def submit(self, request, **kwargs):

@@ -17,6 +17,7 @@ from waldur_mastermind.marketplace_flows.models import (
 )
 from waldur_mastermind.marketplace_support.tests.fixtures import SupportFixture
 from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.tests import factories as support_factories
 
 from . import factories
 
@@ -404,6 +405,7 @@ class FlowApproveTest(FlowOperationsTest):
 
 class CreateOfferingStateRequestTest(test.APITransactionTestCase):
     def setUp(self):
+        settings.WALDUR_SUPPORT['ENABLED'] = False
         self.list_url = reverse('marketplace-offering-activate-request-list')
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
@@ -554,13 +556,28 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
     def test_create_related_issue(self, mock_backend):
         settings.WALDUR_SUPPORT['ENABLED'] = True
         self.client.force_authenticate(self.user)
+
         response = self.client.post(self.list_url, {'offering': self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            OfferingStateRequest.objects.filter(requested_by=self.user).exists()
+            OfferingStateRequest.objects.filter(requested_by=self.user).count(), 1
         )
-        self.assertTrue(support_models.Issue.objects.filter(caller=self.user).exists())
+        offering_request = OfferingStateRequest.objects.get(requested_by=self.user)
+        self.assertEqual(offering_request.state, OfferingStateRequest.States.PENDING)
+        self.assertTrue(offering_request.issue)
         mock_backend.get_active_backend().create_issue.assert_called_once()
+
+    def test_do_not_create_issue_if_support_extension_is_not_enabled(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            OfferingStateRequest.objects.filter(requested_by=self.user).count(), 1
+        )
+        offering_request = OfferingStateRequest.objects.get(requested_by=self.user)
+        self.assertEqual(offering_request.state, OfferingStateRequest.States.DRAFT)
+        self.assertFalse(offering_request.issue)
 
     @mock.patch('waldur_mastermind.support.views.backend')
     def test_do_not_create_request_if_related_jira_issue_has_not_been_created(
@@ -578,4 +595,39 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
             self.client.post,
             self.list_url,
             {'offering': self.offering_url},
+        )
+
+
+class IssueTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.issue = support_factories.IssueFactory()
+        support_factories.IssueStatusFactory(
+            name='RESOLVED', type=support_models.IssueStatus.Types.RESOLVED
+        )
+        support_factories.IssueStatusFactory(
+            name='CANCELED', type=support_models.IssueStatus.Types.CANCELED
+        )
+        self.offering_request = factories.OfferingStateRequestFactory(issue=self.issue)
+        self.offering_request.submit()
+
+    def test_request_will_by_approved_if_issue_has_been_resolved(self):
+        self.issue.set_resolved()
+        self.offering_request.refresh_from_db()
+        self.assertEqual(
+            self.offering_request.state, OfferingStateRequest.States.APPROVED
+        )
+
+    def test_request_will_by_rejected_if_issue_has_been_canceled(self):
+        self.issue.set_canceled()
+        self.offering_request.refresh_from_db()
+        self.assertEqual(
+            self.offering_request.state, OfferingStateRequest.States.REJECTED
+        )
+
+    def test_request_does_not_change_if_issue_has_not_been_resolved(self):
+        self.issue.status = 'OTHER'
+        self.issue.save()
+        self.offering_request.refresh_from_db()
+        self.assertEqual(
+            self.offering_request.state, OfferingStateRequest.States.PENDING
         )

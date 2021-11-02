@@ -10,8 +10,9 @@ def get_issue_scopes(issue):
     if issue.resource:
         try:
             project = _get_project(issue.resource)
-            result.add(project)
-            result.add(project.customer)
+            if project:
+                result.add(project)
+                result.add(project.customer)
         except Project.DoesNotExist:
             # Project was deleted, soft-deleted projects will be handled below
             pass

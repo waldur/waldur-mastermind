@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
+from django.utils import timezone
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
@@ -20,6 +21,7 @@ from waldur_mastermind.marketplace.models import (
     OrderItem,
     ResourceDetailsMixin,
 )
+from waldur_mastermind.support import models as support_models
 
 User = get_user_model()
 
@@ -157,12 +159,35 @@ class OfferingStateRequest(CoreReviewMixin, UuidMixin):
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, null=True, blank=True, related_name='+'
     )
+    issue = models.OneToOneField(
+        on_delete=models.SET_NULL,
+        to=support_models.Issue,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
 
     @transaction.atomic
-    def approve(self, user, comment=None):
-        super().approve(user, comment)
+    def approve(self, user=None, comment=None):
+        self.reviewed_by = user
+        self.review_comment = comment
+        self.reviewed_at = timezone.now()
+        self.state = self.States.APPROVED
+        self.save(
+            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+        )
         self.offering.activate()
         self.offering.save(update_fields=['state'])
+
+    @transaction.atomic
+    def reject(self, user=None, comment=None):
+        self.reviewed_by = user
+        self.review_comment = comment
+        self.reviewed_at = timezone.now()
+        self.state = self.States.REJECTED
+        self.save(
+            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+        )
 
     @classmethod
     def get_url_name(cls):

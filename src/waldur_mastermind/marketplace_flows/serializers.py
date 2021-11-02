@@ -218,6 +218,7 @@ class OfferingActivateRequestSerializer(serializers.HyperlinkedModelSerializer):
             'url',
             'uuid',
             'requested_by',
+            'issue',
         )
 
     def create(self, validated_data):
