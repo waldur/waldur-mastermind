@@ -355,6 +355,11 @@ class ExtendedOrderingFilter(django_filters.OrderingFilter):
         return qs.order_by(*ordering)
 
 
+class CreatedModifiedFilter(django_filters.FilterSet):
+    created = django_filters.DateFilter(lookup_expr='gte', label='Created after')
+    modified = django_filters.DateFilter(lookup_expr='gte', label='Modified after')
+
+
 def filter_by_full_name(queryset, value, field=''):
     field = field and field + '__'
     return queryset.filter(
