@@ -1258,7 +1258,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
         return self._set_end_date(request, False)
 
     set_end_date_by_provider_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
+        permissions.user_can_set_end_date_by_provider
     ]
 
     @action(detail=True, methods=['post'])

@@ -208,6 +208,19 @@ def user_is_service_provider_owner_or_service_provider_manager(request, view, ob
     raise exceptions.PermissionDenied()
 
 
+def user_can_set_end_date_by_provider(request, view, obj=None):
+    try:
+        user_is_service_provider_owner_or_service_provider_manager(request, view, obj)
+        return
+    except exceptions.PermissionDenied:
+        if obj.offering.customer.has_user(
+            request.user, role=structure_models.CustomerRole.SUPPORT
+        ):
+            return
+        else:
+            raise exceptions.PermissionDenied()
+
+
 def can_approve_order_item(request, view, obj=None):
     if not obj:
         return

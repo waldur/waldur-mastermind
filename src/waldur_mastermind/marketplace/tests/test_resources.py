@@ -689,6 +689,7 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             )
 
 
+@ddt
 class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
@@ -755,6 +756,30 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
             self.fixture.offering_owner, {'end_date': '2020-01-10'}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('staff', 'offering_owner', 'service_manager', 'service_support')
+    @freeze_time('2020-01-01')
+    def test_1(self, user):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+
+        with freeze_time('2020-05-01'):
+            response = self.make_request(
+                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('admin', 'manager', 'member', 'owner', 'customer_support')
+    @freeze_time('2020-01-01')
+    def test_2(self, user):
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+
+        with freeze_time('2020-05-01'):
+            response = self.make_request(
+                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+            )
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt

@@ -86,3 +86,11 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
             user, role=structure_models.CustomerRole.OWNER
         )
         return user
+
+    @cached_property
+    def service_support(self):
+        user = structure_factories.UserFactory()
+        self.order_item.offering.customer.add_user(
+            user, role=structure_models.CustomerRole.SUPPORT
+        )
+        return user
