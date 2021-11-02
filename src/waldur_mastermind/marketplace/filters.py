@@ -322,7 +322,9 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
 
 
 class ResourceFilter(
-    OfferingFilterMixin, structure_filters.NameFilterSet, django_filters.FilterSet
+    OfferingFilterMixin,
+    structure_filters.NameFilterSet,
+    core_filters.CreatedModifiedFilter,
 ):
     query = django_filters.CharFilter(method='filter_query')
     offering_type = django_filters.CharFilter(field_name='offering__type')

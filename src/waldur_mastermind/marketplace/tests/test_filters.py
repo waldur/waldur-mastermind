@@ -1,3 +1,4 @@
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -84,15 +85,18 @@ class ServiceProviderFilterTest(test.APITransactionTestCase):
 
 class ResourceFilterTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = structure_fixtures.UserFixture()
-        self.resource_1 = factories.ResourceFactory(
-            backend_metadata={
-                'external_ips': ['200.200.200.200', '200.200.200.201'],
-                'internal_ips': ['192.168.42.1', '192.168.42.2'],
-            },
-            backend_id='backend_id',
-        )
-        factories.ResourceFactory(backend_id='other_backend_id')
+        with freeze_time('2020-01-01'):
+            self.fixture = structure_fixtures.UserFixture()
+            self.resource_1 = factories.ResourceFactory(
+                backend_metadata={
+                    'external_ips': ['200.200.200.200', '200.200.200.201'],
+                    'internal_ips': ['192.168.42.1', '192.168.42.2'],
+                },
+                backend_id='backend_id',
+            )
+
+        with freeze_time('2021-01-01'):
+            factories.ResourceFactory(backend_id='other_backend_id')
 
         self.url = factories.ResourceFactory.get_list_url()
 
@@ -119,6 +123,13 @@ class ResourceFilterTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url, {'field': ['state', 'offering']})
         self.assertTrue(all([len(fields) == 2 for fields in response.data]))
+
+    def test_filter_created(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 2)
+        response = self.client.get(self.url, {'created': '2021-01-01'})
+        self.assertEqual(len(response.data), 1)
 
 
 class FilterByScopeUUIDTest(test.APITransactionTestCase):
