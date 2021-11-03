@@ -2,10 +2,10 @@
 
 ## Prerequisites
 
-- Linux OS: Ubuntu or CentOS. If you use Windows 10, you should
+- Linux OS: Ubuntu or CentOS. If you use Windows, you should
     install Linux either via
     [Virtualbox](https://www.freecodecamp.org/news/how-to-install-ubuntu-with-oracle-virtualbox/)
-    or [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10/).
+    or [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install).
 - `git`
 - `redis` and `hiredis` library
 - `virtualenv`
@@ -28,7 +28,7 @@ pip3 install poetry
 ### Get the code
 
 ``` bash
-git clone https://github.com/opennode/waldur-mastermind.git
+git clone https://github.com/waldur/waldur-mastermind.git
 cd waldur-mastermind
 ```
 
@@ -77,4 +77,4 @@ poetry run waldur runserver
 
 ## Configuration
 
-Instructions are here: <https://docs.waldur.com/admin-guide/mastermind-configuration/configuration-guide/>
+Instructions are here: <https://docs.waldur.com/admin-guide/mastermind-configuration/general/>
