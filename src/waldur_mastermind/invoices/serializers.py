@@ -190,6 +190,8 @@ class InvoiceSerializer(
             'items',
             'file',
             'backend_id',
+            'payment_url',
+            'reference_number',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -490,8 +492,22 @@ class LinkToInvoiceSerializer(serializers.Serializer):
     )
 
 
-class BackendIdSerializer(serializers.Serializer):
-    backend_id = serializers.CharField(default='', allow_blank=True)
+class BackendIdSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Invoice
+        fields = ('backend_id',)
+
+
+class PaymentURLSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Invoice
+        fields = ('payment_url',)
+
+
+class ReferenceNumberSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Invoice
+        fields = ('reference_number',)
 
 
 def get_payment_profiles(serializer, customer):

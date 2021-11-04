@@ -234,16 +234,33 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @action(detail=True, methods=['post'])
     def set_backend_id(self, request, uuid=None):
-        invoice = self.get_object()
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
-        backend_id = serializer.validated_data['backend_id']
-        invoice.backend_id = backend_id
-        invoice.save()
+        serializer.save()
         return Response(status=status.HTTP_200_OK)
 
     set_backend_id_permissions = [structure_permissions.is_staff]
     set_backend_id_serializer_class = serializers.BackendIdSerializer
+
+    @action(detail=True, methods=['post'])
+    def set_payment_url(self, request, uuid=None):
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    set_payment_url_permissions = [structure_permissions.is_staff]
+    set_payment_url_serializer_class = serializers.PaymentURLSerializer
+
+    @action(detail=True, methods=['post'])
+    def set_reference_number(self, request, uuid=None):
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    set_reference_number_permissions = [structure_permissions.is_staff]
+    set_reference_number_serializer_class = serializers.ReferenceNumberSerializer
 
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
