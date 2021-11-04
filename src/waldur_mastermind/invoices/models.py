@@ -88,6 +88,14 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         blank=True,
         help_text=_('Date then invoice moved from state pending to created.'),
     )
+    payment_url = models.URLField(
+        help_text=_('URL for initiating payment via payment gateway.'), blank=True,
+    )
+    reference_number = models.CharField(
+        help_text=_('Reference number associated with the invoice.'),
+        max_length=300,
+        blank=True,
+    )
 
     tracker = FieldTracker()
 
