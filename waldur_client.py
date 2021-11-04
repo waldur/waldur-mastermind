@@ -77,6 +77,12 @@ class ProjectRole(Enum):
     MEMBER = 'member'
 
 
+class PaymentProfileType(Enum):
+    FIXED_PRICE = 'fixed_price'
+    MONTHLY_INVOICES = 'invoices'
+    PAYMENT_GW_MONTHLY = 'payment_gw_monthly'
+
+
 class WaldurClient(object):
     class Endpoints(object):
         ComponentUsage = 'marketplace-component-usages'
@@ -95,6 +101,7 @@ class WaldurClient(object):
         MarketplaceResources = 'marketplace-resources'
         OfferingPermissions = 'marketplace-offering-permissions'
         OfferingUsers = 'marketplace-offering-users'
+        PaymentProfiles = 'payment-profiles'
         Project = 'projects'
         ProjectPermissions = 'project-permissions'
         ProjectTypes = 'project-types'
@@ -1469,6 +1476,11 @@ class WaldurClient(object):
             self.Endpoints.Invoice,
             {'customer_uuid': customer_uuid, 'year': year, 'month': month},
         )
+
+    def list_payment_profiles(self, filters=None):
+        if 'payment_type' in filters:
+            filters['payment_type'] = filters['payment_type'].value
+        return self._query_resource_list(self.Endpoints.PaymentProfiles, filters)
 
     def list_component_usages(self, resource_uuid, date_after=None, date_before=None):
         return self._query_resource_list(
