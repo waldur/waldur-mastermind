@@ -1477,6 +1477,27 @@ class WaldurClient(object):
             {'customer_uuid': customer_uuid, 'year': year, 'month': month},
         )
 
+    def invoice_set_backend_id(self, invoice_uuid: str, backend_id: str):
+        url = self._build_resource_url(
+            self.Endpoints.Invoice, invoice_uuid, action='set_backend_id',
+        )
+        payload = {'backend_id': backend_id}
+        return self._post(url, valid_states=[200], json=payload)
+
+    def invoice_set_payment_url(self, invoice_uuid: str, payment_url: str):
+        url = self._build_resource_url(
+            self.Endpoints.Invoice, invoice_uuid, action='set_payment_url',
+        )
+        payload = {'payment_url': payment_url}
+        return self._post(url, valid_states=[200], json=payload)
+
+    def invoice_set_reference_number(self, invoice_uuid: str, reference_number: str):
+        url = self._build_resource_url(
+            self.Endpoints.Invoice, invoice_uuid, action='set_reference_number',
+        )
+        payload = {'reference_number': reference_number}
+        return self._post(url, valid_states=[200], json=payload)
+
     def list_payment_profiles(self, filters=None):
         if 'payment_type' in filters:
             filters['payment_type'] = filters['payment_type'].value
