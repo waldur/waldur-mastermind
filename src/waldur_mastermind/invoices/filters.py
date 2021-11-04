@@ -1,4 +1,5 @@
 import django_filters
+from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
@@ -30,6 +31,7 @@ class PaymentProfileFilter(django_filters.FilterSet):
         choices=models.PaymentType.CHOICES
     )
     o = django_filters.OrderingFilter(fields=('name', 'payment_type', 'is_active'))
+    is_active = django_filters.BooleanFilter(widget=BooleanWidget)
 
     class Meta:
         model = models.PaymentProfile
