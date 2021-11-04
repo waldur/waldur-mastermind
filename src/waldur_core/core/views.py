@@ -410,7 +410,9 @@ def get_public_settings():
             for s, v in ext.get_dynamic_settings().items():
                 public_settings[settings_name][s] = v
 
-    cache.set('API_CONFIGURATION', public_settings)
+    cache.set(
+        'API_CONFIGURATION', public_settings, None
+    )  # Cache invalidation is handled explicitly
     return public_settings
 
 
