@@ -365,3 +365,22 @@ def filter_by_full_name(queryset, value, field=''):
     return queryset.filter(
         **{field + 'query_field__icontains': core_utils.normalize_unicode(value)}
     )
+
+
+class ReviewStateFilter(MappedMultipleChoiceFilter):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault(
+            'choices',
+            [
+                (representation, representation)
+                for db_value, representation in core_models.ReviewMixin.States.CHOICES
+            ],
+        )
+        kwargs.setdefault(
+            'choice_mappings',
+            {
+                representation: db_value
+                for db_value, representation in core_models.ReviewMixin.States.CHOICES
+            },
+        )
+        super().__init__(*args, **kwargs)

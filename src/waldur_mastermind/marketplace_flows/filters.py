@@ -3,34 +3,13 @@ from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 
-from . import models
-
-
-class ReviewStateFilter(core_filters.MappedMultipleChoiceFilter):
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault(
-            'choices',
-            [
-                (representation, representation)
-                for db_value, representation in models.ReviewMixin.States.CHOICES
-            ],
-        )
-        kwargs.setdefault(
-            'choice_mappings',
-            {
-                representation: db_value
-                for db_value, representation in models.ReviewMixin.States.CHOICES
-            },
-        )
-        super().__init__(*args, **kwargs)
-
 
 class CustomerCreateRequestFilter(django_filters.FilterSet):
-    state = ReviewStateFilter()
+    state = core_filters.ReviewStateFilter()
 
 
 class ProjectCreateRequestFilter(django_filters.FilterSet):
-    state = ReviewStateFilter()
+    state = core_filters.ReviewStateFilter()
     customer = core_filters.URLFilter(
         view_name='customer-detail', field_name='flow__customer__uuid'
     )
@@ -46,7 +25,7 @@ class ProjectCreateRequestFilter(django_filters.FilterSet):
 
 
 class ResourceCreateRequestFilter(django_filters.FilterSet):
-    state = ReviewStateFilter()
+    state = core_filters.ReviewStateFilter()
     offering = core_filters.URLFilter(
         view_name='marketplace-offering-detail', field_name='offering__uuid',
     )
@@ -60,7 +39,7 @@ class ResourceCreateRequestFilter(django_filters.FilterSet):
 
 
 class FlowFilter(django_filters.FilterSet):
-    state = ReviewStateFilter()
+    state = core_filters.ReviewStateFilter()
     user = core_filters.URLFilter(
         field_name='requested_by__uuid', view_name='user-detail'
     )
@@ -68,5 +47,5 @@ class FlowFilter(django_filters.FilterSet):
 
 
 class OfferingActivateRequestFilter(django_filters.FilterSet):
-    state = ReviewStateFilter()
+    state = core_filters.ReviewStateFilter()
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')

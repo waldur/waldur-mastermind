@@ -50,9 +50,7 @@ class GroupInvitationFilter(django_filters.FilterSet):
 
 
 class PermissionRequestFilter(django_filters.FilterSet):
-    state = django_filters.MultipleChoiceFilter(
-        choices=models.PermissionRequest.States.CHOICES
-    )
+    state = core_filters.ReviewStateFilter()
     project = django_filters.UUIDFilter(field_name='invitation__project__uuid')
     customer = django_filters.UUIDFilter(field_name='invitation__customer__uuid')
     invitation = django_filters.UUIDFilter(field_name='invitation__uuid')
