@@ -56,7 +56,7 @@ class PermissionRequestFilter(django_filters.FilterSet):
     project = django_filters.UUIDFilter(field_name='invitation__project__uuid')
     customer = django_filters.UUIDFilter(field_name='invitation__customer__uuid')
     invitation = django_filters.UUIDFilter(field_name='invitation__uuid')
-    created_by = django_filters.UUIDFilter(field_name='user__uuid')
+    created_by = django_filters.UUIDFilter(field_name='created_by__uuid')
     o = django_filters.OrderingFilter(fields=('state', 'created'))
 
     class Meta:
