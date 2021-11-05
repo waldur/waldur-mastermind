@@ -694,9 +694,9 @@ class WaldurClient(object):
 
         return self._query_resource_list(self.Endpoints.MarketplaceResources, params,)
 
-    def count_marketplace_resources(self):
+    def count_marketplace_resources(self, **kwargs):
         url = self._build_url(self.Endpoints.MarketplaceResources)
-        return self._get_count(url)
+        return self._get_count(url, **kwargs)
 
     def marketplace_resource_set_backend_id(self, resource_uuid: str, backend_id: str):
         url = self._build_resource_url(
