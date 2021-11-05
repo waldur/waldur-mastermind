@@ -220,15 +220,15 @@ class WaldurClient(object):
 
         return result
 
-    def _get_count(self, url):
-        response = self._head(url)
+    def _get_count(self, url, **kwargs):
+        response = self._head(url, **kwargs)
         return int(response.headers['X-Result-Count'])
 
     def _get(self, url, valid_states, **kwargs):
         return self._make_request('get', url, valid_states, 1, **kwargs)
 
-    def _head(self, url):
-        return self._make_request('head', url, valid_states=[200])
+    def _head(self, url, **kwargs):
+        return self._make_request('head', url, valid_states=[200], **kwargs)
 
     def _post(self, url, valid_states, **kwargs):
         return self._make_request('post', url, valid_states, 3, **kwargs)
@@ -347,9 +347,13 @@ class WaldurClient(object):
         url = self._build_url(self.Endpoints.Users)
         return self._get_all(url)
 
-    def count_users(self):
+    def count_users(self, **kwargs):
         url = self._build_url(self.Endpoints.Users)
-        return self._get_count(url)
+        return self._get_count(url, **kwargs)
+
+    def count_customer_permissions(self, **kwargs):
+        url = self._build_url(self.Endpoints.CustomerPermissions)
+        return self._get_count(url, **kwargs)
 
     def list_ssh_keys(self):
         url = self._build_url(self.Endpoints.SshKey)
