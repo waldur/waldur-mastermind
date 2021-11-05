@@ -10,6 +10,7 @@ from django_filters.filters import MultipleChoiceFilter
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import fields as core_fields
+from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
@@ -373,14 +374,14 @@ class ReviewStateFilter(MappedMultipleChoiceFilter):
             'choices',
             [
                 (representation, representation)
-                for db_value, representation in core_models.ReviewMixin.States.CHOICES
+                for db_value, representation in core_mixins.ReviewMixin.States.CHOICES
             ],
         )
         kwargs.setdefault(
             'choice_mappings',
             {
                 representation: db_value
-                for db_value, representation in core_models.ReviewMixin.States.CHOICES
+                for db_value, representation in core_mixins.ReviewMixin.States.CHOICES
             },
         )
         super().__init__(*args, **kwargs)
