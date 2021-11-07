@@ -166,6 +166,12 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     reviewed_by_full_name = serializers.ReadOnlyField(source='reviewed_by.full_name')
     reviewed_by_username = serializers.ReadOnlyField(source='reviewed_by.username')
     state = serializers.ReadOnlyField(source='get_state_display')
+    project_uuid = serializers.ReadOnlyField(source='invitation.project__uuid')
+    project_role = serializers.ReadOnlyField(source='invitation.project__role')
+    project_name = serializers.ReadOnlyField(source='invitation.project__name')
+    customer_uuid = serializers.ReadOnlyField(source='invitation.customer__uuid')
+    customer_role = serializers.ReadOnlyField(source='invitation.customer__role')
+    customer_name = serializers.ReadOnlyField(source='invitation.customer__name')
 
     class Meta:
         model = models.PermissionRequest
@@ -181,6 +187,12 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             'reviewed_by_username',
             'reviewed_at',
             'review_comment',
+            'project_uuid',
+            'project_role',
+            'project_name',
+            'customer_uuid',
+            'customer_role',
+            'customer_name',
         )
 
         extra_kwargs = {
