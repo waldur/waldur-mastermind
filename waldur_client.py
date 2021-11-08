@@ -2,7 +2,7 @@ import dataclasses
 import json
 import time
 from enum import Enum
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlencode, urljoin
 from uuid import UUID
 
@@ -81,6 +81,13 @@ class PaymentProfileType(Enum):
     FIXED_PRICE = 'fixed_price'
     MONTHLY_INVOICES = 'invoices'
     PAYMENT_GW_MONTHLY = 'payment_gw_monthly'
+
+
+class InvoiceState(Enum):
+    PENDING = 'pending'
+    CREATED = 'created'
+    PAID = 'paid'
+    CANCELED = 'canceled'
 
 
 class WaldurClient(object):
@@ -1475,11 +1482,17 @@ class WaldurClient(object):
         )
         return self._post(url, valid_states=[200], json=options)['order_uuid']
 
-    def get_invoice_for_customer(self, customer_uuid, year, month):
-        return self._query_resource(
-            self.Endpoints.Invoice,
-            {'customer_uuid': customer_uuid, 'year': year, 'month': month},
-        )
+    def get_invoice_for_customer(
+        self,
+        customer_uuid: str,
+        year: int,
+        month: int,
+        state: Optional[InvoiceState] = None,
+    ):
+        query_params = {'customer_uuid': customer_uuid, 'year': year, 'month': month}
+        if state is not None:
+            query_params['state'] = state.value
+        return self._query_resource(self.Endpoints.Invoice, query_params,)
 
     def invoice_set_backend_id(self, invoice_uuid: str, backend_id: str):
         url = self._build_resource_url(
