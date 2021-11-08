@@ -91,7 +91,7 @@ django-upload-validator = "^1.1.5"
 pydantic = "^1.8.2"
 SQLAlchemy = "1.3.0"
 cryptography = "3.4.7"
-django-binary-database-files = {git = "https://github.com/Fronox/django-binary-database-files.git", rev = "fix/load-command-for-db-files"}
+django-binary-database-files = {git = "https://github.com/waldur/django-binary-database-files.git", rev = "fix/load-command-for-db-files"}
 ansible-waldur-module = {git = "https://github.com/waldur/ansible-waldur-module.git", rev = "develop"}
 django-import-export = {git = "https://github.com/waldur/django-import-export", rev = "main"}
 
