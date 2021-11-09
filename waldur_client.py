@@ -1515,6 +1515,10 @@ class WaldurClient(object):
         payload = {'reference_number': reference_number}
         return self._post(url, valid_states=[200], json=payload)
 
+    def invoice_set_state_paid(self, invoice_uuid: str):
+        url = self._build_resource_url(self.Endpoints.Invoice, invoice_uuid, 'paid')
+        return self._post(url, valid_states=[200])
+
     def list_payment_profiles(self, filters=None):
         if 'payment_type' in filters:
             filters['payment_type'] = filters['payment_type'].value
