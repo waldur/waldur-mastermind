@@ -24,9 +24,6 @@ class WaldurCore(BaseModel):
     INVITATIONS_ENABLED = Field(
         True, description='Allows to disable invitations feature.'
     )
-    ALLOW_SIGNUP_WITHOUT_INVITATION = Field(
-        True, description='Allow to signup without an invitation.'
-    )
     VALIDATE_INVITATION_EMAIL = Field(
         False, description='Ensure that invitation and user emails match.'
     )
@@ -297,7 +294,6 @@ class WaldurCore(BaseModel):
             'SITE_DESCRIPTION',
             'AUTHENTICATION_METHODS',
             'INVITATIONS_ENABLED',
-            'ALLOW_SIGNUP_WITHOUT_INVITATION',
             'VALIDATE_INVITATION_EMAIL',
             'OWNER_CAN_MANAGE_CUSTOMER',
             'OWNERS_CAN_MANAGE_OWNERS',
