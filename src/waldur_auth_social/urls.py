@@ -12,10 +12,4 @@ urlpatterns = [
         views.RemoteEduteamsView.as_view(),
         name='auth_remote_eduteams',
     ),
-    url(
-        r'^api-auth/registration/$',
-        views.RegistrationView.as_view(),
-        name='auth_registration',
-    ),
-    url(r'^api-auth/activation/$', views.ActivationView.as_view()),
 ]

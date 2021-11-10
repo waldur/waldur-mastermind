@@ -4,7 +4,6 @@ from unittest import mock
 import responses
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
@@ -92,37 +91,6 @@ class SocialSignupTest(BaseAuthTest):
 
         response = self.client.post(reverse('auth_keycloak'), self.valid_data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-
-class LocalSignupTest(test.APITransactionTestCase):
-    def post_request(self):
-        return self.client.post(
-            reverse('auth_registration'),
-            {
-                'username': 'alice2018',
-                'full_name': 'Alice Lebowski',
-                'email': 'alice@example.com',
-                'password': 'secret',
-            },
-        )
-
-    @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNUP'])
-    def test_local_signup_creates_user(self):
-        response = self.post_request()
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNIN'])
-    def test_local_signup_fails_if_it_is_not_enabled(self):
-        response = self.post_request()
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertTrue(b'Authentication method is disabled.' in response.content)
-
-    @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNUP'])
-    @override_settings(task_always_eager=True)
-    def test_activation_email_is_sent(self):
-        response = self.post_request()
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(response.data['email'], mail.outbox[0].to[0])
 
 
 @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNIN'])
