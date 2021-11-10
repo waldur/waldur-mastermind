@@ -270,6 +270,23 @@ class WaldurCore(BaseModel):
         description='Relative path to image rendered at the bottom of login menu in HomePort.'
     )
 
+    BRAND_COLOR: Optional[str] = Field(
+        '#3a8500',
+        description='Hex color definition is used in HomePort landing page for login button.',
+    )
+
+    HERO_IMAGE: Optional[str] = Field(
+        description='Relative path to image rendered at hero section of HomePort landing page.'
+    )
+
+    HERO_LINK_LABEL: Optional[str] = Field(
+        description='Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.'
+    )
+
+    HERO_LINK_URL: Optional[str] = Field(
+        description='Link URL in hero section of HomePort landing page.'
+    )
+
     class Meta:
         public_settings = [
             'CURRENCY_NAME',
@@ -303,6 +320,10 @@ class WaldurCore(BaseModel):
             'LOGIN_LOGO',
             'SIDEBAR_LOGO',
             'POWERED_BY_LOGO',
+            'BRAND_COLOR',
+            'HERO_IMAGE',
+            'HERO_LINK_LABEL',
+            'HERO_LINK_URL',
         ]
 
 
