@@ -365,7 +365,7 @@ class WaldurAuthSocial(BaseModel):
         description='The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.',
     )
     EDUTEAMS_LABEL = Field(
-        'Eduteams', description='Label is used by HomePort for rendering login button.'
+        'eduTEAMS', description='Label is used by HomePort for rendering login button.'
     )
     EDUTEAMS_CLIENT_ID = Field(
         '', description='ID of application used for OAuth authentication.'
