@@ -106,6 +106,7 @@ class WaldurClient(object):
         MarketplaceOrderItem = 'marketplace-order-items'
         MarketplacePlan = 'marketplace-plans'
         MarketplaceResources = 'marketplace-resources'
+        MarketplaceStats = 'marketplace-stats'
         OfferingPermissions = 'marketplace-offering-permissions'
         OfferingUsers = 'marketplace-offering-users'
         PaymentProfiles = 'payment-profiles'
@@ -147,8 +148,11 @@ class WaldurClient(object):
     def _ensure_trailing_slash(self, url):
         return url if url[-1] == '/' else '%s/' % url
 
-    def _build_url(self, endpoint):
-        return urljoin(self.api_url, self._ensure_trailing_slash(endpoint))
+    def _build_url(self, endpoint, action=None):
+        parts = [endpoint]
+        if action:
+            parts.append(action)
+        return urljoin(self.api_url, self._ensure_trailing_slash('/'.join(parts)))
 
     def _build_resource_url(self, endpoint, uid, action=None):
         parts = [endpoint, str(uid)]
@@ -1737,6 +1741,10 @@ class WaldurClient(object):
             self.Endpoints.ServiceProviders, service_provider_uuid, 'keys'
         )
         return self._query_resource_list(endpoint, None)
+
+    def get_marketplace_stats(self, endpoint):
+        endpoint = self._build_url(self.Endpoints.MarketplaceStats, endpoint)
+        return self._make_request('get', endpoint, valid_states=[200])
 
 
 def waldur_full_argument_spec(**kwargs):
