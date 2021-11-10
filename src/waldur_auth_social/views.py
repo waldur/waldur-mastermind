@@ -5,9 +5,7 @@ import uuid
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
-from rest_framework import generics, status, views
-from rest_framework.authtoken.models import Token
+from rest_framework import status, views
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
@@ -19,14 +17,8 @@ from waldur_auth_social.utils import (
 )
 from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
 
-from . import tasks
 from .log import event_logger, provider_event_type_mapping
-from .serializers import (
-    ActivationSerializer,
-    AuthSerializer,
-    RegistrationSerializer,
-    RemoteEduteamsRequestSerializer,
-)
+from .serializers import AuthSerializer, RemoteEduteamsRequestSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +40,6 @@ EDUTEAMS_TOKEN_URL = auth_social_settings.get('EDUTEAMS_TOKEN_URL')
 EDUTEAMS_USERINFO_URL = auth_social_settings.get('EDUTEAMS_USERINFO_URL')
 
 validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
-validate_local_signup = validate_authentication_method('LOCAL_SIGNUP')
 
 User = get_user_model()
 
@@ -382,35 +373,3 @@ class RemoteEduteamsView(views.APIView):
 
         user = pull_remote_eduteams_user(cuid)
         return Response({'uuid': user.uuid.hex})
-
-
-class RegistrationView(generics.CreateAPIView):
-    permission_classes = ()
-    authentication_classes = ()
-    serializer_class = RegistrationSerializer
-
-    @validate_local_signup
-    def post(self, request, *args, **kwargs):
-        return super(RegistrationView, self).post(request, *args, **kwargs)
-
-    def perform_create(self, serializer):
-        user = serializer.save()
-        user.is_active = False
-        user.save()
-        transaction.on_commit(lambda: tasks.send_activation_email.delay(user.uuid.hex))
-
-
-class ActivationView(views.APIView):
-    permission_classes = ()
-    authentication_classes = ()
-
-    @validate_local_signup
-    def post(self, request):
-        serializer = ActivationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        serializer.user.is_active = True
-        serializer.user.save()
-
-        token = Token.objects.get(user=serializer.user)
-        return Response({'token': token.key}, status=status.HTTP_201_CREATED)
