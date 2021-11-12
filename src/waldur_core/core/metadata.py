@@ -255,10 +255,6 @@ class WaldurCore(BaseModel):
         description='Sentry Data Source Name for Waldur HomePort project.'
     )
 
-    LOGIN_LOGO: Optional[str] = Field(
-        description='Relative path to image rendered at the top of login page in HomePort.'
-    )
-
     SIDEBAR_LOGO: Optional[str] = Field(
         description='Relative path to image rendered at the top of sidebar menu in HomePort.'
     )
@@ -313,7 +309,6 @@ class WaldurCore(BaseModel):
             'INVITATION_CIVIL_NUMBER_HELP_TEXT',
             'INVITATION_TAX_NUMBER_LABEL',
             'HOMEPORT_SENTRY_DSN',
-            'LOGIN_LOGO',
             'SIDEBAR_LOGO',
             'POWERED_BY_LOGO',
             'BRAND_COLOR',
