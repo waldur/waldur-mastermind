@@ -86,6 +86,9 @@ def register_in(router):
         views.OfferingUsersViewSet,
         basename='marketplace-offering-user',
     )
+    router.register(
+        r'marketplace-stats', views.CustomerStatsViewSet, basename='marketplace-stats',
+    )
 
 
 urlpatterns = [
