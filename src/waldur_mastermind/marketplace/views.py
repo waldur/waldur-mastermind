@@ -32,6 +32,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
 from waldur_core.core import models as core_models
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -1442,6 +1443,56 @@ class OfferingUsersViewSet(
             )
         )
         return queryset
+
+
+class CustomerStatsViewSet(rf_viewsets.ViewSet):
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsSupport]
+
+    @action(detail=False, methods=['get'])
+    def organization_project_count(self, request, *args, **kwargs):
+        data = structure_models.Project.objects.values(
+            'customer__abbreviation', 'customer__name', 'customer__uuid'
+        ).annotate(count=Count('customer__uuid'))
+        serializer = serializers.CustomerStatsSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def organization_resource_count(self, request, *args, **kwargs):
+        data = (
+            models.Resource.objects.filter(state=models.Resource.States.OK)
+            .values(
+                'project__customer__abbreviation',
+                'project__customer__name',
+                'project__customer__uuid',
+            )
+            .annotate(count=Count('project__customer__uuid'))
+        )
+        serializer = serializers.CustomerStatsSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def customer_member_count(self, request, *args, **kwargs):
+        data = (
+            structure_models.CustomerPermission.objects.filter(is_active=True)
+            .values('customer__abbreviation', 'customer__name', 'customer__uuid')
+            .annotate(count=Count('customer__uuid'))
+        )
+        serializer = serializers.CustomerStatsSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def project_member_count(self, request, *args, **kwargs):
+        data = (
+            structure_models.ProjectPermission.objects.filter(is_active=True)
+            .values(
+                'project__customer__abbreviation',
+                'project__customer__name',
+                'project__customer__uuid',
+            )
+            .annotate(count=Count('project__customer__uuid'))
+        )
+        serializer = serializers.CustomerStatsSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):

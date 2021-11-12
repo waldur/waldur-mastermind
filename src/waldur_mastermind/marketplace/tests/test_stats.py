@@ -1,3 +1,4 @@
+from ddt import data, ddt
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -379,3 +380,25 @@ class ComponentStatsTest(StatsBaseTest):
                 'usage': 2,
             },
         )
+
+
+@ddt
+class CustomerStatsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
+    @data(
+        'staff', 'global_support',
+    )
+    def test_user_can_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get('/api/marketplace-stats/project_member_count/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get('/api/marketplace-stats/project_member_count/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
