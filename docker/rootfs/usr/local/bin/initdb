@@ -16,4 +16,7 @@ gosu waldur sh -c "waldur recalculatequotas"
 echo "INFO: Loading features..."
 gosu waldur sh -c "waldur load_features /etc/waldur/features.json"
 
+echo "INFO: Cleanup API configuration settings cache..."
+gosu waldur sh -c "waldur clean_settings_cache"
+
 exit 0
