@@ -306,6 +306,7 @@ class OfferingViewSet(
                 ],
                 shared=True,
             )
+        return queryset
 
     @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):
@@ -584,6 +585,40 @@ class OfferingViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     delete_divisions_permissions = update_divisions_permissions
+
+    @action(detail=False)
+    def groups(self, *args, **kwargs):
+        OFFERING_LIMIT = 4
+        qs = self.get_queryset()
+        customer_ids = self.paginate_queryset(
+            qs.order_by('customer__name')
+            .values_list('customer_id', flat=True)
+            .distinct()
+        )
+        customers = {
+            customer.id: customer
+            for customer in structure_models.Customer.objects.filter(
+                id__in=customer_ids
+            )
+        }
+        return Response(
+            data=[
+                {
+                    'customer_name': customers[customer_id].name,
+                    'customer_uuid': customers[customer_id].uuid.hex,
+                    'offerings': [
+                        {
+                            'offering_name': offering.name,
+                            'offering_uuid': offering.uuid.hex,
+                        }
+                        for offering in qs.filter(customer_id=customer_id)[
+                            :OFFERING_LIMIT
+                        ]
+                    ],
+                }
+                for customer_id in customer_ids
+            ]
+        )
 
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
