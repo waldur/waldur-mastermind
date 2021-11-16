@@ -697,7 +697,7 @@ class StartTimeFilter(BaseFilterBackend):
 
 class BaseServicePropertyFilter(NameFilterSet):
     class Meta:
-        fields = ('name', 'name_exact')
+        fields = ('name',)
 
 
 class ServicePropertySettingsFilter(BaseServicePropertyFilter):
@@ -707,7 +707,7 @@ class ServicePropertySettingsFilter(BaseServicePropertyFilter):
     )
 
     class Meta(BaseServicePropertyFilter.Meta):
-        fields = BaseServicePropertyFilter.Meta.fields + ('settings_uuid', 'settings')
+        fields = BaseServicePropertyFilter.Meta.fields + ('settings',)
 
 
 class DivisionFilter(NameFilterSet):

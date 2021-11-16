@@ -700,14 +700,14 @@ resolved_reference = "2b747bc4af1e3689450d8de3cafeb474d960033d"
 
 [[package]]
 name = "django-filter"
-version = "2.2.0"
+version = "2.4.0"
 description = "Django-filter is a reusable Django application for allowing users to filter querysets dynamically."
 category = "main"
 optional = false
-python-versions = ">=3.4"
+python-versions = ">=3.5"
 
 [package.dependencies]
-Django = ">=1.11"
+Django = ">=2.2"
 
 [[package]]
 name = "django-fluent-dashboard"
@@ -2659,7 +2659,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "34125fd6924fd2fbd406b1519ae8bfacd023397db02f47fa113a3c50a6bc3cfd"
+content-hash = "e85c29a1cc36a950246a05dd0aa19bfcac82ab6926d25881a5da6441f767de4e"
 
 [metadata.files]
 adal = [
@@ -2975,8 +2975,8 @@ django-cors-headers = [
 ]
 django-dbtemplates = []
 django-filter = [
-    {file = "django-filter-2.2.0.tar.gz", hash = "sha256:c3deb57f0dd7ff94d7dce52a047516822013e2b441bed472b722a317658cfd14"},
-    {file = "django_filter-2.2.0-py3-none-any.whl", hash = "sha256:558c727bce3ffa89c4a7a0b13bc8976745d63e5fd576b3a9a851650ef11c401b"},
+    {file = "django-filter-2.4.0.tar.gz", hash = "sha256:84e9d5bb93f237e451db814ed422a3a625751cbc9968b484ecc74964a8696b06"},
+    {file = "django_filter-2.4.0-py3-none-any.whl", hash = "sha256:e00d32cebdb3d54273c48f4f878f898dced8d5dfaad009438fe61ebdf535ace1"},
 ]
 django-fluent-dashboard = [
     {file = "django-fluent-dashboard-1.0.1.tar.gz", hash = "sha256:b7eca3fd80b94bcf92a9eab471fa36a87b83b64d96eadca6e7b07e7de6d7a26a"},
