@@ -635,13 +635,13 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         self.assertNotEqual(self.user.email, self.valid_payload['email'])
         self.assertTrue(self.user.changeemailrequest)
 
-    def test_change_email_request_is_not_created_if_it_exists_already(self):
+    def test_change_email_request_is_created_if_email_exists_already(self):
         other_user = factories.UserFactory()
         valid_payload = {
             'email': other_user.email,
         }
         response = self.client.post(self.url, valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
 
     def test_change_email_request_is_not_created_if_email_is_invalid(self):
         self.valid_payload['email'] = 'invalid_email'
@@ -717,17 +717,6 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
             url, {'code': self.user.changeemailrequest.uuid.hex}
         )
         self.assertEquals(response.status_code, status.HTTP_200_OK, response.data)
-
-    def test_email_should_be_unique_and_error_should_be_specific_for_field(self):
-        email = self.valid_payload['email']
-        factories.UserFactory(email=email)
-
-        response = self.client.post(self.url, self.valid_payload)
-
-        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEquals(
-            response.data['email'], ['User with email "%s" already exists.' % email]
-        )
 
     @mock.patch('waldur_core.structure.handlers.tasks')
     def test_send_mail_notification(self, mock_tasks):
