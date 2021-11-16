@@ -9,7 +9,6 @@ from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
-from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.db import models, transaction
 from django.utils import timezone as django_timezone
@@ -331,24 +330,8 @@ class User(
         else:
             return filter_visible_users(queryset, user)
 
-    def clean(self):
-        super(User, self).clean()
-        # User email has to be unique or empty
-        if (
-            self.email
-            and User.objects.filter(email=self.email).exclude(id=self.id).exists()
-        ):
-            raise ValidationError(
-                {'email': _('User with email "%s" already exists.') % self.email}
-            )
-
     @transaction.atomic
     def create_request_for_update_email(self, email):
-        if User.objects.filter(email=email).exclude(id=self.id).exists():
-            raise ValidationError(
-                {'email': _('User with email "%s" already exists.') % email}
-            )
-
         ChangeEmailRequest.objects.filter(user=self).delete()
         change_request = ChangeEmailRequest.objects.create(user=self, email=email,)
         return change_request
