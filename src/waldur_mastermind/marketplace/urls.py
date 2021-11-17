@@ -87,7 +87,7 @@ def register_in(router):
         basename='marketplace-offering-user',
     )
     router.register(
-        r'marketplace-stats', views.CustomerStatsViewSet, basename='marketplace-stats',
+        r'marketplace-stats', views.StatsViewSet, basename='marketplace-stats',
     )
 
 
