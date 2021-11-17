@@ -10,7 +10,7 @@ from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models, tasks
-from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
@@ -401,4 +401,32 @@ class CustomerStatsTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get('/api/marketplace-stats/project_member_count/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class LimitsStatsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        factories.ResourceFactory(limits={'cpu': 5}, state=models.Resource.States.OK)
+        factories.ResourceFactory(
+            limits={'cpu': 10, 'ram': 1}, state=models.Resource.States.OK
+        )
+        self.url = '/api/marketplace-stats/resources_limits/'
+
+    @data(
+        'staff', 'global_support',
+    )
+    def test_user_can_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {'cpu': 15, 'ram': 1})
+
+    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -1480,7 +1480,7 @@ class OfferingUsersViewSet(
         return queryset
 
 
-class CustomerStatsViewSet(rf_viewsets.ViewSet):
+class StatsViewSet(rf_viewsets.ViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsSupport]
 
     @action(detail=False, methods=['get'])
@@ -1528,6 +1528,26 @@ class CustomerStatsViewSet(rf_viewsets.ViewSet):
         )
         serializer = serializers.CustomerStatsSerializer(data, many=True)
         return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def resources_limits(self, request, *args, **kwargs):
+        limits = [
+            r.limits
+            for r in models.Resource.objects.filter(
+                state=models.Resource.States.OK
+            ).exclude(limits={})
+        ]
+        data = {}
+
+        for limit in limits:
+            for name, value in limit.items():
+                if value > 0:
+                    if name in data:
+                        data[name] += value
+                    else:
+                        data[name] = value
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
