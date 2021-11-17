@@ -603,7 +603,7 @@ class OfferingViewSet(
                 id__in=customer_ids
             )
         }
-        return Response(
+        return self.get_paginated_response(
             data=[
                 {
                     'customer_name': customers[customer_id].name,
