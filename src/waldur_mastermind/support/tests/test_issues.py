@@ -15,6 +15,12 @@ from waldur_mastermind.support.tests.base import (
     load_resource,
     override_support_settings,
 )
+from waldur_openstack.openstack_tenant.tests import (
+    factories as openstack_tenant_factories,
+)
+from waldur_openstack.openstack_tenant.tests import (
+    fixtures as openstack_tenant_fixtures,
+)
 
 
 @ddt
@@ -669,3 +675,72 @@ class IssueOrderingTest(test.APITransactionTestCase):
             ['TST', 'TST-1', 'TST-2', 'TST-11', 'TST-21'],
             [k['key'] for k in response.data],
         )
+
+
+class IssueFilterTest(base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture.issue
+        self.issue = factories.IssueFactory(
+            customer=self.fixture.customer, project=self.fixture.project
+        )
+        self.url = factories.IssueFactory.get_list_url()
+        self.openstack_fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.issue.resource = self.openstack_fixture.instance
+        self.issue.save()
+
+    def test_filter_by_resource_uuid(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        response = self.client.get(
+            self.url, data={'resource_uuid': self.openstack_fixture.instance.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.issue.uuid.hex)
+
+    def test_filter_by_internal_ip(self):
+        self.openstack_fixture.internal_ip.fixed_ips = [
+            {'ip_address': '111.222.333.444'}
+        ]
+        self.openstack_fixture.internal_ip.save()
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(
+            self.url, data={'resource_internal_ip': '111.111.111.111'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.client.get(
+            self.url, data={'resource_internal_ip': '111.222.333.444'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.issue.uuid.hex)
+
+    def test_filter_by_external_ip(self):
+        internal_ip = openstack_tenant_factories.InternalIPFactory(
+            instance=self.openstack_fixture.instance
+        )
+        floating_ip = openstack_tenant_factories.FloatingIPFactory(
+            internal_ip=internal_ip
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(
+            self.url, data={'resource_external_ip': '111.111.111.111'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        response = self.client.get(
+            self.url, data={'resource_external_ip': floating_ip.address}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.issue.uuid.hex)

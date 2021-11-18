@@ -1,10 +1,13 @@
 import collections
 
 import django_filters
+from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 from . import models
 
@@ -63,9 +66,51 @@ class IssueFilter(django_filters.FilterSet):
     assignee = core_filters.URLFilter(
         view_name='support-user-detail', field_name='assignee__uuid'
     )
+    resource_uuid = django_filters.UUIDFilter(
+        method='filter_by_resource_uuid', label='Resource UUID'
+    )
+    resource_external_ip = django_filters.CharFilter(
+        method='filter_by_resource_external_ip', label='Resource external IP'
+    )
+    resource_internal_ip = django_filters.CharFilter(
+        method='filter_by_resource_internal_ip', label='Resource internal IP'
+    )
 
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, 'caller')
+
+    def filter_by_resource_uuid(self, queryset, name, value):
+        related_models = structure_models.BaseResource.get_all_models() + [
+            marketplace_models.Resource
+        ]
+        ids = []
+
+        for related_model in related_models:
+            ids += related_model.objects.filter(uuid=value).values_list('id', flat=True)
+
+        return queryset.filter(resource_object_id__in=ids)
+
+    def filter_by_resource_external_ip(self, queryset, name, value):
+        instance_ids = openstack_tenant_models.FloatingIP.objects.filter(
+            address=value
+        ).values_list('internal_ip__instance_id', flat=True)
+        content_type = ContentType.objects.get_for_model(
+            openstack_tenant_models.Instance
+        )
+        return queryset.filter(
+            resource_object_id__in=instance_ids, resource_content_type=content_type
+        )
+
+    def filter_by_resource_internal_ip(self, queryset, name, value):
+        instance_ids = openstack_tenant_models.InternalIP.objects.filter(
+            fixed_ips__icontains=value, instance_id__isnull=False
+        ).values_list('instance_id', flat=True)
+        content_type = ContentType.objects.get_for_model(
+            openstack_tenant_models.Instance
+        )
+        return queryset.filter(
+            resource_object_id__in=instance_ids, resource_content_type=content_type
+        )
 
     o = KeyOrderingFilter(
         fields=(
