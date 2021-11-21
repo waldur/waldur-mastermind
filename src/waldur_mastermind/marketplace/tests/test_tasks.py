@@ -163,6 +163,8 @@ class ProjectEndDate(test.APITransactionTestCase):
         self.fixtures.project.save()
         self.fixtures.resource.set_state_ok()
         self.fixtures.resource.save()
+        self.fixtures.manager
+        self.fixtures.owner
 
     def test_terminate_resources_if_project_end_date_has_been_reached(self):
         with freeze_time('2020-01-02'):
@@ -177,6 +179,19 @@ class ProjectEndDate(test.APITransactionTestCase):
                 resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
             )
             self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
+
+    def test_notification_about_project_ending(self):
+        with freeze_time('2019-12-25'):
+            tasks.notification_about_project_ending()
+
+            self.assertEqual(len(mail.outbox), 2)
+            subject = 'Project %s will be deleted.' % self.fixtures.project.name
+            self.assertEqual(mail.outbox[0].subject, subject)
+            self.assertEqual(
+                {mail.outbox[0].to[0], mail.outbox[1].to[0]},
+                {self.fixtures.manager.email, self.fixtures.owner.email},
+            )
+            self.assertTrue(self.fixtures.project.uuid.hex in mail.outbox[0].body)
 
 
 @override_marketplace_settings(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
