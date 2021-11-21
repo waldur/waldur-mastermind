@@ -319,3 +319,39 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
         core_utils.broadcast_mail(
             'marketplace', 'marketplace_resource_terminatate_scheduled', context, emails
         )
+
+
+@shared_task(name='waldur_mastermind.marketplace.notification_about_project_ending')
+def notification_about_project_ending():
+    date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
+    date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
+    expired_projects = structure_models.Project.objects.exclude(
+        end_date__isnull=True
+    ).filter(Q(end_date=date_1) | Q(end_date=date_7))
+
+    for project in expired_projects:
+        managers = project.get_users(structure_models.ProjectRole.MANAGER).exclude(
+            email=''
+        )
+        owners = project.customer.get_users(
+            structure_models.CustomerRole.OWNER
+        ).exclude(email='')
+        users = set(managers) | set(owners)
+
+        project_url = core_utils.format_homeport_link(
+            '/projects/{project_uuid}/', project_uuid=project.uuid.hex,
+        )
+
+        for user in users:
+            context = {
+                'project_url': project_url,
+                'project': project,
+                'user': user,
+                'delta': (project.end_date - timezone.datetime.today().date()).days,
+            }
+            core_utils.broadcast_mail(
+                'marketplace',
+                'notification_about_project_ending',
+                context,
+                [user.email],
+            )

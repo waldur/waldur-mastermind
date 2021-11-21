@@ -1,0 +1,18 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Project {{ project.name }} will be deleted.</title>
+</head>
+<body>
+<p>Dear {{ user.full_name }},</p>
+
+<p>Your project {{ project.name }} is ending
+    {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %}.
+    End of the project will lead to termination of all resources in the project. <br />
+    If you are aware of that, then no actions are needed from your side. <br />
+    If you need to update project end date, please update it in project details {{ project_url }}.
+</p>
+
+<p>Thank you!</p>
+</body>
+</html>
