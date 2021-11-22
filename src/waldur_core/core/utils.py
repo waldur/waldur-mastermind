@@ -211,10 +211,11 @@ def send_mail_with_attachment(
     filename=None,
     attachment=None,
     content_type='text/plain',
+    bcc=None,
 ):
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
     email = EmailMultiAlternatives(
-        subject=subject, body=body, to=to, from_email=from_email
+        subject=subject, body=body, to=to, from_email=from_email, bcc=bcc
     )
 
     if html_message:
@@ -233,6 +234,7 @@ def broadcast_mail(
     filename=None,
     attachment=None,
     content_type='text/plain',
+    bcc=None,
 ):
     """
     Shorthand to format email message from template file and sent it to all recipients.
@@ -275,6 +277,7 @@ def broadcast_mail(
             filename=filename,
             attachment=attachment,
             content_type=content_type,
+            bcc=bcc,
         )
 
 
