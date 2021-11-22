@@ -586,11 +586,11 @@ class OfferingViewSet(
 
     delete_divisions_permissions = update_divisions_permissions
 
-    @action(detail=False, permission_classes=[])
+    @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
     def groups(self, *args, **kwargs):
         OFFERING_LIMIT = 4
-        qs = self.get_queryset().filter(
-            shared=True, state=models.Offering.States.ACTIVE
+        qs = self.filter_queryset(
+            self.get_queryset().filter(shared=True, state=models.Offering.States.ACTIVE)
         )
         customer_ids = self.paginate_queryset(
             qs.order_by('customer__name')
