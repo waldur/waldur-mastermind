@@ -301,6 +301,9 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
         .values_list('email', flat=True)
     )
     emails = admin_emails | manager_emails
+    bcc = []
+    if user.email:
+        bcc.append(user.email)
     resource_url = core_utils.format_homeport_link(
         '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
         project_uuid=resource.project.uuid.hex,
@@ -314,10 +317,15 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
             'marketplace_resource_terminatate_scheduled_staff',
             context,
             emails,
+            bcc=bcc,
         )
     else:
         core_utils.broadcast_mail(
-            'marketplace', 'marketplace_resource_terminatate_scheduled', context, emails
+            'marketplace',
+            'marketplace_resource_terminatate_scheduled',
+            context,
+            emails,
+            bcc=bcc,
         )
 
 
