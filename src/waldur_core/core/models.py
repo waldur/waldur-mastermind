@@ -295,6 +295,10 @@ class User(
         verbose_name = _('user')
         verbose_name_plural = _('users')
 
+    def save(self, *args, **kwargs):
+        self.query_field = normalize_unicode(self.full_name)
+        super().save(*args, **kwargs)
+
     def get_log_fields(self):
         return (
             'uuid',
