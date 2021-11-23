@@ -1074,13 +1074,13 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
             options = network.service_settings.options
             attrs['allocation_pools'] = _generate_subnet_allocation_pool(cidr)
             attrs.setdefault('dns_nameservers', options.get('dns_nameservers', []))
-            self.check_cidr_overlap(network.service_settings, cidr)
+            self.check_cidr_overlap(network.tenant, cidr)
 
         return attrs
 
-    def check_cidr_overlap(self, service_settings, new_cidr):
+    def check_cidr_overlap(self, tenant, new_cidr):
         cidr_list = list(
-            models.SubNet.objects.filter(service_settings=service_settings).values_list(
+            models.SubNet.objects.filter(network__tenant=tenant).values_list(
                 'cidr', flat=True
             )
         )

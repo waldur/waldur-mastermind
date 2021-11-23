@@ -73,6 +73,33 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
         self.assertEqual(self.fixture.tenant.quotas.get(name=self.quota_name).usage, 0)
         executor_action_mock.assert_not_called()
 
+    @mock.patch('waldur_openstack.openstack.executors.SubNetCreateExecutor.execute')
+    def test_subnet_is_not_created_if_cidr_overlaps(self, executor_action_mock):
+        subnet = factories.SubNetFactory(
+            network=self.fixture.network,
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
+            cidr='192.168.42.0/24',
+        )
+        response = self.client.post(
+            self.url, dict(cidr=subnet.cidr, **self.request_data)
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        executor_action_mock.assert_not_called()
+
+    @mock.patch('waldur_openstack.openstack.executors.SubNetCreateExecutor.execute')
+    def test_subnet_is_created_if_cidr_do_not_overlap_in_current_tenant(
+        self, executor_action_mock
+    ):
+        subnet = factories.SubNetFactory(
+            project=self.fixture.project, cidr='192.168.42.0/24'
+        )
+        response = self.client.post(
+            self.url, dict(cidr=subnet.cidr, **self.request_data)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        executor_action_mock.assert_called_once()
+
 
 class NetworkUpdateActionTest(BaseNetworkTest):
     def setUp(self):
