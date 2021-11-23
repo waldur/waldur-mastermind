@@ -16,3 +16,9 @@ class TestModels(TestCase):
             expected_lifetime = int(token_lifetime.total_seconds())
             user = get_user_model().objects.create(username='test1')
             self.assertEqual(user.token_lifetime, expected_lifetime)
+
+    def test_when_user_is_created_query_field_is_filled(self):
+        user = get_user_model().objects.create_user(
+            username='jb007', full_name='J̋̀a̻͢m̪̄e̪͊s̯̊ B̝͆on͎̂d'
+        )
+        self.assertEqual(user.query_field, 'James Bond')
