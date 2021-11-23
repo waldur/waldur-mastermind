@@ -33,6 +33,7 @@ KEYCLOAK_CLIENT_ID = auth_social_settings.get('KEYCLOAK_CLIENT_ID')
 KEYCLOAK_SECRET = auth_social_settings.get('KEYCLOAK_SECRET')
 KEYCLOAK_TOKEN_URL = auth_social_settings.get('KEYCLOAK_TOKEN_URL')
 KEYCLOAK_USERINFO_URL = auth_social_settings.get('KEYCLOAK_USERINFO_URL')
+KEYCLOAK_VERIFY_SSL = auth_social_settings.get('KEYCLOAK_VERIFY_SSL')
 
 EDUTEAMS_CLIENT_ID = auth_social_settings.get('EDUTEAMS_CLIENT_ID')
 EDUTEAMS_SECRET = auth_social_settings.get('EDUTEAMS_SECRET')
@@ -292,11 +293,13 @@ class KeycloakView(OAuthView):
             'client_secret': KEYCLOAK_SECRET,
         }
 
-        return requests.post(KEYCLOAK_TOKEN_URL, data=data)
+        return requests.post(KEYCLOAK_TOKEN_URL, data=data, verify=KEYCLOAK_VERIFY_SSL)
 
     def get_user_response(self, access_token):
         headers = {'Authorization': f'Bearer {access_token}'}
-        return requests.get(KEYCLOAK_USERINFO_URL, headers=headers)
+        return requests.get(
+            KEYCLOAK_USERINFO_URL, headers=headers, verify=KEYCLOAK_VERIFY_SSL
+        )
 
     def create_or_update_user(self, backend_user):
         # Preferred username is not unique. Sub in UUID.

@@ -355,6 +355,9 @@ class WaldurAuthSocial(BaseModel):
         '',
         description='The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.',
     )
+    KEYCLOAK_VERIFY_SSL = Field(
+        True, description='Validate TLS certificate of Keycloak REST API'
+    )
     EDUTEAMS_LABEL = Field(
         'eduTEAMS', description='Label is used by HomePort for rendering login button.'
     )
