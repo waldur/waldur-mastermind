@@ -17,7 +17,7 @@ def fill_query_field(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0022_long_email'),
+        ('core', '0023_query_field'),
     ]
 
     operations = [
