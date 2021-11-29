@@ -23,7 +23,7 @@ def register_in(router):
         basename='marketplace-offering-permission',
     )
     router.register(
-        r'project-permissions-log',
+        r'marketplace-offering-permissions-log',
         views.OfferingPermissionLogViewSet,
         basename='marketplace-offering-permission_log',
     )
