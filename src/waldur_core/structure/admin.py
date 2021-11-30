@@ -19,6 +19,8 @@ from django.forms import (
     RadioSelect,
 )
 from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
@@ -27,6 +29,7 @@ from reversion.admin import VersionAdmin
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
     ExecutorAdminAction,
+    ExtraActionsMixin,
     JsonWidget,
     NativeNameAdminMixin,
     PasswordWidget,
@@ -408,7 +411,11 @@ class ProjectAdminForm(ModelForm):
 
 
 class ProjectAdmin(
-    FormRequestAdminMixin, ProtectedModelMixin, ChangeReadonlyMixin, admin.ModelAdmin,
+    ExtraActionsMixin,
+    FormRequestAdminMixin,
+    ProtectedModelMixin,
+    ChangeReadonlyMixin,
+    admin.ModelAdmin,
 ):
     form = ProjectAdminForm
 
@@ -463,6 +470,20 @@ class ProjectAdmin(
 
     get_type_name.short_description = _('Type')
     get_type_name.admin_order_field = 'type__name'
+
+    def get_extra_actions(self):
+        return [
+            self.clean_remote_projects,
+        ]
+
+    def clean_remote_projects(self, request):
+        from waldur_mastermind.marketplace_remote import (
+            tasks as marketplace_remote_tasks,
+        )
+
+        marketplace_remote_tasks.clean_remote_projects.delay()
+        self.message_user(request, _('Cleaning up remote projects has been scheduled.'))
+        return redirect(reverse('admin:structure_project_changelist'))
 
 
 class ServiceSettingsAdminForm(ModelForm):

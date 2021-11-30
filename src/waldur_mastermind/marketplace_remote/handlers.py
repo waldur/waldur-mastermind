@@ -84,3 +84,10 @@ def sync_remote_project(sender, instance, created=False, **kwargs):
     transaction.on_commit(
         lambda: tasks.sync_remote_project.delay(serialize_instance(instance))
     )
+
+
+def delete_remote_project(sender, instance, **kwargs):
+    project = instance
+    transaction.on_commit(
+        lambda: tasks.delete_remote_project.delay(serialize_instance(project),)
+    )

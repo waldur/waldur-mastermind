@@ -5,9 +5,11 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.models import CustomerRole
+from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests import fixtures
+from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks
 
 
@@ -228,3 +230,45 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(self.client.create_project_permission.call_count, 0)
+
+
+class DeleteRemoteProjectsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.project = ProjectFactory()
+        self.backend_id = f'{self.project.customer.uuid}_{self.project.uuid}'
+        self.offering = factories.OfferingFactory(
+            type=PLUGIN_NAME, state=models.Offering.States.ACTIVE
+        )
+        self.offering.secret_options = {'api_url': 'api_url', 'token': 'token'}
+        self.offering.save()
+
+    @mock.patch('waldur_mastermind.marketplace_remote.tasks.WaldurClient')
+    def test_clean_remote_projects(self, mock_client):
+        self.project.delete()
+
+        mock_client().list_projects.return_value = [
+            {'backend_id': self.backend_id, 'uuid': '7f906264d0704af1b6589c65269e4357'}
+        ]
+        tasks.clean_remote_projects()
+        mock_client().delete_project.assert_called_once_with(
+            '7f906264d0704af1b6589c65269e4357'
+        )
+
+    @mock.patch('waldur_mastermind.marketplace_remote.tasks.delete_remote_project')
+    def test_handler(self, mock_task):
+        serialized_project = serialize_instance(self.project)
+        self.project.delete()
+        mock_task.delay.assert_called_once_with(serialized_project)
+
+    @mock.patch('waldur_mastermind.marketplace_remote.tasks.WaldurClient')
+    def test_delete_remote_project(self, mock_client):
+        factories.ResourceFactory(offering=self.offering, project=self.project)
+        mock_client().list_projects.return_value = [
+            {'backend_id': self.backend_id, 'uuid': '7f906264d0704af1b6589c65269e4357'}
+        ]
+        serialized_project = serialize_instance(self.project)
+        self.project.delete()
+        tasks.delete_remote_project(serialized_project)
+        mock_client().delete_project.assert_called_once_with(
+            '7f906264d0704af1b6589c65269e4357'
+        )

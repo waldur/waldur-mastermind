@@ -5,9 +5,10 @@ from celery.app import shared_task
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import dateparse, timezone
-from waldur_client import WaldurClientException
+from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core.utils import deserialize_instance
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.registrators import RegistrationManager
@@ -494,3 +495,94 @@ def sync_remote_project(serialized_project):
                 f'Unable to update remote project {project} in offering {offering}'
             )
             continue
+
+
+@shared_task
+def delete_remote_project(serialized_project):
+    model_name, pk = serialized_project.split(':')
+    local_project = structure_models.Project.all_objects.get(pk=pk)
+    backend_id = utils.get_project_backend_id(local_project)
+    offering_ids = (
+        models.Resource.objects.filter(
+            project=local_project, offering__type=PLUGIN_NAME,
+        )
+        .values_list('offering_id', flat=True)
+        .distinct()
+    )
+    offerings = models.Offering.objects.filter(pk__in=offering_ids)
+    clients = {}
+
+    for offering in offerings:
+        if (
+            'api_url' not in offering.secret_options.keys()
+            or 'token' not in offering.secret_options.keys()
+        ):
+            continue
+
+        clients[offering.secret_options['api_url']] = offering.secret_options['token']
+
+    for api_url, token in clients.items():
+        client = WaldurClient(api_url, token)
+
+        try:
+            remote_project = client.list_projects({'backend_id': backend_id})
+
+            if len(remote_project) != 1:
+                continue
+
+        except WaldurClientException as e:
+            logger.debug(
+                f'Unable to get remote project (backend_id: {backend_id}): {e}'
+            )
+            continue
+
+        try:
+            client.delete_project(remote_project[0]['uuid'])
+        except WaldurClientException as e:
+            logger.debug(
+                f'Unable to delete remote project {remote_project[0]["uuid"]} (api_url: {api_url}): {e}'
+            )
+            continue
+
+
+@shared_task
+def clean_remote_projects():
+    clients = {}
+    projects_backend_ids = set(
+        map(
+            lambda project: utils.get_project_backend_id(project),
+            structure_models.Project.all_objects.filter(is_removed=True),
+        )
+    )
+
+    for offering in models.Offering.objects.filter(
+        type=PLUGIN_NAME,
+        state__in=(models.Offering.States.ACTIVE, models.Offering.States.PAUSED),
+    ):
+        if (
+            'api_url' not in offering.secret_options.keys()
+            or 'token' not in offering.secret_options.keys()
+        ):
+            continue
+
+        clients[offering.secret_options['api_url']] = offering.secret_options['token']
+
+    for api_url, token in clients.items():
+        client = WaldurClient(api_url, token)
+
+        try:
+            remote_projects = client.list_projects()
+        except WaldurClientException as e:
+            logger.debug(f'Unable to get remote projects (api_url: {api_url}): {e}')
+            continue
+
+        for remote_project in remote_projects:
+            if remote_project['backend_id'] in projects_backend_ids:
+                try:
+                    client.delete_project(remote_project['uuid'])
+                except WaldurClientException as e:
+                    logger.debug(
+                        f'Unable to delete remote project '
+                        f'(backend_id: {remote_project["backend_id"]}, api_url: {api_url}): {e}'
+                    )
+                    continue
