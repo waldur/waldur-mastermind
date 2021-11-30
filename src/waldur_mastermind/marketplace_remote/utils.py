@@ -25,6 +25,10 @@ def get_client_for_offering(offering):
     return WaldurClient(api_url, token)
 
 
+def get_project_backend_id(project):
+    return f'{project.customer.uuid}_{project.uuid}'
+
+
 def pull_fields(fields, local_object, remote_object):
     changed_fields = set()
     for field in fields:
@@ -99,7 +103,7 @@ def get_or_create_remote_project(offering, project, client=None):
     options = offering.secret_options
     remote_customer_uuid = options['customer_uuid']
     remote_project_name = f'{project.customer.name} / {project.name}'
-    remote_project_uuid = f'{project.customer.uuid}_{project.uuid}'
+    remote_project_uuid = get_project_backend_id(project)
     remote_projects = client.list_projects({'backend_id': remote_project_uuid})
     if len(remote_projects) == 0:
         response = client.create_project(
@@ -122,7 +126,7 @@ def update_remote_project(offering, project, client=None):
     if not client:
         client = get_client_for_offering(offering)
     remote_project_name = f'{project.customer.name} / {project.name}'
-    remote_project_uuid = f'{project.customer.uuid}_{project.uuid}'
+    remote_project_uuid = get_project_backend_id(project)
     remote_projects = client.list_projects({'backend_id': remote_project_uuid})
     if len(remote_projects) == 1:
         remote_project = remote_projects[0]

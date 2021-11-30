@@ -58,3 +58,9 @@ class MarketplaceRemoteConfig(AppConfig):
             sender=Project,
             dispatch_uid='marketplace_remote.sync_remote_project',
         )
+
+        signals.post_delete.connect(
+            handlers.delete_remote_project,
+            sender=Project,
+            dispatch_uid='marketplace_remote.delete_remote_project',
+        )
