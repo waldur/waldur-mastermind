@@ -40,7 +40,9 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         year, month = self._parse_period()
         if not year and not month:
             year, month = self._get_current_period()
-        return obj.get_total(year=year, month=month, current=True)
+        return obj.get_total(
+            year=year, month=month, current=(year, month) == self._get_current_period()
+        )
 
     def get_tax(self, obj):
         year, month = self._parse_period()
@@ -50,8 +52,12 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         return obj.get_tax(year=year, month=month)
 
     def get_tax_current(self, obj):
-        year, month = self._get_current_period()
-        return obj.get_tax(year=year, month=month, current=True)
+        year, month = self._parse_period()
+        if not year and not month:
+            year, month = self._get_current_period()
+        return obj.get_tax(
+            year=year, month=month, current=(year, month) == self._get_current_period()
+        )
 
     class Meta:
         model = models.PriceEstimate
