@@ -1,3 +1,5 @@
+import re
+
 from ddt import data, ddt
 from django.core import mail
 from rest_framework import status, test
@@ -282,7 +284,9 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             customer=self.fixture.customer
         )
         offering = factories.OfferingFactory(
-            customer=self.fixture.customer, type='Support.OfferingTemplate'
+            customer=self.fixture.customer,
+            type='Support.OfferingTemplate',
+            name='First',
         )
         self.component = factories.OfferingComponentFactory(
             billing_type=models.OfferingComponent.BillingTypes.USAGE, offering=offering
@@ -306,6 +310,28 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 0)
 
     def test_usages_notification_message(self):
+        other_offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type='Support.OfferingTemplate',
+            name='Second',
+        )
+        factories.OfferingComponentFactory(
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            offering=other_offering,
+        )
+
+        factories.ResourceFactory(
+            offering=other_offering,
+            state=models.Resource.States.OK,
+            name='Second resource',
+        )
+
+        factories.ResourceFactory(
+            offering=other_offering,
+            state=models.Resource.States.OK,
+            name='Third resource',
+        )
+
         tasks.send_notifications_about_usages()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.fixture.owner.email])
@@ -317,7 +343,10 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             'organizations/{organization_uuid}/marketplace-public-resources/',
             organization_uuid=self.fixture.customer.uuid,
         )
-        self.assertTrue(public_resources_url in mail.outbox[0].body)
+        body = re.sub(r'\s+|\n+', ' ', mail.outbox[0].body)
+        self.assertTrue(public_resources_url in body)
+        self.assertTrue('1. First: - My resource' in body)
+        self.assertTrue('2. Second: - Second resource - Third resource' in body)
 
 
 class ConsumerProjectListTest(test.APITransactionTestCase):
