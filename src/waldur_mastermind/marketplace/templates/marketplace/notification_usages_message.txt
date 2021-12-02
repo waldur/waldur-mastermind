@@ -1,8 +1,8 @@
 Hello!
 
 Please do not forget to add usage for the resources you provide:
-{% for resource in resources %}
-    {{ resource.name }}{% if not forloop.last %}, {% endif %}
-{% endfor %}.
-
+{% regroup resources by offering as offering_list %}{% for offering in offering_list %}
+{{forloop.counter}}. {{ offering.grouper.name }}:{% for resource in offering.list %}
+    - {{ resource.name }}
+{% endfor %}{% endfor %}
 You can submit resource usage via API or do it manually at {{ public_resources_url }}.
