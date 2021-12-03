@@ -965,7 +965,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             )
 
         if attributes is None and self.instance:
-            attributes = self.instance.attributes
+            return
 
         if attributes is None:
             attributes = dict()
