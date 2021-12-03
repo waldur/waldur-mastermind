@@ -906,22 +906,6 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_if_category_is_updated_required_attributes_are_validated(self):
-        # Arrange
-        category = factories.CategoryFactory()
-        section = factories.SectionFactory(category=category)
-        factories.AttributeFactory(
-            section=section, key='userSupportOptions', required=True
-        )
-
-        # Act
-        self.client.force_authenticate(self.fixture.owner)
-        category_url = factories.CategoryFactory.get_url(category)
-        response = self.client.patch(self.url, {'category': category_url})
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     def test_if_category_is_updated_attributes_are_validated(self):
         # Arrange
         category = factories.CategoryFactory()
@@ -1159,6 +1143,22 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.backend_id, 'new_backend_id')
+
+    def test_it_is_possible_to_update_offering_name_even_if_attributes_are_invalid(
+        self,
+    ):
+        section = factories.SectionFactory(category=self.offering.category)
+        attribute = factories.AttributeFactory(
+            section=section, key='userSupportOptions', type='list'
+        )
+        models.AttributeOption.objects.create(
+            attribute=attribute, key='web_chat', title='Web chat'
+        )
+        self.offering.attributes = {'userSupportOptions': ['invalid_value']}
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {'name': 'New name'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @ddt
