@@ -17,6 +17,12 @@ class MarketplaceRemoteExtension(WaldurExtension):
         return urlpatterns
 
     @staticmethod
+    def rest_urls():
+        from .urls import register_in
+
+        return register_in
+
+    @staticmethod
     def celery_tasks():
         from datetime import timedelta
 
@@ -48,11 +54,6 @@ class MarketplaceRemoteExtension(WaldurExtension):
             },
             'waldur-remote-sync-remote-project-permissions': {
                 'task': 'waldur_mastermind.marketplace_remote.sync_remote_project_permissions',
-                'schedule': timedelta(hours=6),
-                'args': (),
-            },
-            'waldur-remote-sync-remote-projects': {
-                'task': 'waldur_mastermind.marketplace_remote.sync_remote_projects',
                 'schedule': timedelta(hours=6),
                 'args': (),
             },
