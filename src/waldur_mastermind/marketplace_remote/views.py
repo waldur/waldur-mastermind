@@ -5,14 +5,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
+from waldur_core.core.views import ReviewViewSet
 from waldur_core.structure.models import Customer
-from waldur_mastermind.marketplace import models, plugins
+from waldur_mastermind.marketplace import models, permissions, plugins
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
     PLAN_FIELDS,
 )
+from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 
 from . import serializers
 
@@ -157,3 +159,11 @@ class OfferingCreateView(RemoteView):
                     price=remote_prices[component_type],
                     amount=remote_quotas[component_type],
                 )
+
+
+class ProjectUpdateRequestViewSet(ReviewViewSet):
+    queryset = ProjectUpdateRequest.objects.all()
+    approve_permissions = reject_permissions = [
+        permissions.user_is_service_provider_owner_or_service_provider_manager
+    ]
+    serializer_class = serializers.ProjectUpdateRequestSerializer

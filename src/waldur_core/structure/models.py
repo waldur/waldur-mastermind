@@ -668,42 +668,18 @@ class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
 
 PROJECT_NAME_LENGTH = 500
 
+PROJECT_DETAILS_FIELDS = (
+    'name',
+    'description',
+    'end_date',
+    'type',
+    'oecd_fos_2007_code',
+)
+
 
 class ProjectDetailsMixin(core_models.DescribableMixin):
     class Meta:
         abstract = True
-
-    # NameMixin is not used because it has too strict limitation for max_length.
-    name = models.CharField(
-        _('name'), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
-    )
-
-    end_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text=_(
-            'The date is inclusive. Once reached, all project resource will be scheduled for termination.'
-        ),
-    )
-
-
-class Project(
-    ProjectDetailsMixin,
-    core_models.UuidMixin,
-    core_models.DescendantMixin,
-    core_models.BackendMixin,
-    quotas_models.ExtendableQuotaModelMixin,
-    PermissionMixin,
-    StructureLoggableMixin,
-    TimeStampedModel,
-    StructureModel,
-    SoftDeletableModel,
-):
-    class Permissions:
-        customer_path = 'customer'
-        project_path = 'self'
-
-    GLOBAL_COUNT_QUOTA_NAME = 'nc_global_project_count'
 
     OECD_FOS_2007_CODES = (
         ('1.1', _('Mathematics')),
@@ -756,6 +732,48 @@ class Project(
         ('6.5', _('Other humanities')),
     )
 
+    # NameMixin is not used because it has too strict limitation for max_length.
+    name = models.CharField(
+        _('name'), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
+    )
+
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'The date is inclusive. Once reached, all project resource will be scheduled for termination.'
+        ),
+    )
+    type = models.ForeignKey(
+        ProjectType,
+        verbose_name=_('project type'),
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+    )
+    oecd_fos_2007_code = models.CharField(
+        choices=OECD_FOS_2007_CODES, null=True, blank=True, max_length=80
+    )
+
+
+class Project(
+    ProjectDetailsMixin,
+    core_models.UuidMixin,
+    core_models.DescendantMixin,
+    core_models.BackendMixin,
+    quotas_models.ExtendableQuotaModelMixin,
+    PermissionMixin,
+    StructureLoggableMixin,
+    TimeStampedModel,
+    StructureModel,
+    SoftDeletableModel,
+):
+    class Permissions:
+        customer_path = 'customer'
+        project_path = 'self'
+
+    GLOBAL_COUNT_QUOTA_NAME = 'nc_global_project_count'
+
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_resource_count = quotas_fields.CounterQuotaField(
@@ -770,17 +788,6 @@ class Project(
         on_delete=models.PROTECT,
     )
     tracker = FieldTracker()
-    type = models.ForeignKey(
-        ProjectType,
-        verbose_name=_('project type'),
-        blank=True,
-        null=True,
-        on_delete=models.PROTECT,
-    )
-    oecd_fos_2007_code = models.CharField(
-        choices=OECD_FOS_2007_CODES, null=True, blank=True, max_length=80
-    )
-
     objects = SoftDeletableManager()
     structure_objects = StructureManager()
 

@@ -6,9 +6,8 @@ from rest_framework import exceptions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
-from waldur_core.core.views import ActionsViewSet
+from waldur_core.core.views import ActionsViewSet, ReviewViewSet
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import CustomerRole
 from waldur_mastermind.support import models as support_models
@@ -30,37 +29,8 @@ def is_owner_of_service_provider(request, view, obj=None):
     )
 
 
-class ReviewViewSet(ActionsViewSet):
-    lookup_field = 'flow__uuid'
-    disabled_actions = ['create', 'destroy', 'update', 'partial_update']
-
-    @action(detail=True, methods=['post'])
-    def approve(self, request, **kwargs):
-        review_request = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        comment = serializer.validated_data.get('comment')
-        review_request.approve(request.user, comment)
-        return Response(status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'])
-    def reject(self, request, **kwargs):
-        review_request = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        comment = serializer.validated_data.get('comment')
-        review_request.reject(request.user, comment)
-        return Response(status=status.HTTP_200_OK)
-
-    approve_serializer_class = (
-        reject_serializer_class
-    ) = core_serializers.ReviewCommentSerializer
-    approve_validators = reject_validators = [
-        core_validators.StateValidator(models.ReviewMixin.States.PENDING)
-    ]
-
-
 class CustomerCreateRequestViewSet(ReviewViewSet):
+    lookup_field = 'flow__uuid'
     queryset = models.CustomerCreateRequest.objects.all()
     approve_permissions = reject_permissions = [structure_permissions.is_staff]
     filterset_class = filters.CustomerCreateRequestFilter
@@ -75,6 +45,7 @@ class CustomerCreateRequestViewSet(ReviewViewSet):
 
 
 class ProjectCreateRequestViewSet(ReviewViewSet):
+    lookup_field = 'flow__uuid'
     queryset = models.ProjectCreateRequest.objects.all()
     approve_permissions = reject_permissions = [structure_permissions.is_owner]
     filterset_class = filters.ProjectCreateRequestFilter
@@ -96,6 +67,7 @@ class ProjectCreateRequestViewSet(ReviewViewSet):
 
 
 class ResourceCreateRequestViewSet(ReviewViewSet):
+    lookup_field = 'flow__uuid'
     queryset = models.ResourceCreateRequest.objects.all()
     approve_permissions = reject_permissions = [is_owner_of_service_provider]
     filterset_class = filters.ResourceCreateRequestFilter
@@ -148,7 +120,6 @@ class FlowViewSet(ActionsViewSet):
 
 
 class OfferingActivateRequestViewSet(ReviewViewSet):
-    lookup_field = 'uuid'
     queryset = models.OfferingStateRequest.objects.all()
     approve_permissions = reject_permissions = [structure_permissions.is_staff]
     filterset_class = filters.OfferingActivateRequestFilter

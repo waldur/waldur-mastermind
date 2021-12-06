@@ -15,6 +15,8 @@ class MarketplaceRemoteConfig(AppConfig):
 
         from . import handlers
 
+        ProjectUpdateRequest = self.get_model('ProjectUpdateRequest')
+
         plugins.manager.register(
             offering_type=PLUGIN_NAME,
             create_resource_processor=processors.RemoteCreateResourceProcessor,
@@ -54,9 +56,21 @@ class MarketplaceRemoteConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.sync_remote_project,
+            handlers.create_request_when_project_is_updated,
             sender=Project,
-            dispatch_uid='marketplace_remote.sync_remote_project',
+            dispatch_uid='marketplace_remote.create_request_when_project_is_updated',
+        )
+
+        signals.post_save.connect(
+            handlers.sync_remote_project_when_request_is_approved,
+            sender=ProjectUpdateRequest,
+            dispatch_uid='marketplace_remote.sync_remote_project_when_request_is_approved',
+        )
+
+        signals.post_save.connect(
+            handlers.log_request_events,
+            sender=ProjectUpdateRequest,
+            dispatch_uid='marketplace_remote.log_request_events',
         )
 
         signals.post_delete.connect(

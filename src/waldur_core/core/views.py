@@ -17,7 +17,7 @@ from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
@@ -32,9 +32,10 @@ from waldur_core.core import (
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
 from waldur_core.core.metadata import WaldurConfiguration
-from waldur_core.core.mixins import ensure_atomic_transaction
-from waldur_core.core.serializers import AuthTokenSerializer
+from waldur_core.core.mixins import ReviewMixin, ensure_atomic_transaction
+from waldur_core.core.serializers import AuthTokenSerializer, ReviewCommentSerializer
 from waldur_core.core.utils import format_homeport_link
+from waldur_core.core.validators import StateValidator
 from waldur_core.logging.loggers import event_logger
 
 logger = logging.getLogger(__name__)
@@ -515,3 +516,31 @@ class UpdateReversionMixin:
             super(UpdateReversionMixin, self).perform_update(serializer)
             reversion.set_user(self.request.user)
             reversion.set_comment('Updated via REST API')
+
+
+class ReviewViewSet(ActionsViewSet):
+    disabled_actions = ['create', 'destroy', 'update', 'partial_update']
+    lookup_field = 'uuid'
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, **kwargs):
+        review_request = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get('comment')
+        review_request.approve(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, **kwargs):
+        review_request = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get('comment')
+        review_request.reject(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
+    approve_validators = reject_validators = [
+        StateValidator(ReviewMixin.States.PENDING)
+    ]

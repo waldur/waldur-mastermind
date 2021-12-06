@@ -11,3 +11,11 @@ urlpatterns = [
         r'^api/remote-waldur-api/import_offering/$', views.OfferingCreateView.as_view(),
     ),
 ]
+
+
+def register_in(router):
+    router.register(
+        r'marketplace-project-update-requests',
+        views.ProjectUpdateRequestViewSet,
+        basename='marketplace-project-update-request',
+    )
