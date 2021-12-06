@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-from waldur_core.core.serializers import AugmentedSerializerMixin
 from waldur_core.structure.serializers import ProjectDetailsSerializerMixin
 
 from . import models
@@ -19,9 +18,7 @@ class OfferingCreateSerializer(CredentialsSerializer):
 
 
 class ProjectUpdateRequestSerializer(
-    ProjectDetailsSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
-    AugmentedSerializerMixin,
+    ProjectDetailsSerializerMixin, serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source='get_state_display')
 
@@ -31,8 +28,17 @@ class ProjectUpdateRequestSerializer(
     old_description = serializers.ReadOnlyField(source='project.description')
     new_description = serializers.ReadOnlyField(source='description')
 
-    old_type = serializers.ReadOnlyField(source='project.type.name')
-    new_type = serializers.ReadOnlyField(source='type.name')
+    old_type_name = serializers.ReadOnlyField(source='project.type.name')
+    new_type_name = serializers.ReadOnlyField(source='type.name')
+
+    old_end_date = serializers.ReadOnlyField(source='project.end_date')
+    new_end_date = serializers.ReadOnlyField(source='end_date')
+
+    offering_name = serializers.ReadOnlyField(source='offering.name')
+    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
+
+    reviewed_by_full_name = serializers.ReadOnlyField(source='reviewed_by.full_name')
+    reviewed_by_uuid = serializers.ReadOnlyField(source='reviewed_by.uuid')
 
     old_oecd_fos_2007_code = serializers.ReadOnlyField(
         source='project.oecd_fos_2007_code'
@@ -41,10 +47,6 @@ class ProjectUpdateRequestSerializer(
 
     class Meta:
         model = models.ProjectUpdateRequest
-        related_paths = {
-            'offering': ('uuid', 'name'),
-            'reviewed_by': ('full_name', 'uuid'),
-        }
 
         fields = (
             'uuid',
