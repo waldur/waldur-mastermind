@@ -36,7 +36,7 @@ class MarketplaceExtension(WaldurExtension):
             },
             'waldur-mastermind-send-notifications-about-usages': {
                 'task': 'waldur_mastermind.marketplace.send_notifications_about_usages',
-                'schedule': crontab(minute=0, hour=15, day_of_month='23'),
+                'schedule': crontab(minute=0, hour=10, day_of_month='25'),
                 'args': (),
             },
             'terminate_resources_if_project_end_date_has_been_reached': {
