@@ -1,4 +1,5 @@
 from django.utils.translation import ugettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -6,6 +7,7 @@ from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core.views import ReviewViewSet
+from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models, permissions, plugins
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
@@ -16,7 +18,7 @@ from waldur_mastermind.marketplace_remote.constants import (
 )
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 
-from . import serializers
+from . import filters, serializers
 
 
 class RemoteView(APIView):
@@ -167,3 +169,5 @@ class ProjectUpdateRequestViewSet(ReviewViewSet):
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
     serializer_class = serializers.ProjectUpdateRequestSerializer
+    filter_backends = [GenericRoleFilter, DjangoFilterBackend]
+    filterset_class = filters.ProjectUpdateRequestFilter

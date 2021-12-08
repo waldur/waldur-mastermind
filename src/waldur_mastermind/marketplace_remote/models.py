@@ -14,3 +14,7 @@ class ProjectUpdateRequest(ProjectDetailsMixin, UuidMixin, ReviewMixin):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='+')
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE, related_name='+')
     tracker = FieldTracker()
+
+    class Permissions:
+        customer_path = 'offering__customer'
+        project_path = 'project'
