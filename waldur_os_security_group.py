@@ -3,7 +3,6 @@
 from ipaddress import AddressValueError, IPv4Interface, IPv6Interface, NetmaskValueError
 
 from ansible.module_utils.basic import AnsibleModule
-
 from waldur_client import (
     WaldurClientException,
     waldur_client_from_module,
