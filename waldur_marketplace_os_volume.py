@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import AnsibleModule
-
 from waldur_client import (
     MultipleObjectsReturned,
     ObjectDoesNotExist,

@@ -2,7 +2,6 @@
 # has to be a full import due to Ansible 2.0 compatibility
 import yaml
 from ansible.module_utils.basic import AnsibleModule, to_text
-
 from waldur_client import (
     WaldurClientException,
     waldur_client_from_module,
