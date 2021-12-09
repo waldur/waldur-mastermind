@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_order_item_post_data(order_item, fields):
+    if not order_item.offering.scope:
+        raise serializers.ValidationError(
+            'Offering is invalid: it does not have a scope.'
+        )
     project_url = reverse(
         'project-detail', kwargs={'uuid': order_item.order.project.uuid}
     )
