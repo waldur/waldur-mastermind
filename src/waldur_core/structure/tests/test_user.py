@@ -234,50 +234,6 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    # Password changing tests
-    def test_user_can_change_his_account_password(self):
-        self.client.force_authenticate(self.users['owner'])
-
-        data = {'password': 'nQvqHzeP123'}
-
-        response = self.client.post(
-            factories.UserFactory.get_password_url(self.users['owner']), data
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            'Password has been successfully updated.', response.data['detail']
-        )
-
-        user = User.objects.get(uuid=self.users['owner'].uuid)
-        self.assertTrue(user.check_password(data['password']))
-
-    def test_user_cannot_change_other_account_password(self):
-        self.client.force_authenticate(self.users['not_owner'])
-
-        data = {'password': 'nQvqHzeP123'}
-
-        response = self.client.post(
-            factories.UserFactory.get_password_url(self.users['owner']), data
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        user = User.objects.get(uuid=self.users['owner'].uuid)
-        self.assertFalse(user.check_password(data['password']))
-
-    def test_staff_user_can_change_any_accounts_password(self):
-        self.client.force_authenticate(self.users['staff'])
-
-        data = {'password': 'nQvqHzeP123'}
-
-        for user in self.users:
-            response = self.client.post(
-                factories.UserFactory.get_password_url(self.users[user]), data
-            )
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-            user = User.objects.get(uuid=self.users[user].uuid)
-            self.assertTrue(user.check_password(data['password']))
-
     # Deletion tests
     def user_cannot_delete_his_account(self):
         self._ensure_user_cannot_delete_account(
