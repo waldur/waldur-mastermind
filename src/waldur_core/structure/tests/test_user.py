@@ -1,4 +1,3 @@
-import unittest
 from unittest import mock
 
 from ddt import data, ddt
@@ -11,7 +10,6 @@ from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.structure.models import CustomerRole
-from waldur_core.structure.serializers import PasswordSerializer
 from waldur_core.structure.tests import factories, fixtures
 
 from .. import tasks
@@ -353,51 +351,6 @@ class UserPermissionApiListTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.users['owner'])
         response = self.client.get(factories.UserFactory.get_list_url())
         self.assertEqual(len(response.data), 1)
-
-
-class PasswordSerializerTest(unittest.TestCase):
-    def test_password_must_be_at_least_7_characters_long(self):
-        data = {'password': '123abc'}
-
-        serializer = PasswordSerializer(data=data)
-
-        self.assertFalse(serializer.is_valid())
-        self.assertDictContainsSubset(
-            {'password': ['Ensure this field has at least 7 characters.']},
-            serializer.errors,
-        )
-
-    def test_password_must_contain_digits(self):
-        data = {'password': 'abcdefg'}
-
-        serializer = PasswordSerializer(data=data)
-
-        self.assertFalse(serializer.is_valid())
-        self.assertDictContainsSubset(
-            {'password': ['Ensure this field has at least one digit.']},
-            serializer.errors,
-        )
-
-    def test_password_must_contain_letters(self):
-        data = {'password': '1234567'}
-
-        serializer = PasswordSerializer(data=data)
-
-        self.assertFalse(serializer.is_valid())
-        self.assertDictContainsSubset(
-            {'password': ['Ensure this field has at least one latin letter.']},
-            serializer.errors,
-        )
-
-    def test_password_must_not_be_blank(self):
-        data = {'password': ''}
-
-        serializer = PasswordSerializer(data=data)
-
-        self.assertFalse(serializer.is_valid())
-        self.assertDictContainsSubset(
-            {'password': ['This field may not be blank.']}, serializer.errors
-        )
 
 
 class UserFilterTest(test.APITransactionTestCase):

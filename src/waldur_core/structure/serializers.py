@@ -6,7 +6,6 @@ import pyvat
 from django.conf import settings
 from django.contrib import auth
 from django.core import exceptions as django_exceptions
-from django.core.validators import RegexValidator
 from django.db import models as django_models
 from django.db import transaction
 from django.db.models import Q
@@ -931,21 +930,6 @@ class UserSerializer(
 
 class UserEmailChangeSerializer(serializers.Serializer):
     email = serializers.EmailField()
-
-
-class PasswordSerializer(serializers.Serializer):
-    password = serializers.CharField(
-        min_length=7,
-        validators=[
-            RegexValidator(
-                regex=r'\d', message=_('Ensure this field has at least one digit.'),
-            ),
-            RegexValidator(
-                regex='[a-zA-Z]',
-                message=_('Ensure this field has at least one latin letter.'),
-            ),
-        ],
-    )
 
 
 class SshKeySerializer(serializers.HyperlinkedModelSerializer):
