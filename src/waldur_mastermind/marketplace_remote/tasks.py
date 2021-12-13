@@ -180,7 +180,6 @@ class UsagePullTask(BackgroundPullTask):
                 continue
             defaults = {
                 'usage': remote_usage['usage'],
-                'name': remote_usage['name'],
                 'description': remote_usage['description'],
                 'created': remote_usage['created'],
                 'date': remote_usage['date'],
