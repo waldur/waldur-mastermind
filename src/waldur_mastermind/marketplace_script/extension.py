@@ -12,7 +12,7 @@ class MarketplaceScriptExtension(WaldurExtension):
             # OS X users, see https://github.com/docker/for-mac/issues/1532
             'DOCKER_SCRIPT_DIR': None,
             # Key is command to execute script, value is image name.
-            'DOCKER_IMAGES': {'python': 'python:3.8-alpine', 'sh': 'alpine:3',},
+            'DOCKER_IMAGES': {'python': 'python:3.8-alpine', 'shell': 'alpine:3',},
         }
 
     @staticmethod
