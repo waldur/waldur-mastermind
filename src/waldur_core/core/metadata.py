@@ -413,6 +413,7 @@ class WaldurAuthSocial(BaseModel):
             'EDUTEAMS_LABEL',
             'EDUTEAMS_AUTH_URL',
             'REMOTE_EDUTEAMS_ENABLED',
+            'ENABLE_EDUTEAMS_SYNC',
         ]
 
 
