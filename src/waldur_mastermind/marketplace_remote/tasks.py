@@ -461,9 +461,8 @@ def sync_remote_project(serialized_request):
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
     request = deserialize_instance(serialized_request)
-    client = utils.get_client_for_offering(request.offering)
     try:
-        utils.update_remote_project(request.offering, request.project, client)
+        utils.update_remote_project(request)
     except WaldurClientException:
         logger.exception(
             f'Unable to update remote project {request.project} in offering {request.offering}'

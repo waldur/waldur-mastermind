@@ -37,6 +37,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         mock.patch.stopall()
 
     def test_when_project_is_updated_request_is_created_for_each_offering(self):
+        old_name = self.project.name
         self.client.force_authenticate(self.fixture.owner)
         self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'New project name'}
@@ -46,7 +47,8 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectUpdateRequest.objects.filter(
                 project=self.project,
                 offering=self.offering,
-                name='New project name',
+                old_name=old_name,
+                new_name='New project name',
                 state=ProjectUpdateRequest.States.PENDING,
             ).exists()
         )
@@ -66,7 +68,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectUpdateRequest.objects.filter(
                 project=self.project,
                 offering=self.offering,
-                name='First project',
+                new_name='First project',
                 state=ProjectUpdateRequest.States.CANCELED,
             ).exists()
         )
@@ -75,7 +77,8 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectUpdateRequest.objects.filter(
                 project=self.project,
                 offering=self.offering,
-                name='Second project',
+                old_name='First project',
+                new_name='Second project',
                 state=ProjectUpdateRequest.States.PENDING,
             ).exists()
         )
