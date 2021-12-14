@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_core.core import WaldurExtension
@@ -40,3 +42,13 @@ class MarketplaceOpenStackExtension(WaldurExtension):
     @staticmethod
     def is_assembly():
         return True
+
+    @staticmethod
+    def celery_tasks():
+        return {
+            'marketplace-openstack.create-resources-for-lost-instances-and-volumes': {
+                'task': 'waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes',
+                'schedule': timedelta(hours=6),
+                'args': (),
+            }
+        }

@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -8,7 +7,6 @@ from django.db import transaction
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.utils import get_resource_state
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -32,75 +30,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     if instance.state != instance.States.OK:
         return
 
-    create_offerings_for_volume_and_instance(instance)
-
-
-def create_offerings_for_volume_and_instance(tenant):
-    if not settings.WALDUR_MARKETPLACE_OPENSTACK[
-        'AUTOMATICALLY_CREATE_PRIVATE_OFFERING'
-    ]:
-        return
-
-    try:
-        resource = marketplace_models.Resource.objects.get(scope=tenant)
-    except ObjectDoesNotExist:
-        logger.debug(
-            'Skipping offering creation for tenant because order '
-            'item does not exist. OpenStack tenant ID: %s',
-            tenant.id,
-        )
-        return
-
-    try:
-        service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant, type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
-        )
-    except ObjectDoesNotExist:
-        logger.debug(
-            'Skipping offering creation for tenant because service settings '
-            'object does not exist. OpenStack tenant ID: %s',
-            tenant.id,
-        )
-        return
-
-    parent_offering = resource.offering
-    for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
-        try:
-            category, offering_name = utils.get_category_and_name_for_offering_type(
-                offering_type, service_settings
-            )
-        except ObjectDoesNotExist:
-            logger.warning(
-                'Skipping offering creation for tenant because category '
-                'for instances and volumes is not yet defined.'
-            )
-            continue
-        actual_customer = tenant.project.customer
-        payload = dict(
-            type=offering_type,
-            name=offering_name,
-            scope=service_settings,
-            shared=False,
-            category=category,
-            # OpenStack instance and volume offerings are charged as a part of its tenant
-            billable=False,
-            parent=parent_offering,
-            customer=actual_customer,
-            project=tenant.project,
-        )
-
-        fields = (
-            'state',
-            'attributes',
-            'thumbnail',
-            'vendor_details',
-            'latitude',
-            'longitude',
-        )
-        for field in fields:
-            payload[field] = getattr(parent_offering, field)
-
-        marketplace_models.Offering.objects.create(**payload)
+    utils.create_offerings_for_volume_and_instance(instance)
 
 
 def archive_offering(sender, instance, **kwargs):
@@ -311,65 +241,7 @@ def create_resource_of_volume_if_instance_created(
 def create_marketplace_resource_for_imported_resources(
     sender, instance, offering=None, plan=None, **kwargs
 ):
-    resource = marketplace_models.Resource(
-        # backend_id is None if instance is being restored from backup because
-        # on database level there's uniqueness constraint enforced for backend_id
-        # but in marketplace resource backend_is not nullable
-        backend_id=instance.backend_id or '',
-        project=instance.project,
-        state=get_resource_state(instance.state),
-        name=instance.name,
-        scope=instance,
-        created=instance.created,
-        plan=plan,
-        offering=offering,
-    )
-
-    if isinstance(instance, openstack_tenant_models.Instance):
-        offering = offering or utils.get_offering(
-            INSTANCE_TYPE, instance.service_settings
-        )
-
-        if not offering:
-            return
-
-        resource.offering = offering
-
-        resource.init_cost()
-        resource.save()
-        utils.import_instance_metadata(resource)
-        resource.init_quotas()
-
-    if isinstance(instance, openstack_tenant_models.Volume):
-        offering = offering or utils.get_offering(
-            VOLUME_TYPE, instance.service_settings
-        )
-
-        if not offering:
-            return
-
-        resource.offering = offering
-
-        resource.init_cost()
-        resource.save()
-        utils.import_volume_metadata(resource)
-        resource.init_quotas()
-
-    if isinstance(instance, openstack_models.Tenant):
-        offering = offering or utils.get_offering(
-            TENANT_TYPE, instance.service_settings
-        )
-
-        if not offering:
-            return
-
-        resource.offering = offering
-
-        resource.init_cost()
-        resource.save()
-        utils.import_resource_metadata(resource)
-        resource.init_quotas()
-        create_offerings_for_volume_and_instance(instance)
+    utils.create_marketplace_resource_for_imported_resources(instance, offering, plan)
 
 
 def import_resource_metadata_when_resource_is_created(
