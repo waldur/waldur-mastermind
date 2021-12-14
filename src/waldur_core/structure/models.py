@@ -672,7 +672,6 @@ PROJECT_DETAILS_FIELDS = (
     'name',
     'description',
     'end_date',
-    'type',
     'oecd_fos_2007_code',
 )
 

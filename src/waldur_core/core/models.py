@@ -34,6 +34,9 @@ from .shims import AbstractBaseUser
 logger = logging.getLogger(__name__)
 
 
+DESCRIPTION_LENGTH = 2000
+
+
 class DescribableMixin(models.Model):
     """
     Mixin to add a standardized "description" field.
@@ -42,7 +45,9 @@ class DescribableMixin(models.Model):
     class Meta:
         abstract = True
 
-    description = models.CharField(_('description'), max_length=2000, blank=True)
+    description = models.CharField(
+        _('description'), max_length=DESCRIPTION_LENGTH, blank=True
+    )
 
 
 class NameMixin(models.Model):

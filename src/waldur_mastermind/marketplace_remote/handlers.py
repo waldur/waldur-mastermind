@@ -94,9 +94,10 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
     )
     if qs.exists():
         qs.update(state=models.ProjectUpdateRequest.States.CANCELED)
-    payload = {
-        key: getattr(instance, key) for key in structure_models.PROJECT_DETAILS_FIELDS
-    }
+    payload = {}
+    for key in structure_models.PROJECT_DETAILS_FIELDS:
+        payload[f'old_{key}'] = instance.tracker.previous(key)
+        payload[f'new_{key}'] = getattr(instance, key)
     offering_ids = (
         Resource.objects.filter(project=instance, offering__type=PLUGIN_NAME)
         .exclude(state__in=INVALID_RESOURCE_STATES)
@@ -109,7 +110,7 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
             project=instance,
             offering=offering,
             state=models.ProjectUpdateRequest.States.PENDING,
-            **payload
+            **payload,
         )
 
 
