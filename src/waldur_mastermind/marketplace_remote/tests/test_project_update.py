@@ -43,15 +43,21 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectFactory.get_url(self.project), {'name': 'New project name'}
         )
 
-        self.assertTrue(
-            ProjectUpdateRequest.objects.filter(
-                project=self.project,
-                offering=self.offering,
-                old_name=old_name,
-                new_name='New project name',
-                state=ProjectUpdateRequest.States.PENDING,
-            ).exists()
+        request = ProjectUpdateRequest.objects.filter(
+            project=self.project,
+            offering=self.offering,
+            old_name=old_name,
+            new_name='New project name',
+            state=ProjectUpdateRequest.States.PENDING,
+        ).get()
+
+        request_url = reverse(
+            "marketplace-project-update-request-detail",
+            kwargs={'uuid': request.uuid.hex},
         )
+
+        response = self.client.get(request_url)
+        self.assertTrue(response.status_code, status.HTTP_200_OK)
 
     def test_when_consecutive_update_is_applied_previous_request_is_cancelled(self):
         self.client.force_authenticate(self.fixture.owner)
