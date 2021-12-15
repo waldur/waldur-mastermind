@@ -1470,13 +1470,41 @@ class OfferingUsersViewSet(
 
     def get_queryset(self):
         queryset = super(OfferingUsersViewSet, self).get_queryset()
-        if self.request.user.is_staff or self.request.user.is_support:
+        current_user = self.request.user
+        if current_user.is_staff or current_user.is_support:
             return queryset
+
+        project_permissions = structure_models.ProjectPermission.objects.filter(
+            user=current_user, is_active=True
+        )
+        project_ids = project_permissions.values_list('project_id', flat=True)
+        customer_permissions = structure_models.CustomerPermission.objects.filter(
+            user=current_user, is_active=True
+        )
+        customer_ids = customer_permissions.values_list('customer_id', flat=True)
+
         queryset = queryset.filter(
-            Q(user=self.request.user)
+            # user can see own remote offering user
+            Q(user=current_user)
+            # service provider can see all records related to managed offerings
             | Q(
-                offering__customer__permissions__user=self.request.user,
+                offering__customer__permissions__user=current_user,
                 offering__customer__permissions__is_active=True,
+            )
+            # users with project permission are visible to other users in the same project
+            | Q(
+                user__projectpermission__project__in=project_ids,
+                user__projectpermission__is_active=True,
+            )
+            # users with customer permission are visible to other users in the same customer
+            | Q(
+                user__customerpermission__customer__in=customer_ids,
+                user__customerpermission__is_active=True,
+            )
+            # users with project permission are visible to other users in the same customer
+            | Q(
+                user__projectpermission__project__customer__in=customer_ids,
+                user__projectpermission__is_active=True,
             )
         )
         return queryset
