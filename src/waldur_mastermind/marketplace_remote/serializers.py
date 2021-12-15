@@ -17,6 +17,7 @@ class OfferingCreateSerializer(CredentialsSerializer):
 
 class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
 
@@ -29,6 +30,7 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
         fields = (
             'uuid',
             'state',
+            'customer_name',
             'offering_name',
             'offering_uuid',
             'created',
