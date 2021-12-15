@@ -24,77 +24,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='AzureService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={'abstract': False,},
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='AzureServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('cloud_service_name', models.CharField(blank=True, max_length=255)),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_azure.AzureService',
-                    ),
-                ),
-            ],
-            options={'abstract': False,},
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
             name='Image',
             fields=[
                 (
@@ -288,14 +217,6 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(max_length=50)),
                 ('user_password', models.CharField(max_length=50)),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='virtualmachines',
-                        to='waldur_azure.AzureServiceProjectLink',
-                    ),
-                ),
-                (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
                         related_name='+',
@@ -323,29 +244,5 @@ class Migration(migrations.Migration):
                 related_name='endpoints',
                 to='waldur_azure.VirtualMachine',
             ),
-        ),
-        migrations.AddField(
-            model_name='azureservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='azure_services',
-                through='waldur_azure.AzureServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='azureservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AlterUniqueTogether(
-            name='azureserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='azureservice', unique_together=set([('customer', 'settings')]),
         ),
     ]

@@ -95,109 +95,6 @@ class Migration(migrations.Migration):
                 models.Model,
             ),
         ),
-        migrations.CreateModel(
-            name='SlurmService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={
-                'verbose_name': 'SLURM provider',
-                'verbose_name_plural': 'SLURM providers',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='SlurmServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_slurm.SlurmService',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'SLURM provider project link',
-                'verbose_name_plural': 'SLURM provider project links',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.AddField(
-            model_name='slurmservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='_slurmservice_projects_+',
-                through='waldur_slurm.SlurmServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='slurmservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AddField(
-            model_name='allocation',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='allocations',
-                to='waldur_slurm.SlurmServiceProjectLink',
-            ),
-        ),
         migrations.AddField(
             model_name='allocation',
             name='tags',
@@ -209,12 +106,5 @@ class Migration(migrations.Migration):
                 to='taggit.Tag',
                 verbose_name='Tags',
             ),
-        ),
-        migrations.AlterUniqueTogether(
-            name='slurmserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='slurmservice', unique_together=set([('customer', 'settings')]),
         ),
     ]

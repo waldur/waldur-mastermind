@@ -622,9 +622,6 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.RemoveField(model_name='instanceendpoint', name='instance',),
-        migrations.RemoveField(
-            model_name='azureserviceprojectlink', name='cloud_service_name',
-        ),
         migrations.RemoveField(model_name='virtualmachine', name='private_ips',),
         migrations.RemoveField(model_name='virtualmachine', name='public_ips',),
         migrations.RemoveField(model_name='virtualmachine', name='user_password',),
@@ -732,14 +729,6 @@ class Migration(migrations.Migration):
         migrations.DeleteModel(name='InstanceEndpoint',),
         migrations.AddField(
             model_name='subnet',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.AzureServiceProjectLink',
-            ),
-        ),
-        migrations.AddField(
-            model_name='subnet',
             name='tags',
             field=waldur_core.core.shims.TaggableManager(
                 related_name='+',
@@ -748,14 +737,6 @@ class Migration(migrations.Migration):
                 through='taggit.TaggedItem',
                 to='taggit.Tag',
                 verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
-            model_name='sqlserver',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                to='waldur_azure.AzureServiceProjectLink',
             ),
         ),
         migrations.AddField(
@@ -779,14 +760,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='sqldatabase',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                to='waldur_azure.AzureServiceProjectLink',
-            ),
-        ),
-        migrations.AddField(
-            model_name='sqldatabase',
             name='tags',
             field=waldur_core.core.shims.TaggableManager(
                 related_name='+',
@@ -795,14 +768,6 @@ class Migration(migrations.Migration):
                 through='taggit.TaggedItem',
                 to='taggit.Tag',
                 verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
-            model_name='resourcegroup',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.AzureServiceProjectLink',
             ),
         ),
         migrations.AddField(
@@ -823,14 +788,6 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
                 to='waldur_azure.ResourceGroup',
-            ),
-        ),
-        migrations.AddField(
-            model_name='networkinterface',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.AzureServiceProjectLink',
             ),
         ),
         migrations.AddField(
@@ -858,14 +815,6 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
                 to='waldur_azure.ResourceGroup',
-            ),
-        ),
-        migrations.AddField(
-            model_name='network',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.AzureServiceProjectLink',
             ),
         ),
         migrations.AddField(

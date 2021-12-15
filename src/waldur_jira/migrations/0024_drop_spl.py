@@ -10,6 +10,4 @@ class Migration(migrations.Migration):
         ('waldur_jira', '0023_error_traceback'),
     ]
 
-    operations = build_spl_migrations(
-        'waldur_jira', 'JiraService', 'JiraServiceProjectLink', ('project',)
-    )
+    operations = build_spl_migrations(('project',))

@@ -11,9 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = build_spl_migrations(
-        'waldur_azure',
-        'AzureService',
-        'AzureServiceProjectLink',
         (
             'network',
             'networkinterface',

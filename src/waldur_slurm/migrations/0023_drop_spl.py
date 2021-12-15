@@ -10,6 +10,4 @@ class Migration(migrations.Migration):
         ('waldur_slurm', '0022_allocation_user_usage_mandatory_fields'),
     ]
 
-    operations = build_spl_migrations(
-        'waldur_slurm', 'SlurmService', 'SlurmServiceProjectLink', ('allocation',),
-    )
+    operations = build_spl_migrations(('allocation',),)

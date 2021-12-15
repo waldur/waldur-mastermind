@@ -23,84 +23,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='DigitalOceanService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'DigitalOcean provider',
-                'verbose_name_plural': 'DigitalOcean providers',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='DigitalOceanServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_digitalocean.DigitalOceanService',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'DigitalOcean provider project link',
-                'verbose_name_plural': 'DigitalOcean provider project links',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
             name='Droplet',
             fields=[
                 (
@@ -224,14 +146,6 @@ class Migration(migrations.Migration):
                 ),
                 ('region_name', models.CharField(blank=True, max_length=150)),
                 ('size_name', models.CharField(blank=True, max_length=150)),
-                (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='droplets',
-                        to='waldur_digitalocean.DigitalOceanServiceProjectLink',
-                    ),
-                ),
                 (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
@@ -374,29 +288,5 @@ class Migration(migrations.Migration):
             model_name='image',
             name='regions',
             field=models.ManyToManyField(to='waldur_digitalocean.Region'),
-        ),
-        migrations.AddField(
-            model_name='digitaloceanservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='digitalocean_services',
-                through='waldur_digitalocean.DigitalOceanServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='digitaloceanservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AlterUniqueTogether(
-            name='digitaloceanserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='digitaloceanservice', unique_together=set([('customer', 'settings')]),
         ),
     ]

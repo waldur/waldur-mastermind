@@ -10,9 +10,4 @@ class Migration(migrations.Migration):
         ('waldur_vmware', '0024_error_traceback'),
     ]
 
-    operations = build_spl_migrations(
-        'waldur_vmware',
-        'VMwareService',
-        'VMwareServiceProjectLink',
-        ('disk', 'port', 'virtualmachine'),
-    )
+    operations = build_spl_migrations(('disk', 'port', 'virtualmachine'),)

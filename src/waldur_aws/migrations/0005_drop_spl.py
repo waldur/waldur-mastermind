@@ -10,6 +10,4 @@ class Migration(migrations.Migration):
         ('waldur_aws', '0004_error_traceback'),
     ]
 
-    operations = build_spl_migrations(
-        'waldur_aws', 'AWSService', 'AWSServiceProjectLink', ('instance', 'volume')
-    )
+    operations = build_spl_migrations(('instance', 'volume'),)

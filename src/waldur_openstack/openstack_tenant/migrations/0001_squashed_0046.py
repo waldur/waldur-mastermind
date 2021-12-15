@@ -645,83 +645,6 @@ class Migration(migrations.Migration):
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='OpenStackTenantService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={
-                'verbose_name': 'OpenStackTenant provider',
-                'verbose_name_plural': 'OpenStackTenant providers',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.structure.models.StructureLoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='OpenStackTenantServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='openstack_tenant.OpenStackTenantService',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'OpenStackTenant provider project link',
-                'verbose_name_plural': 'OpenStackTenant provider project links',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
             name='SecurityGroup',
             fields=[
                 (
@@ -886,14 +809,6 @@ class Migration(migrations.Migration):
                         null=True,
                     ),
                 ),
-                (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='snapshots',
-                        to='openstack_tenant.OpenStackTenantServiceProjectLink',
-                    ),
-                ),
             ],
             bases=(
                 waldur_openstack.openstack_tenant.models.TenantQuotaMixin,
@@ -1035,14 +950,6 @@ class Migration(migrations.Migration):
                     models.PositiveSmallIntegerField(
                         default=0,
                         help_text='How many times a resource schedule was called.',
-                    ),
-                ),
-                (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='snapshot_schedules',
-                        to='openstack_tenant.OpenStackTenantServiceProjectLink',
                     ),
                 ),
             ],
@@ -1319,15 +1226,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='volume',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='volumes',
-                to='openstack_tenant.OpenStackTenantServiceProjectLink',
-            ),
-        ),
-        migrations.AddField(
-            model_name='volume',
             name='source_snapshot',
             field=models.ForeignKey(
                 blank=True,
@@ -1423,23 +1321,6 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name='openstacktenantservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='openstack_tenant_services',
-                through='openstack_tenant.OpenStackTenantServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='openstacktenantservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AddField(
             model_name='internalip',
             name='subnet',
             field=models.ForeignKey(
@@ -1463,15 +1344,6 @@ class Migration(migrations.Migration):
             name='security_groups',
             field=models.ManyToManyField(
                 related_name='instances', to='openstack_tenant.SecurityGroup'
-            ),
-        ),
-        migrations.AddField(
-            model_name='instance',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='instances',
-                to='openstack_tenant.OpenStackTenantServiceProjectLink',
             ),
         ),
         migrations.AddField(
@@ -1519,15 +1391,6 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name='backup_schedules',
                 to='openstack_tenant.Instance',
-            ),
-        ),
-        migrations.AddField(
-            model_name='backupschedule',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='backup_schedules',
-                to='openstack_tenant.OpenStackTenantServiceProjectLink',
             ),
         ),
         migrations.AddField(
@@ -1584,15 +1447,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='backup',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='backups',
-                to='openstack_tenant.OpenStackTenantServiceProjectLink',
-            ),
-        ),
-        migrations.AddField(
-            model_name='backup',
             name='snapshots',
             field=models.ManyToManyField(
                 related_name='backups', to='openstack_tenant.Snapshot'
@@ -1621,14 +1475,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterUniqueTogether(
             name='securitygroup', unique_together=set([('settings', 'backend_id')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='openstacktenantserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='openstacktenantservice',
-            unique_together=set([('customer', 'settings')]),
         ),
         migrations.AlterUniqueTogether(
             name='network', unique_together=set([('settings', 'backend_id')]),

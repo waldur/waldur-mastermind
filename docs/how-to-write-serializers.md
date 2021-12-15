@@ -114,9 +114,9 @@ needed in order to constrain the list of entities that can be used as a
 value for the field. Consider the following example:
 
 ```python
-class BaseServiceProjectLinkSerializer(PermissionFieldFilteringMixin,
-                                       core_serializers.AugmentedSerializerMixin,
-                                       serializers.HyperlinkedModelSerializer):
+class ResourceSerializer(PermissionFieldFilteringMixin,
+                         core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
     project = serializers.HyperlinkedRelatedField(
         queryset=models.Project.objects.all(),
         view_name='project-detail',
