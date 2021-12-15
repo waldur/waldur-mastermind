@@ -94,3 +94,16 @@ def sync_profile_ssh_keys(profile_id):
             profile.id,
         )
         return
+
+
+@shared_task(name='waldur_freeipa.disable_accounts_without_allocations')
+def disable_accounts_without_allocations():
+    has_changed = False
+    for profile in models.Profile.objects.filter(is_active=True):
+        new_is_active = utils.is_profile_active_for_user(profile.user)
+        if new_is_active != profile.is_active:
+            profile.is_active = new_is_active
+            profile.save(update_fields=['is_active'])
+            has_changed = True
+    if has_changed:
+        schedule_sync()

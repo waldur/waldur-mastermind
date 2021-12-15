@@ -38,7 +38,7 @@ class Profile(core_models.UuidMixin, models.Model):
         default=timezone.now,
         help_text=_('Indicates when the user has agreed with the policy.'),
     )
-    is_active = models.BooleanField(_('active'), default=True)
+    is_active = models.BooleanField(_('active'), default=False)
     tracker = FieldTracker()
 
     @property

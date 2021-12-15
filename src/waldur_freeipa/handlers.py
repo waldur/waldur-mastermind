@@ -82,3 +82,11 @@ def schedule_ssh_key_sync(ssh_key):
         )
     else:
         transaction.on_commit(lambda: tasks.sync_profile_ssh_keys.delay(profile.pk))
+
+
+def enable_profile_when_association_is_created(sender, allocation, **kwargs):
+    users = allocation.project.customer.get_users()
+    models.Profile.objects.filter(user__in=users, is_active=False).update(
+        is_active=True
+    )
+    tasks.schedule_sync()

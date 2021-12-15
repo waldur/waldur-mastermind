@@ -215,6 +215,23 @@ class GroupSynchronizer:
             utils.renew_task_status()
             self.client.group_del(group)
 
+    def sync_user_status(self):
+        remote_user_status = {
+            user['username']: not user['disabled'] for user in self.client.user_find()
+        }
+        for profile in models.Profile.objects.all():
+            utils.renew_task_status()
+            if profile.username not in remote_user_status:
+                continue
+            remote_status = remote_user_status[profile.username]
+            local_status = profile.is_active
+            if local_status == remote_status:
+                continue
+            if local_status and not remote_status:
+                self.client.user_enable(profile.username)
+            if not local_status and remote_status:
+                self.client.user_disable(profile.username)
+
     def sync(self):
         try:
             self.collect_waldur_permissions()
@@ -227,6 +244,7 @@ class GroupSynchronizer:
             self.sync_members()
             self.sync_children()
             self.delete_stale_groups()
+            self.sync_user_status()
 
         finally:
             utils.release_task_status()
@@ -260,13 +278,8 @@ class FreeIPABackend:
             ssh_key=ssh_keys,
             gecos=profile.gecos,
             user_password=password,
+            disabled=not profile.is_active,
         )
-
-    def disable_profile(self, profile):
-        self._client.user_disable(profile.username)
-
-    def enable_profile(self, profile):
-        self._client.user_enable(profile.username)
 
     def update_ssh_keys(self, profile):
         ssh_keys = self._format_ssh_keys(profile.user)

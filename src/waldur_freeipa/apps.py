@@ -12,6 +12,8 @@ class FreeIPAConfig(AppConfig):
         from waldur_core.quotas import models as quota_models
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
+        from waldur_slurm import models as slurm_models
+        from waldur_slurm import signals as slurm_signals
 
         from . import handlers, utils, models
 
@@ -80,4 +82,10 @@ class FreeIPAConfig(AppConfig):
             handlers.log_profile_deleted,
             sender=models.Profile,
             dispatch_uid='waldur_freeipa.handlers.log_profile_deleted',
+        )
+
+        slurm_signals.slurm_association_created.connect(
+            handlers.enable_profile_when_association_is_created,
+            sender=slurm_models.Allocation,
+            dispatch_uid='waldur_mastermind.marketplace_slurm.enable_profile_when_association_is_created',
         )
