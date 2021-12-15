@@ -24,24 +24,6 @@ python-versions = ">=3.6"
 vine = "5.0.0"
 
 [[package]]
-name = "ansible-waldur-module"
-version = "1.1.2"
-description = ""
-category = "main"
-optional = false
-python-versions = "*"
-develop = false
-
-[package.dependencies]
-requests = ">=2.6.0"
-
-[package.source]
-type = "git"
-url = "https://github.com/waldur/ansible-waldur-module.git"
-reference = "develop"
-resolved_reference = "73ab8586ba9b6995c607fc84a28828e615794194"
-
-[[package]]
 name = "apache-libcloud"
 version = "2.2.1"
 description = "A standard Python library that abstracts away differences among multiple cloud provider APIs. For more information and documentation, please see http://libcloud.apache.org"
@@ -2237,6 +2219,24 @@ simplejson = ">=3.5.1"
 six = ">=1.10.0"
 
 [[package]]
+name = "python-waldur-client"
+version = "0.1.0"
+description = ""
+category = "main"
+optional = false
+python-versions = "*"
+develop = false
+
+[package.dependencies]
+requests = ">=2.6.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/waldur/python-waldur-client"
+reference = "master"
+resolved_reference = "382bb7393181e8295c334d6f35405115fda842f2"
+
+[[package]]
 name = "pytz"
 version = "2021.3"
 description = "World timezone definitions, modern and historical"
@@ -2659,7 +2659,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "66297534677d5934d18ba54e86ad498ad0f19d80f10a440be8c7a9f0aa516436"
+content-hash = "2a7220612640f06a1b4f295d5ecba5d46a836791555c7a9d82a196663a86fafb"
 
 [metadata.files]
 adal = [
@@ -2670,7 +2670,6 @@ amqp = [
     {file = "amqp-5.0.6-py3-none-any.whl", hash = "sha256:493a2ac6788ce270a2f6a765b017299f60c1998f5a8617908ee9be082f7300fb"},
     {file = "amqp-5.0.6.tar.gz", hash = "sha256:03e16e94f2b34c31f8bf1206d8ddd3ccaa4c315f7f6a1879b7b1210d229568c2"},
 ]
-ansible-waldur-module = []
 apache-libcloud = [
     {file = "apache-libcloud-2.2.1.tar.gz", hash = "sha256:d065d9da8ba192badad3a98c2f6c3ef9dabba45d1318638b9c1bac83f6c3e7a9"},
     {file = "apache_libcloud-2.2.1-py2.py3-none-any.whl", hash = "sha256:e3f4907e84c2e20dbfefd965848e8eb812f3c4ed96218d61706d575efee337ba"},
@@ -3775,6 +3774,7 @@ python-novaclient = [
     {file = "python-novaclient-10.3.0.tar.gz", hash = "sha256:221c9a8c406146ebc51f78fe22c0eb0c36780eaef56b05ed0c04ec883bf8f90b"},
     {file = "python_novaclient-10.3.0-py2.py3-none-any.whl", hash = "sha256:e8332be7bd0acbad7cba6d07a2dded0438571793b38d0d6b647fd875f9402d62"},
 ]
+python-waldur-client = []
 pytz = [
     {file = "pytz-2021.3-py2.py3-none-any.whl", hash = "sha256:3672058bc3453457b622aab7a1c3bfd5ab0bdae451512f6cf25f64ed37f5b87c"},
     {file = "pytz-2021.3.tar.gz", hash = "sha256:acad2d8b20a1af07d4e4c9d2e9285c5ed9104354062f275f3fcd88dcef4f1326"},
