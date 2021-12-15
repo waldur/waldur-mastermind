@@ -17,6 +17,11 @@ class OfferingCreateSerializer(CredentialsSerializer):
 
 class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
+    offering_name = serializers.ReadOnlyField(source='offering.name')
+    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
+
+    reviewed_by_full_name = serializers.ReadOnlyField(source='reviewed_by.full_name')
+    reviewed_by_uuid = serializers.ReadOnlyField(source='reviewed_by.uuid')
 
     class Meta:
         model = models.ProjectUpdateRequest
