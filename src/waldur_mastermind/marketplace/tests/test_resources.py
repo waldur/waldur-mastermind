@@ -14,6 +14,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import helpers as test_helpers
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.support.tests.base import override_support_settings
@@ -664,6 +665,11 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             self.resource.refresh_from_db()
             self.assertTrue(self.resource.end_date)
 
+    @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
+    def test_user_can_not_update_end_date_if_feature_is_disabled(self):
+        response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_authorized_user_can_set_current_past_date(self):
         with freeze_time('2020-01-01'):
             response = self.make_request(self.fixture.staff, {'end_date': '2020-01-01'})
@@ -701,6 +707,13 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     def make_request(self, user, payload):
         self.client.force_authenticate(user)
         return self.client.post(self.url, payload)
+
+    @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
+    def test_user_can_not_update_end_date_if_feature_is_disabled(self):
+        response = self.make_request(
+            self.fixture.offering_owner, {'end_date': '2021-01-01'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @freeze_time('2020-01-01')
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_7_days_in_future(
@@ -794,6 +807,11 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
     def make_request(self, user, payload):
         self.client.force_authenticate(user)
         return self.client.post(self.url, payload)
+
+    @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
+    def test_user_can_not_update_end_date_if_feature_is_disabled(self):
+        response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @freeze_time('2020-01-01')
     @data('staff',)

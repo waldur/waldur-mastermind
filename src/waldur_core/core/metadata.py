@@ -604,7 +604,7 @@ class WaldurMarketplace(BaseModel):
         description='Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.',
     )
     ENABLE_RESOURCE_END_DATE = Field(
-        False, description='Allow to view and update resource end date.',
+        True, description='Allow to view and update resource end date.',
     )
 
     class Meta:
