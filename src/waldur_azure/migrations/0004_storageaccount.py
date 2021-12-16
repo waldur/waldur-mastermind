@@ -101,13 +101,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_azure.AzureServiceProjectLink',
-                    ),
-                ),
-                (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
                         related_name='+',

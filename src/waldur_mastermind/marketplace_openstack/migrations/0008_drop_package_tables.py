@@ -8,10 +8,4 @@ class Migration(migrations.Migration):
         ('marketplace', '0041_drop_package'),
     ]
 
-    operations = [
-        # Raw SQL is used instead of Django migration operations
-        # because packages application has been removed
-        migrations.RunSQL('DROP TABLE IF EXISTS packages_openstackpackage'),
-        migrations.RunSQL('DROP TABLE IF EXISTS packages_packagecomponent'),
-        migrations.RunSQL('DROP TABLE IF EXISTS packages_packagetemplate'),
-    ]
+    operations = []

@@ -217,62 +217,6 @@ class Migration(migrations.Migration):
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='JiraService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={'abstract': False,},
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='JiraServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-            ],
-            options={'abstract': False,},
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
             name='Project',
             fields=[
                 (
@@ -343,14 +287,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='projects',
-                        to='waldur_jira.JiraServiceProjectLink',
-                    ),
-                ),
-                (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
                         related_name='+',
@@ -368,38 +304,6 @@ class Migration(migrations.Migration):
                 waldur_core.core.models.BackendModelMixin,
                 waldur_core.logging.loggers.LoggableMixin,
                 models.Model,
-            ),
-        ),
-        migrations.AddField(
-            model_name='jiraserviceprojectlink',
-            name='project',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE, to='structure.Project'
-            ),
-        ),
-        migrations.AddField(
-            model_name='jiraserviceprojectlink',
-            name='service',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_jira.JiraService',
-            ),
-        ),
-        migrations.AddField(
-            model_name='jiraservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='jira_services',
-                through='waldur_jira.JiraServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='jiraservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
             ),
         ),
         migrations.AddField(
@@ -455,12 +359,5 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.CASCADE,
                 to=settings.AUTH_USER_MODEL,
             ),
-        ),
-        migrations.AlterUniqueTogether(
-            name='jiraserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='jiraservice', unique_together=set([('customer', 'settings')]),
         ),
     ]

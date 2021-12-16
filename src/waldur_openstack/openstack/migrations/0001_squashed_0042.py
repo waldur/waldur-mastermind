@@ -143,91 +143,6 @@ class Migration(migrations.Migration):
             options={'abstract': False,},
         ),
         migrations.CreateModel(
-            name='OpenStackService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'name',
-                    models.CharField(
-                        max_length=150,
-                        validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={
-                'verbose_name': 'OpenStack provider',
-                'verbose_name_plural': 'OpenStack providers',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='OpenStackServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='openstack.OpenStackService',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'OpenStack provider project link',
-                'verbose_name_plural': 'OpenStack provider project links',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
             name='SecurityGroup',
             fields=[
                 (
@@ -272,14 +187,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ('backend_id', models.CharField(blank=True, max_length=128)),
-                (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name='security_groups',
-                        to='openstack.OpenStackServiceProjectLink',
-                    ),
-                ),
             ],
             options={'abstract': False,},
         ),
@@ -410,14 +317,6 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(blank=True, max_length=50)),
                 ('user_password', models.CharField(blank=True, max_length=50)),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='tenants',
-                        to='openstack.OpenStackServiceProjectLink',
-                    ),
-                ),
-                (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
                         related_name='+',
@@ -442,40 +341,6 @@ class Migration(migrations.Migration):
                 waldur_core.logging.loggers.LoggableMixin,
                 models.Model,
             ),
-        ),
-        migrations.AddField(
-            model_name='openstackservice',
-            name='projects',
-            field=models.ManyToManyField(
-                'structure.Project',
-                related_name='openstack_services',
-                through='openstack.OpenStackServiceProjectLink',
-            ),
-        ),
-        migrations.AddField(
-            model_name='openstackservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AddField(
-            model_name='floatingip',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                related_name='floating_ips',
-                to='openstack.OpenStackServiceProjectLink',
-            ),
-        ),
-        migrations.AlterUniqueTogether(
-            name='openstackserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.RemoveField(model_name='openstackservice', name='name',),
-        migrations.AlterUniqueTogether(
-            name='openstackservice', unique_together=set([('customer', 'settings')]),
         ),
         migrations.AlterUniqueTogether(
             name='image', unique_together=set([('settings', 'backend_id')]),
@@ -572,14 +437,6 @@ class Migration(migrations.Migration):
                 ('is_external', models.BooleanField(default=False)),
                 ('type', models.CharField(blank=True, max_length=50)),
                 ('segmentation_id', models.IntegerField(null=True)),
-                (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='networks',
-                        to='openstack.OpenStackServiceProjectLink',
-                    ),
-                ),
                 (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
@@ -682,14 +539,6 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='subnets',
                         to='openstack.Network',
-                    ),
-                ),
-                (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='subnets',
-                        to='openstack.OpenStackServiceProjectLink',
                     ),
                 ),
                 (

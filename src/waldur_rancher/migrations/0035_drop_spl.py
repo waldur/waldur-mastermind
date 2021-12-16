@@ -11,8 +11,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = build_spl_migrations(
-        'waldur_rancher',
-        'RancherService',
-        'RancherServiceProjectLink',
         ('application', 'cluster', 'ingress', 'service',),
     )

@@ -71,14 +71,6 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, max_length=255, null=True),
         ),
         migrations.AlterField(
-            model_name='sqldatabase',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.AzureServiceProjectLink',
-            ),
-        ),
-        migrations.AlterField(
             model_name='sqlserver',
             name='name',
             field=models.CharField(
@@ -101,14 +93,6 @@ class Migration(migrations.Migration):
                     django.core.validators.MaxLengthValidator(128),
                     waldur_azure.validators.validate_password,
                 ],
-            ),
-        ),
-        migrations.AlterField(
-            model_name='sqlserver',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.AzureServiceProjectLink',
             ),
         ),
         migrations.AlterField(

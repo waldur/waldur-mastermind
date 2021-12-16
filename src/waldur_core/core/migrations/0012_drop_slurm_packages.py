@@ -7,6 +7,4 @@ class Migration(migrations.Migration):
         ('core', '0011_extend_description_limits'),
     ]
 
-    operations = [
-        migrations.RunSQL('DROP TABLE IF EXISTS slurm_invoices_slurmpackage'),
-    ]
+    operations = []

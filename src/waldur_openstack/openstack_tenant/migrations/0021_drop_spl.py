@@ -11,9 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = build_spl_migrations(
-        'openstack_tenant',
-        'OpenStackTenantService',
-        'OpenStackTenantServiceProjectLink',
         (
             'backup',
             'backupschedule',

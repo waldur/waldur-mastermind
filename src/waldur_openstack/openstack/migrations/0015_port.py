@@ -114,14 +114,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name='ports',
-                        to='openstack.OpenStackServiceProjectLink',
-                    ),
-                ),
-                (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
                         blank=True,

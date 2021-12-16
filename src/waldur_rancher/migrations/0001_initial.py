@@ -150,109 +150,6 @@ class Migration(migrations.Migration):
             ],
             options={'ordering': ('name',),},
         ),
-        migrations.CreateModel(
-            name='RancherService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={
-                'verbose_name': 'Rancher provider',
-                'verbose_name_plural': 'Rancher providers',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.structure.models.StructureLoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='RancherServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.RancherService',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'Rancher provider project link',
-                'verbose_name_plural': 'Rancher provider project links',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.AddField(
-            model_name='rancherservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='rancher_services',
-                through='waldur_rancher.RancherServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='rancherservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AddField(
-            model_name='cluster',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='k8s_clusters',
-                to='waldur_rancher.RancherServiceProjectLink',
-            ),
-        ),
         migrations.AddField(
             model_name='cluster',
             name='tags',
@@ -266,22 +163,6 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='rancherserviceprojectlink',
-            unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='rancherservice', unique_together=set([('customer', 'settings')]),
-        ),
-        migrations.AlterUniqueTogether(
             name='node', unique_together=set([('content_type', 'object_id')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='cluster',
-            unique_together=set(
-                [
-                    ('service_project_link', 'name'),
-                    ('service_project_link', 'backend_id'),
-                ]
-            ),
         ),
     ]

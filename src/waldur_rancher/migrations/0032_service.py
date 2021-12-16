@@ -110,14 +110,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='+',
-                        to='waldur_rancher.RancherServiceProjectLink',
-                    ),
-                ),
-                (
                     'settings',
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,

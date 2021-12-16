@@ -23,84 +23,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='AWSService',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                (
-                    'available_for_all',
-                    models.BooleanField(
-                        default=False,
-                        help_text='Service will be automatically added to all customers projects if it is available for all',
-                    ),
-                ),
-                (
-                    'customer',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
-                        verbose_name='organization',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'AWS provider',
-                'verbose_name_plural': 'AWS providers',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
-            name='AWSServiceProjectLink',
-            fields=[
-                (
-                    'id',
-                    models.AutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name='ID',
-                    ),
-                ),
-                (
-                    'project',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
-                    ),
-                ),
-                (
-                    'service',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_aws.AWSService',
-                    ),
-                ),
-            ],
-            options={
-                'abstract': False,
-                'verbose_name': 'AWS provider project link',
-                'verbose_name_plural': 'AWS provider project links',
-            },
-            bases=(
-                waldur_core.core.models.DescendantMixin,
-                waldur_core.logging.loggers.LoggableMixin,
-                models.Model,
-            ),
-        ),
-        migrations.CreateModel(
             name='Image',
             fields=[
                 (
@@ -430,14 +352,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'service_project_link',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT,
-                        related_name='volumes',
-                        to='waldur_aws.AWSServiceProjectLink',
-                    ),
-                ),
-                (
                     'tags',
                     waldur_core.core.shims.TaggableManager(
                         related_name='+',
@@ -466,15 +380,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='instance',
-            name='service_project_link',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='instances',
-                to='waldur_aws.AWSServiceProjectLink',
-            ),
-        ),
-        migrations.AddField(
-            model_name='instance',
             name='tags',
             field=waldur_core.core.shims.TaggableManager(
                 related_name='+',
@@ -491,28 +396,5 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE, to='waldur_aws.Region'
             ),
-        ),
-        migrations.AddField(
-            model_name='awsservice',
-            name='projects',
-            field=models.ManyToManyField(
-                related_name='aws_services',
-                through='waldur_aws.AWSServiceProjectLink',
-                to='structure.Project',
-            ),
-        ),
-        migrations.AddField(
-            model_name='awsservice',
-            name='settings',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to='structure.ServiceSettings',
-            ),
-        ),
-        migrations.AlterUniqueTogether(
-            name='awsserviceprojectlink', unique_together=set([('service', 'project')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='awsservice', unique_together=set([('customer', 'settings')]),
         ),
     ]
