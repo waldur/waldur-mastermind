@@ -2130,7 +2130,13 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         fields = ('name', 'description', 'end_date')
 
     def validate_end_date(self, end_date):
-        if end_date and end_date < timezone.datetime.today().date():
+        if not end_date:
+            return
+        if not settings.WALDUR_MARKETPLACE['ENABLE_RESOURCE_END_DATE']:
+            raise serializers.ValidationError(
+                {'end_date': _('Update of this field is not allowed.')}
+            )
+        if end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
                 {'end_date': _('Cannot be earlier than the current date.')}
             )
@@ -2152,12 +2158,18 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
     def validate_end_date(self, end_date):
         if not end_date:
             return
+        if not settings.WALDUR_MARKETPLACE['ENABLE_RESOURCE_END_DATE']:
+            raise serializers.ValidationError(
+                {'end_date': _('Update of this field is not allowed.')}
+            )
         invoice_threshold = timezone.datetime.today() - datetime.timedelta(days=90)
         if InvoiceItem.objects.filter(
             invoice__created__gt=invoice_threshold, resource=self.instance
         ).exists():
             raise serializers.ValidationError(
-                'Service provider can not set end date of the resource which has been used for the last 90 days.'
+                _(
+                    'Service provider can not set end date of the resource which has been used for the last 90 days.'
+                )
             )
 
         min_end_date = timezone.datetime.today() + datetime.timedelta(days=7)
