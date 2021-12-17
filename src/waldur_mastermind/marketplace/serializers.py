@@ -2010,6 +2010,7 @@ class ResourceSerializer(BaseItemSerializer):
             'can_terminate',
             'report',
             'end_date',
+            'username',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2043,6 +2044,7 @@ class ResourceSerializer(BaseItemSerializer):
     is_limit_based = serializers.ReadOnlyField(source='offering.is_limit_based')
     can_terminate = serializers.SerializerMethodField()
     report = serializers.JSONField(read_only=True)
+    username = serializers.SerializerMethodField()
 
     def get_project_uuid(self, resource):
         return structure_models.Project.all_objects.get(id=resource.project_id).uuid
@@ -2097,6 +2099,14 @@ class ResourceSerializer(BaseItemSerializer):
         ).exists():
             return False
         return True
+
+    def get_username(self, resource):
+        user = self.context['request'].user
+        offering_user = models.OfferingUser.objects.filter(
+            offering=resource.offering, user=user
+        ).first()
+        if offering_user:
+            return offering_user.username
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):

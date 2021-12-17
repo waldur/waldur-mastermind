@@ -99,6 +99,13 @@ class ResourceGetTest(test.APITransactionTestCase):
         for key, value in expected_data.items():
             self.assertEqual(value, response_data[key])
 
+    def test_username_is_fetched_for_current_user_and_offering(self):
+        models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.manager, username='alice'
+        )
+        response = self.get_resource(self.fixture.manager)
+        self.assertEqual(response.data['username'], 'alice')
+
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
