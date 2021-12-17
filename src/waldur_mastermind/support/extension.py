@@ -86,4 +86,9 @@ class SupportExtension(WaldurExtension):
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
+            'sync_request_types': {
+                'task': 'waldur_mastermind.support.sync_request_types',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
         }

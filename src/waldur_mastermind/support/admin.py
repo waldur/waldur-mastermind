@@ -3,14 +3,15 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import admin as structure_admin
 
-from . import backend, models
+from . import backend, models, tasks
 from .backend.basic import BasicBackend
 
 User = get_user_model()
@@ -125,9 +126,21 @@ class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin, admin.ModelAdmin):
         return []
 
 
-class RequestTypeAdmin(admin.ModelAdmin):
+class RequestTypeAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('name', 'issue_type_name', 'backend_id')
     search_fields = ('name',)
+
+    def get_extra_actions(self):
+        return [
+            self.sync_request_types,
+        ]
+
+    def sync_request_types(self, request):
+        tasks.sync_request_types.delay()
+        self.message_user(
+            request, _('Request types\' synchronization has been scheduled.')
+        )
+        return redirect(reverse('admin:support_requesttype_changelist'))
 
 
 class PriorityAdmin(admin.ModelAdmin):
