@@ -140,6 +140,18 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
     return types
 
 
+def request_type_fields(manager, service_desk, request_type_id):
+    url = manager._options[
+        'server'
+    ] + '/rest/servicedeskapi/servicedesk/%s/requesttype/%s/field' % (
+        service_desk.id,
+        request_type_id,
+    )
+    headers = {'X-ExperimentalApi': 'opt-in'}
+    r_json = json_loads(manager._session.get(url, headers=headers))
+    return r_json.get('requestTypeFields')
+
+
 def search_users(
     self, query, startAt=0, maxResults=50, includeActive=True, includeInactive=False
 ):
@@ -247,6 +259,7 @@ def create_customer(self, email, displayName):
 JIRA.waldur_add_attachment = add_attachment
 JIRA.waldur_service_desk = service_desk
 JIRA.waldur_request_types = request_types
+JIRA.waldur_request_type_fields = request_type_fields
 JIRA.waldur_search_users = search_users
 JIRA.waldur_create_customer_request = create_customer_request
 JIRA.waldur_create_customer = create_customer

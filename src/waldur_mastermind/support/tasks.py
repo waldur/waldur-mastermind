@@ -213,3 +213,8 @@ def sync_feedback(serialized_feedback):
     feedback.state = feedback.States.CREATING
     feedback.save()
     backend.get_active_backend().create_feedback(feedback)
+
+
+@shared_task(name='waldur_mastermind.support.sync_request_types')
+def sync_request_types():
+    backend.get_active_backend().pull_request_types()

@@ -371,6 +371,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             for backend_request_type in backend_request_types:
                 defaults = {
                     'name': backend_request_type.name,
+                    'fields': self.manager.waldur_request_type_fields(
+                        service_desk_id, backend_request_type.id
+                    ),
                 }
                 if self.use_automatic_request_mapping:
                     issue_type = self.manager.issue_type(
