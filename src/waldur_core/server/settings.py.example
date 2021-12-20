@@ -25,11 +25,16 @@ SECRET_KEY = '...'
 # Databases
 # See also: https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': 'db.sqlite3',
+     'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'waldur',
+        'USER': 'waldur',
+        'PASSWORD': 'waldur',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
+
 
 # The absolute path to the directory where collectstatic will collect static files for deployment.
 # See also: https://docs.djangoproject.com/en/1.11/ref/settings/#static-root
