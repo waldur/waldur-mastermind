@@ -227,6 +227,12 @@ class User(
             'Designates whether the user is allowed to manage remote user identities.'
         ),
     )
+    notifications_enabled = models.BooleanField(
+        default=True,
+        help_text=_(
+            'Designates whether the user is allowed to receive email notifications.'
+        ),
+    )
     date_joined = models.DateTimeField(_('date joined'), default=django_timezone.now)
     last_sync = models.DateTimeField(default=django_timezone.now, editable=False)
     registration_method = models.CharField(

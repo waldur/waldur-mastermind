@@ -68,7 +68,7 @@ def send_invoice_notification(invoice_uuid):
         'link': core_utils.format_homeport_link('invoice/{uuid}', uuid=invoice_uuid),
     }
 
-    emails = [owner.email for owner in invoice.customer.get_owners()]
+    emails = invoice.customer.get_owner_mails()
 
     filename = None
     attachment = None
@@ -200,7 +200,7 @@ def send_notifications_about_upcoming_ends():
             'end': utils.get_end_date_for_profile(profile),
             'contract_number': profile.attributes.get('contract_number', ''),
         }
-        emails = [owner.email for owner in profile.organization.get_owners()]
+        emails = profile.organization.get_owner_mails()
         core_utils.broadcast_mail(
             'invoices', 'upcoming_ends_notification', context, emails,
         )

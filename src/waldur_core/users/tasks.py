@@ -60,9 +60,11 @@ def send_invitation_requested(invitation_uuid, sender):
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
     base_context = utils.get_invitation_context(invitation, sender)
 
-    staff_users = core_models.User.objects.filter(
-        is_staff=True, is_active=True
-    ).exclude(email='')
+    staff_users = (
+        core_models.User.objects.filter(is_staff=True, is_active=True)
+        .exclude(email='')
+        .exclude(notifications_enabled=False)
+    )
     for user in staff_users:
         token = utils.get_invitation_token(invitation, user)
         approve_link = format_homeport_link('invitation_approve/{token}/', token=token)
