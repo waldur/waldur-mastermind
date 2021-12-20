@@ -70,7 +70,11 @@ def create_screenshot_thumbnail(uuid):
 def notify_order_approvers(uuid):
     order = models.Order.objects.get(uuid=uuid)
     users = order.get_approvers()
-    emails = [u.email for u in users if u.email]
+    emails = (
+        users.exclude(email='')
+        .exclude(notifications_enabled=False)
+        .values_list('email', flat=True)
+    )
     link = core_utils.format_homeport_link(
         'projects/{project_uuid}/marketplace-order-list/',
         project_uuid=order.project.uuid,
@@ -89,7 +93,7 @@ def notify_order_approvers(uuid):
 def notify_about_resource_change(event_type, context, resource_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     project = structure_models.Project.all_objects.get(id=resource.project_id)
-    emails = project.get_users().values_list('email', flat=True)
+    emails = project.get_user_mails()
     core_utils.broadcast_mail('marketplace', event_type, context, emails)
 
 
@@ -180,7 +184,7 @@ def calculate_usage_for_current_month():
 def send_notifications_about_usages():
     for warning in utils.get_info_about_missing_usage_reports():
         customer = warning['customer']
-        emails = [owner.email for owner in customer.get_owners()]
+        emails = customer.get_owner_mails()
         warning['public_resources_url'] = utils.get_public_resources_url(customer)
 
         if customer.serviceprovider.enable_notifications and emails:
@@ -250,15 +254,15 @@ def notify_about_stale_resource():
     user_resources = collections.defaultdict(list)
 
     for resource in resources:
-        owners = resource.project.customer.get_owners().exclude(email='')
+        mails = resource.project.customer.get_owner_mails()
         resource_url = core_utils.format_homeport_link(
             '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
             project_uuid=resource.project.uuid.hex,
             resource_uuid=resource.uuid.hex,
         )
 
-        for user in owners:
-            user_resources[user.email].append(
+        for mail in mails:
+            user_resources[mail].append(
                 {'resource': resource, 'resource_url': resource_url}
             )
 
@@ -291,18 +295,14 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
     resource = models.Resource.objects.get(uuid=resource_uuid)
     user = User.objects.get(uuid=user_uuid)
     admin_emails = set(
-        resource.project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
-        .exclude(email='')
-        .values_list('email', flat=True)
+        resource.project.get_user_mails(structure_models.ProjectRole.ADMINISTRATOR)
     )
     manager_emails = set(
-        resource.project.get_users(structure_models.ProjectRole.MANAGER)
-        .exclude(email='')
-        .values_list('email', flat=True)
+        resource.project.get_user_mails(structure_models.ProjectRole.MANAGER)
     )
     emails = admin_emails | manager_emails
     bcc = []
-    if user.email:
+    if user.email and user.notifications_enabled:
         bcc.append(user.email)
     resource_url = core_utils.format_homeport_link(
         '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
@@ -338,12 +338,16 @@ def notification_about_project_ending():
     ).filter(Q(end_date=date_1) | Q(end_date=date_7))
 
     for project in expired_projects:
-        managers = project.get_users(structure_models.ProjectRole.MANAGER).exclude(
-            email=''
+        managers = (
+            project.get_users(structure_models.ProjectRole.MANAGER)
+            .exclude(email='')
+            .exclude(notifications_enabled=False)
         )
-        owners = project.customer.get_users(
-            structure_models.CustomerRole.OWNER
-        ).exclude(email='')
+        owners = (
+            project.customer.get_users(structure_models.CustomerRole.OWNER)
+            .exclude(email='')
+            .exclude(notifications_enabled=False)
+        )
         users = set(managers) | set(owners)
 
         project_url = core_utils.format_homeport_link(

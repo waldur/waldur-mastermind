@@ -311,6 +311,14 @@ class PermissionMixin:
         """ Return all connected to scope users """
         raise NotImplementedError
 
+    def get_user_mails(self, role=None):
+        return (
+            self.get_users(role)
+            .exclude(email='')
+            .exclude(notifications_enabled=False)
+            .values_list('email', flat=True)
+        )
+
 
 class CustomerRole(models.CharField):
     OWNER = 'owner'
@@ -519,6 +527,14 @@ class Customer(
 
     def get_owners(self):
         return self.get_users_by_role(CustomerRole.OWNER)
+
+    def get_owner_mails(self):
+        return (
+            self.get_owners()
+            .exclude(email='')
+            .exclude(notifications_enabled=False)
+            .values_list('email', flat=True)
+        )
 
     def get_support_users(self):
         return self.get_users_by_role(CustomerRole.SUPPORT)

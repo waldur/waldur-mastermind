@@ -260,6 +260,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
                     'is_identity_manager',
                     'customer_roles',
                     'project_roles',
+                    'notifications_enabled',
                 )
             },
         ),

@@ -199,8 +199,10 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
 
 @shared_task(name='waldur_rancher.notify_create_user')
 def notify_create_user(id, password, url):
-    user = models.RancherUser.objects.get(id=id)
-    email = user.user.email
+    user = models.RancherUser.objects.get(id=id).user
+
+    if not user.email or not user.notifications_enabled:
+        return
 
     context = {
         'rancher_url': url,
@@ -208,7 +210,9 @@ def notify_create_user(id, password, url):
         'password': password,
     }
 
-    core_utils.broadcast_mail('rancher', 'notification_create_user', context, [email])
+    core_utils.broadcast_mail(
+        'rancher', 'notification_create_user', context, [user.email]
+    )
 
 
 @shared_task(name='waldur_rancher.sync_users')

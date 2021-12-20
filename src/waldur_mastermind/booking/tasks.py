@@ -13,8 +13,10 @@ from . import PLUGIN_NAME, calendar, utils
 )
 def send_notifications_about_upcoming_bookings():
     for info in utils.get_info_about_upcoming_bookings():
-        emails = [info['user'].email]
-        core_utils.broadcast_mail('booking', 'notification', info, emails)
+        user = info['user']
+        if not user.email or not user.notifications_enabled:
+            return
+        core_utils.broadcast_mail('booking', 'notification', info, [user.email])
 
 
 @shared_task(name='waldur_mastermind.booking.sync_bookings_to_google_calendar')

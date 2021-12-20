@@ -283,10 +283,12 @@ def send_structure_role_granted_notification(
 ):
     permission = core_utils.deserialize_instance(permission_serialized)
     structure = core_utils.deserialize_instance(structure_serialized)
-    email = permission.user.email
+    user = permission.user
 
-    if not email:
+    if not user.email or not user.notifications_enabled:
         return
 
     context = {'permission': permission, 'structure': structure}
-    core_utils.broadcast_mail('structure', 'structure_role_granted', context, [email])
+    core_utils.broadcast_mail(
+        'structure', 'structure_role_granted', context, [user.email]
+    )
