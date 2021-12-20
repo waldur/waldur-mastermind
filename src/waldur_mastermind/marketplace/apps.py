@@ -145,6 +145,7 @@ class MarketplaceConfig(AppConfig):
             enable_usage_notifications=True,
             enable_remote_support=True,
             can_update_limits=True,
+            can_terminate_order_item=True,
         )
 
         marketplace_registrators.MarketplaceRegistrator.connect()
