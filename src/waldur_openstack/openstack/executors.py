@@ -69,12 +69,16 @@ class SecurityGroupDeleteExecutor(core_executors.BaseExecutor):
         detach_task = core_tasks.BackendMethodTask().si(
             serialized_security_group, 'detach_security_group_from_all_instances'
         )
+        detach_ports_task = core_tasks.BackendMethodTask().si(
+            serialized_security_group, 'detach_security_group_from_all_ports'
+        )
         delete_task = core_tasks.BackendMethodTask().si(
             serialized_security_group, 'delete_security_group'
         )
         _tasks = [state_transition_task]
         if security_group.backend_id:
             _tasks.append(detach_task)
+            _tasks.append(detach_ports_task)
             _tasks.append(delete_task)
         return chain(*_tasks)
 
