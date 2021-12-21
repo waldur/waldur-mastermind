@@ -33,6 +33,11 @@ pull:
 class CreateProcessor(DockerExecutorMixin, processors.AbstractCreateResourceProcessor):
     hook_type = 'create'
 
+    def send_request(self, user):
+        output = super().send_request(user)
+        # return the last line of the output as a backend_id of a created resource
+        return output.split()[-1]
+
 
 class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProcessor):
     hook_type = 'update'
