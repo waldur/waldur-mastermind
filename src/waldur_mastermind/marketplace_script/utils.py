@@ -85,6 +85,7 @@ class DockerExecutorMixin:
             self.hook_type,
             self.order_item.id,
         )
+        return self.order_item.output
 
     def validate_order_item(self, request):
         options = self.order_item.offering.secret_options

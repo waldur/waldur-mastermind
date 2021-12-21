@@ -36,7 +36,8 @@ class CreateProcessor(DockerExecutorMixin, processors.AbstractCreateResourceProc
     def send_request(self, user):
         output = super().send_request(user)
         # return the last line of the output as a backend_id of a created resource
-        return output.split()[-1]
+        if output:
+            return output.split()[-1]
 
 
 class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProcessor):
