@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.urls import resolve, reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
@@ -527,7 +528,7 @@ class SharedOfferingFilter(admin.SimpleListFilter):
             return queryset
 
 
-class ResourceAdmin(admin.ModelAdmin):
+class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     form = ResourceForm
     list_display = ('uuid', 'name', 'project', 'state', 'category', 'created')
     list_filter = (
@@ -625,6 +626,23 @@ class ResourceAdmin(admin.ModelAdmin):
 
     restore_limits = RestoreLimits()
     actions = ['terminate_resources', 'restore_limits']
+
+    def get_extra_actions(self):
+        return [
+            self.create_resources_for_lost_instances_and_volumes,
+        ]
+
+    def create_resources_for_lost_instances_and_volumes(self, request):
+        from waldur_mastermind.marketplace_openstack import (
+            tasks as marketplace_openstack_tasks,
+        )
+
+        marketplace_openstack_tasks.create_resources_for_lost_instances_and_volumes.delay()
+        self.message_user(
+            request,
+            _('Сreating resources for lost instances and volumes has been scheduled.'),
+        )
+        return redirect(reverse('admin:marketplace_resource_changelist'))
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
