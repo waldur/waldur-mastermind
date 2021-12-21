@@ -18,6 +18,7 @@ class OrderItemSerializer(serializers.Serializer):
     plan_name = serializers.ReadOnlyField(source='plan.name')
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_name = serializers.ReadOnlyField(source='resource.name')
+    resource_backend_id = serializers.ReadOnlyField(source='resource.backend_id')
 
     @lru_cache(maxsize=1)
     def _get_project(self, order_item):
