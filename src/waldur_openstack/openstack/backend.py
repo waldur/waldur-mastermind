@@ -1662,6 +1662,28 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'Removed security group %s from instance %s', group_id, server_id
             )
 
+    def detach_security_group_from_all_ports(self, security_group):
+        neutron = self.neutron_admin_client
+        try:
+            remote_ports = neutron.list_ports(
+                tenant_id=security_group.tenant.backend_id
+            )['ports']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        for remote_port in remote_ports:
+            # Neutron REST API doesn't allow to filter ports by security groups
+            if security_group.backend_id not in remote_port['security_groups']:
+                continue
+            security_groups = remote_port['security_groups']
+            security_groups.remove(security_group.backend_id)
+            try:
+                neutron.update_port(
+                    remote_port['id'], {'port': {'security_groups': security_groups}},
+                )
+            except neutron_exceptions.NeutronClientException as e:
+                raise OpenStackBackendError(e)
+
     @log_backend_action()
     def update_security_group(self, security_group):
         neutron = self.neutron_client
