@@ -15,7 +15,17 @@ class InvoiceFilter(django_filters.FilterSet):
     state = django_filters.MultipleChoiceFilter(choices=models.Invoice.States.CHOICES)
     start_date = django_filters.DateFilter(field_name='created', lookup_expr='gt')
     end_date = django_filters.DateFilter(field_name='created', lookup_expr='lt')
+    min_sum = django_filters.NumberFilter(method='filter_min_sum', label='Min sum')
+    max_sum = django_filters.NumberFilter(method='filter_max_sum', label='Max sum')
     o = django_filters.OrderingFilter(fields=('created', 'year', 'month'))
+
+    def filter_min_sum(self, queryset, name, value):
+        ids = [invoice.id for invoice in queryset.all() if invoice.total >= value]
+        return queryset.filter(id__in=ids)
+
+    def filter_max_sum(self, queryset, name, value):
+        ids = [invoice.id for invoice in queryset.all() if invoice.total <= value]
+        return queryset.filter(id__in=ids)
 
     class Meta:
         model = models.Invoice
