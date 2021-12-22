@@ -1579,6 +1579,18 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'])
+    def component_usages(self, request, *args, **kwargs):
+        data = (
+            models.ComponentUsage.objects.exclude(
+                resource__state=models.Resource.States.TERMINATED
+            )
+            .values('resource__offering__uuid', 'component__type')
+            .annotate(usage=Sum('usage'))
+        )
+        serializer = serializers.ComponentUsagesStatsSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
 

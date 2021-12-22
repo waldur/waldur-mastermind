@@ -2725,3 +2725,9 @@ class CustomerStatsSerializer(serializers.Serializer):
 
     def get_count(self, record):
         return self._get_value(record, 'count')
+
+
+class ComponentUsagesStatsSerializer(serializers.Serializer):
+    usage = serializers.IntegerField()
+    offering_uuid = serializers.CharField(source='resource__offering__uuid')
+    component_type = serializers.CharField(source='component__type')
