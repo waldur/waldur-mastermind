@@ -510,7 +510,7 @@ class OfferingViewSet(
         active_customers = utils.get_active_customers(self.request, self)
         start, end = utils.get_start_and_end_dates_from_request(self.request)
         invoice_items = invoice_models.InvoiceItem.objects.filter(
-            details__offering_uuid=offering.uuid.hex,
+            resource__offering=offering,
             invoice__customer__in=active_customers,
             invoice__created__gte=start,
             invoice__created__lte=end,
