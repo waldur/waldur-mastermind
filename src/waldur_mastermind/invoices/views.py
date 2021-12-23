@@ -268,6 +268,8 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     queryset = models.InvoiceItem.objects.all()
     serializer_class = serializers.InvoiceItemDetailSerializer
     lookup_field = 'uuid'
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.InvoiceItemFilter
 
     def get_queryset(self):
         qs = super().get_queryset()

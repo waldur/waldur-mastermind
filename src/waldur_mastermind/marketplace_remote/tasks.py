@@ -204,26 +204,22 @@ class UsageListPullTask(BackgroundListPullTask):
 class ResourceInvoicePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
-        remote_customer_uuid = local_resource.offering.secret_options['customer_uuid']
         local_customer = local_resource.project.customer
         now = timezone.now()
 
         try:
-            invoice = client.get_invoice_for_customer(
-                remote_customer_uuid, now.year, now.month
+            remote_invoice_items = client.list_invoice_items(
+                {
+                    "resource_uuid": local_resource.backend_id,
+                    "year": now.year,
+                    "month": now.month,
+                }
             )
         except WaldurClientException as e:
             logger.info(
-                f'Unable to get remote invoice for customer [id={remote_customer_uuid}]: {e}'
+                f'Unable to get remote invoice items for resource [id={local_resource.backend_id}]: {e}'
             )
             return
-
-        # TODO: drop this in favor of backend filtering: https://opennode.atlassian.net/browse/WAL-4268
-        remote_invoice_items = [
-            item
-            for item in invoice['items']
-            if item['resource_uuid'] == local_resource.backend_id
-        ]
 
         local_invoice, _ = RegistrationManager.get_or_create_invoice(
             local_customer, now
