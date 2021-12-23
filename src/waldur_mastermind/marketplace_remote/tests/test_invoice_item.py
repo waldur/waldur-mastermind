@@ -63,7 +63,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
     @freeze_time('2021-08-17')
     def test_invoice_is_created_after_pull(self):
-        self.client_mock().get_invoice_for_customer.return_value = {'items': []}
+        self.client_mock().list_invoice_items.return_value = []
         today = datetime.date.today()
 
         self.assertEqual(
@@ -91,9 +91,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
     def test_invoice_items_creation(self):
         item_data = self.get_common_data()
-        self.client_mock().get_invoice_for_customer.return_value = {
-            'items': [{'resource_uuid': self.resource.backend_id, **item_data,}]
-        }
+        self.client_mock().list_invoice_items.return_value = [
+            {'resource_uuid': self.resource.backend_id, **item_data}
+        ]
         today = datetime.date.today()
         ResourceInvoicePullTask().run(serialize_instance(self.resource))
         invoice = Invoice.objects.get(
@@ -112,7 +112,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
     def test_invoice_item_deletion(self):
         item_data = self.get_common_data()
-        self.client_mock().get_invoice_for_customer.return_value = {'items': []}
+        self.client_mock().list_invoice_items.return_value = []
         invoice = InvoiceFactory(customer=self.customer)
         InvoiceItemFactory(
             invoice=invoice, resource=self.resource, **item_data,
@@ -130,10 +130,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         new_month_end = month_end(timezone.now() + datetime.timedelta(weeks=5))
         new_item_data = self.get_common_data(quantity=new_quantity, end=new_month_end)
         old_item_data = self.get_common_data()
-        self.client_mock().get_invoice_for_customer.return_value = {
-            'items': [{'resource_uuid': self.resource.backend_id, **new_item_data,}]
-        }
-
+        self.client_mock().list_invoice_items.return_value = [
+            {'resource_uuid': self.resource.backend_id, **new_item_data}
+        ]
         invoice = InvoiceFactory(customer=self.customer)
         item = InvoiceItemFactory(
             invoice=invoice, resource=self.resource, **old_item_data,
