@@ -15,7 +15,10 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_item_state
 from waldur_mastermind.marketplace.utils import create_local_resource
-from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
+from waldur_mastermind.marketplace_remote.constants import (
+    OFFERING_COMPONENT_FIELDS,
+    OFFERING_FIELDS,
+)
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
     pull_fields,
@@ -30,10 +33,56 @@ OrderItemInvertStates = {key: val for val, key in models.OrderItem.States.CHOICE
 
 
 class OfferingPullTask(BackgroundPullTask):
-    def pull(self, local_offering):
+    def pull(self, local_offering: models.Offering):
         client = get_client_for_offering(local_offering)
         remote_offering = client.get_marketplace_offering(local_offering.backend_id)
         pull_fields(OFFERING_FIELDS, local_offering, remote_offering)
+
+        remote_components = remote_offering['components']
+        local_components = local_offering.components.all()
+        remote_component_types_map = {item['type']: item for item in remote_components}
+        local_component_types = [item.type for item in local_components]
+
+        new_component_types = set(remote_component_types_map.keys()) - set(
+            local_component_types
+        )
+        stale_component_types = set(local_component_types) - set(
+            remote_component_types_map.keys()
+        )
+        existing_component_types = set(local_component_types) & set(
+            remote_component_types_map.keys()
+        )
+
+        local_offering.components.filter(type__in=stale_component_types).delete()
+        logger.info(
+            'Components %s of offering %s have been deleted',
+            stale_component_types,
+            local_offering,
+        )
+
+        for new_component_type in new_component_types:
+            remote_component = remote_component_types_map[new_component_type]
+            models.OfferingComponent.objects.create(
+                offering=local_offering,
+                **{key: remote_component[key] for key in OFFERING_COMPONENT_FIELDS},
+            )
+            logger.info(
+                'Component %s for offering %s has been created',
+                new_component_type,
+                local_offering,
+            )
+
+        for existing_component_type in existing_component_types:
+            remote_component = remote_component_types_map[existing_component_type]
+            local_component: models.OfferingComponent = local_offering.components.get(
+                type=existing_component_type
+            )
+            pull_fields(OFFERING_COMPONENT_FIELDS, local_component, remote_component)
+            logger.info(
+                'Component %s for offering %s has been created',
+                existing_component_type,
+                local_offering,
+            )
 
 
 class OfferingListPullTask(BackgroundListPullTask):
