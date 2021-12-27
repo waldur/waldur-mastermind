@@ -51,7 +51,10 @@ def create_or_update_eduteams_user(backend_user):
     except User.DoesNotExist:
         created = True
         user = User.objects.create_user(
-            username=username, registration_method='eduteams', **payload,
+            username=username,
+            registration_method='eduteams',
+            notifications_enabled=False,
+            **payload,
         )
         user.set_unusable_password()
         user.save()
