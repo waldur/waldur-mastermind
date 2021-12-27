@@ -1561,21 +1561,39 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def resources_limits(self, request, *args, **kwargs):
-        limits = [
-            r.limits
-            for r in models.Resource.objects.filter(
-                state=models.Resource.States.OK
-            ).exclude(limits={})
-        ]
-        data = {}
+        data = []
 
-        for limit in limits:
-            for name, value in limit.items():
+        for resource in (
+            models.Resource.objects.filter(state=models.Resource.States.OK)
+            .exclude(limits={})
+            .values('offering__uuid', 'limits')
+        ):
+            limits = resource['limits']
+
+            for name, value in limits.items():
                 if value > 0:
-                    if name in data:
-                        data[name] += value
+                    try:
+                        prev = next(
+                            filter(
+                                lambda x: x['offering_uuid']
+                                == resource['offering__uuid']
+                                and x['name'] == name,
+                                data,
+                            )
+                        )
+                    except StopIteration:
+                        prev = None
+
+                    if not prev:
+                        data.append(
+                            {
+                                'offering_uuid': resource['offering__uuid'],
+                                'name': name,
+                                'value': value,
+                            }
+                        )
                     else:
-                        data[name] = value
+                        prev['value'] += value
 
         return Response(data, status=status.HTTP_200_OK)
 

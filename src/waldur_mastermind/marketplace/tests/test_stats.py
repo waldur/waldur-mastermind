@@ -408,8 +408,15 @@ class CustomerStatsTest(test.APITransactionTestCase):
 class LimitsStatsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
-        factories.ResourceFactory(limits={'cpu': 5}, state=models.Resource.States.OK)
+        self.resource_1 = factories.ResourceFactory(
+            limits={'cpu': 5}, state=models.Resource.States.OK
+        )
         factories.ResourceFactory(
+            limits={'cpu': 2},
+            state=models.Resource.States.OK,
+            offering=self.resource_1.offering,
+        )
+        self.resource_2 = factories.ResourceFactory(
             limits={'cpu': 10, 'ram': 1}, state=models.Resource.States.OK
         )
         self.url = '/api/marketplace-stats/resources_limits/'
@@ -422,7 +429,26 @@ class LimitsStatsTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'cpu': 15, 'ram': 1})
+        self.assertEqual(
+            response.data,
+            [
+                {
+                    'offering_uuid': self.resource_1.offering.uuid,
+                    'name': 'cpu',
+                    'value': 7,
+                },
+                {
+                    'offering_uuid': self.resource_2.offering.uuid,
+                    'name': 'cpu',
+                    'value': 10,
+                },
+                {
+                    'offering_uuid': self.resource_2.offering.uuid,
+                    'name': 'ram',
+                    'value': 1,
+                },
+            ],
+        )
 
     @data('owner', 'user', 'customer_support', 'admin', 'manager')
     def test_user_cannot_get_marketplace_stats(self, user):
