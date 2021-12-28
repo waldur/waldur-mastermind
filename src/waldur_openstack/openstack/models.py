@@ -375,6 +375,8 @@ class Port(structure_models.SubResource, openstack_base_models.Port):
         null=True,
         blank=True,
     )
+    port_security_enabled = models.BooleanField(default=True)
+    security_groups = models.ManyToManyField(SecurityGroup, related_name='ports')
 
     @classmethod
     def get_url_name(cls):

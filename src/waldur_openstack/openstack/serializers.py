@@ -829,6 +829,12 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
+class NestedSecurityGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.SecurityGroup
+        fields = ('uuid', 'name')
+
+
 class PortSerializer(structure_serializers.BaseResourceActionSerializer):
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
@@ -842,6 +848,7 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
         many=True,
     )
     fixed_ips = serializers.JSONField(required=False)
+    security_groups = NestedSecurityGroupSerializer(many=True, read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
@@ -858,6 +865,8 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
             'floating_ips',
             'device_id',
             'device_owner',
+            'port_security_enabled',
+            'security_groups',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -868,6 +877,8 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
                 'project',
                 'device_id',
                 'device_owner',
+                'port_security_enabled',
+                'security_groups',
             )
         )
         extra_kwargs = dict(
