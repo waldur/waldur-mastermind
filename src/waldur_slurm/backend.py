@@ -38,6 +38,7 @@ class SlurmBackend(ServiceBackend):
             state=models.Allocation.States.OK
         ):
             try:
+                logger.debug('About to pull allocation %s', allocation)
                 self.add_new_users(allocation)
                 self.pull_allocation(allocation)
             except Exception as e:
@@ -123,6 +124,7 @@ class SlurmBackend(ServiceBackend):
 
         default_account = self.settings.options.get('default_account')
         if not self.client.get_association(username, account):
+            logger.info('Creating association between %s and %s', username, account)
             self.client.create_association(username, account, default_account)
             signals.slurm_association_created.send(
                 models.Allocation, allocation=allocation, user=user, username=username
@@ -140,6 +142,7 @@ class SlurmBackend(ServiceBackend):
             )
 
         if self.client.get_association(username, account):
+            logger.info('Deleting association between %s and %s', username, account)
             self.client.delete_association(username, account)
             signals.slurm_association_deleted.send(
                 models.Allocation, allocation=allocation, user=user
