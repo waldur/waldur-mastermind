@@ -684,7 +684,8 @@ class PullPortsTest(BaseBackendTestCase):
         ]
         self.port.save()
 
-    def _get_valid_new_backend_port(self, port: models.Port):
+    def _get_valid_new_backend_port(self, **kwargs):
+        port = self.port
         return dict(
             ports=[
                 {
@@ -695,11 +696,14 @@ class PullPortsTest(BaseBackendTestCase):
                     'fixed_ips': port.fixed_ips,
                     'description': port.description,
                     'mac_address': port.mac_address,
+                    'security_groups': [],
+                    'port_security_enabled': True,
+                    **kwargs,
                 }
             ]
         )
 
-    def setup_client(self, is_admin, value):
+    def setup_client(self, value):
         self.mocked_neutron().list_ports.return_value = value
 
     def call_backend(self):
@@ -707,7 +711,7 @@ class PullPortsTest(BaseBackendTestCase):
 
     def test_port_is_created_if_does_not_exists(self):
         port = self.port
-        self.setup_client(False, self._get_valid_new_backend_port(port))
+        self.setup_client(self._get_valid_new_backend_port())
         port.delete()
 
         self.call_backend()
@@ -727,7 +731,7 @@ class PullPortsTest(BaseBackendTestCase):
 
     def test_port_is_deleted_if_it_is_not_returned_by_neutron(self):
         port = self.port
-        self.setup_client(False, dict(ports=[]))
+        self.setup_client(dict(ports=[]))
 
         self.call_backend()
 
@@ -736,7 +740,7 @@ class PullPortsTest(BaseBackendTestCase):
     def test_port_is_updated(self):
         port: models.Port = self.port
 
-        self.setup_client(False, self._get_valid_new_backend_port(port))
+        self.setup_client(self._get_valid_new_backend_port())
 
         port.fixed_ips = []
         port.save()
@@ -749,3 +753,25 @@ class PullPortsTest(BaseBackendTestCase):
             port.fixed_ips,
             [{'ip_address': '192.168.11.1', 'subnet_id': self.subnet.backend_id}],
         )
+
+    def test_missing_security_groups_are_attached(self):
+        security_group = self.fixture.security_group
+        self.setup_client(
+            self._get_valid_new_backend_port(
+                security_groups=[security_group.backend_id]
+            )
+        )
+
+        self.call_backend()
+
+        self.port.refresh_from_db()
+        self.assertEqual(security_group, self.port.security_groups.get())
+
+    def test_stale_security_groups_are_detached(self):
+        self.port.security_groups.add(self.fixture.security_group)
+        self.setup_client(self._get_valid_new_backend_port(security_groups=[]))
+
+        self.call_backend()
+
+        self.port.refresh_from_db()
+        self.assertEqual(0, self.port.security_groups.count())

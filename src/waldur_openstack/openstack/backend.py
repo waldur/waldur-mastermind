@@ -655,6 +655,12 @@ class OpenStackBackend(BaseOpenStackBackend):
         networks = models.Network.objects.filter(tenant=tenant)
         network_mappings = {network.backend_id: network for network in networks}
 
+        security_groups = models.SecurityGroup.objects.filter(tenant=tenant)
+        security_group_mappings = {
+            security_group.backend_id: security_group
+            for security_group in security_groups
+        }
+
         for backend_port in backend_ports:
             backend_id = backend_port['id']
             project = structure_models.Project.all_objects.get(pk=tenant.project_id)
@@ -670,11 +676,28 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'network': network_mappings.get(backend_port['network_id']),
                 'device_id': backend_port.get('device_id'),
                 'device_owner': backend_port.get('device_owner'),
+                'port_security_enabled': backend_port.get(
+                    'port_security_enabled', True
+                ),
             }
             try:
-                models.Port.objects.update_or_create(
+                port, _ = models.Port.objects.update_or_create(
                     tenant=tenant, backend_id=backend_id, defaults=defaults
                 )
+                local_groups = set(
+                    port.security_groups.values_list('backend_id', flat=True)
+                )
+                remote_groups = set(backend_port['security_groups'])
+
+                stale_groups = local_groups - remote_groups
+                for group in port.security_groups.filter(backend_id__in=stale_groups):
+                    group.delete()
+
+                new_groups = remote_groups - local_groups
+                for group_id in new_groups:
+                    security_groups = security_group_mappings.get(group_id)
+                    if security_groups:
+                        port.security_groups.add(security_groups)
             except IntegrityError:
                 logger.warning(
                     'Could not create or update port with backend ID %s '
