@@ -19,7 +19,7 @@ class SAML2Extension(WaldurExtension):
             # full path to the xmlsec1 binary program
             'xmlsec_binary': settings['WALDUR_AUTH_SAML2']['XMLSEC_BINARY'],
             # your entity id, usually your subdomain plus the url to the metadata view
-            'entityid': settings['WALDUR_AUTH_SAML2']['BASE_URL']
+            'entityid': settings['WALDUR_CORE']['MASTERMIND_URL']
             + '/api-auth/saml2/metadata/',
             'entity_category': settings['WALDUR_AUTH_SAML2']['CATEGORIES'],
             # directory with attribute mapping
@@ -41,7 +41,7 @@ class SAML2Extension(WaldurExtension):
                         # do not change the binding or service name
                         'assertion_consumer_service': [
                             (
-                                settings['WALDUR_AUTH_SAML2']['BASE_URL']
+                                settings['WALDUR_CORE']['MASTERMIND_URL']
                                 + '/api-auth/saml2/login/complete/',
                                 saml2.BINDING_HTTP_POST,
                             ),
@@ -50,12 +50,12 @@ class SAML2Extension(WaldurExtension):
                         # do not change the binding or service name
                         'single_logout_service': [
                             (
-                                settings['WALDUR_AUTH_SAML2']['BASE_URL']
+                                settings['WALDUR_CORE']['MASTERMIND_URL']
                                 + '/api-auth/saml2/logout/complete/',
                                 saml2.BINDING_HTTP_REDIRECT,
                             ),
                             (
-                                settings['WALDUR_AUTH_SAML2']['BASE_URL']
+                                settings['WALDUR_CORE']['MASTERMIND_URL']
                                 + '/api-auth/saml2/logout/complete/',
                                 saml2.BINDING_HTTP_POST,
                             ),
