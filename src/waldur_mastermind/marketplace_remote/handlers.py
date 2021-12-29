@@ -164,3 +164,15 @@ def log_request_events(sender, instance, created=False, **kwargs):
             event_type='project_update_request_rejected',
             event_context=event_context,
         )
+
+
+def trigger_order_item_callback(sender, instance, created=False, **kwargs):
+    if not instance.callback_url:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    transaction.on_commit(
+        lambda: tasks.trigger_order_item_callback.delay(serialize_instance(instance))
+    )

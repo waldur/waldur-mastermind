@@ -1,6 +1,7 @@
 import collections
 import logging
 
+import requests
 from celery.app import shared_task
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -608,3 +609,9 @@ def clean_remote_projects():
                         f'(backend_id: {remote_project["backend_id"]}, api_url: {api_url}): {e}'
                     )
                     continue
+
+
+@shared_task
+def trigger_order_item_callback(serialized_order_item):
+    order_item = deserialize_instance(serialized_order_item)
+    requests.post(order_item.callback_url)

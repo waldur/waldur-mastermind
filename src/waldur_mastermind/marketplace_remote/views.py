@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -6,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
+from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
@@ -18,7 +20,7 @@ from waldur_mastermind.marketplace_remote.constants import (
 )
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 
-from . import filters, serializers
+from . import filters, serializers, tasks
 
 
 class RemoteView(APIView):
@@ -171,3 +173,20 @@ class ProjectUpdateRequestViewSet(ReviewViewSet):
     serializer_class = serializers.ProjectUpdateRequestSerializer
     filter_backends = [GenericRoleFilter, DjangoFilterBackend]
     filterset_class = filters.ProjectUpdateRequestFilter
+
+
+class PullOrderItemView(APIView):
+    permission_classes = []
+
+    def get_order_item(self):
+        item_uuid = self.kwargs['uuid']
+        if not is_uuid_like(item_uuid):
+            return Response(status=status.HTTP_400_BAD_REQUEST, data='UUID is invalid.')
+        qs = models.OrderItem.objects.filter(offering__type=PLUGIN_NAME).exclude(
+            state__in=models.OrderItem.States.TERMINAL_STATES
+        )
+        return get_object_or_404(qs, uuid=item_uuid)
+
+    def post(self, *args, **kwargs):
+        order_item = self.get_order_item()
+        tasks.OrderItemPullTask.apply_async(args=[serialize_instance(order_item)])

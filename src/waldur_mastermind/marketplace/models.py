@@ -1226,6 +1226,7 @@ class OrderItem(
         related_name='+',
     )
     reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
+    callback_url = models.URLField(null=True, blank=True)
 
     class Permissions:
         customer_path = 'order__project__customer'

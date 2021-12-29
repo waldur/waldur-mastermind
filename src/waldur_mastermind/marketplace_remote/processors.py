@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
+from django.urls import reverse
 from django.utils.functional import cached_property
 
 from waldur_core.core.utils import serialize_instance
@@ -18,6 +19,14 @@ class RemoteClientMixin:
     @cached_property
     def client(self):
         return utils.get_client_for_offering(self.order_item.offering)
+
+
+def build_callback_url(order_item):
+    return (
+        settings.WALDUR_CORE['MASTERMIND_URL']
+        + '/'
+        + reverse('pull_remote_order_item', kwargs={'uuid': order_item.uuid.hex})
+    )
 
 
 class RemoteCreateResourceProcessor(
@@ -37,6 +46,7 @@ class RemoteCreateResourceProcessor(
             plan_uuid=self.order_item.plan.backend_id,
             attributes=self.order_item.attributes,
             limits=self.order_item.limits,
+            callback_url=build_callback_url(self.order_item),
         )
         # NB: As a backend_id of local OrderItem, uuid of a remote Order is used
         self.order_item.backend_id = response['uuid']
@@ -61,7 +71,9 @@ class RemoteUpdateResourceProcessor(
 ):
     def update_limits_process(self, user):
         response = self.client.marketplace_resource_update_limits_order(
-            self.order_item.resource.backend_id, self.order_item.limits,
+            self.order_item.resource.backend_id,
+            self.order_item.limits,
+            callback_url=build_callback_url(self.order_item),
         )
         self.order_item.backend_id = response
         self.order_item.save()
@@ -80,7 +92,8 @@ class RemoteDeleteResourceProcessor(
 ):
     def send_request(self, user, resource):
         response = self.client.marketplace_resource_terminate_order(
-            self.order_item.resource.backend_id
+            self.order_item.resource.backend_id,
+            callback_url=build_callback_url(self.order_item),
         )
         self.order_item.backend_id = response
         self.order_item.save()

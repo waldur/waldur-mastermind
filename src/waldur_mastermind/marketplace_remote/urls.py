@@ -10,6 +10,11 @@ urlpatterns = [
     url(
         r'^api/remote-waldur-api/import_offering/$', views.OfferingCreateView.as_view(),
     ),
+    url(
+        r'^api/remote-waldur-api/pull_order_item/(?P<uuid>[a-f0-9]+)$',
+        views.PullOrderItemView.as_view(),
+        name='pull_remote_order_item',
+    ),
 ]
 
 

@@ -1569,6 +1569,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
             'error_message',
             'error_traceback',
             'accepting_terms_of_service',
+            'callback_url',
         )
 
         read_only_fields = (
@@ -1578,7 +1579,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
             'error_traceback',
             'output',
         )
-        protected_fields = ('offering', 'plan')
+        protected_fields = ('offering', 'plan', 'callback_url')
 
     marketplace_resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_name = serializers.ReadOnlyField(source='resource.name')
