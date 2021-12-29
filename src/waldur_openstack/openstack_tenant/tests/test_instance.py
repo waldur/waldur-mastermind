@@ -1,6 +1,5 @@
 import uuid
 from unittest import mock
-from urllib.parse import urlencode
 
 from celery import Signature
 from cinderclient import exceptions as cinder_exceptions
@@ -12,6 +11,7 @@ from rest_framework import status, test
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.common.utils import delete_request
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_tenant import executors, models, views
@@ -491,11 +491,11 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         )
         self.instance.increase_backend_quotas_usage()
         self.mocked_nova().servers.get.side_effect = nova_exceptions.NotFound(code=404)
-        views.InstanceViewSet.async_executor = False
+        views.DeletableInstanceViewSet.async_executor = False
 
     def tearDown(self):
         super(InstanceDeleteTest, self).tearDown()
-        views.InstanceViewSet.async_executor = True
+        views.DeletableInstanceViewSet.async_executor = True
 
     def mock_volumes(self, delete_data_volume=True):
         self.data_volume = self.instance.volumes.get(bootable=False)
@@ -519,21 +519,23 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
         self.mocked_cinder().volumes.get.side_effect = get_volume
 
-    def delete_instance(self, query_params=None):
-        staff = structure_factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff)
-
-        url = factories.InstanceFactory.get_url(self.instance)
-        if query_params:
-            url += '?' + urlencode(query_params)
+    def delete_instance(self, query_params=None, check_status_code=True):
+        user = structure_factories.UserFactory(is_staff=True)
+        view = views.DeletableInstanceViewSet.as_view({'delete': 'destroy'})
 
         with override_settings(
             CELERY_ALWAYS_EAGER=True, CELERY_EAGER_PROPAGATES_EXCEPTIONS=True
         ):
-            response = self.client.delete(url)
-            self.assertEqual(
-                response.status_code, status.HTTP_202_ACCEPTED, response.data
+            response = delete_request(
+                view, user, uuid=self.instance.uuid.hex, query_params=query_params
             )
+
+            if check_status_code:
+                self.assertEqual(
+                    response.status_code, status.HTTP_202_ACCEPTED, response.data
+                )
+
+            return response
 
     def assert_quota_usage(self, quotas, name, value):
         self.assertEqual(quotas.get(name=name).usage, value)
@@ -612,14 +614,8 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
             backend_id='VALID_ID',
         )
-        staff = structure_factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff)
-
         factories.BackupFactory(instance=self.instance, state=models.Backup.States.OK)
-        url = factories.InstanceFactory.get_url(self.instance)
-
-        response = self.client.delete(url)
-
+        response = self.delete_instance(check_status_code=False)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
 
     def test_neutron_methods_are_called_if_instance_is_deleted_with_floating_ips(self):
@@ -678,20 +674,12 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         # Assert
         self.assertIsInstance(signature, Signature)
 
-    @mock.patch(
-        'waldur_openstack.openstack_tenant.views.executors.InstanceDeleteExecutor'
-    )
-    def test_force_delete_instance(self, mock_delete_executor):
+    def test_delete_instance_via_openstack(self):
         staff = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=staff)
-
-        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
-        self.instance.save()
-
-        url = factories.InstanceFactory.get_url(self.instance, 'force_destroy')
+        url = factories.InstanceFactory.get_url(self.instance)
         response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
-        self.assertEqual(mock_delete_executor.execute.call_count, 1)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 class InstanceCreateBackupSchedule(test.APITransactionTestCase):

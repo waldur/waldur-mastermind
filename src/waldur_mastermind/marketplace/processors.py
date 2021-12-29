@@ -310,8 +310,10 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
         return self.order_item.resource.scope
 
     def send_request(self, user, resource):
-        view = self.get_viewset().as_view({'delete': 'destroy'})
         delete_attributes = self.order_item.attributes
+        action = delete_attributes.get('action', 'destroy')
+        action = action if hasattr(self.get_viewset(), action) else 'destroy'
+        view = self.get_viewset().as_view({'delete': action})
         # Delete resource processor operates with scoped resources
 
         response = common_utils.delete_request(

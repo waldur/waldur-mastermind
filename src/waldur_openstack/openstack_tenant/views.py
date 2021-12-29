@@ -449,56 +449,8 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             _('Instance should be shutoff and OK or erred. ' 'Please contact support.')
         )
 
-    def destroy(self, request, uuid=None):
-        """
-        Deletion of an instance is done through sending a **DELETE** request to the instance URI.
-        Valid request example (token is user specific):
-
-        .. code-block:: http
-
-            DELETE /api/openstacktenant-instances/abceed63b8e844afacd63daeac855474/ HTTP/1.1
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-        Only stopped instances or instances in ERRED state can be deleted.
-
-        By default when instance is destroyed, all data volumes
-        attached to it are destroyed too. In order to preserve data
-        volumes use query parameter ?delete_volumes=false
-        In this case data volumes are detached from the instance and
-        then instance is destroyed. Note that system volume is deleted anyway.
-        For example:
-
-        .. code-block:: http
-
-            DELETE /api/openstacktenant-instances/abceed63b8e844afacd63daeac855474/?delete_volumes=false HTTP/1.1
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-        """
-        serializer = self.get_serializer(
-            data=request.query_params, instance=self.get_object()
-        )
-        serializer.is_valid(raise_exception=True)
-        delete_volumes = serializer.validated_data['delete_volumes']
-        release_floating_ips = serializer.validated_data['release_floating_ips']
-
-        resource = self.get_object()
-        force = resource.state == models.Instance.States.ERRED
-        executors.InstanceDeleteExecutor.execute(
-            resource,
-            force=force,
-            delete_volumes=delete_volumes,
-            release_floating_ips=release_floating_ips,
-            is_async=self.async_executor,
-        )
-
-        return response.Response(
-            {'status': _('destroy was scheduled')}, status=status.HTTP_202_ACCEPTED
-        )
-
-    destroy_validators = [_can_destroy_instance, _has_backups]
-    destroy_serializer_class = serializers.InstanceDeleteSerializer
+    def destroy(self, request, *args, **kwargs):
+        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @decorators.action(detail=True, methods=['post'])
     def change_flavor(self, request, uuid=None):
@@ -783,6 +735,68 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     console_log_serializer_class = serializers.ConsoleLogSerializer
     console_log_permissions = [structure_permissions.is_administrator]
 
+
+class DeletableInstanceViewSet(structure_views.ResourceViewSet):
+    queryset = models.Instance.objects.all()
+    serializer_class = serializers.InstanceSerializer
+    filter_backends = structure_views.ResourceViewSet.filter_backends + (
+        structure_filters.StartTimeFilter,
+    )
+
+    def destroy(self, request, uuid=None):
+        """
+        Deletion of an instance is done through sending a **DELETE** request to the instance URI.
+        Valid request example (token is user specific):
+
+        .. code-block:: http
+
+            DELETE /api/openstacktenant-instances/abceed63b8e844afacd63daeac855474/ HTTP/1.1
+            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
+            Host: example.com
+
+        Only stopped instances or instances in ERRED state can be deleted.
+
+        By default when instance is destroyed, all data volumes
+        attached to it are destroyed too. In order to preserve data
+        volumes use query parameter ?delete_volumes=false
+        In this case data volumes are detached from the instance and
+        then instance is destroyed. Note that system volume is deleted anyway.
+        For example:
+
+        .. code-block:: http
+
+            DELETE /api/openstacktenant-instances/abceed63b8e844afacd63daeac855474/?delete_volumes=false HTTP/1.1
+            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
+            Host: example.com
+
+        """
+        serializer = self.get_serializer(
+            data=request.query_params, instance=self.get_object()
+        )
+        serializer.is_valid(raise_exception=True)
+        delete_volumes = serializer.validated_data['delete_volumes']
+        release_floating_ips = serializer.validated_data['release_floating_ips']
+
+        resource = self.get_object()
+        force = resource.state == models.Instance.States.ERRED
+        executors.InstanceDeleteExecutor.execute(
+            resource,
+            force=force,
+            delete_volumes=delete_volumes,
+            release_floating_ips=release_floating_ips,
+            is_async=self.async_executor,
+        )
+
+        return response.Response(
+            {'status': _('destroy was scheduled')}, status=status.HTTP_202_ACCEPTED
+        )
+
+    destroy_validators = [
+        InstanceViewSet._can_destroy_instance,
+        InstanceViewSet._has_backups,
+    ]
+    destroy_serializer_class = serializers.InstanceDeleteSerializer
+
     @decorators.action(detail=True, methods=['delete'])
     def force_destroy(self, request, uuid=None):
         """This action completely repeats 'destroy', with the exclusion of validators.
@@ -792,9 +806,9 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return self.destroy(request, uuid)
 
     force_destroy_validators = [
-        _has_backups,
+        InstanceViewSet._has_backups,
         core_validators.StateValidator(
-            models.Instance.States.OK, models.Instance.States.ERRED
+            models.Instance.States.OK, models.Instance.States.ERRED,
         ),
     ]
     force_destroy_serializer_class = destroy_serializer_class

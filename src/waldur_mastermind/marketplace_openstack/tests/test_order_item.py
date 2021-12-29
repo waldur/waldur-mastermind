@@ -496,6 +496,25 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         )
         self.assertRaises(ObjectDoesNotExist, self.instance.refresh_from_db)
 
+    def test_force_destroy_is_scheduled(self):
+        self.instance.runtime_state = (
+            openstack_tenant_models.Instance.RuntimeStates.ACTIVE
+        )
+        self.instance.save()
+        self.order_item.attributes = {'action': 'force_destroy'}
+        self.order_item.save()
+        self.trigger_deletion()
+        self.assertEqual(
+            self.order_item.state, marketplace_models.OrderItem.States.EXECUTING
+        )
+        self.assertEqual(
+            self.resource.state, marketplace_models.Resource.States.TERMINATING
+        )
+        self.assertEqual(
+            self.instance.state,
+            openstack_tenant_models.Instance.States.DELETION_SCHEDULED,
+        )
+
     def trigger_deletion(self):
         process_order(self.order_item.order, self.fixture.staff)
 
