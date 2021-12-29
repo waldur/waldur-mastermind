@@ -1,13 +1,14 @@
 import uuid
 from unittest import mock
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import test
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.models import CustomerRole
-from waldur_core.structure.tests.factories import ProjectFactory
+from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks
@@ -272,3 +273,56 @@ class DeleteRemoteProjectsTest(test.APITransactionTestCase):
         mock_client().delete_project.assert_called_once_with(
             '7f906264d0704af1b6589c65269e4357'
         )
+
+
+class OfferingUserPullTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.offering = factories.OfferingFactory(
+            secret_options={'api_url': 'api_url', 'token': 'token'}
+        )
+
+    @mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
+    def test_offering_user_is_skipped_if_there_is_no_user_in_local_db(
+        self, mock_client
+    ):
+        mock_client().list_remote_offering_users.return_value = [
+            {'user_username': 'alice@myaccessid.org', 'username': 'alice'}
+        ]
+        tasks.OfferingUserPullTask().pull(self.offering)
+
+    @mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
+    def test_missing_offering_user_is_created_if_there_is_user_in_local_db(
+        self, mock_client
+    ):
+        user = UserFactory(username='alice@myaccessid.org')
+        mock_client().list_remote_offering_users.return_value = [
+            {'user_username': 'alice@myaccessid.org', 'username': 'alice'}
+        ]
+        tasks.OfferingUserPullTask().pull(self.offering)
+        self.assertEqual(
+            models.OfferingUser.objects.get(user=user, offering=self.offering).username,
+            'alice',
+        )
+
+    @mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
+    def test_stale_offering_user_is_deleted(self, mock_client):
+        user = UserFactory(username='alice@myaccessid.org')
+        offering_user = models.OfferingUser.objects.create(
+            user=user, offering=self.offering, username='alice'
+        )
+        mock_client().list_remote_offering_users.return_value = []
+        tasks.OfferingUserPullTask().pull(self.offering)
+        self.assertRaises(ObjectDoesNotExist, offering_user.refresh_from_db)
+
+    @mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
+    def test_existing_offering_user_is_updated(self, mock_client):
+        user = UserFactory(username='alice@myaccessid.org')
+        offering_user = models.OfferingUser.objects.create(
+            user=user, offering=self.offering, username='bob'
+        )
+        mock_client().list_remote_offering_users.return_value = [
+            {'user_username': 'alice@myaccessid.org', 'username': 'alice'}
+        ]
+        tasks.OfferingUserPullTask().pull(self.offering)
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, 'alice')

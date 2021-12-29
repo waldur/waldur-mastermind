@@ -108,9 +108,7 @@ class OfferingUserPullTask(BackgroundPullTask):
                 offering=local_offering
             )
         }
-        usernames = set(remote_offering_users.values()) | set(
-            local_offering_users.keys()
-        )
+        usernames = set(remote_offering_users.keys()) | set(local_offering_users.keys())
         user_map = {
             user.username: user
             for user in models.User.objects.filter(username__in=usernames)
@@ -118,6 +116,13 @@ class OfferingUserPullTask(BackgroundPullTask):
 
         missing = set(remote_offering_users.keys()) - set(local_offering_users.keys())
         for local_username in missing:
+            if local_username not in user_map:
+                logger.debug(
+                    'Skipping missing offering user synchronization because user '
+                    'with username %s is not available in the local database.',
+                    local_username,
+                )
+                continue
             user = user_map[local_username]
             models.OfferingUser.objects.create(
                 user=user,
