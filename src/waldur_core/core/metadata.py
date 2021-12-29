@@ -186,6 +186,9 @@ class WaldurCore(BaseModel):
         'https://example.com/',
         description='It is used for rendering callback URL in HomePort.',
     )
+    MASTERMIND_URL = Field(
+        '', description='It is used for rendering callback URL in MasterMind.',
+    )
     ENABLE_GEOIP = Field(
         True, description='Enable detection of coordinates of virtual machines.'
     )
@@ -288,6 +291,7 @@ class WaldurCore(BaseModel):
             'SITE_ADDRESS',
             'SITE_PHONE',
             'SITE_DESCRIPTION',
+            'MASTERMIND_URL',
             'AUTHENTICATION_METHODS',
             'INVITATIONS_ENABLED',
             'VALIDATE_INVITATION_EMAIL',
@@ -627,10 +631,6 @@ class WaldurAuthSAML2(BaseModel):
     XMLSEC_BINARY = Field(
         '/usr/bin/xmlsec1', description='Full path to the xmlsec1 binary program'
     )
-    BASE_URL = Field(
-        '',
-        description='URL required for assertion consumer, single logout services and entity ID',
-    )
     ATTRIBUTE_MAP_DIR = Field('', description='Directory with attribute mapping')
     DEBUG = Field(False, description='Set to True to output debugging information')
     IDP_METADATA_LOCAL = Field([], description='IdPs metadata XML files stored locally')
@@ -716,7 +716,6 @@ class WaldurAuthSAML2(BaseModel):
             'IDENTITY_PROVIDER_LABEL',
             'DISCOVERY_SERVICE_URL',
             'DISCOVERY_SERVICE_LABEL',
-            'BASE_URL',
         ]
 
 
