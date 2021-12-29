@@ -76,7 +76,7 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
 
 
 class InstanceDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = tenant_views.InstanceViewSet
+    viewset = tenant_views.DeletableInstanceViewSet
 
 
 class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
