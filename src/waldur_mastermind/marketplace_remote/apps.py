@@ -7,7 +7,7 @@ class MarketplaceRemoteConfig(AppConfig):
     verbose_name = 'Remote Marketplace'
 
     def ready(self):
-        from waldur_mastermind.marketplace import plugins
+        from waldur_mastermind.marketplace import models, plugins
         from waldur_mastermind.marketplace_remote import PLUGIN_NAME
         from waldur_mastermind.marketplace_remote import processors
         from waldur_core.structure import signals as structure_signals
@@ -77,4 +77,10 @@ class MarketplaceRemoteConfig(AppConfig):
             handlers.delete_remote_project,
             sender=Project,
             dispatch_uid='marketplace_remote.delete_remote_project',
+        )
+
+        signals.post_save.connect(
+            handlers.trigger_order_item_callback,
+            sender=models.OrderItem,
+            dispatch_uid='marketplace_remote.trigger_order_item_notification',
         )
