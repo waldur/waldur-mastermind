@@ -159,13 +159,17 @@ class UserDetailsMixin(models.Model):
         help_text="Person's affiliation within organization such as student, faculty, staff.",
     )
 
-    def _process_saml2_affiliations(self, affiliations):
+    def _process_saml2_affiliations(self, affiliations) -> bool:
         """
         Due to djangosaml2 assumption that attributes list should have at most one element
         we have to implement custom method to process affiliations fetched from SAML2 IdP.
-        See also: https://github.com/peppelinux/djangosaml2/issues/28
+        See also: https://github.com/IdentityPython/djangosaml2/issues/28
+        Return true to indicate if value has been changed or not.
         """
-        self.affiliations = affiliations
+        if self.affiliations != affiliations:
+            self.affiliations = affiliations
+            return True
+        return False
 
 
 @reversion.register()
