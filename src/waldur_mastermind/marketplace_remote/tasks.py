@@ -345,7 +345,9 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
     pull_task = ResourceInvoicePullTask
 
     def get_pulled_objects(self):
-        return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+        return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
+            state=models.Resource.States.TERMINATED
+        )
 
 
 @shared_task(
