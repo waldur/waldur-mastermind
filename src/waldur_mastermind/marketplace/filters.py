@@ -439,13 +439,13 @@ class ComponentUsageFilter(django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(
         field_name='resource__project__customer__uuid'
     )
-    date_before = django_filters.DateFilter(field_name='date', lookup_expr='lte')
-    date_after = django_filters.DateFilter(field_name='date', lookup_expr='gte')
+    date_before = django_filters.DateFilter(field_name='date__date', lookup_expr='lte')
+    date_after = django_filters.DateFilter(field_name='date__date', lookup_expr='gte')
     type = django_filters.CharFilter(field_name='component__type')
 
     class Meta:
         model = models.ComponentUsage
-        fields = []
+        fields = ['billing_period']
 
 
 class OfferingReferralFilter(django_filters.FilterSet):
