@@ -190,3 +190,29 @@ class PullOrderItemView(APIView):
     def post(self, *args, **kwargs):
         order_item = self.get_order_item()
         tasks.OrderItemPullTask.apply_async(args=[serialize_instance(order_item)])
+
+
+def offering_action(task):
+    def wrapper(request, uuid):
+        qs = models.Offering.objects.filter(type=PLUGIN_NAME)
+        offering = get_object_or_404(qs, uuid=uuid)
+        permissions.user_is_service_provider_owner_or_service_provider_manager(
+            request, None, offering
+        )
+        task.delay(serialize_instance(offering))
+        return Response(status=status.HTTP_200_OK)
+
+    return wrapper
+
+
+pull_offering_details = offering_action(tasks.OfferingPullTask())
+
+pull_offering_users = offering_action(tasks.OfferingUserPullTask())
+
+pull_offering_resources = offering_action(tasks.pull_offering_resources)
+
+pull_offering_order_items = offering_action(tasks.pull_offering_order_items)
+
+pull_offering_usage = offering_action(tasks.pull_offering_usage)
+
+pull_offering_invoices = offering_action(tasks.pull_offering_invoices)

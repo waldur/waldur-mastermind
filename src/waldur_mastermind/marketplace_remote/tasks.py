@@ -8,7 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.utils import dateparse, timezone
 from waldur_client import WaldurClient, WaldurClientException
 
-from waldur_core.core.utils import deserialize_instance
+from waldur_core.core.utils import deserialize_instance, serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.invoices import models as invoice_models
@@ -179,6 +179,14 @@ class ResourceListPullTask(BackgroundListPullTask):
         )
 
 
+@shared_task
+def pull_offering_resources(serialized_offering):
+    offering = deserialize_instance(serialized_offering)
+    resources = models.Resource.objects.filter(offering=offering)
+    for resource in resources:
+        ResourcePullTask().delay(serialize_instance(resource))
+
+
 class OrderItemPullTask(BackgroundPullTask):
     def pull(self, local_order_item):
         if not local_order_item.backend_id:
@@ -220,6 +228,18 @@ class OrderItemListPullTask(BackgroundListPullTask):
         )
 
 
+@shared_task
+def pull_offering_order_items(serialized_offering):
+    offering = deserialize_instance(serialized_offering)
+    order_items = (
+        models.OrderItem.objects.filter(offering=offering)
+        .exclude(state__in=models.OrderItem.States.TERMINAL_STATES)
+        .exclude(backend_id='')
+    )
+    for order_item in order_items:
+        OrderItemPullTask().delay(serialize_instance(order_item))
+
+
 class UsagePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
@@ -254,6 +274,14 @@ class UsageListPullTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+
+
+@shared_task
+def pull_offering_usage(serialized_offering):
+    offering = deserialize_instance(serialized_offering)
+    resources = models.Resource.objects.filter(offering=offering)
+    for resource in resources:
+        UsagePullTask().delay(serialize_instance(resource))
 
 
 class ResourceInvoicePullTask(BackgroundPullTask):
@@ -348,6 +376,16 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
         return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
             state=models.Resource.States.TERMINATED
         )
+
+
+@shared_task
+def pull_offering_invoices(serialized_offering):
+    offering = deserialize_instance(serialized_offering)
+    resources = models.Resource.objects.filter(offering=offering).exclude(
+        state=models.Resource.States.TERMINATED
+    )
+    for resource in resources:
+        ResourceInvoicePullTask().delay(serialize_instance(resource))
 
 
 @shared_task(
