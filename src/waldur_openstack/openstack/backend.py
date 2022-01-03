@@ -1580,8 +1580,10 @@ class OpenStackBackend(BaseOpenStackBackend):
                     }
                 )
 
-                nc_rule.backend_id = sec_group_rule['security_group_rule']['id']
-                nc_rule.save(update_fields=['backend_id'])
+                new_backend_id = sec_group_rule['security_group_rule']['id']
+                if new_backend_id != nc_rule.backend_id:
+                    nc_rule.backend_id = new_backend_id
+                    nc_rule.save(update_fields=['backend_id'])
             except neutron_exceptions.NeutronClientException as e:
                 logger.exception(
                     'Failed to create rule %s for security group %s in backend',
