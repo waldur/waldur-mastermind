@@ -15,6 +15,30 @@ urlpatterns = [
         views.PullOrderItemView.as_view(),
         name='pull_remote_order_item',
     ),
+    url(
+        r'^api/remote-waldur-api/pull_offering_details/(?P<uuid>[a-f0-9]+)/$',
+        views.pull_offering_details,
+    ),
+    url(
+        r'^api/remote-waldur-api/pull_offering_users/(?P<uuid>[a-f0-9]+)/$',
+        views.pull_offering_users,
+    ),
+    url(
+        r'^api/remote-waldur-api/pull_offering_resources/(?P<uuid>[a-f0-9]+)/$',
+        views.pull_offering_resources,
+    ),
+    url(
+        r'^api/remote-waldur-api/pull_offering_order_items/(?P<uuid>[a-f0-9]+)/$',
+        views.pull_offering_order_items,
+    ),
+    url(
+        r'^api/remote-waldur-api/pull_offering_usage/(?P<uuid>[a-f0-9]+)/$',
+        views.pull_offering_usage,
+    ),
+    url(
+        r'^api/remote-waldur-api/pull_offering_invoices/(?P<uuid>[a-f0-9]+)/$',
+        views.pull_offering_invoices,
+    ),
 ]
 
 
