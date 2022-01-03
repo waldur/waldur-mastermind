@@ -278,9 +278,9 @@ class ProfileStatusTest(test.APITransactionTestCase):
 
     def test_profile_is_enabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
-        mock_client().user_find.return_value = [
-            {'username': self.profile.username, 'disabled': True}
-        ]
+        mock_client().user_find.return_value = {
+            'result': [{'uid': [self.profile.username], 'nsaccountlock': True}]
+        }
 
         FreeIPABackend().synchronize_groups()
 
@@ -288,9 +288,9 @@ class ProfileStatusTest(test.APITransactionTestCase):
 
     def test_profile_is_disabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
-        mock_client().user_find.return_value = [
-            {'username': self.profile.username, 'disabled': False}
-        ]
+        mock_client().user_find.return_value = {
+            'result': [{'uid': [self.profile.username], 'nsaccountlock': False}]
+        }
 
         FreeIPABackend().synchronize_groups()
 
@@ -298,9 +298,9 @@ class ProfileStatusTest(test.APITransactionTestCase):
 
     def test_profile_is_not_disabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
-        mock_client().user_find.return_value = [
-            {'username': self.profile.username, 'disabled': True}
-        ]
+        mock_client().user_find.return_value = {
+            'result': [{'uid': [self.profile.username], 'nsaccountlock': True}]
+        }
 
         FreeIPABackend().synchronize_groups()
 
@@ -309,9 +309,9 @@ class ProfileStatusTest(test.APITransactionTestCase):
 
     def test_profile_is_not_enabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
-        mock_client().user_find.return_value = [
-            {'username': self.profile.username, 'disabled': False}
-        ]
+        mock_client().user_find.return_value = {
+            'result': [{'uid': [self.profile.username], 'nsaccountlock': False}]
+        }
 
         FreeIPABackend().synchronize_groups()
 
@@ -320,7 +320,7 @@ class ProfileStatusTest(test.APITransactionTestCase):
 
     def test_profile_is_skipped(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
-        mock_client().user_find.return_value = []
+        mock_client().user_find.return_value = {'result': []}
 
         FreeIPABackend().synchronize_groups()
 

@@ -216,8 +216,9 @@ class GroupSynchronizer:
             self.client.group_del(group)
 
     def sync_user_status(self):
+        remote_users = self.client.user_find()['result']
         remote_user_status = {
-            user['username']: not user['disabled'] for user in self.client.user_find()
+            user['uid'][0]: not user['nsaccountlock'] for user in remote_users
         }
         for profile in models.Profile.objects.all():
             utils.renew_task_status()
