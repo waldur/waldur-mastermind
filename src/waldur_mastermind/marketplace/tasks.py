@@ -114,7 +114,7 @@ def filter_aggregate_by_scope(queryset, scope):
 
 def aggregate_reported_usage(start, end, scope):
     queryset = models.ComponentUsage.objects.filter(
-        date__gte=start, date__lte=end
+        date__date__gte=start, date__date__lte=end
     ).exclude(component__parent=None)
 
     queryset = filter_aggregate_by_scope(queryset, scope)
