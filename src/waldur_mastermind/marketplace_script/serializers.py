@@ -8,6 +8,8 @@ from waldur_core.structure import models as structure_models
 class OrderItemSerializer(serializers.Serializer):
     attributes = serializers.ReadOnlyField()
     limits = serializers.ReadOnlyField()
+    creator_email = serializers.ReadOnlyField(source='order.created_by.email')
+    creator_username = serializers.ReadOnlyField(source='order.created_by.username')
     project_uuid = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
     customer_uuid = serializers.SerializerMethodField()
