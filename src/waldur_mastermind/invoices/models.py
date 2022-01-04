@@ -224,6 +224,9 @@ class InvoiceItem(
     previous billing period until resource is terminated.
     """
 
+    class Permissions:
+        customer_path = 'invoice__customer'
+
     invoice = models.ForeignKey(
         on_delete=models.CASCADE, to=Invoice, related_name='items'
     )
