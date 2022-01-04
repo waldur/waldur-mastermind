@@ -2290,11 +2290,11 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
     offering_name = serializers.ReadOnlyField(source='resource.offering.name')
     offering_uuid = serializers.ReadOnlyField(source='resource.offering.uuid')
 
-    project_name = serializers.ReadOnlyField(source='resource.project.name')
-    project_uuid = serializers.ReadOnlyField(source='resource.project.uuid')
+    project_uuid = serializers.SerializerMethodField()
+    project_name = serializers.SerializerMethodField()
 
-    customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
-    customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
+    customer_name = serializers.SerializerMethodField()
+    customer_uuid = serializers.SerializerMethodField()
 
     class Meta(BaseComponentUsageSerializer.Meta):
         fields = BaseComponentUsageSerializer.Meta.fields + (
@@ -2309,6 +2309,26 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             'recurring',
             'billing_period',
         )
+
+    def get_project_uuid(self, instance):
+        return structure_models.Project.all_objects.get(
+            id=instance.resource.project_id
+        ).uuid
+
+    def get_project_name(self, instance):
+        return structure_models.Project.all_objects.get(
+            id=instance.resource.project_id
+        ).name
+
+    def get_customer_uuid(self, instance):
+        return structure_models.Project.all_objects.get(
+            id=instance.resource.project_id
+        ).customer.uuid
+
+    def get_customer_name(self, instance):
+        return structure_models.Project.all_objects.get(
+            id=instance.resource.project_id
+        ).customer.name
 
 
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
