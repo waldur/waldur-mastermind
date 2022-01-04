@@ -22,10 +22,8 @@ class RemoteClientMixin:
 
 
 def build_callback_url(order_item):
-    return (
-        settings.WALDUR_CORE['MASTERMIND_URL']
-        + '/'
-        + reverse('pull_remote_order_item', kwargs={'uuid': order_item.uuid.hex})
+    return settings.WALDUR_CORE['MASTERMIND_URL'] + reverse(
+        'pull_remote_order_item', kwargs={'uuid': order_item.uuid.hex}
     )
 
 
