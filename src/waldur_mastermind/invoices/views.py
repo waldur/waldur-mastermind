@@ -265,18 +265,11 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
     disabled_actions = ['create']
-    queryset = models.InvoiceItem.objects.all()
+    queryset = models.InvoiceItem.objects.all().order_by('start')
     serializer_class = serializers.InvoiceItemDetailSerializer
     lookup_field = 'uuid'
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.InvoiceItemFilter
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        if self.request.user.is_staff:
-            return qs
-        else:
-            return qs.none()
 
     @transaction.atomic
     @action(detail=True, methods=['post'])
