@@ -13,6 +13,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.registrators import RegistrationManager
+from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_item_state
 from waldur_mastermind.marketplace.utils import create_local_resource
@@ -286,16 +287,18 @@ def pull_offering_usage(serialized_offering):
 
 class ResourceInvoicePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
+        for date in (get_previous_month(), timezone.now()):
+            self.pull_date(date, local_resource)
+
+    def pull_date(self, date, local_resource):
         client = get_client_for_offering(local_resource.offering)
         local_customer = local_resource.project.customer
-        now = timezone.now()
-
         try:
             remote_invoice_items = client.list_invoice_items(
                 {
                     "resource_uuid": local_resource.backend_id,
-                    "year": now.year,
-                    "month": now.month,
+                    "year": date.year,
+                    "month": date.month,
                 }
             )
         except WaldurClientException as e:
@@ -305,7 +308,7 @@ class ResourceInvoicePullTask(BackgroundPullTask):
             return
 
         local_invoice, _ = RegistrationManager.get_or_create_invoice(
-            local_customer, now
+            local_customer, date
         )
         local_invoice_items = local_invoice.items.filter(resource=local_resource)
         local_item_names = set([item.name for item in local_invoice_items])
