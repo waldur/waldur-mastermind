@@ -17,27 +17,27 @@ urlpatterns = [
     ),
     url(
         r'^api/remote-waldur-api/pull_offering_details/(?P<uuid>[a-f0-9]+)/$',
-        views.pull_offering_details,
+        views.PullOfferingDetails.as_view(),
     ),
     url(
         r'^api/remote-waldur-api/pull_offering_users/(?P<uuid>[a-f0-9]+)/$',
-        views.pull_offering_users,
+        views.PullOfferingUsers.as_view(),
     ),
     url(
         r'^api/remote-waldur-api/pull_offering_resources/(?P<uuid>[a-f0-9]+)/$',
-        views.pull_offering_resources,
+        views.PullOfferingResources.as_view(),
     ),
     url(
         r'^api/remote-waldur-api/pull_offering_order_items/(?P<uuid>[a-f0-9]+)/$',
-        views.pull_offering_order_items,
+        views.PullOfferingOrderItems.as_view(),
     ),
     url(
         r'^api/remote-waldur-api/pull_offering_usage/(?P<uuid>[a-f0-9]+)/$',
-        views.pull_offering_usage,
+        views.PullOfferingUsage.as_view(),
     ),
     url(
         r'^api/remote-waldur-api/pull_offering_invoices/(?P<uuid>[a-f0-9]+)/$',
-        views.pull_offering_invoices,
+        views.PullOfferingInvoices.as_view(),
     ),
 ]
 

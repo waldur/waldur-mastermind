@@ -2,13 +2,15 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models, permissions, plugins
@@ -192,27 +194,39 @@ class PullOrderItemView(APIView):
         tasks.OrderItemPullTask.apply_async(args=[serialize_instance(order_item)])
 
 
-def offering_action(task):
-    def wrapper(request, uuid):
+class OfferingActionView(APIView):
+    def post(self, request, uuid):
         qs = models.Offering.objects.filter(type=PLUGIN_NAME)
         offering = get_object_or_404(qs, uuid=uuid)
-        permissions.user_is_service_provider_owner_or_service_provider_manager(
-            request, None, offering
-        )
-        task.delay(serialize_instance(offering))
+        if not structure_permissions._has_owner_access(
+            request.user, offering.customer
+        ) and not offering.customer.has_user(
+            request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
+        ):
+            raise PermissionDenied()
+        self.task.delay(serialize_instance(offering))
         return Response(status=status.HTTP_200_OK)
 
-    return wrapper
+
+class PullOfferingDetails(OfferingActionView):
+    task = tasks.OfferingPullTask()
 
 
-pull_offering_details = offering_action(tasks.OfferingPullTask())
+class PullOfferingUsers(OfferingActionView):
+    task = tasks.OfferingUserPullTask()
 
-pull_offering_users = offering_action(tasks.OfferingUserPullTask())
 
-pull_offering_resources = offering_action(tasks.pull_offering_resources)
+class PullOfferingResources(OfferingActionView):
+    task = tasks.pull_offering_resources
 
-pull_offering_order_items = offering_action(tasks.pull_offering_order_items)
 
-pull_offering_usage = offering_action(tasks.pull_offering_usage)
+class PullOfferingOrderItems(OfferingActionView):
+    task = tasks.pull_offering_order_items
 
-pull_offering_invoices = offering_action(tasks.pull_offering_invoices)
+
+class PullOfferingUsage(OfferingActionView):
+    task = tasks.pull_offering_usage
+
+
+class PullOfferingInvoices(OfferingActionView):
+    task = tasks.pull_offering_invoices
