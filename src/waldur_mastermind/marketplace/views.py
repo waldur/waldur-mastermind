@@ -1599,9 +1599,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def component_usages(self, request, *args, **kwargs):
+        now = timezone.now()
         data = (
-            models.ComponentUsage.objects.exclude(
-                resource__state=models.Resource.States.TERMINATED
+            models.ComponentUsage.objects.filter(
+                billing_period__year=now.year, billing_period__month=now.month
             )
             .values('resource__offering__uuid', 'component__type')
             .annotate(usage=Sum('usage'))
