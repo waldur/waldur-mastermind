@@ -213,14 +213,19 @@ def terminate_resources_if_project_end_date_has_been_reached():
     ).filter(end_date__lte=timezone.datetime.today())
 
     for project in expired_projects:
-        resources = models.Resource.objects.filter(project=project).filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.ERRED)
+        project_resources = models.Resource.objects.filter(project=project)
+        active_resources = project_resources.exclude(
+            state=models.Resource.States.TERMINATED
         )
 
-        if resources:
-            utils.schedule_resources_termination(resources)
-        else:
+        if not active_resources:
             project.delete()
+            return
+
+        terminatable_resources = project_resources.filter(
+            state__in=(models.Resource.States.OK, models.Resource.States.ERRED)
+        )
+        utils.schedule_resources_termination(terminatable_resources)
 
 
 @shared_task(name='waldur_mastermind.marketplace.notify_about_stale_resource')
@@ -275,18 +280,12 @@ def notify_about_stale_resource():
         )
 
 
-@shared_task(
-    name='waldur_mastermind.marketplace.terminate_resource_if_its_end_date_has_been_reached'
-)
-def terminate_resource_if_its_end_date_has_been_reached():
-    expired_resources = models.Resource.objects.exclude(
-        end_date__isnull=True,
-        state__in=(
-            models.Resource.States.TERMINATED,
-            models.Resource.States.TERMINATING,
-        ),
-    ).filter(end_date__lte=timezone.datetime.today())
-
+@shared_task(name='waldur_mastermind.marketplace.terminate_expired_resources')
+def terminate_expired_resources():
+    expired_resources = models.Resource.objects.filter(
+        end_date__lte=timezone.datetime.today(),
+        state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
+    )
     utils.schedule_resources_termination(expired_resources)
 
 

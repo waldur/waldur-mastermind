@@ -54,8 +54,8 @@ class MarketplaceExtension(WaldurExtension):
                 'schedule': crontab(minute=0, hour=15, day_of_month='5'),
                 'args': (),
             },
-            'terminate_resource_if_its_end_date_has_been_reached': {
-                'task': 'waldur_mastermind.marketplace.terminate_resource_if_its_end_date_has_been_reached',
+            'terminate_expired_resources': {
+                'task': 'waldur_mastermind.marketplace.terminate_expired_resources',
                 'schedule': timedelta(days=1),
                 'args': (),
             },
