@@ -19,6 +19,7 @@ class MarketplaceOrderLogger(EventLogger):
             'marketplace_order_terminated',
             'marketplace_order_failed',
         )
+        event_groups = {'resources': event_types}
 
     @staticmethod
     def get_scopes(event_context):
@@ -92,6 +93,7 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_update_end_date_succeeded',
         )
         nullable_fields = ['old_name']
+        event_groups = {'resources': event_types}
 
     @staticmethod
     def get_scopes(event_context):
@@ -110,6 +112,7 @@ class MarketplaceComponentUsageLogger(EventLogger):
             'marketplace_component_usage_created',
             'marketplace_component_usage_updated',
         )
+        event_groups = {'resources': event_types}
 
     @staticmethod
     def get_scopes(event_context):
