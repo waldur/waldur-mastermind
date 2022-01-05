@@ -8,6 +8,7 @@ from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import Customer, CustomerRole, Project
 
 from . import callbacks, log, models, tasks, utils
@@ -525,6 +526,11 @@ def delete_expired_project_if_every_resource_has_been_terminated(
             .exists()
         )
         if not resources:
+            event_logger.project.info(
+                'Project {project_name} is going to be deleted because end date has been reached and there are no active resources.',
+                event_type='project_deletion_triggered',
+                event_context={'project': project},
+            )
             project.delete()
 
 

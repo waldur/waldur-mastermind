@@ -14,6 +14,7 @@ from rest_framework import status
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.log import event_logger
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
@@ -219,6 +220,11 @@ def terminate_resources_if_project_end_date_has_been_reached():
         )
 
         if not active_resources:
+            event_logger.project.info(
+                'Project {project_name} is going to be deleted because end date has been reached and there are no active resources.',
+                event_type='project_deletion_triggered',
+                event_context={'project': project},
+            )
             project.delete()
             return
 
