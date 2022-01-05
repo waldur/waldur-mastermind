@@ -26,6 +26,7 @@ class ProjectEventLogger(EventLogger):
 
     class Meta:
         event_types = (
+            'project_deletion_triggered',
             'project_deletion_succeeded',
             'project_update_succeeded',
             'project_creation_succeeded',
