@@ -542,6 +542,8 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         method='filter_has_shared', label='Has shared'
     )
 
+    project_uuid = django_filters.UUIDFilter(method='filter_project_uuid')
+
     def filter_customer_uuid(self, queryset, name, value):
         states = self.request.GET.getlist('customers_offerings_state')
         offerings = models.Offering.objects.filter(customer__uuid=value)
@@ -561,6 +563,26 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
             'category_id', flat=True
         )
         return queryset.filter(id__in=category_ids)
+
+    def filter_project_uuid(self, queryset, name, value):
+        project_offerings = models.Offering.objects.all().filter_for_project(value)
+        project = structure_models.Project.objects.get(uuid=value)
+        customer_offerings = models.Offering.objects.all().filter_for_customer(
+            project.customer.uuid.hex
+        )
+        resources = models.Resource.objects.filter(project=project).exclude(
+            state=models.Resource.States.TERMINATED
+        )
+        project_query = Q(
+            id__in=project_offerings.values_list('category_id', flat=True).distinct()
+        )
+        customer_query = Q(
+            id__in=customer_offerings.values_list('category_id', flat=True).distinct()
+        )
+        resources_query = Q(
+            id__in=resources.values_list('offering__category_id', flat=True).distinct()
+        )
+        return queryset.filter(project_query | customer_query | resources_query)
 
 
 class PlanComponentFilter(django_filters.FilterSet):
