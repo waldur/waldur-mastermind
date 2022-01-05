@@ -2,6 +2,7 @@ import datetime
 from unittest.mock import patch
 
 from django.core import mail
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
@@ -156,27 +157,27 @@ class ProjectEndDate(test.APITransactionTestCase):
             is_active=True,
         )
         core_utils.get_system_robot.cache_clear()
-        self.fixtures = fixtures.MarketplaceFixture()
-        self.fixtures.project.end_date = datetime.datetime(
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.project.end_date = datetime.datetime(
             day=1, month=1, year=2020
         ).date()
-        self.fixtures.project.save()
-        self.fixtures.resource.set_state_ok()
-        self.fixtures.resource.save()
-        self.fixtures.manager
-        self.fixtures.owner
+        self.fixture.project.save()
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.save()
+        self.fixture.manager
+        self.fixture.owner
 
     def test_terminate_resources_if_project_end_date_has_been_reached(self):
         with freeze_time('2020-01-02'):
             tasks.terminate_resources_if_project_end_date_has_been_reached()
             self.assertTrue(
                 models.OrderItem.objects.filter(
-                    resource=self.fixtures.resource,
+                    resource=self.fixture.resource,
                     type=models.OrderItem.Types.TERMINATE,
                 ).count()
             )
             order_item = models.OrderItem.objects.get(
-                resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
+                resource=self.fixture.resource, type=models.OrderItem.Types.TERMINATE
             )
             self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
 
@@ -185,13 +186,35 @@ class ProjectEndDate(test.APITransactionTestCase):
             tasks.notification_about_project_ending()
 
             self.assertEqual(len(mail.outbox), 2)
-            subject = 'Project %s will be deleted.' % self.fixtures.project.name
+            subject = 'Project %s will be deleted.' % self.fixture.project.name
             self.assertEqual(mail.outbox[0].subject, subject)
             self.assertEqual(
                 {mail.outbox[0].to[0], mail.outbox[1].to[0]},
-                {self.fixtures.manager.email, self.fixtures.owner.email},
+                {self.fixture.manager.email, self.fixture.owner.email},
             )
-            self.assertTrue(self.fixtures.project.uuid.hex in mail.outbox[0].body)
+            self.assertTrue(self.fixture.project.uuid.hex in mail.outbox[0].body)
+
+    @freeze_time('2020-01-02')
+    def test_expired_project_is_deleted_if_there_are_no_active_resources(self):
+        self.fixture.resource.set_state_terminated()
+        self.fixture.resource.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.assertRaises(ObjectDoesNotExist, self.fixture.project.refresh_from_db)
+
+    @freeze_time('2020-01-02')
+    def test_expired_project_is_not_deleted_if_there_are_active_resources(self):
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+        self.fixture.project.refresh_from_db()
+
+    @freeze_time('2020-01-02')
+    def test_expired_project_is_not_deleted_if_there_are_terminating_resources(self):
+        self.fixture.resource.set_state_terminating()
+        self.fixture.resource.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+        self.fixture.project.refresh_from_db()
 
 
 @override_marketplace_settings(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
@@ -271,7 +294,7 @@ class ResourceEndDate(test.APITransactionTestCase):
     def test_terminate_resource_if_its_end_date_has_been_reached(self):
         with freeze_time('2020-01-01'):
             self.assertTrue(self.resource.is_expired)
-            tasks.terminate_resource_if_its_end_date_has_been_reached()
+            tasks.terminate_expired_resources()
             self.resource.refresh_from_db()
 
             self.assertTrue(
