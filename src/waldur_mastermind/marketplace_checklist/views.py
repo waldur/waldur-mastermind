@@ -117,7 +117,7 @@ class StatsView(APIView):
 class ProjectStatsView(APIView):
     def get(self, request, project_uuid, format=None):
         try:
-            project = Project.objects.get(uuid=project_uuid)
+            project = Project.available_objects.get(uuid=project_uuid)
         except Project.DoesNotExist:
             raise ValidationError(_('Project does not exist.'))
 
@@ -160,7 +160,9 @@ class CustomerStatsView(APIView):
         checklist = get_object_or_404(models.Checklist, uuid=checklist_uuid)
         total_questions = checklist.questions.count()
         points = []
-        for project in Project.objects.filter(customer=customer).order_by('name'):
+        for project in Project.available_objects.filter(customer=customer).order_by(
+            'name'
+        ):
             project_users = project.get_users()
             customer_users = customer.get_owners()
             users_count = project_users.count() + customer_users.count()

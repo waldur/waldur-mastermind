@@ -566,7 +566,7 @@ def sync_remote_project(serialized_request):
 @shared_task
 def delete_remote_project(serialized_project):
     model_name, pk = serialized_project.split(':')
-    local_project = structure_models.Project.all_objects.get(pk=pk)
+    local_project = structure_models.Project.objects.get(pk=pk)
     backend_id = utils.get_project_backend_id(local_project)
     offering_ids = (
         models.Resource.objects.filter(
@@ -617,7 +617,7 @@ def clean_remote_projects():
     projects_backend_ids = set(
         map(
             lambda project: utils.get_project_backend_id(project),
-            structure_models.Project.all_objects.filter(is_removed=True),
+            structure_models.Project.objects.filter(is_removed=True),
         )
     )
 

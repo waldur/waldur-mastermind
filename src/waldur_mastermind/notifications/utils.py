@@ -57,7 +57,7 @@ def get_users_for_query(query):
             projects = filter(lambda project: project.id in project_ids, projects)
         # If customer role is specified we should not include all project users
         elif not customer_roles:
-            projects = Project.objects.filter(id__in=project_ids)
+            projects = Project.available_objects.filter(id__in=project_ids)
 
         customer_ids = related_resources.values_list('project__customer_id', flat=True)
         if customers:

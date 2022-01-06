@@ -147,11 +147,8 @@ def user_can_terminate_resource(request, view, resource=None):
     if not resource:
         return
 
-    # Allow to terminate resource in soft-deleted project
-    project = structure_models.Project.all_objects.get(id=resource.project_id)
-
     # Project manager/admin and customer owner are allowed to terminate resource.
-    if structure_permissions._has_admin_access(request.user, project):
+    if structure_permissions._has_admin_access(request.user, resource.project):
         return
 
     # Service provider is allowed to terminate resource too.

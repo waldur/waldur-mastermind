@@ -129,7 +129,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     @action(detail=True, methods=['GET'])
     def projects(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
-        projects = structure_models.Project.objects.filter(id__in=project_ids)
+        projects = structure_models.Project.available_objects.filter(id__in=project_ids)
         page = self.paginate_queryset(projects)
         serializer = structure_serializers.ProjectSerializer(
             page, many=True, context=self.get_serializer_context()
@@ -1109,15 +1109,8 @@ class ResourceViewSet(core_views.ActionsViewSet):
                 type=models.OrderItem.Types.TERMINATE,
                 attributes=attributes,
             )
-            try:
-                project = resource.project
-            except structure_models.Project.DoesNotExist:
-                project = structure_models.Project.all_objects.get(
-                    pk=resource.project_id
-                )
-
             order = serializers.create_order(
-                project=project,
+                project=resource.project,
                 user=self.request.user,
                 items=[order_item],
                 request=request,
@@ -1521,7 +1514,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def organization_project_count(self, request, *args, **kwargs):
-        data = structure_models.Project.objects.values(
+        data = structure_models.Project.available_objects.values(
             'customer__abbreviation', 'customer__name', 'customer__uuid'
         ).annotate(count=Count('customer__uuid'))
         serializer = serializers.CustomerStatsSerializer(data, many=True)

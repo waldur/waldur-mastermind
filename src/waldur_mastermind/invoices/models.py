@@ -6,7 +6,6 @@ from calendar import monthrange
 from dateutil.parser import parse as parse_datetime
 from django.conf import settings
 from django.contrib.postgres.fields import JSONField
-from django.core.exceptions import ObjectDoesNotExist
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -327,18 +326,12 @@ class InvoiceItem(
     def get_project_uuid(self):
         if self.project_uuid:
             return self.project_uuid
-        try:
-            return structure_models.Project.all_objects.get(id=self.project_id).uuid
-        except ObjectDoesNotExist:
-            return
+        return self.project.uuid
 
     def get_project_name(self):
         if self.project_name:
             return self.project_name
-        try:
-            return structure_models.Project.all_objects.get(id=self.project_id).name
-        except ObjectDoesNotExist:
-            return
+        return self.project.name
 
     @property
     def price(self):

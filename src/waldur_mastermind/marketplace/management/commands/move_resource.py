@@ -26,7 +26,7 @@ class Command(BaseCommand):
 
     def handle(self, project_uuid, resource_uuid, *args, **options):
         try:
-            project = structure_models.Project.objects.get(uuid=project_uuid)
+            project = structure_models.Project.available_objects.get(uuid=project_uuid)
         except structure_models.Project.DoesNotExist:
             self.stdout.write(self.style.ERROR('Project is not found.'))
             return

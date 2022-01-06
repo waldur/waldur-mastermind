@@ -2,8 +2,6 @@ from functools import lru_cache
 
 from rest_framework import serializers
 
-from waldur_core.structure import models as structure_models
-
 
 class OrderItemSerializer(serializers.Serializer):
     attributes = serializers.ReadOnlyField()
@@ -24,7 +22,7 @@ class OrderItemSerializer(serializers.Serializer):
 
     @lru_cache(maxsize=1)
     def _get_project(self, order_item):
-        return structure_models.Project.all_objects.get(id=order_item.order.project_id)
+        return order_item.order.project
 
     def get_customer_uuid(self, order_item):
         project = self._get_project(order_item)

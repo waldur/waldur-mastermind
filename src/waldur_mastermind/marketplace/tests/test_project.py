@@ -30,10 +30,14 @@ class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITransactionTestC
             self.resource_1.state = models.Resource.States.TERMINATED
             self.resource_1.save()
             self.assertTrue(
-                structure_models.Project.objects.filter(id=self.project.id).exists()
+                structure_models.Project.available_objects.filter(
+                    id=self.project.id
+                ).exists()
             )
             self.resource_2.state = models.Resource.States.TERMINATED
             self.resource_2.save()
             self.assertFalse(
-                structure_models.Project.objects.filter(id=self.project.id).exists()
+                structure_models.Project.available_objects.filter(
+                    id=self.project.id
+                ).exists()
             )

@@ -63,7 +63,7 @@ def get_projects_with_remote_offerings():
     )
     for pair in resource_pairs:
         try:
-            project = structure_models.Project.objects.get(pk=pair['project'])
+            project = structure_models.Project.available_objects.get(pk=pair['project'])
         except structure_models.Project.DoesNotExist:
             logger.debug(
                 f'Skipping resource from a removed project with PK {pair["project"]}'
@@ -85,7 +85,9 @@ def get_projects_with_remote_offerings():
     )
     for pair in order_item_pairs:
         try:
-            project = structure_models.Project.objects.get(pk=pair['order__project'])
+            project = structure_models.Project.available_objects.get(
+                pk=pair['order__project']
+            )
         except structure_models.Project.DoesNotExist:
             logger.debug(
                 f'Skipping order item from a removed project with PK {pair["order__project"]}'

@@ -326,9 +326,7 @@ class CustomerAdmin(
 
     @transaction.atomic
     def delete_queryset(self, request, queryset):
-        models.Project.structure_objects.filter(
-            customer__in=queryset, is_removed=True
-        ).delete()
+        models.Project.objects.filter(customer__in=queryset, is_removed=True).delete()
         queryset.delete()
 
 
@@ -484,6 +482,9 @@ class ProjectAdmin(
         marketplace_remote_tasks.clean_remote_projects.delay()
         self.message_user(request, _('Cleaning up remote projects has been scheduled.'))
         return redirect(reverse('admin:structure_project_changelist'))
+
+    def get_queryset(self, request):
+        return models.Project.available_objects.all()
 
 
 class ServiceSettingsAdminForm(ModelForm):
