@@ -1235,19 +1235,25 @@ class ResourceViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         new_backend_id = serializer.validated_data['backend_id']
         old_backend_id = resource.backend_id
-        resource.backend_id = serializer.validated_data['backend_id']
-        resource.save()
-        logger.info(
-            '%s has changed backend_id from %s to %s',
-            request.user.full_name,
-            old_backend_id,
-            new_backend_id,
-        )
+        if new_backend_id != old_backend_id:
+            resource.backend_id = serializer.validated_data['backend_id']
+            resource.save()
+            logger.info(
+                '%s has changed backend_id from %s to %s',
+                request.user.full_name,
+                old_backend_id,
+                new_backend_id,
+            )
 
-        return Response(
-            {'status': _('Resource backend_id has been changed.')},
-            status=status.HTTP_200_OK,
-        )
+            return Response(
+                {'status': _('Resource backend_id has been changed.')},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {'status': _('Resource backend_id is not changed.')},
+                status=status.HTTP_200_OK,
+            )
 
     set_backend_id_permissions = [permissions.user_is_owner_or_service_manager]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
