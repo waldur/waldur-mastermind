@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -924,30 +923,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
     @transition(field=state, source='*', target=States.ERRED)
     def fail(self):
         pass
-
-    def get_approvers(self):
-        users = []
-
-        if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
-            users = User.objects.filter(is_staff=True, is_active=True)
-
-        if settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER']:
-            order_owners = self.project.customer.get_owners()
-            users = order_owners if not users else users.union(order_owners)
-
-        if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
-            order_managers = self.project.get_users(
-                structure_models.ProjectRole.MANAGER
-            )
-            users = order_managers if not users else users.union(order_managers)
-
-        if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
-            order_admins = self.project.get_users(
-                structure_models.ProjectRole.ADMINISTRATOR
-            )
-            users = order_admins if not users else users.union(order_admins)
-
-        return users and users.distinct()
 
     def get_filename(self):
         return 'marketplace_order_{}.pdf'.format(self.uuid)

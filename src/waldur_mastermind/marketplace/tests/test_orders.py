@@ -2,15 +2,17 @@ import datetime
 from unittest import mock
 
 from ddt import data, ddt
+from django.core import mail
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -706,3 +708,26 @@ class OrderStateTest(test.APITransactionTestCase):
         order_item.save()
         order.refresh_from_db()
         self.assertEqual(order.state, models.Order.States.EXECUTING)
+
+
+@ddt
+class OrderApprovalNotificationTest(test.APITransactionTestCase):
+    @data(
+        ('staff', 'NOTIFY_STAFF_ABOUT_APPROVALS'),
+        ('owner', 'OWNER_CAN_APPROVE_ORDER'),
+        ('manager', 'MANAGER_CAN_APPROVE_ORDER'),
+        ('admin', 'ADMIN_CAN_APPROVE_ORDER'),
+    )
+    def test_valid_user(self, option):
+        user_name, option_name = option
+        fixture = marketplace_fixtures.MarketplaceFixture()
+        user = getattr(fixture, user_name)
+        with override_marketplace_settings(**{option_name: True}):
+            tasks.notify_order_approvers(fixture.order.uuid.hex)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [user.email])
+
+    def test_notification_is_not_sent_when_there_are_no_approvers(self):
+        fixture = marketplace_fixtures.MarketplaceFixture()
+        tasks.notify_order_approvers(fixture.order.uuid.hex)
+        self.assertEqual(len(mail.outbox), 0)
