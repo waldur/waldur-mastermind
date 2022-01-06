@@ -4,7 +4,6 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
@@ -222,16 +221,7 @@ class InvoiceSerializer(
         )
 
     def get_items(self, invoice):
-        resource_uuid = self.context['request'].GET.get('resource_uuid')
-        qs = invoice.items.all()
-
-        if resource_uuid:
-            if core_utils.is_uuid_like(resource_uuid):
-                qs = qs.filter(resource__uuid=resource_uuid)
-            else:
-                raise rf_exceptions.ValidationError('Passed resource_uuid is not UUID.')
-
-        qs = qs.order_by('project_name', 'name')
+        qs = invoice.items.all().order_by('project_name', 'name')
         items = utils.filter_invoice_items(qs)
         serializer = InvoiceItemSerializer(items, many=True, context=self.context)
         return serializer.data
