@@ -957,6 +957,10 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         cinder = self.cinder_client
         try:
             cinder.volume_snapshots.delete(snapshot.backend_id)
+        except cinder_exceptions.NotFound:
+            logger.info(
+                'Snapshot with ID %s is missing from OpenStack' % snapshot.backend_id
+            )
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
         snapshot.decrease_backend_quotas_usage()
