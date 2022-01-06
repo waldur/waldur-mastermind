@@ -18,7 +18,7 @@ class OfferingQuerySet(django_models.QuerySet):
             permissions__user=user, permissions__is_active=True
         )
 
-        connected_projects = structure_models.Project.objects.all().filter(
+        connected_projects = structure_models.Project.available_objects.all().filter(
             permissions__user=user, permissions__is_active=True
         )
 

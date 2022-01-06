@@ -18,10 +18,7 @@ def get_issue_scopes(issue):
             pass
         result.add(issue.resource)
     if issue.project_id:
-        project = Project.all_objects.get(
-            id=issue.project_id
-        )  # handle soft-deleted projects
-        result.add(project)
+        result.add(issue.project)
         result.add(issue.customer)
     if issue.customer:
         result.add(issue.customer)

@@ -130,7 +130,7 @@ class KeycloakBackend:
                 for user_id in remote_user_ids - local_user_ids:
                     self.client.delete_user_from_group(user_id, subgroup_id)
 
-            for project in Project.objects.filter(
+            for project in Project.available_objects.filter(
                 customer=local_group_map[group_id]
             ).exclude(id__in=local_subgroups.values_list('project_id', flat=True)):
                 self.create_project_group(group_id, project)

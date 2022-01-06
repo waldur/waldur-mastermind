@@ -24,10 +24,7 @@ class MarketplaceOrderLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         order = event_context['order']
-        project = Project.all_objects.get(
-            id=order.project_id
-        )  # handle case when project is already deleted
-        return {order, project, project.customer}
+        return {order, order.project, order.project.customer}
 
 
 class MarketplaceResourceLogger(EventLogger):
@@ -98,7 +95,7 @@ class MarketplaceResourceLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['resource']
-        project = Project.all_objects.get(
+        project = Project.objects.get(
             id=resource.project_id
         )  # handle case when project is already deleted
         return {resource, project, project.customer}
@@ -118,8 +115,7 @@ class MarketplaceComponentUsageLogger(EventLogger):
     def get_scopes(event_context):
         usage = event_context['usage']
         resource = usage.resource
-        project = Project.all_objects.get(id=resource.project_id)
-        return {resource, project, project.customer}
+        return {resource, resource.project, resource.project.customer}
 
 
 class MarketplaceOfferingPermissionEventLogger(EventLogger):

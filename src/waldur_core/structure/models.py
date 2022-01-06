@@ -601,8 +601,8 @@ class Customer(
 
     def delete(self, *args, **kwargs):
         """Delete customers' projects if they all mark as 'removed'."""
-        if not self.projects.count():
-            for project in Project.structure_objects.filter(customer=self):
+        if Project.available_objects.filter(customer=self).count() == 0:
+            for project in self.projects.all():
                 project.delete(soft=False)
 
         return super(Customer, self).delete(*args, **kwargs)
@@ -656,10 +656,7 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         self.project.remove_user(self.user, self.role)
 
     def __str__(self):
-        project = Project.all_objects.get(
-            id=self.project_id
-        )  # handle case when project is already deleted
-        return '%s | %s' % (project.name, self.get_role_display())
+        return '%s | %s' % (self.project.name, self.get_role_display())
 
 
 class ProjectType(
@@ -803,8 +800,12 @@ class Project(
         on_delete=models.PROTECT,
     )
     tracker = FieldTracker()
-    objects = SoftDeletableManager()
-    structure_objects = StructureManager()
+    # Entities returned in manager available_objects are limited to not-deleted instances.
+    # Entities returned in manager objects include deleted objects.
+    # Usage of all_objects manager is discouraged as it is going to
+    # be removed in next release of django-model-utils.
+    available_objects = SoftDeletableManager()
+    objects = StructureManager()
 
     @property
     def is_expired(self):
@@ -1131,8 +1132,7 @@ class BaseResource(
         return context
 
     def get_parents(self):
-        project = Project.all_objects.get(id=self.project_id)
-        return [self.service_settings, project]
+        return [self.service_settings, self.project]
 
     def __str__(self):
         return self.name

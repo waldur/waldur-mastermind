@@ -12,7 +12,7 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
     project = serializers.HyperlinkedRelatedField(
         view_name='project-detail',
         lookup_field='uuid',
-        queryset=structure_models.Project.objects.all(),
+        queryset=structure_models.Project.available_objects.all(),
         required=False,
         allow_null=True,
     )

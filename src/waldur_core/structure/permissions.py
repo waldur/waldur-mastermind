@@ -75,25 +75,14 @@ def _has_admin_access(user, project):
     )
 
 
-def _get_parent_by_permission_path(obj, permission_path, soft_deleted_projects=False):
+def _get_parent_by_permission_path(obj, permission_path):
     path = getattr(obj.Permissions, permission_path, None)
     if path is None:
         return
     if path == 'self':
         return obj
 
-    def get_attr(o, name):
-        if soft_deleted_projects and name == 'project':
-            try:
-                return models.Project.all_objects.get(pk=o.project_id)
-            except models.Project.DoesNotExist:
-                raise AttributeError(
-                    '%s object has no attribute "project".' % obj.__class__
-                )
-
-        return getattr(o, name)
-
-    return reduce(get_attr, path.split('__'), obj)
+    return reduce(getattr, path.split('__'), obj)
 
 
 def _get_project(obj, **kwargs):

@@ -72,16 +72,8 @@ class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, models.Model):
     def get_log_fields(self):
         return ('uuid', 'name', 'limit', 'usage', 'scope')
 
-    def get_scope(self):
-        from waldur_core.structure.models import Project
-
-        if self.content_type.model == 'project':
-            return Project.all_objects.get(id=self.object_id)
-
-        return self.scope
-
     def get_field(self):
-        fields = self.get_scope().get_quotas_fields()
+        fields = self.scope.get_quotas_fields()
         try:
             return next(f for f in fields if f.name == self.name)
         except StopIteration:

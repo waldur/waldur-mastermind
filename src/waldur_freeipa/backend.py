@@ -124,7 +124,7 @@ class GroupSynchronizer:
 
     def collect_waldur_projects(self):
         limits = self.get_limits(structure_models.Project)
-        for project in structure_models.Project.objects.all():
+        for project in structure_models.Project.available_objects.all():
             limit = limits.get(project.id, -1.0)
             self.add_project(project, limit)
 

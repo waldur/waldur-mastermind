@@ -113,8 +113,7 @@ def notify_order_approvers(uuid):
 @shared_task
 def notify_about_resource_change(event_type, context, resource_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
-    project = structure_models.Project.all_objects.get(id=resource.project_id)
-    emails = project.get_user_mails()
+    emails = resource.project.get_user_mails()
     core_utils.broadcast_mail('marketplace', event_type, context, emails)
 
 
@@ -229,7 +228,7 @@ def terminate_resource(serialized_resource, serialized_user):
     name='waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached'
 )
 def terminate_resources_if_project_end_date_has_been_reached():
-    expired_projects = structure_models.Project.objects.exclude(
+    expired_projects = structure_models.Project.available_objects.exclude(
         end_date__isnull=True
     ).filter(end_date__lte=timezone.datetime.today())
 
@@ -358,7 +357,7 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
 def notification_about_project_ending():
     date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
     date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
-    expired_projects = structure_models.Project.objects.exclude(
+    expired_projects = structure_models.Project.available_objects.exclude(
         end_date__isnull=True
     ).filter(Q(end_date=date_1) | Q(end_date=date_7))
 

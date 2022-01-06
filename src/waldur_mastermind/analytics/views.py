@@ -86,17 +86,17 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
             object_id=OuterRef('pk'), content_type=content_type, name=quota_name,
         )
         subquery = Subquery(quotas.values('usage')[:1])
-        return Project.objects.annotate(value=subquery)
+        return Project.available_objects.annotate(value=subquery)
 
     def annotate_estimated_price(self, content_type):
         estimates = PriceEstimate.objects.filter(
             object_id=OuterRef('pk'), content_type=content_type,
         )
         subquery = Subquery(estimates.values('total')[:1])
-        return Project.objects.annotate(value=subquery)
+        return Project.available_objects.annotate(value=subquery)
 
     def annotate_current_price(self, content_type):
-        projects = Project.objects.all()
+        projects = Project.available_objects.all()
         year, month = get_current_year(), get_current_month()
         for project in projects:
             items = InvoiceItem.objects.filter(

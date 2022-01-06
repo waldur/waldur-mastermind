@@ -7,7 +7,6 @@ from django.db.models import signals
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.models import Project
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
@@ -63,8 +62,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         )
 
     def get_customer(self, source):
-        project = Project.all_objects.get(id=source.project_id)
-        return project.customer
+        return source.project.customer
 
     def _create_item(self, source, invoice, start, end, **kwargs):
         resource = source
@@ -199,7 +197,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         invoice_models.InvoiceItem.objects.create(
             name=f'{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}',
             resource=source,
-            project=Project.all_objects.get(id=source.project_id),
+            project=source.project,
             unit_price=plan_component.price,
             unit=unit,
             quantity=total_quantity,
@@ -364,7 +362,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             invoice_models.InvoiceItem.objects.create(
                 name=f'{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}',
                 resource=resource,
-                project=Project.all_objects.get(id=resource.project_id),
+                project=resource.project,
                 unit_price=plan_component.price if diff > 0 else -plan_component.price,
                 unit=invoice_models.Units.QUANTITY,
                 quantity=diff if diff > 0 else -diff,

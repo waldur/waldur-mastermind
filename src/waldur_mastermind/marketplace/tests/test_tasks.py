@@ -2,7 +2,6 @@ import datetime
 from unittest.mock import patch
 
 from django.core import mail
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
@@ -201,7 +200,8 @@ class ProjectEndDate(test.APITransactionTestCase):
 
         tasks.terminate_resources_if_project_end_date_has_been_reached()
 
-        self.assertRaises(ObjectDoesNotExist, self.fixture.project.refresh_from_db)
+        self.fixture.project.refresh_from_db()
+        self.assertTrue(self.fixture.project.is_removed)
 
     @freeze_time('2020-01-02')
     def test_expired_project_is_not_deleted_if_there_are_active_resources(self):

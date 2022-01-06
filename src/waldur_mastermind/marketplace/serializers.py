@@ -1676,7 +1676,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
 
     @lru_cache(maxsize=1)
     def _get_project(self, order_item: models.OrderItem):
-        return structure_models.Project.all_objects.get(id=order_item.order.project_id)
+        return order_item.order.project
 
     def get_customer_uuid(self, order_item: models.OrderItem):
         project = self._get_project(order_item)
@@ -1705,7 +1705,7 @@ class CartItemSerializer(BaseRequestSerializer):
     project = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
         view_name='project-detail',
-        queryset=structure_models.Project.objects.all(),
+        queryset=structure_models.Project.available_objects.all(),
     )
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
@@ -1776,7 +1776,7 @@ class CartItemSerializer(BaseRequestSerializer):
 
 class CartSubmitSerializer(serializers.Serializer):
     project = serializers.HyperlinkedRelatedField(
-        queryset=structure_models.Project.objects.all(),
+        queryset=structure_models.Project.available_objects.all(),
         view_name='project-detail',
         lookup_field='uuid',
         required=True,
@@ -2048,25 +2048,19 @@ class ResourceSerializer(BaseItemSerializer):
     username = serializers.SerializerMethodField()
 
     def get_project_uuid(self, resource):
-        return structure_models.Project.all_objects.get(id=resource.project_id).uuid
+        return resource.project.uuid
 
     def get_project_name(self, resource):
-        return structure_models.Project.all_objects.get(id=resource.project_id).name
+        return resource.project.name
 
     def get_project_description(self, resource):
-        return structure_models.Project.all_objects.get(
-            id=resource.project_id
-        ).description
+        return resource.project.description
 
     def get_customer_uuid(self, resource):
-        return structure_models.Project.all_objects.get(
-            id=resource.project_id
-        ).customer.uuid
+        return resource.project.customer.uuid
 
     def get_customer_name(self, resource):
-        return structure_models.Project.all_objects.get(
-            id=resource.project_id
-        ).customer.name
+        return resource.project.customer.name
 
     def get_can_terminate(self, resource):
         view = self.context['view']
@@ -2084,10 +2078,8 @@ class ResourceSerializer(BaseItemSerializer):
         except APIException:
             return False
 
-        # Allow to terminate resource in soft-deleted project
-        project = structure_models.Project.all_objects.get(id=resource.project_id)
         try:
-            structure_utils.check_customer_blocked(project)
+            structure_utils.check_customer_blocked(resource.project)
         except ValidationError:
             return False
 
@@ -2311,24 +2303,16 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
         )
 
     def get_project_uuid(self, instance):
-        return structure_models.Project.all_objects.get(
-            id=instance.resource.project_id
-        ).uuid
+        return instance.resource.project.uuid
 
     def get_project_name(self, instance):
-        return structure_models.Project.all_objects.get(
-            id=instance.resource.project_id
-        ).name
+        return instance.resource.project.name
 
     def get_customer_uuid(self, instance):
-        return structure_models.Project.all_objects.get(
-            id=instance.resource.project_id
-        ).customer.uuid
+        return instance.resource.project.customer.uuid
 
     def get_customer_name(self, instance):
-        return structure_models.Project.all_objects.get(
-            id=instance.resource.project_id
-        ).customer.name
+        return instance.resource.project.customer.name
 
 
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
@@ -2344,7 +2328,7 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
 class ImportResourceSerializer(serializers.Serializer):
     backend_id = serializers.CharField()
     project = serializers.SlugRelatedField(
-        queryset=structure_models.Project.objects.all(), slug_field='uuid'
+        queryset=structure_models.Project.available_objects.all(), slug_field='uuid'
     )
     plan = serializers.SlugRelatedField(
         queryset=models.Plan.objects.all(), slug_field='uuid', required=False
@@ -2625,7 +2609,9 @@ class ResourceTerminateSerializer(serializers.Serializer):
 
 class MoveResourceSerializer(serializers.Serializer):
     project = structure_serializers.NestedProjectSerializer(
-        queryset=structure_models.Project.objects.all(), required=True, many=False
+        queryset=structure_models.Project.available_objects.all(),
+        required=True,
+        many=False,
     )
 
 

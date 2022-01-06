@@ -227,7 +227,7 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
-    queryset = models.Project.objects.all().order_by('name')
+    queryset = models.Project.available_objects.all().order_by('name')
     serializer_class = serializers.ProjectSerializer
     lookup_field = 'uuid'
     filter_backends = (

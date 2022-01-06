@@ -195,14 +195,14 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         project = self.fixture.project
         response = self.client.delete(factories.ProjectFactory.get_url(project))
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Project.objects.filter(pk=project.pk).exists())
+        self.assertFalse(Project.available_objects.filter(pk=project.pk).exists())
 
     def test_soft_delete(self):
         project = self.fixture.project
         pk = project.pk
         project.delete()
-        self.assertFalse(Project.objects.filter(pk=pk).exists())
-        self.assertTrue(Project.structure_objects.filter(pk=pk).exists())
+        self.assertFalse(Project.available_objects.filter(pk=pk).exists())
+        self.assertTrue(Project.objects.filter(pk=pk).exists())
 
 
 @ddt
@@ -619,7 +619,9 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         get_extensions.return_value = []
         executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
-        self.assertFalse(models.Project.objects.filter(id=project.id).exists())
+        self.assertFalse(
+            models.Project.available_objects.filter(id=project.id).exists()
+        )
 
     def test_project_with_resources_and_executors_is_deleted(self, get_extensions):
         fixture = fixtures.ServiceFixture()
@@ -634,7 +636,9 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         get_extensions.return_value = [TestExtension]
         executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
-        self.assertFalse(models.Project.objects.filter(id=project.id).exists())
+        self.assertFalse(
+            models.Project.available_objects.filter(id=project.id).exists()
+        )
         self.assertFalse(
             test_models.TestNewInstance.objects.filter(id=resource.id).exists()
         )

@@ -16,7 +16,6 @@ from novaclient import exceptions as nova_exceptions
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher, pwgen
-from waldur_core.structure import models as structure_models
 from waldur_core.structure.backend import log_backend_action
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import (
@@ -338,12 +337,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         }
 
         for backend_ip in backend_floating_ips:
-            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
             imported_floating_ip = self._backend_floating_ip_to_floating_ip(
                 backend_ip,
                 tenant=tenant,
                 service_settings=tenant.service_settings,
-                project=project,
+                project=tenant.project,
             )
             floating_ip = floating_ips.pop(imported_floating_ip.backend_id, None)
             if floating_ip is None:
@@ -426,15 +424,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
-        project = structure_models.Project.all_objects.get(
-            pk=local_security_group.tenant.project_id
-        )
-
         imported_security_group = self._backend_security_group_to_security_group(
             remote_security_group,
             tenant=local_security_group.tenant,
             service_settings=local_security_group.tenant.service_settings,
-            project=project,
+            project=local_security_group.tenant.project,
         )
 
         modified = update_pulled_fields(
@@ -484,12 +478,11 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def _update_tenant_security_groups(self, tenant, backend_security_groups):
         for backend_security_group in backend_security_groups:
-            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
             imported_security_group = self._backend_security_group_to_security_group(
                 backend_security_group,
                 tenant=tenant,
                 service_settings=tenant.service_settings,
-                project=project,
+                project=tenant.project,
             )
 
             try:
@@ -609,15 +602,13 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
 
-            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
-
             defaults = {
                 'name': backend_router['name'],
                 'description': backend_router['description'],
                 'routes': backend_router['routes'],
                 'fixed_ips': fixed_ips,
                 'service_settings': tenant.service_settings,
-                'project': project,
+                'project': tenant.project,
                 'state': models.Router.States.OK,
             }
             try:
@@ -663,12 +654,11 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         for backend_port in backend_ports:
             backend_id = backend_port['id']
-            project = structure_models.Project.all_objects.get(pk=tenant.project_id)
             defaults = {
                 'name': backend_port['name'],
                 'description': backend_port['description'],
                 'service_settings': tenant.service_settings,
-                'project': project,
+                'project': tenant.project,
                 'state': models.Port.States.OK,
                 'mac_address': backend_port['mac_address'],
                 'fixed_ips': backend_port['fixed_ips'],
@@ -743,13 +733,11 @@ class OpenStackBackend(BaseOpenStackBackend):
                     )
                     continue
 
-                project = structure_models.Project.all_objects.get(pk=tenant.project_id)
-
                 imported_network = self._backend_network_to_network(
                     backend_network,
                     tenant=tenant,
                     service_settings=tenant.service_settings,
-                    project=project,
+                    project=tenant.project,
                 )
 
                 try:
@@ -863,15 +851,11 @@ class OpenStackBackend(BaseOpenStackBackend):
                     )
                     continue
 
-                project = structure_models.Project.all_objects.get(
-                    pk=network.project_id
-                )
-
                 imported_subnet = self._backend_subnet_to_subnet(
                     backend_subnet,
                     network=network,
                     service_settings=network.service_settings,
-                    project=project,
+                    project=network.project,
                 )
 
                 try:

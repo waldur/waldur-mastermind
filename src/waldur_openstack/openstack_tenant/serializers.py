@@ -1076,9 +1076,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             user = request.user
         except (KeyError, AttributeError):
             return
-        # Allow to fetch resource details even if project is soft-deleted
-        project = structure_models.Project.all_objects.get(id=tenant.project_id)
-        if not _has_admin_access(user, project):
+        if not _has_admin_access(user, tenant.project):
             return
         return tenant.uuid.hex
 

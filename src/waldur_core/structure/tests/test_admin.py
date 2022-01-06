@@ -286,9 +286,7 @@ class CustomerAdminTest(TestCase):
         project.delete()
 
         # A project exists in DB because we use soft-delete for projects.
-        self.assertTrue(
-            structure_models.Project.structure_objects.filter(pk=project_id).exists()
-        )
+        self.assertTrue(structure_models.Project.objects.filter(pk=project_id).exists())
 
         model_admin.delete_queryset(request, queryset)
         self.assertRaises(
