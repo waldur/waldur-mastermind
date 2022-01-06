@@ -70,12 +70,30 @@ def create_screenshot_thumbnail(uuid):
 @shared_task
 def notify_order_approvers(uuid):
     order = models.Order.objects.get(uuid=uuid)
-    users = order.get_approvers()
-    emails = (
-        users.exclude(email='')
+    users = User.objects.none()
+
+    if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
+        users |= User.objects.filter(is_staff=True, is_active=True)
+
+    if settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER']:
+        users |= order.project.customer.get_owners()
+
+    if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
+        users |= order.project.get_users(structure_models.ProjectRole.MANAGER)
+
+    if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
+        users |= order.project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
+
+    appprovers = (
+        users.distinct()
+        .exclude(email='')
         .exclude(notifications_enabled=False)
         .values_list('email', flat=True)
     )
+
+    if not appprovers:
+        return
+
     link = core_utils.format_homeport_link(
         'projects/{project_uuid}/marketplace-order-list/',
         project_uuid=order.project.uuid,
@@ -87,7 +105,9 @@ def notify_order_approvers(uuid):
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
     }
 
-    core_utils.broadcast_mail('marketplace', 'notification_approval', context, emails)
+    core_utils.broadcast_mail(
+        'marketplace', 'notification_approval', context, appprovers
+    )
 
 
 @shared_task
