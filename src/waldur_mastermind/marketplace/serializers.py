@@ -1592,7 +1592,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
     )
 
     def get_fields(self):
-        fields = super(BaseItemSerializer, self).get_fields()
+        fields = super(NestedOrderItemSerializer, self).get_fields()
         method = self.context['view'].request.method
 
         user = self.context['view'].request.user
