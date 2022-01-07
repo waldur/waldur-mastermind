@@ -1597,7 +1597,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
 
         user = self.context['view'].request.user
         # conceal detailed error message from non-system users
-        if not user.is_staff and not user.is_support:
+        if not user.is_staff and not user.is_support and 'error_traceback' in fields:
             del fields['error_traceback']
 
         if method == 'GET' and 'attributes' in fields:
