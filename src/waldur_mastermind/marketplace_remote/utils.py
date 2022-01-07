@@ -300,24 +300,13 @@ def parse_order_item_type(serialized_state):
     ]
 
 
-def find_local_user(offering, username):
-    try:
-        return marketplace_models.OfferingUser.objects.get(
-            offering=offering, username=username
-        ).user
-    except marketplace_models.OfferingUser.DoesNotExist:
-        return get_system_robot()
-
-
 def import_order(remote_order, project, offering):
     return marketplace_models.Order.objects.create(
         project=project,
         state=parse_order_state(remote_order['state']),
-        created_by=find_local_user(offering, remote_order['created_by_username']),
+        created_by=get_system_robot(),
         created=parse_datetime(remote_order['created']),
-        approved_by='approved_by_username' in remote_order
-        and find_local_user(offering, remote_order['approved_by_username'])
-        or None,
+        approved_by=get_system_robot(),
         approved_at='approved_at' in remote_order
         and parse_datetime(remote_order['approved_at'])
         or None,
@@ -336,9 +325,7 @@ def import_order_item(remote_order_item, local_order, resource):
         error_traceback=remote_order_item.get('error_traceback', ''),
         state=parse_order_item_state(remote_order_item['state']),
         created=parse_datetime(remote_order_item['created']),
-        reviewed_by='reviewed_by' in remote_order_item
-        and find_local_user(resource.offering, remote_order_item['reviewed_by'])
-        or None,
+        reviewed_by=get_system_robot(),
     )
 
 
