@@ -2,9 +2,11 @@ import logging
 from collections import defaultdict
 
 from django.utils import dateparse
+from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 from waldur_client import WaldurClient, WaldurClientException
 
+from waldur_core.core.utils import get_system_robot
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -272,3 +274,114 @@ def collect_local_permissions(offering, project):
             permission.expiration_time,
         )
     return permissions
+
+
+def parse_resource_state(serialized_state):
+    return {v: k for (k, v) in marketplace_models.Resource.States.CHOICES}[
+        serialized_state
+    ]
+
+
+def parse_order_state(serialized_state):
+    return {v: k for (k, v) in marketplace_models.Order.States.CHOICES}[
+        serialized_state
+    ]
+
+
+def parse_order_item_state(serialized_state):
+    return {v: k for (k, v) in marketplace_models.OrderItem.States.CHOICES}[
+        serialized_state
+    ]
+
+
+def parse_order_item_type(serialized_state):
+    return {v: k for (k, v) in marketplace_models.OrderItem.Types.CHOICES}[
+        serialized_state
+    ]
+
+
+def find_local_user(offering, username):
+    try:
+        return marketplace_models.OfferingUser.objects.get(
+            offering=offering, username=username
+        ).user
+    except marketplace_models.OfferingUser.DoesNotExist:
+        return get_system_robot()
+
+
+def import_order(remote_order, project, offering):
+    return marketplace_models.Order.objects.create(
+        project=project,
+        state=parse_order_state(remote_order['state']),
+        created_by=find_local_user(offering, remote_order['created_by_username']),
+        created=parse_datetime(remote_order['created']),
+        approved_by='approved_by_username' in remote_order
+        and find_local_user(offering, remote_order['approved_by_username'])
+        or None,
+        approved_at='approved_at' in remote_order
+        and parse_datetime(remote_order['approved_at'])
+        or None,
+    )
+
+
+def import_order_item(remote_order_item, local_order, resource):
+    return marketplace_models.OrderItem.objects.create(
+        order=local_order,
+        resource=resource,
+        type=parse_order_item_type(remote_order_item['type']),
+        offering=resource.offering,
+        backend_id=remote_order_item['uuid'],
+        attributes=remote_order_item.get('attributes', {}),
+        error_message=remote_order_item.get('error_message', ''),
+        error_traceback=remote_order_item.get('error_traceback', ''),
+        state=parse_order_item_state(remote_order_item['state']),
+        created=parse_datetime(remote_order_item['created']),
+        reviewed_by='reviewed_by' in remote_order_item
+        and find_local_user(resource.offering, remote_order_item['reviewed_by'])
+        or None,
+    )
+
+
+def get_new_order_ids(client, backend_id):
+    remote_order_items = client.list_order_items(
+        {'resource_uuid': backend_id, 'field': ['uuid', 'order_uuid']}
+    )
+    local_order_items = marketplace_models.OrderItem.objects.filter(
+        resource__backend_id=backend_id
+    ).values_list('backend_id', flat=True)
+    remote_order_items_map = {
+        order_item['uuid']: order_item for order_item in remote_order_items
+    }
+    new_order_item_ids = set(remote_order_items_map.keys()) - set(local_order_items)
+    return {
+        remote_order_items_map[order_item_id]['order_uuid']
+        for order_item_id in new_order_item_ids
+    }
+
+
+def import_resource_order_items(resource):
+    if not resource.backend_id:
+        return []
+    client = get_client_for_offering(resource.offering)
+    new_order_ids = get_new_order_ids(client, resource.backend_id)
+    imported_order_items = []
+    for order_id in new_order_ids:
+        remote_order = client.get_order(order_id)
+        local_order = import_order(remote_order, resource.project, resource.offering)
+        for remote_order_item in remote_order['items']:
+            local_order_item = import_order_item(
+                remote_order_item, local_order, resource
+            )
+            imported_order_items.append(local_order_item)
+    return imported_order_items
+
+
+def pull_resource_state(local_resource):
+    if not local_resource.backend_id:
+        return
+    client = get_client_for_offering(local_resource.offering)
+    remote_resource = client.get_marketplace_resource(local_resource.backend_id)
+    remote_state = parse_resource_state(remote_resource['state'])
+    if local_resource.state != remote_state:
+        local_resource.state = remote_state
+        local_resource.save(update_fields=['state'])

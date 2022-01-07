@@ -574,6 +574,7 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         response = self.retype_volume(self.admin, self.new_type)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
+    @unittest.skip('Unstable in CI')
     def test_when_volume_is_retyped_volume_type_quota_is_updated(self):
         # Arrange
         scope = self.volume.service_settings

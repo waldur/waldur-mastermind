@@ -89,6 +89,20 @@ class RemoteDeleteResourceProcessor(
     RemoteClientMixin, processors.BasicDeleteResourceProcessor
 ):
     def send_request(self, user, resource):
+        # If terminate order already exists in the remote side,
+        # it should be imported and local order item is switched to erred.
+        imported_order_items = utils.import_resource_order_items(resource)
+        if imported_order_items:
+            utils.pull_resource_state(resource)
+        if any(
+            item.type == models.OrderItem.Types.TERMINATE
+            for item in imported_order_items
+        ):
+            self.order_item.set_state_erred()
+            self.order_item.error_message = 'Another order item exists already.'
+            self.order_item.save()
+            return False
+
         response = self.client.marketplace_resource_terminate_order(
             self.order_item.resource.backend_id,
             callback_url=build_callback_url(self.order_item),

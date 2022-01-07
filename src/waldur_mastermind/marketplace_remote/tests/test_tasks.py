@@ -11,7 +11,8 @@ from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks
+from waldur_mastermind.marketplace.tests.utils import create_system_robot
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
 
 
 @override_settings(WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True})
@@ -326,3 +327,88 @@ class OfferingUserPullTest(test.APITransactionTestCase):
         tasks.OfferingUserPullTask().pull(self.offering)
         offering_user.refresh_from_db()
         self.assertEqual(offering_user.username, 'alice')
+
+
+class ResourceOrderItemImportTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.patcher = mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.WaldurClient"
+        )
+        self.client = self.patcher.start()()
+
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.backend_id = uuid.uuid4().hex
+        self.resource.save()
+        self.resource.offering.type = PLUGIN_NAME
+        self.resource.offering.secret_options = {
+            'api_url': 'https://example.com/',
+            'token': uuid.uuid4().hex,
+        }
+        self.resource.offering.save()
+        create_system_robot()
+
+    def tearDown(self):
+        super(ResourceOrderItemImportTest, self).tearDown()
+        mock.patch.stopall()
+
+    def test_when_there_are_no_order_items(self):
+        self.client.list_order_items.return_value = []
+        actual = utils.import_resource_order_items(self.resource)
+        self.assertEqual([], actual)
+
+    def test_there_is_one_order_item(self):
+        remote_order_item_uuid = uuid.uuid4().hex
+        remote_order_uuid = uuid.uuid4().hex
+        self.client.list_order_items.return_value = [
+            {'uuid': remote_order_item_uuid, 'order_uuid': remote_order_uuid}
+        ]
+        self.client.get_order.return_value = {
+            'uuid': remote_order_item_uuid,
+            'state': 'done',
+            'created': '2021-12-12T01:01:01',
+            'created_by_username': 'alice',
+            'items': [
+                {
+                    'uuid': remote_order_item_uuid,
+                    'type': 'Terminate',
+                    'created': '2021-12-12T01:01:01',
+                    'state': 'done',
+                },
+            ],
+        }
+        actual = utils.import_resource_order_items(self.resource)
+        self.assertEqual(1, len(actual))
+        self.assertEqual(actual[0].backend_id, remote_order_item_uuid)
+
+    def test_existing_order_item_is_skipped(self):
+        remote_order_item_uuid = uuid.uuid4().hex
+        remote_order_uuid = uuid.uuid4().hex
+        factories.OrderItemFactory(
+            backend_id=remote_order_item_uuid, resource=self.fixture.resource
+        )
+        self.client.list_order_items.return_value = [
+            {'uuid': remote_order_item_uuid, 'order_uuid': remote_order_uuid}
+        ]
+        self.client.get_order.return_value = {
+            'uuid': remote_order_item_uuid,
+            'state': 'done',
+            'created': '2021-12-12T01:01:01',
+            'created_by_username': 'alice',
+            'items': [
+                {
+                    'uuid': remote_order_item_uuid,
+                    'type': 'Terminate',
+                    'created': '2021-12-12T01:01:01',
+                    'state': 'done',
+                },
+            ],
+        }
+        actual = utils.import_resource_order_items(self.resource)
+        self.assertEqual(0, len(actual))
+
+    def test_resource_state(self):
+        self.client.get_marketplace_resource.return_value = {'state': 'Erred'}
+        utils.pull_resource_state(self.fixture.resource)
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(self.fixture.resource.state, models.Resource.States.ERRED)
