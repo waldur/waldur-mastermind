@@ -13,6 +13,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import exceptions, models, tasks
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
+from waldur_mastermind.marketplace.tests.utils import create_system_robot
 
 from . import factories, fixtures
 
@@ -145,17 +146,7 @@ class TerminateResource(test.APITransactionTestCase):
 
 class ProjectEndDate(test.APITransactionTestCase):
     def setUp(self):
-        # We need create a system robot account because
-        # account created in a migration does not exist when test is running
-        structure_factories.UserFactory(
-            first_name='System',
-            last_name='Robot',
-            username='system_robot',
-            description='Special user used for performing actions on behalf of Waldur.',
-            is_staff=True,
-            is_active=True,
-        )
-        core_utils.get_system_robot.cache_clear()
+        create_system_robot()
         self.fixture = fixtures.MarketplaceFixture()
         self.fixture.project.end_date = datetime.datetime(
             day=1, month=1, year=2020
