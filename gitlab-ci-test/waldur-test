@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -e
 
+TEST_MODE="${1:-UNIT}"
+
 echo "[+] Install dependencies in case of absence"
 pip3 install poetry==1.1.11
 poetry config experimental.new-installer false
@@ -27,16 +29,29 @@ DATABASES = {
 }
 EOF
 
-echo "[+] Running unit tests"
-pytest \
-    --test-group-count $CI_NODE_TOTAL \
-    --test-group=$CI_NODE_INDEX \
-    --test-group-random-seed=12345 \
-    --reuse-db \
-    --junitxml=report.xml \
-    --cov=src/ \
-    --ds=waldur_mastermind.test_settings \
-    src
+if [ "$TEST_MODE" = "UNIT" ]; then
+  echo "[+] Running unit tests without migrations"
+  pytest \
+      --test-group-count $CI_NODE_TOTAL \
+      --test-group=$CI_NODE_INDEX \
+      --test-group-random-seed=12345 \
+      --reuse-db \
+      --junitxml=report.xml \
+      --cov=src/ \
+      --no-migrations \
+      --ds=waldur_mastermind.test_settings \
+      src
 
-# Check default configuration
-DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null
+  # Check default configuration
+  DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null
+elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
+  echo "[+] Running migration test"
+  pytest \
+      --junitxml=report.xml \
+      --cov=src/ \
+      --ds=waldur_mastermind.test_settings \
+      src/waldur_core/core/tests/test_management.py
+else
+  echo "UNKNOWN TEST MODE: $TEST_MODE"
+  exit 1
+fi
