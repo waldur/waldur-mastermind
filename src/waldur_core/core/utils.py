@@ -17,7 +17,6 @@ import requests
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import EmailMultiAlternatives
 from django.core.management import call_command
@@ -460,7 +459,7 @@ def get_system_robot():
             username='system_robot', is_staff=True, is_active=True
         )
         if created:
-            robot_user.password = make_password(None)
+            robot_user.set_unusable_password()
             robot_user.description = (
                 'Special user used for performing actions on behalf of a system.'
             )
