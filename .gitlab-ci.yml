@@ -28,7 +28,6 @@ Run linters:
     - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
     # If tagged release
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
     # If event is related to a created merge request
@@ -37,7 +36,7 @@ Run linters:
     - pip install pre-commit
     - pre-commit run --all
 
-Run unit tests:
+.Unit test runner:
   image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
   stage: test
   interruptible: true
@@ -46,7 +45,6 @@ Run unit tests:
     - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
     # If tagged release
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
     # If event is related to a created merge request
@@ -55,6 +53,7 @@ Run unit tests:
         - src/**/*
         - pyproject.toml
         - poetry.lock
+        - gitlab-ci-test/**/*
   services:
     - name: "$CI_REGISTRY/waldur/waldur-pipelines/postgres:12-alpine"
       alias: postgres
@@ -75,6 +74,9 @@ Run unit tests:
     POSTGRES_DB: test_waldur
     POSTGRES_USER: runner
     POSTGRES_PASSWORD: waldur
+
+Run unit tests:
+  extends: .Unit test runner
   script:
     - |
       # Check merge compatibility only it is not a tagged release
@@ -95,6 +97,11 @@ Run unit tests:
       junit: report.xml
       cobertura: coverage.xml
   parallel: 10
+
+Run migration test:
+  extends: .Unit test runner
+  script:
+    - gitlab-ci-test/waldur-test MIGRATIONS
 
 Try building docker image:
   stage: test
