@@ -379,7 +379,7 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         }
         actual = utils.import_resource_order_items(self.resource)
         self.assertEqual(1, len(actual))
-        self.assertEqual(actual[0].backend_id, remote_order_item_uuid)
+        self.assertEqual(actual[0].backend_id, remote_order_uuid)
 
     def test_existing_order_item_is_skipped(self):
         remote_order_item_uuid = uuid.uuid4().hex
