@@ -300,7 +300,7 @@ def parse_order_item_type(serialized_state):
     ]
 
 
-def import_order(remote_order, project, offering):
+def import_order(remote_order, project):
     return marketplace_models.Order.objects.create(
         project=project,
         state=parse_order_state(remote_order['state']),
@@ -313,13 +313,14 @@ def import_order(remote_order, project, offering):
     )
 
 
-def import_order_item(remote_order_item, local_order, resource):
+def import_order_item(remote_order_item, local_order, resource, remote_order_uuid):
     return marketplace_models.OrderItem.objects.create(
         order=local_order,
         resource=resource,
         type=parse_order_item_type(remote_order_item['type']),
         offering=resource.offering,
-        backend_id=remote_order_item['uuid'],
+        # NB: As a backend_id of local OrderItem, uuid of a remote Order is used
+        backend_id=remote_order_uuid,
         attributes=remote_order_item.get('attributes', {}),
         error_message=remote_order_item.get('error_message', ''),
         error_traceback=remote_order_item.get('error_traceback', ''),
@@ -354,10 +355,10 @@ def import_resource_order_items(resource):
     imported_order_items = []
     for order_id in new_order_ids:
         remote_order = client.get_order(order_id)
-        local_order = import_order(remote_order, resource.project, resource.offering)
+        local_order = import_order(remote_order, resource.project)
         for remote_order_item in remote_order['items']:
             local_order_item = import_order_item(
-                remote_order_item, local_order, resource
+                remote_order_item, local_order, resource, order_id
             )
             imported_order_items.append(local_order_item)
     return imported_order_items
