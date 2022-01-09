@@ -23,7 +23,10 @@ class QuerySerializer(serializers.Serializer):
         required=False,
     )
     projects = serializers.SlugRelatedField(
-        slug_field='uuid', queryset=Project.objects.all(), many=True, required=False,
+        slug_field='uuid',
+        queryset=Project.available_objects.all(),
+        many=True,
+        required=False,
     )
     offerings = serializers.SlugRelatedField(
         slug_field='uuid', queryset=Offering.objects.all(), many=True, required=False,

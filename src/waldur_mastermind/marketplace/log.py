@@ -3,7 +3,6 @@ from django.db import transaction
 
 from waldur_core.core.models import User
 from waldur_core.logging.loggers import EventLogger, event_logger
-from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import models, tasks
 
 
@@ -95,10 +94,7 @@ class MarketplaceResourceLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['resource']
-        project = Project.objects.get(
-            id=resource.project_id
-        )  # handle case when project is already deleted
-        return {resource, project, project.customer}
+        return {resource, resource.project, resource.project.customer}
 
 
 class MarketplaceComponentUsageLogger(EventLogger):
