@@ -332,19 +332,15 @@ def import_order_item(remote_order_item, local_order, resource, remote_order_uui
 
 def get_new_order_ids(client, backend_id):
     remote_order_items = client.list_order_items(
-        {'resource_uuid': backend_id, 'field': ['uuid', 'order_uuid']}
+        {'resource_uuid': backend_id, 'field': ['order_uuid']}
     )
-    local_order_items = marketplace_models.OrderItem.objects.filter(
-        resource__backend_id=backend_id
-    ).values_list('backend_id', flat=True)
-    remote_order_items_map = {
-        order_item['uuid']: order_item for order_item in remote_order_items
-    }
-    new_order_item_ids = set(remote_order_items_map.keys()) - set(local_order_items)
-    return {
-        remote_order_items_map[order_item_id]['order_uuid']
-        for order_item_id in new_order_item_ids
-    }
+    local_order_ids = set(
+        marketplace_models.OrderItem.objects.filter(
+            resource__backend_id=backend_id
+        ).values_list('backend_id', flat=True)
+    )
+    remote_order_ids = {order_item['order_uuid'] for order_item in remote_order_items}
+    return remote_order_ids - local_order_ids
 
 
 def import_resource_order_items(resource):

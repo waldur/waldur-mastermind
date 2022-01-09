@@ -385,7 +385,7 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         remote_order_item_uuid = uuid.uuid4().hex
         remote_order_uuid = uuid.uuid4().hex
         factories.OrderItemFactory(
-            backend_id=remote_order_item_uuid, resource=self.fixture.resource
+            backend_id=remote_order_uuid, resource=self.fixture.resource
         )
         self.client.list_order_items.return_value = [
             {'uuid': remote_order_item_uuid, 'order_uuid': remote_order_uuid}
