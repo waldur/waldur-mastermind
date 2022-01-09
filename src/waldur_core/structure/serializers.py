@@ -701,6 +701,9 @@ class ProjectPermissionSerializer(
                     _('The fields project and user must make a unique set.')
                 )
 
+            if project.is_removed:
+                raise serializers.ValidationError(_('Project is removed.'))
+
         return data
 
     def create(self, validated_data):
