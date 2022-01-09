@@ -169,8 +169,8 @@ class ResourcePullTask(BackgroundPullTask):
             ['report',], local_resource, remote_resource,
         )
         # When pulling resource, if remote state is different from local, import remote order items.
+        utils.import_resource_order_items(local_resource)
         if utils.parse_resource_state(remote_resource['state']) != local_resource.state:
-            utils.import_resource_order_items(local_resource)
             utils.pull_resource_state(local_resource)
 
 
