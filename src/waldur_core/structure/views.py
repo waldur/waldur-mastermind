@@ -1013,7 +1013,9 @@ class CustomerCountersView(BaseCounterView):
         return self.object.get_users().count()
 
     def get_projects(self):
-        return self._count_model(models.Project)
+        qs = models.Project.available_objects.filter(customer=self.object).only('pk')
+        qs = filter_queryset_for_user(qs, self.request.user)
+        return qs.count()
 
     def _total_count(self, models):
         return sum(self._count_model(model) for model in models)
