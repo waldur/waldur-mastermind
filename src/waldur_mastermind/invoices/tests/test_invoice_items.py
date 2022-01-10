@@ -1,6 +1,7 @@
 from datetime import date
 from unittest import mock
 
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_mastermind.invoices.tests import factories, fixtures
@@ -150,3 +151,61 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
             event_type='invoice_item_created',
             event_context={'customer': self.item.invoice.customer,},
         )
+
+
+@freeze_time('2019-01-01')
+class InvoiceTerminateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.item = self.fixture.invoice_item
+
+    def test_when_item_is_terminated_quantity_is_not_updated_if_component_is_not_defined(
+        self,
+    ):
+        old_quantity = self.item.quantity
+        self.item.terminate()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, old_quantity)
+
+    def test_when_item_is_terminated_quantity_is_updated_if_component_is_fixed(self):
+        self.item.details['plan_component_id'] = self.fixture.plan_component.id
+        self.item.save()
+        with freeze_time('2019-01-31'):
+            self.item.terminate()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 30)
+
+    def test_when_item_is_terminated_quantity_is_updated_if_component_is_month_limit(
+        self,
+    ):
+        self.fixture.offering_component.billing_type = (
+            marketplace_models.OfferingComponent.BillingTypes.LIMIT
+        )
+        self.fixture.offering_component.limit_period = (
+            marketplace_models.OfferingComponent.LimitPeriods.MONTH
+        )
+        self.fixture.offering_component.save()
+        self.item.details['plan_component_id'] = self.fixture.plan_component.id
+        self.item.save()
+        with freeze_time('2019-01-31'):
+            self.item.terminate()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 30)
+
+    def test_when_item_is_terminated_quantity_is_not_updated_if_component_is_total_limit(
+        self,
+    ):
+        old_quantity = self.item.quantity
+        self.fixture.offering_component.billing_type = (
+            marketplace_models.OfferingComponent.BillingTypes.LIMIT
+        )
+        self.fixture.offering_component.limit_period = (
+            marketplace_models.OfferingComponent.LimitPeriods.TOTAL
+        )
+        self.fixture.offering_component.save()
+        self.item.details['plan_component_id'] = self.fixture.plan_component.id
+        self.item.save()
+        with freeze_time('2019-01-31'):
+            self.item.terminate()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, old_quantity)

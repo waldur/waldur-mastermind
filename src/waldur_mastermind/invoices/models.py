@@ -345,7 +345,8 @@ class InvoiceItem(
         """
         For fixed-price component quantity is updated when item is terminated.
         For usage-based component quantity is updated when usage is reported.
-        For limit-based component quantity is updated when limit is updated.
+        For limit-based component quantity is updated when limit is updated for total limit component
+        or item is terminated for month limit component.
         """
         plan_component_id = self.details.get('plan_component_id')
         if not plan_component_id:
@@ -359,6 +360,12 @@ class InvoiceItem(
         if (
             plan_component.component.billing_type
             == marketplace_models.OfferingComponent.BillingTypes.FIXED
+            or (
+                plan_component.component.billing_type
+                == marketplace_models.OfferingComponent.BillingTypes.LIMIT
+                and plan_component.component.limit_period
+                == marketplace_models.OfferingComponent.LimitPeriods.MONTH
+            )
         ):
             new_quantity = get_quantity(self.unit, self.start, self.end)
             if new_quantity != self.quantity:
@@ -376,6 +383,9 @@ class InvoiceItem(
             last_period['end'] = self.end.isoformat()
             last_period['billing_periods'] = utils.get_full_days(
                 parse_datetime(last_period['start']), self.end
+            )
+            last_period['total'] = str(
+                int(last_period['quantity']) * last_period['billing_periods']
             )
             self.save(update_fields=['details'])
 
