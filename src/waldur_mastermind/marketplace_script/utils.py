@@ -1,3 +1,4 @@
+import json
 import logging
 import tempfile
 
@@ -44,7 +45,7 @@ class DockerExecutorMixin:
             serializer.data
         )  # drop the self-reference to serializer by converting to dict
         environment = {
-            key.upper(): str(input_parameters[key]) for key in input_parameters.keys()
+            key.upper(): input_parameters[key] for key in input_parameters.keys()
         }
         # update environment with offering-specific parameters
         for opt in options.get('environ', []):
@@ -61,6 +62,13 @@ class DockerExecutorMixin:
         )
 
         try:
+            environment = {
+                key: json.dumps(value)
+                if isinstance(value, (dict, list))
+                else str(value)
+                for key, value in environment.items()
+            }
+
             self.order_item.output = str(
                 execute_script(
                     image=image,
