@@ -5,7 +5,8 @@ from django.conf import settings
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
-from waldur_openstack.openstack_tenant import models
+from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
 )
@@ -19,15 +20,15 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.volume = self.fixture.volume
 
     def destroy_volume(self):
-        url = factories.VolumeFactory.get_url(self.volume)
-        self.client.force_authenticate(self.fixture.staff)
-        return self.client.delete(url)
+        user = self.fixture.staff
+        view = views.MarketplaceVolumeViewSet.as_view({'delete': 'destroy'})
+        return common_utils.delete_request(view, user, uuid=self.volume.uuid.hex)
 
     def test_erred_volume_can_be_destroyed(self):
         self.volume.state = models.Volume.States.ERRED
         self.volume.save()
         response = self.destroy_volume()
-        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_attached_volume_can_not_be_destroyed(self):
         self.volume.state = models.Volume.States.OK
@@ -392,8 +393,16 @@ class BaseVolumeCreateTest(test.APITransactionTestCase):
         }
         payload.update(extra)
 
-        url = factories.VolumeFactory.get_list_url()
-        return self.client.post(url, payload)
+        user = self.fixture.owner
+        view = views.MarketplaceVolumeViewSet.as_view({'post': 'create'})
+        response = common_utils.create_request(view, user, payload)
+        return response
+
+    def create_instance(self, payload):
+        user = self.fixture.owner
+        view = views.MarketplaceInstanceViewSet.as_view({'post': 'create'})
+        response = common_utils.create_request(view, user, payload)
+        return response
 
 
 class VolumeNameCreateTest(BaseVolumeCreateTest):
@@ -406,7 +415,6 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         flavor = factories.FlavorFactory(settings=self.settings)
         flavor_url = factories.FlavorFactory.get_url(flavor)
         subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
-        url = factories.InstanceFactory.get_list_url()
 
         payload = {
             'name': 'test-instance',
@@ -418,7 +426,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
             'internal_ips_set': [{'subnet': subnet_url}],
         }
 
-        response = self.client.post(url, payload)
+        response = self.create_instance(payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         system_volume = response.data['volumes'][0]
@@ -428,7 +436,6 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         flavor = factories.FlavorFactory(settings=self.settings)
         flavor_url = factories.FlavorFactory.get_url(flavor)
         subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
-        url = factories.InstanceFactory.get_list_url()
 
         payload = {
             'name': 'test-instance',
@@ -444,7 +451,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
             ],
         }
 
-        response = self.client.post(url, payload)
+        response = self.create_instance(payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         data_volumes_names = [
@@ -467,7 +474,10 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def test_type_populated_on_volume_creation(self):
         response = self.create_volume(type=self.type_url)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(response.data['type'], self.type_url)
+        self.assertEqual(
+            '/'.join(response.data['type'].split('/')[3:]),
+            '/'.join(self.type_url.split('/')[3:]),
+        )
 
     def test_volume_type_should_be_related_to_the_same_service_settings(self):
         response = self.create_volume(type=factories.VolumeTypeFactory.get_url())

@@ -11,7 +11,7 @@ from rest_framework import status, test
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.common.utils import delete_request
+from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_tenant import executors, models, views
@@ -79,8 +79,11 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.flavor = factories.FlavorFactory(settings=self.openstack_settings)
         self.subnet = self.openstack_tenant_fixture.subnet
 
-        self.client.force_authenticate(user=self.openstack_tenant_fixture.owner)
-        self.url = factories.InstanceFactory.get_list_url()
+    def create_instance(self, post_data=None):
+        user = self.openstack_tenant_fixture.owner
+        view = views.MarketplaceInstanceViewSet.as_view({'post': 'create'})
+        response = common_utils.create_request(view, user, post_data)
+        return response
 
     def get_valid_data(self, **extra):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
@@ -99,8 +102,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         return default
 
     def test_quotas_update(self):
-        response = self.client.post(self.url, self.get_valid_data())
-
+        response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         Quotas = self.openstack_settings.Quotas
@@ -134,7 +136,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
 
     def test_project_quotas_updated_when_instance_is_created(self):
-        response = self.client.post(self.url, self.get_valid_data())
+        response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
 
         self.assertEqual(
@@ -148,7 +150,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
 
     def test_customer_quotas_updated_when_instance_is_created(self):
-        response = self.client.post(self.url, self.get_valid_data())
+        response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
 
         self.assertEqual(
@@ -162,7 +164,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
 
     def test_project_quotas_updated_when_instance_is_deleted(self):
-        response = self.client.post(self.url, self.get_valid_data())
+        response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         instance.delete()
 
@@ -171,7 +173,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(self.project.quotas.get(name='os_storage_size').usage, 0)
 
     def test_customer_quotas_updated_when_instance_is_deleted(self):
-        response = self.client.post(self.url, self.get_valid_data())
+        response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         instance.delete()
 
@@ -182,11 +184,11 @@ class InstanceCreateTest(test.APITransactionTestCase):
     @data('instances')
     def test_quota_validation(self, quota_name):
         self.openstack_settings.quotas.filter(name=quota_name).update(limit=0)
-        response = self.client.post(self.url, self.get_valid_data())
+        response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_provision_instance(self):
-        response = self.client.post(self.url, self.get_valid_data())
+        response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_user_can_define_instance_subnets(self):
@@ -195,7 +197,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             internal_ips_set=[{'subnet': factories.SubNetFactory.get_url(subnet)}]
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
@@ -207,7 +209,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         data = self.get_valid_data(
             internal_ips_set=[{'subnet': factories.SubNetFactory.get_url()}]
         )
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_define_instance_floating_ips(self):
@@ -222,7 +224,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             ],
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
@@ -235,7 +237,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}])
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_assign_floating_ip_from_other_settings_to_instance(self):
@@ -250,7 +252,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             ],
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -269,7 +271,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             ],
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -290,7 +292,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             ],
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('floating_ips', response.data)
@@ -309,7 +311,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             ],
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -319,7 +321,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_tenant_fixture.floating_ip.save()
         data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}],)
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
@@ -334,7 +336,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_tenant_fixture.floating_ip.save()
         data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}],)
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -342,7 +344,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         data = self.get_valid_data()
         del data['internal_ips_set']
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('internal_ips_set', response.data)
@@ -375,7 +377,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             availability_zone=factories.InstanceAvailabilityZoneFactory.get_url(zone)
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
@@ -389,7 +391,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             availability_zone=factories.InstanceAvailabilityZoneFactory.get_url(zone)
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -399,7 +401,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             availability_zone=factories.InstanceAvailabilityZoneFactory.get_url(zone)
         )
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -418,7 +420,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         data = self.get_valid_data(availability_zone=vm_az_url)
 
         # Act
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -433,7 +435,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_tenant_fixture.instance_availability_zone
         data = self.get_valid_data()
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -443,7 +445,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
     ):
         data = self.get_valid_data()
 
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -451,14 +453,14 @@ class InstanceCreateTest(test.APITransactionTestCase):
     def test_not_create_instance_with_invalid_name(self, name):
         data = self.get_valid_data()
         data['name'] = name
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data('test', 'vm-name', 'vm', 'VM')
     def test_create_instance_with_valid_name(self, name):
         data = self.get_valid_data()
         data['name'] = name
-        response = self.client.post(self.url, data)
+        response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
@@ -491,11 +493,11 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         )
         self.instance.increase_backend_quotas_usage()
         self.mocked_nova().servers.get.side_effect = nova_exceptions.NotFound(code=404)
-        views.DeletableInstanceViewSet.async_executor = False
+        views.MarketplaceInstanceViewSet.async_executor = False
 
     def tearDown(self):
         super(InstanceDeleteTest, self).tearDown()
-        views.DeletableInstanceViewSet.async_executor = True
+        views.MarketplaceInstanceViewSet.async_executor = True
 
     def mock_volumes(self, delete_data_volume=True):
         self.data_volume = self.instance.volumes.get(bootable=False)
@@ -521,12 +523,12 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
     def delete_instance(self, query_params=None, check_status_code=True):
         user = structure_factories.UserFactory(is_staff=True)
-        view = views.DeletableInstanceViewSet.as_view({'delete': 'destroy'})
+        view = views.MarketplaceInstanceViewSet.as_view({'delete': 'destroy'})
 
         with override_settings(
             CELERY_ALWAYS_EAGER=True, CELERY_EAGER_PROPAGATES_EXCEPTIONS=True
         ):
-            response = delete_request(
+            response = common_utils.delete_request(
                 view, user, uuid=self.instance.uuid.hex, query_params=query_params
             )
 
