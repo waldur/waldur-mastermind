@@ -5,8 +5,8 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_openstack.openstack_tenant.views import (
-    DeletableInstanceViewSet,
     InstanceViewSet,
+    MarketplaceInstanceViewSet,
 )
 
 from . import utils
@@ -21,7 +21,7 @@ ClusterNameValidator = RegexValidator(
 
 
 def related_vm_can_be_deleted(node):
-    validators = DeletableInstanceViewSet.force_destroy_validators
+    validators = MarketplaceInstanceViewSet.force_destroy_validators
 
     for validator in validators:
         if node.instance:

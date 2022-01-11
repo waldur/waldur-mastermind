@@ -13,7 +13,7 @@ from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
-from waldur_openstack.openstack_tenant.views import InstanceViewSet
+from waldur_openstack.openstack_tenant.views import MarketplaceInstanceViewSet
 from waldur_rancher.enums import LONGHORN_NAME, LONGHORN_NAMESPACE
 from waldur_rancher.utils import SyncUser
 
@@ -93,7 +93,7 @@ class CreateNodeTask(core_tasks.Task):
                 'sshpublickey-detail', kwargs={'uuid': ssh_public_key},
             )
 
-        view = InstanceViewSet.as_view({'post': 'create'})
+        view = MarketplaceInstanceViewSet.as_view({'post': 'create'})
         response = common_utils.create_request(view, user, post_data)
 
         if response.status_code != status.HTTP_201_CREATED:
@@ -121,7 +121,7 @@ class DeleteNodeTask(core_tasks.Task):
         user = auth.get_user_model().objects.get(pk=user_id)
 
         if node.instance:
-            view = InstanceViewSet.as_view({'delete': 'force_destroy'})
+            view = MarketplaceInstanceViewSet.as_view({'delete': 'force_destroy'})
             response = common_utils.delete_request(
                 view,
                 user,

@@ -54,7 +54,7 @@ class TenantDeleteProcessor(processors.DeleteScopedResourceProcessor):
 
 
 class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
-    viewset = tenant_views.InstanceViewSet
+    viewset = tenant_views.MarketplaceInstanceViewSet
 
     fields = (
         'name',
@@ -76,11 +76,11 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
 
 
 class InstanceDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = tenant_views.DeletableInstanceViewSet
+    viewset = tenant_views.MarketplaceInstanceViewSet
 
 
 class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
-    viewset = tenant_views.VolumeViewSet
+    viewset = tenant_views.MarketplaceVolumeViewSet
 
     fields = (
         'name',
@@ -93,4 +93,4 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
 
 
 class VolumeDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = tenant_views.VolumeViewSet
+    viewset = tenant_views.MarketplaceVolumeViewSet

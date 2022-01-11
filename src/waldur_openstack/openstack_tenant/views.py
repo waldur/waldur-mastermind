@@ -183,32 +183,14 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     serializer_class = serializers.VolumeSerializer
     filterset_class = filters.VolumeFilter
 
-    create_executor = executors.VolumeCreateExecutor
     update_executor = executors.VolumeUpdateExecutor
     pull_executor = executors.VolumePullExecutor
 
-    def _can_destroy_volume(volume):
-        if volume.state == models.Volume.States.ERRED:
-            return
-        if volume.state != models.Volume.States.OK:
-            raise core_exceptions.IncorrectStateException(
-                _('Volume should be in OK state.')
-            )
-        core_validators.RuntimeStateValidator(
-            'available', 'error', 'error_restoring', 'error_extending', ''
-        )(volume)
+    def create(self, request, *args, **kwargs):
+        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    def _volume_snapshots_exist(volume):
-        if volume.snapshots.exists():
-            raise core_exceptions.IncorrectStateException(
-                _('Volume has dependent snapshots.')
-            )
-
-    delete_executor = executors.VolumeDeleteExecutor
-    destroy_validators = [
-        _can_destroy_volume,
-        _volume_snapshots_exist,
-    ]
+    def destroy(self, request, *args, **kwargs):
+        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def _is_volume_bootable(volume):
         if volume.bootable:
@@ -415,14 +397,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Instance.States.OK)
     ]
 
-    def perform_create(self, serializer):
-        instance = serializer.save()
-        executors.InstanceCreateExecutor.execute(
-            instance,
-            ssh_key=serializer.validated_data.get('ssh_public_key'),
-            flavor=serializer.validated_data['flavor'],
-            is_heavy_task=True,
-        )
+    def create(self, request, *args, **kwargs):
+        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def destroy(self, request, *args, **kwargs):
+        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def _has_backups(instance):
         if instance.backups.exists():
@@ -448,9 +427,6 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         raise core_exceptions.IncorrectStateException(
             _('Instance should be shutoff and OK or erred. ' 'Please contact support.')
         )
-
-    def destroy(self, request, *args, **kwargs):
-        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @decorators.action(detail=True, methods=['post'])
     def change_flavor(self, request, uuid=None):
@@ -736,7 +712,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     console_log_permissions = [structure_permissions.is_administrator]
 
 
-class DeletableInstanceViewSet(structure_views.ResourceViewSet):
+class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all()
     serializer_class = serializers.InstanceSerializer
     filter_backends = structure_views.ResourceViewSet.filter_backends + (
@@ -812,6 +788,46 @@ class DeletableInstanceViewSet(structure_views.ResourceViewSet):
         ),
     ]
     force_destroy_serializer_class = destroy_serializer_class
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        executors.InstanceCreateExecutor.execute(
+            instance,
+            ssh_key=serializer.validated_data.get('ssh_public_key'),
+            flavor=serializer.validated_data['flavor'],
+            is_heavy_task=True,
+        )
+
+
+class MarketplaceVolumeViewSet(structure_views.ResourceViewSet):
+    queryset = models.Volume.objects.all().order_by('name')
+    serializer_class = serializers.VolumeSerializer
+    filterset_class = filters.VolumeFilter
+
+    create_executor = executors.VolumeCreateExecutor
+
+    def _can_destroy_volume(volume):
+        if volume.state == models.Volume.States.ERRED:
+            return
+        if volume.state != models.Volume.States.OK:
+            raise core_exceptions.IncorrectStateException(
+                _('Volume should be in OK state.')
+            )
+        core_validators.RuntimeStateValidator(
+            'available', 'error', 'error_restoring', 'error_extending', ''
+        )(volume)
+
+    def _volume_snapshots_exist(volume):
+        if volume.snapshots.exists():
+            raise core_exceptions.IncorrectStateException(
+                _('Volume has dependent snapshots.')
+            )
+
+    delete_executor = executors.VolumeDeleteExecutor
+    destroy_validators = [
+        _can_destroy_volume,
+        _volume_snapshots_exist,
+    ]
 
 
 class BackupViewSet(structure_views.ResourceViewSet):

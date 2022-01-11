@@ -3,7 +3,8 @@ from unittest.mock import patch
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_openstack.openstack_tenant import models
+from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
 
@@ -47,6 +48,12 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         )
         self.instance.security_groups.add(*self.security_groups)
 
+    def create_instance(self, post_data=None):
+        user = self.admin
+        view = views.MarketplaceInstanceViewSet.as_view({'post': 'create'})
+        response = common_utils.create_request(view, user, post_data)
+        return response
+
     def test_groups_list_in_instance_response(self):
         response = self.client.get(factories.InstanceFactory.get_url(self.instance))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -63,7 +70,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
             self._get_valid_security_group_payload(sg) for sg in self.security_groups
         ]
 
-        response = self.client.post(factories.InstanceFactory.get_list_url(), data=data)
+        response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
@@ -131,7 +138,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
     def test_security_groups_is_not_required(self):
         data = _instance_data(self.admin, self.instance)
         self.assertNotIn('security_groups', data)
-        response = self.client.post(factories.InstanceFactory.get_list_url(), data=data)
+        response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     # Helper methods
