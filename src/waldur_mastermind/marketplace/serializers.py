@@ -1994,6 +1994,7 @@ class ResourceSerializer(BaseItemSerializer):
             'state',
             'resource_uuid',
             'backend_id',
+            'effective_id',
             'resource_type',
             'project',
             'project_uuid',
@@ -2018,6 +2019,7 @@ class ResourceSerializer(BaseItemSerializer):
             'scope',
             'current_usages',
             'backend_id',
+            'effective_id',
             'report',
             'description',
         )

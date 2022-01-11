@@ -96,3 +96,25 @@ class OrderItemPullTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.assertIsNotNone(self.order_item.resource)
         self.assertEqual(Resource.States.OK, self.order_item.resource.state)
+
+    def test_remote_resource_backend_id_is_saved_as_local_resource_effective_id(self):
+        # Arrange
+        self.client_mock().get_order.return_value = {
+            'items': [
+                {
+                    'state': 'done',
+                    'marketplace_resource_uuid': 'marketplace_resource_uuid',
+                    'resource_uuid': 'effective_id',
+                    'error_message': '',
+                }
+            ]
+        }
+        self.order_item.resource = None
+        self.order_item.save()
+
+        # Act
+        OrderItemPullTask().run(serialize_instance(self.order_item))
+
+        # Assert
+        self.order_item.refresh_from_db()
+        self.assertEqual('effective_id', self.order_item.resource.effective_id)

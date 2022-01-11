@@ -412,3 +412,20 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         utils.pull_resource_state(self.fixture.resource)
         self.fixture.resource.refresh_from_db()
         self.assertEqual(self.fixture.resource.state, models.Resource.States.ERRED)
+
+    def test_remote_resource_backend_id_is_saved_as_local_resource_effective_id(self):
+        # Arrange
+        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.save()
+        self.client.get_marketplace_resource.return_value = {
+            'report': '',
+            'backend_id': 'effective_id',
+            'state': 'OK',
+        }
+
+        # Act
+        tasks.ResourcePullTask().pull(self.resource)
+
+        # Assert
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(self.fixture.resource.effective_id, 'effective_id')
