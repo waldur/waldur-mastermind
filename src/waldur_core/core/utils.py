@@ -202,7 +202,7 @@ def format_text(template_name, context):
     return template.render(Context(context, autoescape=False)).strip()
 
 
-def send_mail_with_attachment(
+def send_mail(
     subject,
     body,
     to,
@@ -212,10 +212,18 @@ def send_mail_with_attachment(
     attachment=None,
     content_type='text/plain',
     bcc=None,
+    reply_to=None,
+    fail_silently=False,
 ):
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
+    reply_to = reply_to or settings.DEFAULT_REPLY_TO_EMAIL
     email = EmailMultiAlternatives(
-        subject=subject, body=body, to=to, from_email=from_email, bcc=bcc
+        subject=subject,
+        body=body,
+        to=to,
+        from_email=from_email,
+        bcc=bcc,
+        reply_to=[reply_to],
     )
 
     if html_message:
@@ -223,7 +231,7 @@ def send_mail_with_attachment(
 
     if filename:
         email.attach(filename, attachment, content_type)
-    return email.send()
+    return email.send(fail_silently=fail_silently)
 
 
 def broadcast_mail(
@@ -269,7 +277,7 @@ def broadcast_mail(
     html_message = render_to_string(html_template_name, context)
 
     for recipient in recipient_list:
-        send_mail_with_attachment(
+        send_mail(
             subject,
             text_message,
             to=[recipient],

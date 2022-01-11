@@ -740,6 +740,10 @@ class WaldurConfiguration(BaseModel):
         'webmaster@localhost',
         description='Default email address to use for automated correspondence from Waldur.',
     )
+    DEFAULT_REPLY_TO_EMAIL = Field(
+        'support@example.com',
+        description='Default email address to use for email replies.',
+    )
     IPSTACK_ACCESS_KEY: Optional[str] = Field(
         description='Unique authentication key used to gain access to the ipstack API.'
     )

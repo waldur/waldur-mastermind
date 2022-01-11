@@ -7,7 +7,6 @@ from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
-from django.core.mail import send_mail
 from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -18,6 +17,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
+from waldur_core.core.utils import send_mail
 
 logger = logging.getLogger(__name__)
 
@@ -187,11 +187,7 @@ class EmailHook(BaseHook):
             'Submitting email hook to %s, payload: %s', self.email, text_message
         )
         send_mail(
-            subject,
-            text_message,
-            settings.DEFAULT_FROM_EMAIL,
-            [self.email],
-            html_message=html_message,
+            subject, text_message, [self.email], html_message=html_message,
         )
 
 

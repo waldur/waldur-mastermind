@@ -101,6 +101,8 @@ default_from_email = env.get('GLOBAL_DEFAULT_FROM_EMAIL')
 if default_from_email:
     DEFAULT_FROM_EMAIL = default_from_email
 
+DEFAULT_REPLY_TO_EMAIL = env.get('GLOBAL_DEFAULT_REPLY_TO_EMAIL')
+
 # Session
 # https://docs.djangoproject.com/en/2.2/ref/settings/#sessions
 SESSION_COOKIE_AGE = env.get('AUTH_COOKIE_AGE', 3600)
