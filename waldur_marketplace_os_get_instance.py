@@ -17,7 +17,7 @@ version_added: 0.1
 description:
   - Get an OpenStack instance
 requirements:
-  - python = 3.6
+  - python = 3.8
   - requests
   - python-waldur-client
 options:

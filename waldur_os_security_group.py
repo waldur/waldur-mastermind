@@ -23,7 +23,7 @@ version_added: 0.1
 description:
   - "Add/Update/Remove OpenStack tenant security group"
 requirements:
-  - "python = 3.6"
+  - "python = 3.8"
   - "requests"
   - "python-waldur-client"
 options:

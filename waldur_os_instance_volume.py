@@ -21,7 +21,7 @@ version_added: 0.8
 description:
   - Attach and detach Volumes from OpenStack VMs.
 requirements:
-  - "python = 3.6"
+  - "python = 3.8"
   - "requests"
   - "python-waldur-client"
 options:

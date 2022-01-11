@@ -23,7 +23,7 @@ version_added: 0.8
 description:
   - "Create/Update/Delete OpenStack volume"
 requirements:
-  - "python = 3.6"
+  - "python = 3.8"
   - "requests"
   - "python-waldur-client"
 options:

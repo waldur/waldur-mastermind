@@ -19,7 +19,7 @@ module: waldur_os_floating_ip
 short_description: Assign floating IPs
 version_added: 0.1
 requirements:
-  - "python = 3.6"
+  - "python = 3.8"
   - "requests"
   - "python-waldur-client"
 options:

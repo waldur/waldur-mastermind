@@ -23,7 +23,7 @@ version_added: 0.8
 description:
   - "Create/Delete OpenStack snapshot"
 requirements:
-  - "python = 3.6"
+  - "python = 3.8"
   - "requests"
   - "python-waldur-client"
 options:
