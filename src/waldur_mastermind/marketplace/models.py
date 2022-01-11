@@ -1040,6 +1040,8 @@ class Resource(
     current_usages = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
+    # Effective ID is used when resource is provisioned through remote Waldur
+    effective_id = models.CharField(max_length=255, blank=True)
 
     @property
     def customer(self):

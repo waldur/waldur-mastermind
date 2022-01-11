@@ -168,6 +168,9 @@ class ResourcePullTask(BackgroundPullTask):
         pull_fields(
             ['report',], local_resource, remote_resource,
         )
+        if local_resource.effective_id != remote_resource['backend_id']:
+            local_resource.effective_id = remote_resource['backend_id']
+            local_resource.save(update_fields=['effective_id'])
         # When pulling resource, if remote state is different from local, import remote order items.
         utils.import_resource_order_items(local_resource)
         if utils.parse_resource_state(remote_resource['state']) != local_resource.state:
@@ -207,8 +210,9 @@ class OrderItemPullTask(BackgroundPullTask):
                 and local_order_item.type == models.OrderItem.Types.CREATE
             ):
                 resource_uuid = remote_order_item.get('marketplace_resource_uuid')
+                effective_id = remote_order_item.get('resource_uuid', '')
                 if resource_uuid:
-                    create_local_resource(local_order_item, resource_uuid)
+                    create_local_resource(local_order_item, resource_uuid, effective_id)
             sync_order_item_state(local_order_item, new_state)
         pull_fields(('error_message',), local_order_item, remote_order_item)
 

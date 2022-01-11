@@ -631,7 +631,7 @@ def schedule_resources_termination(resources):
             )
 
 
-def create_local_resource(order_item, scope):
+def create_local_resource(order_item, scope, effective_id=''):
     resource = models.Resource(
         project=order_item.order.project,
         offering=order_item.offering,
@@ -641,6 +641,7 @@ def create_local_resource(order_item, scope):
         name=order_item.attributes.get('name') or '',
         scope=scope if scope and type(scope) != str else None,
         backend_id=scope if scope and type(scope) == str else '',
+        effective_id=effective_id,
     )
     resource.init_cost()
     resource.save()
