@@ -115,7 +115,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
     def send_report(self):
         with mock.patch(
-            'waldur_mastermind.invoices.tasks.core_utils.send_mail_with_attachment'
+            'waldur_mastermind.invoices.tasks.core_utils.send_mail'
         ) as send_mail_mock:
             tasks.send_invoice_report()
             message = send_mail_mock.call_args[1]['attachment']

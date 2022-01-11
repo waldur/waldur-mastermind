@@ -9,7 +9,6 @@ from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
-from django.core.mail import send_mail
 from django.db import models, transaction
 from django.utils import timezone as django_timezone
 from django.utils.encoding import force_text
@@ -21,7 +20,7 @@ from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
 from waldur_core.core.fields import CronScheduleField, UUIDField
-from waldur_core.core.utils import normalize_unicode
+from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
     MinCronValueValidator,
     validate_name,
@@ -337,7 +336,7 @@ class User(
         """
         Sends an email to this User.
         """
-        send_mail(subject, message, from_email, [self.email])
+        send_mail(subject, message, [self.email], from_email)
 
     @classmethod
     def get_permitted_objects(cls, user):

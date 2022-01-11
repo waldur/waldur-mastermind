@@ -124,7 +124,7 @@ def send_invoice_report():
     # Please note that email body could be empty if there are no valid invoices
     emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
     logger.debug('About to send accounting report to {emails}'.format(emails=emails))
-    core_utils.send_mail_with_attachment(
+    core_utils.send_mail(
         subject=subject,
         body=body,
         to=emails,
@@ -219,7 +219,7 @@ def send_monthly_invoicing_reports_about_customers():
             today.year,
         )
         emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
-        core_utils.send_mail_with_attachment(
+        core_utils.send_mail(
             subject=subject,
             body=body,
             to=emails,

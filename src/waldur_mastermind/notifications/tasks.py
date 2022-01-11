@@ -1,6 +1,6 @@
 from celery import shared_task
-from django.conf import settings
-from django.core.mail import send_mail
+
+from waldur_core.core.utils import send_mail
 
 from . import models
 
@@ -10,9 +10,5 @@ def send_notification_email(notification_uuid):
     notification = models.Notification.objects.get(uuid=notification_uuid)
     for email in notification.emails:
         send_mail(
-            notification.subject,
-            notification.body,
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=True,
+            notification.subject, notification.body, [email], fail_silently=True,
         )

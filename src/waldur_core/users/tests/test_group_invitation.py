@@ -537,14 +537,14 @@ class RequestApproveTest(BaseInvitationTest):
             core_utils.serialize_instance(self.customer),
         )
 
-    @patch('waldur_core.core.utils.send_mail_with_attachment')
-    def test_task_notification(self, mock_send_mail_with_attachment):
+    @patch('waldur_core.core.utils.send_mail')
+    def test_task_notification(self, mock_send_mail):
         permission = structure_factories.CustomerPermissionFactory()
         structure_tasks.send_structure_role_granted_notification(
             core_utils.serialize_instance(permission),
             core_utils.serialize_instance(permission.customer),
         )
-        mock_send_mail_with_attachment.assert_called_once()
+        mock_send_mail.assert_called_once()
 
 
 @ddt

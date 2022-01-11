@@ -4,7 +4,6 @@ from smtplib import SMTPException
 from celery import shared_task
 from django.conf import settings
 from django.core import signing
-from django.core.mail import send_mail
 from django.template import Context, Template
 from django.template.loader import get_template
 
@@ -149,12 +148,8 @@ def _send_email(
     logger.debug('About to send an issue update notification to %s' % receiver.email)
 
     try:
-        send_mail(
-            subject,
-            text_message,
-            settings.DEFAULT_FROM_EMAIL,
-            [receiver.email],
-            html_message=html_message,
+        core_utils.send_mail(
+            subject, text_message, [receiver.email], html_message=html_message,
         )
     except SMTPException as e:
         message = (
