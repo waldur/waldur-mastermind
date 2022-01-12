@@ -2263,6 +2263,7 @@ class BaseComponentUsageSerializer(
             'measured_unit',
             'usage',
             'date',
+            'recurring',
         )
 
 
