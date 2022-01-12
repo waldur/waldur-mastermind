@@ -121,6 +121,12 @@
       "default": "webmaster@localhost",
       "type": "string"
     },
+    "DEFAULT_REPLY_TO_EMAIL": {
+      "title": "Default reply-to email",
+      "description": "Default email address to use for email replies.",
+      "default": "",
+      "type": "string"
+    },
     "CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC": {
       "title": "Convert Media Urls To Mastermind Netloc",
       "default": false,
