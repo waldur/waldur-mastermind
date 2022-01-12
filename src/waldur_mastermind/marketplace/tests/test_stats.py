@@ -4,6 +4,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date, parse_datetime
@@ -421,6 +422,10 @@ class LimitsStatsTest(test.APITransactionTestCase):
         )
         self.url = '/api/marketplace-stats/resources_limits/'
 
+        self.division_1 = structure_factories.DivisionFactory()
+        self.division_2 = structure_factories.DivisionFactory()
+        self.resource_1.offering.divisions.add(self.division_1, self.division_2)
+
     @data(
         'staff', 'global_support',
     )
@@ -436,16 +441,29 @@ class LimitsStatsTest(test.APITransactionTestCase):
                     'offering_uuid': self.resource_1.offering.uuid,
                     'name': 'cpu',
                     'value': 7,
+                    'division_name': self.division_1.name,
+                    'division_uuid': self.division_1.uuid.hex,
+                },
+                {
+                    'offering_uuid': self.resource_1.offering.uuid,
+                    'name': 'cpu',
+                    'value': 7,
+                    'division_name': self.division_2.name,
+                    'division_uuid': self.division_2.uuid.hex,
                 },
                 {
                     'offering_uuid': self.resource_2.offering.uuid,
                     'name': 'cpu',
                     'value': 10,
+                    'division_name': '',
+                    'division_uuid': '',
                 },
                 {
                     'offering_uuid': self.resource_2.offering.uuid,
                     'name': 'ram',
                     'value': 1,
+                    'division_name': '',
+                    'division_uuid': '',
                 },
             ],
         )

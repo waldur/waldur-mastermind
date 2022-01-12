@@ -1,3 +1,4 @@
+import copy
 import logging
 
 import reversion
@@ -1594,7 +1595,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
                     else:
                         prev['value'] += value
 
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(
+            self._expand_result_with_information_of_divisions(data),
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def component_usages(self, request, *args, **kwargs):
@@ -1607,7 +1611,33 @@ class StatsViewSet(rf_viewsets.ViewSet):
             .annotate(usage=Sum('usage'))
         )
         serializer = serializers.ComponentUsagesStatsSerializer(data, many=True)
-        return Response(status=status.HTTP_200_OK, data=serializer.data)
+        return Response(
+            self._expand_result_with_information_of_divisions(serializer.data),
+            status=status.HTTP_200_OK,
+        )
+
+    @staticmethod
+    def _expand_result_with_information_of_divisions(result):
+        data_with_divisions = []
+
+        for record in result:
+            divisions = models.Offering.objects.get(
+                uuid=record['offering_uuid']
+            ).divisions.all()
+
+            if not divisions:
+                new_data = copy.copy(record)
+                new_data['division_name'] = ''
+                new_data['division_uuid'] = ''
+                data_with_divisions.append(new_data)
+            else:
+                for division in divisions:
+                    new_data = copy.copy(record)
+                    new_data['division_name'] = division.name
+                    new_data['division_uuid'] = division.uuid.hex
+                    data_with_divisions.append(new_data)
+
+        return data_with_divisions
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
