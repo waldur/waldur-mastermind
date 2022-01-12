@@ -177,9 +177,6 @@ class VirtualMachine(structure_models.VirtualMachine):
     def get_url_name(cls):
         return 'azure-virtualmachine'
 
-    def get_access_url_name(self):
-        return 'azure-virtualmachine-rdp'
-
 
 class SQLServer(BaseResourceGroupModel):
     name = models.CharField(

@@ -393,6 +393,9 @@ class Offering(
     terms_of_service = models.TextField(blank=True)
     terms_of_service_link = models.URLField(blank=True)
     privacy_policy_link = models.URLField(blank=True)
+    access_url = models.URLField(
+        blank=True, help_text=_('URL for accessing management console.')
+    )
 
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)

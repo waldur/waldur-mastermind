@@ -779,6 +779,7 @@ class OfferingDetailsSerializer(
             'terms_of_service',
             'terms_of_service_link',
             'privacy_policy_link',
+            'access_url',
             'customer',
             'customer_uuid',
             'customer_name',
@@ -1995,6 +1996,7 @@ class ResourceSerializer(BaseItemSerializer):
             'resource_uuid',
             'backend_id',
             'effective_id',
+            'access_url',
             'resource_type',
             'project',
             'project_uuid',
@@ -2020,6 +2022,7 @@ class ResourceSerializer(BaseItemSerializer):
             'current_usages',
             'backend_id',
             'effective_id',
+            'access_url',
             'report',
             'description',
         )
@@ -2032,14 +2035,15 @@ class ResourceSerializer(BaseItemSerializer):
     scope = core_serializers.GenericRelatedField()
     resource_uuid = serializers.ReadOnlyField(source='backend_uuid')
     resource_type = serializers.ReadOnlyField(source='backend_type')
+    access_url = serializers.ReadOnlyField(source='offering.access_url')
     project = serializers.HyperlinkedRelatedField(
         lookup_field='uuid', view_name='project-detail', read_only=True,
     )
-    project_uuid = serializers.SerializerMethodField()
-    project_name = serializers.SerializerMethodField()
-    project_description = serializers.SerializerMethodField()
-    customer_name = serializers.SerializerMethodField()
-    customer_uuid = serializers.SerializerMethodField()
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    project_description = serializers.ReadOnlyField(source='project.description')
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     # If resource is usage-based, frontend would render button to show and report usage
@@ -2048,21 +2052,6 @@ class ResourceSerializer(BaseItemSerializer):
     can_terminate = serializers.SerializerMethodField()
     report = serializers.JSONField(read_only=True)
     username = serializers.SerializerMethodField()
-
-    def get_project_uuid(self, resource):
-        return resource.project.uuid
-
-    def get_project_name(self, resource):
-        return resource.project.name
-
-    def get_project_description(self, resource):
-        return resource.project.description
-
-    def get_customer_uuid(self, resource):
-        return resource.project.customer.uuid
-
-    def get_customer_name(self, resource):
-        return resource.project.customer.name
 
     def get_can_terminate(self, resource):
         view = self.context['view']
