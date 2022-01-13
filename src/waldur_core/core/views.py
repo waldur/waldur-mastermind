@@ -544,3 +544,21 @@ class ReviewViewSet(ActionsViewSet):
     approve_validators = reject_validators = [
         StateValidator(ReviewMixin.States.PENDING)
     ]
+
+
+class CeleryStatsViewSet(APIView):
+    permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+
+    def get(self, request, *args, **kwargs):
+        from waldur_core.server.celery import app
+
+        inspect = app.control.inspect()
+        data = {
+            'active': inspect.active(),
+            'scheduled': inspect.scheduled(),
+            'reserved': inspect.reserved(),
+            'revoked': inspect.revoked(),
+            'query_task': inspect.query_task(),
+            'stats': inspect.stats(),
+        }
+        return Response(data, status=status.HTTP_200_OK,)
