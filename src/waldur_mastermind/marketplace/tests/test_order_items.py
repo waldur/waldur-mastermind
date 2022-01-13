@@ -438,7 +438,7 @@ class ItemRejectTest(test.APITransactionTestCase):
         self.assertEqual(old_plan, self.order_item.resource.plan)
         self.assertEqual(old_limits, self.order_item.resource.limits)
 
-    def test_when_terminate_order_item_with_basic_offering_is_rejected_resource_is_marked_as_erred(
+    def test_when_terminate_order_item_with_basic_offering_is_rejected_resource_is_marked_as_ok(
         self,
     ):
         self.offering.type = 'Marketplace.Basic'
@@ -448,7 +448,7 @@ class ItemRejectTest(test.APITransactionTestCase):
 
         self.reject_item('owner')
         self.order_item.refresh_from_db()
-        self.assertEqual(models.Resource.States.ERRED, self.order_item.resource.state)
+        self.assertEqual(models.Resource.States.OK, self.order_item.resource.state)
 
     def reject_item(self, user):
         user = getattr(self.fixture, user)

@@ -1052,7 +1052,7 @@ class Resource(
 
     @transition(
         field=state,
-        source=[States.ERRED, States.CREATING, States.UPDATING],
+        source=[States.ERRED, States.CREATING, States.UPDATING, States.TERMINATING],
         target=States.OK,
     )
     def set_state_ok(self):

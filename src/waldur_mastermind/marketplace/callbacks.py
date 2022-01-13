@@ -13,14 +13,14 @@ from . import log, models, signals
 logger = logging.getLogger(__name__)
 
 
-def create_resource_plan_period(resource):
+def create_resource_plan_period(resource: models.Resource):
     models.ResourcePlanPeriod.objects.create(
         resource=resource, plan=resource.plan, start=now(), end=None,
     )
 
 
 @transaction.atomic()
-def close_resource_plan_period(resource):
+def close_resource_plan_period(resource: models.Resource):
     try:
         previous_period = models.ResourcePlanPeriod.objects.select_for_update().get(
             resource=resource, plan=resource.plan, end=None,
@@ -43,7 +43,7 @@ def close_resource_plan_period(resource):
         )
 
 
-def resource_creation_succeeded(resource, validate=False):
+def resource_creation_succeeded(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
@@ -63,7 +63,7 @@ def resource_creation_succeeded(resource, validate=False):
     return order_item
 
 
-def resource_creation_failed(resource, validate=False):
+def resource_creation_failed(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
@@ -77,7 +77,7 @@ def resource_creation_failed(resource, validate=False):
     return order_item
 
 
-def resource_creation_canceled(resource, validate=False):
+def resource_creation_canceled(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
@@ -93,7 +93,7 @@ def resource_creation_canceled(resource, validate=False):
     return order_item
 
 
-def resource_update_succeeded(resource, validate=False):
+def resource_update_succeeded(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
@@ -122,7 +122,7 @@ def resource_update_succeeded(resource, validate=False):
     return order_item
 
 
-def resource_update_failed(resource, validate=False):
+def resource_update_failed(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
@@ -136,7 +136,7 @@ def resource_update_failed(resource, validate=False):
     return order_item
 
 
-def resource_deletion_succeeded(resource, validate=False):
+def resource_deletion_succeeded(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
@@ -154,21 +154,23 @@ def resource_deletion_succeeded(resource, validate=False):
     return order_item
 
 
-def resource_deletion_failed(resource, validate=False):
+def resource_deletion_failed(resource: models.Resource, validate=False):
     order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
         models.OrderItem.States.ERRED,
         validate,
     )
-    resource.set_state_erred()
+    resource.set_state_ok()
     resource.save(update_fields=['state'])
 
     log.log_resource_terminate_failed(resource)
     return order_item
 
 
-def set_order_item_state(resource, order_item_type, new_state, validate=False):
+def set_order_item_state(
+    resource: models.Resource, order_item_type, new_state, validate=False
+):
     try:
         order_item = models.OrderItem.objects.get(
             resource=resource,
