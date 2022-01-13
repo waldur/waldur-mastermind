@@ -494,6 +494,16 @@ class OpenStackBackend(BaseOpenStackBackend):
                 security_group = imported_security_group
                 self._log_security_group_imported(security_group)
             else:
+                if security_group.state not in (
+                    models.SecurityGroup.States.OK,
+                    models.SecurityGroup.States.ERRED,
+                ):
+                    logger.info(
+                        'Skipping pulling of OpenStack security group because it is '
+                        'not in the stable state. Group ID: %s',
+                        security_group.id,
+                    )
+                    continue
                 modified = update_pulled_fields(
                     security_group,
                     imported_security_group,
