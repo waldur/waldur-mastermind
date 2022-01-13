@@ -210,7 +210,7 @@ class OrderItemPullTask(BackgroundPullTask):
                 and local_order_item.type == models.OrderItem.Types.CREATE
             ):
                 resource_uuid = remote_order_item.get('marketplace_resource_uuid')
-                effective_id = remote_order_item.get('resource_uuid', '')
+                effective_id = remote_order_item.get('resource_uuid') or ''
                 if resource_uuid:
                     create_local_resource(local_order_item, resource_uuid, effective_id)
             sync_order_item_state(local_order_item, new_state)
