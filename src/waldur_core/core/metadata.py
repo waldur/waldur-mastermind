@@ -622,6 +622,38 @@ class WaldurMarketplace(BaseModel):
         ]
 
 
+class WaldurMarketplaceScript(BaseModel):
+    SCRIPT_RUN_MODE = Field(
+        'docker',
+        description='Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
+    )
+    DOCKER_CLIENT = Field(
+        {'base_url': 'unix://var/run/docker.sock',},
+        description='Options for docker client.  See also: https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient',
+    )
+    DOCKER_RUN_OPTIONS = Field(
+        {'mem_limit': '64m',},
+        description='Options for docker runtime. See also: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run',
+    )
+    DOCKER_SCRIPT_DIR: 'str' = Field(
+        None,
+        description='Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see https://github.com/docker/for-mac/issues/1532',
+    )
+    DOCKER_IMAGES = Field(
+        {'python': 'python:3.8-alpine', 'shell': 'alpine:3',},
+        description='Key is command to execute script, value is image name.',
+    )
+    K8S_NAMESPACE = Field(
+        'default', description='Kubernetes namespace where jobs will be executed'
+    )
+    K8S_CONFIG_PATH = Field(
+        '~/.kube/config', description='Path to Kubernetes configuration file'
+    )
+    K8S_JOB_TIMEOUT = Field(
+        30 * 60, description='Timeout for execution of one Kubernetes job in seconds'
+    )
+
+
 class WaldurAuthSAML2(BaseModel):
 
     NAME = Field(
@@ -728,6 +760,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()
     WALDUR_MARKETPLACE = WaldurMarketplace()
+    WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'

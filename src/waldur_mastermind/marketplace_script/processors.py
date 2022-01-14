@@ -1,6 +1,6 @@
 from waldur_mastermind.marketplace import processors
 
-from .utils import DockerExecutorMixin
+from .utils import ContainerExecutorMixin
 
 
 """
@@ -30,17 +30,21 @@ pull:
 """
 
 
-class CreateProcessor(DockerExecutorMixin, processors.AbstractCreateResourceProcessor):
+class CreateProcessor(
+    ContainerExecutorMixin, processors.AbstractCreateResourceProcessor
+):
     hook_type = 'create'
 
     def send_request(self, user):
         output = super().send_request(user)
         # return the last line of the output as a backend_id of a created resource
         if output:
-            return output.split()[-1]
+            return output.splitlines()[-1]
 
 
-class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProcessor):
+class UpdateProcessor(
+    ContainerExecutorMixin, processors.AbstractUpdateResourceProcessor
+):
     hook_type = 'update'
 
     def send_request(self, user):
@@ -48,7 +52,9 @@ class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProc
         return True
 
 
-class DeleteProcessor(DockerExecutorMixin, processors.AbstractDeleteResourceProcessor):
+class DeleteProcessor(
+    ContainerExecutorMixin, processors.AbstractDeleteResourceProcessor
+):
     hook_type = 'delete'
 
     def send_request(self, user, resource):
