@@ -94,6 +94,7 @@ cryptography = "3.4.7"
 django-binary-database-files = {git = "https://github.com/waldur/django-binary-database-files.git", rev = "fix/load-command-for-db-files"}
 django-import-export = {git = "https://github.com/waldur/django-import-export", rev = "main"}
 python-waldur-client = {git = "https://github.com/waldur/python-waldur-client", rev = "master"}
+kubernetes = ">=21.7.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
