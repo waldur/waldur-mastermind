@@ -7,6 +7,32 @@
       "description": "Unique authentication key used to gain access to the ipstack API.",
       "type": "string"
     },
+    "LANGUAGES": {
+      "title": "Languages",
+      "description": "The list is a list of two-tuples in the format (language code, language name) \u2013 for example, ('ja', 'Japanese'). This specifies which languages are available for language selection.",
+      "default": [
+        [
+          "en",
+          "English"
+        ],
+        [
+          "et",
+          "Eesti"
+        ]
+      ],
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      }
+    },
     "WALDUR_CORE": {
       "title": "Waldur Core",
       "default": {
@@ -15,20 +41,72 @@
         ],
         "SITE_LOGO": null,
         "COUNTRIES": [
+          "AL",
+          "AT",
+          "BA",
+          "BE",
+          "BG",
+          "CH",
+          "CY",
+          "DE",
+          "DK",
           "EE",
+          "ES",
+          "EU",
+          "FI",
+          "FR",
+          "GB",
+          "GE",
+          "GR",
+          "HR",
+          "HU",
+          "IE",
+          "IS",
+          "IT",
+          "LT",
+          "LU",
           "LV",
-          "LT"
+          "MC",
+          "MK",
+          "MT",
+          "NL",
+          "NO",
+          "PL",
+          "PT",
+          "RO",
+          "RS",
+          "SE",
+          "SI",
+          "UA"
         ],
         "INVITATION_MAX_AGE": null,
         "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS": [],
         "SELLER_COUNTRY_CODE": null,
+        "EXTERNAL_LINKS": [],
+        "USER_MANDATORY_FIELDS": [
+          "full_name",
+          "email"
+        ],
+        "USER_REGISTRATION_HIDDEN_FIELDS": [
+          "registration_method",
+          "job_title",
+          "phone_number",
+          "organization"
+        ],
+        "HOMEPORT_SENTRY_DSN": null,
+        "SIDEBAR_LOGO": null,
+        "POWERED_BY_LOGO": null,
+        "BRAND_COLOR": "#3a8500",
+        "HERO_IMAGE": null,
+        "HERO_LINK_LABEL": null,
+        "HERO_LINK_URL": null,
         "EXTENSIONS_AUTOREGISTER": true,
         "TOKEN_KEY": "x-auth-token",
         "INVITATIONS_ENABLED": true,
-        "ALLOW_SIGNUP_WITHOUT_INVITATION": true,
         "VALIDATE_INVITATION_EMAIL": false,
-        "TOKEN_LIFETIME": 3600,
-        "INVITATION_LIFETIME": 604800,
+        "TOKEN_LIFETIME": 3600.0,
+        "INVITATION_LIFETIME": 604800.0,
+        "GROUP_INVITATION_LIFETIME": 604800.0,
         "OWNERS_CAN_MANAGE_OWNERS": false,
         "OWNER_CAN_MANAGE_CUSTOMER": false,
         "BACKEND_FIELDS_EDITABLE": true,
@@ -36,10 +114,11 @@
         "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION": false,
         "ONLY_STAFF_MANAGES_SERVICES": false,
         "NATIVE_NAME_ENABLED": false,
-        "SITE_NAME": "Waldur MasterMind",
-        "SITE_ADDRESS": "Default address",
-        "SITE_EMAIL": "Default email",
-        "SITE_PHONE": "Default phone",
+        "SITE_NAME": "Waldur",
+        "SITE_DESCRIPTION": "Your single pane of control for managing projects, teams and resources in a self-service manner.",
+        "SITE_ADDRESS": "",
+        "SITE_EMAIL": "",
+        "SITE_PHONE": "",
         "CURRENCY_NAME": "EUR",
         "NOTIFICATIONS_PROFILE_CHANGES": {
           "ENABLED": true,
@@ -53,16 +132,26 @@
         "USE_ATOMIC_TRANSACTION": true,
         "NOTIFICATION_SUBJECT": "Notifications from Waldur",
         "LOGGING_REPORT_DIRECTORY": "/var/log/waldur",
-        "LOGGING_REPORT_INTERVAL": 604800,
+        "LOGGING_REPORT_INTERVAL": 604800.0,
         "HTTP_CHUNK_SIZE": 50,
         "ONLY_STAFF_CAN_INVITE_USERS": false,
         "INVITATION_CREATE_MISSING_USER": false,
         "INVITATION_DISABLE_MULTIPLE_ROLES": false,
-        "ATTACHMENT_LINK_MAX_AGE": 3600,
-        "EMAIL_CHANGE_MAX_AGE": 86400,
+        "ATTACHMENT_LINK_MAX_AGE": 3600.0,
+        "EMAIL_CHANGE_MAX_AGE": 86400.0,
         "HOMEPORT_URL": "https://example.com/",
+        "MASTERMIND_URL": "",
         "ENABLE_GEOIP": true,
-        "SHOW_ALL_USERS": false
+        "SHOW_ALL_USERS": false,
+        "TRANSLATION_DOMAIN": "",
+        "GOOGLE_ANALYTICS_ID": "",
+        "SUPPORT_PORTAL_URL": "",
+        "DOCS_URL": "",
+        "SHORT_PAGE_TITLE": "Waldur",
+        "FULL_PAGE_TITLE": "Waldur | Cloud Service Management",
+        "INVITATION_CIVIL_NUMBER_LABEL": "",
+        "INVITATION_CIVIL_NUMBER_HELP_TEXT": "Must start with a country prefix ie EE34501234215",
+        "INVITATION_TAX_NUMBER_LABEL": ""
       },
       "allOf": [
         {
@@ -73,8 +162,7 @@
     "WALDUR_AUTH_SOCIAL": {
       "title": "Waldur Auth Social",
       "default": {
-        "FACEBOOK_SECRET": "",
-        "FACEBOOK_CLIENT_ID": "",
+        "REMOTE_EDUTEAMS_ENABLED": false,
         "SMARTIDEE_SECRET": "",
         "SMARTIDEE_CLIENT_ID": "",
         "TARA_SECRET": "",
@@ -87,19 +175,300 @@
         "KEYCLOAK_AUTH_URL": "",
         "KEYCLOAK_TOKEN_URL": "",
         "KEYCLOAK_USERINFO_URL": "",
-        "EDUTEAMS_LABEL": "Eduteams",
+        "KEYCLOAK_VERIFY_SSL": true,
+        "EDUTEAMS_LABEL": "eduTEAMS",
         "EDUTEAMS_CLIENT_ID": "",
         "EDUTEAMS_SECRET": "",
         "EDUTEAMS_AUTH_URL": "https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization",
         "EDUTEAMS_TOKEN_URL": "https://proxy.acc.eduteams.org/OIDC/token",
         "EDUTEAMS_USERINFO_URL": "https://proxy.acc.eduteams.org/OIDC/userinfo",
         "REMOTE_EDUTEAMS_TOKEN_URL": "https://proxy.acc.researcher-access.org/OIDC/token",
-        "REMOTE_EDUTEAMS_ACCESS_TOKEN": "",
-        "REMOTE_EDUTEAMS_USERINFO_URL": "https://proxy.acc.researcher-access.org/api/userinfo"
+        "REMOTE_EDUTEAMS_REFRESH_TOKEN": "",
+        "REMOTE_EDUTEAMS_USERINFO_URL": "https://proxy.acc.researcher-access.org/api/userinfo",
+        "REMOTE_EDUTEAMS_CLIENT_ID": "",
+        "REMOTE_EDUTEAMS_SECRET": "",
+        "ENABLE_EDUTEAMS_SYNC": false
       },
       "allOf": [
         {
           "$ref": "#/definitions/WaldurAuthSocial"
+        }
+      ]
+    },
+    "WALDUR_FREEIPA": {
+      "title": "Waldur Freeipa",
+      "default": {
+        "ENABLED": false,
+        "HOSTNAME": "ipa.example.com",
+        "USERNAME": "admin",
+        "PASSWORD": "secret",
+        "VERIFY_SSL": true,
+        "USERNAME_PREFIX": "waldur_",
+        "GROUPNAME_PREFIX": "waldur_",
+        "BLACKLISTED_USERNAMES": [
+          "root"
+        ],
+        "GROUP_SYNCHRONIZATION_ENABLED": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurFreeipa"
+        }
+      ]
+    },
+    "WALDUR_KEYCLOAK": {
+      "title": "Waldur Keycloak",
+      "default": {
+        "ENABLED": false,
+        "BASE_URL": "http://localhost:8080/auth",
+        "REALM": "waldur",
+        "CLIENT_ID": "waldur",
+        "CLIENT_SECRET": "UUID",
+        "USERNAME": "admin",
+        "PASSWORD": "secret"
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurKeycloak"
+        }
+      ]
+    },
+    "WALDUR_HPC": {
+      "title": "Waldur Hpc",
+      "default": {
+        "INTERNAL_AFFILIATIONS": [],
+        "EXTERNAL_AFFILIATIONS": [],
+        "INTERNAL_EMAIL_PATTERNS": [],
+        "EXTERNAL_EMAIL_PATTERNS": [],
+        "ENABLED": false,
+        "INTERNAL_CUSTOMER_UUID": "",
+        "EXTERNAL_CUSTOMER_UUID": "",
+        "INTERNAL_LIMITS": {},
+        "OFFERING_UUID": "",
+        "PLAN_UUID": ""
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurHPC"
+        }
+      ]
+    },
+    "WALDUR_SLURM": {
+      "title": "Waldur Slurm",
+      "default": {
+        "ENABLED": false,
+        "CUSTOMER_PREFIX": "waldur_customer_",
+        "PROJECT_PREFIX": "waldur_project_",
+        "ALLOCATION_PREFIX": "waldur_allocation_",
+        "PRIVATE_KEY_PATH": "/etc/waldur/id_rsa",
+        "DEFAULT_LIMITS": {
+          "CPU": 16000,
+          "GPU": 400,
+          "RAM": 102400000
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurSlurm"
+        }
+      ]
+    },
+    "WALDUR_PID": {
+      "title": "Waldur Pid",
+      "default": {
+        "DATACITE": {
+          "REPOSITORY_ID": "",
+          "PASSWORD": "",
+          "PREFIX": "",
+          "API_URL": "https://example.com",
+          "PUBLISHER": "Waldur",
+          "COLLECTION_DOI": ""
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurPID"
+        }
+      ]
+    },
+    "WALDUR_OPENSTACK": {
+      "title": "Waldur Openstack",
+      "default": {
+        "DEFAULT_SECURITY_GROUPS": [
+          {
+            "name": "allow-all",
+            "description": "Security group for any access",
+            "rules": [
+              {
+                "protocol": "icmp",
+                "cidr": "0.0.0.0/0",
+                "icmp_type": -1,
+                "icmp_code": -1
+              },
+              {
+                "protocol": "tcp",
+                "cidr": "0.0.0.0/0",
+                "from_port": 1,
+                "to_port": 65535
+              }
+            ]
+          },
+          {
+            "name": "ssh",
+            "description": "Security group for secure shell access",
+            "rules": [
+              {
+                "protocol": "tcp",
+                "cidr": "0.0.0.0/0",
+                "from_port": 22,
+                "to_port": 22
+              }
+            ]
+          },
+          {
+            "name": "ping",
+            "description": "Security group for ping",
+            "rules": [
+              {
+                "protocol": "icmp",
+                "cidr": "0.0.0.0/0",
+                "icmp_type": -1,
+                "icmp_code": -1
+              }
+            ]
+          },
+          {
+            "name": "rdp",
+            "description": "Security group for remove desktop access",
+            "rules": [
+              {
+                "protocol": "tcp",
+                "cidr": "0.0.0.0/0",
+                "from_port": 3389,
+                "to_port": 3389
+              }
+            ]
+          },
+          {
+            "name": "web",
+            "description": "Security group for http and https access",
+            "rules": [
+              {
+                "protocol": "tcp",
+                "cidr": "0.0.0.0/0",
+                "from_port": 80,
+                "to_port": 80
+              },
+              {
+                "protocol": "tcp",
+                "cidr": "0.0.0.0/0",
+                "from_port": 443,
+                "to_port": 443
+              }
+            ]
+          }
+        ],
+        "SUBNET": {
+          "ALLOCATION_POOL_START": "{first_octet}.{second_octet}.{third_octet}.10",
+          "ALLOCATION_POOL_END": "{first_octet}.{second_octet}.{third_octet}.200"
+        },
+        "DEFAULT_BLACKLISTED_USERNAMES": [
+          "admin",
+          "service"
+        ],
+        "MANAGER_CAN_MANAGE_TENANTS": false,
+        "ADMIN_CAN_MANAGE_TENANTS": false,
+        "TENANT_CREDENTIALS_VISIBLE": false
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurOpenstack"
+        }
+      ]
+    },
+    "WALDUR_OPENSTACK_TENANT": {
+      "title": "Waldur Openstack Tenant",
+      "default": {
+        "MAX_CONCURRENT_PROVISION": {
+          "OpenStackTenant.Instance": 4,
+          "OpenStackTenant.Volume": 4,
+          "OpenStackTenant.Snapshot": 4
+        },
+        "ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS": true,
+        "REQUIRE_AVAILABILITY_ZONE": false
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurOpenstackTenat"
+        }
+      ]
+    },
+    "WALDUR_MARKETPLACE": {
+      "title": "Waldur Marketplace",
+      "default": {
+        "THUMBNAIL_SIZE": [
+          120,
+          120
+        ],
+        "OWNER_CAN_APPROVE_ORDER": true,
+        "MANAGER_CAN_APPROVE_ORDER": false,
+        "ADMIN_CAN_APPROVE_ORDER": false,
+        "ANONYMOUS_USER_CAN_VIEW_OFFERINGS": true,
+        "NOTIFY_STAFF_ABOUT_APPROVALS": false,
+        "NOTIFY_ABOUT_RESOURCE_CHANGE": true,
+        "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE": true,
+        "OWNER_CAN_REGISTER_SERVICE_PROVIDER": false,
+        "ENABLE_STALE_RESOURCE_NOTIFICATIONS": false,
+        "ENABLE_RESOURCE_END_DATE": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurMarketplace"
+        }
+      ]
+    },
+    "WALDUR_AUTH_SAML2": {
+      "title": "Waldur Auth Saml2",
+      "default": {
+        "SIGNATURE_ALGORITHM": null,
+        "DIGEST_ALGORITHM": null,
+        "NAMEID_FORMAT": null,
+        "IDENTITY_PROVIDER_URL": null,
+        "IDENTITY_PROVIDER_LABEL": null,
+        "DISCOVERY_SERVICE_URL": null,
+        "DISCOVERY_SERVICE_LABEL": null,
+        "NAME": "saml2",
+        "XMLSEC_BINARY": "/usr/bin/xmlsec1",
+        "ATTRIBUTE_MAP_DIR": "",
+        "DEBUG": false,
+        "IDP_METADATA_LOCAL": [],
+        "IDP_METADATA_REMOTE": [],
+        "LOG_FILE": "",
+        "LOG_LEVEL": "INFO",
+        "LOGOUT_REQUESTS_SIGNED": "true",
+        "AUTHN_REQUESTS_SIGNED": "true",
+        "CERT_FILE": "",
+        "KEY_FILE": "",
+        "REQUIRED_ATTRIBUTES": [],
+        "OPTIONAL_ATTRIBUTES": [],
+        "SAML_ATTRIBUTE_MAPPING": {},
+        "ORGANIZATION": {},
+        "CATEGORIES": [
+          "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+        ],
+        "PRIVACY_STATEMENT_URL": "http://example.com/privacy-policy/",
+        "DISPLAY_NAME": "Service provider display name",
+        "DESCRIPTION": "Service provider description",
+        "REGISTRATION_POLICY": "http://example.com/registration-policy/",
+        "REGISTRATION_AUTHORITY": "http://example.com/registration-authority/",
+        "REGISTRATION_INSTANT": "2017-01-01T00:00:00",
+        "ENABLE_SINGLE_LOGOUT": false,
+        "ALLOW_TO_SELECT_IDENTITY_PROVIDER": true,
+        "DEFAULT_BINDING": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurAuthSAML2"
         }
       ]
     },
@@ -122,24 +491,43 @@
       "type": "string"
     },
     "DEFAULT_REPLY_TO_EMAIL": {
-      "title": "Default reply-to email",
+      "title": "Default Reply To Email",
       "description": "Default email address to use for email replies.",
       "default": "",
       "type": "string"
     },
-    "CONVERT_MEDIA_URLS_TO_MASTERMIND_NETLOC": {
-      "title": "Convert Media Urls To Mastermind Netloc",
-      "default": false,
-      "type": "boolean"
-    },
     "IMPORT_EXPORT_USE_TRANSACTIONS": {
       "title": "Import Export Use Transactions",
-      "description": "Controls if resource importing should use database transactions. Using transactions makes imports safer as a failure during import won’t import only part of the data set.",
+      "description": "Controls if resource importing should use database transactions. Using transactions makes imports safer as a failure during import won\u2019t import only part of the data set.",
       "default": true,
       "type": "boolean"
+    },
+    "LANGUAGE_CODE": {
+      "title": "Language Code",
+      "description": "Represents the name of a default language.",
+      "default": "en",
+      "type": "string"
     }
   },
   "definitions": {
+    "ExternalLink": {
+      "title": "ExternalLink",
+      "type": "object",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "url"
+      ]
+    },
     "WaldurCore": {
       "title": "WaldurCore",
       "type": "object",
@@ -164,9 +552,43 @@
           "title": "Countries",
           "description": "It is used in organization creation dialog in order to limit country choices to predefined set.",
           "default": [
+            "AL",
+            "AT",
+            "BA",
+            "BE",
+            "BG",
+            "CH",
+            "CY",
+            "DE",
+            "DK",
             "EE",
+            "ES",
+            "EU",
+            "FI",
+            "FR",
+            "GB",
+            "GE",
+            "GR",
+            "HR",
+            "HU",
+            "IE",
+            "IS",
+            "IT",
+            "LT",
+            "LU",
             "LV",
-            "LT"
+            "MC",
+            "MK",
+            "MT",
+            "NL",
+            "NO",
+            "PL",
+            "PT",
+            "RO",
+            "RS",
+            "SE",
+            "SI",
+            "UA"
           ],
           "type": "array",
           "items": {
@@ -193,6 +615,77 @@
           "description": "Specifies seller legal or effective country of registration or residence as an ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate.",
           "type": "string"
         },
+        "EXTERNAL_LINKS": {
+          "title": "External Links",
+          "description": "Render external links in dropdown in header. Each item should be object with label and url fields. For example: {\"label\": \"Helpdesk\", \"url\": \"`https://example.com/`\"}",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExternalLink"
+          }
+        },
+        "USER_MANDATORY_FIELDS": {
+          "title": "User Mandatory Fields",
+          "description": "List of user profile attributes that would be required for filling in HomePort. Note that backend will not be affected. If a mandatory field is missing in profile, a profile edit view will be forced upon user on any HomePort logged in action. Possible values are: description, email, full_name, job_title, organization, phone_number",
+          "default": [
+            "full_name",
+            "email"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "USER_REGISTRATION_HIDDEN_FIELDS": {
+          "title": "User Registration Hidden Fields",
+          "description": "List of user profile attributes that would be concealed on registration form in HomePort. Possible values are: job_title, registration_method, phone_number",
+          "default": [
+            "registration_method",
+            "job_title",
+            "phone_number",
+            "organization"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "HOMEPORT_SENTRY_DSN": {
+          "title": "Homeport Sentry Dsn",
+          "description": "Sentry Data Source Name for Waldur HomePort project.",
+          "type": "string"
+        },
+        "SIDEBAR_LOGO": {
+          "title": "Sidebar Logo",
+          "description": "Relative path to image rendered at the top of sidebar menu in HomePort.",
+          "type": "string"
+        },
+        "POWERED_BY_LOGO": {
+          "title": "Powered By Logo",
+          "description": "Relative path to image rendered at the bottom of login menu in HomePort.",
+          "type": "string"
+        },
+        "BRAND_COLOR": {
+          "title": "Brand Color",
+          "description": "Hex color definition is used in HomePort landing page for login button.",
+          "default": "#3a8500",
+          "type": "string"
+        },
+        "HERO_IMAGE": {
+          "title": "Hero Image",
+          "description": "Relative path to image rendered at hero section of HomePort landing page.",
+          "type": "string"
+        },
+        "HERO_LINK_LABEL": {
+          "title": "Hero Link Label",
+          "description": "Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.",
+          "type": "string"
+        },
+        "HERO_LINK_URL": {
+          "title": "Hero Link Url",
+          "description": "Link URL in hero section of HomePort landing page.",
+          "type": "string"
+        },
         "EXTENSIONS_AUTOREGISTER": {
           "title": "Extensions Autoregister",
           "description": "Defines whether extensions should be automatically registered.",
@@ -211,12 +704,6 @@
           "default": true,
           "type": "boolean"
         },
-        "ALLOW_SIGNUP_WITHOUT_INVITATION": {
-          "title": "Allow Signup Without Invitation",
-          "description": "Allow to signup without an invitation.",
-          "default": true,
-          "type": "boolean"
-        },
         "VALIDATE_INVITATION_EMAIL": {
           "title": "Validate Invitation Email",
           "description": "Ensure that invitation and user emails match.",
@@ -226,14 +713,21 @@
         "TOKEN_LIFETIME": {
           "title": "Token Lifetime",
           "description": "Defines for how long user token should remain valid if there was no action from user.",
-          "default": 3600,
+          "default": 3600.0,
           "type": "number",
           "format": "time-delta"
         },
         "INVITATION_LIFETIME": {
           "title": "Invitation Lifetime",
           "description": "Defines for how long invitation remains valid.",
-          "default": 604800,
+          "default": 604800.0,
+          "type": "number",
+          "format": "time-delta"
+        },
+        "GROUP_INVITATION_LIFETIME": {
+          "title": "Group Invitation Lifetime",
+          "description": "Defines for how long group invitation remains valid.",
+          "default": 604800.0,
           "type": "number",
           "format": "time-delta"
         },
@@ -281,26 +775,32 @@
         },
         "SITE_NAME": {
           "title": "Site Name",
-          "description": "It is used in email notifications in order to refer to the current deployment in user-friendly way.",
-          "default": "Waldur MasterMind",
+          "description": "Human-friendly name of the Waldur deployment.",
+          "default": "Waldur",
+          "type": "string"
+        },
+        "SITE_DESCRIPTION": {
+          "title": "Site Description",
+          "description": "Description of the Waldur deployment.",
+          "default": "Your single pane of control for managing projects, teams and resources in a self-service manner.",
           "type": "string"
         },
         "SITE_ADDRESS": {
           "title": "Site Address",
           "description": "It is used in marketplace order header.",
-          "default": "Default address",
+          "default": "",
           "type": "string"
         },
         "SITE_EMAIL": {
           "title": "Site Email",
-          "description": "It is used in marketplace order header.",
-          "default": "Default email",
+          "description": "It is used in marketplace order header and UI footer.",
+          "default": "",
           "type": "string"
         },
         "SITE_PHONE": {
           "title": "Site Phone",
-          "description": "It is used in marketplace order header.",
-          "default": "Default phone",
+          "description": "It is used in marketplace order header and UI footer.",
+          "default": "",
           "type": "string"
         },
         "CURRENCY_NAME": {
@@ -349,7 +849,7 @@
         "LOGGING_REPORT_INTERVAL": {
           "title": "Logging Report Interval",
           "description": "Files older that specified interval are filtered out.",
-          "default": 604800,
+          "default": 604800.0,
           "type": "number",
           "format": "time-delta"
         },
@@ -380,14 +880,14 @@
         "ATTACHMENT_LINK_MAX_AGE": {
           "title": "Attachment Link Max Age",
           "description": "Max age of secure token for media download.",
-          "default": 3600,
+          "default": 3600.0,
           "type": "number",
           "format": "time-delta"
         },
         "EMAIL_CHANGE_MAX_AGE": {
           "title": "Email Change Max Age",
           "description": "Max age of change email request.",
-          "default": 86400,
+          "default": 86400.0,
           "type": "number",
           "format": "time-delta"
         },
@@ -395,6 +895,12 @@
           "title": "Homeport Url",
           "description": "It is used for rendering callback URL in HomePort.",
           "default": "https://example.com/",
+          "type": "string"
+        },
+        "MASTERMIND_URL": {
+          "title": "Mastermind Url",
+          "description": "It is used for rendering callback URL in MasterMind.",
+          "default": "",
           "type": "string"
         },
         "ENABLE_GEOIP": {
@@ -408,6 +914,60 @@
           "description": "Indicates whether user can see all other users in `api/users/` endpoint.",
           "default": false,
           "type": "boolean"
+        },
+        "TRANSLATION_DOMAIN": {
+          "title": "Translation Domain",
+          "description": "Identifier of translation domain applied to current deployment.",
+          "default": "",
+          "type": "string"
+        },
+        "GOOGLE_ANALYTICS_ID": {
+          "title": "Google Analytics Id",
+          "description": "Identifier associated with your account and used by Google Analytics to collect the data.",
+          "default": "",
+          "type": "string"
+        },
+        "SUPPORT_PORTAL_URL": {
+          "title": "Support Portal Url",
+          "description": "Support portal URL is rendered as a shortcut on dashboard",
+          "default": "",
+          "type": "string"
+        },
+        "DOCS_URL": {
+          "title": "Docs Url",
+          "description": "Renders link to docs in header",
+          "default": "",
+          "type": "string"
+        },
+        "SHORT_PAGE_TITLE": {
+          "title": "Short Page Title",
+          "description": "it is used as prefix for page title.",
+          "default": "Waldur",
+          "type": "string"
+        },
+        "FULL_PAGE_TITLE": {
+          "title": "Full Page Title",
+          "description": "It is used as default page title if it's not specified explicitly.",
+          "default": "Waldur | Cloud Service Management",
+          "type": "string"
+        },
+        "INVITATION_CIVIL_NUMBER_LABEL": {
+          "title": "Invitation Civil Number Label",
+          "description": "Custom label for civil number field in invitation creation dialog.",
+          "default": "",
+          "type": "string"
+        },
+        "INVITATION_CIVIL_NUMBER_HELP_TEXT": {
+          "title": "Invitation Civil Number Help Text",
+          "description": "Help text for civil number field in invitation creation dialog.",
+          "default": "Must start with a country prefix ie EE34501234215",
+          "type": "string"
+        },
+        "INVITATION_TAX_NUMBER_LABEL": {
+          "title": "Invitation Tax Number Label",
+          "description": "Custom label for tax number field in invitation creation dialog.",
+          "default": "",
+          "type": "string"
         }
       }
     },
@@ -415,17 +975,11 @@
       "title": "WaldurAuthSocial",
       "type": "object",
       "properties": {
-        "FACEBOOK_SECRET": {
-          "title": "Facebook Secret",
-          "description": "Application secret key.",
-          "default": "",
-          "type": "string"
-        },
-        "FACEBOOK_CLIENT_ID": {
-          "title": "Facebook Client Id",
-          "description": "ID of application used for OAuth authentication.",
-          "default": "",
-          "type": "string"
+        "REMOTE_EDUTEAMS_ENABLED": {
+          "title": "Remote Eduteams Enabled",
+          "description": "Enable remote eduTEAMS extension.",
+          "default": false,
+          "type": "boolean"
         },
         "SMARTIDEE_SECRET": {
           "title": "Smartidee Secret",
@@ -499,10 +1053,16 @@
           "default": "",
           "type": "string"
         },
+        "KEYCLOAK_VERIFY_SSL": {
+          "title": "Keycloak Verify Ssl",
+          "description": "Validate TLS certificate of Keycloak REST API",
+          "default": true,
+          "type": "boolean"
+        },
         "EDUTEAMS_LABEL": {
           "title": "Eduteams Label",
           "description": "Label is used by HomePort for rendering login button.",
-          "default": "Eduteams",
+          "default": "eduTEAMS",
           "type": "string"
         },
         "EDUTEAMS_CLIENT_ID": {
@@ -541,8 +1101,8 @@
           "default": "https://proxy.acc.researcher-access.org/OIDC/token",
           "type": "string"
         },
-        "REMOTE_EDUTEAMS_ACCESS_TOKEN": {
-          "title": "Remote Eduteams Access Token",
+        "REMOTE_EDUTEAMS_REFRESH_TOKEN": {
+          "title": "Remote Eduteams Refresh Token",
           "description": "Token is used to authenticate against user info endpoint.",
           "default": "",
           "type": "string"
@@ -551,6 +1111,702 @@
           "title": "Remote Eduteams Userinfo Url",
           "description": "It allows to get user data based on userid aka CUID.",
           "default": "https://proxy.acc.researcher-access.org/api/userinfo",
+          "type": "string"
+        },
+        "REMOTE_EDUTEAMS_CLIENT_ID": {
+          "title": "Remote Eduteams Client Id",
+          "description": "ID of application used for OAuth authentication.",
+          "default": "",
+          "type": "string"
+        },
+        "REMOTE_EDUTEAMS_SECRET": {
+          "title": "Remote Eduteams Secret",
+          "description": "Application secret key.",
+          "default": "",
+          "type": "string"
+        },
+        "ENABLE_EDUTEAMS_SYNC": {
+          "title": "Enable Eduteams Sync",
+          "description": "Enable eduTEAMS synchronization with remote Waldur.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurFreeipa": {
+      "title": "WaldurFreeipa",
+      "type": "object",
+      "properties": {
+        "ENABLED": {
+          "title": "Enabled",
+          "description": "Enable integration of identity provisioning in configured FreeIPA",
+          "default": false,
+          "type": "boolean"
+        },
+        "HOSTNAME": {
+          "title": "Hostname",
+          "description": "Hostname of FreeIPA server",
+          "default": "ipa.example.com",
+          "type": "string"
+        },
+        "USERNAME": {
+          "title": "Username",
+          "description": "Username of FreeIPA user with administrative privileges",
+          "default": "admin",
+          "type": "string"
+        },
+        "PASSWORD": {
+          "title": "Password",
+          "description": "Password of FreeIPA user with administrative privileges",
+          "default": "secret",
+          "type": "string"
+        },
+        "VERIFY_SSL": {
+          "title": "Verify Ssl",
+          "description": "Validate TLS certificate of FreeIPA web interface / REST API",
+          "default": true,
+          "type": "boolean"
+        },
+        "USERNAME_PREFIX": {
+          "title": "Username Prefix",
+          "description": "Prefix to be appended to all usernames created in FreeIPA by Waldur",
+          "default": "waldur_",
+          "type": "string"
+        },
+        "GROUPNAME_PREFIX": {
+          "title": "Groupname Prefix",
+          "description": "Prefix to be appended to all group names created in FreeIPA by Waldur",
+          "default": "waldur_",
+          "type": "string"
+        },
+        "BLACKLISTED_USERNAMES": {
+          "title": "Blacklisted Usernames",
+          "description": "List of username that users are not allowed to select",
+          "default": [
+            "root"
+          ],
+          "type": "array",
+          "items": {}
+        },
+        "GROUP_SYNCHRONIZATION_ENABLED": {
+          "title": "Group Synchronization Enabled",
+          "description": "Optionally disable creation of user groups in FreeIPA matching Waldur structure",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurKeycloak": {
+      "title": "WaldurKeycloak",
+      "type": "object",
+      "properties": {
+        "ENABLED": {
+          "title": "Enabled",
+          "description": "Enable integration of group provisioning in configured Keycloak",
+          "default": false,
+          "type": "boolean"
+        },
+        "BASE_URL": {
+          "title": "Base Url",
+          "description": "Base URL of Keycloak server",
+          "default": "http://localhost:8080/auth",
+          "type": "string"
+        },
+        "REALM": {
+          "title": "Realm",
+          "description": "Realm used by Waldur",
+          "default": "waldur",
+          "type": "string"
+        },
+        "CLIENT_ID": {
+          "title": "Client Id",
+          "description": "Identification of Waldur client app",
+          "default": "waldur",
+          "type": "string"
+        },
+        "CLIENT_SECRET": {
+          "title": "Client Secret",
+          "description": "Credentials are generated in Keycloak admin console",
+          "default": "UUID",
+          "type": "string"
+        },
+        "USERNAME": {
+          "title": "Username",
+          "description": "Username of Keycloak user with administrative privileges",
+          "default": "admin",
+          "type": "string"
+        },
+        "PASSWORD": {
+          "title": "Password",
+          "description": "Password of Keycloak user with administrative privileges",
+          "default": "secret",
+          "type": "string"
+        }
+      }
+    },
+    "WaldurHPC": {
+      "title": "WaldurHPC",
+      "type": "object",
+      "properties": {
+        "INTERNAL_AFFILIATIONS": {
+          "title": "Internal Affiliations",
+          "description": "List of user affiliations (eduPersonScopedAffiliation fields) that define if the user belongs to internal organization.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "EXTERNAL_AFFILIATIONS": {
+          "title": "External Affiliations",
+          "description": "List of user affiliations (eduPersonScopedAffiliation fields) that define if the user belongs to external organization.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "INTERNAL_EMAIL_PATTERNS": {
+          "title": "Internal Email Patterns",
+          "description": "List of user email patterns (as regex) that define if the user belongs to internal organization.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "EXTERNAL_EMAIL_PATTERNS": {
+          "title": "External Email Patterns",
+          "description": "List of user email patterns (as regex) that define if the user belongs to external organization.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ENABLED": {
+          "title": "Enabled",
+          "description": "Enable HPC-specific hooks in Waldur deployment",
+          "default": false,
+          "type": "boolean"
+        },
+        "INTERNAL_CUSTOMER_UUID": {
+          "title": "Internal Customer Uuid",
+          "description": "UUID of a Waldur organization (aka customer) where new internal users would be added",
+          "default": "",
+          "type": "string"
+        },
+        "EXTERNAL_CUSTOMER_UUID": {
+          "title": "External Customer Uuid",
+          "description": "UUID of a Waldur organization (aka customer) where new external users would be added",
+          "default": "",
+          "type": "string"
+        },
+        "INTERNAL_LIMITS": {
+          "title": "Internal Limits",
+          "description": "Overrided default values for SLURM offering to be created for users belonging to internal organization.",
+          "default": {},
+          "type": "object"
+        },
+        "OFFERING_UUID": {
+          "title": "Offering Uuid",
+          "description": "UUID of a Waldur SLURM offering, which will be used for creating allocations for users",
+          "default": "",
+          "type": "string"
+        },
+        "PLAN_UUID": {
+          "title": "Plan Uuid",
+          "description": "UUID of a Waldur SLURM offering plan, which will be used for creating allocations for users",
+          "default": "",
+          "type": "string"
+        }
+      }
+    },
+    "WaldurSlurm": {
+      "title": "WaldurSlurm",
+      "type": "object",
+      "properties": {
+        "ENABLED": {
+          "title": "Enabled",
+          "description": "Enable support for SLURM plugin in a deployment",
+          "default": false,
+          "type": "boolean"
+        },
+        "CUSTOMER_PREFIX": {
+          "title": "Customer Prefix",
+          "description": "Prefix for SLURM account name corresponding to Waldur organization.",
+          "default": "waldur_customer_",
+          "type": "string"
+        },
+        "PROJECT_PREFIX": {
+          "title": "Project Prefix",
+          "description": "Prefix for SLURM account name corresponding to Waldur project.",
+          "default": "waldur_project_",
+          "type": "string"
+        },
+        "ALLOCATION_PREFIX": {
+          "title": "Allocation Prefix",
+          "description": "Prefix for SLURM account name corresponding to Waldur allocation",
+          "default": "waldur_allocation_",
+          "type": "string"
+        },
+        "PRIVATE_KEY_PATH": {
+          "title": "Private Key Path",
+          "description": "Path to private key file used as SSH identity file for accessing SLURM master.",
+          "default": "/etc/waldur/id_rsa",
+          "type": "string"
+        },
+        "DEFAULT_LIMITS": {
+          "title": "Default Limits",
+          "description": "Default limits of account that are set when SLURM account is provisioned.",
+          "default": {
+            "CPU": 16000,
+            "GPU": 400,
+            "RAM": 102400000
+          },
+          "type": "object"
+        }
+      }
+    },
+    "WaldurPID": {
+      "title": "WaldurPID",
+      "type": "object",
+      "properties": {
+        "DATACITE": {
+          "title": "Datacite",
+          "description": "Settings for integration of Waldur with Datacite PID service. Collection DOI is used to aggregate generated DOIs.",
+          "default": {
+            "REPOSITORY_ID": "",
+            "PASSWORD": "",
+            "PREFIX": "",
+            "API_URL": "https://example.com",
+            "PUBLISHER": "Waldur",
+            "COLLECTION_DOI": ""
+          },
+          "type": "object"
+        }
+      }
+    },
+    "WaldurOpenstack": {
+      "title": "WaldurOpenstack",
+      "type": "object",
+      "properties": {
+        "DEFAULT_SECURITY_GROUPS": {
+          "title": "Default Security Groups",
+          "description": "Default security groups and rules created in each of the provisioned OpenStack tenants",
+          "default": [
+            {
+              "name": "allow-all",
+              "description": "Security group for any access",
+              "rules": [
+                {
+                  "protocol": "icmp",
+                  "cidr": "0.0.0.0/0",
+                  "icmp_type": -1,
+                  "icmp_code": -1
+                },
+                {
+                  "protocol": "tcp",
+                  "cidr": "0.0.0.0/0",
+                  "from_port": 1,
+                  "to_port": 65535
+                }
+              ]
+            },
+            {
+              "name": "ssh",
+              "description": "Security group for secure shell access",
+              "rules": [
+                {
+                  "protocol": "tcp",
+                  "cidr": "0.0.0.0/0",
+                  "from_port": 22,
+                  "to_port": 22
+                }
+              ]
+            },
+            {
+              "name": "ping",
+              "description": "Security group for ping",
+              "rules": [
+                {
+                  "protocol": "icmp",
+                  "cidr": "0.0.0.0/0",
+                  "icmp_type": -1,
+                  "icmp_code": -1
+                }
+              ]
+            },
+            {
+              "name": "rdp",
+              "description": "Security group for remove desktop access",
+              "rules": [
+                {
+                  "protocol": "tcp",
+                  "cidr": "0.0.0.0/0",
+                  "from_port": 3389,
+                  "to_port": 3389
+                }
+              ]
+            },
+            {
+              "name": "web",
+              "description": "Security group for http and https access",
+              "rules": [
+                {
+                  "protocol": "tcp",
+                  "cidr": "0.0.0.0/0",
+                  "from_port": 80,
+                  "to_port": 80
+                },
+                {
+                  "protocol": "tcp",
+                  "cidr": "0.0.0.0/0",
+                  "from_port": 443,
+                  "to_port": 443
+                }
+              ]
+            }
+          ],
+          "type": "array",
+          "items": {}
+        },
+        "SUBNET": {
+          "title": "Subnet",
+          "description": "Default allocation pool for auto-created internal network",
+          "default": {
+            "ALLOCATION_POOL_START": "{first_octet}.{second_octet}.{third_octet}.10",
+            "ALLOCATION_POOL_END": "{first_octet}.{second_octet}.{third_octet}.200"
+          },
+          "type": "object"
+        },
+        "DEFAULT_BLACKLISTED_USERNAMES": {
+          "title": "Default Blacklisted Usernames",
+          "description": "Usernames that cannot be created by Waldur in OpenStack",
+          "default": [
+            "admin",
+            "service"
+          ],
+          "type": "array",
+          "items": {}
+        },
+        "MANAGER_CAN_MANAGE_TENANTS": {
+          "title": "Manager Can Manage Tenants",
+          "description": "If true, manager can delete or change configuration of tenants.",
+          "default": false,
+          "type": "boolean"
+        },
+        "ADMIN_CAN_MANAGE_TENANTS": {
+          "title": "Admin Can Manage Tenants",
+          "description": "If true, admin can delete or change configuration of tenants.",
+          "default": false,
+          "type": "boolean"
+        },
+        "TENANT_CREDENTIALS_VISIBLE": {
+          "title": "Tenant Credentials Visible",
+          "description": "If true, generated credentials of a tenant are exposed to project users",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurOpenstackTenat": {
+      "title": "WaldurOpenstackTenat",
+      "type": "object",
+      "properties": {
+        "MAX_CONCURRENT_PROVISION": {
+          "title": "Max Concurrent Provision",
+          "description": "Maximum parallel executions of provisioning operations for OpenStackTenant resources",
+          "default": {
+            "OpenStackTenant.Instance": 4,
+            "OpenStackTenant.Volume": 4,
+            "OpenStackTenant.Snapshot": 4
+          },
+          "type": "object"
+        },
+        "ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS": {
+          "title": "Allow Customer Users Openstack Console Access",
+          "description": "If true, customer users would be offered actions for accessing OpenStack Console",
+          "default": true,
+          "type": "boolean"
+        },
+        "REQUIRE_AVAILABILITY_ZONE": {
+          "title": "Require Availability Zone",
+          "description": "If true, specification of availability zone during provisioning will become mandatory",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurMarketplace": {
+      "title": "WaldurMarketplace",
+      "type": "object",
+      "properties": {
+        "THUMBNAIL_SIZE": {
+          "title": "Thumbnail Size",
+          "description": "Size of the thumbnail to generate when screenshot is uploaded for an offering.",
+          "default": [
+            120,
+            120
+          ],
+          "type": "array",
+          "items": {}
+        },
+        "OWNER_CAN_APPROVE_ORDER": {
+          "title": "Owner Can Approve Order",
+          "description": "If true, orders for resource can be approved by custom organization owner.",
+          "default": true,
+          "type": "boolean"
+        },
+        "MANAGER_CAN_APPROVE_ORDER": {
+          "title": "Manager Can Approve Order",
+          "description": "If true, orders for resource can be approved by manager of the customer project",
+          "default": false,
+          "type": "boolean"
+        },
+        "ADMIN_CAN_APPROVE_ORDER": {
+          "title": "Admin Can Approve Order",
+          "description": "If true, orders for resource can be approved by admin of the customer project",
+          "default": false,
+          "type": "boolean"
+        },
+        "ANONYMOUS_USER_CAN_VIEW_OFFERINGS": {
+          "title": "Anonymous User Can View Offerings",
+          "description": "Allow anonymous users to see shared offerings in active, paused and archived states",
+          "default": true,
+          "type": "boolean"
+        },
+        "NOTIFY_STAFF_ABOUT_APPROVALS": {
+          "title": "Notify Staff About Approvals",
+          "description": "If true, users with staff role are notified when request for order approval is generated",
+          "default": false,
+          "type": "boolean"
+        },
+        "NOTIFY_ABOUT_RESOURCE_CHANGE": {
+          "title": "Notify About Resource Change",
+          "description": "If true, notify users about resource changes from Marketplace perspective. Can generate duplicate events if plugins also log",
+          "default": true,
+          "type": "boolean"
+        },
+        "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE": {
+          "title": "Disable Sending Notifications About Resource Update",
+          "description": "Disable only resource update events.",
+          "default": true,
+          "type": "boolean"
+        },
+        "OWNER_CAN_REGISTER_SERVICE_PROVIDER": {
+          "title": "Owner Can Register Service Provider",
+          "description": "Allow organization owner to request or mark its organization as service provider",
+          "default": false,
+          "type": "boolean"
+        },
+        "ENABLE_STALE_RESOURCE_NOTIFICATIONS": {
+          "title": "Enable Stale Resource Notifications",
+          "description": "Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.",
+          "default": false,
+          "type": "boolean"
+        },
+        "ENABLE_RESOURCE_END_DATE": {
+          "title": "Enable Resource End Date",
+          "description": "Allow to view and update resource end date.",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurAuthSAML2": {
+      "title": "WaldurAuthSAML2",
+      "type": "object",
+      "properties": {
+        "SIGNATURE_ALGORITHM": {
+          "title": "Signature Algorithm",
+          "description": "Identifies the Signature algorithm URL according to the XML Signature specification (SHA1 is used by default)",
+          "type": "string"
+        },
+        "DIGEST_ALGORITHM": {
+          "title": "Digest Algorithm",
+          "description": "Identifies the Message Digest algorithm URL according to the XML Signature specification (SHA1 is used by default)",
+          "type": "string"
+        },
+        "NAMEID_FORMAT": {
+          "title": "Nameid Format",
+          "description": "Identified NameID format to use. None means default, empty string (\"\") disables addition of entity",
+          "type": "string"
+        },
+        "IDENTITY_PROVIDER_URL": {
+          "title": "Identity Provider Url",
+          "type": "string"
+        },
+        "IDENTITY_PROVIDER_LABEL": {
+          "title": "Identity Provider Label",
+          "type": "string"
+        },
+        "DISCOVERY_SERVICE_URL": {
+          "title": "Discovery Service Url",
+          "type": "string"
+        },
+        "DISCOVERY_SERVICE_LABEL": {
+          "title": "Discovery Service Label",
+          "type": "string"
+        },
+        "NAME": {
+          "title": "Name",
+          "description": "Name used for assigning the registration method to the user",
+          "default": "saml2",
+          "type": "string"
+        },
+        "XMLSEC_BINARY": {
+          "title": "Xmlsec Binary",
+          "description": "Full path to the xmlsec1 binary program",
+          "default": "/usr/bin/xmlsec1",
+          "type": "string"
+        },
+        "ATTRIBUTE_MAP_DIR": {
+          "title": "Attribute Map Dir",
+          "description": "Directory with attribute mapping",
+          "default": "",
+          "type": "string"
+        },
+        "DEBUG": {
+          "title": "Debug",
+          "description": "Set to True to output debugging information",
+          "default": false,
+          "type": "boolean"
+        },
+        "IDP_METADATA_LOCAL": {
+          "title": "Idp Metadata Local",
+          "description": "IdPs metadata XML files stored locally",
+          "default": [],
+          "type": "array",
+          "items": {}
+        },
+        "IDP_METADATA_REMOTE": {
+          "title": "Idp Metadata Remote",
+          "description": "IdPs metadata XML files stored remotely",
+          "default": [],
+          "type": "array",
+          "items": {}
+        },
+        "LOG_FILE": {
+          "title": "Log File",
+          "description": "Empty to disable logging SAML2-related stuff to file",
+          "default": "",
+          "type": "string"
+        },
+        "LOG_LEVEL": {
+          "title": "Log Level",
+          "description": "Log level for SAML2",
+          "default": "INFO",
+          "type": "string"
+        },
+        "LOGOUT_REQUESTS_SIGNED": {
+          "title": "Logout Requests Signed",
+          "description": "Indicates if the entity will sign the logout requests",
+          "default": "true",
+          "type": "string"
+        },
+        "AUTHN_REQUESTS_SIGNED": {
+          "title": "Authn Requests Signed",
+          "description": "Indicates if the authentication requests sent should be signed by default",
+          "default": "true",
+          "type": "string"
+        },
+        "CERT_FILE": {
+          "title": "Cert File",
+          "description": "PEM formatted certificate chain file",
+          "default": "",
+          "type": "string"
+        },
+        "KEY_FILE": {
+          "title": "Key File",
+          "description": "PEM formatted certificate key file",
+          "default": "",
+          "type": "string"
+        },
+        "REQUIRED_ATTRIBUTES": {
+          "title": "Required Attributes",
+          "description": "SAML attributes that are required to identify a user",
+          "default": [],
+          "type": "array",
+          "items": {}
+        },
+        "OPTIONAL_ATTRIBUTES": {
+          "title": "Optional Attributes",
+          "description": "SAML attributes that may be useful to have but not required",
+          "default": [],
+          "type": "array",
+          "items": {}
+        },
+        "SAML_ATTRIBUTE_MAPPING": {
+          "title": "Saml Attribute Mapping",
+          "description": "Mapping between SAML attributes and User fields",
+          "default": {},
+          "type": "object"
+        },
+        "ORGANIZATION": {
+          "title": "Organization",
+          "description": "Organization responsible for the service (you can set multilanguage information here)",
+          "default": {},
+          "type": "object"
+        },
+        "CATEGORIES": {
+          "title": "Categories",
+          "description": "Links to the entity categories",
+          "default": [
+            "http://www.geant.net/uri/dataprotection-code-of-conduct/v1"
+          ],
+          "type": "array",
+          "items": {}
+        },
+        "PRIVACY_STATEMENT_URL": {
+          "title": "Privacy Statement Url",
+          "description": "URL with privacy statement (required by CoC)",
+          "default": "http://example.com/privacy-policy/",
+          "type": "string"
+        },
+        "DISPLAY_NAME": {
+          "title": "Display Name",
+          "description": "Service provider display name (required by CoC)",
+          "default": "Service provider display name",
+          "type": "string"
+        },
+        "DESCRIPTION": {
+          "title": "Description",
+          "description": "Service provider description (required by CoC)",
+          "default": "Service provider description",
+          "type": "string"
+        },
+        "REGISTRATION_POLICY": {
+          "title": "Registration Policy",
+          "description": "Registration policy required by mdpi",
+          "default": "http://example.com/registration-policy/",
+          "type": "string"
+        },
+        "REGISTRATION_AUTHORITY": {
+          "title": "Registration Authority",
+          "description": "Registration authority required by mdpi",
+          "default": "http://example.com/registration-authority/",
+          "type": "string"
+        },
+        "REGISTRATION_INSTANT": {
+          "title": "Registration Instant",
+          "description": "Registration instant time required by mdpi",
+          "default": "2017-01-01T00:00:00",
+          "type": "string"
+        },
+        "ENABLE_SINGLE_LOGOUT": {
+          "title": "Enable Single Logout",
+          "default": false,
+          "type": "boolean"
+        },
+        "ALLOW_TO_SELECT_IDENTITY_PROVIDER": {
+          "title": "Allow To Select Identity Provider",
+          "default": true,
+          "type": "boolean"
+        },
+        "DEFAULT_BINDING": {
+          "title": "Default Binding",
+          "default": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
           "type": "string"
         }
       }

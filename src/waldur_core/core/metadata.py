@@ -751,6 +751,143 @@ class WaldurAuthSAML2(BaseModel):
         ]
 
 
+class WaldurOpenstack(BaseModel):
+    DEFAULT_SECURITY_GROUPS = Field(
+        (
+            {
+                'name': 'allow-all',
+                'description': 'Security group for any access',
+                'rules': (
+                    {
+                        'protocol': 'icmp',
+                        'cidr': '0.0.0.0/0',
+                        'icmp_type': -1,
+                        'icmp_code': -1,
+                    },
+                    {
+                        'protocol': 'tcp',
+                        'cidr': '0.0.0.0/0',
+                        'from_port': 1,
+                        'to_port': 65535,
+                    },
+                ),
+            },
+            {
+                'name': 'ssh',
+                'description': 'Security group for secure shell access',
+                'rules': (
+                    {
+                        'protocol': 'tcp',
+                        'cidr': '0.0.0.0/0',
+                        'from_port': 22,
+                        'to_port': 22,
+                    },
+                ),
+            },
+            {
+                'name': 'ping',
+                'description': 'Security group for ping',
+                'rules': (
+                    {
+                        'protocol': 'icmp',
+                        'cidr': '0.0.0.0/0',
+                        'icmp_type': -1,
+                        'icmp_code': -1,
+                    },
+                ),
+            },
+            {
+                'name': 'rdp',
+                'description': 'Security group for remove desktop access',
+                'rules': (
+                    {
+                        'protocol': 'tcp',
+                        'cidr': '0.0.0.0/0',
+                        'from_port': 3389,
+                        'to_port': 3389,
+                    },
+                ),
+            },
+            {
+                'name': 'web',
+                'description': 'Security group for http and https access',
+                'rules': (
+                    {
+                        'protocol': 'tcp',
+                        'cidr': '0.0.0.0/0',
+                        'from_port': 80,
+                        'to_port': 80,
+                    },
+                    {
+                        'protocol': 'tcp',
+                        'cidr': '0.0.0.0/0',
+                        'from_port': 443,
+                        'to_port': 443,
+                    },
+                ),
+            },
+        ),
+        description='Default security groups and rules created in each of the provisioned OpenStack tenants',
+    )
+
+    SUBNET = Field(
+        {
+            'ALLOCATION_POOL_START': '{first_octet}.{second_octet}.{third_octet}.10',
+            'ALLOCATION_POOL_END': '{first_octet}.{second_octet}.{third_octet}.200',
+        },
+        description='Default allocation pool for auto-created internal network',
+    )
+    DEFAULT_BLACKLISTED_USERNAMES = Field(
+        ['admin', 'service'],
+        description='Usernames that cannot be created by Waldur in OpenStack',
+    )
+    # TODO: Delete these flags after migration to marketplace is completed
+    # They are superseded by MANAGER_CAN_APPROVE_ORDER and ADMIN_CAN_APPROVE_ORDER
+    MANAGER_CAN_MANAGE_TENANTS = Field(
+        False,
+        description='If true, manager can delete or change configuration of tenants.',
+    )
+    ADMIN_CAN_MANAGE_TENANTS = Field(
+        False,
+        description='If true, admin can delete or change configuration of tenants.',
+    )
+    TENANT_CREDENTIALS_VISIBLE = Field(
+        False,
+        description='If true, generated credentials of a tenant are exposed to project users',
+    )
+
+    class Meta:
+        public_settings = [
+            'MANAGER_CAN_MANAGE_TENANTS',
+            'TENANT_CREDENTIALS_VISIBLE',
+        ]
+
+
+class WaldurOpenstackTenat(BaseModel):
+    MAX_CONCURRENT_PROVISION = Field(
+        {
+            'OpenStackTenant.Instance': 4,
+            'OpenStackTenant.Volume': 4,
+            'OpenStackTenant.Snapshot': 4,
+        },
+        description='Maximum parallel executions of provisioning operations for OpenStackTenant resources',
+    )
+    ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS = Field(
+        True,
+        description='If true, customer users would be offered actions for accessing OpenStack Console',
+    )
+    REQUIRE_AVAILABILITY_ZONE = Field(
+        False,
+        description='If true, specification of availability zone during provisioning will become mandatory',
+    )
+
+    class Meta:
+        public_settings = [
+            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS',
+            'REQUIRE_AVAILABILITY_ZONE',
+        ]
+
+
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
@@ -759,6 +896,8 @@ class WaldurConfiguration(BaseModel):
     WALDUR_HPC = WaldurHPC()
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()
+    WALDUR_OPENSTACK = WaldurOpenstack()
+    WALDUR_OPENSTACK_TENANT = WaldurOpenstackTenat()
     WALDUR_MARKETPLACE = WaldurMarketplace()
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
