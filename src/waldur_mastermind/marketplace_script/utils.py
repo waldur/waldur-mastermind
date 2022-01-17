@@ -289,7 +289,7 @@ class ContainerExecutorMixin:
             raise rf_serializers.ValidationError('Docker image is not allowed.')
 
         src = self.order_item.offering.secret_options[self.hook_type]
-        if len(src.encode('utf-8')) > 1024:
+        if len(src.encode('utf-8')) > 1024 * 1024:
             raise rf_serializers.ValidationError(
                 'The length of script is more than 1 MB.'
             )
