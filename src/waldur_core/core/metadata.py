@@ -629,15 +629,15 @@ class WaldurMarketplaceScript(BaseModel):
     )
     DOCKER_CLIENT = Field(
         {'base_url': 'unix://var/run/docker.sock',},
-        description='Options for docker client.  See also: https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient',
+        description='Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>',
     )
     DOCKER_RUN_OPTIONS = Field(
         {'mem_limit': '64m',},
-        description='Options for docker runtime. See also: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run',
+        description='Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>',
     )
     DOCKER_SCRIPT_DIR: 'str' = Field(
         None,
-        description='Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see https://github.com/docker/for-mac/issues/1532',
+        description='Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see <https://github.com/docker/for-mac/issues/1532>',
     )
     DOCKER_IMAGES = Field(
         {'python': 'python:3.8-alpine', 'shell': 'alpine:3',},
