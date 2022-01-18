@@ -233,6 +233,27 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(self.client.create_project_permission.call_count, 0)
 
+    def test_project_permission_is_deleted_if_it_is_absent_in_local_database(self):
+        # Arrange
+        self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
+        self.client.get_remote_eduteams_user.return_value = {
+            'uuid': self.remote_user_uuid
+        }
+        self.client.get_project_permissions.return_value = [
+            {
+                'expiration_time': timezone.now().isoformat(),
+                'role': 'admin',
+                'user_username': self.fixture.manager.username,
+                'pk': 1,
+            }
+        ]
+
+        # Act
+        tasks.sync_remote_project_permissions()
+
+        # Assert
+        self.client.remove_project_permission.assert_called_once_with('1')
+
 
 class DeleteRemoteProjectsTest(test.APITransactionTestCase):
     def setUp(self):

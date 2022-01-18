@@ -101,29 +101,44 @@ def get_projects_with_remote_offerings():
     return projects_with_offerings
 
 
-def get_or_create_remote_project(offering, project, client=None):
+def get_remote_project(offering, project, client=None):
+    if not client:
+        client = get_client_for_offering(offering)
+    remote_project_uuid = get_project_backend_id(project)
+    remote_projects = client.list_projects({'backend_id': remote_project_uuid})
+    if len(remote_projects) == 0:
+        return None
+    elif len(remote_projects) == 1:
+        return remote_projects[0]
+    else:
+        raise ValidationError('There are multiple projects in remote Waldur.')
+
+
+def create_remote_project(offering, project, client=None):
     if not client:
         client = get_client_for_offering(offering)
     options = offering.secret_options
     remote_customer_uuid = options['customer_uuid']
     remote_project_name = f'{project.customer.name} / {project.name}'
     remote_project_uuid = get_project_backend_id(project)
-    remote_projects = client.list_projects({'backend_id': remote_project_uuid})
-    if len(remote_projects) == 0:
-        response = client.create_project(
-            customer_uuid=remote_customer_uuid,
-            name=remote_project_name,
-            backend_id=remote_project_uuid,
-            description=project.description,
-            end_date=project.end_date and project.end_date.isoformat(),
-            oecd_fos_2007_code=project.oecd_fos_2007_code,
-            type_uuid=project.type and project.type.uuid.hex,
-        )
-        return response, True
-    elif len(remote_projects) == 1:
-        return remote_projects[0], False
+    return client.create_project(
+        customer_uuid=remote_customer_uuid,
+        name=remote_project_name,
+        backend_id=remote_project_uuid,
+        description=project.description,
+        end_date=project.end_date and project.end_date.isoformat(),
+        oecd_fos_2007_code=project.oecd_fos_2007_code,
+        type_uuid=project.type and project.type.uuid.hex,
+    )
+
+
+def get_or_create_remote_project(offering, project, client=None):
+    project = get_remote_project(offering, project, client)
+    if not project:
+        project = create_remote_project(offering, project, client)
+        return project, True
     else:
-        raise ValidationError('There are multiple projects in remote Waldur.')
+        return project, False
 
 
 def update_remote_project(request):

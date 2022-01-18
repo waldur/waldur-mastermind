@@ -446,29 +446,36 @@ def sync_remote_project_permissions():
         for offering in offerings:
 
             local_permissions = utils.collect_local_permissions(offering, project)
-            if not local_permissions:
-                continue
-
             client = utils.get_client_for_offering(offering)
+
             try:
-                remote_project, created = utils.get_or_create_remote_project(
-                    offering, project, client
-                )
-                remote_project_uuid = remote_project['uuid']
+                remote_project = utils.get_remote_project(offering, project, client)
+                if not remote_project:
+                    if not local_permissions:
+                        logger.info(
+                            f'Skipping remote project {project} synchronization in '
+                            'offering {offering} because there are no users to be synced.'
+                        )
+                    else:
+                        remote_project = utils.create_remote_project(
+                            offering, project, client
+                        )
+                        utils.push_project_users(
+                            offering, project, remote_project['uuid']
+                        )
+                    continue
             except WaldurClientException as e:
-                logger.debug(
+                logger.warning(
                     f'Unable to create remote project {project} in offering {offering}: {e}'
                 )
                 continue
-
-            if created:
-                utils.push_project_users(offering, project, remote_project_uuid)
-                continue
+            else:
+                remote_project_uuid = remote_project['uuid']
 
             try:
                 remote_permissions = client.get_project_permissions(remote_project_uuid)
             except WaldurClientException as e:
-                logger.debug(
+                logger.warning(
                     f'Unable to get project permissions for project {project} in offering {offering}: {e}'
                 )
                 continue
@@ -487,7 +494,7 @@ def sync_remote_project_permissions():
                 try:
                     remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
                 except WaldurClientException as e:
-                    logger.debug(
+                    logger.warning(
                         f'Unable to fetch remote user {username} in offering {offering}: {e}'
                     )
                     continue
@@ -503,7 +510,7 @@ def sync_remote_project_permissions():
                             else new_expiration_time,
                         )
                     except WaldurClientException as e:
-                        logger.debug(
+                        logger.warning(
                             f'Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) '
                             f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                         )
@@ -523,7 +530,7 @@ def sync_remote_project_permissions():
                     try:
                         client.remove_project_permission(old_permission_id)
                     except WaldurClientException as e:
-                        logger.debug(
+                        logger.warning(
                             f'Unable to remove permission for user [{remote_user_uuid}] with role {old_role} '
                             f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                         )
@@ -537,7 +544,7 @@ def sync_remote_project_permissions():
                             else new_expiration_time,
                         )
                     except WaldurClientException as e:
-                        logger.debug(
+                        logger.warning(
                             f'Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) '
                             f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                         )
@@ -552,10 +559,28 @@ def sync_remote_project_permissions():
                             else new_expiration_time,
                         )
                     except WaldurClientException as e:
-                        logger.debug(
+                        logger.warning(
                             f'Unable to update permission for user [{remote_user_uuid}] with role {old_role} (until {new_expiration_time}) '
                             f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                         )
+
+            stale_usernames = set(remote_user_roles.keys()) - set(
+                local_permissions.keys()
+            )
+            for username in stale_usernames:
+                old_permission_id = None
+                for permission in remote_permissions:
+                    if remote_permission['user_username'] == username:
+                        old_permission_id = str(permission['pk'])
+
+                if not old_permission_id:
+                    continue
+                try:
+                    client.remove_project_permission(old_permission_id)
+                except WaldurClientException as e:
+                    logger.warning(
+                        f'Unable to remove permission [{old_permission_id}] for user [{username}] in offering [{offering}]: {e}'
+                    )
 
 
 @shared_task
