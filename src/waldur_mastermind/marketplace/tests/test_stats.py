@@ -474,3 +474,37 @@ class LimitsStatsTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.permission_1 = factories.OfferingPermissionFactory()
+        self.permission_2 = factories.OfferingPermissionFactory()
+        self.permission_3 = factories.OfferingPermissionFactory(
+            offering=self.permission_2.offering
+        )
+        self.permission_4 = factories.OfferingPermissionFactory(
+            offering=self.permission_2.offering
+        )
+        self.permission_4.user.registration_method = 'other_method'
+        self.permission_4.user.save()
+        self.url = '/api/marketplace-stats/count_users_of_service_provider/'
+
+    @data(
+        'staff', 'global_support',
+    )
+    def test_user_can_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
