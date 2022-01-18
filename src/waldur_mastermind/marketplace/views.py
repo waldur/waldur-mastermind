@@ -1639,6 +1639,18 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         return data_with_divisions
 
+    @action(detail=False, methods=['get'])
+    def count_users_of_service_provider(self, request, *args, **kwargs):
+        data = (
+            models.OfferingPermission.objects.filter(
+                is_active=True, user__is_active=True,
+            )
+            .values('offering__customer__uuid', 'user__registration_method')
+            .annotate(count=Count('id'))
+        )
+        serializer = serializers.UsersOfServiceProviderStatsSerializer(data, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK,)
+
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
 
