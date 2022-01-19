@@ -276,7 +276,7 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
         )
         return
 
-    utils.import_usage(resource)
+    transaction.on_commit(lambda: utils.import_usage(resource))
 
 
 def create_offering_component_for_volume_type(
