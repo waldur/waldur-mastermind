@@ -689,15 +689,15 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
                 remote_groups = set(backend_port['security_groups'])
 
-                stale_groups = local_groups - remote_groups
-                for group in port.security_groups.filter(backend_id__in=stale_groups):
-                    group.delete()
-
                 new_groups = remote_groups - local_groups
                 for group_id in new_groups:
                     security_groups = security_group_mappings.get(group_id)
                     if security_groups:
                         port.security_groups.add(security_groups)
+
+                stale_groups = local_groups - remote_groups
+                for group in port.security_groups.filter(backend_id__in=stale_groups):
+                    port.security_groups.remove(group)
             except IntegrityError:
                 logger.warning(
                     'Could not create or update port with backend ID %s '
