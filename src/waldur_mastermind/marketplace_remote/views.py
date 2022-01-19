@@ -192,6 +192,7 @@ class PullOrderItemView(APIView):
     def post(self, *args, **kwargs):
         order_item = self.get_order_item()
         tasks.OrderItemPullTask.apply_async(args=[serialize_instance(order_item)])
+        return Response(status=status.HTTP_200_OK)
 
 
 class OfferingActionView(APIView):
