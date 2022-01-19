@@ -1636,20 +1636,9 @@ class StatsViewSet(rf_viewsets.ViewSet):
         for sp in models.ServiceProvider.objects.all().select_related(
             'customer', 'customer__division'
         ):
-            result.append(
-                {
-                    'count': utils.get_service_provider_user_ids(sp).count(),
-                    'service_provider_uuid': sp.uuid.hex,
-                    'customer_uuid': sp.customer.uuid.hex,
-                    'customer_name': sp.customer.name,
-                    'customer_division_uuid': sp.customer.division.uuid.hex
-                    if sp.customer.division
-                    else '',
-                    'customer_division_name': sp.customer.division.name
-                    if sp.customer.division
-                    else '',
-                }
-            )
+            data = {'count': utils.get_service_provider_user_ids(sp).count()}
+            data.update(self._get_service_provider_info(sp))
+            result.append(data)
 
         return Response(result, status=status.HTTP_200_OK,)
 
@@ -1660,22 +1649,51 @@ class StatsViewSet(rf_viewsets.ViewSet):
         for sp in models.ServiceProvider.objects.all().select_related(
             'customer', 'customer__division'
         ):
-            result.append(
-                {
-                    'count': utils.get_service_provider_project_ids(sp).count(),
-                    'service_provider_uuid': sp.uuid.hex,
-                    'customer_uuid': sp.customer.uuid.hex,
-                    'customer_name': sp.customer.name,
-                    'customer_division_uuid': sp.customer.division.uuid.hex
-                    if sp.customer.division
-                    else '',
-                    'customer_division_name': sp.customer.division.name
-                    if sp.customer.division
-                    else '',
-                }
-            )
+            data = {'count': utils.get_service_provider_project_ids(sp).count()}
+            data.update(self._get_service_provider_info(sp))
+            result.append(data)
 
         return Response(result, status=status.HTTP_200_OK,)
+
+    @action(detail=False, methods=['get'])
+    def count_projects_of_service_providers_grouped_by_oecd(
+        self, request, *args, **kwargs
+    ):
+        result = []
+
+        for sp in models.ServiceProvider.objects.all().select_related(
+            'customer', 'customer__division'
+        ):
+            project_ids = utils.get_service_provider_project_ids(sp)
+            projects = (
+                structure_models.Project.available_objects.filter(id__in=project_ids)
+                .values('oecd_fos_2007_code')
+                .annotate(count=Count('id'))
+            )
+
+            for p in projects:
+                data = {
+                    'count': p['count'],
+                    'oecd_fos_2007_code': p['oecd_fos_2007_code'],
+                }
+                data.update(self._get_service_provider_info(sp))
+                result.append(data)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _get_service_provider_info(service_provider):
+        return {
+            'service_provider_uuid': service_provider.uuid.hex,
+            'customer_uuid': service_provider.customer.uuid.hex,
+            'customer_name': service_provider.customer.name,
+            'customer_division_uuid': service_provider.customer.division.uuid.hex
+            if service_provider.customer.division
+            else '',
+            'customer_division_name': service_provider.customer.division.name
+            if service_provider.customer.division
+            else '',
+        }
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
