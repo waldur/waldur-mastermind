@@ -16,6 +16,16 @@ class SecurityGroupFilter(structure_filters.BaseResourceFilter):
         model = models.SecurityGroup
 
 
+class ServerGroupFilter(structure_filters.BaseResourceFilter):
+    tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(
+        view_name='openstack-tenant-detail', field_name='tenant__uuid'
+    )
+
+    class Meta(structure_filters.BaseResourceFilter.Meta):
+        model = models.ServerGroup
+
+
 class FloatingIPFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
     tenant = core_filters.URLFilter(

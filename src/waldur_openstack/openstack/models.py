@@ -44,6 +44,25 @@ class VolumeType(openstack_base_models.BaseVolumeType):
         return 'openstack-volume-type'
 
 
+class ServerGroup(openstack_base_models.BaseServerGroup, structure_models.SubResource):
+    tenant = models.ForeignKey(
+        on_delete=models.CASCADE, to='Tenant', related_name='server_groups'
+    )
+
+    tracker = FieldTracker()
+
+    def get_backend(self):
+        return self.tenant.get_backend()
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstack-server-group'
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super(ServerGroup, cls).get_backend_fields() + ('name', 'policy',)
+
+
 class SecurityGroup(structure_models.SubResource):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to='Tenant', related_name='security_groups'

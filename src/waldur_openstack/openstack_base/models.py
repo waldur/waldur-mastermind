@@ -132,3 +132,14 @@ class BaseSubNet(models.Model):
     is_connected = models.BooleanField(
         default=True, help_text=_('Is subnet connected to the default tenant router.')
     )
+
+
+class BaseServerGroup(models.Model):
+    class Meta:
+        abstract = True
+
+    AFFINITY = 'Affinity'
+
+    POLICIES = ((AFFINITY, 'Affinity'),)
+
+    policy = models.CharField(max_length=40, blank=True, choices=POLICIES)

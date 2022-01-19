@@ -19,6 +19,11 @@ def register_in(router):
         views.SecurityGroupViewSet,
         basename='openstack-sgp',
     )
+    router.register(
+        r'openstack-server-groups',
+        views.ServerGroupViewSet,
+        basename='openstack-server-group',
+    )
     router.register(r'openstack-ports', views.PortViewSet, basename='openstack-port')
     router.register(
         r'openstack-floating-ips', views.FloatingIPViewSet, basename='openstack-fip'

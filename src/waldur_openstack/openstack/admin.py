@@ -173,6 +173,7 @@ class CustomerOpenStackInline(admin.StackedInline):
 admin.site.register(models.Network, NetworkAdmin)
 admin.site.register(models.SubNet, SubNetAdmin)
 admin.site.register(models.SecurityGroup, structure_admin.ResourceAdmin)
+admin.site.register(models.ServerGroup, structure_admin.ResourceAdmin)
 
 admin.site.register(models.Tenant, TenantAdmin)
 admin.site.register(models.Flavor, FlavorAdmin)
