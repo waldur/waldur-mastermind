@@ -576,7 +576,7 @@ def sync_remote_project_permissions():
             for username in stale_usernames:
                 old_permission_id = None
                 for permission in remote_permissions:
-                    if remote_permission['user_username'] == username:
+                    if permission['user_username'] == username:
                         old_permission_id = str(permission['pk'])
 
                 if not old_permission_id:
