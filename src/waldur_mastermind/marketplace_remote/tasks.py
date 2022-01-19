@@ -6,6 +6,7 @@ from celery.app import shared_task
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import dateparse, timezone
+from rest_framework import exceptions as rf_exceptions
 from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core.utils import deserialize_instance, serialize_instance
@@ -464,6 +465,11 @@ def sync_remote_project_permissions():
                             offering, project, remote_project['uuid']
                         )
                     continue
+            except rf_exceptions.ValidationError as e:
+                logger.warning(
+                    f'Unable to fetch remote project {project} in offering {offering}: {e}'
+                )
+                continue
             except WaldurClientException as e:
                 logger.warning(
                     f'Unable to create remote project {project} in offering {offering}: {e}'
