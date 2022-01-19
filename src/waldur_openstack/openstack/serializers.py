@@ -174,7 +174,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
         )
         extra_kwargs = dict(
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def validate(self, attrs):
@@ -499,6 +499,41 @@ class SecurityGroupUpdateSerializer(serializers.ModelSerializer):
         return name
 
 
+class ServerGroupSerializer(structure_serializers.BaseResourceActionSerializer):
+    class Meta:
+        model = models.ServerGroup
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'tenant',
+            'tenant_name',
+            'tenant_uuid',
+            'policy',
+            'display_name',
+            'name',
+        )
+        related_paths = ('tenant',)
+        read_only_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
+            + ('service_settings', 'project')
+        )
+
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'openstack-server-group-detail',
+            },
+            'tenant': {
+                'lookup_field': 'uuid',
+                'view_name': 'openstack-tenant-detail',
+                'read_only': True,
+            },
+        }
+
+    display_name = serializers.SerializerMethodField()
+
+    def get_display_name(self, server_group):
+        return f"Name: {server_group.name}, Policy: {server_group.policy}"
+
+
 ALLOWED_PRIVATE_NETWORKS = (
     IPv4Network('10.0.0.0/8'),
     IPv4Network('172.16.0.0/12'),
@@ -561,7 +596,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         )
         extra_kwargs = dict(
             name={'max_length': 64},
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def validate_subnet_cidr(self, value):
@@ -975,7 +1010,7 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
         )
         extra_kwargs = dict(
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def validate(self, attrs):
@@ -1049,7 +1084,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
         )
         extra_kwargs = dict(
             network={'lookup_field': 'uuid', 'view_name': 'openstack-network-detail'},
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def validate_cidr(self, value):

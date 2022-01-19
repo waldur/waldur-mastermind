@@ -117,6 +117,12 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
     set_rules_serializer_class = serializers.SecurityGroupRuleListUpdateSerializer
 
 
+class ServerGroupViewSet(structure_views.ResourceViewSet):
+    queryset = models.ServerGroup.objects.all().order_by('tenant__name')
+    serializer_class = serializers.ServerGroupSerializer
+    filterset_class = filters.ServerGroupFilter
+
+
 class FloatingIPViewSet(structure_views.ResourceViewSet):
     queryset = models.FloatingIP.objects.all().order_by('address')
     serializer_class = serializers.FloatingIPSerializer
