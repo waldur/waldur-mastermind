@@ -117,15 +117,11 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     def get_customer_project_ids(self):
         service_provider = self.get_object()
-        offering_ids = models.Offering.objects.filter(
-            shared=True, customer=service_provider.customer
-        ).values_list('id', flat=True)
-        project_ids = (
-            models.Resource.objects.filter(offering_id__in=offering_ids)
-            .exclude(state=models.Resource.States.TERMINATED)
-            .values_list('project_id', flat=True)
-        )
-        return project_ids
+        return utils.get_service_provider_project_ids(service_provider)
+
+    def get_customer_user_ids(self):
+        service_provider = self.get_object()
+        return utils.get_service_provider_user_ids(service_provider)
 
     @action(detail=True, methods=['GET'])
     def projects(self, request, uuid=None):
@@ -151,10 +147,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['GET'])
     def keys(self, request, uuid=None):
-        project_ids = self.get_customer_project_ids()
-        user_ids = structure_models.ProjectPermission.objects.filter(
-            project_id__in=project_ids, is_active=True
-        ).values_list('user_id', flat=True)
+        user_ids = self.get_customer_user_ids()
         keys = core_models.SshPublicKey.objects.filter(user_id__in=user_ids)
         page = self.paginate_queryset(keys)
         serializer = structure_serializers.SshKeySerializer(
@@ -164,10 +157,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['GET'])
     def users(self, request, uuid=None):
-        project_ids = self.get_customer_project_ids()
-        user_ids = structure_models.ProjectPermission.objects.filter(
-            project_id__in=project_ids, is_active=True
-        ).values_list('user_id', flat=True)
+        user_ids = self.get_customer_user_ids()
         users = core_models.User.objects.filter(id__in=user_ids)
         page = self.paginate_queryset(users)
         serializer = structure_serializers.UserSerializer(
@@ -1640,16 +1630,52 @@ class StatsViewSet(rf_viewsets.ViewSet):
         return data_with_divisions
 
     @action(detail=False, methods=['get'])
-    def count_users_of_service_provider(self, request, *args, **kwargs):
-        data = (
-            models.OfferingPermission.objects.filter(
-                is_active=True, user__is_active=True,
+    def count_users_of_service_providers(self, request, *args, **kwargs):
+        result = []
+
+        for sp in models.ServiceProvider.objects.all().select_related(
+            'customer', 'customer__division'
+        ):
+            result.append(
+                {
+                    'count': utils.get_service_provider_user_ids(sp).count(),
+                    'service_provider_uuid': sp.uuid.hex,
+                    'customer_uuid': sp.customer.uuid.hex,
+                    'customer_name': sp.customer.name,
+                    'customer_division_uuid': sp.customer.division.uuid.hex
+                    if sp.customer.division
+                    else '',
+                    'customer_division_name': sp.customer.division.name
+                    if sp.customer.division
+                    else '',
+                }
             )
-            .values('offering__customer__uuid', 'user__registration_method')
-            .annotate(count=Count('id'))
-        )
-        serializer = serializers.UsersOfServiceProviderStatsSerializer(data, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK,)
+
+        return Response(result, status=status.HTTP_200_OK,)
+
+    @action(detail=False, methods=['get'])
+    def count_projects_of_service_providers(self, request, *args, **kwargs):
+        result = []
+
+        for sp in models.ServiceProvider.objects.all().select_related(
+            'customer', 'customer__division'
+        ):
+            result.append(
+                {
+                    'count': utils.get_service_provider_project_ids(sp).count(),
+                    'service_provider_uuid': sp.uuid.hex,
+                    'customer_uuid': sp.customer.uuid.hex,
+                    'customer_name': sp.customer.name,
+                    'customer_division_uuid': sp.customer.division.uuid.hex
+                    if sp.customer.division
+                    else '',
+                    'customer_division_name': sp.customer.division.name
+                    if sp.customer.division
+                    else '',
+                }
+            )
+
+        return Response(result, status=status.HTTP_200_OK,)
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):

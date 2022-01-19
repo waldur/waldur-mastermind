@@ -649,3 +649,26 @@ def create_local_resource(order_item, scope, effective_id=''):
     order_item.resource = resource
     order_item.save(update_fields=['resource'])
     return resource
+
+
+def get_service_provider_project_ids(service_provider):
+    offering_ids = models.Offering.objects.filter(
+        shared=True, customer=service_provider.customer
+    ).values_list('id', flat=True)
+    return (
+        models.Resource.objects.filter(offering_id__in=offering_ids)
+        .exclude(state=models.Resource.States.TERMINATED)
+        .values_list('project_id', flat=True)
+        .distinct()
+    )
+
+
+def get_service_provider_user_ids(service_provider):
+    project_ids = get_service_provider_project_ids(service_provider)
+    return (
+        structure_models.ProjectPermission.objects.filter(
+            project_id__in=project_ids, is_active=True
+        )
+        .values_list('user_id', flat=True)
+        .distinct()
+    )

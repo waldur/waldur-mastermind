@@ -2730,9 +2730,3 @@ class ComponentUsagesStatsSerializer(serializers.Serializer):
     usage = serializers.IntegerField()
     offering_uuid = serializers.CharField(source='resource__offering__uuid')
     component_type = serializers.CharField(source='component__type')
-
-
-class UsersOfServiceProviderStatsSerializer(serializers.Serializer):
-    users_count = serializers.IntegerField(source='count')
-    customer_uuid = serializers.CharField(source='offering__customer__uuid')
-    registration_method = serializers.CharField(source='user__registration_method')
