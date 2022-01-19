@@ -81,7 +81,7 @@ class OfferingPullTask(BackgroundPullTask):
             )
             pull_fields(OFFERING_COMPONENT_FIELDS, local_component, remote_component)
             logger.info(
-                'Component %s for offering %s has been created',
+                'Component %s for offering %s has been updated',
                 existing_component_type,
                 local_offering,
             )
