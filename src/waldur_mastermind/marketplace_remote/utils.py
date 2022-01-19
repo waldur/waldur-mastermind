@@ -133,12 +133,12 @@ def create_remote_project(offering, project, client=None):
 
 
 def get_or_create_remote_project(offering, project, client=None):
-    project = get_remote_project(offering, project, client)
-    if not project:
-        project = create_remote_project(offering, project, client)
-        return project, True
+    remote_project = get_remote_project(offering, project, client)
+    if not remote_project:
+        remote_project = create_remote_project(offering, project, client)
+        return remote_project, True
     else:
-        return project, False
+        return remote_project, False
 
 
 def update_remote_project(request):
