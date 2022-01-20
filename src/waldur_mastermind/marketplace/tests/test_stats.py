@@ -498,3 +498,27 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = '/api/marketplace-stats/count_projects_of_service_providers_grouped_by_oecd/'
+
+    @data(
+        'staff', 'global_support',
+    )
+    def test_user_can_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
