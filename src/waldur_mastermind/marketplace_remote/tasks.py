@@ -55,13 +55,13 @@ class OfferingPullTask(BackgroundPullTask):
         existing_component_types = set(local_component_types) & set(
             remote_component_types_map.keys()
         )
-
-        local_offering.components.filter(type__in=stale_component_types).delete()
-        logger.info(
-            'Components %s of offering %s have been deleted',
-            stale_component_types,
-            local_offering,
-        )
+        if stale_component_types:
+            local_offering.components.filter(type__in=stale_component_types).delete()
+            logger.info(
+                'Components %s of offering %s have been deleted',
+                stale_component_types,
+                local_offering,
+            )
 
         for new_component_type in new_component_types:
             remote_component = remote_component_types_map[new_component_type]
