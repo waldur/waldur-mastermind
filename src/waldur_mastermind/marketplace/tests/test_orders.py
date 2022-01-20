@@ -561,6 +561,13 @@ class OrderApproveTest(test.APITransactionTestCase):
         order_item.refresh_from_db()
         self.assertEqual(order_item.resource.state, models.Resource.States.OK)
 
+    def test_when_order_item_is_approved_order_is_approved_too(self):
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        order_item = factories.OrderItemFactory(offering=offering, order=self.order)
+        self.approve_order_item(self.fixture.owner, order_item)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, models.Order.States.EXECUTING)
+
     def test_user_cannot_approve_order_if_project_is_expired(self):
         self.project.end_date = datetime.datetime(year=2020, month=1, day=1).date()
         self.project.save()
@@ -639,6 +646,12 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.manager)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_when_order_item_is_rejected_order_is_rejected_too(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.client.post(self.url)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, models.Order.States.REJECTED)
 
 
 @ddt
