@@ -960,6 +960,15 @@ class OrderItemViewSet(BaseMarketplaceView):
             order_item.reviewed_by = request.user
             order_item.set_state_terminated()
             order_item.save()
+            if (
+                order_item.order.state == models.Order.States.REQUESTED_FOR_APPROVAL
+                and order_item.order.items.filter(
+                    state=models.OrderItem.States.PENDING
+                ).count()
+                == 0
+            ):
+                order_item.order.reject()
+                order_item.order.save()
         else:
             raise ValidationError('Order item is not in executing or pending state.')
         return Response(status=status.HTTP_200_OK)
@@ -977,6 +986,15 @@ class OrderItemViewSet(BaseMarketplaceView):
             order_item.reviewed_by = request.user
             order_item.set_state_executing()
             order_item.save()
+            if (
+                order_item.order.state == models.Order.States.REQUESTED_FOR_APPROVAL
+                and order_item.order.items.filter(
+                    state=models.OrderItem.States.PENDING
+                ).count()
+                == 0
+            ):
+                order_item.order.approve()
+                order_item.order.save()
             transaction.on_commit(
                 lambda: tasks.process_order_item.delay(
                     core_utils.serialize_instance(order_item),
