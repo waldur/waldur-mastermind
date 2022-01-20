@@ -19,7 +19,7 @@ from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 
-from . import exceptions, models, utils, views
+from . import PLUGIN_NAME, exceptions, models, utils, views
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +39,28 @@ def approve_order(order, user):
         lambda: process_order.delay(serialized_order, serialized_user)
     )
 
+    # Send emails to service provider users in case if order item is Markeplace.Basic ot Marketplace.Remote
+    from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
+
+    for order_item in order.items.filter(
+        offering__type__in=[PLUGIN_NAME, REMOTE_PLUGIN_NAME]
+    ):
+        transaction.on_commit(
+            lambda: notify_provider_about_order_item_pending_approval.delay(
+                order_item.uuid
+            )
+        )
+
 
 @shared_task
 def process_order(serialized_order, serialized_user):
+    order = core_utils.deserialize_instance(serialized_order)
+    user = core_utils.deserialize_instance(serialized_user)
+
     # Skip remote plugin because it is going to processed
     # only after it gets approved by service provider
     from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 
-    order = core_utils.deserialize_instance(serialized_order)
-    user = core_utils.deserialize_instance(serialized_user)
     for item in order.items.exclude(offering__type=REMOTE_PLUGIN_NAME):
         item.set_state_executing()
         item.save(update_fields=['state'])
@@ -84,19 +97,20 @@ def notify_order_approvers(uuid):
     if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
         users |= order.project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
 
-    appprovers = (
+    approvers = (
         users.distinct()
         .exclude(email='')
         .exclude(notifications_enabled=False)
         .values_list('email', flat=True)
     )
 
-    if not appprovers:
+    if not approvers:
         return
 
     link = core_utils.format_homeport_link(
-        'projects/{project_uuid}/marketplace-order-list/',
+        'projects/{project_uuid}/marketplace-order-details/{order_uuid}/',
         project_uuid=order.project.uuid,
+        order_uuid=order.uuid,
     )
 
     context = {
@@ -105,8 +119,53 @@ def notify_order_approvers(uuid):
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
     }
 
+    logger.info(
+        'About to send email regarding order %s to approvers: %s', order, approvers
+    )
+
     core_utils.broadcast_mail(
-        'marketplace', 'notification_approval', context, appprovers
+        'marketplace', 'notification_approval', context, approvers
+    )
+
+
+@shared_task
+def notify_provider_about_order_item_pending_approval(order_item_uuid):
+    order_item: models.OrderItem = models.OrderItem.objects.get(uuid=order_item_uuid)
+    # EXECUTING is for Marketplace.Basic
+    # PENDING is for Marketplace.Remote
+    if order_item.state not in [
+        models.OrderItem.States.EXECUTING,
+        models.OrderItem.States.PENDING,
+    ]:
+        return
+
+    service_provider_org = order_item.offering.customer
+    approvers = service_provider_org.get_owner_mails()
+    approvers |= (
+        order_item.offering.get_users()
+        .exclude(email='')
+        .exclude(notifications_enabled=False)
+        .values_list('email', flat=True)
+    )
+
+    link = core_utils.format_homeport_link(
+        'organizations/{organization_uuid}/marketplace-order-items/',
+        organization_uuid=service_provider_org.uuid,
+    )
+    context = {
+        'order_item_url': link,
+        'order': order_item.order,
+        'site_name': settings.WALDUR_CORE['SITE_NAME'],
+    }
+
+    logger.info(
+        'About to send email regarding order item %s to approvers: %s',
+        order_item,
+        approvers,
+    )
+
+    core_utils.broadcast_mail(
+        'marketplace', 'notification_service_provider_approval', context, approvers
     )
 
 
