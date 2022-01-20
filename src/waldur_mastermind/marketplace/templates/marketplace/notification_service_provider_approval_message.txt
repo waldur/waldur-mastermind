@@ -1,0 +1,3 @@
+Hello!
+
+A new order by {{ order.created_by.get_full_name }} is waiting for approval.

@@ -731,3 +731,30 @@ class OrderApprovalNotificationTest(test.APITransactionTestCase):
         fixture = marketplace_fixtures.MarketplaceFixture()
         tasks.notify_order_approvers(fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class OrderItemApprovalNotificationTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.order_item = self.fixture.order_item
+        self.order_item.state = models.OrderItem.States.PENDING
+        self.order_item.save()
+
+    def test_owner_case(self):
+        user = self.fixture.offering_owner
+        tasks.notify_provider_about_order_item_pending_approval(
+            self.order_item.uuid.hex
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [user.email])
+
+    def test_service_manager_case(self):
+        permission = factories.OfferingPermissionFactory(
+            offering=self.order_item.offering
+        )
+        user = permission.user
+        tasks.notify_provider_about_order_item_pending_approval(
+            self.order_item.uuid.hex
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [user.email])
