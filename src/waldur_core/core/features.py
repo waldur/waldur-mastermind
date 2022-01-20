@@ -227,6 +227,7 @@ class OpenstackSection(FeatureSection):
     volume_types = Feature(
         'Allow to select OpenStack volume type when instance or volume is provisioned.'
     )
+    server_groups = Feature('Render server groups in OpenStack tenant details')
 
 
 class RancherSection(FeatureSection):
