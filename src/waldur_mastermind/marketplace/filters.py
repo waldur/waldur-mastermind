@@ -523,7 +523,7 @@ class OfferingUserFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
-class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
+class CategoryFilter(django_filters.FilterSet):
     class Meta:
         model = models.Category
         fields = []
@@ -531,6 +531,8 @@ class CategoryFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(
         method='filter_customer_uuid', label='Customer UUID'
     )
+
+    title = django_filters.CharFilter(lookup_expr='icontains')
 
     customers_offerings_state = django_filters.MultipleChoiceFilter(
         choices=models.Offering.States.CHOICES,
