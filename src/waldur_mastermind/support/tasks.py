@@ -212,4 +212,7 @@ def sync_feedback(serialized_feedback):
 
 @shared_task(name='waldur_mastermind.support.sync_request_types')
 def sync_request_types():
+    if not settings.WALDUR_SUPPORT['ENABLED']:
+        return
+
     backend.get_active_backend().pull_request_types()
