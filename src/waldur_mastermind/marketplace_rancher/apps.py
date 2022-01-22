@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from waldur_mastermind.marketplace_rancher import NODES_COMPONENT_TYPE
+
 
 class MarketplaceRancherConfig(AppConfig):
     name = 'waldur_mastermind.marketplace_rancher'
@@ -25,7 +27,7 @@ class MarketplaceRancherConfig(AppConfig):
             delete_resource_processor=processors.RancherDeleteProcessor,
             components=(
                 Component(
-                    type='node',
+                    type=NODES_COMPONENT_TYPE,
                     name='K8S node',
                     measured_unit='nodes',
                     billing_type=USAGE,

@@ -11,6 +11,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.utils import (
     get_resource_state,
+    import_current_usages,
     import_resource_metadata,
 )
 from waldur_mastermind.marketplace_openstack import (
@@ -150,6 +151,7 @@ def import_usage(resource):
 
     resource.current_usages = import_quotas(resource.offering, tenant.quotas, 'usage')
     resource.save(update_fields=['current_usages'])
+    import_current_usages(resource)
 
 
 def import_limits(resource):
