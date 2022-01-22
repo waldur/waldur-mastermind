@@ -11,7 +11,7 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import transaction
-from django.db.models import F, Sum
+from django.db.models import F, Q, Sum
 from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
 from django.template.loader import render_to_string
@@ -672,3 +672,59 @@ def get_service_provider_user_ids(service_provider):
         .values_list('user_id', flat=True)
         .distinct()
     )
+
+
+def import_current_usages(resource):
+    date = datetime.date.today()
+
+    for component_type, component_usage in resource.current_usages.items():
+        try:
+            offering_component = models.OfferingComponent.objects.get(
+                offering=resource.offering, type=component_type
+            )
+        except models.OfferingComponent.DoesNotExist:
+            logger.warning(
+                'Skipping current usage synchronization because related '
+                'OfferingComponent does not exist.'
+                'Resource ID: %s',
+                resource.id,
+            )
+            continue
+
+        try:
+            plan_period = (
+                models.ResourcePlanPeriod.objects.filter(
+                    Q(start__lte=date) | Q(start__isnull=True)
+                )
+                .filter(Q(end__gt=date) | Q(end__isnull=True))
+                .get(resource=resource)
+            )
+        except models.ResourcePlanPeriod.DoesNotExist:
+            logger.warning(
+                'Skipping current usage synchronization because related '
+                'ResourcePlanPeriod does not exist.'
+                'Resource ID: %s',
+                resource.id,
+            )
+            continue
+
+        try:
+            component_usage_object = models.ComponentUsage.objects.get(
+                resource=resource,
+                component=offering_component,
+                billing_period=core_utils.month_start(date),
+                plan_period=plan_period,
+            )
+            component_usage_object.usage = max(
+                component_usage, component_usage_object.usage
+            )
+            component_usage_object.save()
+        except models.ComponentUsage.DoesNotExist:
+            models.ComponentUsage.objects.create(
+                resource=resource,
+                component=offering_component,
+                usage=component_usage,
+                date=date,
+                billing_period=core_utils.month_start(date),
+                plan_period=plan_period,
+            )
