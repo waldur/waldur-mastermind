@@ -1,12 +1,14 @@
 from unittest import mock
 
 from ddt import data, ddt
+from django.core.cache import cache
 from keystoneclient import exceptions as keystone_exceptions
 from rest_framework import test
 
 from waldur_openstack.openstack import models
 from waldur_openstack.openstack.backend import OpenStackBackend
 from waldur_openstack.openstack.tests import factories, fixtures
+from waldur_openstack.openstack_base.backend import get_cached_session_key
 
 
 class MockedSession(mock.MagicMock):
@@ -775,3 +777,31 @@ class PullPortsTest(BaseBackendTestCase):
 
         self.port.refresh_from_db()
         self.assertEqual(0, self.port.security_groups.count())
+
+
+class InvalidateSessionCacheTest(BaseBackendTestCase):
+    def test_when_settings_are_updated_admin_session_cache_is_deleted(self):
+        service_settings = factories.OpenStackServiceSettingsFactory(
+            backend_url='http://example1.com/'
+        )
+        service_settings.get_backend().nova_admin_client
+        self.assertTrue(get_cached_session_key(service_settings, admin=True) in cache)
+
+        service_settings.backend_url = 'http://example2.com/'
+        service_settings.save()
+        self.assertFalse(get_cached_session_key(service_settings, admin=True) in cache)
+
+    def test_when_settings_are_updated_tenant_session_cache_is_deleted(self):
+        service_settings = factories.OpenStackServiceSettingsFactory(
+            backend_url='http://example1.com/',
+        )
+        service_settings.get_backend(tenant_id='tenant_id').nova_client
+        self.assertTrue(
+            get_cached_session_key(service_settings, tenant_id='tenant_id') in cache
+        )
+
+        service_settings.backend_url = 'http://example2.com/'
+        service_settings.save()
+        self.assertFalse(
+            get_cached_session_key(service_settings, tenant_id='tenant_id') in cache
+        )

@@ -32,6 +32,12 @@ class OpenStackConfig(AppConfig):
 
         SupportedServices.register_backend(OpenStackBackend)
 
+        signals.post_save.connect(
+            handlers.clear_cache_when_service_settings_are_updated,
+            sender=structure_models.ServiceSettings,
+            dispatch_uid='openstack.handlers.clear_cache_when_service_settings_are_updated',
+        )
+
         from . import quotas
 
         quotas.inject_tenant_quotas()
