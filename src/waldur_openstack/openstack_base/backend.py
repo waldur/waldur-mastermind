@@ -177,26 +177,21 @@ class OpenStackClient:
             raise OpenStackBackendError(e)
 
 
+def get_cached_session_key(settings, admin=False, tenant_id=None):
+    if not admin and not tenant_id:
+        raise OpenStackBackendError('Either admin or tenant_id should be defined.')
+    key = 'OPENSTACK_ADMIN_SESSION' if admin else 'OPENSTACK_SESSION_%s' % tenant_id
+    settings_key = (
+        str(settings.backend_url) + str(settings.password) + str(settings.username)
+    )
+    hashed_settings_key = hashlib.sha256(settings_key.encode('utf-8')).hexdigest()
+    return '%s_%s_%s' % (settings.uuid.hex, hashed_settings_key, key)
+
+
 class BaseOpenStackBackend(ServiceBackend):
     def __init__(self, settings, tenant_id=None):
         self.settings = settings
         self.tenant_id = tenant_id
-
-    def _get_cached_session_key(self, admin):
-        if not admin and not self.tenant_id:
-            raise OpenStackBackendError('Either admin or tenant_id should be defined.')
-        key = (
-            'OPENSTACK_ADMIN_SESSION'
-            if admin
-            else 'OPENSTACK_SESSION_%s' % self.tenant_id
-        )
-        settings_key = (
-            str(self.settings.backend_url)
-            + str(self.settings.password)
-            + str(self.settings.username)
-        )
-        hashed_settings_key = hashlib.sha256(settings_key.encode('utf-8')).hexdigest()
-        return '%s_%s_%s' % (self.settings.uuid.hex, hashed_settings_key, key)
 
     def get_client(self, name=None, admin=False):
         domain_name = self.settings.domain or 'Default'
@@ -218,7 +213,7 @@ class BaseOpenStackBackend(ServiceBackend):
 
         client = None
         attr_name = 'admin_session' if admin else 'session'
-        key = self._get_cached_session_key(admin)
+        key = get_cached_session_key(self.settings, admin, self.tenant_id)
         if hasattr(self, attr_name):  # try to get client from object
             client = getattr(self, attr_name)
         elif key in cache:  # try to get session from cache
@@ -228,7 +223,7 @@ class BaseOpenStackBackend(ServiceBackend):
                 try:
                     client = OpenStackClient(session=session)
                 except (OpenStackSessionExpired, OpenStackAuthorizationFailed):
-                    pass
+                    client = None
 
         if client is None:  # create new token if session is not cached or expired
             client = OpenStackClient(**credentials)
