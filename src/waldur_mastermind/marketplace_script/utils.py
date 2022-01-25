@@ -58,13 +58,16 @@ def construct_k8s_config_map(name, src):
     )
 
 
-def construct_k8s_job(name, image, command, volume_name, config_map_name):
+def construct_k8s_job(name, image, command, volume_name, config_map_name, environment):
     script_volume = k8s.client.V1Volume(
         name=volume_name,
         config_map=k8s.client.V1ConfigMapVolumeSource(
             name=config_map_name, default_mode=0o0444,
         ),
     )
+    env = [
+        k8s.client.V1EnvVar(name=key, value=value) for key, value in environment.items()
+    ]
 
     script_volume_mount = k8s.client.V1VolumeMount(
         name=volume_name, mount_path='/work/script', sub_path='script'
@@ -75,6 +78,7 @@ def construct_k8s_job(name, image, command, volume_name, config_map_name):
         command=[command, 'script'],
         volume_mounts=[script_volume_mount],
         working_dir='/work',
+        env=env,
     )
     template = k8s.client.V1PodTemplateSpec(
         metadata=k8s.client.V1ObjectMeta(
@@ -179,7 +183,7 @@ def execute_script_in_k8s(image, command, src, **kwargs):
     config_map_object = construct_k8s_config_map(config_map_name, src)
 
     job_object = construct_k8s_job(
-        job_name, image, command, volume_name, config_map_name
+        job_name, image, command, volume_name, config_map_name, env
     )
 
     create_config_map_in_k8s(api_v1, config_map_object)
