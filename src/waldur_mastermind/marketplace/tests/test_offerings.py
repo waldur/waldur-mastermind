@@ -53,6 +53,16 @@ class OfferingGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_field_query_param(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_list_url()
+        response = self.client.get(url, {'field': ['divisions']})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(len(response.json()[0].keys()), 1)
+        self.assertEqual(list(response.json()[0].keys())[0], 'divisions')
+
 
 class OfferingPlanInfoTest(test.APITransactionTestCase):
     def setUp(self):

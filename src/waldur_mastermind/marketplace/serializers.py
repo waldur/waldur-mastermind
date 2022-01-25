@@ -745,9 +745,9 @@ class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class OfferingDetailsSerializer(
+    core_serializers.RestrictedSerializerMixin,
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
-    core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
 
@@ -845,9 +845,18 @@ class OfferingDetailsSerializer(
             del fields['secret_options']
         method = self.context['view'].request.method
         if method == 'GET':
-            fields['components'] = serializers.SerializerMethodField('get_components')
-            fields['plans'] = serializers.SerializerMethodField('get_filtered_plans')
-            fields['attributes'] = serializers.SerializerMethodField('get_attributes')
+            if 'components' in fields:
+                fields['components'] = serializers.SerializerMethodField(
+                    'get_components'
+                )
+            if 'plans' in fields:
+                fields['plans'] = serializers.SerializerMethodField(
+                    'get_filtered_plans'
+                )
+            if 'attributes' in fields:
+                fields['attributes'] = serializers.SerializerMethodField(
+                    'get_attributes'
+                )
 
         user = self.context['view'].request.user
         if not user.is_authenticated:
