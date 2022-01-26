@@ -29,7 +29,6 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
             )
             resource.init_cost()
             resource.save()
-            resource.init_quotas()
             self.order_item.resource = resource
             self.order_item.save(update_fields=['resource'])
 

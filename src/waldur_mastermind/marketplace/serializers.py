@@ -1,6 +1,7 @@
 import datetime
 import logging
 from functools import lru_cache
+from typing import Dict
 
 import jwt
 from dateutil.parser import parse as parse_datetime
@@ -2389,7 +2390,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         return plan_period
 
     @classmethod
-    def get_components_map(cls, offering):
+    def get_components_map(cls, offering) -> Dict[str, models.OfferingComponent]:
         # Allow to report usage for limit-based components
         components = offering.components.filter(
             billing_type__in=[BillingTypes.USAGE, BillingTypes.LIMIT]
@@ -2438,7 +2439,8 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             description = usage.get('description', '')
             component = components_map[usage['type']]
             recurring = usage['recurring']
-            component.validate_amount(resource, amount, now)
+            if component.billing_type == models.OfferingComponent.BillingTypes.USAGE:
+                component.validate_amount(resource, amount, now)
 
             models.ComponentUsage.objects.filter(
                 resource=resource, component=component, billing_period=billing_period,

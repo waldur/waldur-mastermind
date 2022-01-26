@@ -96,6 +96,12 @@ class MarketplaceConfig(AppConfig):
             'close_resource_plan_period_when_resource_is_terminated',
         )
 
+        signals.post_save.connect(
+            handlers.sync_limits,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.sync_limits',
+        )
+
         marketplace_signals.resource_limit_update_succeeded.connect(
             handlers.limit_update_succeeded,
             sender=models.Resource,

@@ -30,6 +30,7 @@ class CartItemListTest(test.APITransactionTestCase):
         self.assertTrue('attributes' in response.data[0])
 
 
+@ddt.ddt
 class CartSubmitTest(test.APITransactionTestCase):
     def setUp(self):
         manager.register(
@@ -136,6 +137,48 @@ class CartSubmitTest(test.APITransactionTestCase):
         url = factories.CartItemFactory.get_list_url()
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @ddt.data(
+        models.OfferingComponent.LimitPeriods.TOTAL,
+        models.OfferingComponent.LimitPeriods.MONTH,
+        models.OfferingComponent.LimitPeriods.ANNUAL,
+    )
+    def test_offering_limit_is_valid(self, limit_period):
+        self.client.force_authenticate(self.fixture.owner)
+
+        url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(self.fixture.project)
+        component = models.OfferingComponent.objects.get(
+            offering=self.offering, type='cpu_count',
+        )
+        component.limit_amount = 10
+        component.limit_period = limit_period
+        component.save()
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @ddt.data(
+        models.OfferingComponent.LimitPeriods.TOTAL,
+        models.OfferingComponent.LimitPeriods.MONTH,
+        models.OfferingComponent.LimitPeriods.ANNUAL,
+    )
+    def test_offering_limit_is_invalid(self, limit_period):
+        self.client.force_authenticate(self.fixture.owner)
+
+        url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(self.fixture.project)
+        component = models.OfferingComponent.objects.get(
+            offering=self.offering, type='cpu_count',
+        )
+        component.limit_amount = 1
+        component.limit_period = limit_period
+        component.save()
+
+        response = self.client.post(url, payload)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
 
 @ddt.ddt

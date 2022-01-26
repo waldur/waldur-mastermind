@@ -32,7 +32,6 @@ def create_marketplace_resource_for_imported_cluster(
 
     resource.init_cost()
     resource.save()
-    resource.init_quotas()
 
 
 def update_node_usage(sender, instance, created=False, **kwargs):

@@ -309,6 +309,22 @@ def connect_resource_metadata_handlers(*resources):
         )
 
 
+def update_or_create_quotas(resource):
+    components_map = resource.offering.get_limit_components()
+    for key, value in resource.limits.items():
+        component = components_map.get(key)
+        if component:
+            models.ComponentQuota.objects.update_or_create(
+                resource=resource, component=component, defaults={'limit': value}
+            )
+
+
+def sync_limits(sender, instance, created=False, **kwargs):
+    if not created and not instance.tracker.has_changed('limits'):
+        return
+    transaction.on_commit(lambda: update_or_create_quotas(instance))
+
+
 @transaction.atomic()
 def limit_update_succeeded(sender, order_item, **kwargs):
     resource = order_item.resource

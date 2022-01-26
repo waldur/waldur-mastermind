@@ -1,6 +1,7 @@
 from datetime import date
 from unittest import mock
 
+import ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -153,6 +154,7 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         )
 
 
+@ddt.ddt
 @freeze_time('2019-01-01')
 class InvoiceTerminateTest(test.APITransactionTestCase):
     def setUp(self):
@@ -175,15 +177,17 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, 30)
 
-    def test_when_item_is_terminated_quantity_is_updated_if_component_is_month_limit(
-        self,
+    @ddt.data(
+        marketplace_models.OfferingComponent.LimitPeriods.MONTH,
+        marketplace_models.OfferingComponent.LimitPeriods.ANNUAL,
+    )
+    def test_when_item_is_terminated_quantity_is_updated_if_component_is_month_or_annual_limit(
+        self, limit_period
     ):
         self.fixture.offering_component.billing_type = (
             marketplace_models.OfferingComponent.BillingTypes.LIMIT
         )
-        self.fixture.offering_component.limit_period = (
-            marketplace_models.OfferingComponent.LimitPeriods.MONTH
-        )
+        self.fixture.offering_component.limit_period = limit_period
         self.fixture.offering_component.save()
         self.item.details['plan_component_id'] = self.fixture.plan_component.id
         self.item.save()

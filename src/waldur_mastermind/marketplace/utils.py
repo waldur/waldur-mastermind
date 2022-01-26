@@ -279,6 +279,44 @@ def validate_limits(limits, offering):
                 _('The limit %s value cannot be less than %s.')
                 % (value, component.min_value)
             )
+        if component.limit_amount:
+            if component.limit_period == models.OfferingComponent.LimitPeriods.MONTH:
+                current = (
+                    models.ComponentQuota.objects.filter(
+                        component=component,
+                        modified__year=timezone.now().year,
+                        modified__month=timezone.now().month,
+                    )
+                    .exclude(limit=-1)
+                    .aggregate(sum=Sum('limit'))['sum']
+                ) or 0
+                if current + value > component.limit_amount:
+                    raise serializers.ValidationError(
+                        _('Monthly limit exceeds threshold %s.')
+                        % component.limit_amount
+                    )
+            elif component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
+                current = (
+                    models.ComponentQuota.objects.filter(
+                        component=component, modified__year=timezone.now().year,
+                    )
+                    .exclude(limit=-1)
+                    .aggregate(sum=Sum('limit'))['sum']
+                ) or 0
+                if current + value > component.limit_amount:
+                    raise serializers.ValidationError(
+                        _('Annual limit exceeds threshold %s.') % component.limit_amount
+                    )
+            elif component.limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
+                current = (
+                    models.ComponentQuota.objects.filter(component=component,)
+                    .exclude(limit=-1)
+                    .aggregate(sum=Sum('limit'))['sum']
+                ) or 0
+                if current + value > component.limit_amount:
+                    raise serializers.ValidationError(
+                        _('Total limit exceeds threshold %s.') % component.limit_amount
+                    )
 
 
 def validate_attributes(attributes, category):
@@ -645,7 +683,6 @@ def create_local_resource(order_item, scope, effective_id=''):
     )
     resource.init_cost()
     resource.save()
-    resource.init_quotas()
     order_item.resource = resource
     order_item.save(update_fields=['resource'])
     return resource
