@@ -235,7 +235,6 @@ def create_resource_of_volume_if_instance_created(
         volume_resource.init_cost()
         volume_resource.save()
         utils.import_volume_metadata(volume_resource)
-        volume_resource.init_quotas()
 
 
 def create_marketplace_resource_for_imported_resources(

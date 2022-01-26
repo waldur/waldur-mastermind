@@ -551,12 +551,18 @@ class OfferingComponent(
 
     class LimitPeriods:
         MONTH = 'month'
+        ANNUAL = 'annual'
         TOTAL = 'total'
 
         CHOICES = (
             (
                 MONTH,
                 'Maximum monthly - every month service provider '
+                'can report up to the amount requested by user.',
+            ),
+            (
+                ANNUAL,
+                'Maximum annually - every year service provider '
                 'can report up to the amount requested by user.',
             ),
             (
@@ -577,7 +583,7 @@ class OfferingComponent(
     )
     # limit_period and limit_amount fields are used if billing_type is USAGE or LIMIT
     limit_period = models.CharField(
-        choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=5
+        choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=6
     )
     limit_amount = models.IntegerField(blank=True, null=True)
     # max_value and min_value fields are used if billing_type is LIMIT
@@ -597,6 +603,8 @@ class OfferingComponent(
 
         if self.limit_period == OfferingComponent.LimitPeriods.MONTH:
             usages = usages.filter(date=core_utils.month_start(date))
+        elif self.limit_period == OfferingComponent.LimitPeriods.ANNUAL:
+            usages = usages.filter(date__year=date.year)
 
         total = usages.aggregate(models.Sum('usage'))['usage__sum'] or 0
 
@@ -1085,16 +1093,6 @@ class Resource(
             scope_type = self.scope.get_scope_type()
             return scope_type if scope_type else 'Marketplace.Resource'
 
-    def init_quotas(self):
-        if self.limits:
-            components_map = self.offering.get_limit_components()
-            for key, value in self.limits.items():
-                component = components_map.get(key)
-                if component:
-                    ComponentQuota.objects.create(
-                        resource=self, component=component, limit=value
-                    )
-
     def get_log_fields(self):
         return (
             'uuid',
@@ -1305,7 +1303,7 @@ class OrderItem(
         )
 
 
-class ComponentQuota(models.Model):
+class ComponentQuota(TimeStampedModel):
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='quotas'
     )

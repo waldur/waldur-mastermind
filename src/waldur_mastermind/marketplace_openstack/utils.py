@@ -397,7 +397,6 @@ def create_marketplace_resource_for_imported_resources(
         resource.init_cost()
         resource.save()
         import_instance_metadata(resource)
-        resource.init_quotas()
 
     if isinstance(instance, openstack_tenant_models.Volume):
         offering = offering or get_offering(VOLUME_TYPE, instance.service_settings)
@@ -410,7 +409,6 @@ def create_marketplace_resource_for_imported_resources(
         resource.init_cost()
         resource.save()
         import_volume_metadata(resource)
-        resource.init_quotas()
 
     if isinstance(instance, openstack_models.Tenant):
         offering = offering or get_offering(TENANT_TYPE, instance.service_settings)
@@ -423,5 +421,4 @@ def create_marketplace_resource_for_imported_resources(
         resource.init_cost()
         resource.save()
         import_resource_metadata(resource)
-        resource.init_quotas()
         create_offerings_for_volume_and_instance(instance)
