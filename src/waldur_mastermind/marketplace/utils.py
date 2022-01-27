@@ -676,7 +676,7 @@ def schedule_resources_termination(resources):
         ):
             order_item.set_state_terminated()
             order_item.save()
-            if order_item.order.items.count() == 0:
+            if order_item.order.items.count() == 1:
                 order_item.order.terminate()
                 order_item.order.save()
 
