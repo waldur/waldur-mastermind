@@ -1828,26 +1828,18 @@ def get_item_params(item):
 
 
 def create_order(project, user, items, request):
-    order_params = dict(project=project, created_by=user)
-    order = models.Order.objects.create(**order_params)
-
     for item in items:
         if (
             item.type
             in (models.OrderItem.Types.UPDATE, models.OrderItem.Types.TERMINATE)
             and item.resource
-            and models.OrderItem.objects.filter(
-                resource=item.resource,
-                state__in=(
-                    models.OrderItem.States.PENDING,
-                    models.OrderItem.States.EXECUTING,
-                ),
-            ).exists()
         ):
-            raise rf_exceptions.ValidationError(
-                _('Pending order item for resource already exists.')
-            )
+            utils.check_pending_order_item_exists(item.resource)
 
+    order_params = dict(project=project, created_by=user)
+    order = models.Order.objects.create(**order_params)
+
+    for item in items:
         try:
             params = get_item_params(item)
             order_item = order.add_item(**params)
