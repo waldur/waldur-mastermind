@@ -643,6 +643,16 @@ def check_customer_blocked_for_terminating(resource):
         raise rf_exceptions.ValidationError(_('Blocked organization is not available.'))
 
 
+def check_pending_order_item_exists(resource):
+    if models.OrderItem.objects.filter(
+        resource=resource,
+        state__in=(models.OrderItem.States.PENDING, models.OrderItem.States.EXECUTING,),
+    ).exists():
+        raise rf_exceptions.ValidationError(
+            _('Pending order item for resource already exists.')
+        )
+
+
 def schedule_resources_termination(resources):
     from waldur_mastermind.marketplace import views
 
@@ -660,12 +670,22 @@ def schedule_resources_termination(resources):
         return
 
     for resource in resources:
+        # Terminate pending order items if they exist
+        for order_item in models.OrderItem.objects.filter(
+            resource=resource, state=models.OrderItem.States.PENDING
+        ):
+            order_item.set_state_terminated()
+            order_item.save()
+            if order_item.order.items.count() == 0:
+                order_item.order.terminate()
+                order_item.order.save()
+
         response = create_request(view, user, {}, uuid=resource.uuid.hex)
 
         if response.status_code != status.HTTP_200_OK:
             logger.error(
                 'Terminating resource %s has failed. %s'
-                % (resource.uuid.hex, response.content)
+                % (resource.uuid.hex, response.data)
             )
 
 

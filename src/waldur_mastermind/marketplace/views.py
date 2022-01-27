@@ -1136,6 +1136,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
             models.Resource.States.OK, models.Resource.States.ERRED
         ),
         utils.check_customer_blocked_for_terminating,
+        utils.check_pending_order_item_exists,
     ]
 
     @action(detail=True, methods=['post'])
@@ -1199,6 +1200,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
     switch_plan_validators = update_limits_validators = [
         core_validators.StateValidator(models.Resource.States.OK),
         structure_utils.check_customer_blocked,
+        utils.check_pending_order_item_exists,
     ]
 
     @action(detail=True, methods=['get'])
