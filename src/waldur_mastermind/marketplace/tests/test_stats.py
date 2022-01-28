@@ -426,6 +426,12 @@ class LimitsStatsTest(test.APITransactionTestCase):
         self.division_2 = structure_factories.DivisionFactory()
         self.resource_1.offering.divisions.add(self.division_1, self.division_2)
 
+        self.resource_1.offering.country = 'EE'
+        self.resource_1.offering.save()
+
+        self.resource_2.offering.customer.country = 'FI'
+        self.resource_2.offering.customer.save()
+
     @data(
         'staff', 'global_support',
     )
@@ -439,6 +445,7 @@ class LimitsStatsTest(test.APITransactionTestCase):
             [
                 {
                     'offering_uuid': self.resource_1.offering.uuid,
+                    'offering_country': 'EE',
                     'name': 'cpu',
                     'value': 7,
                     'division_name': self.division_1.name,
@@ -446,6 +453,7 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 },
                 {
                     'offering_uuid': self.resource_1.offering.uuid,
+                    'offering_country': 'EE',
                     'name': 'cpu',
                     'value': 7,
                     'division_name': self.division_2.name,
@@ -453,6 +461,7 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 },
                 {
                     'offering_uuid': self.resource_2.offering.uuid,
+                    'offering_country': 'FI',
                     'name': 'cpu',
                     'value': 10,
                     'division_name': '',
@@ -460,6 +469,7 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 },
                 {
                     'offering_uuid': self.resource_2.offering.uuid,
+                    'offering_country': 'FI',
                     'name': 'ram',
                     'value': 1,
                     'division_name': '',

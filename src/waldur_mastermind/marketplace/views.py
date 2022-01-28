@@ -1631,9 +1631,9 @@ class StatsViewSet(rf_viewsets.ViewSet):
         data_with_divisions = []
 
         for record in result:
-            divisions = models.Offering.objects.get(
-                uuid=record['offering_uuid']
-            ).divisions.all()
+            offering = models.Offering.objects.get(uuid=record['offering_uuid'])
+            record['offering_country'] = offering.country or offering.customer.country
+            divisions = offering.divisions.all()
 
             if not divisions:
                 new_data = copy.copy(record)
