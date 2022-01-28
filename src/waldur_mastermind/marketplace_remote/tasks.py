@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
+    PLAN_FIELDS,
 )
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
@@ -40,7 +41,12 @@ class OfferingPullTask(BackgroundPullTask):
         client = get_client_for_offering(local_offering)
         remote_offering = client.get_marketplace_offering(local_offering.backend_id)
         pull_fields(OFFERING_FIELDS, local_offering, remote_offering)
+        self.sync_offering_components(local_offering, remote_offering)
+        self.sync_plans(local_offering, remote_offering)
 
+    def sync_offering_components(
+        self, local_offering: models.Offering, remote_offering
+    ):
         remote_components = remote_offering['components']
         local_components = local_offering.components.all()
         remote_component_types_map = {item['type']: item for item in remote_components}
@@ -63,17 +69,16 @@ class OfferingPullTask(BackgroundPullTask):
                 local_offering,
             )
 
-        for new_component_type in new_component_types:
-            remote_component = remote_component_types_map[new_component_type]
-            models.OfferingComponent.objects.create(
-                offering=local_offering,
-                **{key: remote_component[key] for key in OFFERING_COMPONENT_FIELDS},
-            )
-            logger.info(
-                'Component %s for offering %s has been created',
-                new_component_type,
-                local_offering,
-            )
+        utils.import_offering_components(
+            local_offering,
+            {
+                'components': [
+                    comp
+                    for comp_type, comp in remote_component_types_map.items()
+                    if comp_type in new_component_types
+                ]
+            },
+        )
 
         for existing_component_type in existing_component_types:
             remote_component = remote_component_types_map[existing_component_type]
@@ -86,6 +91,107 @@ class OfferingPullTask(BackgroundPullTask):
                 existing_component_type,
                 local_offering,
             )
+
+    def sync_plans(self, local_offering: models.Offering, remote_offering):
+        """
+        Sync plans for an existing offering
+        """
+        local_plans = models.Plan.objects.filter(offering=local_offering)
+        remote_plans = remote_offering['plans']
+
+        local_plan_uuids = [item.backend_id for item in local_plans]
+        remote_plans_map = {item['uuid']: item for item in remote_plans}
+
+        new_plans = set(remote_plans_map.keys()) - set(local_plan_uuids)
+        stale_plans = set(local_plan_uuids) - set(remote_plans_map.keys())
+        existing_plans = set(local_plan_uuids) & set(remote_plans_map.keys())
+
+        for stale_plan in local_offering.plans.filter(backend_id__in=stale_plans):
+            stale_plan.archived = True
+            stale_plan.save()
+            logger.info(
+                'Plan %s of offering %s has been archived', stale_plan, local_offering,
+            )
+
+        local_components_map = {
+            item.type: item for item in local_offering.components.all()
+        }
+        new_remote_plans = {
+            'plans': [
+                item for item in remote_offering['plans'] if item['uuid'] in new_plans
+            ]
+        }
+        utils.import_plans(local_offering, new_remote_plans, local_components_map)
+
+        for existing_plan_backend_id in existing_plans:
+            remote_plan = remote_plans_map[existing_plan_backend_id]
+            local_plan: models.Plan = local_offering.plans.get(
+                backend_id=existing_plan_backend_id
+            )
+            updated_fields = pull_fields(PLAN_FIELDS, local_plan, remote_plan)
+
+            self.sync_plan_components(local_plan, remote_plan)
+
+            if updated_fields:
+                logger.info(
+                    'Plan %s for offering %s has been updated',
+                    local_plan.name,
+                    local_offering,
+                )
+
+    def sync_plan_components(self, local_plan: models.Plan, remote_plan):
+        """
+        Sync plan componets for an existing plan
+        This method skips check of stale plan components, because it assumes they have been already removed in `sync_components` method
+        """
+        local_offering = local_plan.offering
+        local_offering_components = local_offering.components
+        local_plan_components = set(
+            local_plan.components.all().values_list('component__type', flat=True)
+        )
+        remote_prices = remote_plan['prices']
+        remote_quotas = remote_plan['quotas']
+        remote_plan_components = set(remote_prices.keys()) | set(remote_quotas.keys())
+
+        new_plan_components = remote_plan_components - local_plan_components
+
+        existing_plan_components = local_plan_components & remote_plan_components
+
+        for component_type in new_plan_components:
+            plan_component = models.PlanComponent.objects.create(
+                plan=local_plan,
+                component=local_offering_components.get(type=component_type),
+                price=remote_prices[component_type],
+                amount=remote_quotas[component_type],
+            )
+            logger.info(
+                'Plan component %s of offering %s has been created',
+                plan_component,
+                local_plan.offering,
+            )
+
+        for existing_plan_component in existing_plan_components:
+            local_component: models.OfferingComponent = local_offering_components.get(
+                type=existing_plan_component
+            )
+            local_plan_component: models.PlanComponent = local_plan.components.get(
+                component=local_component
+            )
+            changed_fields = pull_fields(
+                ['price', 'amount'],
+                local_plan_component,
+                {
+                    'price': remote_prices[existing_plan_component],
+                    'amount': remote_quotas[existing_plan_component],
+                },
+            )
+
+            if changed_fields:
+                logger.info(
+                    'Plan component %s of offering %s has been updated',
+                    existing_plan_component,
+                    local_offering,
+                )
 
 
 class OfferingListPullTask(BackgroundListPullTask):

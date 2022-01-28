@@ -9,6 +9,10 @@ from waldur_client import WaldurClient, WaldurClientException
 from waldur_core.core.utils import get_system_robot
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_remote.constants import (
+    OFFERING_COMPONENT_FIELDS,
+    PLAN_FIELDS,
+)
 
 from . import PLUGIN_NAME
 
@@ -39,6 +43,7 @@ def pull_fields(fields, local_object, remote_object):
             changed_fields.add(field)
     if changed_fields:
         local_object.save(update_fields=changed_fields)
+    return changed_fields
 
 
 def get_remote_offerings_for_project(project):
@@ -384,3 +389,45 @@ def pull_resource_state(local_resource):
     if local_resource.state != remote_state:
         local_resource.state = remote_state
         local_resource.save(update_fields=['state'])
+
+
+def import_offering_components(local_offering, remote_offering):
+    local_components_map = {}
+    for remote_component in remote_offering['components']:
+        local_component = marketplace_models.OfferingComponent.objects.create(
+            offering=local_offering,
+            **{key: remote_component[key] for key in OFFERING_COMPONENT_FIELDS},
+        )
+        local_components_map[local_component.type] = local_component
+        logger.info(
+            'Component %s (type: %s) for offering %s has been created',
+            local_component,
+            local_component.type,
+            local_offering,
+        )
+    return local_components_map
+
+
+def import_plans(local_offering, remote_offering, local_components_map):
+    for remote_plan in remote_offering['plans']:
+        local_plan = marketplace_models.Plan.objects.create(
+            offering=local_offering,
+            backend_id=remote_plan['uuid'],
+            **{key: remote_plan[key] for key in PLAN_FIELDS},
+        )
+        remote_prices = remote_plan['prices']
+        remote_quotas = remote_plan['quotas']
+        components = set(remote_prices.keys()) | set(remote_quotas.keys())
+        for component_type in components:
+            plan_component = marketplace_models.PlanComponent.objects.create(
+                plan=local_plan,
+                component=local_components_map[component_type],
+                price=remote_prices[component_type],
+                amount=remote_quotas[component_type],
+            )
+
+            logger.info(
+                'Plan component %s in offering %s has been created',
+                plan_component,
+                local_offering,
+            )

@@ -15,14 +15,10 @@ from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models, permissions, plugins
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
-from waldur_mastermind.marketplace_remote.constants import (
-    OFFERING_COMPONENT_FIELDS,
-    OFFERING_FIELDS,
-    PLAN_FIELDS,
-)
+from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 
-from . import filters, serializers, tasks
+from . import filters, serializers, tasks, utils
 
 
 class RemoteView(APIView):
@@ -132,39 +128,11 @@ class OfferingCreateView(RemoteView):
             secret_options=secret_options,
             **{key: remote_offering[key] for key in OFFERING_FIELDS}
         )
-        local_components_map = self.import_offering_components(
+        local_components_map = utils.import_offering_components(
             local_offering, remote_offering
         )
-        self.import_plans(local_offering, remote_offering, local_components_map)
+        utils.import_plans(local_offering, remote_offering, local_components_map)
         return local_offering
-
-    def import_offering_components(self, local_offering, remote_offering):
-        local_components_map = {}
-        for remote_component in remote_offering['components']:
-            local_component = models.OfferingComponent.objects.create(
-                offering=local_offering,
-                **{key: remote_component[key] for key in OFFERING_COMPONENT_FIELDS}
-            )
-            local_components_map[local_component.type] = local_component
-        return local_components_map
-
-    def import_plans(self, local_offering, remote_offering, local_components_map):
-        for remote_plan in remote_offering['plans']:
-            local_plan = models.Plan.objects.create(
-                offering=local_offering,
-                backend_id=remote_plan['uuid'],
-                **{key: remote_plan[key] for key in PLAN_FIELDS}
-            )
-            remote_prices = remote_plan['prices']
-            remote_quotas = remote_plan['quotas']
-            components = set(remote_prices.keys()) | set(remote_quotas.keys())
-            for component_type in components:
-                models.PlanComponent.objects.create(
-                    plan=local_plan,
-                    component=local_components_map[component_type],
-                    price=remote_prices[component_type],
-                    amount=remote_quotas[component_type],
-                )
 
 
 class ProjectUpdateRequestViewSet(ReviewViewSet):
