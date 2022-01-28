@@ -747,6 +747,7 @@ class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
 
 class OfferingDetailsSerializer(
     core_serializers.RestrictedSerializerMixin,
+    structure_serializers.CountrySerializerMixin,
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -813,6 +814,7 @@ class OfferingDetailsSerializer(
             'citation_count',
             'latitude',
             'longitude',
+            'country',
             'backend_id',
             'divisions',
             'image',

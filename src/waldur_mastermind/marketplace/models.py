@@ -396,6 +396,7 @@ class Offering(
     access_url = models.URLField(
         blank=True, help_text=_('URL for accessing management console.')
     )
+    country = models.CharField(max_length=2, blank=True)
 
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
