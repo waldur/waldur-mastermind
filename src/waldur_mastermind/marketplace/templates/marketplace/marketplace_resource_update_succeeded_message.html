@@ -8,7 +8,27 @@
     Hello!
 </p>
 <p>
-    Resource {{ resource_name }} has been updated.
+    Following request from {{ order_item_user }}, resource {{ resource_name }} has been updated.
 </p>
+{% if resource_old_plan %}
+<p>
+    The plan has been changed from {{ resource_old_plan }} to {{ resource_plan }}.
+</p>
+{% endif %}
+{% if support_email or support_phone %}
+<p>
+    If you have any additional questions, please contact support.
+</p>
+{% if support_email %}
+<p>
+    Email: {{ support_email }}
+</p>
+{% endif %}
+{% if support_phone %}
+<p>
+    Phone: {{ support_phone }}
+</p>
+{% endif %}
+{% endif %}
 </body>
 </html>

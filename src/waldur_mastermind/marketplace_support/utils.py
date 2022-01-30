@@ -10,7 +10,7 @@ from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core.utils import format_homeport_link
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.utils import get_order_item_url
+from waldur_mastermind.marketplace.utils import format_limits_list, get_order_item_url
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
@@ -149,13 +149,6 @@ def format_update_description(order_item):
     return format_description(
         'update_resource_template',
         {'order_item': order_item, 'request_url': request_url},
-    )
-
-
-def format_limits_list(components_map, limits):
-    return ', '.join(
-        f'{components_map[key].name or components_map[key].type}: {value}'
-        for key, value in limits.items()
     )
 
 
