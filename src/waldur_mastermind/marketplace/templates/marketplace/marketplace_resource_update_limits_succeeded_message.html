@@ -8,7 +8,29 @@
     Hello!
 </p>
 <p>
-    Resource {{ resource_name }} limits have been updated.
+    Following request from {{ order_item_user }}, resource {{ resource_name }} limits have been updated from:<br>
+    <blockquote>
+        {{ resource_old_limits }}
+    </blockquote>
+    to:
+    <blockquote>
+        {{ resource_limits }}
+    </blockquote>
 </p>
+{% if support_email or support_phone %}
+<p>
+    If you have any additional questions, please contact support.
+</p>
+{% if support_email %}
+<p>
+    Email: {{ support_email }}
+</p>
+{% endif %}
+{% if support_phone %}
+<p>
+    Phone: {{ support_phone }}
+</p>
+{% endif %}
+{% endif %}
 </body>
 </html>

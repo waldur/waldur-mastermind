@@ -46,11 +46,9 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_create_succeeded',
             'marketplace_resource_create_failed',
             'marketplace_resource_create_canceled',
-            'marketplace_resource_update_succeeded',
             'marketplace_resource_update_failed',
             'marketplace_resource_terminate_succeeded',
             'marketplace_resource_terminate_failed',
-            'marketplace_resource_update_limits_succeeded',
             'marketplace_resource_update_limits_failed',
         ):
             return
@@ -65,6 +63,7 @@ class MarketplaceResourceLogger(EventLogger):
 
         context = self.compile_context(**event_context)
         resource = event_context['resource']
+
         transaction.on_commit(
             lambda: tasks.notify_about_resource_change.delay(
                 event_type, context, resource.uuid

@@ -494,20 +494,25 @@ class OrderApproveTest(test.APITransactionTestCase):
         self, mocked_delay
     ):
         mocked_delay.side_effect = process_order
-        new_limits = {'unit': 100}
 
-        plan_period = factories.ResourcePlanPeriodFactory()
-        old_plan = plan_period.plan
-        offering = old_plan.offering
-        offering.customer = self.fixture.customer
-        offering.type = 'Marketplace.Basic'
-        offering.save()
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type='Marketplace.Basic',
+        )
+        offering_component = factories.OfferingComponentFactory(
+            offering=offering, billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+        )
+        plan = factories.PlanFactory(offering=offering)
+        factories.PlanComponentFactory(
+            plan=plan, component=offering_component,
+        )
 
-        resource = plan_period.resource
-        resource.plan = old_plan
-        resource.offering = offering
-        resource.limits = {'unit': 50}
-        resource.save()
+        resource = factories.ResourceFactory(
+            offering=offering,
+            project=self.project,
+            plan=plan,
+            limits={offering_component.type: 50},
+        )
+        new_limits = {offering_component.type: 100}
 
         order_item = factories.OrderItemFactory(
             offering=offering,
@@ -515,8 +520,8 @@ class OrderApproveTest(test.APITransactionTestCase):
             type=models.OrderItem.Types.UPDATE,
             resource=resource,
             limits=new_limits,
+            plan=plan,
         )
-        new_plan = order_item.plan
 
         self.approve_order(self.fixture.owner)
         self.approve_order_item(self.fixture.owner, order_item)
@@ -525,7 +530,7 @@ class OrderApproveTest(test.APITransactionTestCase):
 
         self.assertEqual(order_item.resource.state, models.Resource.States.OK)
         self.assertEqual(order_item.resource.limits, new_limits)
-        self.assertEqual(order_item.resource.plan, new_plan)
+        self.assertEqual(order_item.resource.plan, plan)
 
     @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
     def test_when_terminate_order_item_with_basic_offering_is_approved_resource_is_marked_as_terminated(

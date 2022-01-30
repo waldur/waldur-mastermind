@@ -1,3 +1,16 @@
 Hello!
 
-Resource {{ resource_name }} limits have been updated.
+Following request from {{ order_item_user }}, resource {{ resource_name }} limits have been updated from:
+    {{ resource_old_limits }}
+to:
+    {{ resource_limits }}.
+
+{% if support_email or support_phone %}
+If you have any additional questions, please contact support.
+{% if support_email %}
+Email: {{ support_email }}
+{% endif %}
+{% if support_phone %}
+Phone: {{ support_phone }}
+{% endif %}
+{% endif %}

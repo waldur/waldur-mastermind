@@ -785,3 +785,10 @@ def import_current_usages(resource):
                 billing_period=core_utils.month_start(date),
                 plan_period=plan_period,
             )
+
+
+def format_limits_list(components_map, limits):
+    return ', '.join(
+        f'{components_map[key].name or components_map[key].type}: {value}'
+        for key, value in limits.items()
+    )
