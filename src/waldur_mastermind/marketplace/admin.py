@@ -301,6 +301,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'description',
         'native_description',
         'full_description',
+        'country',
         'rating',
         'thumbnail',
         'attributes',
