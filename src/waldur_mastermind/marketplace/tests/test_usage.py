@@ -401,9 +401,9 @@ class SubmitUsageTest(test.APITransactionTestCase):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_not_create_usage_if_component_not_exists(self):
+    def test_create_usage_if_component_not_exists(self):
         response = self.submit_usage(**self.get_valid_payload(component_type='ram'))
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_update_usage_if_usage_exists(self):
         self.submit_usage()

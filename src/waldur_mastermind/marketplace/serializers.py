@@ -2412,17 +2412,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         valid_components = set(self.get_components_map(offering))
         actual_components = {usage['type'] for usage in attrs['usages']}
 
-        missing_components = ', '.join(sorted(valid_components - actual_components))
         invalid_components = ', '.join(sorted(actual_components - valid_components))
 
         if invalid_components:
             raise rf_exceptions.ValidationError(
                 _('These components are invalid: %s.') % invalid_components
-            )
-
-        if missing_components:
-            raise rf_exceptions.ValidationError(
-                _('These components are missing: %s.') % missing_components
             )
 
         return attrs
