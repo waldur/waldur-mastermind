@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import datetime_re, parse_datetime
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.booking.utils import (

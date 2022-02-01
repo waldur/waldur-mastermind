@@ -1,7 +1,7 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
 urlpatterns = [
-    url(r'^api/geocode/$', views.GeocodeViewSet.as_view(), name='geocode'),
+    re_path(r'^api/geocode/$', views.GeocodeViewSet.as_view(), name='geocode'),
 ]

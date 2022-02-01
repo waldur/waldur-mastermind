@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.http.response import Http404
 from django.urls import NoReverseMatch
-from django.utils.encoding import force_text, smart_text
+from django.utils.encoding import force_str, smart_str
 from django_filters import ChoiceFilter, ModelMultipleChoiceFilter, OrderingFilter
 from rest_framework import exceptions, schemas
 from rest_framework.compat import coreapi
@@ -63,7 +63,7 @@ def get_entity_description(entity):
 
     label = '* %s' % formatting.camelcase_to_spaces(entity_name)
     if entity.__doc__ is not None:
-        entity_docstring = formatting.dedent(smart_text(entity.__doc__)).replace(
+        entity_docstring = formatting.dedent(smart_str(entity.__doc__)).replace(
             '\n', '\n\t'
         )
         return '%s\n * %s' % (label, entity_docstring)
@@ -173,7 +173,7 @@ def get_validation_description(view, method):
     serializer = view.get_serializer()
     description = ''
     if hasattr(serializer, 'validate') and serializer.validate.__doc__ is not None:
-        description += formatting.dedent(smart_text(serializer.validate.__doc__))
+        description += formatting.dedent(smart_str(serializer.validate.__doc__))
 
     for field in serializer.fields.values():
         if not hasattr(serializer, 'validate_' + field.field_name):
@@ -182,7 +182,7 @@ def get_validation_description(view, method):
         field_validation = getattr(serializer, 'validate_' + field.field_name)
 
         if field_validation.__doc__ is not None:
-            docstring = formatting.dedent(smart_text(field_validation.__doc__)).replace(
+            docstring = formatting.dedent(smart_str(field_validation.__doc__)).replace(
                 '\n', '\n\t'
             )
             field_description = '* %s\n * %s' % (field.field_name, docstring)
@@ -411,7 +411,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
                 continue
 
             required = field.required and method != 'PATCH'
-            description = force_text(field.help_text) if field.help_text else ''
+            description = force_str(field.help_text) if field.help_text else ''
             field_type = get_field_type(field)
             description += '; ' + field_type if description else field_type
             field = coreapi.Field(

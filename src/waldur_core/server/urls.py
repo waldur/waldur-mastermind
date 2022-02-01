@@ -1,6 +1,7 @@
 from django.conf import settings
-from django.conf.urls import include, url
+from django.conf.urls import include
 from django.contrib import admin
+from django.urls import re_path
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
@@ -20,11 +21,11 @@ users_urls.register_in(router)
 
 
 urlpatterns = [
-    url(r'^admin/', admin.site.urls),
-    url(r'^admintools/', include('admin_tools.urls')),
-    url(r'^health-check/', include('health_check.urls')),
-    url(r'^celery-stats/', core_views.CeleryStatsViewSet.as_view()),
-    url(r'^media/', include('binary_database_files.urls')),
+    re_path(r'^admin/', admin.site.urls),
+    re_path(r'^admintools/', include('admin_tools.urls')),
+    re_path(r'^health-check/', include('health_check.urls')),
+    re_path(r'^celery-stats/', core_views.CeleryStatsViewSet.as_view()),
+    re_path(r'^media/', include('binary_database_files.urls')),
 ]
 
 if settings.WALDUR_CORE.get('EXTENSIONS_AUTOREGISTER'):
@@ -34,24 +35,24 @@ if settings.WALDUR_CORE.get('EXTENSIONS_AUTOREGISTER'):
             ext.rest_urls()(router)
 
 urlpatterns += [
-    url(r'^docs/', WaldurSchemaView.as_view()),
-    url(r'^api/', include(router.urls)),
-    url(r'^api/', include('waldur_core.logging.urls')),
-    url(r'^api/', include('waldur_core.media.urls')),
-    url(r'^api/', include('waldur_core.structure.urls')),
-    url(r'^api/version/', core_views.version_detail),
-    url(r'^api/configuration/', core_views.configuration_detail),
-    url(r'^api/features-description/', core_views.features_description),
-    url(r'^api/feature-values/', core_views.feature_values),
-    url(r'^api-auth/password/', core_views.obtain_auth_token, name='auth-password'),
-    url(
+    re_path(r'^docs/', WaldurSchemaView.as_view()),
+    re_path(r'^api/', include(router.urls)),
+    re_path(r'^api/', include('waldur_core.logging.urls')),
+    re_path(r'^api/', include('waldur_core.media.urls')),
+    re_path(r'^api/', include('waldur_core.structure.urls')),
+    re_path(r'^api/version/', core_views.version_detail),
+    re_path(r'^api/configuration/', core_views.configuration_detail),
+    re_path(r'^api/features-description/', core_views.features_description),
+    re_path(r'^api/feature-values/', core_views.feature_values),
+    re_path(r'^api-auth/password/', core_views.obtain_auth_token, name='auth-password'),
+    re_path(
         r'^$',
         core_views.ExtraContextTemplateView.as_view(
             template_name='landing/index.html',
             extra_context={'site_name': settings.WALDUR_CORE['SITE_NAME']},
         ),
     ),
-    url(
+    re_path(
         r'^apidocs$',
         core_views.ExtraContextTemplateView.as_view(
             template_name='landing/apidocs.html',
@@ -70,5 +71,7 @@ if settings.DEBUG:
 
     # enable login/logout for web UI in debug mode
     urlpatterns += (
-        url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+        re_path(
+            r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')
+        ),
     )

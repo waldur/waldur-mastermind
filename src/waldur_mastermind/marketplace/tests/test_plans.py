@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from django import template
 from django.template.loader import get_template
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories

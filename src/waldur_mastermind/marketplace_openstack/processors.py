@@ -1,4 +1,4 @@
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_mastermind.marketplace import processors, signals
 from waldur_mastermind.marketplace.processors import get_order_item_post_data

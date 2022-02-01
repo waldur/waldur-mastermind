@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import BaseValidator, URLValidator
 from django.utils import timezone
 from django.utils.deconstruct import deconstructible
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 

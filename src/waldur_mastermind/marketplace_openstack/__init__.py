@@ -1,7 +1,3 @@
-default_app_config = (
-    'waldur_mastermind.marketplace_openstack.apps.MarketplaceOpenStackConfig'
-)
-
 TENANT_TYPE = 'Packages.Template'
 INSTANCE_TYPE = 'OpenStackTenant.Instance'
 VOLUME_TYPE = 'OpenStackTenant.Volume'

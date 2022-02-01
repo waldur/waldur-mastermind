@@ -4,9 +4,6 @@ import os
 
 import pkg_resources
 
-default_app_config = 'waldur_core.core.apps.CoreConfig'
-
-
 # WALDUR_DISABLED_EXTENSIONS environment variable contains JSON-encoded list of strings
 # each of which corresponds to Django Application name of corresponding Waldur extension.
 # By default, if this variable is not defined, then all extensions are enabled.

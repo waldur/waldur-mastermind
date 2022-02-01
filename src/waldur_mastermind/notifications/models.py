@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.contrib.postgres.fields import JSONField
 from django.db import models
 from model_utils.fields import AutoCreatedField
 
@@ -14,5 +13,5 @@ class Notification(UuidMixin):
     created = AutoCreatedField()
     subject = models.CharField(max_length=1000, validators=[validate_name])
     body = models.TextField(validators=[validate_name])
-    query = JSONField()
-    emails = JSONField()
+    query = models.JSONField()
+    emails = models.JSONField()

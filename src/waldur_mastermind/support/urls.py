@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from waldur_mastermind.support import views
 
@@ -24,17 +24,17 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(
+    re_path(
         r'^api/support-jira-webhook/$',
         views.WebHookReceiverView.as_view(),
         name='web-hook-receiver',
     ),
-    url(
+    re_path(
         r'^api/support-feedback-report/$',
         views.FeedbackReportViewSet.as_view(),
         name='support-feedback-report',
     ),
-    url(
+    re_path(
         r'^api/support-feedback-average-report/$',
         views.FeedbackAverageReportViewSet.as_view(),
         name='support-feedback-average-report',

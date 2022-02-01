@@ -1,5 +1,7 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
-urlpatterns = [url(r'^api-auth/bcc/user-details/$', views.UserDetailsViewSet.as_view())]
+urlpatterns = [
+    re_path(r'^api-auth/bcc/user-details/$', views.UserDetailsViewSet.as_view())
+]

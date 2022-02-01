@@ -1,12 +1,11 @@
-from django.conf.urls import url
 from django.contrib import admin
 from django.forms.models import ModelForm
 from django.forms.widgets import CheckboxInput
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse
+from django.urls import re_path, reverse
 from django.utils.html import format_html
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.reverse import reverse as rest_reverse
 from reversion.admin import VersionAdmin
 
@@ -96,7 +95,7 @@ class InvoiceAdmin(
 
     def get_urls(self):
         my_urls = [
-            url(
+            re_path(
                 r'^(.+)/change/pdf_file/$',
                 self.admin_site.admin_view(self.pdf_file_view),
             ),

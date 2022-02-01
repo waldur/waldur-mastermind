@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
@@ -24,7 +24,7 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(
+    re_path(
         r'^api/jira-webhook-receiver/$',
         views.WebHookReceiverViewSet.as_view(),
         name='jira-web-hook',

@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
@@ -40,7 +40,7 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(
+    re_path(
         r'^api/rancher-template-versions/(?P<template_uuid>[a-f0-9]+)/(?P<version>[0-9.]+)/$',
         views.TemplateVersionView.as_view(),
     ),

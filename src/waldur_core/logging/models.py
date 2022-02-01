@@ -1,17 +1,16 @@
 import logging
+from functools import lru_cache
 
 import requests
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
-from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
 from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.utils.lru_cache import lru_cache
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeStampedModel
 
@@ -73,8 +72,8 @@ class EventTypesMixin(models.Model):
     class Meta:
         abstract = True
 
-    event_types = BetterJSONField('List of event types')
-    event_groups = BetterJSONField('List of event groups', default=list)
+    event_types = models.JSONField('List of event types')
+    event_groups = models.JSONField('List of event groups', default=list)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -278,7 +277,7 @@ class Event(UuidMixin):
     created = AutoCreatedField()
     event_type = models.CharField(max_length=100, db_index=True)
     message = models.TextField()
-    context = BetterJSONField(blank=True)
+    context = models.JSONField(blank=True)
 
     class Meta:
         ordering = ('-created',)

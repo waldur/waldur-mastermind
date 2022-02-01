@@ -1,7 +1,7 @@
 from collections import OrderedDict
+from functools import lru_cache
 
 from django import template
-from django.utils.lru_cache import lru_cache
 
 from waldur_core.core.utils import get_fake_context
 from waldur_core.structure.registry import get_service_type

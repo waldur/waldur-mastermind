@@ -1,19 +1,18 @@
 import logging
 import re
 from datetime import datetime
+from functools import lru_cache
 
 import pytz
 from croniter.croniter import croniter
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
-from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
 from django.db import models, transaction
 from django.utils import timezone as django_timezone
-from django.utils.encoding import force_text
-from django.utils.lru_cache import lru_cache
-from django.utils.translation import ugettext_lazy as _
+from django.utils.encoding import force_str
+from django.utils.translation import gettext_lazy as _
 from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -152,7 +151,7 @@ class UserDetailsMixin(models.Model):
     phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
     organization = models.CharField(_('organization'), max_length=255, blank=True)
     job_title = models.CharField(_('job title'), max_length=40, blank=True)
-    affiliations = BetterJSONField(
+    affiliations = models.JSONField(
         default=list,
         blank=True,
         help_text="Person's affiliation within organization such as student, faculty, staff.",
@@ -258,7 +257,7 @@ class User(
         help_text=_('Token lifetime in seconds.'),
         validators=[validators.MinValueValidator(60)],
     )
-    details = BetterJSONField(
+    details = models.JSONField(
         blank=True,
         default=dict,
         help_text=_('Extra details from authentication backend.'),
@@ -491,7 +490,7 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
 
     @property
     def human_readable_state(self):
-        return force_text(dict(self.States.CHOICES)[self.state])
+        return force_str(dict(self.States.CHOICES)[self.state])
 
     @transition(field=state, source=States.CREATION_SCHEDULED, target=States.CREATING)
     def begin_creating(self):

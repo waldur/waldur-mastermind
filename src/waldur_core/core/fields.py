@@ -6,8 +6,8 @@ import pycountry
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.utils.encoding import smart_text
-from django.utils.translation import ugettext_lazy as _
+from django.utils.encoding import smart_str
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import utils
@@ -176,11 +176,11 @@ class UUIDField(models.UUIDField):
         if not value:
             return None
         try:
-            return StringUUID(smart_text(value))
+            return StringUUID(smart_str(value))
         except ValueError:
             return None
 
-    def from_db_value(self, value, expression, connection, context):
+    def from_db_value(self, value, expression, connection):
         return self._parse_uuid(value)
 
     def to_python(self, value):
@@ -200,7 +200,7 @@ class JSONField(models.TextField):
 
         super(JSONField, self).__init__(*args, **kwargs)
 
-    def from_db_value(self, value, expression, connection, context):
+    def from_db_value(self, value, expression, connection):
         return self.to_python(value)
 
     def to_python(self, value):

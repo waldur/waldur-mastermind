@@ -5,7 +5,7 @@ from unittest import mock
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from freezegun import freeze_time
 from rest_framework import status, test
 

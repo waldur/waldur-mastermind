@@ -1,7 +1,7 @@
 import logging
 
 from django.db import transaction
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.structure import models as structure_models

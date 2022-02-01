@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from waldur_mastermind.marketplace import views
 
@@ -92,8 +92,8 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(r'^api/marketplace-plugins/$', views.PluginViewSet.as_view()),
-    url(
+    re_path(r'^api/marketplace-plugins/$', views.PluginViewSet.as_view()),
+    re_path(
         r'^api/marketplace-resource-offerings/(?P<project_uuid>[a-f0-9]+)/(?P<category_uuid>[a-f0-9]+)/$',
         views.ResourceOfferingsViewSet.as_view(),
     ),

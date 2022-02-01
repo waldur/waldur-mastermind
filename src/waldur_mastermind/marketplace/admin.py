@@ -1,12 +1,11 @@
-from django.conf.urls import url
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import resolve, reverse
+from django.urls import re_path, resolve, reverse
 from django.utils.html import format_html
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ungettext
 from modeltranslation import admin as modeltranslation_admin
 from rest_framework.reverse import reverse as rest_reverse
@@ -476,7 +475,7 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
     def get_urls(self):
         my_urls = [
-            url(
+            re_path(
                 r'^(.+)/change/pdf_file/$',
                 self.admin_site.admin_view(self.pdf_file_view),
             ),

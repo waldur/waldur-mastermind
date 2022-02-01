@@ -4,9 +4,8 @@ import re
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.fields import JSONField
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -410,7 +409,7 @@ class SupportCustomer(models.Model):
 class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     backend_id = models.IntegerField(unique=True)
     issue_type_name = models.CharField(max_length=255)
-    fields = JSONField(default=dict, blank=True,)
+    fields = models.JSONField(default=dict, blank=True,)
 
     def __str__(self):
         return self.name

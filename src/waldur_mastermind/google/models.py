@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import models as core_models
 from waldur_mastermind.marketplace import models as marketplace_models

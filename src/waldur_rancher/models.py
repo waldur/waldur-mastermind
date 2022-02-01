@@ -3,9 +3,9 @@ from urllib.parse import urljoin
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.fields import ArrayField, JSONField
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
@@ -106,7 +106,7 @@ class Node(
         'content_type', 'object_id'
     )  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    initial_data = JSONField(
+    initial_data = models.JSONField(
         blank=True, default=dict, help_text=_('Initial data for instance creating.')
     )
     runtime_state = models.CharField(max_length=255, blank=True)
@@ -120,8 +120,8 @@ class Node(
     ram_total = models.IntegerField(blank=True, null=True, help_text='Total RAM in Mi.')
     pods_allocated = models.IntegerField(blank=True, null=True)
     pods_total = models.IntegerField(blank=True, null=True)
-    labels = JSONField(blank=True, default=dict)
-    annotations = JSONField(blank=True, default=dict)
+    labels = models.JSONField(blank=True, default=dict)
+    annotations = models.JSONField(blank=True, default=dict)
 
     tracker = FieldTracker()
 
@@ -402,7 +402,7 @@ class HPA(
     desired_replicas = models.PositiveSmallIntegerField(default=0)
     min_replicas = models.PositiveSmallIntegerField(default=0)
     max_replicas = models.PositiveSmallIntegerField(default=0)
-    metrics = JSONField()
+    metrics = models.JSONField()
 
     def __str__(self):
         return self.name
@@ -452,7 +452,7 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     version = models.CharField(max_length=100)
-    answers = JSONField(blank=True, default=dict)
+    answers = models.JSONField(blank=True, default=dict)
 
     @classmethod
     def get_url_name(cls):
@@ -470,7 +470,7 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     rancher_project = models.ForeignKey(Project, on_delete=models.CASCADE)
-    rules = JSONField(blank=True, default=list)
+    rules = models.JSONField(blank=True, default=list)
 
     @classmethod
     def get_url_name(cls):
@@ -484,7 +484,7 @@ class Service(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
     cluster_ip = models.GenericIPAddressField(protocol='IPv4', blank=True, null=True)
     target_workloads = models.ManyToManyField(Workload)
-    selector = JSONField(blank=True, null=True)
+    selector = models.JSONField(blank=True, null=True)
 
     @classmethod
     def get_url_name(cls):

@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 

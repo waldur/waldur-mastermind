@@ -2,7 +2,7 @@ import pytz
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction, format_json_field
 from waldur_core.structure import admin as structure_admin

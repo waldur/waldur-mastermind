@@ -312,3 +312,5 @@ DATABASE_FILES_URL_METHOD = 'URL_METHOD_2'
 import logging
 logging.getLogger("xmlschema").propagate = False
 logging.getLogger("axes").propagate = False
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'

@@ -9,7 +9,7 @@ from django.core.validators import validate_ipv46_address
 from django.db import transaction
 from django.db.models import Q
 from django.template.defaultfilters import slugify
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from netaddr import IPNetwork, all_matching_cidrs

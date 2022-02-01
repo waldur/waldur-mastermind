@@ -1,5 +1,5 @@
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from libcloud.compute.drivers.ec2 import REGION_DETAILS
 
 from waldur_core.core.fields import JSONField

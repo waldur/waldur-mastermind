@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms import ModelForm
 from django.urls import reverse
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction, PasswordWidget
 from waldur_core.quotas.admin import QuotaInline

@@ -1,7 +1,7 @@
 import logging
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_fsm import TransitionNotAllowed
 from rest_framework import decorators, exceptions, response, status, views
 

@@ -2,7 +2,7 @@ import logging
 
 from django.db import transaction
 from django.db.models import Avg, Count, Q
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators
 from rest_framework import exceptions as rf_exceptions

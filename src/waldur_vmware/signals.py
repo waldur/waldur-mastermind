@@ -1,4 +1,7 @@
 from django.dispatch import Signal
 
-vm_created = Signal(providing_args=['vm'])
-vm_updated = Signal(providing_args=['vm'])
+# providing_args=['vm']
+vm_created = Signal()
+
+# providing_args=['vm']
+vm_updated = Signal()

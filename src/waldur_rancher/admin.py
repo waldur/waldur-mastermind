@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import reverse
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import admin as structure_admin
