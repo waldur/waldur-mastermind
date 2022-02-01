@@ -9,8 +9,8 @@ from django.core.cache import cache
 from django.db.models import ProtectedError
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils import timezone
-from django.utils.encoding import force_text
-from django.utils.translation import ugettext_lazy as _
+from django.utils.encoding import force_str
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 from rest_framework import exceptions
 from rest_framework import mixins as rf_mixins
@@ -228,27 +228,28 @@ def version_detail(request):
 # noinspection PyProtectedMember
 def exception_handler(exc, context):
     if isinstance(exc, ProtectedError):
-        dependent_meta = exc.protected_objects.model._meta
+        if len(exc.protected_objects) == 1:
+            dependent_meta = list(exc.protected_objects)[0]._meta
 
-        try:
-            # This exception should be raised from a viewset
-            instance_meta = context['view'].get_queryset().model._meta
-        except (AttributeError, KeyError):
-            # Fallback, when instance being deleted cannot be inferred
-            instance_name = 'object'
-        else:
-            instance_name = force_text(instance_meta.verbose_name)
+            try:
+                # This exception should be raised from a viewset
+                instance_meta = context['view'].get_queryset().model._meta
+            except (AttributeError, KeyError):
+                # Fallback, when instance being deleted cannot be inferred
+                instance_name = 'object'
+            else:
+                instance_name = force_str(instance_meta.verbose_name)
 
-        detail = _(
-            'Cannot delete {instance_name} with existing {dependant_objects}'
-        ).format(
-            instance_name=instance_name,
-            dependant_objects=force_text(dependent_meta.verbose_name_plural),
-        )
+            detail = _(
+                'Cannot delete {instance_name} with existing {dependant_objects}'
+            ).format(
+                instance_name=instance_name,
+                dependant_objects=force_str(dependent_meta.verbose_name_plural),
+            )
 
-        # We substitute exception here to get consistent representation
-        # for both ProtectError and manually raised IncorrectStateException
-        exc = IncorrectStateException(detail=detail)
+            # We substitute exception here to get consistent representation
+            # for both ProtectError and manually raised IncorrectStateException
+            exc = IncorrectStateException(detail=detail)
 
     return rf_exception_handler(exc, context)
 

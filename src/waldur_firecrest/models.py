@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.contrib.postgres.fields import JSONField
 from django.db import models
 
 from waldur_core.structure.models import BaseResource
@@ -20,7 +19,7 @@ class Job(BaseResource):
         blank=True,
         null=True,
     )
-    report = JSONField('Job output', blank=True, null=True)
+    report = models.JSONField('Job output', blank=True, null=True)
     runtime_state = models.CharField(max_length=100, blank=True)
 
     @classmethod

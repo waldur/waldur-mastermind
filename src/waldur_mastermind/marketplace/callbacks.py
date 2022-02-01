@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.utils.timezone import now
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.models import StateMixin

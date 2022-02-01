@@ -4,7 +4,6 @@ from collections import defaultdict
 
 from django import forms
 from django.conf import settings
-from django.conf.urls import url
 from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
 from django.contrib.auth import admin as auth_admin
@@ -15,11 +14,11 @@ from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
-from django.urls import reverse
+from django.urls import re_path, reverse
 from django.utils.functional import cached_property
 from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from jsoneditor.forms import JSONEditor
 from rest_framework import permissions as rf_permissions
 from rest_framework.exceptions import ParseError
@@ -548,7 +547,7 @@ class ExtraActionsMixin:
         for action in self.get_extra_actions():
             regex = r'^{}/$'.format(self._get_action_href(action))
             view = self.admin_site.admin_view(action)
-            urls.append(url(regex, view))
+            urls.append(re_path(regex, view))
 
         return urls + super(ExtraActionsMixin, self).get_urls()
 
@@ -601,7 +600,7 @@ class ExtraActionsObjectMixin:
         for action in self.get_extra_object_actions():
             regex = r'^(.+)/change/{}/$'.format(self._get_action_href(action))
             view = self.admin_site.admin_view(action)
-            urls.append(url(regex, view))
+            urls.append(re_path(regex, view))
 
         return urls + super(ExtraActionsObjectMixin, self).get_urls()
 

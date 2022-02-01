@@ -1,5 +1,5 @@
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
@@ -91,4 +91,4 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
 class Answer(TimeStampedModel):
     user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
     question = models.ForeignKey(to=Question, on_delete=models.CASCADE)
-    value = models.NullBooleanField()
+    value = models.BooleanField(null=True)

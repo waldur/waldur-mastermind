@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
@@ -80,11 +80,11 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(
+    re_path(
         r'^api/openstack-shared-settings-instances/$',
         views.SharedSettingsInstances.as_view(),
     ),
-    url(
+    re_path(
         r'^api/openstack-shared-settings-customers/$',
         views.SharedSettingsCustomers.as_view(),
     ),

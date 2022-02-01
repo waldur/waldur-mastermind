@@ -1,4 +1,4 @@
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 from rest_framework import exceptions, status

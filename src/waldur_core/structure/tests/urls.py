@@ -1,4 +1,5 @@
-from django.conf.urls import include, url
+from django.conf.urls import include
+from django.urls import re_path
 
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.server.urls import urlpatterns
@@ -18,5 +19,5 @@ router = DefaultRouter()
 register_in(router)
 
 urlpatterns += [
-    url(r'^api/', include(router.urls)),
+    re_path(r'^api/', include(router.urls)),
 ]

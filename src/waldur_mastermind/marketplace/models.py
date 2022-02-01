@@ -1,14 +1,13 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.functional import cached_property
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
@@ -241,7 +240,7 @@ class Attribute(TimeStampedModel):
     required = models.BooleanField(
         default=False, help_text=_('A value must be provided for the attribute.')
     )
-    default = BetterJSONField(null=True, blank=True)
+    default = models.JSONField(null=True, blank=True)
 
     def __str__(self):
         return str(self.title)
@@ -365,22 +364,22 @@ class Offering(
     parent = models.ForeignKey(
         on_delete=models.CASCADE, to='Offering', null=True, blank=True
     )
-    attributes = BetterJSONField(
+    attributes = models.JSONField(
         blank=True, default=dict, help_text=_('Fields describing Category.')
     )
-    options = BetterJSONField(
+    options = models.JSONField(
         blank=True,
         default=dict,
         help_text=_('Fields describing Offering request form.'),
     )
-    plugin_options = BetterJSONField(
+    plugin_options = models.JSONField(
         blank=True,
         default=dict,
         help_text=_(
             'Public data used by specific plugin, such as storage mode for OpenStack.'
         ),
     )
-    secret_options = BetterJSONField(
+    secret_options = models.JSONField(
         blank=True,
         default=dict,
         help_text=_(
@@ -794,7 +793,7 @@ class CostEstimateMixin(models.Model):
     # Cost estimate is computed with respect to limit components
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, null=True, blank=True)
-    limits = BetterJSONField(blank=True, default=dict)
+    limits = models.JSONField(blank=True, default=dict)
 
     def init_cost(self):
         if self.plan:
@@ -849,7 +848,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
         structure_models.Project, related_name='+', on_delete=models.CASCADE
     )
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
-    attributes = BetterJSONField(blank=True, default=dict)
+    attributes = models.JSONField(blank=True, default=dict)
 
     class Permissions:
         customer_path = 'project__customer'
@@ -992,7 +991,7 @@ class ResourceDetailsMixin(
         abstract = True
 
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
-    attributes = BetterJSONField(blank=True, default=dict)
+    attributes = models.JSONField(blank=True, default=dict)
     end_date = models.DateField(
         null=True,
         blank=True,
@@ -1047,9 +1046,9 @@ class Resource(
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
-    backend_metadata = BetterJSONField(blank=True, default=dict)
-    report = BetterJSONField(blank=True, null=True)
-    current_usages = BetterJSONField(blank=True, default=dict)
+    backend_metadata = models.JSONField(blank=True, default=dict)
+    report = models.JSONField(blank=True, null=True)
+    current_usages = models.JSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
     # Effective ID is used when resource is provisioned through remote Waldur
@@ -1185,7 +1184,7 @@ class OrderItem(
 
     order = models.ForeignKey(on_delete=models.CASCADE, to=Order, related_name='items')
     offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering)
-    attributes = BetterJSONField(blank=True, default=dict)
+    attributes = models.JSONField(blank=True, default=dict)
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True
     )

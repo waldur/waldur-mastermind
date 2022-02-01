@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db import transaction
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils.models import TimeStampedModel
 from rest_framework import response, status

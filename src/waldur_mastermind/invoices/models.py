@@ -5,11 +5,10 @@ from calendar import monthrange
 
 from dateutil.parser import parse as parse_datetime
 from django.conf import settings
-from django.contrib.postgres.fields import JSONField
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from reversion import revisions as reversion
 
@@ -240,7 +239,7 @@ class InvoiceItem(
         null=True,
     )
     name = models.TextField(default='')
-    details = JSONField(
+    details = models.JSONField(
         default=dict, blank=True, help_text=_('Stores data about scope')
     )
 
@@ -413,8 +412,8 @@ class PaymentType(models.CharField):
 class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model):
     organization = models.ForeignKey('structure.Customer', on_delete=models.PROTECT)
     payment_type = PaymentType()
-    attributes = JSONField(default=dict, blank=True)
-    is_active = models.NullBooleanField(default=True)
+    attributes = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(null=True, default=True)
 
     tracker = FieldTracker()
 

@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import decorators, exceptions, generics, response
 from rest_framework import serializers as rf_serializers
 from rest_framework import status

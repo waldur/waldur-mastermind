@@ -1,9 +1,9 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from waldur_core.media import views
 
 urlpatterns = [
-    url(
+    re_path(
         r'^media-download/(?P<token>.+)/$',
         views.ProtectedFileView.as_view(),
         name='media-download',

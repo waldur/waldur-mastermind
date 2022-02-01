@@ -9,7 +9,7 @@ from django.db import transaction
 from django.template import Context, Template
 from django.template import exceptions as template_exceptions
 from django.template.loader import get_template
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers

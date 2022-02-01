@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core import exceptions, validators
 from django.db import models
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models

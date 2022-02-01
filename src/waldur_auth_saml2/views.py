@@ -5,8 +5,7 @@ from django.conf import settings
 from django.contrib import auth
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.utils.six import text_type
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from djangosaml2.cache import IdentityCache, OutstandingQueriesCache, StateCache
 from djangosaml2.conf import get_config
 from djangosaml2.signals import post_authenticated
@@ -20,6 +19,7 @@ from saml2.client import Saml2Client
 from saml2.metadata import do_extensions, entity_descriptor
 from saml2.response import StatusRequestDenied
 from saml2.xmldsig import DIGEST_SHA1, SIG_RSA_SHA1
+from six import text_type
 
 from waldur_core.core.views import (
     RefreshTokenMixin,

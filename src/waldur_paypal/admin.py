@@ -1,7 +1,7 @@
 import logging
 
 from django.contrib import admin
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction, UpdateOnlyModelAdmin
 from waldur_core.structure import admin as structure_admin

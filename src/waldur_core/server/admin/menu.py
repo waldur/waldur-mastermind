@@ -1,7 +1,7 @@
 from admin_tools.menu import Menu, items
 from django.urls import reverse
 from django.utils.text import capfirst
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.utils import flatten
 

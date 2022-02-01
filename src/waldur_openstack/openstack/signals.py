@@ -1,3 +1,4 @@
 from django.dispatch import Signal
 
-tenant_pull_succeeded = Signal(providing_args=['instance'])
+# providing_args=['instance']
+tenant_pull_succeeded = Signal()

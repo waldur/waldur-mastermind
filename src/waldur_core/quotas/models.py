@@ -6,7 +6,7 @@ from django.contrib.contenttypes import models as ct_models
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.db.models import Sum
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core.models import DescendantMixin, UuidMixin

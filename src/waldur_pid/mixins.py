@@ -1,7 +1,8 @@
+from functools import lru_cache
+
 from django.apps import apps
 from django.db import models
-from django.utils.lru_cache import lru_cache
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 
 class DataciteMixin(models.Model):

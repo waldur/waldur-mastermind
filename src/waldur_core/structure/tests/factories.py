@@ -7,8 +7,8 @@ from waldur_core.core import models as core_models
 from waldur_core.core.utils import normalize_unicode
 from waldur_core.structure import models
 
-from . import TestConfig
 from . import models as test_models
+from .apps import TestConfig
 
 
 class UserFactory(factory.DjangoModelFactory):

@@ -1,8 +1,8 @@
 import logging
+from functools import lru_cache
 
 from django.apps import apps
 from django.db import models
-from django.utils.lru_cache import lru_cache
 
 logger = logging.getLogger(__name__)
 

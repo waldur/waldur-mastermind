@@ -1,6 +1,6 @@
 import datetime
 import itertools
-from functools import reduce
+from functools import lru_cache, reduce
 
 import pyvat
 from django.apps import apps
@@ -17,8 +17,7 @@ from django.core.validators import (
 from django.db import models, transaction
 from django.db.models import Q, signals
 from django.utils import timezone
-from django.utils.lru_cache import lru_cache
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
 from model_utils.managers import SoftDeletableManagerMixin
@@ -193,7 +192,7 @@ class BasePermission(models.Model):
     )
     created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
-    is_active = models.NullBooleanField(default=True, db_index=True)
+    is_active = models.BooleanField(null=True, default=True, db_index=True)
 
     @classmethod
     def get_url_name(cls):

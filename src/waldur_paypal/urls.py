@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 
 from . import views
 
@@ -11,7 +11,7 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(
+    re_path(
         r'^api/paypal-invoices-webhook/$',
         views.InvoiceWebHookViewSet.as_view(),
         name='paypal-invoice-webhook',

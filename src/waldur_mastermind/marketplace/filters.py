@@ -4,7 +4,7 @@ import django_filters
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend

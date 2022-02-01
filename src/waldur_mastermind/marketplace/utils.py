@@ -16,7 +16,7 @@ from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from PIL import Image
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers, status

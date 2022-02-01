@@ -8,8 +8,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.translation import ugettext
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
@@ -830,27 +830,27 @@ def _validate_instance_floating_ips(
 ):
     if floating_ips_with_subnets and 'external_network_id' not in settings.options:
         raise serializers.ValidationError(
-            ugettext(
+            gettext(
                 'Please specify tenant external network to perform floating IP operations.'
             )
         )
 
     for floating_ip, subnet in floating_ips_with_subnets:
         if not subnet.is_connected:
-            message = ugettext('SubNet %s is not connected to router.') % subnet
+            message = gettext('SubNet %s is not connected to router.') % subnet
             raise serializers.ValidationError({'floating_ips': message})
         if subnet not in instance_subnets:
-            message = ugettext('SubNet %s is not connected to instance.') % subnet
+            message = gettext('SubNet %s is not connected to instance.') % subnet
             raise serializers.ValidationError({'floating_ips': message})
         if not floating_ip:
             continue
         if floating_ip.is_booked:
-            message = ugettext(
+            message = gettext(
                 'Floating IP %s is already booked for another instance creation'
             )
             raise serializers.ValidationError({'floating_ips': message % floating_ip})
         if floating_ip.settings != settings:
-            message = ugettext(
+            message = gettext(
                 'Floating IP %s does not belong to the same service settings as instance.'
             )
             raise serializers.ValidationError({'floating_ips': message % floating_ip})
@@ -861,7 +861,7 @@ def _validate_instance_floating_ips(
     ]
     if duplicates:
         raise serializers.ValidationError(
-            ugettext('It is impossible to use subnet %s twice.') % duplicates[0]
+            gettext('It is impossible to use subnet %s twice.') % duplicates[0]
         )
 
 
@@ -917,9 +917,7 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
     external_network_id = instance.service_settings.options.get('external_network_id')
     if not core_utils.is_uuid_like(external_network_id):
         raise serializers.ValidationError(
-            ugettext(
-                'Service provider does not have valid value of external_network_id'
-            )
+            gettext('Service provider does not have valid value of external_network_id')
         )
 
     if not floating_ip:
