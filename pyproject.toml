@@ -33,7 +33,6 @@ azure-identity= "1.6.0"
 celery = "^5.0.5"
 croniter = "1.0.15"
 defusedxml = "0.6.0"
-django = "3.2"
 django-admin-tools = "0.9.2"
 django-auth-ldap = "3.0.0"
 django-filter = "2.4.0"
@@ -95,7 +94,7 @@ django-binary-database-files = {git = "https://github.com/waldur/django-binary-d
 django-import-export = {git = "https://github.com/waldur/django-import-export", rev = "main"}
 python-waldur-client = {git = "https://github.com/waldur/python-waldur-client", rev = "master"}
 kubernetes = ">=21.7.0"
-Django = "3.2"
+Django = "3.2.12"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
