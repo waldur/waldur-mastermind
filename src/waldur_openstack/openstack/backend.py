@@ -33,7 +33,6 @@ from .log import event_logger
 
 logger = logging.getLogger(__name__)
 
-
 VALID_ROUTER_INTERFACE_OWNERS = (
     'network:router_interface',
     'network:router_interface_distributed',
@@ -71,6 +70,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_subresources(self):
         self.pull_security_groups()
+        self.pull_server_groups()
         self.pull_floating_ips()
         self.pull_networks()
         self.pull_subnets()
@@ -1327,7 +1327,6 @@ class OpenStackBackend(BaseOpenStackBackend):
             except nova_exceptions.ClientException as e:
                 raise OpenStackBackendError(e)
 
-    @log_backend_action()
     def are_all_tenant_instances_deleted(self, tenant):
         nova = self.nova_client
 
@@ -2373,3 +2372,150 @@ class OpenStackBackend(BaseOpenStackBackend):
                 event_type='openstack_floating_ip_detached',
                 event_context={'floating_ip': floating_ip, 'port': port,},
             )
+
+    def _log_server_group_imported(self, server_group):
+        event_logger.openstack_server_group.info(
+            'Server group %s has been imported to local cache.' % server_group.name,
+            event_type='openstack_server_group_imported',
+            event_context={'server_group': server_group},
+        )
+
+    def _log_server_group_pulled(self, server_group):
+        event_logger.openstack_server_group.info(
+            'Server group %s has been pulled from backend.' % server_group.name,
+            event_type='openstack_server_group_pulled',
+            event_context={'server_group': server_group},
+        )
+
+    def _backend_server_group_to_server_group(self, backend_server_group, **kwargs):
+        server_group = models.ServerGroup(
+            name=backend_server_group.name,
+            policy=backend_server_group.policies[0],
+            backend_id=backend_server_group.id,
+            state=models.ServerGroup.States.OK,
+        )
+
+        for field, value in kwargs.items():
+            setattr(server_group, field, value)
+
+        return server_group
+
+    def _update_tenant_server_groups(self, tenant, backend_server_groups):
+        for backend_server_group in backend_server_groups:
+            imported_server_group = self._backend_server_group_to_server_group(
+                backend_server_group,
+                tenant=tenant,
+                service_settings=tenant.service_settings,
+                project=tenant.project,
+            )
+
+            try:
+                server_group = tenant.server_groups.get(
+                    backend_id=imported_server_group.backend_id
+                )
+            except models.ServerGroup.DoesNotExist:
+                imported_server_group.save()
+                server_group = imported_server_group
+                self._log_server_group_imported(server_group)
+            else:
+                if server_group.state not in (
+                    models.ServerGroup.States.OK,
+                    models.ServerGroup.States.ERRED,
+                ):
+                    logger.info(
+                        'Skipping pulling of OpenStack server group because it is '
+                        'not in the stable state. Group ID: %s',
+                        server_group.id,
+                    )
+                    continue
+                modified = update_pulled_fields(
+                    server_group,
+                    imported_server_group,
+                    models.ServerGroup.get_backend_fields(),
+                )
+                handle_resource_update_success(server_group)
+
+                if modified:
+                    self._log_server_group_pulled(server_group)
+
+    def _remove_stale_server_groups(self, tenants, backend_server_groups):
+        remote_ids = {ip.id for ip in backend_server_groups}
+        stale_groups = models.ServerGroup.objects.filter(
+            tenant__in=tenants,
+            state__in=[models.ServerGroup.States.OK, models.ServerGroup.States.ERRED,],
+        ).exclude(backend_id__in=remote_ids)
+        for server_group in stale_groups:
+            event_logger.openstack_server_group.info(
+                'Server group %s has been cleaned from cache.' % server_group.name,
+                event_type='openstack_server_group_cleaned',
+                event_context={'server_group': server_group,},
+            )
+        stale_groups.delete()
+
+    def list_server_groups(self, tenants):
+        nova = self.nova_admin_client
+        try:
+            list_of_all_server_groups = nova.server_groups.list(all_projects=True)
+            return [
+                server_group
+                for server_group in list_of_all_server_groups
+                if server_group.project_id in tenants
+            ]
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+    def pull_server_groups(self, tenants=None):
+        if tenants is None:
+            tenants = models.Tenant.objects.filter(
+                state=models.Tenant.States.OK, service_settings=self.settings,
+            ).prefetch_related('server_groups')
+        tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
+        if not tenant_mappings:
+            return
+
+        backend_server_groups = self.list_server_groups(list(tenant_mappings.keys()))
+        tenant_server_groups = defaultdict(list)
+        for server_group in backend_server_groups:
+            tenant_id = server_group.project_id
+            tenant = tenant_mappings[tenant_id]
+            tenant_server_groups[tenant].append(server_group)
+
+        with transaction.atomic():
+            for tenant, server_groups in tenant_server_groups.items():
+                self._update_tenant_server_groups(tenant, server_groups)
+            self._remove_stale_server_groups(tenants, backend_server_groups)
+
+    def pull_server_group(self, local_server_group: models.ServerGroup):
+        nova = self.nova_client
+        try:
+            remote_server_group = nova.server_groups.get(local_server_group.backend_id)
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        imported_server_group = self._backend_server_group_to_server_group(
+            remote_server_group,
+            tenant=local_server_group.tenant,
+            service_settings=local_server_group.tenant.service_settings,
+            project=local_server_group.tenant.project,
+        )
+
+        modified = update_pulled_fields(
+            local_server_group,
+            imported_server_group,
+            models.ServerGroup.get_backend_fields(),
+        )
+
+        if modified:
+            self._log_server_group_pulled(local_server_group)
+
+    @log_backend_action('pull server groups for tenant')
+    def pull_tenant_server_groups(self, tenant):
+        nova = self.nova_client
+        try:
+            backend_server_groups = nova.server_groups.list()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        with transaction.atomic():
+            self._update_tenant_server_groups(tenant, backend_server_groups)
+            self._remove_stale_server_groups([tenant], backend_server_groups)

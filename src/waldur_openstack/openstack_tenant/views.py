@@ -178,6 +178,13 @@ class SecurityGroupViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.SecurityGroupFilter
 
 
+class ServerGroupViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.ServerGroup.objects.all().order_by('settings', 'name')
+    serializer_class = serializers.ServerGroupSerializer
+    lookup_field = 'uuid'
+    filterset_class = filters.ServerGroupFilter
+
+
 class VolumeViewSet(structure_views.ResourceViewSet):
     queryset = models.Volume.objects.all().order_by('name')
     serializer_class = serializers.VolumeSerializer

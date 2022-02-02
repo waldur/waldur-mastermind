@@ -53,6 +53,10 @@ class SecurityGroupAdmin(structure_admin.BackendModelAdmin):
     list_display = ('name', 'settings')
 
 
+class ServerGroupAdmin(structure_admin.BackendModelAdmin):
+    list_display = ('name', 'policy', 'settings')
+
+
 class MetadataMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         return super(MetadataMixin, self).get_readonly_fields(request, obj) + (
@@ -250,6 +254,7 @@ admin.site.register(models.Flavor, FlavorAdmin)
 admin.site.register(models.Image, ImageAdmin)
 admin.site.register(models.FloatingIP, FloatingIPAdmin)
 admin.site.register(models.SecurityGroup, SecurityGroupAdmin)
+admin.site.register(models.ServerGroup, ServerGroupAdmin)
 admin.site.register(models.Volume, VolumeAdmin)
 admin.site.register(models.VolumeType, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.VolumeAvailabilityZone, structure_admin.ServicePropertyAdmin)

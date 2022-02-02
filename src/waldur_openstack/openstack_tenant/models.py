@@ -71,6 +71,17 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
     )
 
 
+class ServerGroup(
+    openstack_base_models.BaseServerGroup, structure_models.ServiceProperty
+):
+    class Meta:
+        unique_together = ('settings', 'backend_id')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstacktenant-server-group'
+
+
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
     """
     It allows to update both service settings and shared tenant quotas.

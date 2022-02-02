@@ -32,12 +32,12 @@ class TenantAdminForm(ModelForm):
 
 
 class TenantAdmin(structure_admin.ResourceAdmin):
-
     actions = (
         'pull',
         'detect_external_networks',
         'allocate_floating_ip',
         'pull_security_groups',
+        'pull_server_groups',
         'pull_floating_ips',
         'pull_quotas',
     )
@@ -58,6 +58,12 @@ class TenantAdmin(structure_admin.ResourceAdmin):
         short_description = _('Pull security groups')
 
     pull_security_groups = PullSecurityGroups()
+
+    class PullServerGroups(OKTenantAction):
+        executor = executors.TenantPullServerGroupsExecutor
+        short_description = _('Pull server groups')
+
+    pull_server_groups = PullServerGroups()
 
     class AllocateFloatingIP(OKTenantAction):
         executor = executors.TenantAllocateFloatingIPExecutor

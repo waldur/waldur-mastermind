@@ -43,6 +43,16 @@ class SecurityGroupPullExecutor(core_executors.ActionExecutor):
         )
 
 
+class ServerGroupPullExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, server_group, serialized_server_group, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_server_group,
+            'pull_server_group',
+            state_transition='begin_updating',
+        )
+
+
 class SecurityGroupDeleteExecutor(core_executors.BaseExecutor):
     """
     Security group is being deleted in the last task instead of
@@ -445,6 +455,9 @@ class TenantPullExecutor(core_executors.ActionExecutor):
                 serialized_tenant, 'pull_tenant_security_groups'
             ),
             core_tasks.BackendMethodTask().si(
+                serialized_tenant, 'pull_tenant_server_groups'
+            ),
+            core_tasks.BackendMethodTask().si(
                 serialized_tenant, 'pull_tenant_networks'
             ),
             core_tasks.IndependentBackendMethodTask().si(
@@ -484,6 +497,16 @@ class TenantPullSecurityGroupsExecutor(core_executors.ActionExecutor):
         return core_tasks.BackendMethodTask().si(
             serialized_tenant,
             'pull_tenant_security_groups',
+            state_transition='begin_updating',
+        )
+
+
+class TenantPullServerGroupsExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_tenant,
+            'pull_tenant_server_groups',
             state_transition='begin_updating',
         )
 

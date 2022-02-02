@@ -192,7 +192,6 @@ class InternalIPSynchronizer:
 
 
 class OpenStackTenantBackend(BaseOpenStackBackend):
-
     DEFAULTS = {
         'console_type': 'novnc',
     }
@@ -210,6 +209,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_flavors()
         self.pull_images()
         self.pull_security_groups()
+        self.pull_server_groups()
         self.pull_quotas()
         self.pull_networks()
         self.pull_subnets()
@@ -489,6 +489,35 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 )
 
         self._delete_stale_properties(models.SecurityGroup, security_groups)
+
+    def pull_server_groups(self):
+        nova = self.nova_client
+        try:
+            server_groups = nova.server_groups.list()
+            server_groups_dict = [group._info for group in server_groups]
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        for backend_server_group in server_groups:
+            backend_id = backend_server_group.id
+            defaults = {
+                'name': backend_server_group.name,
+                'policy': backend_server_group.policies[0],
+            }
+            try:
+                with transaction.atomic():
+                    server_group, _ = models.ServerGroup.objects.update_or_create(
+                        settings=self.settings, backend_id=backend_id, defaults=defaults
+                    )
+            except IntegrityError:
+                logger.warning(
+                    'Could not create server group with backend ID %s '
+                    'and service settings %s due to concurrent update.',
+                    backend_id,
+                    self.settings,
+                )
+
+        self._delete_stale_properties(models.ServerGroup, server_groups_dict)
 
     def pull_quotas(self):
         self._pull_tenant_quotas(self.tenant_id, self.settings)

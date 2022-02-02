@@ -23,6 +23,11 @@ def register_in(router):
         basename='openstacktenant-sgp',
     )
     router.register(
+        r'openstacktenant-server-groups',
+        views.ServerGroupViewSet,
+        basename='openstacktenant-server-group',
+    )
+    router.register(
         r'openstacktenant-volumes',
         views.VolumeViewSet,
         basename='openstacktenant-volume',
