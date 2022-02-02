@@ -121,6 +121,7 @@ class ServerGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.ServerGroup.objects.all().order_by('tenant__name')
     serializer_class = serializers.ServerGroupSerializer
     filterset_class = filters.ServerGroupFilter
+    pull_executor = executors.ServerGroupPullExecutor
 
 
 class FloatingIPViewSet(structure_views.ResourceViewSet):
@@ -404,6 +405,18 @@ class TenantViewSet(structure_views.ResourceViewSet):
         )
 
     pull_security_groups_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
+
+    @decorators.action(detail=True, methods=['post'])
+    def pull_server_groups(self, request, uuid=None):
+        executors.TenantPullServerGroupsExecutor.execute(self.get_object())
+        return response.Response(
+            {'status': _('Server groups pull has been scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    pull_server_groups_validators = [
         core_validators.StateValidator(models.Tenant.States.OK)
     ]
 

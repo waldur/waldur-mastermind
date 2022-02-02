@@ -88,6 +88,28 @@ class SecurityGroupRuleLogger(EventLogger):
         ]
 
 
+class ServerGroupLogger(EventLogger):
+    server_group = 'openstack.ServerGroup'
+
+    class Meta:
+        event_types = (
+            'openstack_server_group_imported',
+            'openstack_server_group_pulled',
+            'openstack_server_group_cleaned',
+        )
+        event_groups = {
+            'resources': event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        server_group = event_context['server_group']
+        return {
+            server_group,
+            server_group.tenant,
+        }
+
+
 class NetworkLogger(EventLogger):
     network = 'openstack.Network'
 
@@ -187,5 +209,6 @@ event_logger.register('openstack_network', NetworkLogger)
 event_logger.register('openstack_subnet', SubNetLogger)
 event_logger.register('openstack_security_group', SecurityGroupLogger)
 event_logger.register('openstack_security_group_rule', SecurityGroupRuleLogger)
+event_logger.register('openstack_server_group', ServerGroupLogger)
 event_logger.register('openstack_port', PortLogger)
 event_logger.register('openstack_floating_ip', FloatingIPLogger)

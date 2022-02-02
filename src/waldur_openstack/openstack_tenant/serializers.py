@@ -200,6 +200,25 @@ class SecurityGroupSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
+class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.ServerGroup
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'policy',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'settings': {'lookup_field': 'uuid'},
+            'server-groups': {
+                'lookup_field': 'uuid',
+                'view_name': 'openstacktenant-server-group-detail',
+            },
+        }
+
+
 class VolumeAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
     class Meta(BaseAvailabilityZoneSerializer.Meta):
         model = models.VolumeAvailabilityZone
