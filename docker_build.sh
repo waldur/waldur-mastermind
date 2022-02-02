@@ -3,7 +3,7 @@ set -e
 # Installing Python package manager
 python3 -m pip install --upgrade pip
 # Upgrade setuptools to the latest
-python3 -m pip install --upgrade setuptools
+python3 -m pip install --upgrade setuptools==59.6.0
 python3 -m pip install poetry==1.1.11
 poetry config experimental.new-installer false
 poetry config virtualenvs.create false
