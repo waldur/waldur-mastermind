@@ -19,7 +19,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('taggit', '0002_auto_20150616_2121'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('structure', '0001_squashed_0054'),
     ]
@@ -284,17 +283,6 @@ class Migration(migrations.Migration):
                     'available_for_all',
                     models.BooleanField(
                         default=False, help_text=b'Allow access to any user'
-                    ),
-                ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
                     ),
                 ),
             ],

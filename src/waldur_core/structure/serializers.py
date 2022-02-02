@@ -1,4 +1,3 @@
-import json
 import logging
 from functools import lru_cache
 
@@ -1117,86 +1116,10 @@ class ManagedResourceSerializer(BasicResourceSerializer):
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
 
 
-class TagList(list):
-    """
-    This class serializes tags as JSON list as the last step of serialization process.
-    """
-
-    def __str__(self):
-        return json.dumps(self)
-
-
-class TagSerializer(serializers.Serializer):
-    """
-    This serializer updates tags field using django-taggit API.
-    """
-
-    def create(self, validated_data):
-        if 'tags' in validated_data:
-            tags = validated_data.pop('tags')
-            instance = super(TagSerializer, self).create(validated_data)
-            instance.tags.set(*tags)
-        else:
-            instance = super(TagSerializer, self).create(validated_data)
-        return instance
-
-    def update(self, instance, validated_data):
-        if 'tags' in validated_data:
-            tags = validated_data.pop('tags')
-            instance = super(TagSerializer, self).update(instance, validated_data)
-            instance.tags.set(*tags)
-        else:
-            instance = super(TagSerializer, self).update(instance, validated_data)
-        return instance
-
-
-class TagListSerializerField(serializers.Field):
-    child = serializers.CharField()
-    default_error_messages = {
-        'not_a_list': _('Expected a list of items but got type "{input_type}".'),
-        'invalid_json': _(
-            'Invalid json list. A tag list submitted in string form must be valid json.'
-        ),
-        'not_a_str': _('All list items must be of string type.'),
-    }
-
-    def to_internal_value(self, value):
-        if isinstance(value, str):
-            if not value:
-                value = '[]'
-            try:
-                value = json.loads(value)
-            except ValueError:
-                self.fail('invalid_json')
-
-        if not isinstance(value, list):
-            self.fail('not_a_list', input_type=type(value).__name__)
-
-        for s in value:
-            if not isinstance(s, str):
-                self.fail('not_a_str')
-
-            self.child.run_validation(s)
-
-        return value
-
-    def get_attribute(self, instance):
-        """
-        Fetch tags from cache defined in TagMixin.
-        """
-        return instance.get_tags()
-
-    def to_representation(self, value):
-        if not isinstance(value, TagList):
-            value = TagList(value)
-        return value
-
-
 class BaseResourceSerializer(
     core_serializers.RestrictedSerializerMixin,
     PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,
-    TagSerializer,
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source='get_state_display')
@@ -1243,7 +1166,6 @@ class BaseResourceSerializer(
     created = serializers.DateTimeField(read_only=True)
     resource_type = serializers.SerializerMethodField()
 
-    tags = TagListSerializerField(required=False)
     access_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -1265,7 +1187,6 @@ class BaseResourceSerializer(
             'customer_name',
             'customer_native_name',
             'customer_abbreviation',
-            'tags',
             'error_message',
             'error_traceback',
             'resource_type',

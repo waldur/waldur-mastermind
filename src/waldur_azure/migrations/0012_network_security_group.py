@@ -17,7 +17,6 @@ import waldur_core.logging.loggers
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('taggit', '0002_auto_20150616_2121'),
         ('waldur_azure', '0011_sql_collation'),
     ]
 
@@ -98,17 +97,6 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to='waldur_azure.ResourceGroup',
-                    ),
-                ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
                     ),
                 ),
             ],

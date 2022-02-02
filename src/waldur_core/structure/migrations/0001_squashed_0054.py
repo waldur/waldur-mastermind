@@ -41,7 +41,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('quotas', '0001_squashed_0004'),
-        ('taggit', '0002_auto_20150616_2121'),
         ('contenttypes', '0002_remove_content_type_name'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -549,17 +548,6 @@ class Migration(migrations.Migration):
                         related_name='service_settings',
                         to='structure.Customer',
                         verbose_name='organization',
-                    ),
-                ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
                     ),
                 ),
             ],

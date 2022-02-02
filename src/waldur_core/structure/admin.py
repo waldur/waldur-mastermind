@@ -613,7 +613,6 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         'customer',
         'state',
         'error_message',
-        'tags',
         'terms_of_services',
     )
     inlines = [QuotaInline]
@@ -626,7 +625,6 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         'customer',
         'state',
         'error_message',
-        'tags',
         'terms_of_services',
     )
 

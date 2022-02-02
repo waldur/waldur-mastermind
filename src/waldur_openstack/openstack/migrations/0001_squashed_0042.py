@@ -20,7 +20,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('structure', '0001_squashed_0054'),
         ('contenttypes', '0002_remove_content_type_name'),
-        ('taggit', '0002_auto_20150616_2121'),
         ('quotas', '0001_squashed_0004'),
     ]
 
@@ -317,17 +316,6 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(blank=True, max_length=50)),
                 ('user_password', models.CharField(blank=True, max_length=50)),
                 (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
-                (
                     'extra_configuration',
                     waldur_core.core.fields.JSONField(
                         default={},
@@ -438,17 +426,6 @@ class Migration(migrations.Migration):
                 ('type', models.CharField(blank=True, max_length=50)),
                 ('segmentation_id', models.IntegerField(null=True)),
                 (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
-                (
                     'tenant',
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
@@ -542,17 +519,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
-                (
                     'dns_nameservers',
                     waldur_core.core.fields.JSONField(
                         default=list,
@@ -637,18 +603,6 @@ class Migration(migrations.Migration):
                 default=5,
             ),
         ),
-        migrations.AddField(
-            model_name='floatingip',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
         migrations.AlterField(
             model_name='floatingip',
             name='address',
@@ -676,18 +630,6 @@ class Migration(migrations.Migration):
                 default=django.utils.timezone.now,
                 editable=False,
                 verbose_name='modified',
-            ),
-        ),
-        migrations.AddField(
-            model_name='securitygroup',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AlterField(

@@ -16,7 +16,6 @@ import waldur_core.structure.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('taggit', '0003_taggeditem_add_unique_index'),
         ('openstack', '0014_securitygrouprule_ethertype'),
     ]
 
@@ -111,17 +110,6 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='ports',
                         to='openstack.Network',
-                    ),
-                ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        related_name='port_port_openstack',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
                     ),
                 ),
                 (

@@ -19,7 +19,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('structure', '0024_project_oecd_fos_2007_code'),
-        ('taggit', '0003_taggeditem_add_unique_index'),
     ]
 
     operations = [
@@ -99,17 +98,6 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='+',
                         to='structure.ServiceSettings',
-                    ),
-                ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        related_name='job_job_waldur_firecrest',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
                     ),
                 ),
             ],

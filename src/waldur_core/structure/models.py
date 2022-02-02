@@ -8,7 +8,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.cache import cache
 from django.core.validators import (
     MaxLengthValidator,
     MaxValueValidator,
@@ -26,10 +25,8 @@ from reversion import revisions as reversion
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
-from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
 from waldur_core.core.models import AbstractFieldTracker
-from waldur_core.core.shims import TaggableManager
 from waldur_core.core.validators import validate_cidr_list, validate_name
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import ImageModelMixin
@@ -87,32 +84,6 @@ class StructureLoggableMixin(LoggableMixin):
     @classmethod
     def get_permitted_objects(cls, user):
         return filter_queryset_for_user(cls.objects.all(), user)
-
-
-class TagMixin(models.Model):
-    """
-    Add tags field and manage cache for tags.
-    """
-
-    class Meta:
-        abstract = True
-
-    tags = TaggableManager(blank=True, related_name='+')
-
-    def get_tags(self):
-        key = self._get_tag_cache_key()
-        tags = cache.get(key)
-        if tags is None:
-            tags = list(self.tags.all().values_list('name', flat=True))
-            cache.set(key, tags)
-        return tags
-
-    def clean_tag_cache(self):
-        key = self._get_tag_cache_key()
-        cache.delete(key)
-
-    def _get_tag_cache_key(self):
-        return 'tags:%s' % core_utils.serialize_instance(self)
 
 
 class VATException(Exception):
@@ -909,7 +880,6 @@ class ServiceSettings(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.StateMixin,
-    TagMixin,
     StructureLoggableMixin,
 ):
     class Meta:
@@ -1068,7 +1038,6 @@ class BaseResource(
     core_models.BackendModelMixin,
     core_models.StateMixin,
     StructureLoggableMixin,
-    TagMixin,
     TimeStampedModel,
     StructureModel,
 ):

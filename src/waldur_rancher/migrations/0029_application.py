@@ -18,7 +18,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('structure', '0012_customer_sponsor_number'),
-        ('taggit', '0003_taggeditem_add_unique_index'),
         ('waldur_rancher', '0028_verbose_name_for_template'),
     ]
 
@@ -124,17 +123,6 @@ class Migration(migrations.Migration):
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='+',
                         to='structure.ServiceSettings',
-                    ),
-                ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        related_name='application_application_waldur_rancher',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
                     ),
                 ),
                 (

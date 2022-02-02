@@ -59,7 +59,6 @@ INSTALLED_APPS = (
     'axes',
     'django_fsm',
     'reversion',
-    'taggit',
     'jsoneditor',
     'modeltranslation',
     'import_export',
