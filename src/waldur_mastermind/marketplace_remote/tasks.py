@@ -1,15 +1,17 @@
 import collections
 import logging
+from datetime import datetime
 
 import requests
 from celery.app import shared_task
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import dateparse, timezone
 from rest_framework import exceptions as rf_exceptions
 from waldur_client import WaldurClient, WaldurClientException
 
-from waldur_core.core.utils import deserialize_instance, serialize_instance
+from waldur_core.core.utils import deserialize_instance, month_start, serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.invoices import models as invoice_models
@@ -360,7 +362,13 @@ class UsagePullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
 
-        remote_usages = client.list_component_usages(local_resource.backend_id)
+        today = datetime.today()
+        four_months_ago = month_start(today - relativedelta(months=4))
+        four_months_ago_str = four_months_ago.strftime('%Y-%m-%d')
+
+        remote_usages = client.list_component_usages(
+            local_resource.backend_id, date_after=four_months_ago_str,
+        )
 
         for remote_usage in remote_usages:
             try:
