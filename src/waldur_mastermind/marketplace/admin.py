@@ -292,6 +292,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     )
     search_fields = ('name', 'uuid')
     fields = (
+        'uuid',
         'state',
         'customer',
         'category',
@@ -301,6 +302,10 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'native_description',
         'full_description',
         'country',
+        'terms_of_service',
+        'terms_of_service_link',
+        'privacy_policy_link',
+        'access_url',
         'rating',
         'thumbnail',
         'attributes',
@@ -323,6 +328,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'rating',
         'scope_link',
         'citation_count',
+        'uuid',
     )
 
     def scope_link(self, obj):
