@@ -15,7 +15,6 @@ import waldur_core.structure.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('taggit', '0003_taggeditem_add_unique_index'),
         ('openstack', '0005_error_traceback'),
     ]
 
@@ -64,17 +63,6 @@ class Migration(migrations.Migration):
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        related_name='router_router_openstack',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
                 (
                     'tenant',
                     models.ForeignKey(

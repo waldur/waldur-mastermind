@@ -1,7 +1,6 @@
 import uuid
 
 import django_filters
-import taggit
 from django import forms
 from django.conf import settings as django_settings
 from django.contrib import auth
@@ -586,19 +585,6 @@ class BaseResourceFilter(NameFilterSet):
     )
     uuid = django_filters.UUIDFilter(lookup_expr='exact')
     backend_id = django_filters.CharFilter(field_name='backend_id', lookup_expr='exact')
-    tag = django_filters.ModelMultipleChoiceFilter(
-        field_name='tags__name',
-        label='tag',
-        to_field_name='name',
-        queryset=taggit.models.Tag.objects.all(),
-    )
-    rtag = django_filters.ModelMultipleChoiceFilter(
-        field_name='tags__name',
-        label='rtag',
-        to_field_name='name',
-        queryset=taggit.models.Tag.objects.all(),
-        conjoined=True,
-    )
     external_ip = core_filters.EmptyFilter()
 
     ORDERING_FIELDS = (
@@ -635,56 +621,7 @@ class BaseResourceFilter(NameFilterSet):
             'state',
             'uuid',
             'backend_id',
-            'tag',
-            'rtag',
         )
-
-
-class TagsFilter(BaseFilterBackend):
-    """ Tags ordering. Filtering for complex tags.
-
-    Example:
-        ?tag__license-os=centos7 - will filter objects with tag "license-os:centos7".
-
-    Allow to define next parameters in view:
-     - tags_filter_db_field - name of tags field in database. Default: tags.
-     - tags_filter_request_field - name of tags in request. Default: tag.
-    """
-
-    def filter_queryset(self, request, queryset, view):
-        self.db_field = getattr(view, 'tags_filter_db_field', 'tags')
-        self.request_field = getattr(view, 'tags_filter_request_field', 'tag')
-
-        queryset = self._filter(request, queryset)
-        queryset = self._order(request, queryset)
-        return queryset
-
-    def _filter(self, request, queryset):
-        for key in request.query_params.keys():
-            item_name = self._get_item_name(key)
-            if item_name:
-                value = request.query_params.get(key)
-                filter_kwargs = {
-                    self.db_field + '__name__startswith': item_name,
-                    self.db_field + '__name__icontains': value,
-                }
-                queryset = queryset.filter(**filter_kwargs)
-        return queryset
-
-    def _order(self, request, queryset):
-        order_by = get_ordering(request)
-        item_name = self._get_item_name(order_by)
-        if item_name:
-            filter_kwargs = {self.db_field + '__name__startswith': item_name}
-            queryset = queryset.filter(**filter_kwargs).order_by(
-                self.db_field + '__name'
-            )
-        return queryset
-
-    def _get_item_name(self, key):
-        prefix = self.request_field + '__'
-        if key and key.startswith(prefix):
-            return key[len(prefix) :]
 
 
 class StartTimeFilter(BaseFilterBackend):

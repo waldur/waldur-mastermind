@@ -15,7 +15,6 @@ import waldur_core.structure.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('taggit', '0002_auto_20150616_2121'),
         ('waldur_vmware', '0002_virtualmachine'),
     ]
 
@@ -82,17 +81,6 @@ class Migration(migrations.Migration):
                 ),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
                 ('size', models.PositiveIntegerField(help_text='Size in MiB')),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
                 (
                     'vm',
                     models.ForeignKey(

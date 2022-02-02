@@ -20,7 +20,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('structure', '0009_project_is_removed'),
         ('contenttypes', '0002_remove_content_type_name'),
-        ('taggit', '0002_auto_20150616_2121'),
     ]
 
     operations = [
@@ -149,18 +148,6 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={'ordering': ('name',),},
-        ),
-        migrations.AddField(
-            model_name='cluster',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
         ),
         migrations.AlterUniqueTogether(
             name='node', unique_together=set([('content_type', 'object_id')]),

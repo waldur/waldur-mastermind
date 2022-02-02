@@ -839,17 +839,6 @@ python-versions = ">=3.6"
 django = ">=2.0"
 
 [[package]]
-name = "django-taggit"
-version = "1.1.0"
-description = "django-taggit is a reusable Django application for simple tagging."
-category = "main"
-optional = false
-python-versions = ">=3.5"
-
-[package.dependencies]
-Django = ">=1.11"
-
-[[package]]
 name = "django-upload-validator"
 version = "1.1.5"
 description = ""
@@ -2704,7 +2693,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "672cf83c4a2091f1b586db68289a10c03587bc53ed50708bc8fd7f7c3059f010"
+content-hash = "c53c0993bf10301acec7cb7b357f9cb422d6495ee0e86cbdd53695ee6c33f683"
 
 [metadata.files]
 adal = [
@@ -3064,10 +3053,6 @@ django-rest-swagger = [
 django-reversion = [
     {file = "django-reversion-4.0.1.tar.gz", hash = "sha256:6991f16e5d3a972912db3d56e3a714d10b07becd566ab87f85f2e9b671981339"},
     {file = "django_reversion-4.0.1-py3-none-any.whl", hash = "sha256:2e40ed41e08cdd83a05dc70a1974feface52a61ba7d289727117163052081ae6"},
-]
-django-taggit = [
-    {file = "django-taggit-1.1.0.tar.gz", hash = "sha256:01bf163f66f385de3777378f43338aba93aae8673891d8ba9a20695b2ffb8e10"},
-    {file = "django_taggit-1.1.0-py3-none-any.whl", hash = "sha256:c13dfc1808a3084b64898e591af1d2f49b672d108388654804b170ee0ac5caf0"},
 ]
 django-upload-validator = []
 djangorestframework = [

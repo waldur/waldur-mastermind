@@ -13,7 +13,6 @@ class StructureConfig(AppConfig):
         from waldur_core.structure.models import (
             BaseResource,
             SubResource,
-            TagMixin,
             VirtualMachine,
         )
         from waldur_core.users.models import PermissionRequest
@@ -173,18 +172,6 @@ class StructureConfig(AppConfig):
                     model.__name__, index
                 ),
             )
-
-        signals.post_save.connect(
-            handlers.clean_tags_cache_after_tagged_item_saved,
-            sender=TagMixin.tags.through,
-            dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created',
-        )
-
-        signals.pre_delete.connect(
-            handlers.clean_tags_cache_before_tagged_item_deleted,
-            sender=TagMixin.tags.through,
-            dispatch_uid='waldur_core.structure.handlers.clean_tags_cache_after_tagged_item_created',
-        )
 
         signals.post_save.connect(
             handlers.notify_about_user_profile_changes,

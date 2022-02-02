@@ -17,7 +17,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('taggit', '0002_auto_20150616_2121'),
         ('structure', '0001_squashed_0054'),
     ]
 
@@ -351,17 +350,6 @@ class Migration(migrations.Migration):
                         to='waldur_aws.Region',
                     ),
                 ),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
             ],
             options={'abstract': False,},
             bases=(
@@ -376,18 +364,6 @@ class Migration(migrations.Migration):
             name='region',
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE, to='waldur_aws.Region'
-            ),
-        ),
-        migrations.AddField(
-            model_name='instance',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AddField(

@@ -21,7 +21,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('structure', '0001_squashed_0054'),
-        ('taggit', '0002_auto_20150616_2121'),
     ]
 
     operations = [
@@ -1237,18 +1236,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='volume',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
-            model_name='volume',
             name='type',
             field=models.ForeignKey(
                 blank=True,
@@ -1264,18 +1251,6 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name='snapshot_schedules',
                 to='openstack_tenant.Volume',
-            ),
-        ),
-        migrations.AddField(
-            model_name='snapshotschedule',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AddField(
@@ -1306,18 +1281,6 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.PROTECT,
                 related_name='snapshots',
                 to='openstack_tenant.Volume',
-            ),
-        ),
-        migrations.AddField(
-            model_name='snapshot',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AddField(
@@ -1354,18 +1317,6 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name='instance',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
             model_name='floatingip',
             name='internal_ip',
             field=models.ForeignKey(
@@ -1391,18 +1342,6 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name='backup_schedules',
                 to='openstack_tenant.Instance',
-            ),
-        ),
-        migrations.AddField(
-            model_name='backupschedule',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AddField(
@@ -1450,18 +1389,6 @@ class Migration(migrations.Migration):
             name='snapshots',
             field=models.ManyToManyField(
                 related_name='backups', to='openstack_tenant.Snapshot'
-            ),
-        ),
-        migrations.AddField(
-            model_name='backup',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AlterUniqueTogether(

@@ -21,7 +21,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('structure', '0005_customer_domain'),
         ('core', '0003_enlarge_username'),
-        ('taggit', '0002_auto_20150616_2121'),
         ('waldur_azure', '0002_immutable_default_json'),
     ]
 
@@ -728,58 +727,10 @@ class Migration(migrations.Migration):
         ),
         migrations.DeleteModel(name='InstanceEndpoint',),
         migrations.AddField(
-            model_name='subnet',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
-            model_name='sqlserver',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
             model_name='sqldatabase',
             name='server',
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.SQLServer'
-            ),
-        ),
-        migrations.AddField(
-            model_name='sqldatabase',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
-            model_name='resourcegroup',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AddField(
@@ -798,35 +749,11 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name='networkinterface',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
-            ),
-        ),
-        migrations.AddField(
             model_name='network',
             name='resource_group',
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
                 to='waldur_azure.ResourceGroup',
-            ),
-        ),
-        migrations.AddField(
-            model_name='network',
-            name='tags',
-            field=waldur_core.core.shims.TaggableManager(
-                related_name='+',
-                blank=True,
-                help_text='A comma-separated list of tags.',
-                through='taggit.TaggedItem',
-                to='taggit.Tag',
-                verbose_name='Tags',
             ),
         ),
         migrations.AddField(

@@ -18,7 +18,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('taggit', '0002_auto_20150616_2121'),
         ('structure', '0001_squashed_0054'),
     ]
 
@@ -216,17 +215,6 @@ class Migration(migrations.Migration):
                 ),
                 ('user_username', models.CharField(max_length=50)),
                 ('user_password', models.CharField(max_length=50)),
-                (
-                    'tags',
-                    waldur_core.core.shims.TaggableManager(
-                        related_name='+',
-                        blank=True,
-                        help_text='A comma-separated list of tags.',
-                        through='taggit.TaggedItem',
-                        to='taggit.Tag',
-                        verbose_name='Tags',
-                    ),
-                ),
             ],
             options={'abstract': False,},
             bases=(
