@@ -2639,7 +2639,7 @@ class DivisionsSerializer(serializers.Serializer):
             offering.divisions.add(*divisions)
 
 
-class OfferingCostSerializer(serializers.Serializer):
+class CostsSerializer(serializers.Serializer):
     period = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     tax = serializers.SerializerMethodField()
@@ -2656,6 +2656,11 @@ class OfferingCostSerializer(serializers.Serializer):
 
     def get_tax(self, record):
         return round(record['computed_tax'], 2)
+
+
+class OfferingCostSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(source='resource__offering__uuid')
+    cost = serializers.FloatField()
 
 
 class OfferingComponentStatSerializer(serializers.Serializer):

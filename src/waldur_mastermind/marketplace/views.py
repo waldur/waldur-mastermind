@@ -14,6 +14,8 @@ from django.db.models import (
     Subquery,
 )
 from django.db.models.aggregates import Sum
+from django.db.models.fields import FloatField
+from django.db.models.functions.math import Ceil
 from django.http import HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -515,9 +517,7 @@ class OfferingViewSet(
 
     @action(detail=True)
     def costs(self, *args, **kwargs):
-        return self.get_stats(
-            utils.get_offering_costs, serializers.OfferingCostSerializer
-        )
+        return self.get_stats(utils.get_offering_costs, serializers.CostsSerializer)
 
     costs_permissions = [structure_permissions.is_owner]
 
@@ -1704,6 +1704,26 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 result.append(data)
 
         return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
+        start, end = utils.get_start_and_end_dates_from_request(self.request)
+        invoice_items = (
+            invoice_models.InvoiceItem.objects.filter(
+                invoice__created__gte=start, invoice__created__lte=end,
+            )
+            .values('resource__offering__uuid')
+            .annotate(
+                cost=Sum(
+                    (Ceil(F('quantity') * F('unit_price') * 100) / 100),
+                    output_field=FloatField(),
+                )
+            )
+        )
+
+        serializer = serializers.OfferingCostSerializer(invoice_items, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK,)
 
     @staticmethod
     def _get_service_provider_info(service_provider):
