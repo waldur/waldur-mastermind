@@ -720,15 +720,14 @@ def get_service_provider_project_ids(service_provider):
     )
 
 
-def get_service_provider_user_ids(service_provider):
+def get_service_provider_user_ids(user, service_provider):
     project_ids = get_service_provider_project_ids(service_provider)
-    return (
-        structure_models.ProjectPermission.objects.filter(
-            project_id__in=project_ids, is_active=True
-        )
-        .values_list('user_id', flat=True)
-        .distinct()
+    qs = structure_models.ProjectPermission.objects.filter(
+        project_id__in=project_ids, is_active=True
     )
+    if not user.is_staff and not user.is_support:
+        qs = qs.filter(user__is_active=True)
+    return qs.values_list('user_id', flat=True).distinct()
 
 
 def import_current_usages(resource):

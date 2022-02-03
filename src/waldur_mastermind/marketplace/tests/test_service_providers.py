@@ -428,12 +428,25 @@ class ConsumerUserListTest(test.APITransactionTestCase):
             self.mp_fixture.service_provider, action='users'
         )
 
-    def test_service_provider_can_view_users_in_project_with_purchased_resource(self,):
+    def test_service_provider_can_view_users_in_project_with_purchased_resource(self):
         self.client.force_login(self.mp_fixture.offering_owner)
         response = self.client.get(self.url)
 
         self.assertEqual(200, response.status_code)
         self.assertIn(self.admin.uuid.hex, [item['uuid'] for item in response.data])
+
+    def test_disabled_users_are_excluded(self):
+        # Arrange
+        self.admin.is_active = False
+        self.admin.save()
+
+        # Act
+        self.client.force_login(self.mp_fixture.offering_owner)
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn(self.admin.uuid.hex, [item['uuid'] for item in response.data])
 
 
 class SetOfferingUsersTest(test.APITransactionTestCase):

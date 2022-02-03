@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from rest_framework.exceptions import ParseError
+from rest_framework.exceptions import NotFound, ParseError
 
 from waldur_core.core.models import SshPublicKey
 from waldur_core.core.validators import validate_ssh_public_key
@@ -88,8 +88,19 @@ def create_or_update_eduteams_user(backend_user):
 
 
 def pull_remote_eduteams_user(username):
-    user_info = get_remote_eduteams_user_info(username)
-    user, _ = create_or_update_eduteams_user(user_info)
+    try:
+        user_info = get_remote_eduteams_user_info(username)
+    except NotFound:
+        try:
+            user = User.objects.get(username=username, is_active=True)
+        except User.DoesNotExist:
+            return
+        else:
+            user.is_active = False
+            user.last_sync = timezone.now()
+            user.save(update_fields=['is_active', 'last_sync'])
+    else:
+        user, _ = create_or_update_eduteams_user(user_info)
     return user
 
 
@@ -105,6 +116,9 @@ def get_remote_eduteams_user_info(username):
     except requests.exceptions.RequestException as e:
         logger.warning('Unable to get eduTEAMS user info. Error is %s', e)
         raise ParseError('Unable to get user info for %s' % user_url)
+
+    if user_response.status_code == 404:
+        raise NotFound('User %s does not exist' % user_url)
 
     if user_response.status_code != 200:
         raise ParseError('Unable to get user info for %s' % user_url)

@@ -200,7 +200,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         self.valid_cuid = (
             '87b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org'
         )
-        user_url = (
+        self.user_url = (
             f'https://proxy.acc.researcher-access.org/api/userinfo/{self.valid_cuid}'
         )
         responses.add(
@@ -208,9 +208,11 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
             url='https://proxy.acc.researcher-access.org/OIDC/token',
             json={"access_token": "random_token"},
         )
+
+    def setup_user_info(self):
         responses.add(
             method='GET',
-            url=user_url,
+            url=self.user_url,
             json={
                 "voperson_id": "87b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org",
                 "name": "John Snow",
@@ -224,6 +226,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         )
 
     def test_unauthorized_user_can_not_sync_remote_users(self):
+        self.setup_user_info()
         user = structure_factories.UserFactory()
         self.client.force_login(user)
         response = self.client.post(self.url)
@@ -235,6 +238,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
 
     @responses.activate
     def test_when_user_does_not_exist_remote_api_is_called(self):
+        self.setup_user_info()
         user = structure_factories.UserFactory(is_identity_manager=True)
         self.client.force_login(user)
 
@@ -250,6 +254,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
 
     @responses.activate
     def test_staff_can_trigger_remote_user_sync(self):
+        self.setup_user_info()
         user = structure_factories.UserFactory(is_staff=True)
         self.client.force_login(user)
 
@@ -258,6 +263,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
 
     @responses.activate
     def test_when_user_exists_it_is_updated(self):
+        self.setup_user_info()
         user = structure_factories.UserFactory(is_staff=True)
         self.client.force_login(user)
 
@@ -278,6 +284,7 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
     @responses.activate
     @mock.patch('waldur_core.core.handlers.event_logger')
     def test_when_user_is_updated_events_are_emitted(self, mock_event_logger):
+        self.setup_user_info()
         user = structure_factories.UserFactory(is_staff=True)
         self.client.force_login(user)
 
@@ -298,3 +305,22 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
             'last_name: Jobs -> Snow'
         )
         self.assertEqual(test_msg, msg)
+
+    @responses.activate
+    def test_when_user_is_not_found_it_is_disabled(self):
+        responses.add(
+            method='GET', url=self.user_url, status=404,
+        )
+
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_login(user)
+
+        remote_user = structure_factories.UserFactory(
+            username=self.valid_cuid, email='foo@example.com'
+        )
+
+        response = self.client.post(self.url, {'cuid': self.valid_cuid})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        remote_user.refresh_from_db()
+        self.assertFalse(remote_user.is_active)

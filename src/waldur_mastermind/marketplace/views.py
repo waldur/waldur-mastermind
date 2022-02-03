@@ -121,7 +121,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     def get_customer_user_ids(self):
         service_provider = self.get_object()
-        return utils.get_service_provider_user_ids(service_provider)
+        return utils.get_service_provider_user_ids(self.request.user, service_provider)
 
     @action(detail=True, methods=['GET'])
     def projects(self, request, uuid=None):
@@ -1656,7 +1656,11 @@ class StatsViewSet(rf_viewsets.ViewSet):
         for sp in models.ServiceProvider.objects.all().select_related(
             'customer', 'customer__division'
         ):
-            data = {'count': utils.get_service_provider_user_ids(sp).count()}
+            data = {
+                'count': utils.get_service_provider_user_ids(
+                    self.request.user, sp
+                ).count()
+            }
             data.update(self._get_service_provider_info(sp))
             result.append(data)
 
