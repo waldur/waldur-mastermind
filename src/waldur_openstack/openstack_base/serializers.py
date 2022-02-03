@@ -67,6 +67,13 @@ class BaseOpenStackServiceSerializer(structure_serializers.ServiceOptionsSeriali
         required=False,
     )
 
+    verify_ssl = serializers.BooleanField(
+        source='options.verify_ssl',
+        help_text=_('Verify or ignore server certificate'),
+        default=False,
+        required=False,
+    )
+
 
 class BaseVolumeTypeSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):

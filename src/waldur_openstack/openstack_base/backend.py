@@ -195,11 +195,13 @@ class BaseOpenStackBackend(ServiceBackend):
 
     def get_client(self, name=None, admin=False):
         domain_name = self.settings.domain or 'Default'
+        verify_ssl = self.settings.get_option('verify_ssl')
         credentials = {
             'auth_url': self.settings.backend_url,
             'username': self.settings.username,
             'password': self.settings.password,
             'user_domain_name': domain_name,
+            'verify_ssl': verify_ssl,
         }
         if self.tenant_id:
             credentials['project_id'] = self.tenant_id
@@ -221,7 +223,7 @@ class BaseOpenStackBackend(ServiceBackend):
             # Cache miss is signified by a return value of None
             if session is not None:
                 try:
-                    client = OpenStackClient(session=session)
+                    client = OpenStackClient(session=session, verify_ssl=verify_ssl)
                 except (OpenStackSessionExpired, OpenStackAuthorizationFailed):
                     client = None
 
