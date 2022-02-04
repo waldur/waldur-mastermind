@@ -10,7 +10,6 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
-from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
@@ -1414,11 +1413,10 @@ class OfferingPermission(core_models.UuidMixin, structure_models.BasePermission)
         self.offering.remove_user(self.user)
 
 
-class OfferingUser(models.Model):
+class OfferingUser(TimeStampedModel):
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
-    created = AutoCreatedField()
 
     class Meta:
         unique_together = ('offering', 'user')

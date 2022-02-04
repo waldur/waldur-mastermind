@@ -2544,6 +2544,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
             'user_uuid',
             'user_username',
             'created',
+            'modified',
         )
         extra_kwargs = dict(
             offering={
