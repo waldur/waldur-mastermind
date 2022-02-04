@@ -106,12 +106,17 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
         'resource_name': resource.name,
         'support_email': settings.WALDUR_CORE['SITE_EMAIL'],
         'support_phone': settings.WALDUR_CORE['SITE_PHONE'],
-        'order_item_user': order_item.order.created_by.get_full_name(),
     }
 
     if resource.state != models.Resource.States.OK:
         resource.set_state_ok()
         resource.save(update_fields=['state'])
+
+    if order_item:
+        email_context.update(
+            {'order_item_user': order_item.order.created_by.get_full_name(),}
+        )
+
     if order_item and order_item.plan:
         if resource.plan != order_item.plan:
             email_context.update(
