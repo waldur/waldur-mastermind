@@ -514,7 +514,7 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
         return queryset
 
 
-class OfferingUserFilter(OfferingFilterMixin, django_filters.FilterSet):
+class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
     o = django_filters.OrderingFilter(fields=('created',))
 
