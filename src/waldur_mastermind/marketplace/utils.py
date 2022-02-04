@@ -685,7 +685,7 @@ def schedule_resources_termination(resources):
         if response.status_code != status.HTTP_200_OK:
             logger.error(
                 'Terminating resource %s has failed. %s'
-                % (resource.uuid.hex, response.data)
+                % (resource.uuid.hex, response.rendered_content)
             )
 
 
