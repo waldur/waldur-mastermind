@@ -43,6 +43,7 @@ VALID_ROUTER_INTERFACE_OWNERS = (
 class OpenStackBackend(BaseOpenStackBackend):
     DEFAULTS = {
         'tenant_name': 'admin',
+        'verify_ssl': False,
     }
 
     def validate_settings(self):

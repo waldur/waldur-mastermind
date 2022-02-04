@@ -194,6 +194,7 @@ class InternalIPSynchronizer:
 class OpenStackTenantBackend(BaseOpenStackBackend):
     DEFAULTS = {
         'console_type': 'novnc',
+        'verify_ssl': False,
     }
 
     def __init__(self, settings):
