@@ -1,9 +1,15 @@
-from rest_framework import exceptions, response, status, views
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import exceptions
+from rest_framework import filters as rf_filters
+from rest_framework import response, status, views
 
+from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
+
+from . import filters, serializers
 
 
 class TotalCustomerCostView(views.APIView):
@@ -29,3 +35,27 @@ class TotalCustomerCostView(views.APIView):
         return response.Response(
             {'total': total, 'price': price}, status=status.HTTP_200_OK
         )
+
+
+class FinancialReportView(core_views.ReadOnlyActionsViewSet):
+    queryset = structure_models.Customer.objects.all()
+    serializer_class = serializers.FinancialReportSerializer
+    lookup_field = 'uuid'
+    filter_backends = (
+        filters.CustomerCurrentCostFilter,
+        filters.CustomerEstimatedCostFilter,
+        structure_filters.CustomerAccountingStartDateFilter,
+        structure_filters.GenericRoleFilter,
+        rf_filters.OrderingFilter,
+        DjangoFilterBackend,
+    )
+    filterset_class = structure_filters.CustomerFilter
+    ordering_fields = (
+        'abbreviation',
+        'accounting_start_date',
+        'agreement_number',
+        'created',
+        'name',
+        'native_name',
+        'registration_code',
+    )

@@ -9,13 +9,8 @@ class BillingConfig(AppConfig):
     def ready(self):
         from waldur_core.core import signals as core_signals
         from waldur_core.structure import serializers as structure_serializers
-        from waldur_core.structure import filters as structure_filters
         from waldur_mastermind.invoices import models as invoices_models
         from waldur_mastermind.billing.serializers import add_price_estimate
-        from waldur_mastermind.billing.filters import (
-            CustomerEstimatedCostFilter,
-            CustomerCurrentCostFilter,
-        )
 
         from . import handlers, models
 
@@ -50,17 +45,4 @@ class BillingConfig(AppConfig):
 
         core_signals.pre_serializer_fields.connect(
             sender=structure_serializers.ProjectSerializer, receiver=add_price_estimate,
-        )
-
-        core_signals.pre_serializer_fields.connect(
-            sender=structure_serializers.CustomerSerializer,
-            receiver=add_price_estimate,
-        )
-
-        structure_filters.ExternalCustomerFilterBackend.register(
-            CustomerEstimatedCostFilter()
-        )
-
-        structure_filters.ExternalCustomerFilterBackend.register(
-            CustomerCurrentCostFilter()
         )

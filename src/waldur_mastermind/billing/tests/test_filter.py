@@ -25,7 +25,7 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
 
     def execute_request(self, ordering_param=None):
         fixture = structure_fixtures.CustomerFixture()
-        url = structure_factories.CustomerFactory.get_list_url()
+        url = '/api/financial-reports/'
 
         self.client.force_login(fixture.staff)
         params = {}
@@ -71,7 +71,7 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
 
     def execute_request(self, ordering_param=None):
         fixture = structure_fixtures.CustomerFixture()
-        url = structure_factories.CustomerFactory.get_list_url()
+        url = '/api/financial-reports/'
 
         self.client.force_login(fixture.staff)
         params = {}

@@ -155,21 +155,12 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return queryset
 
 
-class IsStaffOrSupportUser(permissions.BasePermission):
-    """
-    Allows access only to staff or global support users.
-    """
-
-    def has_permission(self, request, view):
-        return request.user.is_staff or request.user.is_support
-
-
 class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.SupportUser.objects.all()
     lookup_field = 'uuid'
     permission_classes = (
         permissions.IsAuthenticated,
-        IsStaffOrSupportUser,
+        structure_permissions.IsStaffOrSupportUser,
     )
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)

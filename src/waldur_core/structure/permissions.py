@@ -2,12 +2,21 @@ import logging
 from functools import reduce
 
 from django.conf import settings as django_settings
-from rest_framework import exceptions
+from rest_framework import exceptions, permissions
 
 from waldur_core.core.permissions import SAFE_METHODS, IsAdminOrReadOnly
 from waldur_core.structure import models
 
 logger = logging.getLogger(__name__)
+
+
+class IsStaffOrSupportUser(permissions.BasePermission):
+    """
+    Allows access only to staff or global support users.
+    """
+
+    def has_permission(self, request, view):
+        return request.user.is_staff or request.user.is_support
 
 
 # TODO: this is a temporary permission filter.
