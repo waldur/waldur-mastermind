@@ -1,1 +1,1 @@
-Structure role {{ permission.role }}  for {{ structure }} has been granted.
+Role {{ permission.role }}  for {{ structure }} has been granted.

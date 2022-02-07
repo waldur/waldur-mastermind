@@ -1,1 +1,1 @@
-Structure role granted.
+Role granted.
