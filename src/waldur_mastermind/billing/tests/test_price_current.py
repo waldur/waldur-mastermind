@@ -1,7 +1,7 @@
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.billing.tests.utils import get_financial_report_url
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
@@ -29,7 +29,7 @@ class PriceCurrentTest(test.APITransactionTestCase):
 
     def test_current_price(self):
         self.client.force_authenticate(self.fixture.staff)
-        url = structure_factories.CustomerFactory.get_url(self.fixture.project.customer)
+        url = get_financial_report_url(self.fixture.project.customer)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         data = response.json()

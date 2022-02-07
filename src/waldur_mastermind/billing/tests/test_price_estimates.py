@@ -10,6 +10,10 @@ from waldur_mastermind.billing import models
 from waldur_mastermind.invoices.tests import factories as invoice_factories
 
 
+def get_financial_report_url(customer):
+    return f'/api/financial-reports/{customer.uuid.hex}/'
+
+
 class PriceEstimateSignalsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -67,15 +71,13 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
             total=100
         )
 
-        response = self.client.get(
-            structure_factories.CustomerFactory.get_url(self.fixture.customer)
-        )
+        response = self.client.get(get_financial_report_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         estimate = response.data['billing_price_estimate']
         self.assertEqual(estimate['total'], 100)
 
         response = self.client.get(
-            structure_factories.CustomerFactory.get_url(self.fixture.customer),
+            get_financial_report_url(self.fixture.customer),
             {'year': 2017, 'month': 10},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -89,9 +91,7 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
         )
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        response = self.client.get(
-            structure_factories.CustomerFactory.get_url(self.fixture.customer)
-        )
+        response = self.client.get(get_financial_report_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         estimate = response.data['billing_price_estimate']

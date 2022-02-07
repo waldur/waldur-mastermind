@@ -1,5 +1,8 @@
 from rest_framework import serializers
 
+from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices.serializers import get_payment_profiles
+
 from ..invoices import utils
 from . import models
 
@@ -84,3 +87,27 @@ def get_price_estimate(serializer, scope):
 def add_price_estimate(sender, fields, **kwargs):
     fields['billing_price_estimate'] = serializers.SerializerMethodField()
     setattr(sender, 'get_billing_price_estimate', get_price_estimate)
+
+
+class FinancialReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = structure_models.Customer
+        fields = (
+            'name',
+            'abbreviation',
+            'created',
+            'accounting_start_date',
+            'registration_code',
+            'agreement_number',
+            'payment_profiles',
+            'billing_price_estimate',
+        )
+
+    payment_profiles = serializers.SerializerMethodField()
+    billing_price_estimate = serializers.SerializerMethodField()
+
+    def get_billing_price_estimate(self, customer):
+        return get_price_estimate(self, customer)
+
+    def get_payment_profiles(self, customer):
+        return get_payment_profiles(self, customer)
