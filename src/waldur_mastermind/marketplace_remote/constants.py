@@ -27,3 +27,5 @@ PLAN_FIELDS = (
     'article_code',
     'archived',
 )
+
+RESOURCE_FIELDS = ('report', 'attributes')
