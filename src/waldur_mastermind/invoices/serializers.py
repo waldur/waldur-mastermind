@@ -28,6 +28,12 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     project_uuid = serializers.ReadOnlyField(source='get_project_uuid')
     project_name = serializers.ReadOnlyField(source='get_project_name')
     details = serializers.JSONField()
+    billing_type = serializers.SerializerMethodField()
+
+    def get_billing_type(self, item):
+        plan_component = item.get_plan_component()
+        if plan_component:
+            return plan_component.component.billing_type
 
     class Meta:
         model = models.InvoiceItem
@@ -52,6 +58,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'resource',
             'resource_uuid',
             'resource_name',
+            'billing_type',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'invoice-item-detail'},
@@ -98,58 +105,65 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
 class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.InvoiceItem
-        fields = ('article_code', 'quantity')
+        fields = ('article_code', 'quantity', 'start', 'end')
         extra_kwargs = {'quantity': {'required': False}}
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.instance:
+            plan_component = self.instance.get_plan_component()
+            if plan_component:
+                if (
+                    plan_component.component.billing_type
+                    == marketplace_models.OfferingComponent.BillingTypes.FIXED
+                ):
+                    del fields['quantity']
+                else:
+                    del fields['start']
+                    del fields['end']
+        return fields
 
     def update(self, instance, validated_data):
         """
         Update related ComponentUsage when quantity is being updated.
         """
-        quantity = validated_data.get('quantity')
-        if quantity is None:
-            return super().update(instance, validated_data)
-
         invoice_item = instance
-        resource = invoice_item.resource
-        if not resource:
-            raise ValidationError(
-                _('Marketplace resource is not defined in invoice item.')
-            )
+        plan_component = invoice_item.get_plan_component()
+        if plan_component:
+            offering_component = plan_component.component
+            if (
+                offering_component.billing_type
+                == marketplace_models.OfferingComponent.BillingTypes.USAGE
+            ):
+                resource = invoice_item.resource
+                if not resource:
+                    raise ValidationError(
+                        _('Marketplace resource is not defined in invoice item.')
+                    )
+                component_usage = (
+                    marketplace_models.ComponentUsage.objects.filter(
+                        resource=resource,
+                        component=offering_component,
+                        billing_period__year=invoice_item.invoice.year,
+                        billing_period__month=invoice_item.invoice.month,
+                    )
+                    .order_by('date')
+                    .last()
+                )
+                if not component_usage:
+                    raise ValidationError(_('Component usage is not found.'))
+                quantity = validated_data.get('quantity')
+                component_usage.usage = quantity
+                component_usage.save(update_fields=['usage'])
+            elif (
+                offering_component.billing_type
+                == marketplace_models.OfferingComponent.BillingTypes.FIXED
+            ):
+                invoice_item = super().update(invoice_item, validated_data)
+                invoice_item._update_quantity()
+                return invoice_item
 
-        plan_component_id = invoice_item.details.get('plan_component_id')
-        if not plan_component_id:
-            raise ValidationError(
-                _('Plan component is not defined in invoice item details.')
-            )
-        try:
-            plan_component = marketplace_models.PlanComponent.objects.get(
-                id=plan_component_id
-            )
-        except marketplace_models.PlanComponent.DoesNotExist:
-            raise ValidationError(_('Related plan component is not found.'))
-        offering_component = plan_component.component
-        if (
-            offering_component.billing_type
-            != marketplace_models.OfferingComponent.BillingTypes.USAGE
-        ):
-            raise ValidationError(_('Offering component is not usage-based.'))
-
-        component_usage = (
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=resource,
-                component=offering_component,
-                billing_period__year=invoice_item.invoice.year,
-                billing_period__month=invoice_item.invoice.month,
-            )
-            .order_by('date')
-            .last()
-        )
-        if not component_usage:
-            raise ValidationError(_('Component usage is not found.'))
-        component_usage.usage = quantity
-        component_usage.save(update_fields=['usage'])
-
-        return super().update(instance, validated_data)
+        return super().update(invoice_item, validated_data)
 
 
 class InvoiceItemCompensationSerializer(serializers.Serializer):

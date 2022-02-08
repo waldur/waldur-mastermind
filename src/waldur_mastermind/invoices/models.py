@@ -340,6 +340,15 @@ class InvoiceItem(
     def price_current(self):
         return self._price(current=True)
 
+    def get_plan_component(self):
+        plan_component_id = self.details.get('plan_component_id')
+        if not plan_component_id:
+            return
+        try:
+            return marketplace_models.PlanComponent.objects.get(id=plan_component_id)
+        except marketplace_models.PlanComponent.DoesNotExist:
+            return
+
     def update_quantity(self):
         """
         For fixed-price component quantity is updated when item is terminated.
@@ -347,14 +356,8 @@ class InvoiceItem(
         For limit-based component quantity is updated when limit is updated for total limit component
         or item is terminated for month or annual limit component.
         """
-        plan_component_id = self.details.get('plan_component_id')
-        if not plan_component_id:
-            return
-        try:
-            plan_component = marketplace_models.PlanComponent.objects.get(
-                id=plan_component_id
-            )
-        except marketplace_models.PlanComponent.DoesNotExist:
+        plan_component = self.get_plan_component()
+        if not plan_component:
             return
         if (
             plan_component.component.billing_type
@@ -366,10 +369,13 @@ class InvoiceItem(
                 != marketplace_models.OfferingComponent.LimitPeriods.TOTAL
             )
         ):
-            new_quantity = get_quantity(self.unit, self.start, self.end)
-            if new_quantity != self.quantity:
-                self.quantity = new_quantity
-            self.save(update_fields=['quantity'])
+            self._update_quantity()
+
+    def _update_quantity(self):
+        new_quantity = get_quantity(self.unit, self.start, self.end)
+        if new_quantity != self.quantity:
+            self.quantity = new_quantity
+        self.save(update_fields=['quantity'])
 
     def terminate(self, end=None):
         self.end = end or timezone.now()
