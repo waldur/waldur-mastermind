@@ -5,6 +5,7 @@ import ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -105,6 +106,40 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         item.refresh_from_db()
         self.assertEqual(component_usage.usage, 200)
         self.assertEqual(item.quantity, 200)
+
+    def test_when_start_and_end_are_updated_quantity_is_updated_too(self):
+        # Arrange
+        item = self.fixture.invoice_item
+        resource = marketplace_factories.ResourceFactory()
+        offering = resource.offering
+        item.resource = resource
+        offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
+        )
+        plan = marketplace_factories.PlanFactory(
+            offering=offering, unit=marketplace_models.Plan.Units.PER_DAY
+        )
+        plan_component = marketplace_factories.PlanComponentFactory(
+            plan=plan, component=offering_component
+        )
+        item.details['plan_component_id'] = plan_component.id
+        item.start = parse_date('2022-02-01')
+        item.end = parse_date('2022-02-28')
+        item.quantity = 28
+        item.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
+            {'start': '2022-02-01T00:00:00', 'end': '2022-02-07T00:00:00'},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 6)
 
 
 class InvoiceItemCompensationTest(test.APITransactionTestCase):
