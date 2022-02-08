@@ -94,6 +94,7 @@ class FinancialReportSerializer(serializers.ModelSerializer):
         model = structure_models.Customer
         fields = (
             'name',
+            'uuid',
             'abbreviation',
             'created',
             'accounting_start_date',
