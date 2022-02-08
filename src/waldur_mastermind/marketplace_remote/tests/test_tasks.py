@@ -442,6 +442,7 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
             'report': '',
             'backend_id': 'effective_id',
             'state': 'OK',
+            'attributes': {'sample_attr': 1},
         }
 
         # Act
@@ -450,3 +451,4 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         # Assert
         self.fixture.resource.refresh_from_db()
         self.assertEqual(self.fixture.resource.effective_id, 'effective_id')
+        self.assertEqual(self.fixture.resource.attributes, {'sample_attr': 1})

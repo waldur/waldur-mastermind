@@ -24,6 +24,7 @@ from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
     PLAN_FIELDS,
+    RESOURCE_FIELDS,
 )
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
@@ -275,7 +276,7 @@ class ResourcePullTask(BackgroundPullTask):
         client = get_client_for_offering(local_resource.offering)
         remote_resource = client.get_marketplace_resource(local_resource.backend_id)
         pull_fields(
-            ['report',], local_resource, remote_resource,
+            RESOURCE_FIELDS, local_resource, remote_resource,
         )
         if local_resource.effective_id != remote_resource['backend_id']:
             local_resource.effective_id = remote_resource['backend_id']
