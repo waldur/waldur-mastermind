@@ -195,8 +195,8 @@ class ExcludedFieldsAdminMixin(admin.ModelAdmin):
         return self.filter_excluded_fields(fields)
 
     def get_fieldsets(self, request, obj=None):
-        fieldsets = super(ExcludedFieldsAdminMixin, self).get_fieldsets(request, obj)
-        return map(self.exclude_fields_from_fieldset, fieldsets)
+        fieldsets = super().get_fieldsets(request, obj)
+        return list(map(self.exclude_fields_from_fieldset, fieldsets))
 
 
 class NativeNameAdminMixin(ExcludedFieldsAdminMixin):
