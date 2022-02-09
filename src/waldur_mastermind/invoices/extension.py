@@ -64,8 +64,8 @@ class InvoicesExtension(WaldurExtension):
                 'schedule': crontab(minute=0, hour=0, day_of_month='2'),
                 'args': (),
             },
-            'update-invoices-current-cost': {
-                'task': 'invoices.update_invoices_current_cost',
+            'update-invoices-total-cost': {
+                'task': 'invoices.update_invoices_total_cost',
                 'schedule': timedelta(hours=24),
                 'args': (),
             },

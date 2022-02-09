@@ -166,13 +166,13 @@ def format_invoice_csv(invoices):
     return stream.getvalue()
 
 
-@shared_task(name='invoices.update_invoices_current_cost')
-def update_invoices_current_cost():
+@shared_task(name='invoices.update_invoices_total_cost')
+def update_invoices_total_cost():
     year = utils.get_current_year()
     month = utils.get_current_month()
 
     for invoice in models.Invoice.objects.filter(year=year, month=month):
-        invoice.update_current_cost()
+        invoice.update_total_cost()
 
 
 @shared_task

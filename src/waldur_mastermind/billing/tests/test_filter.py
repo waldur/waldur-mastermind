@@ -52,7 +52,7 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
         self.assertEqual([200, 100, 300, 0], actual)
 
 
-class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
+class CustomerTotalCostFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.prices = [200, 100, 300, 0]
         customers = structure_factories.CustomerFactory.create_batch(len(self.prices))
@@ -85,11 +85,11 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
         ]
 
     def test_ascending_ordering(self):
-        actual = self.execute_request('current_cost')
+        actual = self.execute_request('total_cost')
         self.assertEqual([0, 100, 200, 300], actual)
 
     def test_descending_ordering(self):
-        actual = self.execute_request('-current_cost')
+        actual = self.execute_request('-total_cost')
         self.assertEqual([300, 200, 100, 0], actual)
 
     @unittest.skip('Not stable in GitLab CI')

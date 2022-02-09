@@ -30,9 +30,9 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
         )
 
 
-class UpdateInvoiceCurrentCostTest(TransactionTestCase):
+class UpdateInvoiceTotalCostTest(TransactionTestCase):
     def setUp(self):
-        super(UpdateInvoiceCurrentCostTest, self).setUp()
+        super(UpdateInvoiceTotalCostTest, self).setUp()
         self.project = structure_factories.ProjectFactory()
         self.invoice = factories.InvoiceFactory(customer=self.project.customer)
 
@@ -45,31 +45,31 @@ class UpdateInvoiceCurrentCostTest(TransactionTestCase):
             unit=models.InvoiceItem.Units.QUANTITY,
         )
 
-    def test_when_invoice_item_is_created_current_cost_is_updated(self):
+    def test_when_invoice_item_is_created_total_cost_is_updated(self):
         self.create_invoice_item()
         self.invoice.refresh_from_db()
-        self.assertEqual(100, self.invoice.current_cost)
+        self.assertEqual(100, self.invoice.total_cost)
 
     def test_default_tax_percent_is_used_on_invoice_creation(self):
         customer = structure_factories.CustomerFactory(default_tax_percent=20)
         invoice = factories.InvoiceFactory(customer=customer)
         self.assertEqual(invoice.tax_percent, customer.default_tax_percent)
 
-    def test_when_invoice_item_is_updated_current_cost_is_updated(self):
+    def test_when_invoice_item_is_updated_total_cost_is_updated(self):
         invoice_item = self.create_invoice_item()
 
         invoice_item.quantity = 2
         invoice_item.save()
 
         self.invoice.refresh_from_db()
-        self.assertEqual(200, self.invoice.current_cost)
+        self.assertEqual(200, self.invoice.total_cost)
 
-    def test_when_invoice_item_is_deleted_current_cost_is_updated(self):
+    def test_when_invoice_item_is_deleted_total_cost_is_updated(self):
         invoice_item = self.create_invoice_item()
         invoice_item.delete()
 
         self.invoice.refresh_from_db()
-        self.assertEqual(0, self.invoice.current_cost)
+        self.assertEqual(0, self.invoice.total_cost)
 
 
 class MoveProjectInvoiceTest(TransactionTestCase):
