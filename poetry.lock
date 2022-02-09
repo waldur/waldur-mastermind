@@ -792,15 +792,15 @@ Django = ">=2.0.1"
 
 [[package]]
 name = "django-modeltranslation"
-version = "0.15.2"
+version = "0.17.5"
 description = "Translates Django models using a registration approach."
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=3.6.2"
 
 [package.dependencies]
-Django = ">=2.2"
-six = "*"
+django = ">=2.2"
+six = ">=1.15.0,<2.0.0"
 
 [[package]]
 name = "django-redis-cache"
@@ -2692,7 +2692,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "71afa27d08fea445c2cbaa0d41b5cbddbac4db3ac4828ec033853588847a6b87"
+content-hash = "d137c5189f64d3914c9f4ccc6407a5ee14ad0c4d44193de44bf33deac7ca7fbf"
 
 [metadata.files]
 adal = [
@@ -3040,7 +3040,7 @@ django-model-utils = [
     {file = "django_model_utils-4.2.0-py3-none-any.whl", hash = "sha256:a768a25c80514e0ad4e4a6f9c02c44498985f36c5dfdea47b5b1e8cf994beba6"},
 ]
 django-modeltranslation = [
-    {file = "django-modeltranslation-0.15.2.tar.gz", hash = "sha256:48e6c88fe8d1e4029bd38012055593e6d87f245f7a1840796e662d8a94ab8d67"},
+    {file = "django-modeltranslation-0.17.5.tar.gz", hash = "sha256:d9b3278dc3a799261861e090c27a3e1c46b3471e979e07b01cdd4ea2696a9f41"},
 ]
 django-redis-cache = [
     {file = "django-redis-cache-3.0.0.tar.gz", hash = "sha256:9a2eebef421d996a82098a19d17ff6b321265cd73178fa398913019764e8394a"},
