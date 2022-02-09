@@ -42,7 +42,7 @@ class FinancialReportView(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.FinancialReportSerializer
     lookup_field = 'uuid'
     filter_backends = (
-        filters.CustomerCurrentCostFilter,
+        filters.CustomerTotalCostFilter,
         filters.CustomerEstimatedCostFilter,
         structure_filters.CustomerAccountingStartDateFilter,
         structure_filters.GenericRoleFilter,

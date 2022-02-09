@@ -27,11 +27,11 @@ class CustomerEstimatedCostFilter(BaseFilterBackend):
         return order_with_nulls(queryset, order_by)
 
 
-class CustomerCurrentCostFilter(BaseFilterBackend):
+class CustomerTotalCostFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
 
         order_by = get_ordering(request)
-        if order_by not in ('current_cost', '-current_cost'):
+        if order_by not in ('total_cost', '-total_cost'):
             return queryset
 
         year, month = invoice_utils.parse_period(request.query_params)
@@ -39,6 +39,6 @@ class CustomerCurrentCostFilter(BaseFilterBackend):
             year=year, month=month, customer=OuterRef('pk')
         )
         queryset = queryset.annotate(
-            current_cost=Subquery(invoices.values('current_cost')[:1])
+            total_cost=Subquery(invoices.values('total_cost')[:1])
         )
         return order_with_nulls(queryset, order_by)

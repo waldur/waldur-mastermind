@@ -38,15 +38,15 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_current_cost_when_invoice_item_is_updated,
+            handlers.update_total_cost_when_invoice_item_is_updated,
             sender=models.InvoiceItem,
-            dispatch_uid='waldur_mastermind.invoices.update_current_cost_when_invoice_item_is_updated_%s',
+            dispatch_uid='waldur_mastermind.invoices.update_total_cost_when_invoice_item_is_updated_%s',
         )
 
         signals.post_delete.connect(
-            handlers.update_current_cost_when_invoice_item_is_deleted,
+            handlers.update_total_cost_when_invoice_item_is_deleted,
             sender=models.InvoiceItem,
-            dispatch_uid='waldur_mastermind.invoices.update_current_cost_when_invoice_item_is_deleted',
+            dispatch_uid='waldur_mastermind.invoices.update_total_cost_when_invoice_item_is_deleted',
         )
 
         signals.post_save.connect(

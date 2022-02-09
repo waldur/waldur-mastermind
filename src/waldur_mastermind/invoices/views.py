@@ -185,7 +185,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 customer__in=customers, created__gte=current_month
             )
             .values('customer_id')
-            .annotate(total=Sum('current_cost'))
+            .annotate(total=Sum('total_cost'))
             .order_by('-total')
             .values_list('customer_id', flat=True)[:customers_count]
         )
