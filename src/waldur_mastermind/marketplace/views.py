@@ -1517,7 +1517,7 @@ class OfferingUsersViewSet(
                 user__projectpermission__project__customer__in=customer_ids,
                 user__projectpermission__is_active=True,
             )
-        )
+        ).distinct()
         return queryset
 
 
