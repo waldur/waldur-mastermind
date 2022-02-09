@@ -84,6 +84,7 @@ class EventTypesMixin(models.Model):
 class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
     class Meta:
         abstract = True
+        ordering = ['-created']
 
     user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL)
     is_active = models.BooleanField(default=True)

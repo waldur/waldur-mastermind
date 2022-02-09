@@ -190,8 +190,10 @@ class CategorySerializer(
                 state=models.Offering.States.ACTIVE
             )
 
-        offerings = offerings.filter(category=OuterRef('pk')).filter_for_user(
-            request.user
+        offerings = (
+            offerings.filter(category=OuterRef('pk'))
+            .filter_for_user(request.user)
+            .order_by()
         )
 
         allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')

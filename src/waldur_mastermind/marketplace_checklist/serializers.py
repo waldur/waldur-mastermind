@@ -79,7 +79,7 @@ class AnswerListSerializer(serializers.ModelSerializer):
 
 class AnswerSubmitSerializer(serializers.Serializer):
     question_uuid = serializers.UUIDField()
-    value = serializers.NullBooleanField()
+    value = serializers.BooleanField(allow_null=True)
 
 
 class CustomerChecklistUpdateSerializer(serializers.ListSerializer):

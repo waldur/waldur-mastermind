@@ -212,7 +212,7 @@ class Migration(migrations.Migration):
                 ('updated', models.DateTimeField(auto_now_add=True)),
                 ('updated_username', models.CharField(blank=True, max_length=255)),
             ],
-            options={'abstract': False,},
+            options={'abstract': False, 'ordering': ['-created']},
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(

@@ -424,6 +424,7 @@ class Offering(
 
     class Meta:
         verbose_name = _('Offering')
+        ordering = ['name']
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         order_item_count = quotas_fields.CounterQuotaField(
@@ -1043,6 +1044,9 @@ class Resource(
         customer_path = 'project__customer'
         project_path = 'project'
 
+    class Meta:
+        ordering = ['created']
+
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     backend_metadata = models.JSONField(blank=True, default=dict)
@@ -1420,6 +1424,7 @@ class OfferingUser(TimeStampedModel):
 
     class Meta:
         unique_together = ('offering', 'user')
+        ordering = ['username']
 
     def get_log_fields(self):
         return ('offering', 'user', 'username')

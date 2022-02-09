@@ -307,6 +307,7 @@ class User(
     class Meta:
         verbose_name = _('user')
         verbose_name_plural = _('users')
+        ordering = ['username']
 
     def save(self, *args, **kwargs):
         self.query_field = normalize_unicode(self.full_name)
@@ -409,6 +410,7 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
         unique_together = ('user', 'name')
         verbose_name = _('SSH public key')
         verbose_name_plural = _('SSH public keys')
+        ordering = ['name']
 
     def save(
         self, force_insert=False, force_update=False, using=None, update_fields=None

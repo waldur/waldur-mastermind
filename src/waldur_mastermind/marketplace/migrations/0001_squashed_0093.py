@@ -618,7 +618,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'verbose_name': 'Offering',},
+            options={'verbose_name': 'Offering', 'ordering': ['name']},
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
@@ -1214,7 +1214,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={'abstract': False, 'ordering': ['created']},
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(

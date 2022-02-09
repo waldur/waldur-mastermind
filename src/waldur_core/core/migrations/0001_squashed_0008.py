@@ -207,7 +207,11 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'verbose_name': 'user', 'verbose_name_plural': 'users',},
+            options={
+                'verbose_name': 'user',
+                'verbose_name_plural': 'users',
+                'ordering': ['username'],
+            },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
             managers=[('objects', django.contrib.auth.models.UserManager()),],
         ),
@@ -247,6 +251,7 @@ class Migration(migrations.Migration):
             options={
                 'verbose_name': 'SSH public key',
                 'verbose_name_plural': 'SSH public keys',
+                'ordering': ['name'],
             },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
