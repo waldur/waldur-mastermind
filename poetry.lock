@@ -951,15 +951,14 @@ testing = ["covdefaults (>=1.2.0)", "coverage (>=4)", "pytest (>=4)", "pytest-co
 
 [[package]]
 name = "freezegun"
-version = "0.3.7"
+version = "1.1.0"
 description = "Let your Python tests travel through time"
 category = "dev"
 optional = false
-python-versions = "*"
+python-versions = ">=3.5"
 
 [package.dependencies]
-python-dateutil = ">=1.0,<2.0 || >2.0"
-six = "*"
+python-dateutil = ">=2.7"
 
 [[package]]
 name = "future"
@@ -2693,7 +2692,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "c53c0993bf10301acec7cb7b357f9cb422d6495ee0e86cbdd53695ee6c33f683"
+content-hash = "71afa27d08fea445c2cbaa0d41b5cbddbac4db3ac4828ec033853588847a6b87"
 
 [metadata.files]
 adal = [
@@ -3086,7 +3085,8 @@ filelock = [
     {file = "filelock-3.4.2.tar.gz", hash = "sha256:38b4f4c989f9d06d44524df1b24bd19e167d851f19b50bf3e3559952dddc5b80"},
 ]
 freezegun = [
-    {file = "freezegun-0.3.7.tar.gz", hash = "sha256:1ca8e4833f50ab908398d92900865832d3d409f7ae2ede32c153966d404f8192"},
+    {file = "freezegun-1.1.0-py2.py3-none-any.whl", hash = "sha256:2ae695f7eb96c62529f03a038461afe3c692db3465e215355e1bb4b0ab408712"},
+    {file = "freezegun-1.1.0.tar.gz", hash = "sha256:177f9dd59861d871e27a484c3332f35a6e3f5d14626f2bf91be37891f18927f3"},
 ]
 future = [
     {file = "future-0.18.2.tar.gz", hash = "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"},
