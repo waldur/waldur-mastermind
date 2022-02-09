@@ -607,6 +607,7 @@ class ProjectRole(models.CharField):
 class ProjectPermission(core_models.UuidMixin, BasePermission):
     class Meta:
         unique_together = ('project', 'role', 'user', 'is_active')
+        ordering = ['-created']
 
     class Permissions:
         customer_path = 'project__customer'

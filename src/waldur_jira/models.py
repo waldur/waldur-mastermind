@@ -55,6 +55,9 @@ class Project(structure_models.BaseResource, core_models.RuntimeStateMixin):
     def priorities(self):
         return Priority.objects.filter(settings=self.service_settings)
 
+    class Meta:
+        ordering = ['-created']
+
 
 class JiraPropertyIssue(
     core_models.UuidMixin, core_models.StateMixin, TimeStampedModel
@@ -156,6 +159,7 @@ class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
 
     class Meta:
         unique_together = ('project', 'backend_id')
+        ordering = ['-created']
 
     def get_backend(self):
         return self.project.get_backend()

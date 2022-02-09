@@ -90,6 +90,9 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
     )
     tracker = FieldTracker()
 
+    class Meta:
+        ordering = ['-created']
+
     @transaction.atomic
     def submit(self):
         super(FlowTracker, self).submit()
@@ -166,6 +169,9 @@ class OfferingStateRequest(CoreReviewMixin, UuidMixin):
         blank=True,
         related_name='+',
     )
+
+    class Meta:
+        ordering = ['-created']
 
     @transaction.atomic
     def approve(self, user=None, comment=None):

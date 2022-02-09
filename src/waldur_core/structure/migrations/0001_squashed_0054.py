@@ -359,6 +359,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
+            options={'ordering': ['-created']},
         ),
         migrations.CreateModel(
             name='ProjectType',

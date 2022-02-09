@@ -128,7 +128,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={'abstract': False, 'ordering': ['-created']},
         ),
         migrations.CreateModel(
             name='PushHook',
@@ -295,7 +295,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={'abstract': False, 'ordering': ['-created']},
         ),
         migrations.AlterUniqueTogether(
             name='pushhook', unique_together=set([('user', 'device_id', 'type')]),

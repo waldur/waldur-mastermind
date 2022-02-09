@@ -696,6 +696,7 @@ class PlanUsageReporter:
             models.Resource.objects.filter(plan_id=OuterRef('pk'))
             .exclude(state=models.Resource.States.TERMINATED)
             .annotate(count=Count('*'))
+            .order_by()
             .values_list('count', flat=True)
         )
 

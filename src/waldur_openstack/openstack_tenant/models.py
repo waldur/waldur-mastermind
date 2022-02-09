@@ -30,6 +30,7 @@ class Flavor(LoggableMixin, structure_models.ServiceProperty):
 
     class Meta:
         unique_together = ('settings', 'backend_id')
+        ordering = ['name']
 
     @classmethod
     def get_url_name(cls):
@@ -44,6 +45,9 @@ class Image(openstack_base_models.BaseImage):
     @classmethod
     def get_url_name(cls):
         return 'openstacktenant-image'
+
+    class Meta(openstack_base_models.BaseImage.Meta):
+        ordering = ['name']
 
 
 class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProperty):

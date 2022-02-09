@@ -299,6 +299,7 @@ class Migration(migrations.Migration):
                 waldur_core.core.models.BackendModelMixin,
                 models.Model,
             ),
+            options={'ordering': ['name']},
         ),
         migrations.CreateModel(
             name='FloatingIP',
@@ -390,7 +391,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={'abstract': False, 'ordering': ['name']},
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(

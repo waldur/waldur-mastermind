@@ -57,7 +57,7 @@ def get_offering_bookings(offering):
     States = marketplace_models.Resource.States
     resources = marketplace_models.Resource.objects.filter(
         offering=offering, state__in=(States.OK, States.CREATING)
-    )
+    ).order_by('created')
     bookings = []
 
     for resource in resources:
