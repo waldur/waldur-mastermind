@@ -1,4 +1,4 @@
-import collections
+from collections.abc import Iterable
 
 from django.core import exceptions as django_exceptions
 from django.db.models import Q
@@ -64,7 +64,7 @@ class SchedulesOrderingFilter(OrderingFilter):
         ]
 
     def filter(self, qs, value):
-        if isinstance(value, collections.Iterable) and any(
+        if isinstance(value, Iterable) and any(
             v in ['schedules', '-schedules'] for v in value
         ):
             # This code works if the first record is the earliest booking.
