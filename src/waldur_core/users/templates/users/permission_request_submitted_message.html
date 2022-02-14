@@ -1,0 +1,17 @@
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title>Permission request has been submitted.</title>
+</head>
+<body>
+<p>
+  Hello!
+</p>
+<p>
+  User {{ permission_request.created_by }} created permission request for {{ permission_request.invitation }}.
+</p>
+<p>
+  Please visit the <a href="{{ requests_link }}">link</a> to approve or reject permission request.
+</p>
+</body>
+</html>

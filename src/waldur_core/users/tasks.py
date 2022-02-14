@@ -134,3 +134,25 @@ def cancel_expired_group_invitations():
         is_active=True, created__lte=expiration_date,
     )
     invitations.update(is_active=False)
+
+
+@shared_task(
+    name='waldur_core.users.send_mail_notification_about_permission_request_has_been_submitted'
+)
+def send_mail_notification_about_permission_request_has_been_submitted(
+    permission_request_id,
+):
+    permission_request = models.PermissionRequest.objects.get(id=permission_request_id)
+    requests_link = format_homeport_link('profile/permission-requests/')
+    users = utils.get_users_for_notification_about_request_has_been_submitted(
+        permission_request
+    )
+    emails = [u.email for u in users if u.email] if users else []
+
+    if emails:
+        broadcast_mail(
+            'users',
+            'permission_request_submitted',
+            {'permission_request': permission_request, 'requests_link': requests_link},
+            emails,
+        )
