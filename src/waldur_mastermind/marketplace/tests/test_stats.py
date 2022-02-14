@@ -442,41 +442,51 @@ class LimitsStatsTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data,
-            [
-                {
-                    'offering_uuid': self.resource_1.offering.uuid,
-                    'name': 'cpu',
-                    'value': 7,
-                    'offering_country': 'EE',
-                    'division_name': self.division_1.name,
-                    'division_uuid': self.division_1.uuid.hex,
-                },
-                {
-                    'offering_uuid': self.resource_1.offering.uuid,
-                    'name': 'cpu',
-                    'value': 7,
-                    'offering_country': 'EE',
-                    'division_name': self.division_2.name,
-                    'division_uuid': self.division_2.uuid.hex,
-                },
-                {
-                    'offering_uuid': self.resource_2.offering.uuid,
-                    'name': 'cpu',
-                    'value': 10,
-                    'offering_country': 'FI',
-                    'division_name': '',
-                    'division_uuid': '',
-                },
-                {
-                    'offering_uuid': self.resource_2.offering.uuid,
-                    'name': 'ram',
-                    'value': 1,
-                    'offering_country': 'FI',
-                    'division_name': '',
-                    'division_uuid': '',
-                },
-            ],
+            len(response.data), 4,
+        )
+        self.assertTrue(
+            {
+                'offering_uuid': self.resource_1.offering.uuid,
+                'name': 'cpu',
+                'value': 7,
+                'offering_country': 'EE',
+                'division_name': self.division_1.name,
+                'division_uuid': self.division_1.uuid.hex,
+            }
+            in response.data,
+        )
+        self.assertTrue(
+            {
+                'offering_uuid': self.resource_1.offering.uuid,
+                'name': 'cpu',
+                'value': 7,
+                'offering_country': 'EE',
+                'division_name': self.division_2.name,
+                'division_uuid': self.division_2.uuid.hex,
+            }
+            in response.data,
+        )
+        self.assertTrue(
+            {
+                'offering_uuid': self.resource_2.offering.uuid,
+                'name': 'cpu',
+                'value': 10,
+                'offering_country': 'FI',
+                'division_name': '',
+                'division_uuid': '',
+            }
+            in response.data,
+        )
+        self.assertTrue(
+            {
+                'offering_uuid': self.resource_2.offering.uuid,
+                'name': 'ram',
+                'value': 1,
+                'offering_country': 'FI',
+                'division_name': '',
+                'division_uuid': '',
+            }
+            in response.data,
         )
 
     @data('owner', 'user', 'customer_support', 'admin', 'manager')

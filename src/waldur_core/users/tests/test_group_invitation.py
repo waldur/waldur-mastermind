@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+import mock
 from ddt import data, ddt
 from django.conf import settings
 from django.utils import timezone
@@ -432,6 +433,17 @@ class RequestCreateTest(BaseInvitationTest):
 
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch('waldur_core.users.handlers.tasks')
+    def test_notification_about_permission_request_has_been_submitted(self, mock_tasks):
+        self.client.force_authenticate(user=getattr(self, 'user'))
+        self.client.post(self.url)
+        permission_request = models.PermissionRequest.objects.get(
+            invitation=self.group_invitation
+        )
+        mock_tasks.send_mail_notification_about_permission_request_has_been_submitted.delay.assert_called_once_with(
+            permission_request.id
+        )
 
 
 @ddt

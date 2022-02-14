@@ -174,3 +174,21 @@ def can_manage_invitation_with(user, customer, customer_role=None, project_role=
         return is_owner and can_manage_owners
     if project_role:
         return is_owner
+
+
+def get_users_for_notification_about_request_has_been_submitted(permission_request):
+    can_manage_owners = settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
+    project_role = permission_request.invitation.project_role
+    owners = permission_request.invitation.customer.get_owners()
+    staff_users = (
+        core_models.User.objects.filter(is_staff=True, is_active=True)
+        .exclude(email='')
+        .exclude(notifications_enabled=False)
+    )
+
+    if project_role:
+        return owners
+    elif can_manage_owners:
+        return owners
+    else:
+        return staff_users
