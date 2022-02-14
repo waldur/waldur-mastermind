@@ -2,7 +2,9 @@ import datetime
 import hashlib
 import json
 import logging
+import os.path
 import re
+import tempfile
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2 import client as cinder_client
@@ -188,6 +190,13 @@ def get_cached_session_key(settings, admin=False, tenant_id=None):
     return '%s_%s_%s' % (settings.uuid.hex, hashed_settings_key, key)
 
 
+def get_certificate_filename(data):
+    if not isinstance(data, bytes):
+        data = data.encode("utf-8")
+    cert_hash = hashlib.sha256(data).hexdigest()
+    return os.path.join(tempfile.gettempdir(), f'waldur-certificate-{cert_hash}.pem')
+
+
 class BaseOpenStackBackend(ServiceBackend):
     def __init__(self, settings, tenant_id=None):
         self.settings = settings
@@ -196,6 +205,13 @@ class BaseOpenStackBackend(ServiceBackend):
     def get_client(self, name=None, admin=False):
         domain_name = self.settings.domain or 'Default'
         verify_ssl = self.settings.get_option('verify_ssl')
+        client_cert = self.settings.get_option('certificate')
+        if client_cert:
+            file_path = get_certificate_filename(client_cert)
+            if not os.path.isfile(file_path):
+                with open(file_path, 'w') as fh:
+                    fh.write(client_cert)
+            verify_ssl = file_path
         credentials = {
             'auth_url': self.settings.backend_url,
             'username': self.settings.username,
