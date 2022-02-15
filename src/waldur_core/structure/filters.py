@@ -396,6 +396,7 @@ class BaseUserFilter(django_filters.FilterSet):
 class UserFilter(BaseUserFilter):
     is_staff = django_filters.BooleanFilter(widget=BooleanWidget)
     is_support = django_filters.BooleanFilter(widget=BooleanWidget)
+    username = django_filters.CharFilter(field_name='username', lookup_expr='exact')
 
     o = core_filters.ExtendedOrderingFilter(
         fields=(
