@@ -81,7 +81,9 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         user = self.request.user
         instance = self.get_object()
         executors.ClusterDeleteExecutor.execute(
-            instance, user=user, is_heavy_task=True,
+            instance,
+            user=user,
+            is_heavy_task=True,
         )
         return response.Response(
             {'detail': _('Deletion was scheduled.')}, status=status.HTTP_202_ACCEPTED
@@ -212,7 +214,9 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         user = self.request.user
         transaction.on_commit(
             lambda: executors.NodeCreateExecutor.execute(
-                node, user_id=user.id, is_heavy_task=True,
+                node,
+                user_id=user.id,
+                is_heavy_task=True,
             )
         )
 
@@ -220,7 +224,9 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         instance = self.get_object()
         user = self.request.user
         executors.NodeDeleteExecutor.execute(
-            instance, user_id=user.id, is_heavy_task=True,
+            instance,
+            user_id=user.id,
+            is_heavy_task=True,
         )
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
@@ -338,7 +344,8 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
 
     def filter_catalogs_for_cluster(self, cluster_uuid):
         qs = filter_queryset_for_user(
-            queryset=models.Cluster.objects.all(), user=self.request.user,
+            queryset=models.Cluster.objects.all(),
+            user=self.request.user,
         )
         cluster = get_object_or_404(qs, uuid=cluster_uuid)
         return self.queryset.filter(
@@ -367,7 +374,8 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
 
     def get_filtered_subquery(self, queryset):
         ids = filter_queryset_for_user(
-            queryset=queryset, user=self.request.user,
+            queryset=queryset,
+            user=self.request.user,
         ).values_list('id', flat=True)
         content_type = ContentType.objects.get_for_model(queryset.model)
         if not ids:

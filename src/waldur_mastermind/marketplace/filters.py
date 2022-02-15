@@ -179,7 +179,8 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
 
 class OfferingFilterMixin(django_filters.FilterSet):
     offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid',
+        view_name='marketplace-offering-detail',
+        field_name='offering__uuid',
     )
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
@@ -350,7 +351,12 @@ class ResourceFilter(
             for db_value, representation in models.Resource.States.CHOICES
         },
     )
-    o = django_filters.OrderingFilter(fields=('name', 'created',))
+    o = django_filters.OrderingFilter(
+        fields=(
+            'name',
+            'created',
+        )
+    )
 
     class Meta:
         model = models.Resource
@@ -450,7 +456,11 @@ class ComponentUsageFilter(django_filters.FilterSet):
 
 class OfferingReferralFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
-        fields=('published', 'relation_type', 'resource_type',)
+        fields=(
+            'published',
+            'relation_type',
+            'resource_type',
+        )
     )
 
     class Meta:
@@ -580,7 +590,9 @@ class PlanComponentFilter(django_filters.FilterSet):
         widget=BooleanWidget, field_name='plan__offering__shared'
     )
 
-    archived = django_filters.BooleanFilter(field_name='plan__archived',)
+    archived = django_filters.BooleanFilter(
+        field_name='plan__archived',
+    )
 
 
 def user_extra_query(user):

@@ -187,7 +187,10 @@ class EmailHook(BaseHook):
             'Submitting email hook to %s, payload: %s', self.email, text_message
         )
         send_mail(
-            subject, text_message, [self.email], html_message=html_message,
+            subject,
+            text_message,
+            [self.email],
+            html_message=html_message,
         )
 
 

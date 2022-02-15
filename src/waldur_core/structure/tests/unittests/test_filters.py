@@ -29,11 +29,17 @@ class CustomerAccountingStartDateFilterTest(APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
         response = self.client.get(
-            ProjectFactory.get_list_url(), {"accounting_is_running": "true",}
+            ProjectFactory.get_list_url(),
+            {
+                "accounting_is_running": "true",
+            },
         )
         self.assertEqual(len(response.data), 1)
 
         response = self.client.get(
-            ProjectFactory.get_list_url(), {"accounting_is_running": "false",}
+            ProjectFactory.get_list_url(),
+            {
+                "accounting_is_running": "false",
+            },
         )
         self.assertEqual(len(response.data), 1)

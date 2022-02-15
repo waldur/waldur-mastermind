@@ -14,7 +14,8 @@ class AllocationFilter(structure_filters.BaseResourceFilter):
 
 class AllocationUserUsageFilter(django_filters.FilterSet):
     allocation = core_filters.URLFilter(
-        view_name='slurm-allocation-detail', field_name='allocation__uuid',
+        view_name='slurm-allocation-detail',
+        field_name='allocation__uuid',
     )
     allocation_uuid = django_filters.UUIDFilter(field_name='allocation__uuid')
 

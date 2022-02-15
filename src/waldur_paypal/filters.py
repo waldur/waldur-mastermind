@@ -10,7 +10,10 @@ class PaymentFilter(django_filters.FilterSet):
         model = models.Payment
         fields = ('customer',)
 
-    customer = django_filters.UUIDFilter(field_name='customer__uuid', distinct=True,)
+    customer = django_filters.UUIDFilter(
+        field_name='customer__uuid',
+        distinct=True,
+    )
 
 
 class InvoiceFilter(django_filters.FilterSet):

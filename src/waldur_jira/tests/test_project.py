@@ -63,7 +63,9 @@ class ProjectCreateTest(ProjectBaseTest):
 @ddt
 @mock.patch('waldur_jira.executors.ProjectDeleteExecutor.execute')
 class ProjectDeleteTest(ProjectBaseTest):
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_staff_can_delete_project(self, user, executor):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.fixture.jira_project_url)

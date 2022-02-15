@@ -41,4 +41,7 @@ class NotificationViewSet(ActionsViewSet):
         query = serializer.validated_data.get('query')
         matching_users = utils.get_users_for_query(query)
 
-        return Response(len(matching_users), status=status.HTTP_200_OK,)
+        return Response(
+            len(matching_users),
+            status=status.HTTP_200_OK,
+        )

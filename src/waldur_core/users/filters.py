@@ -10,9 +10,12 @@ from waldur_core.users import models
 
 
 class InvitationFilter(django_filters.FilterSet):
-    project = django_filters.UUIDFilter(field_name='project__uuid',)
+    project = django_filters.UUIDFilter(
+        field_name='project__uuid',
+    )
     project_url = core_filters.URLFilter(
-        view_name='project-detail', field_name='project__uuid',
+        view_name='project-detail',
+        field_name='project__uuid',
     )
     state = django_filters.MultipleChoiceFilter(choices=models.Invitation.State.CHOICES)
 
@@ -29,13 +32,19 @@ class InvitationFilter(django_filters.FilterSet):
 
 
 class GroupInvitationFilter(django_filters.FilterSet):
-    project = django_filters.UUIDFilter(field_name='project__uuid',)
-    project_url = core_filters.URLFilter(
-        view_name='project-detail', field_name='project__uuid',
+    project = django_filters.UUIDFilter(
+        field_name='project__uuid',
     )
-    customer = django_filters.UUIDFilter(field_name='customer__uuid',)
+    project_url = core_filters.URLFilter(
+        view_name='project-detail',
+        field_name='project__uuid',
+    )
+    customer = django_filters.UUIDFilter(
+        field_name='customer__uuid',
+    )
     customer_url = core_filters.URLFilter(
-        view_name='customer-detail', field_name='customer__uuid',
+        view_name='customer-detail',
+        field_name='customer__uuid',
     )
 
     o = django_filters.OrderingFilter(fields=('state', 'created'))
@@ -69,7 +78,8 @@ class PermissionRequestFilter(django_filters.FilterSet):
 
 class InvitationCustomerFilterBackend(BaseFilterBackend):
     url_filter = core_filters.URLFilter(
-        view_name='customer-detail', field_name='customer__uuid',
+        view_name='customer-detail',
+        field_name='customer__uuid',
     )
 
     def filter_queryset(self, request, queryset, view):

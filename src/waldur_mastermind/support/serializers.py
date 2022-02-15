@@ -168,11 +168,26 @@ class IssueSerializer(
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
         related_paths = dict(
-            caller=('uuid', 'full_name',),
-            reporter=('uuid', 'name',),
-            assignee=('uuid', 'name',),
-            customer=('uuid', 'name',),
-            project=('uuid', 'name',),
+            caller=(
+                'uuid',
+                'full_name',
+            ),
+            reporter=(
+                'uuid',
+                'name',
+            ),
+            assignee=(
+                'uuid',
+                'name',
+            ),
+            customer=(
+                'uuid',
+                'name',
+            ),
+            project=(
+                'uuid',
+                'name',
+            ),
         )
 
     def get_fields(self):
@@ -229,15 +244,16 @@ class IssueSerializer(
                 attrs['reporter'] = reporter
             else:
                 # leave a mark about reporter in the description field
-                attrs['description'] = (
-                    f'Reported by {request_user.full_name}.\n\n'
-                    + attrs.get('description', '')
+                attrs[
+                    'description'
+                ] = f'Reported by {request_user.full_name}.\n\n' + attrs.get(
+                    'description', ''
                 )
 
         return attrs
 
     def validate_customer(self, customer):
-        """ User has to be customer owner, staff or global support """
+        """User has to be customer owner, staff or global support"""
         if not customer:
             return customer
         user = self.context['request'].user
@@ -361,7 +377,10 @@ class CommentSerializer(
             url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
         )
-        related_paths = dict(author=('name',), issue=('key',),)
+        related_paths = dict(
+            author=('name',),
+            issue=('key',),
+        )
 
     @transaction.atomic()
     def create(self, validated_data):
@@ -458,7 +477,9 @@ class AttachmentSerializer(
             url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
         )
-        related_paths = dict(issue=('key',),)
+        related_paths = dict(
+            issue=('key',),
+        )
 
     def get_file_name(self, attachment):
         _, file_name = os.path.split(attachment.file.name)

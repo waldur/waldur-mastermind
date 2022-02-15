@@ -8,8 +8,8 @@ from . import exceptions
 
 
 class QuotaLimitField(models.IntegerField):
-    """ Django virtual model field.
-        Could be used to manage quotas transparently as model fields.
+    """Django virtual model field.
+    Could be used to manage quotas transparently as model fields.
     """
 
     concrete = False
@@ -58,11 +58,11 @@ class QuotaLimitField(models.IntegerField):
 
 
 class FieldsContainerMeta(type):
-    """ Initiates quota fields names.
+    """Initiates quota fields names.
 
-        Quotas fields should be located in class with FieldsContainerMeta metaclass.
-        Example:
-            example_quota = QuotaField()  # this quota field will have name 'example_quota'
+    Quotas fields should be located in class with FieldsContainerMeta metaclass.
+    Example:
+        example_quota = QuotaField()  # this quota field will have name 'example_quota'
     """
 
     def __new__(self, name, bases, attrs):
@@ -73,7 +73,7 @@ class FieldsContainerMeta(type):
 
 
 class QuotaField:
-    """ Base quota field.
+    """Base quota field.
 
     Links quota to its scope right after its creation.
     Allows to define:
@@ -134,7 +134,7 @@ class QuotaField:
         return scope.quotas.get_or_create(name=self.name, defaults=defaults)
 
     def get_aggregator_quotas(self, quota):
-        """ Fetch ancestors quotas that have the same name and are registered as aggregator quotas. """
+        """Fetch ancestors quotas that have the same name and are registered as aggregator quotas."""
         ancestors = quota.scope.get_quota_ancestors()
         aggregator_quotas = []
         for ancestor in ancestors:
@@ -160,7 +160,7 @@ class QuotaField:
 
 
 class CounterQuotaField(QuotaField):
-    """ Provides limitation on target models instances count.
+    """Provides limitation on target models instances count.
 
     Automatically increases/decreases usage on target instances creation/deletion.
 
@@ -276,15 +276,15 @@ class TotalQuotaField(CounterQuotaField):
 
 
 class AggregatorQuotaField(QuotaField):
-    """ Aggregates sum of quota scope children with the same name.
+    """Aggregates sum of quota scope children with the same name.
 
-        Automatically increases/decreases usage if corresponding child quota <aggregation_field> changed.
+    Automatically increases/decreases usage if corresponding child quota <aggregation_field> changed.
 
-        Example:
-            # This quota will store sum of all customer projects resources
-            nc_resource_count = quotas_fields.UsageAggregatorQuotaField(
-                get_children=lambda customer: customer.projects.all(),
-            )
+    Example:
+        # This quota will store sum of all customer projects resources
+        nc_resource_count = quotas_fields.UsageAggregatorQuotaField(
+            get_children=lambda customer: customer.projects.all(),
+        )
     """
 
     aggregation_field = NotImplemented
@@ -323,17 +323,17 @@ class AggregatorQuotaField(QuotaField):
 
 
 class UsageAggregatorQuotaField(AggregatorQuotaField):
-    """ Aggregates sum children quotas usages.
+    """Aggregates sum children quotas usages.
 
-        Note! It is impossible to aggregate usage of another usage aggregator quotas.
-        This restriction was added to avoid calls duplications on quota usage field update.
+    Note! It is impossible to aggregate usage of another usage aggregator quotas.
+    This restriction was added to avoid calls duplications on quota usage field update.
     """
 
     aggregation_field = 'usage'
 
 
 class LimitAggregatorQuotaField(AggregatorQuotaField):
-    """ Aggregates sum children quotas limits. """
+    """Aggregates sum children quotas limits."""
 
     aggregation_field = 'limit'
 

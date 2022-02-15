@@ -11,5 +11,7 @@ def register_in(router):
         basename='slurm-allocation-user-usage',
     )
     router.register(
-        r'slurm-associations', views.AssociationViewSet, basename='slurm-association',
+        r'slurm-associations',
+        views.AssociationViewSet,
+        basename='slurm-association',
     )

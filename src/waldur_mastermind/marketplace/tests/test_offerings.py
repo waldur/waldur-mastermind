@@ -207,14 +207,26 @@ class OfferingFilterTest(test.APITransactionTestCase):
     def test_filter_choice_positive(self):
         response = self.client.get(
             self.url,
-            {'attributes': json.dumps({'cloudDeploymentModel': 'private_cloud',})},
+            {
+                'attributes': json.dumps(
+                    {
+                        'cloudDeploymentModel': 'private_cloud',
+                    }
+                )
+            },
         )
         self.assertEqual(len(response.data), 1)
 
     def test_filter_choice_negative(self):
         response = self.client.get(
             self.url,
-            {'attributes': json.dumps({'cloudDeploymentModel': 'public_cloud',})},
+            {
+                'attributes': json.dumps(
+                    {
+                        'cloudDeploymentModel': 'public_cloud',
+                    }
+                )
+            },
         )
         self.assertEqual(len(response.data), 0)
 
@@ -223,14 +235,24 @@ class OfferingFilterTest(test.APITransactionTestCase):
         If an attribute is a list, we use multiple choices.
         """
         factories.OfferingFactory(
-            attributes={'userSupportOption': ['phone', 'email', 'fax'],}
+            attributes={
+                'userSupportOption': ['phone', 'email', 'fax'],
+            }
         )
         factories.OfferingFactory(
-            attributes={'userSupportOption': ['email'],}
+            attributes={
+                'userSupportOption': ['email'],
+            }
         )
         response = self.client.get(
             self.url,
-            {'attributes': json.dumps({'userSupportOption': ['fax', 'email'],})},
+            {
+                'attributes': json.dumps(
+                    {
+                        'userSupportOption': ['fax', 'email'],
+                    }
+                )
+            },
         )
         self.assertEqual(len(response.data), 2)
 
@@ -502,14 +524,27 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertFalse(offering.scope.shared)
 
     def test_create_offering_with_plans(self):
-        plans_request = {'plans': [{'name': 'Small', 'description': 'Basic plan',}]}
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'Small',
+                    'description': 'Basic plan',
+                }
+            ]
+        }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['plans']), 1)
 
     def test_specify_max_amount_for_plan(self):
         plans_request = {
-            'plans': [{'name': 'Small', 'description': 'Basic plan', 'max_amount': 10,}]
+            'plans': [
+                {
+                    'name': 'Small',
+                    'description': 'Basic plan',
+                    'max_amount': 10,
+                }
+            ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -517,7 +552,13 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
     def test_max_amount_should_be_at_least_one(self):
         plans_request = {
-            'plans': [{'name': 'Small', 'description': 'Basic plan', 'max_amount': -1,}]
+            'plans': [
+                {
+                    'name': 'Small',
+                    'description': 'Basic plan',
+                    'max_amount': -1,
+                }
+            ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -677,8 +718,14 @@ class OfferingCreateTest(test.APITransactionTestCase):
                 {
                     'name': 'Small',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'quotas': {'cores': 1, 'invalid_component': 10,},
-                    'prices': {'cores': 1, 'invalid_component': 10,},
+                    'quotas': {
+                        'cores': 1,
+                        'invalid_component': 10,
+                    },
+                    'prices': {
+                        'cores': 1,
+                        'invalid_component': 10,
+                    },
                 }
             ],
         }
@@ -783,7 +830,12 @@ class OfferingCreateTest(test.APITransactionTestCase):
             'category': factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
             'type': 'Support.OfferingTemplate',  # This is used only for testing
-            'plans': [{'name': 'Small', 'unit': UnitPriceMixin.Units.PER_MONTH,}],
+            'plans': [
+                {
+                    'name': 'Small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                }
+            ],
         }
 
         if attributes:
@@ -988,7 +1040,10 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
     def test_it_should_be_possible_to_update_existing_components(self):
         factories.OfferingComponentFactory(
-            offering=self.offering, type='cores', name='CPU', measured_unit='H',
+            offering=self.offering,
+            type='cores',
+            name='CPU',
+            measured_unit='H',
         )
         # Act
         components = [
@@ -1017,7 +1072,14 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         plan = factories.PlanFactory(offering=self.offering, name='Old name')
 
         # Act
-        payload = {'plans': [{'uuid': plan.uuid.hex, 'name': 'New name',}]}
+        payload = {
+            'plans': [
+                {
+                    'uuid': plan.uuid.hex,
+                    'name': 'New name',
+                }
+            ]
+        }
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.patch(self.url, payload)
 
@@ -1036,7 +1098,15 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         # Act
         payload = {
             'plans': [
-                {'uuid': plan.uuid.hex, 'quotas': {'ram': 20,}, 'prices': {'ram': 2,}}
+                {
+                    'uuid': plan.uuid.hex,
+                    'quotas': {
+                        'ram': 20,
+                    },
+                    'prices': {
+                        'ram': 2,
+                    },
+                }
             ]
         }
         self.client.force_authenticate(self.fixture.owner)
@@ -1088,13 +1158,24 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             offering=self.offering, type='ram'
         )
         plan_component = factories.PlanComponentFactory(
-            plan=plan, component=offering_component, amount=10, price=1,
+            plan=plan,
+            component=offering_component,
+            amount=10,
+            price=1,
         )
 
         # Act
         payload = {
             'plans': [
-                {'uuid': plan.uuid.hex, 'quotas': {'ram': 20,}, 'prices': {'ram': 2,}}
+                {
+                    'uuid': plan.uuid.hex,
+                    'quotas': {
+                        'ram': 20,
+                    },
+                    'prices': {
+                        'ram': 2,
+                    },
+                }
             ]
         }
         self.client.force_authenticate(self.fixture.owner)
@@ -1318,7 +1399,9 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.attribute.type = attribute_type
         self.attribute.save()
         attributes = {
-            'attributes': {'userSupportOptions': value,},
+            'attributes': {
+                'userSupportOptions': value,
+            },
             'category': self.category,
         }
         self.assertIsNone(self.serializer._validate_attributes(attributes))
@@ -1327,7 +1410,9 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.attribute.type = attribute_type
         self.attribute.save()
         attributes = {
-            'attributes': {'userSupportOptions': value,},
+            'attributes': {
+                'userSupportOptions': value,
+            },
             'category': self.category,
         }
         self.assertRaises(
@@ -1414,7 +1499,9 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.fixture.service_manager = UserFactory()
         self.offering.add_user(self.fixture.service_manager)
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_authorized_user_can_activate_offering(self, user):
         response, offering = self.update_offering_state(user, 'activate')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -1647,7 +1734,8 @@ class OfferingDoiTest(test.APITransactionTestCase):
         )
         self.offering_referral = factories.OfferingReferralFactory(scope=self.offering)
         self.offering2 = factories.OfferingFactory(
-            datacite_doi='10.15159/t9zh-k972', citation_count=0,
+            datacite_doi='10.15159/t9zh-k972',
+            citation_count=0,
         )
         self.offering_referral2 = factories.OfferingReferralFactory(
             scope=self.offering2

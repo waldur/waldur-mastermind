@@ -11,6 +11,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RemoveField(
-            model_name='offering', name='enable_dynamic_components',
+            model_name='offering',
+            name='enable_dynamic_components',
         ),
     ]

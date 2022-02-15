@@ -103,12 +103,16 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def floating_ip(self):
         return factories.FloatingIPFactory(
-            settings=self.openstack_tenant_service_settings, runtime_state='DOWN',
+            settings=self.openstack_tenant_service_settings,
+            runtime_state='DOWN',
         )
 
     @cached_property
     def internal_ip(self):
-        return factories.InternalIPFactory(subnet=self.subnet, instance=self.instance,)
+        return factories.InternalIPFactory(
+            subnet=self.subnet,
+            instance=self.instance,
+        )
 
     @cached_property
     def volume_type(self):

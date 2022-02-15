@@ -34,8 +34,13 @@ class Migration(migrations.Migration):
                         default=-1, help_text='Number of citations of a DOI'
                     ),
                 ),
-                ('error_message', models.TextField(blank=True),),
+                (
+                    'error_message',
+                    models.TextField(blank=True),
+                ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
     ]

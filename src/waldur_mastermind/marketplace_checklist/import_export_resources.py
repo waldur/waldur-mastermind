@@ -8,7 +8,10 @@ QuestionResource = resources.modelresource_factory(models.Question)
 
 
 class ChecklistResource(resources.ModelResource):
-    questions = fields.Field(column_name='questions', widget=widgets.JSONWidget(),)
+    questions = fields.Field(
+        column_name='questions',
+        widget=widgets.JSONWidget(),
+    )
     category_data = fields.Field(
         column_name='category_data', widget=widgets.JSONWidget()
     )

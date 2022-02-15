@@ -27,7 +27,9 @@ class RequestCreateTest(test.APITransactionTestCase):
         offering_url = marketplace_factories.OfferingFactory.get_url(self.offering)
         plan_url = marketplace_factories.PlanFactory.get_url(self.plan)
 
-        attributes = dict(name='My first request-based item',)
+        attributes = dict(
+            name='My first request-based item',
+        )
 
         payload = {
             'project': project_url,

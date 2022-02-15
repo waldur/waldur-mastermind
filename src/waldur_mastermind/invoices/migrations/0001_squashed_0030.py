@@ -96,7 +96,8 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.AlterUniqueTogether(
-            name='invoice', unique_together=set([('customer', 'month', 'year')]),
+            name='invoice',
+            unique_together=set([('customer', 'month', 'year')]),
         ),
         migrations.CreateModel(
             name='GenericInvoiceItem',
@@ -187,7 +188,9 @@ class Migration(migrations.Migration):
                 ),
                 ('quantity', models.PositiveIntegerField(default=0)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.AddField(
             model_name='invoice',

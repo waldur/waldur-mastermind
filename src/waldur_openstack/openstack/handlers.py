@@ -36,7 +36,7 @@ def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
 
 
 def remove_ssh_key_from_tenants(sender, structure, user, role, **kwargs):
-    """ Delete user ssh keys from tenants that he does not have access now. """
+    """Delete user ssh keys from tenants that he does not have access now."""
     tenants = Tenant.objects.filter(**{sender.__name__.lower(): structure})
     ssh_keys = core_models.SshPublicKey.objects.filter(user=user)
     for tenant in tenants:
@@ -53,7 +53,7 @@ def remove_ssh_key_from_tenants(sender, structure, user, role, **kwargs):
 
 
 def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
-    """ Delete key from all tenants that are accessible for user on key deletion. """
+    """Delete key from all tenants that are accessible for user on key deletion."""
     ssh_key = instance
     user = ssh_key.user
     tenants = structure_filters.filter_queryset_for_user(Tenant.objects.all(), user)
@@ -116,7 +116,9 @@ def log_security_group_cleaned(sender, instance, **kwargs):
     event_logger.openstack_security_group.info(
         'Security group %s has been cleaned from cache.' % instance.name,
         event_type='openstack_security_group_cleaned',
-        event_context={'security_group': instance,},
+        event_context={
+            'security_group': instance,
+        },
     )
 
 
@@ -124,7 +126,9 @@ def log_security_group_rule_cleaned(sender, instance, **kwargs):
     event_logger.openstack_security_group_rule.info(
         'Security group rule %s has been cleaned from cache.' % str(instance),
         event_type='openstack_security_group_rule_cleaned',
-        event_context={'security_group_rule': instance,},
+        event_context={
+            'security_group_rule': instance,
+        },
     )
 
 
@@ -132,7 +136,9 @@ def log_network_cleaned(sender, instance, **kwargs):
     event_logger.openstack_network.info(
         'Network %s has been cleaned from cache.' % instance.name,
         event_type='openstack_network_cleaned',
-        event_context={'network': instance,},
+        event_context={
+            'network': instance,
+        },
     )
 
 
@@ -140,5 +146,7 @@ def log_subnet_cleaned(sender, instance, **kwargs):
     event_logger.openstack_subnet.info(
         'SubNet %s has been cleaned.' % instance.name,
         event_type='openstack_subnet_cleaned',
-        event_context={'subnet': instance,},
+        event_context={
+            'subnet': instance,
+        },
     )

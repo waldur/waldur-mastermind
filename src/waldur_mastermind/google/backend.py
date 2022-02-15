@@ -33,7 +33,10 @@ class GoogleAuthorize:
     '''
 
     def __init__(
-        self, service_provider, redirect_uri, scopes=None,
+        self,
+        service_provider,
+        redirect_uri,
+        scopes=None,
     ):
         scopes = scopes or SCOPES
         self.service_provider = service_provider

@@ -90,7 +90,8 @@ class CreateNodeTask(core_tasks.Task):
 
         if ssh_public_key:
             post_data['ssh_public_key'] = reverse(
-                'sshpublickey-detail', kwargs={'uuid': ssh_public_key},
+                'sshpublickey-detail',
+                kwargs={'uuid': ssh_public_key},
             )
 
         view = MarketplaceInstanceViewSet.as_view({'post': 'create'})
@@ -107,7 +108,8 @@ class CreateNodeTask(core_tasks.Task):
         node.save()
 
         resource_imported.send(
-            sender=instance.__class__, instance=instance,
+            sender=instance.__class__,
+            instance=instance,
         )
 
     @classmethod

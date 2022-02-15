@@ -50,7 +50,7 @@ class OpenStackAuthorizationFailed(OpenStackBackendError):
 
 
 class OpenStackSession(dict):
-    """ Serializable session """
+    """Serializable session"""
 
     def __init__(self, ks_session=None, verify_ssl=False, **credentials):
         self.keystone_session = ks_session
@@ -118,7 +118,7 @@ class OpenStackSession(dict):
 
 
 class OpenStackClient:
-    """ Generic OpenStack client. """
+    """Generic OpenStack client."""
 
     def __init__(self, session=None, verify_ssl=False, **credentials):
         self.verify_ssl = verify_ssl

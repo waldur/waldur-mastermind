@@ -86,7 +86,9 @@ class Migration(migrations.Migration):
                 ('cpu_usage', models.IntegerField(default=0)),
                 ('is_active', models.BooleanField(default=True)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,

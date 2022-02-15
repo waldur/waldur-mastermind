@@ -27,5 +27,7 @@ def create_issue(offering_request):
     }
 
     return common_utils.create_request(
-        support_views.IssueViewSet.as_view({'post': 'create'}), user, post_data,
+        support_views.IssueViewSet.as_view({'post': 'create'}),
+        user,
+        post_data,
     )

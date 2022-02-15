@@ -56,6 +56,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ['allocation'],},
+            options={
+                'ordering': ['allocation'],
+            },
         ),
     ]

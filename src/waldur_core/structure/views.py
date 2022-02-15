@@ -202,10 +202,11 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         return super(CustomerViewSet, self).perform_destroy(instance)
 
     @action(
-        detail=True, filter_backends=[filters.GenericRoleFilter],
+        detail=True,
+        filter_backends=[filters.GenericRoleFilter],
     )
     def users(self, request, uuid=None):
-        """ A list of users connected to the customer. """
+        """A list of users connected to the customer."""
         customer = self.get_object()
         queryset = customer.get_users()
         # we need to handle filtration manually because we want to filter only customer users, not customers.
@@ -364,7 +365,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
     @action(detail=True, filter_backends=[filters.GenericRoleFilter])
     def users(self, request, uuid=None):
-        """ A list of users connected to the project """
+        """A list of users connected to the project"""
         project = self.get_object()
         queryset = project.get_users()
         # we need to handle filtration manually because we want to filter only project users, not projects.
@@ -535,7 +536,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         serializer = self.get_serializer(request.user)
 
-        return Response(serializer.data, status=status.HTTP_200_OK,)
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'])
     def pull_remote_user(self, request, uuid=None):
@@ -587,7 +591,9 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
 
         serializer.save()
         structure_role_updated.send(
-            sender=self.queryset.model, instance=permission, user=self.request.user,
+            sender=self.queryset.model,
+            instance=permission,
+            user=self.request.user,
         )
 
     def perform_destroy(self, instance):
@@ -904,7 +910,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
         return super(ServiceSettingsViewSet, self).list(request, *args, **kwargs)
 
     def can_user_update_settings(request, view, obj=None):
-        """ Only staff can update shared settings, otherwise user has to be an owner of the settings."""
+        """Only staff can update shared settings, otherwise user has to be an owner of the settings."""
         if obj is None:
             return
 
@@ -1100,7 +1106,7 @@ def check_resource_backend_id(resource):
 
 
 class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
-    """ Basic view set for all resource view sets. """
+    """Basic view set for all resource view sets."""
 
     lookup_field = 'uuid'
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)

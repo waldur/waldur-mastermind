@@ -107,7 +107,9 @@ class BaseResourceGroupSerializer(BaseResourceSerializer):
     location_name = serializers.ReadOnlyField(source='resource_group.location.name')
 
     resource_group = serializers.HyperlinkedRelatedField(
-        view_name='azure-resource-group-detail', lookup_field='uuid', read_only=True,
+        view_name='azure-resource-group-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     location = serializers.HyperlinkedRelatedField(
@@ -296,7 +298,10 @@ class PublicIPSerializer(BaseResourceSerializer):
     class Meta(BaseResourceSerializer.Meta):
         model = models.PublicIP
         view_name = 'azure-public-ip-detail'
-        fields = BaseResourceSerializer.Meta.fields + ('location', 'resource_group',)
+        fields = BaseResourceSerializer.Meta.fields + (
+            'location',
+            'resource_group',
+        )
 
 
 class SQLServerSerializer(BaseResourceGroupSerializer):

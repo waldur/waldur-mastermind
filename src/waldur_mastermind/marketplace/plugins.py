@@ -4,7 +4,13 @@ from typing import List
 
 class Component:
     def __init__(
-        self, type, name, measured_unit, billing_type, factor=1, description='',
+        self,
+        type,
+        name,
+        measured_unit,
+        billing_type,
+        factor=1,
+        description='',
     ):
         self.type = type
         self.name = name

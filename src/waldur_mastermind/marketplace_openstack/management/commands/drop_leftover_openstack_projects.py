@@ -37,7 +37,9 @@ class Command(BaseCommand):
         return local_project_ids & remote_project_ids
 
     def collect_leftovers_by_name(
-        self, offering, remote_projects,
+        self,
+        offering,
+        remote_projects,
     ):
         # Some resources do not have backend_id so we use name instead
         # Since name can be reused names of existing resources are filtered out

@@ -20,7 +20,8 @@ class DataciteMixin(models.Model):
     # `-1` - citations have never been looked up
     # non-negative value - the number of citations of a DOI
     citation_count = models.IntegerField(
-        default=-1, help_text=_('Number of citations of a DOI'),
+        default=-1,
+        help_text=_('Number of citations of a DOI'),
     )
 
     error_message = models.TextField(blank=True)

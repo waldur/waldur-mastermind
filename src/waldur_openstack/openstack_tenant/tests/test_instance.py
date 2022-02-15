@@ -319,7 +319,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         self.openstack_tenant_fixture.floating_ip.status = 'ACTIVE'
         self.openstack_tenant_fixture.floating_ip.save()
-        data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}],)
+        data = self.get_valid_data(
+            floating_ips=[{'subnet': subnet_url}],
+        )
 
         response = self.create_instance(data)
 
@@ -334,7 +336,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         self.openstack_tenant_fixture.floating_ip.status = 'ACTIVE'
         self.openstack_tenant_fixture.floating_ip.save()
-        data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}],)
+        data = self.get_valid_data(
+            floating_ips=[{'subnet': subnet_url}],
+        )
 
         response = self.create_instance(data)
 
@@ -631,7 +635,10 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
             internal_ip=internal_ip, settings=settings
         )
         self.delete_instance(
-            {'release_floating_ips': True, 'delete_volumes': False,}
+            {
+                'release_floating_ips': True,
+                'delete_volumes': False,
+            }
         )
         self.mocked_neutron().delete_floatingip.assert_called_once_with(
             floating_ip.backend_id
@@ -642,7 +649,10 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     ):
         self.mock_volumes(False)
         self.delete_instance(
-            {'release_floating_ips': True, 'delete_volumes': False,}
+            {
+                'release_floating_ips': True,
+                'delete_volumes': False,
+            }
         )
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
 
@@ -879,7 +889,11 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
 
     def test_user_can_update_instance_floating_ips(self):
         floating_ip_url = factories.FloatingIPFactory.get_url(self.fixture.floating_ip)
-        data = {'floating_ips': [{'subnet': self.subnet_url, 'url': floating_ip_url},]}
+        data = {
+            'floating_ips': [
+                {'subnet': self.subnet_url, 'url': floating_ip_url},
+            ]
+        }
 
         response = self.client.post(self.url, data=data)
 
@@ -889,7 +903,11 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
 
     def test_when_floating_ip_is_attached_action_details_are_updated(self):
         floating_ip_url = factories.FloatingIPFactory.get_url(self.fixture.floating_ip)
-        data = {'floating_ips': [{'subnet': self.subnet_url, 'url': floating_ip_url},]}
+        data = {
+            'floating_ips': [
+                {'subnet': self.subnet_url, 'url': floating_ip_url},
+            ]
+        }
 
         self.client.post(self.url, data=data)
         self.instance.refresh_from_db()
@@ -928,7 +946,11 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
             internal_ip=internal_ip,
         )
         floating_ip_url = factories.FloatingIPFactory.get_url(floating_ip)
-        data = {'floating_ips': [{'subnet': self.subnet_url, 'url': floating_ip_url},]}
+        data = {
+            'floating_ips': [
+                {'subnet': self.subnet_url, 'url': floating_ip_url},
+            ]
+        }
 
         response = self.client.post(self.url, data=data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -1007,7 +1029,8 @@ class InstanceBackupTest(test.APITransactionTestCase):
         instance = self.fixture.instance
         instance.volumes.add(
             factories.VolumeFactory(
-                service_settings=instance.service_settings, project=instance.project,
+                service_settings=instance.service_settings,
+                project=instance.project,
             )
         )
         url = factories.InstanceFactory.get_url(instance, action='backup')

@@ -314,5 +314,6 @@ class SlurmBackend(ServiceBackend):
 
         for username in new_usernames:
             models.Association.objects.create(
-                allocation=allocation, username=username,
+                allocation=allocation,
+                username=username,
             )

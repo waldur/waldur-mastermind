@@ -131,7 +131,8 @@ def cancel_expired_group_invitations():
     """
     expiration_date = timezone.now() - settings.WALDUR_CORE['GROUP_INVITATION_LIFETIME']
     invitations = models.GroupInvitation.objects.filter(
-        is_active=True, created__lte=expiration_date,
+        is_active=True,
+        created__lte=expiration_date,
     )
     invitations.update(is_active=False)
 

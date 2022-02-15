@@ -409,16 +409,19 @@ class SupportCustomer(models.Model):
 class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     backend_id = models.IntegerField(unique=True)
     issue_type_name = models.CharField(max_length=255)
-    fields = models.JSONField(default=dict, blank=True,)
+    fields = models.JSONField(
+        default=dict,
+        blank=True,
+    )
 
     def __str__(self):
         return self.name
 
 
 class IssueStatus(models.Model):
-    """ This model is needed in order to understand whether the issue has been solved or not.
+    """This model is needed in order to understand whether the issue has been solved or not.
 
-        The field of resolution does not give an exact answer since may be the same in both cases.
+    The field of resolution does not give an exact answer since may be the same in both cases.
     """
 
     class Types:
@@ -437,11 +440,11 @@ class IssueStatus(models.Model):
 
     @classmethod
     def check_success_status(cls, status):
-        """ Check an issue has been resolved.
+        """Check an issue has been resolved.
 
-            True if an issue resolved.
-            False if an issue canceled.
-            None in all other cases.
+        True if an issue resolved.
+        False if an issue canceled.
+        None in all other cases.
         """
         if (
             not cls.objects.filter(type=cls.Types.RESOLVED).exists()
@@ -484,7 +487,9 @@ class TemplateConfirmationComment(models.Model):
 
 
 class Feedback(
-    core_models.UuidMixin, TimeStampedModel, core_models.StateMixin,
+    core_models.UuidMixin,
+    TimeStampedModel,
+    core_models.StateMixin,
 ):
     class Evaluation:
         CHOICES = (

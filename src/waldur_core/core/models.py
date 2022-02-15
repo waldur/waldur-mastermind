@@ -351,7 +351,10 @@ class User(
     @transaction.atomic
     def create_request_for_update_email(self, email):
         ChangeEmailRequest.objects.filter(user=self).delete()
-        change_request = ChangeEmailRequest.objects.create(user=self, email=email,)
+        change_request = ChangeEmailRequest.objects.create(
+            user=self,
+            email=email,
+        )
         return change_request
 
     def __str__(self):
@@ -443,7 +446,7 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
 
 
 class RuntimeStateMixin(models.Model):
-    """ Provide runtime_state field """
+    """Provide runtime_state field"""
 
     class RuntimeStates:
         ONLINE = 'online'
@@ -488,7 +491,10 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
     class Meta:
         abstract = True
 
-    state = FSMIntegerField(default=States.CREATION_SCHEDULED, choices=States.CHOICES,)
+    state = FSMIntegerField(
+        default=States.CREATION_SCHEDULED,
+        choices=States.CHOICES,
+    )
 
     @property
     def human_readable_state(self):
@@ -538,20 +544,20 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
 
 # XXX: consider renaming it to AffinityMixin
 class DescendantMixin:
-    """ Mixin to provide child-parent relationships.
-        Each related model can provide list of its parents/children.
+    """Mixin to provide child-parent relationships.
+    Each related model can provide list of its parents/children.
     """
 
     def get_parents(self):
-        """ Return list instance parents. """
+        """Return list instance parents."""
         return []
 
     def get_children(self):
-        """ Return list instance children. """
+        """Return list instance children."""
         return []
 
     def get_ancestors(self):
-        """ Get all unique instance ancestors """
+        """Get all unique instance ancestors"""
         ancestors = list(self.get_parents())
         ancestor_unique_attributes = set([(a.__class__, a.id) for a in ancestors])
         ancestors_with_parents = [

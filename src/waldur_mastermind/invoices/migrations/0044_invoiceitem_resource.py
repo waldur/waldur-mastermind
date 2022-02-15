@@ -183,6 +183,12 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.RunPython(fill_resource_field),
-        migrations.RemoveField(model_name='invoiceitem', name='content_type',),
-        migrations.RemoveField(model_name='invoiceitem', name='object_id',),
+        migrations.RemoveField(
+            model_name='invoiceitem',
+            name='content_type',
+        ),
+        migrations.RemoveField(
+            model_name='invoiceitem',
+            name='object_id',
+        ),
     ]

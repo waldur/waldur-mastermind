@@ -46,8 +46,13 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
 INVOICE_REPORTING = {
     'ENABLE': True,
     'USE_SAF': True,
-    'SAF_PARAMS': {'RMAKSULIPP': '20%', 'ARTPROJEKT': 'PROJEKT',},
-    'CSV_PARAMS': {'delimiter': str(';'),},
+    'SAF_PARAMS': {
+        'RMAKSULIPP': '20%',
+        'ARTPROJEKT': 'PROJEKT',
+    },
+    'CSV_PARAMS': {
+        'delimiter': str(';'),
+    },
     'EMAIL': 'test@example.com',
 }
 
@@ -124,7 +129,9 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             return lines
 
     @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
-    def test_demo_customers_are_skipped_if_accounting_start_is_enabled(self,):
+    def test_demo_customers_are_skipped_if_accounting_start_is_enabled(
+        self,
+    ):
         self.customer.accounting_start_date = timezone.now() + datetime.timedelta(
             days=10
         )

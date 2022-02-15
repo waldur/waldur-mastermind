@@ -10,5 +10,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='invitation', name='link_template',),
+        migrations.RemoveField(
+            model_name='invitation',
+            name='link_template',
+        ),
     ]

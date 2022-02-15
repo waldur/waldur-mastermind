@@ -31,5 +31,8 @@ class Migration(migrations.Migration):
             field=models.FloatField(blank=True, null=True),
         ),
         migrations.RunPython(fill_new_geo_fields),
-        migrations.RemoveField(model_name='offering', name='geolocations',),
+        migrations.RemoveField(
+            model_name='offering',
+            name='geolocations',
+        ),
     ]

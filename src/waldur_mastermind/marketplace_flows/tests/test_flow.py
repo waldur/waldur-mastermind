@@ -338,7 +338,8 @@ class ProjectCreationRejectTest(FlowOperationsTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.flow.refresh_from_db()
         self.assertEqual(
-            self.flow.state, ProjectCreateRequest.States.REJECTED,
+            self.flow.state,
+            ProjectCreateRequest.States.REJECTED,
         )
 
     def test_unauthorized_user_can_not_reject_request(self):

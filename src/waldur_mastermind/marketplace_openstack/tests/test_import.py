@@ -47,7 +47,8 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
         )
 
         structure_signals.resource_imported.send(
-            sender=volume.__class__, instance=volume,
+            sender=volume.__class__,
+            instance=volume,
         )
 
         self.assertTrue(
@@ -61,7 +62,8 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
         )
 
         structure_signals.resource_imported.send(
-            sender=instance.__class__, instance=instance,
+            sender=instance.__class__,
+            instance=instance,
         )
 
         self.assertTrue(
@@ -91,7 +93,8 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
         )
 
         structure_signals.resource_imported.send(
-            sender=tenant.__class__, instance=tenant,
+            sender=tenant.__class__,
+            instance=tenant,
         )
 
 

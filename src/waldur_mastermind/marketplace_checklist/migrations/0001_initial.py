@@ -65,7 +65,9 @@ class Migration(migrations.Migration):
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='Question',
@@ -105,7 +107,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('checklist', 'order'),},
+            options={
+                'ordering': ('checklist', 'order'),
+            },
         ),
         migrations.CreateModel(
             name='Answer',
@@ -160,6 +164,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
     ]

@@ -76,7 +76,9 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['payment_profiles']), 1)
 
-    @data('owner',)
+    @data(
+        'owner',
+    )
     def test_user_cannot_retrieve_unactive_customer_profile_in_organization_endpoint(
         self, user
     ):
@@ -103,7 +105,9 @@ class ProfileCreateTest(test.APITransactionTestCase):
             'name': 'default',
         }
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_with_access_can_create_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self.get_data())
@@ -125,7 +129,9 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         )
         self.url = factories.PaymentProfileFactory.get_url(profile=self.profile)
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_with_access_can_update_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url)
@@ -140,7 +146,8 @@ class ProfileUpdateTest(test.APITransactionTestCase):
     def test_enable_action(self):
         self.client.force_authenticate(self.fixture.staff)
         new_profile = factories.PaymentProfileFactory(
-            organization=self.fixture.customer, is_active=False,
+            organization=self.fixture.customer,
+            is_active=False,
         )
         url = factories.PaymentProfileFactory.get_url(
             profile=new_profile, action='enable'
@@ -162,7 +169,9 @@ class ProfileDeleteTest(test.APITransactionTestCase):
         )
         self.url = factories.PaymentProfileFactory.get_url(profile=self.profile)
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_with_access_can_delete_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
@@ -252,7 +261,9 @@ class ProfileNotificationTest(test.APITransactionTestCase):
             attributes={'end_date': '2020-02-15'},
         )
 
-        factories.PaymentProfileFactory(payment_type=models.PaymentType.FIXED_PRICE,)
+        factories.PaymentProfileFactory(
+            payment_type=models.PaymentType.FIXED_PRICE,
+        )
 
     def test_notification_only_if_end_exists_and_contact_will_end_in_30_days(self):
         with freeze_time('2020-01-01'):

@@ -27,15 +27,17 @@ class MarketplaceTenantCreateExecutor(core_executors.BaseExecutor):
             tenant, serialized_tenant
         )
 
-        create_service_settings = structure_executors.ServiceSettingsCreateExecutor.get_task_signature(
-            service_settings, serialized_service_settings
+        create_service_settings = (
+            structure_executors.ServiceSettingsCreateExecutor.get_task_signature(
+                service_settings, serialized_service_settings
+            )
         )
 
         return create_tenant | set_tenant_ok | create_service_settings
 
     @classmethod
     def get_success_signature(cls, tenant, serialized_tenant, **kwargs):
-        """ Get Celery signature of task that should be applied on successful execution. """
+        """Get Celery signature of task that should be applied on successful execution."""
         service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
         serialized_service_settings = core_utils.serialize_instance(service_settings)
         return core_tasks.StateTransitionTask().si(

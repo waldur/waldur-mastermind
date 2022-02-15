@@ -35,7 +35,9 @@ class InvoiceItemDeleteTest(test.APITransactionTestCase):
         logger_mock.event_logger.invoice_item.info(
             f'Invoice item {self.fixture.invoice_item.name} has been deleted.',
             event_type='invoice_item_deleted',
-            event_context={'customer': self.fixture.invoice_item.invoice.customer,},
+            event_context={
+                'customer': self.fixture.invoice_item.invoice.customer,
+            },
         )
 
 
@@ -66,7 +68,9 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         logger_mock.event_logger.invoice_item.info(
             f'Invoice item {self.fixture.invoice_item.name} has been updated.',
             event_type='invoice_item_updated',
-            event_context={'customer': self.fixture.invoice_item.invoice.customer,},
+            event_context={
+                'customer': self.fixture.invoice_item.invoice.customer,
+            },
         )
 
     def test_when_quantity_is_updated_component_usage_is_updated_too(self):
@@ -79,7 +83,9 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
             offering=offering,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
         )
-        plan = marketplace_factories.PlanFactory(offering=offering,)
+        plan = marketplace_factories.PlanFactory(
+            offering=offering,
+        )
         plan_component = marketplace_factories.PlanComponentFactory(
             plan=plan, component=offering_component
         )
@@ -185,7 +191,9 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         logger_mock.event_logger.invoice_item.info(
             f'Invoice item {self.item.name} has been created.',
             event_type='invoice_item_created',
-            event_context={'customer': self.item.invoice.customer,},
+            event_context={
+                'customer': self.item.invoice.customer,
+            },
         )
 
 

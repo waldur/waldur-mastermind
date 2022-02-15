@@ -252,7 +252,12 @@ class CustomerDeleteTest(CustomerBaseTest):
 
     # Deletion tests
     @data(
-        'owner', 'admin', 'manager', 'global_support', 'customer_support', 'member',
+        'owner',
+        'admin',
+        'manager',
+        'global_support',
+        'customer_support',
+        'member',
     )
     def test_user_cannot_delete_customer(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))

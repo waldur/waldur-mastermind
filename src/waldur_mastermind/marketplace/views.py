@@ -189,7 +189,8 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             raise rf_exceptions.ValidationError(_(validation_message))
 
         user_projects_ids = structure_models.ProjectPermission.objects.filter(
-            user=user, is_active=True,
+            user=user,
+            is_active=True,
         ).values_list('project_id', flat=True)
         offering_ids = (
             models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
@@ -206,7 +207,9 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             )
 
         return Response(
-            {'detail': _('Offering users have been set.'),},
+            {
+                'detail': _('Offering users have been set.'),
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -779,7 +782,9 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
     def get_queryset(self):
         queryset = super(PlanComponentViewSet, self).get_queryset()
         if self.request.user.is_anonymous:
-            return queryset.filter(plan__offering__shared=True,)
+            return queryset.filter(
+                plan__offering__shared=True,
+            )
 
 
 class ScreenshotViewSet(
@@ -1665,7 +1670,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
             data.update(self._get_service_provider_info(sp))
             result.append(data)
 
-        return Response(result, status=status.HTTP_200_OK,)
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def count_projects_of_service_providers(self, request, *args, **kwargs):
@@ -1678,7 +1686,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
             data.update(self._get_service_provider_info(sp))
             result.append(data)
 
-        return Response(result, status=status.HTTP_200_OK,)
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def count_projects_of_service_providers_grouped_by_oecd(
@@ -1711,7 +1722,8 @@ class StatsViewSet(rf_viewsets.ViewSet):
         start, end = utils.get_start_and_end_dates_from_request(self.request)
         invoice_items = (
             invoice_models.InvoiceItem.objects.filter(
-                invoice__created__gte=start, invoice__created__lte=end,
+                invoice__created__gte=start,
+                invoice__created__lte=end,
             )
             .values('resource__offering__uuid')
             .annotate(
@@ -1724,7 +1736,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         serializer = serializers.OfferingCostSerializer(invoice_items, many=True)
 
-        return Response(serializer.data, status=status.HTTP_200_OK,)
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
 
     @staticmethod
     def _get_service_provider_info(service_provider):

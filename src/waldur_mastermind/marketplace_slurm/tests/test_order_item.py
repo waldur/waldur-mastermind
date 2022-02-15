@@ -37,7 +37,8 @@ class AllocationCreateTest(test.APITransactionTestCase):
                 measured_unit=component.measured_unit,
             )
             marketplace_models.PlanComponent.objects.create(
-                plan=plan, component=component,
+                plan=plan,
+                component=component,
             )
 
         # Create SPL

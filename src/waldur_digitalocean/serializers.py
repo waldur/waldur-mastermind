@@ -91,11 +91,18 @@ class DropletSerializer(structure_serializers.VirtualMachineSerializer):
         )
         protected_fields = (
             structure_serializers.VirtualMachineSerializer.Meta.protected_fields
-            + ('region', 'image', 'size',)
+            + (
+                'region',
+                'image',
+                'size',
+            )
         )
         read_only_fields = (
             structure_serializers.VirtualMachineSerializer.Meta.read_only_fields
-            + ('runtime_state', 'region_name',)
+            + (
+                'runtime_state',
+                'region_name',
+            )
         )
 
     def validate(self, attrs):

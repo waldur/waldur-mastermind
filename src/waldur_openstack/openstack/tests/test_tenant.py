@@ -238,7 +238,8 @@ class TenantCreateTest(BaseTenantActionsTest):
             ),
         )
         payload.setdefault(
-            'project', structure_factories.ProjectFactory.get_url(self.fixture.project),
+            'project',
+            structure_factories.ProjectFactory.get_url(self.fixture.project),
         )
         self.client.force_authenticate(self.fixture.staff)
         return self.client.post(self.url, data=payload)
@@ -356,7 +357,10 @@ class TenantCreateTest(BaseTenantActionsTest):
 
     @override_openstack_settings(
         DEFAULT_SECURITY_GROUPS=(
-            {'name': 'allow-all', 'description': 'Security group for any access',},
+            {
+                'name': 'allow-all',
+                'description': 'Security group for any access',
+            },
         )
     )
     def test_tenant_is_not_created_if_configured_security_groups_rules_are_not_present(

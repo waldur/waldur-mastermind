@@ -277,7 +277,9 @@ class AggregateResourceCountTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         self.plan = factories.PlanFactory()
         self.resource = models.Resource.objects.create(
-            project=self.project, offering=self.plan.offering, plan=self.plan,
+            project=self.project,
+            offering=self.plan.offering,
+            plan=self.plan,
         )
         self.category = self.plan.offering.category
 
@@ -370,7 +372,8 @@ class ItemRejectTest(test.APITransactionTestCase):
         )
 
     @data(
-        'staff', 'owner',
+        'staff',
+        'owner',
     )
     def test_authorized_user_can_reject_item(self, user):
         response = self.reject_item(user)
@@ -379,13 +382,16 @@ class ItemRejectTest(test.APITransactionTestCase):
         self.assertEqual(self.order_item.state, models.OrderItem.States.TERMINATED)
 
     @data(
-        'admin', 'manager',
+        'admin',
+        'manager',
     )
     def test_user_cannot_reject_item(self, user):
         response = self.reject_item(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(models.OrderItem.States.TERMINATED,)
+    @data(
+        models.OrderItem.States.TERMINATED,
+    )
     def test_order_item_cannot_be_rejected_if_it_is_in_terminated_state(self, state):
         self.order_item.state = state
         self.order_item.save()

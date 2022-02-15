@@ -362,7 +362,9 @@ def log_offering_permission_updated(permission, user):
     }
 
     event_logger.marketplace_offering_permission.info(
-        template % context, event_type='role_updated', event_context=event_context,
+        template % context,
+        event_type='role_updated',
+        event_context=event_context,
     )
 
 

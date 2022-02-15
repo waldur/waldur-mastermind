@@ -238,7 +238,12 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('disk', 'runtime_state', 'guest_power_state', 'tools_installed',)
+            + (
+                'disk',
+                'runtime_state',
+                'guest_power_state',
+                'tools_installed',
+            )
         )
         extra_kwargs = dict(
             cores={'required': False},
@@ -630,11 +635,15 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
 class PortSerializer(structure_serializers.BaseResourceSerializer):
     service_settings = serializers.HyperlinkedRelatedField(
-        view_name='servicesettings-detail', lookup_field='uuid', read_only=True,
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail', lookup_field='uuid', read_only=True,
+        view_name='project-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     vm_name = serializers.ReadOnlyField(source='vm.name')
@@ -655,15 +664,25 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         # therefore it's not editable by user
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('name', 'vm', 'mac_address',)
+            + (
+                'name',
+                'vm',
+                'mac_address',
+            )
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
             + ('network',)
         )
         extra_kwargs = dict(
-            vm={'view_name': 'vmware-virtual-machine-detail', 'lookup_field': 'uuid',},
-            network={'view_name': 'vmware-network-detail', 'lookup_field': 'uuid',},
+            vm={
+                'view_name': 'vmware-virtual-machine-detail',
+                'lookup_field': 'uuid',
+            },
+            network={
+                'view_name': 'vmware-network-detail',
+                'lookup_field': 'uuid',
+            },
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
@@ -678,7 +697,8 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         attrs['project'] = vm.project
 
         if not models.CustomerNetworkPair.objects.filter(
-            customer=vm.customer, network=attrs['network'],
+            customer=vm.customer,
+            network=attrs['network'],
         ).exists():
             raise serializers.ValidationError(
                 'This network is not available for this customer.'
@@ -694,11 +714,15 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
     service_settings = serializers.HyperlinkedRelatedField(
-        view_name='servicesettings-detail', lookup_field='uuid', read_only=True,
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail', lookup_field='uuid', read_only=True,
+        view_name='project-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
@@ -720,10 +744,16 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         # therefore it's not editable by user
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('name', 'vm',)
+            + (
+                'name',
+                'vm',
+            )
         )
         extra_kwargs = dict(
-            vm={'view_name': 'vmware-virtual-machine-detail', 'lookup_field': 'uuid',},
+            vm={
+                'view_name': 'vmware-virtual-machine-detail',
+                'lookup_field': 'uuid',
+            },
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 

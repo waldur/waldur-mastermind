@@ -59,7 +59,9 @@ class StatsTest(StatsBaseTest):
     def test_reported_usage_is_aggregated_for_project_and_customer(self):
         # Arrange
         plan_period = models.ResourcePlanPeriod.objects.create(
-            start=parse_datetime('2019-01-01'), resource=self.resource, plan=self.plan,
+            start=parse_datetime('2019-01-01'),
+            resource=self.resource,
+            plan=self.plan,
         )
 
         models.ComponentUsage.objects.create(
@@ -76,7 +78,9 @@ class StatsTest(StatsBaseTest):
         )
 
         new_plan_period = models.ResourcePlanPeriod.objects.create(
-            start=parse_date('2019-01-01'), resource=self.new_resource, plan=self.plan,
+            start=parse_date('2019-01-01'),
+            resource=self.new_resource,
+            plan=self.plan,
         )
 
         models.ComponentUsage.objects.create(
@@ -125,7 +129,9 @@ class StatsTest(StatsBaseTest):
         # Assert
         project_usage = (
             models.CategoryComponentUsage.objects.filter(
-                scope=self.project, component=self.category_component, date=self.date,
+                scope=self.project,
+                component=self.category_component,
+                date=self.date,
             )
             .get()
             .fixed_usage
@@ -159,7 +165,8 @@ class CostsStatsTest(StatsBaseTest):
         self.url = factories.OfferingFactory.get_url(self.offering, action='costs')
 
         self.plan = factories.PlanFactory(
-            offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
+            offering=self.offering,
+            unit=UnitPriceMixin.Units.PER_DAY,
         )
         self.plan_component = factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component, amount=10
@@ -235,7 +242,8 @@ class ComponentStatsTest(StatsBaseTest):
         )
 
         self.plan = factories.PlanFactory(
-            offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
+            offering=self.offering,
+            unit=UnitPriceMixin.Units.PER_DAY,
         )
         self.plan_component = factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component, amount=10
@@ -335,7 +343,8 @@ class ComponentStatsTest(StatsBaseTest):
             type=COMPONENT_TYPE,
         )
         factories.PlanComponentFactory(
-            plan=self.plan, component=new_component,
+            plan=self.plan,
+            component=new_component,
         )
 
         self._create_items()
@@ -389,7 +398,8 @@ class CustomerStatsTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
 
     @data(
-        'staff', 'global_support',
+        'staff',
+        'global_support',
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
@@ -442,7 +452,8 @@ class LimitsStatsTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            len(response.data), 4,
+            len(response.data),
+            4,
         )
         self.assertTrue(
             {
@@ -504,7 +515,8 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
         self.url = '/api/marketplace-stats/count_users_of_service_providers/'
 
     @data(
-        'staff', 'global_support',
+        'staff',
+        'global_support',
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
@@ -528,7 +540,8 @@ class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCas
         self.url = '/api/marketplace-stats/count_projects_of_service_providers_grouped_by_oecd/'
 
     @data(
-        'staff', 'global_support',
+        'staff',
+        'global_support',
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)

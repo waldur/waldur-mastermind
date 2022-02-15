@@ -228,7 +228,10 @@ def get_info_about_missing_usage_reports():
             rows[0]['resources'].append(resource)
         else:
             result.append(
-                {'customer': resource.offering.customer, 'resources': [resource],}
+                {
+                    'customer': resource.offering.customer,
+                    'resources': [resource],
+                }
             )
 
     return result
@@ -298,7 +301,8 @@ def validate_limits(limits, offering):
             elif component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
                 current = (
                     models.ComponentQuota.objects.filter(
-                        component=component, modified__year=timezone.now().year,
+                        component=component,
+                        modified__year=timezone.now().year,
                     )
                     .exclude(limit=-1)
                     .aggregate(sum=Sum('limit'))['sum']
@@ -309,7 +313,9 @@ def validate_limits(limits, offering):
                     )
             elif component.limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
                 current = (
-                    models.ComponentQuota.objects.filter(component=component,)
+                    models.ComponentQuota.objects.filter(
+                        component=component,
+                    )
                     .exclude(limit=-1)
                     .aggregate(sum=Sum('limit'))['sum']
                 ) or 0
@@ -499,7 +505,8 @@ def get_offering_costs(invoice_items):
 
 def get_offering_customers(offering, active_customers):
     resources = models.Resource.objects.filter(
-        offering=offering, project__customer__in=active_customers,
+        offering=offering,
+        project__customer__in=active_customers,
     )
     customers_ids = resources.values_list('project__customer_id', flat=True)
     return structure_models.Customer.objects.filter(id__in=customers_ids)
@@ -646,7 +653,10 @@ def check_customer_blocked_for_terminating(resource):
 def check_pending_order_item_exists(resource):
     if models.OrderItem.objects.filter(
         resource=resource,
-        state__in=(models.OrderItem.States.PENDING, models.OrderItem.States.EXECUTING,),
+        state__in=(
+            models.OrderItem.States.PENDING,
+            models.OrderItem.States.EXECUTING,
+        ),
     ).exists():
         raise rf_exceptions.ValidationError(
             _('Pending order item for resource already exists.')

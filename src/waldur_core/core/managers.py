@@ -31,7 +31,7 @@ class GenericKeyMixin:
         self.available_models = available_models
 
     def _preprocess_kwargs(self, initial_kwargs):
-        """ Replace generic key related attribute with filters by object_id and content_type fields """
+        """Replace generic key related attribute with filters by object_id and content_type fields"""
         kwargs = initial_kwargs.copy()
         generic_key_related_kwargs = self._get_generic_key_related_kwargs(
             initial_kwargs
@@ -99,7 +99,7 @@ class GenericKeyMixin:
 
 
 class SummaryQuerySet:
-    """ Fake queryset that emulates union of different models querysets """
+    """Fake queryset that emulates union of different models querysets"""
 
     def __init__(self, summary_models):
         self.querysets = [model.objects.all() for model in summary_models]
@@ -167,7 +167,7 @@ class SummaryQuerySet:
     def _merge(self, subsequences, compared_attr='pk'):
         @functools.total_ordering
         class Compared:
-            """ Order objects by their attributes, reverse ordering if <reverse> is True """
+            """Order objects by their attributes, reverse ordering if <reverse> is True"""
 
             def __init__(self, obj, attr, reverse=False):
                 self.attr = functools.reduce(

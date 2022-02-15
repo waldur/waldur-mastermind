@@ -398,7 +398,9 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
         )
         self.component = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type='cores', article_code='article_code',
+            offering=self.offering,
+            type='cores',
+            article_code='article_code',
         )
         self.url = marketplace_factories.OfferingFactory.get_url(offering=self.offering)
 
@@ -491,7 +493,8 @@ class OfferingNameTest(test.APITransactionTestCase):
         self, offering_type
     ):
         offering = marketplace_factories.OfferingFactory(
-            type=offering_type, scope=self.fixture.private_settings,
+            type=offering_type,
+            scope=self.fixture.private_settings,
         )
         self.fixture.openstack_tenant.name = 'new_name'
         self.fixture.openstack_tenant.save()

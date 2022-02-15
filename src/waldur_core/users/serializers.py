@@ -135,9 +135,18 @@ class InvitationSerializer(GroupInvitationSerializer):
             'expires',
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'user-invitation-detail',},
-            'project_role': {'required': False, 'allow_null': True,},
-            'customer_role': {'required': False, 'allow_null': True,},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-invitation-detail',
+            },
+            'project_role': {
+                'required': False,
+                'allow_null': True,
+            },
+            'customer_role': {
+                'required': False,
+                'allow_null': True,
+            },
         }
 
 

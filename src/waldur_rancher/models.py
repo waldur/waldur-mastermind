@@ -22,7 +22,9 @@ class SettingsMixin(models.Model):
         abstract = True
 
     settings = models.ForeignKey(
-        to='structure.ServiceSettings', on_delete=models.CASCADE, related_name='+',
+        to='structure.ServiceSettings',
+        on_delete=models.CASCADE,
+        related_name='+',
     )
 
     def get_backend(self):

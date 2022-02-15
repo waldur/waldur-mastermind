@@ -116,7 +116,8 @@ class MarketplaceConfig(AppConfig):
 
         for resource_serializer in BaseResourceSerializer.get_subclasses():
             core_signals.pre_serializer_fields.connect(
-                sender=resource_serializer, receiver=utils.add_marketplace_offering,
+                sender=resource_serializer,
+                receiver=utils.add_marketplace_offering,
             )
 
         signals.post_save.connect(

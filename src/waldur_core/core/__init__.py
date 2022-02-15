@@ -23,10 +23,10 @@ if WALDUR_DISABLED_EXTENSIONS:
 
 
 class WaldurExtension:
-    """ Base class for Waldur extensions """
+    """Base class for Waldur extensions"""
 
     class Settings:
-        """ Defines extra django settings """
+        """Defines extra django settings"""
 
         pass
 
@@ -36,32 +36,32 @@ class WaldurExtension:
 
     @staticmethod
     def django_app():
-        """ Returns a django application name which will be added to INSTALLED_APPS """
+        """Returns a django application name which will be added to INSTALLED_APPS"""
         raise NotImplementedError
 
     @staticmethod
     def django_urls():
-        """ Returns a list of django URL in urlpatterns format """
+        """Returns a list of django URL in urlpatterns format"""
         return []
 
     @staticmethod
     def rest_urls():
-        """ Returns a function which register URLs in REST API """
+        """Returns a function which register URLs in REST API"""
         return lambda router: NotImplemented
 
     @staticmethod
     def celery_tasks():
-        """ Returns a dictionary with celery tasks which will be added to CELERY_BEAT_SCHEDULE """
+        """Returns a dictionary with celery tasks which will be added to CELERY_BEAT_SCHEDULE"""
         return dict()
 
     @staticmethod
     def get_cleanup_executor():
-        """ Returns a Celery task to cleanup project resources """
+        """Returns a Celery task to cleanup project resources"""
         pass
 
     @staticmethod
     def is_assembly():
-        """ Return True if plugin is assembly and should be installed last """
+        """Return True if plugin is assembly and should be installed last"""
         return False
 
     @classmethod
@@ -77,7 +77,7 @@ class WaldurExtension:
 
     @classmethod
     def _get_extensions(cls):
-        """ Get a list of available extensions """
+        """Get a list of available extensions"""
         assemblies = []
         for waldur_extension in pkg_resources.iter_entry_points('waldur_extensions'):
             extension_module = waldur_extension.load()
@@ -98,12 +98,12 @@ class WaldurExtension:
 
     @staticmethod
     def get_public_settings():
-        """ Return extension public settings
-        :return: list """
+        """Return extension public settings
+        :return: list"""
         return []
 
     @staticmethod
     def get_dynamic_settings():
-        """ Return extension public dynamic settings
-        :return: dict """
+        """Return extension public dynamic settings
+        :return: dict"""
         return {}

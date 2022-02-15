@@ -40,6 +40,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'unique_together': {('user', 'project', 'role')},},
+            options={
+                'unique_together': {('user', 'project', 'role')},
+            },
         ),
     ]

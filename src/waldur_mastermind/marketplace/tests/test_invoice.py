@@ -23,7 +23,10 @@ class InvoiceTest(test.APITransactionTestCase):
             customer=self.resource.project.customer, year=2020, month=11
         )
         self.assertEqual(
-            invoice.items.filter(resource_id=self.resource.id,).count(), 1,
+            invoice.items.filter(
+                resource_id=self.resource.id,
+            ).count(),
+            1,
         )
 
     @freeze_time('2020-11-02')
@@ -33,7 +36,9 @@ class InvoiceTest(test.APITransactionTestCase):
         invoice = invoices_models.Invoice.objects.get(
             customer=self.resource.project.customer, year=2020, month=11
         )
-        item = invoice.items.get(resource_id=self.resource.id,)
+        item = invoice.items.get(
+            resource_id=self.resource.id,
+        )
         self.resource.set_state_terminating()
         self.resource.save()
         self.resource.set_state_terminated()
@@ -50,7 +55,10 @@ class InvoiceTest(test.APITransactionTestCase):
             customer=self.resource.project.customer, year=2020, month=12
         )
         self.assertEqual(
-            invoice.items.filter(resource_id=self.resource.id,).count(), 1,
+            invoice.items.filter(
+                resource_id=self.resource.id,
+            ).count(),
+            1,
         )
 
 
@@ -73,7 +81,9 @@ class TotalLimitTest(test.APITransactionTestCase):
 
     def get_invoice_items(self, year=2020, month=11):
         invoice = invoices_models.Invoice.objects.get(
-            customer=self.resource.project.customer, year=year, month=month,
+            customer=self.resource.project.customer,
+            year=year,
+            month=month,
         )
         return invoice.items.filter(
             details__offering_component_type=self.component.type,

@@ -10,8 +10,20 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='allocation', name='deposit_limit',),
-        migrations.RemoveField(model_name='allocation', name='deposit_usage',),
-        migrations.RemoveField(model_name='allocationusage', name='deposit_usage',),
-        migrations.RemoveField(model_name='allocationuserusage', name='deposit_usage',),
+        migrations.RemoveField(
+            model_name='allocation',
+            name='deposit_limit',
+        ),
+        migrations.RemoveField(
+            model_name='allocation',
+            name='deposit_usage',
+        ),
+        migrations.RemoveField(
+            model_name='allocationusage',
+            name='deposit_usage',
+        ),
+        migrations.RemoveField(
+            model_name='allocationuserusage',
+            name='deposit_usage',
+        ),
     ]

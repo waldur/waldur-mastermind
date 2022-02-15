@@ -16,7 +16,7 @@ class SupportBackendError(Exception):
 
 
 class SupportBackend:
-    """ Interface for support backend """
+    """Interface for support backend"""
 
     def create_issue(self, issue):
         raise NotImplementedError

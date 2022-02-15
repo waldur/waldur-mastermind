@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 def get_order_item_issue(order_item):
     order_item_content_type = ContentType.objects.get_for_model(order_item)
     return support_models.Issue.objects.get(
-        resource_object_id=order_item.id, resource_content_type=order_item_content_type,
+        resource_object_id=order_item.id,
+        resource_content_type=order_item_content_type,
     )
 
 
@@ -71,7 +72,12 @@ def format_create_description(order_item):
             if component:
                 result.append(
                     "\n%s (%s): %s %s"
-                    % (component.name, component.type, value, component.measured_unit,)
+                    % (
+                        component.name,
+                        component.type,
+                        value,
+                        component.measured_unit,
+                    )
                 )
 
     description = '\n'.join(result)
@@ -124,7 +130,8 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
             resource=order_item.resource
         ).values_list('id', flat=True)
         linked_issues = support_models.Issue.objects.filter(
-            resource_object_id__in=ids, resource_content_type=order_item_content_type,
+            resource_object_id__in=ids,
+            resource_content_type=order_item_content_type,
         ).exclude(id=issue.id)
         try:
             support_backend.get_active_backend().create_issue_links(
@@ -164,7 +171,10 @@ def format_update_limits_description(order_item):
         'old_limits': old_limits,
         'new_limits': new_limits,
     }
-    return format_description('update_limits_template', context,)
+    return format_description(
+        'update_limits_template',
+        context,
+    )
 
 
 def format_delete_description(order_item):

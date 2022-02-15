@@ -428,7 +428,8 @@ class Offering(
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         order_item_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: [OrderItem], path_to_scope='offering',
+            target_models=lambda: [OrderItem],
+            path_to_scope='offering',
         )
 
     @transition(field=state, source=[States.DRAFT, States.PAUSED], target=States.ACTIVE)
@@ -985,7 +986,9 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
 
 
 class ResourceDetailsMixin(
-    CostEstimateMixin, core_models.NameMixin, core_models.DescribableMixin,
+    CostEstimateMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
 ):
     class Meta:
         abstract = True
@@ -1310,7 +1313,10 @@ class ComponentQuota(TimeStampedModel):
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='quotas'
     )
-    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,)
+    component = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=OfferingComponent,
+    )
     limit = models.BigIntegerField(default=-1)
     usage = models.BigIntegerField(default=0)
 
@@ -1331,7 +1337,10 @@ class ComponentUsage(
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='usages'
     )
-    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,)
+    component = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=OfferingComponent,
+    )
     usage = models.BigIntegerField(default=0)
     date = models.DateTimeField()
     plan_period = models.ForeignKey(

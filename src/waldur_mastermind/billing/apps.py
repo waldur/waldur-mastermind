@@ -44,5 +44,6 @@ class BillingConfig(AppConfig):
         )
 
         core_signals.pre_serializer_fields.connect(
-            sender=structure_serializers.ProjectSerializer, receiver=add_price_estimate,
+            sender=structure_serializers.ProjectSerializer,
+            receiver=add_price_estimate,
         )

@@ -74,8 +74,16 @@ class Port(core_models.BackendModelMixin, models.Model):
             'A server can send a packet with source address which matches one of the specified allowed address pairs.'
         ),
     )
-    device_id = models.CharField(max_length=255, null=True, blank=True,)
-    device_owner = models.CharField(max_length=100, null=True, blank=True,)
+    device_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+    )
+    device_owner = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         abstract = True

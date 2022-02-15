@@ -124,7 +124,9 @@ class PaypalBackend:
                 for item in invoice.items.iterator()
             ],
             'tax_inclusive': False,
-            'payment_term': {'due_date': self._format_date(invoice.end_date),},
+            'payment_term': {
+                'due_date': self._format_date(invoice.end_date),
+            },
             'total_amount': {
                 'currency': self.currency_name,
                 'value': self._format_decimal(invoice.total),
@@ -140,7 +142,10 @@ class PaypalBackend:
                 }
 
         invoice_details['billing_info'] = [
-            {'email': invoice.customer.email, 'business_name': invoice.customer.name,}
+            {
+                'email': invoice.customer.email,
+                'business_name': invoice.customer.name,
+            }
         ]
 
         backend_invoice = paypal.Invoice(invoice_details)
@@ -427,7 +432,10 @@ class PaypalBackend:
         if not invoice.backend_id:
             raise PayPalError(
                 'Invoice for date %s and customer %s could not be found'
-                % (invoice.invoice_date.strftime('%Y-%m-%d'), invoice.customer.name,)
+                % (
+                    invoice.invoice_date.strftime('%Y-%m-%d'),
+                    invoice.customer.name,
+                )
             )
 
         invoice_url = self.get_payment_view_url(

@@ -14,7 +14,10 @@ class RancherExtension(WaldurExtension):
                 '/var/lib/etcd',
                 '/opt/media01',
             ),
-            'MOUNT_POINT_MIN_SIZE': {'/var/lib/docker': 64, '/var/lib/etcd': 10,},
+            'MOUNT_POINT_MIN_SIZE': {
+                '/var/lib/docker': 64,
+                '/var/lib/etcd': 10,
+            },
             'SYSTEM_VOLUME_MIN_SIZE': 64,
             'READ_ONLY_MODE': False,
             'MOUNT_POINT_CHOICE_IS_MANDATORY': False,

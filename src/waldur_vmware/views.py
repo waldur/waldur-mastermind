@@ -260,7 +260,7 @@ class DiskViewSet(structure_views.ResourceViewSet):
 
     @action(detail=True, methods=['post'])
     def extend(self, request, uuid=None):
-        """ Increase disk capacity """
+        """Increase disk capacity"""
         disk = self.get_object()
         serializer = self.get_serializer(disk, data=request.data)
         serializer.is_valid(raise_exception=True)

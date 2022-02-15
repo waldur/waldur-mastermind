@@ -82,7 +82,8 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
     )
     def test_change_instance_security_groups_single_field(self, mocked_execute_method):
         new_security_group = factories.SecurityGroupFactory(
-            name='test-group', settings=self.settings,
+            name='test-group',
+            settings=self.settings,
         )
 
         data = {

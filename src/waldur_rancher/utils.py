@@ -82,7 +82,10 @@ def expand_added_nodes(
         if subnet.settings != tenant_settings:
             raise serializers.ValidationError(
                 _('Subnet %s should belong to the service settings %s.')
-                % (subnet.name, tenant_settings.name,)
+                % (
+                    subnet.name,
+                    tenant_settings.name,
+                )
             )
 
         validate_data_volumes(data_volumes, tenant_settings)
@@ -135,7 +138,10 @@ def validate_data_volumes(data_volumes, tenant_settings):
         if volume_type and volume_type.settings != tenant_settings:
             raise serializers.ValidationError(
                 _('Volume type %s should belong to the service settings %s.')
-                % (volume_type.name, tenant_settings.name,)
+                % (
+                    volume_type.name,
+                    tenant_settings.name,
+                )
             )
 
     mount_points = [
@@ -174,7 +180,10 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
     if flavor.settings != tenant_settings:
         raise serializers.ValidationError(
             _('Flavor %s should belong to the service settings %s.')
-            % (flavor.name, tenant_settings.name,)
+            % (
+                flavor.name,
+                tenant_settings.name,
+            )
         )
 
     requirements = list(
@@ -332,7 +341,8 @@ class SyncUser:
                             rancher_user,
                             created,
                         ) = models.RancherUser.objects.get_or_create(
-                            settings=service_settings, user=user,
+                            settings=service_settings,
+                            user=user,
                         )
                         backend = RancherBackend(service_settings)
 
@@ -399,8 +409,10 @@ class SyncUser:
                 for link in remove_links:
                     cluster_id = link[0]
                     role = link[1]
-                    rancher_user_cluster_link = models.RancherUserClusterLink.objects.get(
-                        user=rancher_user, role=role, cluster_id=cluster_id
+                    rancher_user_cluster_link = (
+                        models.RancherUserClusterLink.objects.get(
+                            user=rancher_user, role=role, cluster_id=cluster_id
+                        )
                     )
 
                     try:
@@ -420,8 +432,10 @@ class SyncUser:
 
                     try:
                         with transaction.atomic():
-                            rancher_user_cluster_link = models.RancherUserClusterLink.objects.create(
-                                user=rancher_user, role=role, cluster_id=cluster_id
+                            rancher_user_cluster_link = (
+                                models.RancherUserClusterLink.objects.create(
+                                    user=rancher_user, role=role, cluster_id=cluster_id
+                                )
                             )
                             backend.create_cluster_user_role(rancher_user_cluster_link)
 

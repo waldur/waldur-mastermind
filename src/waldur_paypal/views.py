@@ -19,7 +19,7 @@ class ExtensionDisabled(exceptions.APIException):
 
 
 class CheckExtensionMixin:
-    """ Raise exception if paypal extension is disabled """
+    """Raise exception if paypal extension is disabled"""
 
     def initial(self, request, *args, **kwargs):
         if not settings.WALDUR_PAYPAL['ENABLED']:

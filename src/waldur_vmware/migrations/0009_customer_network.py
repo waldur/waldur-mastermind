@@ -40,6 +40,7 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.AlterUniqueTogether(
-            name='customernetwork', unique_together=set([('customer', 'network')]),
+            name='customernetwork',
+            unique_together=set([('customer', 'network')]),
         ),
     ]

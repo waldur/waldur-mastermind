@@ -21,7 +21,8 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
 
     def list(self, request):
         serializer = serializers.DailyHistoryQuotaSerializer(
-            data=request.query_params, context={'request': request},
+            data=request.query_params,
+            context={'request': request},
         )
         serializer.is_valid(raise_exception=True)
         result = self.get_result(serializer.validated_data)
@@ -34,8 +35,15 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
         end = query['end']
 
         quotas = models.DailyQuotaHistory.objects.filter(
-            scope=scope, name__in=quota_names, date__gte=start, date__lte=end,
-        ).only('name', 'date', 'usage',)
+            scope=scope,
+            name__in=quota_names,
+            date__gte=start,
+            date__lte=end,
+        ).only(
+            'name',
+            'date',
+            'usage',
+        )
         charts = collections.defaultdict(dict)
         for quota in quotas:
             charts[quota.name][quota.date] = quota.usage
@@ -83,14 +91,17 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
 
     def annotate_quotas(self, quota_name, content_type):
         quotas = Quota.objects.filter(
-            object_id=OuterRef('pk'), content_type=content_type, name=quota_name,
+            object_id=OuterRef('pk'),
+            content_type=content_type,
+            name=quota_name,
         )
         subquery = Subquery(quotas.values('usage')[:1])
         return Project.available_objects.annotate(value=subquery)
 
     def annotate_estimated_price(self, content_type):
         estimates = PriceEstimate.objects.filter(
-            object_id=OuterRef('pk'), content_type=content_type,
+            object_id=OuterRef('pk'),
+            content_type=content_type,
         )
         subquery = Subquery(estimates.values('total')[:1])
         return Project.available_objects.annotate(value=subquery)

@@ -10,6 +10,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='offeringcomponent', name='product_code',),
-        migrations.RemoveField(model_name='plan', name='product_code',),
+        migrations.RemoveField(
+            model_name='offeringcomponent',
+            name='product_code',
+        ),
+        migrations.RemoveField(
+            model_name='plan',
+            name='product_code',
+        ),
     ]

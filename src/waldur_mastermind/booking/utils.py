@@ -157,7 +157,10 @@ def get_info_about_upcoming_bookings():
                 rows[0]['resources'].append(resource)
             else:
                 result.append(
-                    {'user': user, 'resources': [resource],}
+                    {
+                        'user': user,
+                        'resources': [resource],
+                    }
                 )
 
     return result

@@ -27,6 +27,8 @@ class Migration(migrations.Migration):
                 ('url', models.URLField()),
                 ('metadata', waldur_core.core.fields.JSONField(default={})),
             ],
-            options={'ordering': ('name',),},
+            options={
+                'ordering': ('name',),
+            },
         ),
     ]

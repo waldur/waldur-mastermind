@@ -19,6 +19,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='customerfolder', unique_together=set([('customer', 'folder')]),
+            name='customerfolder',
+            unique_together=set([('customer', 'folder')]),
         ),
     ]

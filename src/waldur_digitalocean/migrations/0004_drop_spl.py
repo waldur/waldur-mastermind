@@ -10,4 +10,6 @@ class Migration(migrations.Migration):
         ('waldur_digitalocean', '0003_droplet_error_traceback'),
     ]
 
-    operations = build_spl_migrations(('droplet',),)
+    operations = build_spl_migrations(
+        ('droplet',),
+    )

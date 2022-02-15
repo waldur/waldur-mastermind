@@ -53,7 +53,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'unique_together': {('settings', 'backend_id')},},
+            options={
+                'unique_together': {('settings', 'backend_id')},
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
     ]

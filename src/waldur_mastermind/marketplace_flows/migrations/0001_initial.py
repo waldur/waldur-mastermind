@@ -175,7 +175,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='ResourceCreateRequest',
@@ -291,7 +293,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='ProjectCreateRequest',
@@ -372,7 +376,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='FlowTracker',

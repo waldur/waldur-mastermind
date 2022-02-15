@@ -38,11 +38,11 @@ def getdoc(obj, warning=True):
 
 
 class ApiDocs:
-    """ Generate RST docs for DRF endpoints from docstrings:
-        - AppConfig class docstring may contain general info about an app,
-          `verbose_name` in the config delivers human friendly title;
-        - View class docstring describes intention of top-level endpoint;
-        - View method docstring can explain usage of particular method or actions;
+    """Generate RST docs for DRF endpoints from docstrings:
+    - AppConfig class docstring may contain general info about an app,
+      `verbose_name` in the config delivers human friendly title;
+    - View class docstring describes intention of top-level endpoint;
+    - View method docstring can explain usage of particular method or actions;
     """
 
     tree = {}

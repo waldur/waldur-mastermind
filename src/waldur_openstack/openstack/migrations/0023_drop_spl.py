@@ -22,6 +22,7 @@ class Migration(migrations.Migration):
         ),
     ) + [
         migrations.AlterUniqueTogether(
-            name='tenant', unique_together={('service_settings', 'backend_id')},
+            name='tenant',
+            unique_together={('service_settings', 'backend_id')},
         ),
     ]

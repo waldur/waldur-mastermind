@@ -47,10 +47,13 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.AlterUniqueTogether(
-            name='network', unique_together=set([('settings', 'backend_id')]),
+            name='network',
+            unique_together=set([('settings', 'backend_id')]),
         ),
     ]

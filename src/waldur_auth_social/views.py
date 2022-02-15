@@ -74,7 +74,10 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         event_logger.auth_social.info(
             'User {user_username} with full name {user_full_name} authenticated successfully with {provider}.',
             event_type=provider_event_type_mapping[self.provider],
-            event_context={'provider': self.provider, 'user': user,},
+            event_context={
+                'provider': self.provider,
+                'user': user,
+            },
         )
         return Response(
             {'token': token.key},
@@ -126,7 +129,10 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         OAuthToken.objects.update_or_create(
             user=user,
             provider=self.provider,
-            defaults={'access_token': access_token, 'refresh_token': refresh_token,},
+            defaults={
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+            },
         )
         return user, created
 
@@ -169,7 +175,7 @@ class SmartIDeeView(OAuthView):
         return requests.get(user_data_url, params={'access_token': access_token})
 
     def create_or_update_user(self, backend_user):
-        """ Authenticate user by civil number """
+        """Authenticate user by civil number"""
         first_name = backend_user['firstname']
         last_name = backend_user['lastname']
         try:

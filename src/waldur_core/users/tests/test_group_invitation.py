@@ -516,7 +516,8 @@ class RequestApproveTest(BaseInvitationTest):
         )
         self.assertTrue(
             structure_models.CustomerPermission.objects.filter(
-                user=self.permission_request.created_by, customer=self.customer,
+                user=self.permission_request.created_by,
+                customer=self.customer,
             ).exists()
         )
 
@@ -542,7 +543,8 @@ class RequestApproveTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_tasks.send_structure_role_granted_notification.delay.assert_called_once()
         permission = structure_models.CustomerPermission.objects.get(
-            user=self.permission_request.created_by, customer=self.customer,
+            user=self.permission_request.created_by,
+            customer=self.customer,
         )
         mock_tasks.send_structure_role_granted_notification.delay.assert_called_once_with(
             core_utils.serialize_instance(permission),

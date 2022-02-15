@@ -12,7 +12,8 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.shared_offering = factories.OfferingFactory(
-            customer=self.customer, shared=True,
+            customer=self.customer,
+            shared=True,
         )
         self.shared_plan = factories.PlanFactory(offering=self.shared_offering)
         self.shared_offering_component = factories.OfferingComponentFactory(
@@ -23,7 +24,8 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
         )
 
         self.privat_offering = factories.OfferingFactory(
-            customer=self.customer, shared=False,
+            customer=self.customer,
+            shared=False,
         )
         self.privat_plan = factories.PlanFactory(offering=self.privat_offering)
         self.privat_offering_component = factories.OfferingComponentFactory(

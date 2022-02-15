@@ -44,14 +44,17 @@ class InvoiceTest(test.APITransactionTestCase):
         self.offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME, scope=service_settings
         )
-        self.plan = marketplace_factories.PlanFactory(offering=self.offering,)
+        self.plan = marketplace_factories.PlanFactory(
+            offering=self.offering,
+        )
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
             type='node',
             billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
         )
         self.plan_component = marketplace_factories.PlanComponentFactory(
-            plan=self.plan, component=self.offering_component,
+            plan=self.plan,
+            component=self.offering_component,
         )
         openstack_tenant_factories.FlavorFactory(
             settings=self.fixture.openstack_tenant_service_settings,
@@ -126,7 +129,10 @@ class InvoiceTest(test.APITransactionTestCase):
         today = datetime.date.today()
         self.resource = marketplace_models.Resource.objects.get(scope=self.cluster)
         self.plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
-            start=today, end=None, resource=self.resource, plan=self.plan,
+            start=today,
+            end=None,
+            resource=self.resource,
+            plan=self.plan,
         )
         invoices_tasks.create_monthly_invoices()
         tasks.pull_cluster_nodes(self.cluster.id)

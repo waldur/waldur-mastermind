@@ -2,7 +2,7 @@ from django.db import migrations
 
 
 def update_ram_usage(apps, schema_editor):
-    bytes_in_mb = 2 ** 20
+    bytes_in_mb = 2**20
     app_label = 'waldur_slurm'
 
     Allocation = apps.get_model(app_label, 'Allocation')

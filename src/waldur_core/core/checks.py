@@ -11,5 +11,11 @@ def settings_are_valid(app_configs, **kwargs):
     try:
         WaldurConfiguration(**settings._wrapped.__dict__)
     except ValidationError as e:
-        errors.append(Error('Settings are invalid', hint=e.json(), id='waldur.E001',))
+        errors.append(
+            Error(
+                'Settings are invalid',
+                hint=e.json(),
+                id='waldur.E001',
+            )
+        )
     return errors

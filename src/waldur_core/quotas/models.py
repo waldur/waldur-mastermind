@@ -312,7 +312,7 @@ class QuotaModelMixin(models.Model):
 
 
 class ExtendableQuotaModelMixin(QuotaModelMixin):
-    """ Allows to add quotas to model in runtime.
+    """Allows to add quotas to model in runtime.
 
     Example:
         from waldur_core.quotas.fields import QuotaField

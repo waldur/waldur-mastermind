@@ -83,7 +83,9 @@ class GrantOfferingPermissionTest(test.APITransactionTestCase):
             )
         )
 
-    def test_service_manager_permission_is_created_even_for_customer_owner(self,):
+    def test_service_manager_permission_is_created_even_for_customer_owner(
+        self,
+    ):
         self.offering.customer.add_user(self.fixture.user, CustomerRole.OWNER)
         self.grant_permission('owner')
         self.assertTrue(
@@ -106,7 +108,12 @@ class UpdateOfferingPermissionTest(test.APITransactionTestCase):
 
     def change_permission(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        return self.client.patch(self.url, {'expiration_time': '2021-01-01T00:00',},)
+        return self.client.patch(
+            self.url,
+            {
+                'expiration_time': '2021-01-01T00:00',
+            },
+        )
 
     @data('staff', 'owner')
     def test_authorized_user_can_change_offering_permission(self, user):
@@ -159,7 +166,9 @@ class RevokeOfferingPermissionTest(test.APITransactionTestCase):
             )
         )
 
-    def test_customer_permission_is_not_revoked_if_another_offering_exists(self,):
+    def test_customer_permission_is_not_revoked_if_another_offering_exists(
+        self,
+    ):
         offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
@@ -177,7 +186,11 @@ class RevokeOfferingPermissionTest(test.APITransactionTestCase):
         self.offering.customer.remove_user(
             self.fixture.user, CustomerRole.SERVICE_MANAGER
         )
-        self.assertFalse(self.offering.has_user(self.fixture.user,))
+        self.assertFalse(
+            self.offering.has_user(
+                self.fixture.user,
+            )
+        )
 
 
 @ddt

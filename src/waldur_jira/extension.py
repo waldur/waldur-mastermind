@@ -6,7 +6,9 @@ class JiraExtension(WaldurExtension):
         WALDUR_JIRA = {
             'COMMENT_TEMPLATE': '{body}\n\n_(added by {user.full_name} [{user.username}] via G-Cloud Portal)_',
             'ISSUE_TEMPLATE': {'RESOURCE_INFO': '\nAffected resource: {resource}\n'},
-            'ISSUE': {'resolution_sla_field': 'Time to resolution',},
+            'ISSUE': {
+                'resolution_sla_field': 'Time to resolution',
+            },
             'ISSUE_IMPORT_LIMIT': 10,
         }
 

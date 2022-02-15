@@ -9,7 +9,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterUniqueTogether(name='alert', unique_together=set([]),),
-        migrations.RemoveField(model_name='alert', name='content_type',),
-        migrations.DeleteModel(name='Alert',),
+        migrations.AlterUniqueTogether(
+            name='alert',
+            unique_together=set([]),
+        ),
+        migrations.RemoveField(
+            model_name='alert',
+            name='content_type',
+        ),
+        migrations.DeleteModel(
+            name='Alert',
+        ),
     ]

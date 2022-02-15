@@ -297,14 +297,23 @@ class ClusterSerializer(
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('node_command', 'runtime_state',)
+            + (
+                'node_command',
+                'runtime_state',
+            )
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ('nodes', 'tenant_settings',)
+            + (
+                'nodes',
+                'tenant_settings',
+            )
         )
         extra_kwargs = dict(
-            cluster={'view_name': 'rancher-cluster-detail', 'lookup_field': 'uuid',},
+            cluster={
+                'view_name': 'rancher-cluster-detail',
+                'lookup_field': 'uuid',
+            },
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
@@ -373,7 +382,8 @@ class ClusterSerializer(
 
 class NodeSerializer(serializers.HyperlinkedModelSerializer):
     instance = core_serializers.GenericRelatedField(
-        related_models=VirtualMachine.get_all_models(), required=True,
+        related_models=VirtualMachine.get_all_models(),
+        required=True,
     )
     resource_type = serializers.SerializerMethodField()
     state = serializers.ReadOnlyField(source='get_state_display')
@@ -596,7 +606,8 @@ class NamespaceSerializer(structure_serializers.BasePropertySerializer):
 
 
 class TemplateSerializer(
-    ProtectedMediaSerializerMixin, structure_serializers.BasePropertySerializer,
+    ProtectedMediaSerializerMixin,
+    structure_serializers.BasePropertySerializer,
 ):
     catalog_name = serializers.ReadOnlyField(source='catalog.name')
 

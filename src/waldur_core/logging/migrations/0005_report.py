@@ -58,6 +58,8 @@ class Migration(migrations.Migration):
                 ),
                 ('error_message', models.TextField(blank=True)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
     ]

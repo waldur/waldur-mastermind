@@ -84,7 +84,8 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         admin = fixture.admin
         manager = fixture.manager
         tasks.notify_about_resource_termination(
-            fixture.resource.uuid, fixture.offering_owner.uuid,
+            fixture.resource.uuid,
+            fixture.offering_owner.uuid,
         )
         recipients = {m.to[0] for m in mail.outbox}
         self.assertEqual(recipients, {admin.email, manager.email})
@@ -95,7 +96,8 @@ class ResourceEndDateTest(test.APITransactionTestCase):
     def test_mail_is_not_sent_if_there_are_no_project_admin_or_manager(self):
         fixture = fixtures.MarketplaceFixture()
         tasks.notify_about_resource_termination(
-            fixture.resource.uuid, fixture.offering_owner.uuid,
+            fixture.resource.uuid,
+            fixture.offering_owner.uuid,
         )
         self.assertEqual(len(mail.outbox), 0)
 

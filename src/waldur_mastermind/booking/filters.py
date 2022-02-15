@@ -84,5 +84,10 @@ class BookingResourceFilter(ResourceFilter):
 
     def filter_connected_customer(self, queryset, name, value):
         return queryset.filter(
-            Q(project__customer__uuid=value,) | Q(offering__customer__uuid=value,)
+            Q(
+                project__customer__uuid=value,
+            )
+            | Q(
+                offering__customer__uuid=value,
+            )
         )

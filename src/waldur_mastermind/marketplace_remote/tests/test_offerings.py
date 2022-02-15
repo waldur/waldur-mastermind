@@ -17,7 +17,10 @@ class RemoteCustomersTest(test.APITransactionTestCase):
         self.client.force_login(UserFactory())
         response = self.client.post(
             '/api/remote-waldur-api/remote_customers/',
-            {'api_url': 'https://remote-waldur.com/', 'token': 'valid_token',},
+            {
+                'api_url': 'https://remote-waldur.com/',
+                'token': 'valid_token',
+            },
         )
         self.assertEqual(
             responses.calls[0].request.headers['Authorization'], 'token valid_token'

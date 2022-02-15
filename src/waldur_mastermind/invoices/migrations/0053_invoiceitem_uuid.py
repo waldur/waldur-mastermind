@@ -20,7 +20,9 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='invoiceitem', name='uuid', field=models.UUIDField(null=True),
+            model_name='invoiceitem',
+            name='uuid',
+            field=models.UUIDField(null=True),
         ),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(

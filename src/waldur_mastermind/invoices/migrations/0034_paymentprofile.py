@@ -55,6 +55,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'unique_together': {('organization', 'payment_type')},},
+            options={
+                'unique_together': {('organization', 'payment_type')},
+            },
         ),
     ]

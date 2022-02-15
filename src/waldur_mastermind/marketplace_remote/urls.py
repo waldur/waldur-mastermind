@@ -4,13 +4,16 @@ from . import views
 
 urlpatterns = [
     re_path(
-        r'^api/remote-waldur-api/remote_customers/$', views.CustomersView.as_view(),
+        r'^api/remote-waldur-api/remote_customers/$',
+        views.CustomersView.as_view(),
     ),
     re_path(
-        r'^api/remote-waldur-api/shared_offerings/$', views.OfferingsListView.as_view(),
+        r'^api/remote-waldur-api/shared_offerings/$',
+        views.OfferingsListView.as_view(),
     ),
     re_path(
-        r'^api/remote-waldur-api/import_offering/$', views.OfferingCreateView.as_view(),
+        r'^api/remote-waldur-api/import_offering/$',
+        views.OfferingCreateView.as_view(),
     ),
     re_path(
         r'^api/remote-waldur-api/pull_order_item/(?P<uuid>[a-f0-9]+)$',

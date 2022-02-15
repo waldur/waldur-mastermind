@@ -52,7 +52,10 @@ class Migration(migrations.Migration):
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
-        migrations.RemoveField(model_name='project', name='default_issue_type',),
+        migrations.RemoveField(
+            model_name='project',
+            name='default_issue_type',
+        ),
         migrations.AlterField(
             model_name='issue',
             name='type',

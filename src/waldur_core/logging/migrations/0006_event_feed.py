@@ -39,7 +39,10 @@ class Migration(migrations.Migration):
                 ('message', models.TextField()),
                 ('context', django.contrib.postgres.fields.jsonb.JSONField(blank=True)),
             ],
-            options={'abstract': False, 'ordering': ('-created',),},
+            options={
+                'abstract': False,
+                'ordering': ('-created',),
+            },
         ),
         migrations.CreateModel(
             name='Feed',

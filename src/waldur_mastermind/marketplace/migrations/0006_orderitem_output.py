@@ -11,6 +11,8 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='orderitem', name='output', field=models.TextField(blank=True),
+            model_name='orderitem',
+            name='output',
+            field=models.TextField(blank=True),
         ),
     ]

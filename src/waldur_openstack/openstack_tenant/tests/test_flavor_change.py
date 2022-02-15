@@ -19,7 +19,8 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         # User manages managed_instance through its project group
         self.managed_instance = factories.InstanceFactory(
-            state=Instance.States.OK, runtime_state=Instance.RuntimeStates.SHUTOFF,
+            state=Instance.States.OK,
+            runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
 
     @data('admin', 'manager')
@@ -286,7 +287,8 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.user)
 
         instance = factories.InstanceFactory(
-            state=Instance.States.OK, runtime_state=Instance.RuntimeStates.SHUTOFF,
+            state=Instance.States.OK,
+            runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
         project = instance.project
 

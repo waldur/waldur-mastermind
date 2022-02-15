@@ -108,7 +108,8 @@ class SyncBookings:
 
         for booking_id in need_to_delete:
             self.backend.delete_event(
-                calendar_id=self.calendar_id, event_id=booking_id,
+                calendar_id=self.calendar_id,
+                event_id=booking_id,
             )
 
         for booking in need_to_update:

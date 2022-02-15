@@ -319,7 +319,8 @@ def create_offerings_for_volume_and_instance(tenant):
 
     try:
         service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant, type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
+            scope=tenant,
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
         )
     except ObjectDoesNotExist:
         logger.debug(

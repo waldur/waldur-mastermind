@@ -109,7 +109,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ['-invoice_date'],},
+            options={
+                'ordering': ['-invoice_date'],
+            },
             bases=(
                 waldur_core.logging.loggers.LoggableMixin,
                 models.Model,
@@ -156,7 +158,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ['invoice', '-start'],},
+            options={
+                'ordering': ['invoice', '-start'],
+            },
         ),
         migrations.CreateModel(
             name='Payment',
@@ -213,7 +217,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ['-modified'],},
+            options={
+                'ordering': ['-modified'],
+            },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
     ]

@@ -17,6 +17,7 @@ class Migration(migrations.Migration):
             field=models.BooleanField(default=True),
         ),
         migrations.AlterUniqueTogether(
-            name='paymentprofile', unique_together={('organization', 'is_active')},
+            name='paymentprofile',
+            unique_together={('organization', 'is_active')},
         ),
     ]

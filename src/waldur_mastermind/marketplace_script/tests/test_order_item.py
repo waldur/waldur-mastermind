@@ -28,7 +28,9 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         order_item = marketplace_factories.OrderItemFactory(
             order=order,
             offering=self.fixture.offering,
-            attributes={'name': 'name',},
+            attributes={
+                'name': 'name',
+            },
             limits={'cpu': 10},
             state=marketplace_models.OrderItem.States.PENDING,
         )

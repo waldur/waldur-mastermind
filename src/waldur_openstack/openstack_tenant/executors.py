@@ -127,7 +127,8 @@ class VolumeExtendExecutor(core_executors.ActionExecutor):
                 erred_state='error',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_volume, backend_method='extend_volume',
+                serialized_volume,
+                backend_method='extend_volume',
             ),
             core_tasks.PollRuntimeStateTask().si(
                 serialized_volume,
@@ -243,7 +244,10 @@ class VolumeRetypeExecutor(core_executors.ActionExecutor):
                 erred_state='error',
             )
             .set(countdown=10),
-            core_tasks.BackendMethodTask().si(serialized_volume, 'pull_volume',),
+            core_tasks.BackendMethodTask().si(
+                serialized_volume,
+                'pull_volume',
+            ),
         )
 
 
@@ -613,7 +617,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         """
         return [
             core_tasks.BackendMethodTask().si(
-                serialized_instance, backend_method='delete_instance_internal_ips',
+                serialized_instance,
+                backend_method='delete_instance_internal_ips',
             )
         ]
 
@@ -626,7 +631,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 state_transition='begin_deleting',
             ),
             core_tasks.PollBackendCheckTask().si(
-                serialized_instance, backend_check_method='is_instance_deleted',
+                serialized_instance,
+                backend_check_method='is_instance_deleted',
             ),
         ]
 
@@ -675,7 +681,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         data_volumes = instance.volumes.all().filter(bootable=False)
         detach_volumes = [
             core_tasks.BackendMethodTask().si(
-                core_utils.serialize_instance(volume), backend_method='detach_volume',
+                core_utils.serialize_instance(volume),
+                backend_method='detach_volume',
             )
             for volume in data_volumes
         ]
@@ -746,7 +753,9 @@ class InstancePullExecutor(core_executors.ActionExecutor):
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'pull_instance', state_transition='begin_updating',
+                serialized_instance,
+                'pull_instance',
+                state_transition='begin_updating',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance, 'pull_instance_security_groups'
@@ -841,7 +850,9 @@ class InstanceStopExecutor(core_executors.ActionExecutor):
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'stop_instance', state_transition='begin_updating',
+                serialized_instance,
+                'stop_instance',
+                state_transition='begin_updating',
             ),
             core_tasks.PollRuntimeStateTask().si(
                 serialized_instance,
@@ -1008,7 +1019,7 @@ class BackupDeleteExecutor(core_executors.DeleteExecutor):
 
 
 class SnapshotRestorationExecutor(core_executors.CreateExecutor):
-    """ Restores volume from snapshot instance """
+    """Restores volume from snapshot instance"""
 
     @classmethod
     def get_task_signature(

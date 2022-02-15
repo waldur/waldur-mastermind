@@ -10,5 +10,8 @@ def send_notification_email(notification_uuid):
     notification = models.Notification.objects.get(uuid=notification_uuid)
     for email in notification.emails:
         send_mail(
-            notification.subject, notification.body, [email], fail_silently=True,
+            notification.subject,
+            notification.body,
+            [email],
+            fail_silently=True,
         )

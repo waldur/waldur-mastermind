@@ -80,21 +80,21 @@ class TaskType(type):
 
 
 class Task(CeleryTask, metaclass=TaskType):
-    """ Base class for tasks that are run by executors.
+    """Base class for tasks that are run by executors.
 
     Provides standard way for input data deserialization.
     """
 
     @classmethod
     def get_description(cls, *args, **kwargs):
-        """ Add additional information about task to celery logs.
+        """Add additional information about task to celery logs.
 
-            Receives same parameters as method "run".
+        Receives same parameters as method "run".
         """
         raise NotImplementedError()
 
     def run(self, serialized_instance, *args, **kwargs):
-        """ Deserialize input data and start backend operation execution """
+        """Deserialize input data and start backend operation execution"""
         try:
             instance = utils.deserialize_instance(serialized_instance)
         except ObjectDoesNotExist:
@@ -117,7 +117,7 @@ class Task(CeleryTask, metaclass=TaskType):
         pass
 
     def execute(self, instance, *args, **kwargs):
-        """ Execute backend operation """
+        """Execute backend operation"""
         raise NotImplementedError(
             '%s should implement method `execute`' % self.__class__.__name__
         )
@@ -132,9 +132,9 @@ class EmptyTask(CeleryTask, metaclass=TaskType):
 
 
 class StateTransitionTask(Task):
-    """ Execute instance state transition, changes instance action and action details if defined.
+    """Execute instance state transition, changes instance action and action details if defined.
 
-        It is impossible to change object action without state transition.
+    It is impossible to change object action without state transition.
     """
 
     @classmethod
@@ -200,7 +200,7 @@ class StateTransitionTask(Task):
 
 
 class RuntimeStateChangeTask(Task):
-    """ Allows to change runtime state of instance before and after execution.
+    """Allows to change runtime state of instance before and after execution.
 
     Define kwargs:
      - runtime_state - to change instance runtime state during execution.
@@ -238,7 +238,7 @@ class RuntimeStateChangeTask(Task):
 
 
 class BackendMethodTask(RuntimeStateChangeTask, StateTransitionTask):
-    """ Execute method of instance backend """
+    """Execute method of instance backend"""
 
     @classmethod
     def get_description(cls, instance, backend_method, *args, **kwargs):
@@ -268,7 +268,7 @@ class BackendMethodTask(RuntimeStateChangeTask, StateTransitionTask):
 
 
 class IndependentBackendMethodTask(BackendMethodTask):
-    """ Execute instance backend method that does not receive instance as argument """
+    """Execute instance backend method that does not receive instance as argument"""
 
     def execute(self, instance, backend_method, *args, **kwargs):
         backend = self.get_backend(instance)
@@ -276,7 +276,7 @@ class IndependentBackendMethodTask(BackendMethodTask):
 
 
 class DeletionTask(Task):
-    """ Delete instance """
+    """Delete instance"""
 
     @classmethod
     def get_description(cls, *args, **kwargs):
@@ -294,7 +294,7 @@ class DeletionTask(Task):
 
 
 class ErrorMessageTask(Task):
-    """ Store error in error_message field.
+    """Store error in error_message field.
 
     This task should not be called as immutable, because it expects result_uuid
     as input argument.
@@ -333,7 +333,7 @@ class ErrorMessageTask(Task):
 
 
 class ErrorStateTransitionTask(ErrorMessageTask, StateTransitionTask):
-    """ Set instance as erred and save error message.
+    """Set instance as erred and save error message.
 
     This task should not be called as immutable, because it expects result_uuid
     as input argument.
@@ -349,7 +349,7 @@ class ErrorStateTransitionTask(ErrorMessageTask, StateTransitionTask):
 
 
 class RecoverTask(StateTransitionTask):
-    """ Change instance state from ERRED to OK and clear error_message """
+    """Change instance state from ERRED to OK and clear error_message"""
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
@@ -363,7 +363,7 @@ class RecoverTask(StateTransitionTask):
 
 
 class PreApplyExecutorTask(Task):
-    """ Run executor as a task """
+    """Run executor as a task"""
 
     @classmethod
     def get_description(cls, executor, instance, *args, **kwargs):
@@ -380,33 +380,33 @@ class PreApplyExecutorTask(Task):
 
 
 class BackgroundTask(CeleryTask, metaclass=TaskType):
-    """ Task that is run in background via celerybeat.
+    """Task that is run in background via celerybeat.
 
-        Background task features:
-         - background task does not start if previous task with the same name
-           and input parameters is not completed yet;
-         - all background tasks are scheduled in separate queue "background";
-         - by default we do not log background tasks in celery logs. So tasks
-           should log themselves explicitly and make sure that they will not
-           spam error messages.
+    Background task features:
+     - background task does not start if previous task with the same name
+       and input parameters is not completed yet;
+     - all background tasks are scheduled in separate queue "background";
+     - by default we do not log background tasks in celery logs. So tasks
+       should log themselves explicitly and make sure that they will not
+       spam error messages.
 
-        Implement "is_equal" method to define what tasks are equal and should
-        be executed simultaneously.
+    Implement "is_equal" method to define what tasks are equal and should
+    be executed simultaneously.
     """
 
     is_background = True
 
     def is_equal(self, other_task, *args, **kwargs):
-        """ Return True if task do the same operation as other_task.
+        """Return True if task do the same operation as other_task.
 
-            Note! Other task is represented as serialized celery task - dictionary.
+        Note! Other task is represented as serialized celery task - dictionary.
         """
         raise NotImplementedError(
             'BackgroundTask should implement "is_equal" method to avoid queue overload.'
         )
 
     def is_previous_task_processing(self, *args, **kwargs):
-        """ Return True if exist task that is equal to current and is uncompleted """
+        """Return True if exist task that is equal to current and is uncompleted"""
         app = self._get_app()
         inspect = app.control.inspect()
         active = inspect.active() or {}
@@ -419,7 +419,7 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
         return any(self.is_equal(task, *args, **kwargs) for task in uncompleted)
 
     def apply_async(self, args=None, kwargs=None, **options):
-        """ Do not run background task if previous task is uncompleted """
+        """Do not run background task if previous task is uncompleted"""
         if self.is_previous_task_processing(*args, **kwargs):
             message = (
                 'Background task %s was not scheduled, because its predecessor is not completed yet.'
@@ -434,7 +434,7 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
 
 
 def log_celery_task(request):
-    """ Add description to celery log output """
+    """Add description to celery log output"""
     task = request.task
     description = None
     if isinstance(task, Task):

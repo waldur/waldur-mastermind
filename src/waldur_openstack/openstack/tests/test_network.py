@@ -176,9 +176,14 @@ class NetworkCreatePortActionTest(BaseNetworkTest):
 
     def test_create_port_with_fixed_ips(self):
         self.request_data['fixed_ips'] = [
-            {'ip_address': '192.168.1.10', 'subnet_id': self.subnet.backend_id,},
+            {
+                'ip_address': '192.168.1.10',
+                'subnet_id': self.subnet.backend_id,
+            },
             {'subnet_id': self.subnet.backend_id},
-            {'ip_address': '192.168.1.12',},
+            {
+                'ip_address': '192.168.1.12',
+            },
         ]
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -190,8 +195,14 @@ class NetworkCreatePortActionTest(BaseNetworkTest):
         self.assertEqual(
             floating_ips_response,
             [
-                ('192.168.1.10', self.subnet.backend_id,),
-                (None, self.subnet.backend_id,),
+                (
+                    '192.168.1.10',
+                    self.subnet.backend_id,
+                ),
+                (
+                    None,
+                    self.subnet.backend_id,
+                ),
                 ('192.168.1.12', None),
             ],
         )
@@ -219,30 +230,39 @@ class NetworkCreatePortActionTest(BaseNetworkTest):
 
     def test_create_port_with_blank_ip_address(self):
         self.request_data['fixed_ips'] = [
-            {'ip_address': '',},
+            {
+                'ip_address': '',
+            },
         ]
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            'ip_address field must not be blank', response.data['non_field_errors'][0],
+            'ip_address field must not be blank',
+            response.data['non_field_errors'][0],
         )
 
     def test_create_port_with_blank_subnet_id(self):
         self.request_data['fixed_ips'] = [
-            {'subnet_id': '',},
+            {
+                'subnet_id': '',
+            },
         ]
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            'subnet_id field must not be blank', response.data['non_field_errors'][0],
+            'subnet_id field must not be blank',
+            response.data['non_field_errors'][0],
         )
 
     def test_create_port_with_invalid_ip_address(self):
         self.request_data['fixed_ips'] = [
-            {'ip_address': 'abc',},
+            {
+                'ip_address': 'abc',
+            },
         ]
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
-            'Enter a valid IPv4 or IPv6 address.', response.data['non_field_errors'][0],
+            'Enter a valid IPv4 or IPv6 address.',
+            response.data['non_field_errors'][0],
         )

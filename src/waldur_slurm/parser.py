@@ -77,7 +77,7 @@ class SlurmReportLine(BaseReportLine):
 
     @cached_property
     def ram(self):
-        return self.parse_field('mem') // 2 ** 20  # Convert from Bytes to MB
+        return self.parse_field('mem') // 2**20  # Convert from Bytes to MB
 
     @cached_property
     def node(self):

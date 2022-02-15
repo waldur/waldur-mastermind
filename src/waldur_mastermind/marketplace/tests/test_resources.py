@@ -28,7 +28,9 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.plan = factories.PlanFactory()
         self.offering = self.plan.offering
         self.resource = models.Resource.objects.create(
-            project=self.project, offering=self.offering, plan=self.plan,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
         )
 
     def get_resource(self, user=None):
@@ -121,7 +123,9 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
             state=models.Resource.States.OK,
         )
         self.resource2 = models.Resource.objects.create(
-            project=self.project, offering=self.offering, plan=self.plan2,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan2,
         )
 
     def switch_plan(self, user, resource, plan):
@@ -557,7 +561,10 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
             plan=plan, component=usage_offering_component, price=10
         )
 
-        order_item = factories.OrderItemFactory(offering=offering, plan=plan,)
+        order_item = factories.OrderItemFactory(
+            offering=offering,
+            plan=plan,
+        )
         order_item.init_cost()
         self.assertEqual(order_item.cost, 100)
 
@@ -604,7 +611,9 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         )
 
         order_item = factories.OrderItemFactory(
-            offering=offering, plan=plan, type=models.OrderItem.Types.UPDATE,
+            offering=offering,
+            plan=plan,
+            type=models.OrderItem.Types.UPDATE,
         )
         order_item.init_cost()
         self.assertEqual(order_item.cost, 50)
@@ -821,7 +830,9 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @freeze_time('2020-01-01')
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_can_set_end_date(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
@@ -901,7 +912,8 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(
             models.OrderItem.objects.filter(
-                type=models.OrderItem.Types.UPDATE, resource=self.resource,
+                type=models.OrderItem.Types.UPDATE,
+                resource=self.resource,
             ).exists()
         )
 
@@ -974,7 +986,8 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         response = self.update_limits(self.fixture.staff, self.resource)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order_item = models.OrderItem.objects.get(
-            type=models.OrderItem.Types.UPDATE, resource=self.resource,
+            type=models.OrderItem.Types.UPDATE,
+            resource=self.resource,
         )
         test_utils.process_order_item(order_item, self.fixture.staff)
         self.resource.refresh_from_db()
@@ -1034,7 +1047,9 @@ class ResourceMoveTest(test.APITransactionTestCase):
             state=invoices_models.Invoice.States.PENDING,
         )
         invoices_factories.InvoiceItemFactory(
-            invoice=start_invoice, project=self.project, resource=self.resource,
+            invoice=start_invoice,
+            project=self.project,
+            resource=self.resource,
         )
 
         invoices_factories.InvoiceFactory(

@@ -28,7 +28,8 @@ class CustomerChecklistTest(test.APITransactionTestCase):
     def test_non_empty(self):
         self.checklist1.customers.add(self.customer)
         self.assertEqual(
-            self.get_customer_checklists(), [self.checklist1.uuid],
+            self.get_customer_checklists(),
+            [self.checklist1.uuid],
         )
 
     def test_update_to_empty(self):

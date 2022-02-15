@@ -65,7 +65,8 @@ class OrderItemGetTest(test.APITransactionTestCase):
         self.fixture.resource.save()
         self.client.force_authenticate(self.fixture.owner)
         url = reverse(
-            'booking-resource-detail', kwargs={'uuid': self.fixture.resource.uuid.hex},
+            'booking-resource-detail',
+            kwargs={'uuid': self.fixture.resource.uuid.hex},
         )
         response = self.client.get(url)
         self.assertTrue(
@@ -89,7 +90,10 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
     def accept(self, resource, user=None):
         user = user or self.fixture.owner
         self.client.force_authenticate(user)
-        url = '%s%s/accept/' % (reverse('booking-resource-list'), resource.uuid.hex,)
+        url = '%s%s/accept/' % (
+            reverse('booking-resource-list'),
+            resource.uuid.hex,
+        )
         return self.client.post(url)
 
     @data('staff', 'owner', 'offering_owner', 'offering_service_manager')
@@ -135,7 +139,10 @@ class OrderItemRejectTest(test.APITransactionTestCase):
     def reject(self, resource, user=None):
         user = user or self.fixture.owner
         self.client.force_authenticate(user)
-        url = '%s%s/reject/' % (reverse('booking-resource-list'), resource.uuid.hex,)
+        url = '%s%s/reject/' % (
+            reverse('booking-resource-list'),
+            resource.uuid.hex,
+        )
         return self.client.post(url)
 
     def test_owner_can_reject_his_resource(self):
@@ -336,7 +343,9 @@ class ResourceGetTest(test.APITransactionTestCase):
             },
         )
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_can_get_all_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -350,7 +359,9 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    @data('admin',)
+    @data(
+        'admin',
+    )
     def test_user_cannot_get_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)

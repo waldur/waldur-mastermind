@@ -27,7 +27,7 @@ def preserve_fields_before_update(sender, instance, **kwargs):
 
 
 def delete_error_message(sender, instance, name, source, target, **kwargs):
-    """ Delete error message if instance state changed from erred """
+    """Delete error message if instance state changed from erred"""
     if source != StateMixin.States.ERRED:
         return
     instance.error_message = ''

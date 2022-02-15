@@ -79,10 +79,10 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
         patch = mock.patch('waldur_mastermind.marketplace_openstack.views.executors')
         mock_executors = patch.start()
         common_utils.create_request(self.view, self.fixture.staff, payload)
-        transmitted_skip = mock_executors.MarketplaceTenantCreateExecutor.execute.call_args[
-            1
-        ][
-            'skip_connection_extnet'
-        ]
+        transmitted_skip = (
+            mock_executors.MarketplaceTenantCreateExecutor.execute.call_args[1][
+                'skip_connection_extnet'
+            ]
+        )
         mock.patch.stopall()
         return transmitted_skip

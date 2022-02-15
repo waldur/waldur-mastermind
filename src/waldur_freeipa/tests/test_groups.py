@@ -16,7 +16,8 @@ class GroupTest(TestCase):
         mock_client().group_find.return_value = {'result': []}
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid.hex, description='customer,-1.0',
+            'waldur_org_%s' % customer.uuid.hex,
+            description='customer,-1.0',
         )
 
     def test_customer_quota_is_serialized_as_group_description(self, mock_client):
@@ -27,7 +28,8 @@ class GroupTest(TestCase):
         mock_client().group_add.has_calls(
             [
                 mock.call(
-                    'waldur_org_%s' % customer.uuid.hex, description='customer,100',
+                    'waldur_org_%s' % customer.uuid.hex,
+                    description='customer,100',
                 )
             ]
         )
@@ -39,7 +41,8 @@ class GroupTest(TestCase):
         mock_client().group_add.has_calls(
             [
                 mock.call(
-                    'waldur_project_%s' % project.uuid.hex, description='project,-1.0',
+                    'waldur_project_%s' % project.uuid.hex,
+                    description='project,-1.0',
                 )
             ]
         )
@@ -52,7 +55,8 @@ class GroupTest(TestCase):
         mock_client().group_add.has_calls(
             [
                 mock.call(
-                    'waldur_project_%s' % project.uuid.hex, description='project,100',
+                    'waldur_project_%s' % project.uuid.hex,
+                    description='project,100',
                 )
             ]
         )
@@ -69,7 +73,8 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_mod.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid.hex, description='customer,-1.0',
+            'waldur_org_%s' % customer.uuid.hex,
+            description='customer,-1.0',
         )
 
     def test_group_description_is_updated_from_project_name(self, mock_client):
@@ -84,7 +89,8 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_mod.assert_called_once_with(
-            'waldur_project_%s' % project.uuid.hex, description='project,-1.0',
+            'waldur_project_%s' % project.uuid.hex,
+            description='project,-1.0',
         )
 
     def test_missing_users_are_added_to_customer_group(self, mock_client):
@@ -119,7 +125,11 @@ class GroupTest(TestCase):
 
     def test_stale_groups_are_removed(self, mock_client):
         mock_client().group_find.return_value = {
-            'result': [{'cn': ['waldur_stale_customer'],}]
+            'result': [
+                {
+                    'cn': ['waldur_stale_customer'],
+                }
+            ]
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_del.assert_called_once_with('waldur_stale_customer')

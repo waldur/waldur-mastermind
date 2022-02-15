@@ -167,7 +167,11 @@ class TenantCreateTest(BaseOpenStackTest):
         payload = {
             'project': project_url,
             'items': [
-                {'offering': offering_url, 'plan': plan_url, 'attributes': attributes,},
+                {
+                    'offering': offering_url,
+                    'plan': plan_url,
+                    'attributes': attributes,
+                },
             ],
         }
         if limits:
@@ -422,7 +426,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
             state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering, attributes=attributes, order=order,
+            offering=offering,
+            attributes=attributes,
+            order=order,
         )
 
         process_order(order_item.order, self.fixture.owner)

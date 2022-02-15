@@ -12,8 +12,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='port', name='ip4_address',),
-        migrations.RemoveField(model_name='port', name='ip6_address',),
+        migrations.RemoveField(
+            model_name='port',
+            name='ip4_address',
+        ),
+        migrations.RemoveField(
+            model_name='port',
+            name='ip6_address',
+        ),
         migrations.AddField(
             model_name='port',
             name='fixed_ips',

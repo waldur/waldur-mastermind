@@ -21,12 +21,15 @@ class Migration(migrations.Migration):
         ),
     ) + [
         migrations.AlterUniqueTogether(
-            name='instance', unique_together={('service_settings', 'backend_id')},
+            name='instance',
+            unique_together={('service_settings', 'backend_id')},
         ),
         migrations.AlterUniqueTogether(
-            name='snapshot', unique_together={('service_settings', 'backend_id')},
+            name='snapshot',
+            unique_together={('service_settings', 'backend_id')},
         ),
         migrations.AlterUniqueTogether(
-            name='volume', unique_together={('service_settings', 'backend_id')},
+            name='volume',
+            unique_together={('service_settings', 'backend_id')},
         ),
     ]

@@ -14,7 +14,10 @@ class Migration(migrations.Migration):
             old_name='updated_username',
             new_name='creator_username',
         ),
-        migrations.RemoveField(model_name='issue', name='assignee',),
+        migrations.RemoveField(
+            model_name='issue',
+            name='assignee',
+        ),
         migrations.AddField(
             model_name='issue',
             name='assignee_email',

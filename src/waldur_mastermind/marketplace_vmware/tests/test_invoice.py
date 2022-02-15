@@ -17,7 +17,8 @@ class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=VIRTUAL_MACHINE_TYPE)
         self.plan = marketplace_factories.PlanFactory(
-            offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
+            offering=self.offering,
+            unit=UnitPriceMixin.Units.PER_DAY,
         )
 
         for component_type in ('cpu', 'ram', 'disk'):

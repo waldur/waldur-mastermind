@@ -30,7 +30,9 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
         )
 
         invoices_factories.InvoiceItemFactory(
-            invoice=self.start_invoice, project=self.project, resource=self.resource,
+            invoice=self.start_invoice,
+            project=self.project,
+            resource=self.resource,
         )
 
         self.target_invoice = invoices_factories.InvoiceFactory(

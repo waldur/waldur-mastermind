@@ -35,7 +35,8 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
                 state_transition='begin_creating',
             ),
             core_tasks.StateTransitionTask().si(
-                serialized_resource_group, state_transition='set_ok',
+                serialized_resource_group,
+                state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_network,
@@ -43,7 +44,8 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
                 state_transition='begin_creating',
             ),
             core_tasks.StateTransitionTask().si(
-                serialized_network, state_transition='set_ok',
+                serialized_network,
+                state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_subnet,
@@ -51,7 +53,8 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
                 state_transition='begin_creating',
             ),
             core_tasks.StateTransitionTask().si(
-                serialized_subnet, state_transition='set_ok',
+                serialized_subnet,
+                state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_public_ip,
@@ -59,7 +62,8 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
                 state_transition='begin_creating',
             ),
             core_tasks.StateTransitionTask().si(
-                serialized_public_ip, state_transition='set_ok',
+                serialized_public_ip,
+                state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_nic,
@@ -67,16 +71,20 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
                 state_transition='begin_creating',
             ),
             core_tasks.StateTransitionTask().si(
-                serialized_nic, state_transition='set_ok',
+                serialized_nic,
+                state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_instance, backend_method='create_virtual_machine',
+                serialized_instance,
+                backend_method='create_virtual_machine',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_nic, backend_method='pull_network_interface',
+                serialized_nic,
+                backend_method='pull_network_interface',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_public_ip, backend_method='pull_public_ip_address',
+                serialized_public_ip,
+                backend_method='pull_public_ip_address',
             ),
         )
 
@@ -183,10 +191,12 @@ class SQLServerCreateExecutor(core_executors.CreateExecutor):
                 state_transition='begin_creating',
             ),
             core_tasks.StateTransitionTask().si(
-                serialized_resource_group, state_transition='set_ok',
+                serialized_resource_group,
+                state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_instance, backend_method='create_pgsql_server',
+                serialized_instance,
+                backend_method='create_pgsql_server',
             ),
         )
 

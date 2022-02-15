@@ -48,7 +48,10 @@ class DataciteBackend(ServiceBackend):
 
         url = f"{url}/{doi}"
 
-        response = requests.get(url=url, headers=headers,)
+        response = requests.get(
+            url=url,
+            headers=headers,
+        )
         return response
 
     def _get_request_data(self, instance):

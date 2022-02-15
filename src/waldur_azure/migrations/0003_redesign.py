@@ -58,7 +58,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -134,7 +136,9 @@ class Migration(migrations.Migration):
                 ),
                 ('cidr', models.CharField(max_length=32)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -215,7 +219,9 @@ class Migration(migrations.Migration):
                 ),
                 ('config_name', models.CharField(max_length=255)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -302,7 +308,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -346,7 +354,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -426,7 +436,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -517,7 +529,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -612,7 +626,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -620,11 +636,26 @@ class Migration(migrations.Migration):
                 models.Model,
             ),
         ),
-        migrations.RemoveField(model_name='instanceendpoint', name='instance',),
-        migrations.RemoveField(model_name='virtualmachine', name='private_ips',),
-        migrations.RemoveField(model_name='virtualmachine', name='public_ips',),
-        migrations.RemoveField(model_name='virtualmachine', name='user_password',),
-        migrations.RemoveField(model_name='virtualmachine', name='user_username',),
+        migrations.RemoveField(
+            model_name='instanceendpoint',
+            name='instance',
+        ),
+        migrations.RemoveField(
+            model_name='virtualmachine',
+            name='private_ips',
+        ),
+        migrations.RemoveField(
+            model_name='virtualmachine',
+            name='public_ips',
+        ),
+        migrations.RemoveField(
+            model_name='virtualmachine',
+            name='user_password',
+        ),
+        migrations.RemoveField(
+            model_name='virtualmachine',
+            name='user_username',
+        ),
         migrations.AddField(
             model_name='image',
             name='offer',
@@ -723,9 +754,12 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='image', unique_together=set([('settings', 'backend_id')]),
+            name='image',
+            unique_together=set([('settings', 'backend_id')]),
         ),
-        migrations.DeleteModel(name='InstanceEndpoint',),
+        migrations.DeleteModel(
+            name='InstanceEndpoint',
+        ),
         migrations.AddField(
             model_name='sqldatabase',
             name='server',
@@ -787,6 +821,7 @@ class Migration(migrations.Migration):
             preserve_default=False,
         ),
         migrations.AlterUniqueTogether(
-            name='size', unique_together=set([('settings', 'backend_id')]),
+            name='size',
+            unique_together=set([('settings', 'backend_id')]),
         ),
     ]

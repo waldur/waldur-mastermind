@@ -11,9 +11,13 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterField(
-            model_name='notification', name='emails', field=models.JSONField(),
+            model_name='notification',
+            name='emails',
+            field=models.JSONField(),
         ),
         migrations.AlterField(
-            model_name='notification', name='query', field=models.JSONField(),
+            model_name='notification',
+            name='query',
+            field=models.JSONField(),
         ),
     ]

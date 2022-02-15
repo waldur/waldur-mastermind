@@ -10,6 +10,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='priceestimate', name='limit',),
-        migrations.RemoveField(model_name='priceestimate', name='threshold',),
+        migrations.RemoveField(
+            model_name='priceestimate',
+            name='limit',
+        ),
+        migrations.RemoveField(
+            model_name='priceestimate',
+            name='threshold',
+        ),
     ]

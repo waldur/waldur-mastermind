@@ -43,19 +43,19 @@ def filter_queryset_for_user(queryset, user):
 
 
 class StructureQueryset(models.QuerySet):
-    """ Provides additional filtering by customer or project (based on permission definition).
+    """Provides additional filtering by customer or project (based on permission definition).
 
-        Example:
+    Example:
 
-            .. code-block:: python
+        .. code-block:: python
 
-                Instance.objects.filter(project=12)
+            Instance.objects.filter(project=12)
 
-                Droplet.objects.filter(
-                    customer__name__startswith='A',
-                    state=Droplet.States.ONLINE)
+            Droplet.objects.filter(
+                customer__name__startswith='A',
+                state=Droplet.States.ONLINE)
 
-                Droplet.objects.filter(Q(customer__name='Alice') | Q(customer__name='Bob'))
+            Droplet.objects.filter(Q(customer__name='Alice') | Q(customer__name='Bob'))
     """
 
     def exclude(self, *args, **kwargs):
@@ -125,10 +125,10 @@ StructureManager = models.Manager.from_queryset(StructureQueryset)
 
 
 class ServiceSettingsManager(GenericKeyMixin, models.Manager):
-    """ Allows to filter and get service settings by generic key """
+    """Allows to filter and get service settings by generic key"""
 
     def get_available_models(self):
-        """ Return list of models that are acceptable """
+        """Return list of models that are acceptable"""
         from waldur_core.structure.models import BaseResource
 
         return BaseResource.get_all_models()

@@ -70,14 +70,14 @@ def _get_action_event_type(action, event_state):
 
 
 def log_action(sender, instance, created=False, **kwargs):
-    """ Log any resource action.
+    """Log any resource action.
 
-        Example of logged volume extend action:
-        {
-            'event_type': 'volume_extend_succeeded',
-            'message': 'Successfully executed "Extend volume from 1024 MB to 2048 MB" operation for volume "pavel-test"',
-            'action_details': {'old_size': 1024, 'new_size': 2048}
-        }
+    Example of logged volume extend action:
+    {
+        'event_type': 'volume_extend_succeeded',
+        'message': 'Successfully executed "Extend volume from 1024 MB to 2048 MB" operation for volume "pavel-test"',
+        'action_details': {'old_size': 1024, 'new_size': 2048}
+    }
     """
     resource = instance
     if created or not resource.tracker.has_changed('action'):
@@ -497,7 +497,8 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
         return
 
     if structure_models.ServiceSettings.objects.filter(
-        scope=instance, type=apps.OpenStackTenantConfig.service_name,
+        scope=instance,
+        type=apps.OpenStackTenantConfig.service_name,
     ).exists():
         return
 
@@ -614,7 +615,10 @@ def propagate_volume_type_quotas_from_tenant_to_private_service_settings(
             content_type=ContentType.objects.get_for_model(service_settings),
             object_id=service_settings.id,
             name=quota.name,
-            defaults=dict(limit=quota.limit, usage=quota.usage,),
+            defaults=dict(
+                limit=quota.limit,
+                usage=quota.usage,
+            ),
         )
 
 

@@ -56,21 +56,21 @@ class EventLoggerAdapter(logging.LoggerAdapter):
 
 
 class RequireEvent(logging.Filter):
-    """ A filter that allows only event records. """
+    """A filter that allows only event records."""
 
     def filter(self, record):
         return getattr(record, 'event', False)
 
 
 class RequireNotEvent(logging.Filter):
-    """ A filter that allows only non-event records. """
+    """A filter that allows only non-event records."""
 
     def filter(self, record):
         return not getattr(record, 'event', False)
 
 
 class RequireNotBackgroundTask(logging.Filter):
-    """ Filter out messages from background tasks """
+    """Filter out messages from background tasks"""
 
     def filter(self, record):
         try:

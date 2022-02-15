@@ -147,9 +147,12 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('name',),},
+            options={
+                'ordering': ('name',),
+            },
         ),
         migrations.AlterUniqueTogether(
-            name='node', unique_together=set([('content_type', 'object_id')]),
+            name='node',
+            unique_together=set([('content_type', 'object_id')]),
         ),
     ]

@@ -14,7 +14,13 @@ USER_COLUMNS = OrderedDict(
         ('Full name, Civil number', ('full_name', 'civil_number')),
         ('Email, Phone nr.', ('email', 'phone_number')),
         ('Job title', ('job_title',)),
-        ('Staff, Support', ('is_staff', 'is_support',)),
+        (
+            'Staff, Support',
+            (
+                'is_staff',
+                'is_support',
+            ),
+        ),
     ]
 )
 

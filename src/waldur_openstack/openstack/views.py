@@ -61,10 +61,11 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
                 {'name': _('Default security group is managed by OpenStack itself.')}
             )
 
-    update_validators = partial_update_validators = (
-        structure_views.ResourceViewSet.update_validators
-        + [default_security_group_validator]
-    )
+    update_validators = (
+        partial_update_validators
+    ) = structure_views.ResourceViewSet.update_validators + [
+        default_security_group_validator
+    ]
     update_executor = executors.SecurityGroupUpdateExecutor
     partial_update_serializer_class = (
         update_serializer_class
@@ -216,19 +217,27 @@ class TenantViewSet(structure_views.ResourceViewSet):
         if obj.service_settings.shared:
             if settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']:
                 structure_permissions.is_manager(
-                    request, view, obj,
+                    request,
+                    view,
+                    obj,
                 )
             elif settings.WALDUR_OPENSTACK['ADMIN_CAN_MANAGE_TENANTS']:
                 structure_permissions.is_administrator(
-                    request, view, obj,
+                    request,
+                    view,
+                    obj,
                 )
             else:
                 structure_permissions.is_owner(
-                    request, view, obj,
+                    request,
+                    view,
+                    obj,
                 )
         else:
             structure_permissions.is_administrator(
-                request, view, obj,
+                request,
+                view,
+                obj,
             )
 
     delete_executor = executors.TenantDeleteExecutor

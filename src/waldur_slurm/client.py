@@ -28,7 +28,11 @@ class SlurmClient(BaseBatchClient):
 
     def _parse_account(self, line):
         parts = line.split('|')
-        return Account(name=parts[0], description=parts[1], organization=parts[2],)
+        return Account(
+            name=parts[0],
+            description=parts[1],
+            organization=parts[2],
+        )
 
     def get_account(self, name):
         output = self._execute_command(['show', 'account', name])
@@ -90,7 +94,11 @@ class SlurmClient(BaseBatchClient):
         match = re.match(r'cpu=(\d+)', value)
         if match:
             value = int(match.group(1))
-        return Association(account=parts[1], user=parts[2], value=value,)
+        return Association(
+            account=parts[1],
+            user=parts[2],
+            value=value,
+        )
 
     def create_association(self, username, account, default_account=''):
         return self._execute_command(

@@ -99,7 +99,9 @@ class SlotsTest(test.APITransactionTestCase):
         self.offering = marketplace_factories.OfferingFactory(
             customer=self.fixture.customer,
             type=PLUGIN_NAME,
-            attributes={'schedules': schedules,},
+            attributes={
+                'schedules': schedules,
+            },
         )
         self.url = marketplace_factories.OfferingFactory.get_url(self.offering)
 

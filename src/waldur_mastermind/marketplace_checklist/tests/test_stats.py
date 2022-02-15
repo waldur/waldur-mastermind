@@ -41,7 +41,10 @@ class ChecklistStatsTest(test.APITransactionTestCase):
 
     def get_user_stats(self, user):
         url = reverse(
-            'marketplace-checklist-user-stats', kwargs={'user_uuid': user.uuid.hex,},
+            'marketplace-checklist-user-stats',
+            kwargs={
+                'user_uuid': user.uuid.hex,
+            },
         )
         self.client.force_authenticate(self.fixture.staff)
         return self.client.get(url).data['score']

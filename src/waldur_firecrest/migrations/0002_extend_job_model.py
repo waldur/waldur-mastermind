@@ -34,7 +34,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='job',
             name='runtime_state',
-            field=models.CharField(default='', max_length=100, blank=True,),
+            field=models.CharField(
+                default='',
+                max_length=100,
+                blank=True,
+            ),
             preserve_default=False,
         ),
         migrations.AddField(

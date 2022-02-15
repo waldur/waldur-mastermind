@@ -19,16 +19,20 @@ class NetworkGetTest(test.APITransactionTestCase):
         network_4 = factories.NetworkFactory()
 
         factories.CustomerNetworkFactory(
-            network=network_1, customer=self.fixture.customer,
+            network=network_1,
+            customer=self.fixture.customer,
         )
         factories.CustomerNetworkFactory(
-            network=network_2, customer=self.fixture.customer,
+            network=network_2,
+            customer=self.fixture.customer,
         )
         factories.CustomerNetworkFactory(
-            network=network_3, customer=self.fixture_2.customer,
+            network=network_3,
+            customer=self.fixture_2.customer,
         )
         factories.CustomerNetworkFactory(
-            network=network_4, customer=self.fixture_2.customer,
+            network=network_4,
+            customer=self.fixture_2.customer,
         )
         self.url = factories.NetworkFactory.get_list_url()
 

@@ -67,7 +67,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.AddField(
@@ -78,6 +80,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='folder', unique_together=set([('settings', 'backend_id')]),
+            name='folder',
+            unique_together=set([('settings', 'backend_id')]),
         ),
     ]

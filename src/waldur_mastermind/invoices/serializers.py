@@ -287,15 +287,25 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
             'invoice_total',
         )
         decimal_fields_extra_kwargs = {
-            'invoice_price': {'source': 'invoice.price',},
-            'invoice_tax': {'source': 'invoice.tax',},
-            'invoice_total': {'source': 'invoice.total',},
+            'invoice_price': {
+                'source': 'invoice.price',
+            },
+            'invoice_tax': {
+                'source': 'invoice.tax',
+            },
+            'invoice_total': {
+                'source': 'invoice.total',
+            },
         }
 
     def build_field(self, field_name, info, model_class, nested_depth):
         if field_name in self.Meta.decimal_fields:
             field_class = serializers.DecimalField
-            field_kwargs = dict(max_digits=20, decimal_places=2, coerce_to_string=True,)
+            field_kwargs = dict(
+                max_digits=20,
+                decimal_places=2,
+                coerce_to_string=True,
+            )
             default_kwargs = self.Meta.decimal_fields_extra_kwargs.get(field_name)
             if default_kwargs:
                 field_kwargs.update(default_kwargs)
@@ -439,8 +449,14 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
             'is_active',
         )
         extra_kwargs = {
-            'url': {'view_name': 'payment-profile-detail', 'lookup_field': 'uuid',},
-            'organization': {'view_name': 'customer-detail', 'lookup_field': 'uuid',},
+            'url': {
+                'view_name': 'payment-profile-detail',
+                'lookup_field': 'uuid',
+            },
+            'organization': {
+                'view_name': 'customer-detail',
+                'lookup_field': 'uuid',
+            },
         }
 
 
@@ -454,7 +470,9 @@ class PaymentSerializer(
         queryset=models.PaymentProfile.objects.filter(is_active=True),
     )
     invoice = serializers.HyperlinkedRelatedField(
-        view_name='invoice-detail', lookup_field='uuid', read_only=True,
+        view_name='invoice-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
     invoice_uuid = serializers.ReadOnlyField(source='invoice.uuid')
     invoice_period = serializers.SerializerMethodField(method_name='get_invoice_period')
@@ -537,5 +555,6 @@ def add_payment_profile(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=structure_serializers.CustomerSerializer, receiver=add_payment_profile,
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_payment_profile,
 )

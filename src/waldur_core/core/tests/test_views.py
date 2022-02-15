@@ -9,7 +9,10 @@ class ViewsetsTest(TestCase):
         for ext in WaldurExtension.get_extensions():
 
             try:
-                views = __import__(ext.django_app() + '.views', fromlist=['views'],)
+                views = __import__(
+                    ext.django_app() + '.views',
+                    fromlist=['views'],
+                )
             except ImportError:
                 continue
 

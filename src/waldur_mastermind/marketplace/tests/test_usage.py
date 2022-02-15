@@ -85,7 +85,9 @@ class SubmitUsageTest(test.APITransactionTestCase):
             plan=self.plan, component=self.offering_component2
         )
         self.resource = models.Resource.objects.create(
-            offering=self.offering, plan=self.plan, project=self.fixture.project,
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
         )
 
         factories.OrderItemFactory(
@@ -140,7 +142,8 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
         self.assertTrue(usage.recurring)
         new_plan_period = models.ResourcePlanPeriod.objects.create(
-            resource=self.plan_period.resource, plan=self.plan_period.plan,
+            resource=self.plan_period.resource,
+            plan=self.plan_period.plan,
         )
         self.plan_period = new_plan_period
         payload = self.get_usage_data()
@@ -446,7 +449,15 @@ class SubmitUsageTest(test.APITransactionTestCase):
         return {
             'plan_period': self.plan_period.uuid.hex,
             'usages': [
-                {'type': component_type, 'amount': amount, 'description': description,},
-                {'type': 'ram', 'amount': amount, 'description': description,},
+                {
+                    'type': component_type,
+                    'amount': amount,
+                    'description': description,
+                },
+                {
+                    'type': 'ram',
+                    'amount': amount,
+                    'description': description,
+                },
             ],
         }

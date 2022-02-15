@@ -54,9 +54,9 @@ def digitalocean_error_handler(func):
 
 
 class DigitalOceanBackend(ServiceBackend):
-    """ Waldur interface to Digital Ocean API.
-        https://developers.digitalocean.com/documentation/v2/
-        https://github.com/koalalorenzo/python-digitalocean
+    """Waldur interface to Digital Ocean API.
+    https://developers.digitalocean.com/documentation/v2/
+    https://github.com/koalalorenzo/python-digitalocean
     """
 
     def __init__(self, settings):

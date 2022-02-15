@@ -93,16 +93,16 @@ class DeleteExecutorMixin(AsyncExecutor):
 
 
 class ExecutorMixin(CreateExecutorMixin, UpdateExecutorMixin, DeleteExecutorMixin):
-    """ Execute create/update/delete operation with executor """
+    """Execute create/update/delete operation with executor"""
 
     pass
 
 
 class EagerLoadMixin:
-    """ Reduce number of requests to DB.
+    """Reduce number of requests to DB.
 
-        Serializer should implement static method "eager_load", that selects
-        objects that are necessary for serialization.
+    Serializer should implement static method "eager_load", that selects
+    objects that are necessary for serialization.
     """
 
     def get_queryset(self):

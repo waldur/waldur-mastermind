@@ -45,21 +45,51 @@ available_categories = {
 
 category_columns = {
     'storage': [
-        {'title': 'Size', 'widget': 'filesize', 'attribute': 'size',},
-        {'title': 'Attached to', 'widget': 'attached_instance',},
-        {'title': 'Type', 'attribute': 'type_name',},
+        {
+            'title': 'Size',
+            'widget': 'filesize',
+            'attribute': 'size',
+        },
+        {
+            'title': 'Attached to',
+            'widget': 'attached_instance',
+        },
+        {
+            'title': 'Type',
+            'attribute': 'type_name',
+        },
     ],
     'vm': [
-        {'title': 'Internal IP', 'attribute': 'internal_ips', 'widget': 'csv',},
-        {'title': 'External IP', 'attribute': 'external_ips', 'widget': 'csv',},
+        {
+            'title': 'Internal IP',
+            'attribute': 'internal_ips',
+            'widget': 'csv',
+        },
+        {
+            'title': 'External IP',
+            'attribute': 'external_ips',
+            'widget': 'csv',
+        },
     ],
 }
 
 category_components = {
     'vpc': [
-        {'type': 'storage', 'name': 'Storage', 'measured_unit': 'GB',},
-        {'type': 'ram', 'name': 'RAM', 'measured_unit': 'GB',},
-        {'type': 'cores', 'name': 'Cores', 'measured_unit': 'cores',},
+        {
+            'type': 'storage',
+            'name': 'Storage',
+            'measured_unit': 'GB',
+        },
+        {
+            'type': 'ram',
+            'name': 'RAM',
+            'measured_unit': 'GB',
+        },
+        {
+            'type': 'cores',
+            'name': 'Cores',
+            'measured_unit': 'cores',
+        },
     ]
 }
 
@@ -71,7 +101,9 @@ common_sections = {
         ('description', 'Description', 'string'),
         ('terms_of_services_link', 'ToS link', 'string'),
     ],
-    'Security': [('certification', 'Certification', 'list'),],
+    'Security': [
+        ('certification', 'Certification', 'list'),
+    ],
     'Location': [('address', 'Address', 'string')],
 }
 
@@ -94,7 +126,9 @@ hpc_sections = {
         ('tflops', 'Peak TFlop/s', 'integer'),
         ('linpack', 'Linpack TFlop/s', 'integer'),
     ],
-    'software': [('applications', 'Applications', 'list'),],
+    'software': [
+        ('applications', 'Applications', 'list'),
+    ],
 }
 
 # based on https://eurohpc-ju.europa.eu/sites/default/files/2021-03/Decision%2006.2021%20-%20Access%20policy.pdf
@@ -157,7 +191,9 @@ vpc_sections = {
 }
 
 vm_sections = {
-    'software': [('antivirus', 'Antivirus', 'boolean'),],
+    'software': [
+        ('antivirus', 'Antivirus', 'boolean'),
+    ],
     'remote_access': [
         ('vm_remote_access', 'Remote access', 'list'),
         ('vm_access_level', 'Access level', 'choice'),
@@ -165,7 +201,9 @@ vm_sections = {
 }
 
 email_sections = {
-    'software': [('email_software', 'Software', 'choice'),],
+    'software': [
+        ('email_software', 'Software', 'choice'),
+    ],
     'features': [
         (
             'delegated_domain_administration',
@@ -178,7 +216,9 @@ email_sections = {
 }
 
 storage_sections = {
-    'details': [('storage_type', 'Storage type', 'choice'),],
+    'details': [
+        ('storage_type', 'Storage type', 'choice'),
+    ],
     'access': [
         ('web_interface', 'Web interface', 'boolean'),
         ('api', 'API', 'boolean'),
@@ -191,7 +231,9 @@ storage_sections = {
 }
 
 common_expert_sections = {
-    'Scope': [('scope_of_services', 'Scope of services', 'list'),]
+    'Scope': [
+        ('scope_of_services', 'Scope of services', 'list'),
+    ]
 }
 
 operations_sections = {
@@ -212,7 +254,9 @@ security_sections = {
         ('vendor_name', 'Vendor name', 'string'),
         ('application_version', 'Application version', 'string'),
     ],
-    'Access': [('security_access', 'Access', 'list'),],
+    'Access': [
+        ('security_access', 'Access', 'list'),
+    ],
 }
 
 network_section = {
@@ -247,15 +291,30 @@ enums = {
         ('sw', 'Swedish'),
         ('fi', 'Finnish'),
     ],
-    'collocation_dimensions': [('600x800', '600 x 800'), ('600x1000', '600 x 1000'),],
+    'collocation_dimensions': [
+        ('600x800', '600 x 800'),
+        ('600x1000', '600 x 1000'),
+    ],
     'deployment_type': [
         ('appliance', 'Appliance (Managed)'),
         ('remote', 'Remote (SaaS)'),
     ],
-    'email_software': [('zimbra', 'Zimbra'), ('ibm_lotus', 'IBM Lotus'),],
-    'workdays': [('base', '5 days'), ('extended', '7 days'),],
-    'businesshours': [('basehours', '8 hours'), ('extendedhours', '24 hours'),],
-    'priority': [('eob', 'End-of-business day'), ('nbd', 'Next business day'),],
+    'email_software': [
+        ('zimbra', 'Zimbra'),
+        ('ibm_lotus', 'IBM Lotus'),
+    ],
+    'workdays': [
+        ('base', '5 days'),
+        ('extended', '7 days'),
+    ],
+    'businesshours': [
+        ('basehours', '8 hours'),
+        ('extendedhours', '24 hours'),
+    ],
+    'priority': [
+        ('eob', 'End-of-business day'),
+        ('nbd', 'Next business day'),
+    ],
     'certification': [
         ('iskel', 'ISKE L'),
         ('iskem', 'ISKE M'),
@@ -279,7 +338,10 @@ enums = {
         ('spectrophotometer', 'Spectrophotometer'),
         ('spectrometers', 'Spectrometers'),
     ],
-    'measurement_devices_sample_matrix': [('liquids', 'Liquids'), ('solds', 'Solids'),],
+    'measurement_devices_sample_matrix': [
+        ('liquids', 'Liquids'),
+        ('solds', 'Solids'),
+    ],
     'measurement_devices_principle': [
         ('x-ray-diffraction', 'X-ray diffraction'),
         ('chromatography', 'Chromatography'),
@@ -310,8 +372,15 @@ enums = {
         ('change_management', 'Change management'),
         ('disaster_recovery', 'Disaster recovery'),
     ],
-    'security_access': [('api', 'API'), ('offline', 'Offline'),],
-    'storage_type': [('block', 'Block'), ('object', 'Object'), ('fs', 'Filesystem'),],
+    'security_access': [
+        ('api', 'API'),
+        ('offline', 'Offline'),
+    ],
+    'storage_type': [
+        ('block', 'Block'),
+        ('object', 'Object'),
+        ('fs', 'Filesystem'),
+    ],
     'computing_network': [
         ('private', 'Private (own)'),
         ('aso', 'ASO'),
@@ -320,15 +389,27 @@ enums = {
         ('banglagovnet', 'BanglaGovNet'),
         ('public', 'Public Internet'),
     ],
-    'vpn_technology': [('ipsec', 'IPSEC'), ('gre+ipsec', 'GRE + IPSEC'),],
-    'vm_access_level': [('root', 'Root / Administrator'), ('user', 'User level'),],
-    'api_flavor': [('s3', 'S3'), ('swift', 'Swift'), ('custom', 'Custom'),],
+    'vpn_technology': [
+        ('ipsec', 'IPSEC'),
+        ('gre+ipsec', 'GRE + IPSEC'),
+    ],
+    'vm_access_level': [
+        ('root', 'Root / Administrator'),
+        ('user', 'User level'),
+    ],
+    'api_flavor': [
+        ('s3', 'S3'),
+        ('swift', 'Swift'),
+        ('custom', 'Custom'),
+    ],
     'vm_remote_access': [
         ('console', 'Console'),
         ('ssh_rdp', 'SSH/RDP'),
         ('direct_access', 'Direct access'),
     ],
-    'collocation_remote_access': [('vpn', 'VPN'),],
+    'collocation_remote_access': [
+        ('vpn', 'VPN'),
+    ],
     'os': [
         ('ubuntu16.04', 'Ubuntu 16.04'),
         ('centos7', 'CentOS 7'),
@@ -417,7 +498,8 @@ def load_category(category_short):
             category=new_category,
             type=component['type'],
             defaults=dict(
-                name=component['name'], measured_unit=component.get('measured_unit'),
+                name=component['name'],
+                measured_unit=component.get('measured_unit'),
             ),
         )
     return new_category

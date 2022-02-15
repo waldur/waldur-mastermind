@@ -12,7 +12,8 @@ from .. import PLUGIN_NAME
 
 
 @override_settings(
-    WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True}, task_always_eager=True,
+    WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True},
+    task_always_eager=True,
 )
 class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
     def setUp(self) -> None:

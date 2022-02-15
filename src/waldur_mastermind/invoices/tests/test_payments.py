@@ -17,7 +17,8 @@ class PaymentRetrieveTest(test.APITransactionTestCase):
         self.url = factories.PaymentFactory.get_url(payment=self.payment)
 
     @data(
-        'staff', 'owner',
+        'staff',
+        'owner',
     )
     def test_user_with_access_can_retrieve_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -47,7 +48,9 @@ class PaymentCreateTest(test.APITransactionTestCase):
             'date_of_payment': '2000-01-01',
         }
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_with_access_can_create_payments(self, user):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -72,7 +75,9 @@ class PaymentUpdateTest(test.APITransactionTestCase):
         self.payment = factories.PaymentFactory(profile=self.profile)
         self.url = factories.PaymentFactory.get_url(payment=self.payment)
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_with_access_can_update_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url)
@@ -95,7 +100,9 @@ class PaymentDeleteTest(test.APITransactionTestCase):
         self.payment = factories.PaymentFactory(profile=self.profile)
         self.url = factories.PaymentFactory.get_url(payment=self.payment)
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_user_with_access_can_delete_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)

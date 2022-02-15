@@ -187,7 +187,9 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
 
     @data(
-        ('Alex Bloggs', 'Alex', 'Bloggs'), ('Alex', 'Alex', ''), ('', '', ''),
+        ('Alex Bloggs', 'Alex', 'Bloggs'),
+        ('Alex', 'Alex', ''),
+        ('', '', ''),
     )
     def test_backend_is_called_with_correct_parameters_if_update_full_name(
         self, names, mock_client

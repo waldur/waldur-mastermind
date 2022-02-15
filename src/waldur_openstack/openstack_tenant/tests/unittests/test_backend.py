@@ -58,7 +58,13 @@ class BaseBackendTest(TestCase):
     def _get_valid_flavor(self, backend_id):
         return Flavor(
             manager=None,
-            info=dict(name='m1.small', disk=10, vcpus=2, ram=4096, id=backend_id,),
+            info=dict(
+                name='m1.small',
+                disk=10,
+                vcpus=2,
+                ram=4096,
+                id=backend_id,
+            ),
         )
 
 
@@ -278,7 +284,8 @@ class PullSecurityGroupsTest(BaseBackendTest):
         )
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
         security_group = models.SecurityGroup.objects.get(
-            settings=self.settings, backend_id='backend_id',
+            settings=self.settings,
+            backend_id='backend_id',
         )
         self.assertEqual(security_group.name, 'Default')
         self.assertEqual(security_group.description, 'Default security group')
@@ -300,10 +307,12 @@ class PullSecurityGroupsTest(BaseBackendTest):
 
         self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
         security_group = models.SecurityGroup.objects.get(
-            settings=self.settings, backend_id='backend_id',
+            settings=self.settings,
+            backend_id='backend_id',
         )
         security_group_rule = models.SecurityGroupRule.objects.get(
-            security_group=security_group, backend_id='security_group_id',
+            security_group=security_group,
+            backend_id='security_group_id',
         )
         self.assertEqual(security_group_rule.from_port, 80)
         self.assertEqual(security_group_rule.to_port, 80)
@@ -320,7 +329,9 @@ class PullSecurityGroupsTest(BaseBackendTest):
 
     def test_security_groups_are_updated(self):
         security_group = factories.SecurityGroupFactory(
-            settings=self.settings, backend_id='backend_id', name='Old name',
+            settings=self.settings,
+            backend_id='backend_id',
+            name='Old name',
         )
         self.tenant_backend.pull_security_groups()
         security_group.refresh_from_db()
@@ -346,7 +357,8 @@ class PullNetworksTest(BaseBackendTest):
 
         self.assertEqual(models.Network.objects.count(), 1)
         network = models.Network.objects.get(
-            settings=self.settings, backend_id='backend_id',
+            settings=self.settings,
+            backend_id='backend_id',
         )
         self.assertEqual(network.name, 'Private')
         self.assertEqual(network.description, 'Internal network')
@@ -359,7 +371,9 @@ class PullNetworksTest(BaseBackendTest):
 
     def test_existing_networks_are_updated(self):
         network = factories.NetworkFactory(
-            settings=self.settings, backend_id='backend_id', name='Old name',
+            settings=self.settings,
+            backend_id='backend_id',
+            name='Old name',
         )
         self.tenant_backend.pull_networks()
         network.refresh_from_db()
@@ -382,7 +396,10 @@ class PullSubnetsTest(BaseBackendTest):
                     'cidr': '192.168.42.0/24',
                     'ip_version': 4,
                     'allocation_pools': [
-                        {'start': '192.168.42.10', 'end': '192.168.42.100',}
+                        {
+                            'start': '192.168.42.10',
+                            'end': '192.168.42.100',
+                        }
                     ],
                 }
             ]
@@ -397,13 +414,20 @@ class PullSubnetsTest(BaseBackendTest):
         )
         self.assertEqual(models.SubNet.objects.count(), 1)
         subnet = models.SubNet.objects.get(
-            settings=self.settings, backend_id='backend_id', network=self.network,
+            settings=self.settings,
+            backend_id='backend_id',
+            network=self.network,
         )
         self.assertEqual(subnet.name, 'subnet-1')
         self.assertEqual(subnet.cidr, '192.168.42.0/24')
         self.assertEqual(
             subnet.allocation_pools,
-            [{'start': '192.168.42.10', 'end': '192.168.42.100',}],
+            [
+                {
+                    'start': '192.168.42.10',
+                    'end': '192.168.42.100',
+                }
+            ],
         )
 
     def test_subnet_is_not_pulled_if_network_is_not_pulled_yet(self):
@@ -801,7 +825,12 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
                     'mac_address': 'DC-D6-5E-9B-49-70',
                     'device_id': device_id,
                     'device_owner': 'compute:nova',
-                    'fixed_ips': [{'ip_address': '10.0.0.2', 'subnet_id': subnet_id,}],
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.2',
+                            'subnet_id': subnet_id,
+                        }
+                    ],
                 }
             ]
         }
@@ -917,7 +946,12 @@ class PullInternalIpsTest(BaseBackendTest):
                     'mac_address': 'DC-D6-5E-9B-49-70',
                     'device_id': device_id,
                     'device_owner': 'compute:nova',
-                    'fixed_ips': [{'ip_address': '10.0.0.2', 'subnet_id': subnet_id,}],
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.2',
+                            'subnet_id': subnet_id,
+                        }
+                    ],
                 }
             ]
         }
@@ -1018,14 +1052,24 @@ class PullInternalIpsTest(BaseBackendTest):
                     'mac_address': 'fa:16:3e:88:d4:69',
                     'device_id': device_id,
                     'device_owner': 'compute:nova',
-                    'fixed_ips': [{'ip_address': '10.0.0.2', 'subnet_id': subnet_id,}],
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.2',
+                            'subnet_id': subnet_id,
+                        }
+                    ],
                 },
                 {
                     'id': 'port2',
                     'mac_address': 'fa:16:3e:1f:fb:22',
                     'device_id': device_id,
                     'device_owner': 'compute:nova',
-                    'fixed_ips': [{'ip_address': '10.0.0.3', 'subnet_id': subnet_id,}],
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.3',
+                            'subnet_id': subnet_id,
+                        }
+                    ],
                 },
             ]
         }
@@ -1077,7 +1121,12 @@ class PullInternalIpsTest(BaseBackendTest):
                     'mac_address': 'fa:16:3e:88:d4:69',
                     'device_id': device_id,
                     'device_owner': device_owner,
-                    'fixed_ips': [{'ip_address': '10.0.0.2', 'subnet_id': subnet_id,}],
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.2',
+                            'subnet_id': subnet_id,
+                        }
+                    ],
                 }
             ]
         }
@@ -1138,7 +1187,8 @@ class ImportInstanceTest(BaseBackendTest):
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, self.fixture.project,
+            self.backend_id,
+            self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
@@ -1162,7 +1212,8 @@ class ImportInstanceTest(BaseBackendTest):
         self.cinder_client_mock.volumes.get.return_value = backend_volume
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, self.fixture.project,
+            self.backend_id,
+            self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
@@ -1179,7 +1230,8 @@ class ImportInstanceTest(BaseBackendTest):
         self.cinder_client_mock.volumes.get.return_value = backend_volume
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, self.fixture.project,
+            self.backend_id,
+            self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
@@ -1194,7 +1246,8 @@ class ImportInstanceTest(BaseBackendTest):
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
 
         instance = self.tenant_backend.import_instance(
-            self.backend_id, self.fixture.project,
+            self.backend_id,
+            self.fixture.project,
         )
 
         self.assertEquals(instance.backend_id, self.backend_id)
