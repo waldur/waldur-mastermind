@@ -1,4 +1,4 @@
-TENANT_TYPE = 'Packages.Template'
+TENANT_TYPE = 'OpenStack.Admin'
 INSTANCE_TYPE = 'OpenStackTenant.Instance'
 VOLUME_TYPE = 'OpenStackTenant.Volume'
 
