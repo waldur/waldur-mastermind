@@ -760,7 +760,9 @@ class ProjectPermissionLogSerializer(ProjectPermissionSerializer):
 
 
 class UserSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    core_serializers.RestrictedSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     email = serializers.EmailField()
     agree_with_policy = serializers.BooleanField(
@@ -877,8 +879,10 @@ class UserSerializer(
                         del fields[field]
 
         if not self._can_see_token(user):
-            del fields['token']
-            del fields['token_lifetime']
+            if 'token' in fields:
+                del fields['token']
+            if 'token_lifetime' in fields:
+                del fields['token_lifetime']
 
         if request.method in ('PUT', 'PATCH'):
             fields['username'].read_only = True
