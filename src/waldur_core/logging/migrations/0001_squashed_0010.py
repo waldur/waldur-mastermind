@@ -232,7 +232,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='WebHook',
@@ -298,7 +300,8 @@ class Migration(migrations.Migration):
             options={'abstract': False, 'ordering': ['-created']},
         ),
         migrations.AlterUniqueTogether(
-            name='pushhook', unique_together=set([('user', 'device_id', 'type')]),
+            name='pushhook',
+            unique_together=set([('user', 'device_id', 'type')]),
         ),
         migrations.AlterUniqueTogether(
             name='alert',

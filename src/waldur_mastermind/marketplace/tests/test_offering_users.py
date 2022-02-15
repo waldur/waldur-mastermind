@@ -31,7 +31,9 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 1)
 
-    @data('user',)
+    @data(
+        'user',
+    )
     def test_unauthorized_user_can_not_list_offering_permission(self, user):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 0)
@@ -124,7 +126,9 @@ class OfferingUsersHandlerTest(test.APITransactionTestCase):
 
     def test_when_offering_user_is_created_audit_log_is_generated(self):
         OfferingUser.objects.create(
-            offering=self.fixture.offering, user=self.fixture.user, username='user',
+            offering=self.fixture.offering,
+            user=self.fixture.user,
+            username='user',
         )
         self.assertTrue(
             Event.objects.filter(
@@ -134,7 +138,9 @@ class OfferingUsersHandlerTest(test.APITransactionTestCase):
 
     def test_when_offering_user_is_deleted_audit_log_is_generated(self):
         offering_user = OfferingUser.objects.create(
-            offering=self.fixture.offering, user=self.fixture.user, username='user',
+            offering=self.fixture.offering,
+            user=self.fixture.user,
+            username='user',
         )
         offering_user.delete()
         self.assertTrue(

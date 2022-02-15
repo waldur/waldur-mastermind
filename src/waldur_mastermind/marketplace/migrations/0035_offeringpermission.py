@@ -64,6 +64,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'unique_together': {('offering', 'user', 'is_active')},},
+            options={
+                'unique_together': {('offering', 'user', 'is_active')},
+            },
         ),
     ]

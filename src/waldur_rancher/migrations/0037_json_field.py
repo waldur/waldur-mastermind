@@ -16,7 +16,9 @@ class Migration(migrations.Migration):
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AlterField(
-            model_name='hpa', name='metrics', field=models.JSONField(),
+            model_name='hpa',
+            name='metrics',
+            field=models.JSONField(),
         ),
         migrations.AlterField(
             model_name='ingress',

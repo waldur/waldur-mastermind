@@ -28,10 +28,14 @@ class BaseSupportInvoiceTest(TransactionTestCase):
             unit=marketplace_models.Plan.Units.PER_MONTH
         )
         self.plan_component = marketplace_factories.PlanComponentFactory(
-            plan=self.plan, component=offering_component, price=7,
+            plan=self.plan,
+            component=offering_component,
+            price=7,
         )
         self.resource = marketplace_factories.ResourceFactory(
-            offering=self.offering, project=self.fixture.project, plan=self.plan,
+            offering=self.offering,
+            project=self.fixture.project,
+            plan=self.plan,
         )
 
     def get_factor(self, start_date, usage_days):
@@ -49,7 +53,9 @@ class ResourceCreationInvoiceTest(BaseSupportInvoiceTest):
 
     def test_invoice_is_not_created_for_pending_resource(self):
         pending_resource = marketplace_factories.ResourceFactory(
-            offering=self.offering, project=self.fixture.project, plan=self.plan,
+            offering=self.offering,
+            project=self.fixture.project,
+            plan=self.plan,
         )
 
         self.resource.set_state_ok()
@@ -131,7 +137,8 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
             offering__type=PLUGIN_NAME
         ).values_list('id', flat=True)
         return models.InvoiceItem.objects.filter(
-            invoice=invoice, resource_id__in=resources_ids,
+            invoice=invoice,
+            resource_id__in=resources_ids,
         )
 
 

@@ -172,7 +172,9 @@ class InstanceStopExecutor(executors.ActionExecutor):
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'stop_instance', state_transition='begin_updating',
+                serialized_instance,
+                'stop_instance',
+                state_transition='begin_updating',
             ),
             core_tasks.PollRuntimeStateTask().si(
                 serialized_instance,

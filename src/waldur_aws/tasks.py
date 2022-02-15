@@ -4,7 +4,7 @@ from .models import Volume
 
 
 class SetInstanceErredTask(ErrorStateTransitionTask):
-    """ Mark instance as erred and delete resources that were not created. """
+    """Mark instance as erred and delete resources that were not created."""
 
     def execute(self, instance):
         super(SetInstanceErredTask, self).execute(instance)

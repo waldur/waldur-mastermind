@@ -57,7 +57,9 @@ class AllocationCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-    @data('member',)
+    @data(
+        'member',
+    )
     def test_non_authorized_user_can_not_create_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 

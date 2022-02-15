@@ -50,7 +50,8 @@ def rename_google_calendar(serialized_google_calendar):
 @shared_task(name='waldur_mastermind.booking.reject_past_bookings')
 def reject_past_bookings():
     resources = marketplace_models.Resource.objects.filter(
-        offering__type=PLUGIN_NAME, state=marketplace_models.Resource.States.CREATING,
+        offering__type=PLUGIN_NAME,
+        state=marketplace_models.Resource.States.CREATING,
     )
     for resource in resources:
         if resource.attributes['schedules'][-1]['start'] < str(timezone.now()):

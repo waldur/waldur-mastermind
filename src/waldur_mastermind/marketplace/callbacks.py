@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 def create_resource_plan_period(resource: models.Resource):
     models.ResourcePlanPeriod.objects.create(
-        resource=resource, plan=resource.plan, start=now(), end=None,
+        resource=resource,
+        plan=resource.plan,
+        start=now(),
+        end=None,
     )
 
 
@@ -24,7 +27,9 @@ def create_resource_plan_period(resource: models.Resource):
 def close_resource_plan_period(resource: models.Resource):
     try:
         previous_period = models.ResourcePlanPeriod.objects.select_for_update().get(
-            resource=resource, plan=resource.plan, end=None,
+            resource=resource,
+            plan=resource.plan,
+            end=None,
         )
         previous_period.end = now()
         previous_period.save(update_fields=['end'])
@@ -114,7 +119,9 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
 
     if order_item:
         email_context.update(
-            {'order_item_user': order_item.order.created_by.get_full_name(),}
+            {
+                'order_item_user': order_item.order.created_by.get_full_name(),
+            }
         )
 
     if order_item and order_item.plan:

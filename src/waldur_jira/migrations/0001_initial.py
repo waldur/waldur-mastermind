@@ -73,7 +73,9 @@ class Migration(migrations.Migration):
                 ('backend_id', models.CharField(max_length=255)),
                 ('file', models.FileField(upload_to=b'jira_attachments')),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='Comment',
@@ -124,7 +126,9 @@ class Migration(migrations.Migration):
                 ('backend_id', models.CharField(max_length=255)),
                 ('message', models.TextField(blank=True)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(

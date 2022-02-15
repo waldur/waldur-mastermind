@@ -59,7 +59,9 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         self.client.post(
             factories.CartItemFactory.get_list_url(),
-            {'offering': factories.OfferingFactory.get_url(self.offering),},
+            {
+                'offering': factories.OfferingFactory.get_url(self.offering),
+            },
         )
         response = self.submit(self.fixture.project)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -149,7 +151,8 @@ class CartSubmitTest(test.APITransactionTestCase):
         url = factories.CartItemFactory.get_list_url()
         payload = self.get_payload(self.fixture.project)
         component = models.OfferingComponent.objects.get(
-            offering=self.offering, type='cpu_count',
+            offering=self.offering,
+            type='cpu_count',
         )
         component.limit_amount = 10
         component.limit_period = limit_period
@@ -169,7 +172,8 @@ class CartSubmitTest(test.APITransactionTestCase):
         url = factories.CartItemFactory.get_list_url()
         payload = self.get_payload(self.fixture.project)
         component = models.OfferingComponent.objects.get(
-            offering=self.offering, type='cpu_count',
+            offering=self.offering,
+            type='cpu_count',
         )
         component.limit_amount = 1
         component.limit_period = limit_period
@@ -375,7 +379,9 @@ class CartUpdateTest(test.APITransactionTestCase):
         )
         plan = factories.PlanFactory(offering=self.cart_item.offering)
         factories.PlanComponentFactory(
-            plan=plan, component=oc, price=10,
+            plan=plan,
+            component=oc,
+            price=10,
         )
         self.cart_item.limits = {'cpu': 2}
         self.cart_item.plan = plan

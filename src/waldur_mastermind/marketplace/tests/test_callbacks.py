@@ -14,7 +14,8 @@ class CallbacksTest(test.APITransactionTestCase):
         plan = factories.PlanFactory()
         resource = factories.ResourceFactory(plan=plan)
         order_item = factories.OrderItemFactory(
-            state=models.OrderItem.States.EXECUTING, resource=resource,
+            state=models.OrderItem.States.EXECUTING,
+            resource=resource,
         )
 
         # Act

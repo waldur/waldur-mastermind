@@ -4,9 +4,9 @@ from django_fsm import signals as fsm_signals
 
 
 class OpenStackTenantConfig(AppConfig):
-    """ OpenStack is a toolkit for building private and public clouds.
-        This application adds support for managing OpenStack tenant resources -
-        instances, volumes and snapshots.
+    """OpenStack is a toolkit for building private and public clouds.
+    This application adds support for managing OpenStack tenant resources -
+    instances, volumes and snapshots.
     """
 
     name = 'waldur_openstack.openstack_tenant'

@@ -50,7 +50,8 @@ class AttachmentCreateTest(AttachmentTest):
         self.add_attachment = models.Attachment.objects.get(uuid=uuid)
 
     @data(
-        'admin', 'manager',
+        'admin',
+        'manager',
     )
     def test_cannot_add_attachment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))

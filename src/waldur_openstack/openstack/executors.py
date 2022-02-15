@@ -108,7 +108,7 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
     def get_task_signature(
         cls, tenant, serialized_tenant, pull_security_groups=True, **kwargs
     ):
-        """ Create tenant, add user to it, create internal network, pull quotas """
+        """Create tenant, add user to it, create internal network, pull quotas"""
         # we assume that tenant one network and subnet after creation
         network = tenant.networks.first()
         subnet = network.subnets.first()
@@ -177,7 +177,8 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
             )
             creation_tasks.append(
                 core_tasks.BackendMethodTask().si(
-                    serialized_tenant, backend_method='pull_tenant_routers',
+                    serialized_tenant,
+                    backend_method='pull_tenant_routers',
                 )
             )
 
@@ -227,8 +228,10 @@ class TenantImportExecutor(core_executors.ActionExecutor):
 
         service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
         serialized_service_settings = core_utils.serialize_instance(service_settings)
-        create_service_settings = structure_executors.ServiceSettingsCreateExecutor.get_task_signature(
-            service_settings, serialized_service_settings
+        create_service_settings = (
+            structure_executors.ServiceSettingsCreateExecutor.get_task_signature(
+                service_settings, serialized_service_settings
+            )
         )
 
         return chain(*tasks) | create_service_settings
@@ -287,22 +290,28 @@ class TenantDeleteExecutor(core_executors.DeleteExecutor):
     def get_networks_cleanup_tasks(cls, serialized_tenant):
         return [
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_floating_ips',
+                serialized_tenant,
+                backend_method='delete_tenant_floating_ips',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_routes',
+                serialized_tenant,
+                backend_method='delete_tenant_routes',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_ports',
+                serialized_tenant,
+                backend_method='delete_tenant_ports',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_routers',
+                serialized_tenant,
+                backend_method='delete_tenant_routers',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='pull_tenant_routers',
+                serialized_tenant,
+                backend_method='pull_tenant_routers',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_networks',
+                serialized_tenant,
+                backend_method='delete_tenant_networks',
             ),
         ]
 
@@ -310,24 +319,28 @@ class TenantDeleteExecutor(core_executors.DeleteExecutor):
     def get_instances_cleanup_tasks(cls, serialized_tenant):
         return [
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_security_groups',
+                serialized_tenant,
+                backend_method='delete_tenant_security_groups',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_snapshots',
+                serialized_tenant,
+                backend_method='delete_tenant_snapshots',
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_tenant,
                 backend_check_method='are_all_tenant_snapshots_deleted',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_instances',
+                serialized_tenant,
+                backend_method='delete_tenant_instances',
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_tenant,
                 backend_check_method='are_all_tenant_instances_deleted',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_volumes',
+                serialized_tenant,
+                backend_method='delete_tenant_volumes',
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_tenant, backend_check_method='are_all_tenant_volumes_deleted'
@@ -338,10 +351,12 @@ class TenantDeleteExecutor(core_executors.DeleteExecutor):
     def get_identity_cleanup_tasks(cls, serialized_tenant):
         return [
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant_user',
+                serialized_tenant,
+                backend_method='delete_tenant_user',
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, backend_method='delete_tenant',
+                serialized_tenant,
+                backend_method='delete_tenant',
             ),
         ]
 
@@ -594,7 +609,9 @@ class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_subnet, 'create_subnet', state_transition='begin_creating',
+            serialized_subnet,
+            'create_subnet',
+            state_transition='begin_creating',
         )
 
 
@@ -602,7 +619,9 @@ class SubNetUpdateExecutor(core_executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_subnet, 'update_subnet', state_transition='begin_updating',
+            serialized_subnet,
+            'update_subnet',
+            state_transition='begin_updating',
         )
 
 
@@ -614,7 +633,9 @@ class SubnetConnectExecutor(core_executors.ActionExecutor):
         serialized_tenant = core_utils.serialize_instance(subnet.network.tenant)
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_subnet, 'connect_subnet', state_transition='begin_updating',
+                serialized_subnet,
+                'connect_subnet',
+                state_transition='begin_updating',
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, backend_method='pull_tenant_routers'
@@ -688,5 +709,7 @@ class PortDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, port, serialized_port, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_port, 'delete_port', state_transition='begin_deleting',
+            serialized_port,
+            'delete_port',
+            state_transition='begin_deleting',
         )

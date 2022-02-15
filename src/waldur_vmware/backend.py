@@ -271,7 +271,9 @@ class VMwareBackend(ServiceBackend):
         for item_id in new_ids:
             item = backend_clusters_map[item_id]
             models.Cluster.objects.create(
-                settings=self.settings, backend_id=item_id, name=item['name'],
+                settings=self.settings,
+                backend_id=item_id,
+                name=item['name'],
             )
 
         models.Cluster.objects.filter(
@@ -446,7 +448,9 @@ class VMwareBackend(ServiceBackend):
         for item_id in new_ids:
             item = backend_folders_map[item_id]
             models.Folder.objects.create(
-                settings=self.settings, backend_id=item_id, name=item['name'],
+                settings=self.settings,
+                backend_id=item_id,
+                name=item['name'],
             )
 
         models.Folder.objects.filter(
@@ -584,7 +588,9 @@ class VMwareBackend(ServiceBackend):
                     'num_cpus': vm.cores,
                     'num_cores_per_socket': vm.cores_per_socket,
                 },
-                'memory_update': {'memory': vm.ram,},
+                'memory_update': {
+                    'memory': vm.ram,
+                },
             },
             'placement': self._get_vm_placement(vm),
         }
@@ -612,7 +618,10 @@ class VMwareBackend(ServiceBackend):
                 'hot_add_enabled': True,
                 'hot_remove_enabled': True,
             },
-            'memory': {'size_MiB': vm.ram, 'hot_add_enabled': True,},
+            'memory': {
+                'size_MiB': vm.ram,
+                'hot_add_enabled': True,
+            },
             'placement': self._get_vm_placement(vm),
         }
 
@@ -780,7 +789,10 @@ class VMwareBackend(ServiceBackend):
             ):
                 self.client.update_cpu(
                     vm.backend_id,
-                    {'cores_per_socket': vm.cores_per_socket, 'count': vm.cores,},
+                    {
+                        'cores_per_socket': vm.cores_per_socket,
+                        'count': vm.cores,
+                    },
                 )
         except VMwareError as e:
             raise VMwareBackendError(e)
@@ -1138,7 +1150,11 @@ class VMwareBackend(ServiceBackend):
             update_pulled_fields(disk, imported_disk, update_fields)
 
     def import_disk(
-        self, backend_vm_id, backend_disk_id, save=True, project=None,
+        self,
+        backend_vm_id,
+        backend_disk_id,
+        save=True,
+        project=None,
     ):
         """
         Import virtual disk by its ID.

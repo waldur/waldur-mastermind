@@ -106,32 +106,32 @@ def pwgen(pw_len=16):
 
 
 def serialize_instance(instance):
-    """ Serialize Django model instance """
+    """Serialize Django model instance"""
     model_name = force_str(instance._meta)
     return '{}:{}'.format(model_name, instance.pk)
 
 
 def deserialize_instance(serialized_instance):
-    """ Deserialize Django model instance """
+    """Deserialize Django model instance"""
     model_name, pk = serialized_instance.split(':')
     model = apps.get_model(model_name)
     return model._default_manager.get(pk=pk)
 
 
 def serialize_class(cls):
-    """ Serialize Python class """
+    """Serialize Python class"""
     return '{}:{}'.format(cls.__module__, cls.__name__)
 
 
 def deserialize_class(serilalized_cls):
-    """ Deserialize Python class """
+    """Deserialize Python class"""
     module_name, cls_name = serilalized_cls.split(':')
     module = importlib.import_module(module_name)
     return getattr(module, cls_name)
 
 
 def clear_url(url):
-    """ Remove domain and protocol from url """
+    """Remove domain and protocol from url"""
     if url.startswith('http'):
         return '/' + url.split('/', 3)[-1]
     return url
@@ -146,7 +146,7 @@ def get_model_from_resolve_match(match):
 
 
 def instance_from_url(url, user=None):
-    """ Restore instance from URL """
+    """Restore instance from URL"""
     # XXX: This circular dependency will be removed then filter_queryset_for_user
     # will be moved to model manager method
     from waldur_core.structure.managers import filter_queryset_for_user
@@ -404,10 +404,10 @@ def normalize_unicode(data):
 UNIT_PATTERN = re.compile(r'(\d+)([KMGTP]?)')
 
 UNITS = {
-    'K': 2 ** 10,
-    'M': 2 ** 20,
-    'G': 2 ** 30,
-    'T': 2 ** 40,
+    'K': 2**10,
+    'M': 2**20,
+    'G': 2**30,
+    'T': 2**40,
 }
 
 

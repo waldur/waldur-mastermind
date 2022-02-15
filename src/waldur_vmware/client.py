@@ -317,7 +317,10 @@ class VMwareClient:
         :type network_id: string
         """
         spec = {
-            'backing': {'network': network_id, 'type': 'DISTRIBUTED_PORTGROUP',},
+            'backing': {
+                'network': network_id,
+                'type': 'DISTRIBUTED_PORTGROUP',
+            },
             'start_connected': True,
         }
         return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
@@ -417,7 +420,10 @@ class VMwareClient:
                 if library_item['type'] == 'vm-template':
                     template = self.get_template_library_item(library_item_id)
                     items.append(
-                        {'library_item': library_item, 'template': template,}
+                        {
+                            'library_item': library_item,
+                            'template': template,
+                        }
                     )
         return items
 

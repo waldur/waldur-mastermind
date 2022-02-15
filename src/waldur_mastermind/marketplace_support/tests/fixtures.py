@@ -26,7 +26,8 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
     @cached_property
     def marketplace_offering(self):
         return marketplace_factories.OfferingFactory(
-            customer=self.provider.customer, type=PLUGIN_NAME,
+            customer=self.provider.customer,
+            type=PLUGIN_NAME,
         )
 
     @cached_property
@@ -51,7 +52,8 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
     @cached_property
     def plan_component(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.plan, component=self.offering_component,
+            plan=self.plan,
+            component=self.offering_component,
         )
 
     @cached_property
@@ -97,13 +99,19 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def plan_component_cpu(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.plan, component=self.offering_component_cpu, price=4, amount=1,
+            plan=self.plan,
+            component=self.offering_component_cpu,
+            price=4,
+            amount=1,
         )
 
     @cached_property
     def plan_component_ram(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.plan, component=self.offering_component_ram, price=3, amount=2,
+            plan=self.plan,
+            component=self.offering_component_ram,
+            price=3,
+            amount=2,
         )
 
     @cached_property

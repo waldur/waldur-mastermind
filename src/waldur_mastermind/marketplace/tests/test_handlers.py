@@ -21,7 +21,9 @@ class ResourceHandlerTest(APITransactionTestCase):
         resource.refresh_from_db()
         self.assertEqual(resource.name, 'New name')
 
-    def test_service_settings_should_be_disabled_if_resource_is_terminated(self,):
+    def test_service_settings_should_be_disabled_if_resource_is_terminated(
+        self,
+    ):
         marketplace_handlers.connect_resource_metadata_handlers(
             structure_tests_models.TestNewInstance
         )
@@ -46,7 +48,9 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         self.assertFalse(service_settings.is_active)
 
-    def test_service_settings_should_be_disabled_if_offering_is_archived(self,):
+    def test_service_settings_should_be_disabled_if_offering_is_archived(
+        self,
+    ):
         marketplace_handlers.connect_resource_metadata_handlers(
             structure_tests_models.TestNewInstance
         )
@@ -73,7 +77,9 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         self.assertFalse(service_settings.is_active)
 
-    def test_service_settings_should_be_enabled_if_resource_is_not_terminated(self,):
+    def test_service_settings_should_be_enabled_if_resource_is_not_terminated(
+        self,
+    ):
         marketplace_handlers.connect_resource_metadata_handlers(
             structure_tests_models.TestNewInstance
         )
@@ -95,7 +101,9 @@ class ResourceHandlerTest(APITransactionTestCase):
         service_settings.refresh_from_db()
         self.assertTrue(service_settings.is_active)
 
-    def test_service_settings_should_be_enabled_if_offering_is_not_archived(self,):
+    def test_service_settings_should_be_enabled_if_offering_is_not_archived(
+        self,
+    ):
         marketplace_handlers.connect_resource_metadata_handlers(
             structure_tests_models.TestNewInstance
         )

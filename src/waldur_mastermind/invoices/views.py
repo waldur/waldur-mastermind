@@ -198,7 +198,8 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
         for i in range(13):
             invoices = models.Invoice.objects.filter(
-                year=current_month.year, month=current_month.month,
+                year=current_month.year,
+                month=current_month.month,
             )
             key = f'{current_month.year}-{current_month.month}'
             row = customer_periods[key] = {}
@@ -287,7 +288,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             )
         year, month = utils.get_current_year(), utils.get_current_month()
         invoice, _ = models.Invoice.objects.get_or_create(
-            customer=invoice_item.invoice.customer, month=month, year=year,
+            customer=invoice_item.invoice.customer,
+            month=month,
+            year=year,
         )
 
         # Fill new invoice item details
@@ -306,7 +309,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         log.event_logger.invoice_item.info(
             f'Invoice item {invoice_item.name} has been created.',
             event_type='invoice_item_created',
-            event_context={'customer': invoice_item.invoice.customer,},
+            event_context={
+                'customer': invoice_item.invoice.customer,
+            },
         )
 
         return Response(
@@ -330,7 +335,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         log.event_logger.invoice_item.info(
             f'Invoice item {invoice_item.name} has been updated. Details: {diff}.',
             event_type='invoice_item_updated',
-            event_context={'customer': invoice_item.invoice.customer,},
+            event_context={
+                'customer': invoice_item.invoice.customer,
+            },
         )
         return invoice_item
 
@@ -339,7 +346,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         log.event_logger.invoice_item.info(
             f'Invoice item {invoice_item.name} has been deleted.',
             event_type='invoice_item_deleted',
-            event_context={'customer': invoice_item.invoice.customer,},
+            event_context={
+                'customer': invoice_item.invoice.customer,
+            },
         )
         invoice_item.delete()
 
@@ -488,5 +497,8 @@ class PaymentViewSet(core_views.ActionsViewSet):
         log.event_logger.payment.info(
             'Payment for {customer_name} in the amount of {amount} has been removed.',
             event_type='payment_removed',
-            event_context={'amount': amount, 'customer': customer,},
+            event_context={
+                'amount': amount,
+                'customer': customer,
+            },
         )

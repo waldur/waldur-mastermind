@@ -55,7 +55,12 @@ class ClientTest(TestCase):
         responses.add(
             responses.GET,
             'http://example.com/',
-            json={'nameen': '', 'namebn': '', 'desig': '', 'office': '',},
+            json={
+                'nameen': '',
+                'namebn': '',
+                'desig': '',
+                'office': '',
+            },
         )
         response = self.client.get(
             self.URL, {'civil_number': '123', 'tax_number': '456-789'}

@@ -166,7 +166,8 @@ class RequestCreateTest(BaseTest):
         url = marketplace_factories.OrderItemFactory.get_url(order_item=order_item)
         resource = self.client.get(url)
         self.assertEqual(
-            resource.data['issue'], {'key': 'SUP-123', 'uuid': issue.uuid.hex},
+            resource.data['issue'],
+            {'key': 'SUP-123', 'uuid': issue.uuid.hex},
         )
 
     def test_create_confirmation_comment_if_offering_template_is_defined(self):

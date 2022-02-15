@@ -96,7 +96,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -149,7 +151,9 @@ class Migration(migrations.Migration):
                 ('is_public', models.BooleanField(default=True)),
                 ('backend_id', models.CharField(blank=True, max_length=255, null=True)),
             ],
-            options={'ordering': ['-created'],},
+            options={
+                'ordering': ['-created'],
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -248,7 +252,9 @@ class Migration(migrations.Migration):
                 ('first_response_sla', models.DateTimeField(blank=True, null=True)),
                 ('resolution_date', models.DateTimeField(blank=True, null=True)),
             ],
-            options={'ordering': ['-created'],},
+            options={
+                'ordering': ['-created'],
+            },
             bases=(
                 waldur_core.structure.models.StructureLoggableMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -437,7 +443,9 @@ class Migration(migrations.Migration):
                 ('product_code', models.CharField(blank=True, max_length=30)),
                 ('article_code', models.CharField(blank=True, max_length=30)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='OfferingTemplate',
@@ -472,7 +480,9 @@ class Migration(migrations.Migration):
                 ('config', django.contrib.postgres.fields.jsonb.JSONField()),
                 ('sort_order', models.PositiveSmallIntegerField(default=1)),
             ],
-            options={'ordering': ['sort_order', 'name'],},
+            options={
+                'ordering': ['sort_order', 'name'],
+            },
         ),
         migrations.CreateModel(
             name='Priority',
@@ -504,7 +514,10 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
             ],
-            options={'verbose_name': 'Priority', 'verbose_name_plural': 'Priorities',},
+            options={
+                'verbose_name': 'Priority',
+                'verbose_name_plural': 'Priorities',
+            },
         ),
         migrations.CreateModel(
             name='RequestType',
@@ -530,7 +543,9 @@ class Migration(migrations.Migration):
                 ('backend_id', models.IntegerField(unique=True)),
                 ('issue_type_name', models.CharField(max_length=255)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='SupportCustomer',
@@ -600,7 +615,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ['name'],},
+            options={
+                'ordering': ['name'],
+            },
         ),
         migrations.CreateModel(
             name='Template',
@@ -656,7 +673,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='TemplateAttachment',
@@ -705,7 +724,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='TemplateStatusNotification',
@@ -909,6 +930,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='comment', unique_together=set([('backend_id', 'issue')]),
+            name='comment',
+            unique_together=set([('backend_id', 'issue')]),
         ),
     ]

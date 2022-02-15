@@ -23,7 +23,10 @@ class ExecutorMixinTest(test.APITransactionTestCase):
         self.executor.create_executor = mock.Mock()
 
         self.serializer = TestUserSerializer(
-            data={'username': 'alice2017', 'full_name': 'Alice Lebowski',}
+            data={
+                'username': 'alice2017',
+                'full_name': 'Alice Lebowski',
+            }
         )
         self.serializer.is_valid()
 

@@ -45,7 +45,12 @@ class OrderItemPullTest(test.APITransactionTestCase):
     def test_when_order_item_succeeds_resource_is_updated(self):
         # Arrange
         self.client_mock().get_order.return_value = {
-            'items': [{'state': 'done', 'error_message': '',}]
+            'items': [
+                {
+                    'state': 'done',
+                    'error_message': '',
+                }
+            ]
         }
 
         # Act
@@ -61,7 +66,12 @@ class OrderItemPullTest(test.APITransactionTestCase):
     def test_when_order_item_fails_resource_is_updated(self):
         # Arrange
         self.client_mock().get_order.return_value = {
-            'items': [{'state': 'erred', 'error_message': 'Invalid credentials',}]
+            'items': [
+                {
+                    'state': 'erred',
+                    'error_message': 'Invalid credentials',
+                }
+            ]
         }
 
         # Act

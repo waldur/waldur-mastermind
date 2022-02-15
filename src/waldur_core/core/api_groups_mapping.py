@@ -1,6 +1,13 @@
 API_GROUPS = {
-    'authentication': ['/api-auth/', '/api/auth-valimo/',],
-    'user': ['/api/users/', '/api/user-invitations/', '/api/user-counters/',],
+    'authentication': [
+        '/api-auth/',
+        '/api/auth-valimo/',
+    ],
+    'user': [
+        '/api/users/',
+        '/api/user-invitations/',
+        '/api/user-counters/',
+    ],
     'organization': [
         '/api/customers/',
         '/api/customer-permissions-log/',
@@ -31,5 +38,8 @@ API_GROUPS = {
         '/api/support-feedback-average-report/',
         '/api/support-feedback-report/',
     ],
-    'accounting': ['/api/invoices/', '/api/invoice-items/',],
+    'accounting': [
+        '/api/invoices/',
+        '/api/invoice-items/',
+    ],
 }

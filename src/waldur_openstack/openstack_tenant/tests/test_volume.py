@@ -446,8 +446,14 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
             'system_volume_size': 20480,
             'internal_ips_set': [{'subnet': subnet_url}],
             'data_volumes': [
-                {'size': 1024, 'type': factories.VolumeTypeFactory.get_url(),},
-                {'size': 1024 * 3, 'type': factories.VolumeTypeFactory.get_url(),},
+                {
+                    'size': 1024,
+                    'type': factories.VolumeTypeFactory.get_url(),
+                },
+                {
+                    'size': 1024 * 3,
+                    'type': factories.VolumeTypeFactory.get_url(),
+                },
             ],
         }
 

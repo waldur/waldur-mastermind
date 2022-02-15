@@ -26,7 +26,7 @@ class UserFilterMixin:
         return queryset.filter(query)
 
     def get_available_models(self):
-        """ Return list of models that are acceptable """
+        """Return list of models that are acceptable"""
         raise NotImplementedError()
 
 

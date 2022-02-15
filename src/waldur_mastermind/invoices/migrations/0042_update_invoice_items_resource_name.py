@@ -43,9 +43,14 @@ def update_invoice_items_resource_name(apps, schema_editor):
 
     for invoice_item in InvoiceItem.objects.filter(content_type_id=resource_ctid):
         try:
-            resource = Resource.objects.get(id=invoice_item.object_id,)
+            resource = Resource.objects.get(
+                id=invoice_item.object_id,
+            )
             invoice_item.details.update(
-                {'resource_name': resource.name, 'resource_uuid': resource.uuid.hex,}
+                {
+                    'resource_name': resource.name,
+                    'resource_uuid': resource.uuid.hex,
+                }
             )
             invoice_item.save()
         except ObjectDoesNotExist:

@@ -39,7 +39,8 @@ class ImportableOfferingsListTest(test.APITransactionTestCase):
         self.assertEqual(0, len(offerings))
 
     @data(
-        'staff', 'owner',
+        'staff',
+        'owner',
     )
     def test_staff_and_owner_can_list_importable_private_offerings(self, user):
         offerings = self.list_offerings(shared=False, user=user)

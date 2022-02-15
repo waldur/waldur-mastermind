@@ -82,7 +82,9 @@ def send_issue_updated_notification(serialized_issue, changed):
     issue = core_utils.deserialize_instance(serialized_issue)
 
     _send_issue_notification(
-        issue=issue, template='issue_updated', extra_context={'changed': changed},
+        issue=issue,
+        template='issue_updated',
+        extra_context={'changed': changed},
     )
 
 
@@ -104,7 +106,10 @@ def send_comment_updated_notification(serialized_comment, old_description):
     _send_issue_notification(
         issue=comment.issue,
         template='comment_updated',
-        extra_context={'comment': comment, 'old_description': old_description,},
+        extra_context={
+            'comment': comment,
+            'old_description': old_description,
+        },
     )
 
 
@@ -149,7 +154,10 @@ def _send_email(
 
     try:
         core_utils.send_mail(
-            subject, text_message, [receiver.email], html_message=html_message,
+            subject,
+            text_message,
+            [receiver.email],
+            html_message=html_message,
         )
     except SMTPException as e:
         message = (
@@ -193,12 +201,17 @@ def send_issue_feedback_notification(serialized_issue):
     extra_context = {
         'feedback_link': get_feedback_link(token),
         'feedback_links': [
-            {'label': value, 'link': get_feedback_link(token, key),}
+            {
+                'label': value,
+                'link': get_feedback_link(token, key),
+            }
             for (key, value) in models.Feedback.Evaluation.CHOICES
         ],
     }
     _send_issue_feedback(
-        issue=issue, template='issue_feedback', extra_context=extra_context,
+        issue=issue,
+        template='issue_feedback',
+        extra_context=extra_context,
     )
 
 

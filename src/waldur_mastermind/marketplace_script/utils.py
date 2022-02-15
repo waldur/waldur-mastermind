@@ -41,7 +41,12 @@ def execute_script_in_docker(image, command, src, **kwargs):
                 command=[command, 'script'],
                 remove=True,
                 working_dir="/work",
-                volumes={docker_script.name: {"bind": "/work/script", "mode": "ro",},},
+                volumes={
+                    docker_script.name: {
+                        "bind": "/work/script",
+                        "mode": "ro",
+                    },
+                },
                 **settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_RUN_OPTIONS'],
                 **kwargs,
             ),
@@ -62,7 +67,8 @@ def construct_k8s_job(name, image, command, volume_name, config_map_name, enviro
     script_volume = k8s.client.V1Volume(
         name=volume_name,
         config_map=k8s.client.V1ConfigMapVolumeSource(
-            name=config_map_name, default_mode=0o0444,
+            name=config_map_name,
+            default_mode=0o0444,
         ),
     )
     env = [
@@ -104,13 +110,16 @@ def construct_k8s_job(name, image, command, volume_name, config_map_name, enviro
 def create_job_in_k8s(batch_api: k8s.client.BatchV1Api, job_object):
     batch_api.create_namespaced_job(body=job_object, namespace=NAMESPACE)
     logger.info(
-        'Job %s has been created in namespace %s', job_object.metadata.name, NAMESPACE,
+        'Job %s has been created in namespace %s',
+        job_object.metadata.name,
+        NAMESPACE,
     )
 
 
 def create_config_map_in_k8s(api: k8s.client.CoreV1Api, config_map_object):
     api.create_namespaced_config_map(
-        body=config_map_object, namespace=NAMESPACE,
+        body=config_map_object,
+        namespace=NAMESPACE,
     )
     logger.info(
         'ConfigMap %s has been created in namespace %s',
@@ -129,7 +138,9 @@ def delete_job_from_k8s(batch_api: k8s.client.BatchV1Api, job_name):
 def delete_config_map_from_k8s(api: k8s.client.CoreV1Api, config_map_name):
     api.delete_namespaced_config_map(config_map_name, NAMESPACE)
     logger.info(
-        'ConfigMap %s has been deleted from namespace %s', config_map_name, NAMESPACE,
+        'ConfigMap %s has been deleted from namespace %s',
+        config_map_name,
+        NAMESPACE,
     )
 
 
@@ -137,7 +148,8 @@ def wait_for_k8s_job_completion(batch_api: k8s.client.BatchV1Api, job_name):
     job_succeeded = None
     while True:
         api_response = batch_api.read_namespaced_job_status(
-            name=job_name, namespace=NAMESPACE,
+            name=job_name,
+            namespace=NAMESPACE,
         )
         if api_response.status.succeeded is not None:
             job_succeeded = True

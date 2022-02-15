@@ -113,7 +113,9 @@ class OfferingPullTask(BackgroundPullTask):
             stale_plan.archived = True
             stale_plan.save()
             logger.info(
-                'Plan %s of offering %s has been archived', stale_plan, local_offering,
+                'Plan %s of offering %s has been archived',
+                stale_plan,
+                local_offering,
             )
 
         local_components_map = {
@@ -276,7 +278,9 @@ class ResourcePullTask(BackgroundPullTask):
         client = get_client_for_offering(local_resource.offering)
         remote_resource = client.get_marketplace_resource(local_resource.backend_id)
         pull_fields(
-            RESOURCE_FIELDS, local_resource, remote_resource,
+            RESOURCE_FIELDS,
+            local_resource,
+            remote_resource,
         )
         if local_resource.effective_id != remote_resource['backend_id']:
             local_resource.effective_id = remote_resource['backend_id']
@@ -368,7 +372,8 @@ class UsagePullTask(BackgroundPullTask):
         four_months_ago_str = four_months_ago.strftime('%Y-%m-%d')
 
         remote_usages = client.list_component_usages(
-            local_resource.backend_id, date_after=four_months_ago_str,
+            local_resource.backend_id,
+            date_after=four_months_ago_str,
         )
 
         for remote_usage in remote_usages:
@@ -472,7 +477,9 @@ class ResourceInvoicePullTask(BackgroundPullTask):
             item for item in remote_invoice_items if item['name'] in existing_item_names
         ]
         for item in existing_invoice_items:
-            local_item = local_invoice_items.get(name=item['name'],)
+            local_item = local_invoice_items.get(
+                name=item['name'],
+            )
             local_item.start = dateparse.parse_datetime(item['start'])
             local_item.end = dateparse.parse_datetime(item['end'])
             local_item.measured_unit = item['measured_unit']
@@ -724,7 +731,8 @@ def delete_remote_project(serialized_project):
     backend_id = utils.get_project_backend_id(local_project)
     offering_ids = (
         models.Resource.objects.filter(
-            project=local_project, offering__type=PLUGIN_NAME,
+            project=local_project,
+            offering__type=PLUGIN_NAME,
         )
         .values_list('offering_id', flat=True)
         .distinct()

@@ -270,7 +270,12 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ('size', 'image', 'type', 'availability_zone',)
+            + (
+                'size',
+                'image',
+                'type',
+                'availability_zone',
+            )
         )
         extra_kwargs = dict(
             instance={
@@ -485,7 +490,9 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
             if not quota_holder:
                 continue
             quota_holder.add_quota_usage(
-                'gigabytes_' + old_type.name, -1 * instance.size / 1024, validate=True,
+                'gigabytes_' + old_type.name,
+                -1 * instance.size / 1024,
+                validate=True,
             )
             quota_holder.add_quota_usage(
                 'gigabytes_' + new_type.name, instance.size / 1024, validate=True
@@ -672,7 +679,10 @@ class NestedSecurityGroupSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
-    rules = NestedSecurityGroupRuleSerializer(many=True, read_only=True,)
+    rules = NestedSecurityGroupRuleSerializer(
+        many=True,
+        read_only=True,
+    )
     state = serializers.ReadOnlyField(source='human_readable_state')
 
     class Meta:
@@ -1071,7 +1081,12 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         )
         read_only_fields = (
             structure_serializers.VirtualMachineSerializer.Meta.read_only_fields
-            + ('flavor_disk', 'runtime_state', 'flavor_name', 'action',)
+            + (
+                'flavor_disk',
+                'runtime_state',
+                'flavor_name',
+                'action',
+            )
         )
         extra_kwargs = dict(
             availability_zone={
@@ -1103,7 +1118,9 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             queryset, request
         )
         return queryset.prefetch_related(
-            'security_groups', 'security_groups__rules', 'volumes',
+            'security_groups',
+            'security_groups__rules',
+            'volumes',
         )
 
     def validate_name(self, name):
@@ -1195,10 +1212,12 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             )
             if volume_availability_zone_name:
                 try:
-                    volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
-                        name=volume_availability_zone_name,
-                        settings=instance.service_settings,
-                        available=True,
+                    volume_availability_zone = (
+                        models.VolumeAvailabilityZone.objects.get(
+                            name=volume_availability_zone_name,
+                            settings=instance.service_settings,
+                            available=True,
+                        )
                     )
                 except models.VolumeAvailabilityZone.DoesNotExist:
                     pass
@@ -1385,7 +1404,8 @@ class InstanceDeleteSerializer(serializers.Serializer):
 
 class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
     security_groups = NestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(), many=True,
+        queryset=models.SecurityGroup.objects.all(),
+        many=True,
     )
 
     def validate_security_groups(self, security_groups):
@@ -1410,7 +1430,9 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
 
 class AllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
-        default='192.168.42.0/24', initial='192.168.42.0/24', write_only=True,
+        default='192.168.42.0/24',
+        initial='192.168.42.0/24',
+        write_only=True,
     )
     mac_address = serializers.CharField(required=False)
 
@@ -1687,7 +1709,12 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('instance', 'backup_schedule', 'service_settings', 'project',)
+            + (
+                'instance',
+                'backup_schedule',
+                'service_settings',
+                'project',
+            )
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -1768,7 +1795,12 @@ class BaseScheduleSerializer(structure_serializers.BaseResourceActionSerializer)
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('is_active', 'next_trigger_at', 'service_settings', 'project',)
+            + (
+                'is_active',
+                'next_trigger_at',
+                'service_settings',
+                'project',
+            )
         )
 
 

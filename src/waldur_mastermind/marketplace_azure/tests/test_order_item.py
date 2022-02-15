@@ -66,10 +66,13 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
             type=VIRTUAL_MACHINE_TYPE, scope=service_settings
         )
         order = marketplace_factories.OrderFactory(
-            project=fixture.project, state=marketplace_models.Order.States.EXECUTING,
+            project=fixture.project,
+            state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering, attributes=attributes, order=order,
+            offering=offering,
+            attributes=attributes,
+            order=order,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -184,10 +187,13 @@ class SQLServerCreateTest(test.APITransactionTestCase):
             type=SQL_SERVER_TYPE, scope=service_settings
         )
         order = marketplace_factories.OrderFactory(
-            project=fixture.project, state=marketplace_models.Order.States.EXECUTING,
+            project=fixture.project,
+            state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering, attributes=attributes, order=order,
+            offering=offering,
+            attributes=attributes,
+            order=order,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)

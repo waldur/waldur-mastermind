@@ -14,7 +14,10 @@ from . import models, utils
 
 class QuerySerializer(serializers.Serializer):
     customers = serializers.SlugRelatedField(
-        slug_field='uuid', queryset=Customer.objects.all(), many=True, required=False,
+        slug_field='uuid',
+        queryset=Customer.objects.all(),
+        many=True,
+        required=False,
     )
     customer_division_types = serializers.SlugRelatedField(
         slug_field='uuid',
@@ -29,7 +32,10 @@ class QuerySerializer(serializers.Serializer):
         required=False,
     )
     offerings = serializers.SlugRelatedField(
-        slug_field='uuid', queryset=Offering.objects.all(), many=True, required=False,
+        slug_field='uuid',
+        queryset=Offering.objects.all(),
+        many=True,
+        required=False,
     )
     customer_roles = serializers.MultipleChoiceField(
         choices=CustomerRole.CHOICES, required=False

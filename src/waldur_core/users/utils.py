@@ -31,9 +31,9 @@ def get_invitation_context(invitation, sender):
             role=_(get_domain_message(role_display)),
         )
     else:
-        role_display = {CustomerRole.OWNER: 'organization owner',}.get(
-            invitation.customer_role, invitation.get_customer_role_display()
-        )
+        role_display = {
+            CustomerRole.OWNER: 'organization owner',
+        }.get(invitation.customer_role, invitation.get_customer_role_display())
         context = dict(
             type=_('organization'),
             name=invitation.customer.name,
@@ -149,7 +149,10 @@ def get_or_create_profile(user, username, password):
     if profile:
         return profile, False
 
-    profile = Profile.objects.create(user=user, username=username,)
+    profile = Profile.objects.create(
+        user=user,
+        username=username,
+    )
     try:
         FreeIPABackend().create_profile(profile, password=password)
         tasks.schedule_sync()

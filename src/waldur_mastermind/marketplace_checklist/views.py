@@ -31,10 +31,12 @@ def filter_checklists_by_roles(queryset, user):
         return queryset
 
     project_roles = ProjectPermission.objects.filter(
-        user=user, is_active=True,
+        user=user,
+        is_active=True,
     ).values_list('role', flat=True)
     customer_roles = CustomerPermission.objects.filter(
-        user=user, is_active=True,
+        user=user,
+        is_active=True,
     ).values_list('role', flat=True)
     return queryset.annotate(
         project_roles_count=Count('project_roles'),
@@ -171,7 +173,8 @@ class CustomerStatsView(APIView):
                     Q(user__in=project_users) | Q(user__in=customer_users)
                 )
                 .filter(
-                    question__checklist=checklist, value=F('question__correct_answer'),
+                    question__checklist=checklist,
+                    value=F('question__correct_answer'),
                 )
                 .count()
             )
@@ -241,7 +244,8 @@ class UserAnswersListView(ListModelMixin, GenericViewSet):
         visible_users = filter_visible_users(User.objects.all(), self.request.user)
         user = get_object_or_404(visible_users, uuid=self.kwargs['user_uuid'])
         return models.Answer.objects.filter(
-            question__checklist__uuid=self.kwargs['checklist_uuid'], user=user,
+            question__checklist__uuid=self.kwargs['checklist_uuid'],
+            user=user,
         )
 
 
@@ -274,7 +278,9 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
                 models.Question, uuid=answer['question_uuid'], checklist=checklist
             )
             models.Answer.objects.update_or_create(
-                question=question, user=user, defaults={'value': answer['value']},
+                question=question,
+                user=user,
+                defaults={'value': answer['value']},
             )
 
         headers = self.get_success_headers(serializer.data)

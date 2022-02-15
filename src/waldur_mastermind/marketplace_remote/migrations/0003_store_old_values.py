@@ -10,13 +10,26 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='projectupdaterequest', name='description',),
-        migrations.RemoveField(model_name='projectupdaterequest', name='end_date',),
-        migrations.RemoveField(model_name='projectupdaterequest', name='name',),
         migrations.RemoveField(
-            model_name='projectupdaterequest', name='oecd_fos_2007_code',
+            model_name='projectupdaterequest',
+            name='description',
         ),
-        migrations.RemoveField(model_name='projectupdaterequest', name='type',),
+        migrations.RemoveField(
+            model_name='projectupdaterequest',
+            name='end_date',
+        ),
+        migrations.RemoveField(
+            model_name='projectupdaterequest',
+            name='name',
+        ),
+        migrations.RemoveField(
+            model_name='projectupdaterequest',
+            name='oecd_fos_2007_code',
+        ),
+        migrations.RemoveField(
+            model_name='projectupdaterequest',
+            name='type',
+        ),
         migrations.AddField(
             model_name='projectupdaterequest',
             name='new_description',

@@ -199,8 +199,8 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
         )
         factories.SecurityGroupRuleFactory(security_group=security_group_in_progress)
         security_groups = [original_security_group, security_group_in_progress]
-        self.mocked_neutron().list_security_groups.return_value = self._form_backend_security_groups(
-            security_groups
+        self.mocked_neutron().list_security_groups.return_value = (
+            self._form_backend_security_groups(security_groups)
         )
 
         self.backend.pull_tenant_security_groups(self.tenant)
@@ -318,7 +318,10 @@ class PushSecurityGroupTest(BaseBackendTestCase):
         self.backend.push_security_group_rules(security_group)
 
         self.mocked_neutron().delete_security_group_rule.assert_has_calls(
-            [mock.call(EGRESS_RULE_ID), mock.call(INGRESS_RULE_ID),]
+            [
+                mock.call(EGRESS_RULE_ID),
+                mock.call(INGRESS_RULE_ID),
+            ]
         )
         self.mocked_neutron().create_security_group_rule.assert_called_once_with(
             {'security_group_rule': mocked_security_group_rule}
@@ -347,7 +350,8 @@ class PullNetworksTest(BaseBackendTestCase):
 
         self.assertEqual(models.Network.objects.count(), 1)
         network = models.Network.objects.get(
-            tenant=self.tenant, backend_id='backend_id',
+            tenant=self.tenant,
+            backend_id='backend_id',
         )
         self.assertEqual(network.name, 'Private')
         self.assertEqual(network.description, 'Internal network')
@@ -360,7 +364,9 @@ class PullNetworksTest(BaseBackendTestCase):
 
     def test_existing_networks_are_updated(self):
         network = factories.NetworkFactory(
-            tenant=self.tenant, backend_id='backend_id', name='Old name',
+            tenant=self.tenant,
+            backend_id='backend_id',
+            name='Old name',
         )
         self.backend.pull_networks()
         network.refresh_from_db()
@@ -389,7 +395,10 @@ class PullSubnetsTest(BaseBackendTestCase):
                     'dns_nameservers': ['8.8.8.8'],
                     'ip_version': 4,
                     'allocation_pools': [
-                        {'start': '192.168.42.10', 'end': '192.168.42.100',}
+                        {
+                            'start': '192.168.42.10',
+                            'end': '192.168.42.100',
+                        }
                     ],
                 }
             ]
@@ -402,13 +411,19 @@ class PullSubnetsTest(BaseBackendTestCase):
         self.mocked_neutron().list_subnets.assert_called_once()
         self.assertEqual(models.SubNet.objects.count(), 1)
         subnet = models.SubNet.objects.get(
-            backend_id='backend_id', network=self.network,
+            backend_id='backend_id',
+            network=self.network,
         )
         self.assertEqual(subnet.name, 'subnet-1')
         self.assertEqual(subnet.cidr, '192.168.42.0/24')
         self.assertEqual(
             subnet.allocation_pools,
-            [{'start': '192.168.42.10', 'end': '192.168.42.100',}],
+            [
+                {
+                    'start': '192.168.42.10',
+                    'end': '192.168.42.100',
+                }
+            ],
         )
 
     def test_subnet_is_not_pulled_if_network_is_not_pulled_yet(self):

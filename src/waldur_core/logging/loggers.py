@@ -145,41 +145,41 @@ class BaseLogger:
 
 
 class EventLogger(BaseLogger):
-    """ Base event logger API.
-        Fields which must be passed during event log emitting (event context)
-        should be defined as attributes for this class in the form of:
+    """Base event logger API.
+    Fields which must be passed during event log emitting (event context)
+    should be defined as attributes for this class in the form of:
 
-        field_name = ObjectClass || '<app_label>.<class_name>'
+    field_name = ObjectClass || '<app_label>.<class_name>'
 
-        A list of supported event types can be defined with help of method get_supported_types,
-        or 'event_types' property of Meta class. Event type won't be validated if this list is empty.
+    A list of supported event types can be defined with help of method get_supported_types,
+    or 'event_types' property of Meta class. Event type won't be validated if this list is empty.
 
-        Example usage:
+    Example usage:
 
-        .. code-block:: python
+    .. code-block:: python
 
-            from waldur_core.openstack.models import Tenant
+        from waldur_core.openstack.models import Tenant
 
-            class QuotaEventLogger(EventLogger):
-                tenant = Tenant
-                project = 'structure.Project'
-                threshold = float
-                quota_type = str
+        class QuotaEventLogger(EventLogger):
+            tenant = Tenant
+            project = 'structure.Project'
+            threshold = float
+            quota_type = str
 
-                class Meta:
-                    event_types = 'quota_threshold_reached',
+            class Meta:
+                event_types = 'quota_threshold_reached',
 
 
-            quota_logger = QuotaEventLogger(__name__)
-            quota_logger.warning(
-                '{quota_type} quota threshold has been reached for {project_name}.',
-                event_type='quota_threshold_reached',
-                event_context=dict(
-                    quota_type=quota.name,
-                    project=membership.project,
-                    tenant=tenant,
-                    threshold=threshold * quota.limit)
-            )
+        quota_logger = QuotaEventLogger(__name__)
+        quota_logger.warning(
+            '{quota_type} quota threshold has been reached for {project_name}.',
+            event_type='quota_threshold_reached',
+            event_context=dict(
+                quota_type=quota.name,
+                project=membership.project,
+                tenant=tenant,
+                threshold=threshold * quota.limit)
+        )
     """
 
     def __init__(self, logger_name=__name__):
@@ -227,7 +227,9 @@ class EventLogger(BaseLogger):
         log(msg, extra={'event_type': event_type, 'event_context': context})
 
         event = models.Event.objects.create(
-            event_type=event_type, message=msg, context=context,
+            event_type=event_type,
+            message=msg,
+            context=context,
         )
         if event_context:
             for scope in self.get_scopes(event_context) or []:
@@ -236,8 +238,8 @@ class EventLogger(BaseLogger):
 
 
 class LoggableMixin:
-    """ Mixin to serialize model in logs.
-        Extends django model or custom class with fields extraction method.
+    """Mixin to serialize model in logs.
+    Extends django model or custom class with fields extraction method.
     """
 
     def get_log_fields(self):

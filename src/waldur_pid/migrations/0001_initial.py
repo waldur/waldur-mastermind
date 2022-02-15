@@ -48,6 +48,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('relation_type', 'published'),},
+            options={
+                'ordering': ('relation_type', 'published'),
+            },
         ),
     ]

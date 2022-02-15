@@ -17,7 +17,10 @@ class CreateInvoiceTest(TestCase):
             'first_name': "John",
             'last_name': "White",
             'business_name': "Corporation Professionals, LLC",
-            'phone': {'country_code': '001', 'national_number': '5032141716',},
+            'phone': {
+                'country_code': '001',
+                'national_number': '5032141716',
+            },
             'address': {
                 "line1": "1234 Main St.",
                 "city": "Portland",

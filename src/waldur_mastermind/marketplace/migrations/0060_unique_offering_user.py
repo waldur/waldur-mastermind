@@ -23,6 +23,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(delete_duplicate_records),
         migrations.AlterUniqueTogether(
-            name='offeringuser', unique_together={('offering', 'user')},
+            name='offeringuser',
+            unique_together={('offering', 'user')},
         ),
     ]

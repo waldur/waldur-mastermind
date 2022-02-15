@@ -15,7 +15,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='sqldatabase', name='resource_group',),
+        migrations.RemoveField(
+            model_name='sqldatabase',
+            name='resource_group',
+        ),
         migrations.AddField(
             model_name='sqlserver',
             name='fqdn',

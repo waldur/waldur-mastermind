@@ -16,7 +16,12 @@ from waldur_mastermind.support.tests import base, factories
 @ddt
 class FeedbackCreateTest(base.BaseTest):
     @data(
-        'staff', 'owner', 'admin', 'manager', 'user', '',
+        'staff',
+        'owner',
+        'admin',
+        'manager',
+        'user',
+        '',
     )
     def test_user_can_create_feedback(self, user):
         url = factories.FeedbackFactory.get_list_url()
@@ -27,7 +32,10 @@ class FeedbackCreateTest(base.BaseTest):
         if user:
             self.client.force_authenticate(getattr(self.fixture, user))
 
-        response = self.client.post(url, data={'evaluation': 10, 'token': token},)
+        response = self.client.post(
+            url,
+            data={'evaluation': 10, 'token': token},
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_comment_has_been_created_if_feedback_has_been_synchronized(self):
@@ -43,7 +51,10 @@ class FeedbackCreateTest(base.BaseTest):
         url = factories.FeedbackFactory.get_list_url()
         token = 'token'
 
-        response = self.client.post(url, data={'evaluation': 10, 'token': token},)
+        response = self.client.post(
+            url,
+            data={'evaluation': 10, 'token': token},
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_create_feedback_if_it_already_exists(self):
@@ -53,7 +64,10 @@ class FeedbackCreateTest(base.BaseTest):
         signer = signing.TimestampSigner()
         token = signer.sign(issue.uuid.hex)
 
-        response = self.client.post(url, data={'evaluation': 10, 'token': token},)
+        response = self.client.post(
+            url,
+            data={'evaluation': 10, 'token': token},
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
@@ -103,10 +117,14 @@ class FeedbackReportTest(base.BaseTest):
         super(FeedbackReportTest, self).setUp()
         factories.FeedbackFactory(evaluation=10)
         factories.FeedbackFactory(evaluation=6)
-        self.avg = round((10 + 6) / 2, 2,)
+        self.avg = round(
+            (10 + 6) / 2,
+            2,
+        )
 
     @data(
-        'staff', 'global_support',
+        'staff',
+        'global_support',
     )
     def test_user_can_get_report(self, user):
         if user:
@@ -122,7 +140,11 @@ class FeedbackReportTest(base.BaseTest):
             self.assertTrue(response.data, self.avg)
 
     @data(
-        'owner', 'admin', 'manager', 'user', '',
+        'owner',
+        'admin',
+        'manager',
+        'user',
+        '',
     )
     def test_user_can_not_get_report(self, user):
         if user:

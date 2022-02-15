@@ -562,4 +562,7 @@ class CeleryStatsViewSet(APIView):
             'query_task': inspect.query_task(),
             'stats': inspect.stats(),
         }
-        return Response(data, status=status.HTTP_200_OK,)
+        return Response(
+            data,
+            status=status.HTTP_200_OK,
+        )

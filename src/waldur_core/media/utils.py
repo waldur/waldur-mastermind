@@ -99,7 +99,7 @@ def send_file(file):
 
 
 def dummy_image(filetype='gif'):
-    """ Generate empty image in temporary file for testing """
+    """Generate empty image in temporary file for testing"""
     # 1x1px Transparent GIF
     GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
     tmp_file = tempfile.NamedTemporaryFile(suffix='.%s' % filetype)

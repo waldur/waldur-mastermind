@@ -73,7 +73,10 @@ class AzureClient:
 
     @cached_property
     def compute_client(self):
-        return ComputeManagementClient(self.credentials, self.subscription_id,)
+        return ComputeManagementClient(
+            self.credentials,
+            self.subscription_id,
+        )
 
     @cached_property
     def storage_client(self):
@@ -175,17 +178,23 @@ class AzureClient:
 
             for publisher in publishers:
                 offers = self.compute_client.virtual_machine_images.list_offers(
-                    location, publisher.name,
+                    location,
+                    publisher.name,
                 )
 
                 for offer in offers:
                     skus = self.compute_client.virtual_machine_images.list_skus(
-                        location, publisher.name, offer.name,
+                        location,
+                        publisher.name,
+                        offer.name,
                     )
 
                     for sku in skus:
                         result_list = self.compute_client.virtual_machine_images.list(
-                            location, publisher.name, offer.name, sku.name,
+                            location,
+                            publisher.name,
+                            offer.name,
+                            sku.name,
                         )
 
                         for version in result_list:
@@ -240,14 +249,20 @@ class AzureClient:
         ssh_key=None,
     ):
         os_profile = OSProfile(
-            computer_name=vm_name, admin_username=username, admin_password=password,
+            computer_name=vm_name,
+            admin_username=username,
+            admin_password=password,
         )
         if custom_data:
             os_profile.custom_data = custom_data
 
         if ssh_key:
             os_profile.linux_configuration = LinuxConfiguration(
-                ssh=SshConfiguration(public_keys=[SshPublicKey(key_data=ssh_key),],)
+                ssh=SshConfiguration(
+                    public_keys=[
+                        SshPublicKey(key_data=ssh_key),
+                    ],
+                )
             )
         try:
             return self.compute_client.virtual_machines.begin_create_or_update(
@@ -265,7 +280,13 @@ class AzureClient:
                             'version': image_reference['version'],
                         },
                     },
-                    'network_profile': {'network_interfaces': [{'id': nic_id,}]},
+                    'network_profile': {
+                        'network_interfaces': [
+                            {
+                                'id': nic_id,
+                            }
+                        ]
+                    },
                 },
             )
         except ClientException as exc:
@@ -274,7 +295,8 @@ class AzureClient:
     def delete_virtual_machine(self, resource_group_name, vm_name):
         try:
             return self.compute_client.virtual_machines.begin_delete(
-                resource_group_name, vm_name,
+                resource_group_name,
+                vm_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -282,7 +304,8 @@ class AzureClient:
     def start_virtual_machine(self, resource_group_name, vm_name):
         try:
             return self.compute_client.virtual_machines.begin_start(
-                resource_group_name, vm_name,
+                resource_group_name,
+                vm_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -290,7 +313,8 @@ class AzureClient:
     def restart_virtual_machine(self, resource_group_name, vm_name):
         try:
             return self.compute_client.virtual_machines.begin_restart(
-                resource_group_name, vm_name,
+                resource_group_name,
+                vm_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -298,7 +322,8 @@ class AzureClient:
     def stop_virtual_machine(self, resource_group_name, vm_name):
         try:
             return self.compute_client.virtual_machines.begin_power_off(
-                resource_group_name, vm_name,
+                resource_group_name,
+                vm_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -348,7 +373,9 @@ class AzureClient:
                 resource_group_name,
                 network_name,
                 subnet_name,
-                {'address_prefix': cidr,},
+                {
+                    'address_prefix': cidr,
+                },
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -356,7 +383,9 @@ class AzureClient:
     def get_subnet(self, resource_group_name, network_name, subnet_name):
         try:
             return self.network_client.subnets.get(
-                resource_group_name, network_name, subnet_name,
+                resource_group_name,
+                network_name,
+                subnet_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -364,7 +393,8 @@ class AzureClient:
     def get_network(self, resource_group_name, network_name):
         try:
             return self.network_client.virtual_networks.get(
-                resource_group_name, network_name,
+                resource_group_name,
+                network_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -372,7 +402,8 @@ class AzureClient:
     def get_network_interface(self, resource_group_name, network_interface_name):
         try:
             return self.network_client.network_interfaces.get(
-                resource_group_name, network_interface_name,
+                resource_group_name,
+                network_interface_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -395,7 +426,8 @@ class AzureClient:
             ip_configuration.public_ip_address = {'id': public_ip_id}
 
         interface_parameters = NetworkInterface(
-            location=location, ip_configurations=[ip_configuration],
+            location=location,
+            ip_configurations=[ip_configuration],
         )
 
         if security_group_id:
@@ -429,7 +461,9 @@ class AzureClient:
 
         try:
             return self.network_client.network_security_groups.begin_create_or_update(
-                resource_group_name, network_security_group_name, security_group,
+                resource_group_name,
+                network_security_group_name,
+                security_group,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -479,7 +513,8 @@ class AzureClient:
     def get_sql_server(self, resource_group_name, server_name):
         try:
             return self.pgsql_client.servers.get_by_resource_group(
-                resource_group_name, server_name,
+                resource_group_name,
+                server_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -507,7 +542,11 @@ class AzureClient:
             poller = self.pgsql_client.servers.begin_create(
                 resource_group_name,
                 server_name,
-                ServerForCreate(properties=properties, location=location, sku=sku,),
+                ServerForCreate(
+                    properties=properties,
+                    location=location,
+                    sku=sku,
+                ),
             )
             return poller.result()
         except ClientException as exc:
@@ -544,7 +583,9 @@ class AzureClient:
     def get_sql_database(self, resource_group_name, server_name, database_name):
         try:
             return self.pgsql_client.databases.get(
-                resource_group_name, server_name, database_name,
+                resource_group_name,
+                server_name,
+                database_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -559,7 +600,11 @@ class AzureClient:
     ):
         try:
             return self.pgsql_client.databases.begin_create_or_update(
-                resource_group_name, server_name, database_name, charset, collation,
+                resource_group_name,
+                server_name,
+                database_name,
+                charset,
+                collation,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -567,7 +612,8 @@ class AzureClient:
     def list_sql_databases_in_server(self, resource_group_name, server_name):
         try:
             return self.pgsql_client.databases.list_by_server(
-                resource_group_name, server_name,
+                resource_group_name,
+                server_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -575,7 +621,9 @@ class AzureClient:
     def delete_sql_database(self, resource_group_name, server_name, database_name):
         try:
             return self.pgsql_client.databases.begin_delete(
-                resource_group_name, server_name, database_name,
+                resource_group_name,
+                server_name,
+                database_name,
             )
         except ClientException as exc:
             raise AzureBackendError(exc)

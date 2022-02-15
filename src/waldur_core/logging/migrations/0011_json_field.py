@@ -21,7 +21,9 @@ class Migration(migrations.Migration):
             field=models.JSONField(verbose_name='List of event types'),
         ),
         migrations.AlterField(
-            model_name='event', name='context', field=models.JSONField(blank=True),
+            model_name='event',
+            name='context',
+            field=models.JSONField(blank=True),
         ),
         migrations.AlterField(
             model_name='systemnotification',

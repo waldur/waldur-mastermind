@@ -53,8 +53,12 @@ class Migration(migrations.Migration):
         ),
         migrations.RunPython(migrate_offering_components_to_limit),
         migrations.RunPython(cleanup_resource_limits),
-        migrations.RemoveField(model_name='offeringcomponent', name='disable_quotas',),
         migrations.RemoveField(
-            model_name='offeringcomponent', name='use_limit_for_billing',
+            model_name='offeringcomponent',
+            name='disable_quotas',
+        ),
+        migrations.RemoveField(
+            model_name='offeringcomponent',
+            name='use_limit_for_billing',
         ),
     ]

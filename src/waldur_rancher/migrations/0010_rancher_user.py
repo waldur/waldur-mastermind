@@ -71,7 +71,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'unique_together': {('user', 'cluster', 'role')},},
+            options={
+                'unique_together': {('user', 'cluster', 'role')},
+            },
         ),
         migrations.AddField(
             model_name='rancheruser',
@@ -97,6 +99,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='rancheruser', unique_together={('user', 'settings')},
+            name='rancheruser',
+            unique_together={('user', 'settings')},
         ),
     ]

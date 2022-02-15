@@ -38,13 +38,17 @@ def log_customer_save(sender, instance, created=False, **kwargs):
         event_logger.customer.info(
             'Customer {customer_name} has been created.',
             event_type='customer_creation_succeeded',
-            event_context={'customer': instance,},
+            event_context={
+                'customer': instance,
+            },
         )
     else:
         event_logger.customer.info(
             'Customer {customer_name} has been updated.',
             event_type='customer_update_succeeded',
-            event_context={'customer': instance,},
+            event_context={
+                'customer': instance,
+            },
         )
 
 
@@ -52,7 +56,9 @@ def log_customer_delete(sender, instance, **kwargs):
     event_logger.customer.info(
         'Customer {customer_name} has been deleted.',
         event_type='customer_deletion_succeeded',
-        event_context={'customer': instance,},
+        event_context={
+            'customer': instance,
+        },
     )
 
 
@@ -61,7 +67,9 @@ def log_project_save(sender, instance, created=False, **kwargs):
         event_logger.project.info(
             'Project {project_name} has been created.',
             event_type='project_creation_succeeded',
-            event_context={'project': instance,},
+            event_context={
+                'project': instance,
+            },
         )
     else:
         changed_fields = instance.tracker.changed().copy()
@@ -91,7 +99,9 @@ def log_project_delete(sender, instance, **kwargs):
     event_logger.project.info(
         'Project {project_name} has been deleted.',
         event_type='project_deletion_succeeded',
-        event_context={'project': instance,},
+        event_context={
+            'project': instance,
+        },
     )
 
 
@@ -214,7 +224,7 @@ def log_project_role_updated(sender, instance, user, **kwargs):
 
 
 def change_customer_nc_users_quota(sender, structure, user, role, signal, **kwargs):
-    """ Modify nc_user_count quota usage on structure role grant or revoke """
+    """Modify nc_user_count quota usage on structure role grant or revoke"""
     assert signal in (
         signals.structure_role_granted,
         signals.structure_role_revoked,
@@ -323,8 +333,8 @@ def update_resource_start_time(sender, instance, created=False, **kwargs):
 
 
 def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
-    """ If VM that contains service settings were deleted - all settings
-        resources could be safely deleted from Waldur.
+    """If VM that contains service settings were deleted - all settings
+    resources could be safely deleted from Waldur.
     """
     for service_settings in ServiceSettings.objects.filter(scope=instance):
         service_settings.delete()

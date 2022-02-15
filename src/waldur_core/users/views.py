@@ -272,7 +272,10 @@ class GroupInvitationViewSet(ProtectedViewSet):
             context={'request': request},
             many=True,
         )
-        return Response(projects.data, status=status.HTTP_200_OK,)
+        return Response(
+            projects.data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, uuid=None):
@@ -311,12 +314,14 @@ class GroupInvitationViewSet(ProtectedViewSet):
             raise ValidationError(_('Request has been created already.'))
 
         permission_request = models.PermissionRequest.objects.create(
-            invitation=invitation, created_by=self.request.user,
+            invitation=invitation,
+            created_by=self.request.user,
         )
 
         permission_request.submit()
         return Response(
-            {'uuid': permission_request.uuid.hex}, status=status.HTTP_200_OK,
+            {'uuid': permission_request.uuid.hex},
+            status=status.HTTP_200_OK,
         )
 
     def perform_create(self, serializer):

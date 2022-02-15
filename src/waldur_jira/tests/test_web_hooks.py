@@ -19,7 +19,9 @@ class BaseTest(test.APITransactionTestCase):
         self.jira_mock = self.jira_patcher.start()
 
         self.jira_mock().comment.return_value = mock.Mock(
-            **{'body': 'comment message',}
+            **{
+                'body': 'comment message',
+            }
         )
 
     def _create_request_data(self, file_path):

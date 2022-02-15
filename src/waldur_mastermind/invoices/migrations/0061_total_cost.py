@@ -30,7 +30,9 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RenameField(
-            model_name='invoice', old_name='current_cost', new_name='total_cost',
+            model_name='invoice',
+            old_name='current_cost',
+            new_name='total_cost',
         ),
         migrations.AlterField(
             model_name='invoice',

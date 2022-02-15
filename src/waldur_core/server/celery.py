@@ -20,7 +20,7 @@ app.autodiscover_tasks()
 
 
 class PriorityRouter:
-    """ Run heavy tasks and background tasks in separate queues. """
+    """Run heavy tasks and background tasks in separate queues."""
 
     def route_for_task(self, task_name, *args, **kwargs):
         task = app.tasks.get(task_name)

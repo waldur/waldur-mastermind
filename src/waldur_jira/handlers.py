@@ -19,13 +19,17 @@ def log_issue_save(sender, instance, created=False, **kwargs):
             event_logger.jira_issue.info(
                 'Issue {issue_key} has been created.',
                 event_type='issue_creation_succeeded',
-                event_context={'issue': instance,},
+                event_context={
+                    'issue': instance,
+                },
             )
         else:
             event_logger.jira_issue.info(
                 'Issue {issue_key} has been updated.',
                 event_type='issue_update_succeeded',
-                event_context={'issue': instance,},
+                event_context={
+                    'issue': instance,
+                },
             )
 
 
@@ -33,7 +37,9 @@ def log_issue_delete(sender, instance, **kwargs):
     event_logger.jira_issue.info(
         'Issue {issue_key} has been deleted.',
         event_type='issue_deletion_succeeded',
-        event_context={'issue': instance,},
+        event_context={
+            'issue': instance,
+        },
     )
 
 
@@ -42,13 +48,17 @@ def log_comment_save(sender, instance, created=False, **kwargs):
         event_logger.jira_comment.info(
             'Comment for issue {issue_key} has been created.',
             event_type='comment_creation_succeeded',
-            event_context={'comment': instance,},
+            event_context={
+                'comment': instance,
+            },
         )
     else:
         event_logger.jira_comment.info(
             'Comment for issue {issue_key} has been updated.',
             event_type='comment_update_succeeded',
-            event_context={'comment': instance,},
+            event_context={
+                'comment': instance,
+            },
         )
 
 
@@ -56,5 +66,7 @@ def log_comment_delete(sender, instance, **kwargs):
     event_logger.jira_comment.info(
         'Comment for issue {issue_key} has been deleted.',
         event_type='comment_deletion_succeeded',
-        event_context={'comment': instance,},
+        event_context={
+            'comment': instance,
+        },
     )

@@ -25,7 +25,8 @@ class JiraConfig(AppConfig):
         structure_models.Project.add_quota_field(
             name='nc_jira_project_count',
             quota_field=quota_fields.CounterQuotaField(
-                target_models=lambda: [Project], path_to_scope='project',
+                target_models=lambda: [Project],
+                path_to_scope='project',
             ),
         )
 

@@ -45,7 +45,8 @@ class Migration(migrations.Migration):
             options={'ordering': ('name',), 'verbose_name_plural': 'Categories'},
         ),
         migrations.AlterModelOptions(
-            name='checklist', options={'ordering': ('name',)},
+            name='checklist',
+            options={'ordering': ('name',)},
         ),
         migrations.AddField(
             model_name='question',

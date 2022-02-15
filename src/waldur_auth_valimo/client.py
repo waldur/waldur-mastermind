@@ -39,7 +39,7 @@ class Response:
         self.init_response_attributes(etree)
 
     def init_response_attributes(self, etree):
-        """ Define response attributes based on valimo request content """
+        """Define response attributes based on valimo request content"""
         raise NotImplementedError
 
 

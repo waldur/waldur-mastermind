@@ -73,8 +73,10 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         super(BaseClusterCreateTest, self).setUp()
         self.fixture = fixtures.RancherFixture()
         self.url = factories.ClusterFactory.get_list_url()
-        openstack_service_settings = openstack_factories.OpenStackServiceSettingsFactory(
-            customer=self.fixture.customer
+        openstack_service_settings = (
+            openstack_factories.OpenStackServiceSettingsFactory(
+                customer=self.fixture.customer
+            )
         )
         self.tenant = openstack_factories.TenantFactory(
             service_settings=openstack_service_settings
@@ -286,7 +288,10 @@ class ClusterCreateTest(BaseClusterCreateTest):
                     'system_volume_size': 1024,
                     'memory': 1,
                     'cpu': 1,
-                    'roles': ['controlplane', 'etcd',],
+                    'roles': [
+                        'controlplane',
+                        'etcd',
+                    ],
                 },
             ]
         }
@@ -504,7 +509,9 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 'targetNamespace': '1',
                 'externalId': f'catalog://?catalog={template.catalog.backend_id}&template={template.name}&version=1.1',
                 'projectId': system_project.backend_id,
-                'answers': {'persistence.defaultClassReplicaCount': 1,},
+                'answers': {
+                    'persistence.defaultClassReplicaCount': 1,
+                },
             },
         )
 

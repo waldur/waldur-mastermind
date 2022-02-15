@@ -24,7 +24,9 @@ class SupportExtension(WaldurExtension):
                 'token': '',
                 'verify_ssl': False,
             },
-            'PROJECT': {'key': 'PROJECT',},
+            'PROJECT': {
+                'key': 'PROJECT',
+            },
             'ISSUE': {
                 'types': [
                     'Informational',

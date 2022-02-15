@@ -16,6 +16,7 @@ class Migration(migrations.Migration):
             field=models.CharField(max_length=255),
         ),
         migrations.AlterUniqueTogether(
-            name='attachment', unique_together={('issue', 'backend_id')},
+            name='attachment',
+            unique_together={('issue', 'backend_id')},
         ),
     ]

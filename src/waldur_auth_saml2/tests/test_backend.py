@@ -22,7 +22,9 @@ class WaldurSaml2BackendTest(TestCase):
 
         backend = WaldurSaml2Backend()
         user = backend.authenticate(
-            None, session_info=session_info, attribute_mapping=attribute_mapping,
+            None,
+            session_info=session_info,
+            attribute_mapping=attribute_mapping,
         )
         self.assertIsNotNone(user)
 

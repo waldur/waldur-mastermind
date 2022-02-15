@@ -10,12 +10,15 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterUniqueTogether(
-            name='attachment', unique_together=set([('issue', 'backend_id')]),
+            name='attachment',
+            unique_together=set([('issue', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='comment', unique_together=set([('issue', 'backend_id')]),
+            name='comment',
+            unique_together=set([('issue', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='issue', unique_together=set([('project', 'backend_id')]),
+            name='issue',
+            unique_together=set([('project', 'backend_id')]),
         ),
     ]

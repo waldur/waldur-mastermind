@@ -19,7 +19,9 @@ def register_in(router):
         r'support-templates', views.TemplateViewSet, basename='support-template'
     )
     router.register(
-        r'support-feedbacks', views.FeedbackViewSet, basename='support-feedback',
+        r'support-feedbacks',
+        views.FeedbackViewSet,
+        basename='support-feedback',
     )
 
 

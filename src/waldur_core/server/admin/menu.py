@@ -87,11 +87,26 @@ class CustomMenu(Menu):
             items.MenuItem(_('Dashboard'), reverse('admin:index')),
             items.ModelList(_('Users'), models=self.USERS),
             items.ModelList(_('Structure'), models=('waldur_core.structure.*',)),
-            CustomAppList(_('Accounting'), models=self.ACCOUNTING,),
-            CustomAppList(_('Marketplace'), models=self.MARKETPLACE,),
-            CustomAppList(_('Providers'), models=self.IAAS_CLOUDS,),
-            CustomAppList(_('Applications'), models=self.APPLICATION_PROVIDERS,),
-            CustomAppList(_('Support'), models=self.SUPPORT_MODULES,),
+            CustomAppList(
+                _('Accounting'),
+                models=self.ACCOUNTING,
+            ),
+            CustomAppList(
+                _('Marketplace'),
+                models=self.MARKETPLACE,
+            ),
+            CustomAppList(
+                _('Providers'),
+                models=self.IAAS_CLOUDS,
+            ),
+            CustomAppList(
+                _('Applications'),
+                models=self.APPLICATION_PROVIDERS,
+            ),
+            CustomAppList(
+                _('Support'),
+                models=self.SUPPORT_MODULES,
+            ),
             CustomAppList(
                 _('Utilities'),
                 exclude=flatten(

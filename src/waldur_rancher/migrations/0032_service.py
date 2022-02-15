@@ -121,7 +121,9 @@ class Migration(migrations.Migration):
                     models.ManyToManyField(to='waldur_rancher.Workload'),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,

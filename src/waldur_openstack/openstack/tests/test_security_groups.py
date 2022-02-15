@@ -143,7 +143,9 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_user_can_create_security_group_rule_for_tcp_protocol_with_any_range(self,):
+    def test_user_can_create_security_group_rule_for_tcp_protocol_with_any_range(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.post(

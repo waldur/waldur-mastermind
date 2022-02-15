@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def log_backend_action(action=None):
-    """ Logging for backend method.
+    """Logging for backend method.
 
     Expects django model instance as first argument.
     """
@@ -35,7 +35,7 @@ def log_backend_action(action=None):
 
 
 class ServiceBackend:
-    """ Basic service backed with only common methods pre-defined. """
+    """Basic service backed with only common methods pre-defined."""
 
     DEFAULTS = {}
 

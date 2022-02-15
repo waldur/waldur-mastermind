@@ -45,7 +45,9 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(max_length=255, unique=True)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -216,7 +218,9 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(max_length=50)),
                 ('user_password', models.CharField(max_length=50)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,

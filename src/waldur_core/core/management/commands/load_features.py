@@ -11,7 +11,8 @@ class Command(DryRunCommand):
     def add_arguments(self, parser):
         super(Command, self).add_arguments(parser)
         parser.add_argument(
-            'features_file', help='Specifies location of features file.',
+            'features_file',
+            help='Specifies location of features file.',
         )
 
     def handle(self, *args, **options):

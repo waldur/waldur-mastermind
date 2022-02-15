@@ -30,7 +30,7 @@ def decrease_global_quota(sender, **kwargs):
 
 
 def init_quotas(sender, instance, created=False, **kwargs):
-    """ Initialize new instances quotas """
+    """Initialize new instances quotas"""
     if not created:
         return
     for field in sender.get_quotas_fields():
@@ -41,7 +41,7 @@ def init_quotas(sender, instance, created=False, **kwargs):
 
 
 def count_quota_handler_factory(count_quota_field):
-    """ Creates handler that will recalculate count_quota on creation/deletion """
+    """Creates handler that will recalculate count_quota on creation/deletion"""
 
     def recalculate_count_quota(sender, instance, **kwargs):
         signal = kwargs['signal']
@@ -54,7 +54,7 @@ def count_quota_handler_factory(count_quota_field):
 
 
 def handle_aggregated_quotas(sender, instance, **kwargs):
-    """ Call aggregated quotas fields update methods """
+    """Call aggregated quotas fields update methods"""
     quota = instance
     # aggregation is not supported for global quotas.
     if quota.scope is None:

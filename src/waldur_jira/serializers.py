@@ -101,7 +101,10 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
         view_name = 'jira-projects-detail'
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ('key', 'template',)
+            + (
+                'key',
+                'template',
+            )
         )
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'key',

@@ -36,5 +36,8 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.RunPython(split_full_name),
-        migrations.RemoveField(model_name='user', name='full_name',),
+        migrations.RemoveField(
+            model_name='user',
+            name='full_name',
+        ),
     ]

@@ -137,7 +137,9 @@ def sync_remote_project_when_request_is_approved(
 def delete_remote_project(sender, instance, **kwargs):
     project = instance
     transaction.on_commit(
-        lambda: tasks.delete_remote_project.delay(serialize_instance(project),)
+        lambda: tasks.delete_remote_project.delay(
+            serialize_instance(project),
+        )
     )
 
 

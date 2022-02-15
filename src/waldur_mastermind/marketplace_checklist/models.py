@@ -10,7 +10,9 @@ from waldur_mastermind.marketplace import models as marketplace_models
 
 
 class Category(
-    core_models.UuidMixin, core_models.NameMixin, core_models.DescribableMixin,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
 ):
     icon = models.FileField(
         upload_to='marketplace_checklist_category_icons',
@@ -65,11 +67,16 @@ class ChecklistProjectRole(models.Model):
 
 class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMixin):
     checklist = models.ForeignKey(
-        to=Checklist, on_delete=models.CASCADE, related_name='questions',
+        to=Checklist,
+        on_delete=models.CASCADE,
+        related_name='questions',
     )
     order = models.PositiveIntegerField(default=0)
     category = models.ForeignKey(
-        to=marketplace_models.Category, on_delete=models.CASCADE, null=True, blank=True,
+        to=marketplace_models.Category,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
     )
     correct_answer = models.BooleanField(default=True)
     solution = models.TextField(

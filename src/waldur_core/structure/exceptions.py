@@ -2,7 +2,7 @@ import pickle  # noqa: S403
 
 
 class ServiceBackendError(Exception):
-    """ Base exception for errors occurring during backend communication. """
+    """Base exception for errors occurring during backend communication."""
 
     pass
 

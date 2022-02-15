@@ -33,7 +33,10 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def plan_component(self):
         return marketplace_factories.PlanComponentFactory(
-            plan=self.plan, component=self.offering_component, price=3, amount=2,
+            plan=self.plan,
+            component=self.offering_component,
+            price=3,
+            amount=2,
         )
 
     @cached_property

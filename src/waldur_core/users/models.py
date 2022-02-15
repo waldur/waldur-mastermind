@@ -33,7 +33,10 @@ class BaseInvitation(core_models.UuidMixin, TimeStampedModel):
     )
 
     project = models.ForeignKey(
-        on_delete=models.CASCADE, to=structure_models.Project, blank=True, null=True,
+        on_delete=models.CASCADE,
+        to=structure_models.Project,
+        blank=True,
+        null=True,
     )
     project_role = structure_models.ProjectRole(null=True, blank=True)
 
@@ -59,7 +62,9 @@ class GroupInvitation(BaseInvitation):
 
 
 class Invitation(
-    BaseInvitation, core_models.ErrorMessageMixin, core_models.UserDetailsMixin,
+    BaseInvitation,
+    core_models.ErrorMessageMixin,
+    core_models.UserDetailsMixin,
 ):
     class Permissions:
         customer_path = 'customer'
@@ -149,7 +154,9 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     invitation = models.ForeignKey(on_delete=models.PROTECT, to=GroupInvitation)
 
     created_by = models.ForeignKey(
-        on_delete=models.PROTECT, to=settings.AUTH_USER_MODEL, related_name='+',
+        on_delete=models.PROTECT,
+        to=settings.AUTH_USER_MODEL,
+        related_name='+',
     )
 
     @transaction.atomic
@@ -168,7 +175,9 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
             structure = self.invitation.customer
 
         permissions_request_approved.send(
-            sender=self.__class__, permission=permission, structure=structure,
+            sender=self.__class__,
+            permission=permission,
+            structure=structure,
         )
 
     tracker = FieldTracker()

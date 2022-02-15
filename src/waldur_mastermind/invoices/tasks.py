@@ -58,7 +58,7 @@ def create_monthly_invoices():
 
 @shared_task(name='invoices.send_invoice_notification')
 def send_invoice_notification(invoice_uuid):
-    """ Sends email notification with invoice link to customer owners """
+    """Sends email notification with invoice link to customer owners"""
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
 
     context = {
@@ -100,13 +100,21 @@ def send_invoice_notification(invoice_uuid):
 
 @shared_task(name='invoices.send_invoice_report')
 def send_invoice_report():
-    """ Sends aggregate accounting data as CSV """
+    """Sends aggregate accounting data as CSV"""
     date = get_previous_month()
     subject = render_to_string(
-        'invoices/report_subject.txt', {'month': date.month, 'year': date.year,}
+        'invoices/report_subject.txt',
+        {
+            'month': date.month,
+            'year': date.year,
+        },
     ).strip()
     body = render_to_string(
-        'invoices/report_body.txt', {'month': date.month, 'year': date.year,}
+        'invoices/report_body.txt',
+        {
+            'month': date.month,
+            'year': date.year,
+        },
     ).strip()
     filename = '3M%02d%dWaldur.txt' % (date.month, date.year)
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
@@ -202,7 +210,10 @@ def send_notifications_about_upcoming_ends():
         }
         emails = profile.organization.get_owner_mails()
         core_utils.broadcast_mail(
-            'invoices', 'upcoming_ends_notification', context, emails,
+            'invoices',
+            'upcoming_ends_notification',
+            context,
+            emails,
         )
 
 
@@ -213,7 +224,10 @@ def send_monthly_invoicing_reports_about_customers():
         pdf = pdfkit.from_string(report, False)
         today = timezone.datetime.today()
         filename = '%02d_%04d_invoice_report.pdf' % (today.month, today.year)
-        subject = 'Financial report for %02d-%04d' % (today.month, today.year,)
+        subject = 'Financial report for %02d-%04d' % (
+            today.month,
+            today.year,
+        )
         body = 'Financial report for %02d-%04d is attached.' % (
             today.month,
             today.year,

@@ -146,7 +146,9 @@ class Migration(migrations.Migration):
                 ('region_name', models.CharField(blank=True, max_length=150)),
                 ('size_name', models.CharField(blank=True, max_length=150)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -193,7 +195,9 @@ class Migration(migrations.Migration):
                 ),
                 ('created_at', models.DateTimeField(null=True)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -219,7 +223,9 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(max_length=255, unique=True)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -269,7 +275,9 @@ class Migration(migrations.Migration):
                 ),
                 ('regions', models.ManyToManyField(to='waldur_digitalocean.Region')),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.AddField(

@@ -213,7 +213,9 @@ class Migration(migrations.Migration):
                 'ordering': ['username'],
             },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
-            managers=[('objects', django.contrib.auth.models.UserManager()),],
+            managers=[
+                ('objects', django.contrib.auth.models.UserManager()),
+            ],
         ),
         migrations.CreateModel(
             name='SshPublicKey',
@@ -256,6 +258,7 @@ class Migration(migrations.Migration):
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.AlterUniqueTogether(
-            name='sshpublickey', unique_together=set([('user', 'name')]),
+            name='sshpublickey',
+            unique_together=set([('user', 'name')]),
         ),
     ]

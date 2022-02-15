@@ -157,7 +157,9 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
-    def test_if_email_validation_is_enabled_matching_invitation_is_shown(self,):
+    def test_if_email_validation_is_enabled_matching_invitation_is_shown(
+        self,
+    ):
         invitation = factories.CustomerInvitationFactory(
             created_by=self.customer_owner, email=self.user.email
         )
@@ -165,13 +167,17 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
-    def test_if_email_validation_is_enabled_non_matching_invitation_is_concealed(self,):
+    def test_if_email_validation_is_enabled_non_matching_invitation_is_concealed(
+        self,
+    ):
         invitation = factories.CustomerInvitationFactory(created_by=self.customer_owner)
         response = self.get_details(self.user, invitation)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=False)
-    def test_if_email_validation_is_disabled_non_matching_invitation_is_shown(self,):
+    def test_if_email_validation_is_disabled_non_matching_invitation_is_shown(
+        self,
+    ):
         invitation = factories.CustomerInvitationFactory(created_by=self.customer_owner)
         response = self.get_details(self.user, invitation)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

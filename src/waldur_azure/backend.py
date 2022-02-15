@@ -85,7 +85,8 @@ class AzureBackend(ServiceBackend):
         cached_public_ips = {
             public_ip.backend_id: public_ip
             for public_ip in models.PublicIP.objects.filter(
-                service_settings=service_settings, project=project,
+                service_settings=service_settings,
+                project=project,
             )
         }
 
@@ -249,7 +250,8 @@ class AzureBackend(ServiceBackend):
         cached_groups = {
             group.backend_id: group
             for group in models.ResourceGroup.objects.filter(
-                service_settings=service_settings, project=project,
+                service_settings=service_settings,
+                project=project,
             )
         }
 
@@ -293,9 +295,11 @@ class AzureBackend(ServiceBackend):
 
     def create_storage_account(self, storage_account):
         # Storage SDK does not support create_or_update logic, so reimplementing it
-        exists = not self.client.storage_client.storage_accounts.check_name_availability(
-            {'name': storage_account.name}
-        ).name_available
+        exists = (
+            not self.client.storage_client.storage_accounts.check_name_availability(
+                {'name': storage_account.name}
+            ).name_available
+        )
         if not exists:
             poller = self.client.create_storage_account(
                 location=storage_account.resource_group.location.backend_id,
@@ -304,8 +308,10 @@ class AzureBackend(ServiceBackend):
             )
             backend_storage_account = poller.result()
         else:
-            backend_storage_account = self.client.storage_client.storage_accounts.get_properties(
-                storage_account.resource_group.name, storage_account.name
+            backend_storage_account = (
+                self.client.storage_client.storage_accounts.get_properties(
+                    storage_account.resource_group.name, storage_account.name
+                )
             )
         storage_account.backend_id = backend_storage_account.id
         storage_account.save()
@@ -412,7 +418,10 @@ class AzureBackend(ServiceBackend):
 
     def get_importable_virtual_machines(self):
         virtual_machines = [
-            {'name': vm.name, 'backend_id': vm.id,}
+            {
+                'name': vm.name,
+                'backend_id': vm.id,
+            }
             for vm in self.client.list_all_virtual_machines()
         ]
         return self.get_importable_resources(models.VirtualMachine, virtual_machines)
@@ -467,7 +476,8 @@ class AzureBackend(ServiceBackend):
         network_interface_id = backend_vm.network_profile.network_interfaces[0].id
         try:
             return models.NetworkInterface.objects.get(
-                resource_group=resource_group, backend_id=network_interface_id,
+                resource_group=resource_group,
+                backend_id=network_interface_id,
             )
         except ObjectDoesNotExist:
             network_interface_name = network_interface_id.split('/')[-1]
@@ -594,7 +604,12 @@ class AzureBackend(ServiceBackend):
             username=server.username,
             password=server.password,
             storage_mb=server.storage_mb,
-            sku={'name': 'B_Gen5_1', 'tier': 'Basic', 'family': 'Gen5', 'capacity': 1,},
+            sku={
+                'name': 'B_Gen5_1',
+                'tier': 'Basic',
+                'family': 'Gen5',
+                'capacity': 1,
+            },
         )
         server.backend_id = backend_server.id
         server.fqdn = backend_server.fully_qualified_domain_name
@@ -610,7 +625,8 @@ class AzureBackend(ServiceBackend):
 
     def delete_pgsql_server(self, server):
         poller = self.client.delete_sql_server(
-            resource_group_name=server.resource_group.name, server_name=server.name,
+            resource_group_name=server.resource_group.name,
+            server_name=server.name,
         )
         poller.wait()
 

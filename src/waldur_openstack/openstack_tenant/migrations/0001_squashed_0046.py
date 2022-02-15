@@ -101,7 +101,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -147,7 +149,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='BackupSchedule',
@@ -244,7 +248,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -728,7 +734,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='Snapshot',
@@ -856,7 +864,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='SnapshotSchedule',
@@ -953,7 +963,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -1021,7 +1033,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'verbose_name': 'Subnet', 'verbose_name_plural': 'Subnets',},
+            options={
+                'verbose_name': 'Subnet',
+                'verbose_name_plural': 'Subnets',
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -1393,34 +1408,43 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='volumetype', unique_together=set([('settings', 'backend_id')]),
+            name='volumetype',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='volumeavailabilityzone', unique_together=set([('settings', 'name')]),
+            name='volumeavailabilityzone',
+            unique_together=set([('settings', 'name')]),
         ),
         migrations.AlterUniqueTogether(
-            name='subnet', unique_together=set([('settings', 'backend_id')]),
+            name='subnet',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='securitygroup', unique_together=set([('settings', 'backend_id')]),
+            name='securitygroup',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='network', unique_together=set([('settings', 'backend_id')]),
+            name='network',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='internalip', unique_together=set([('backend_id', 'settings')]),
+            name='internalip',
+            unique_together=set([('backend_id', 'settings')]),
         ),
         migrations.AlterUniqueTogether(
             name='instanceavailabilityzone',
             unique_together=set([('settings', 'name')]),
         ),
         migrations.AlterUniqueTogether(
-            name='image', unique_together=set([('settings', 'backend_id')]),
+            name='image',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='floatingip', unique_together=set([('settings', 'address')]),
+            name='floatingip',
+            unique_together=set([('settings', 'address')]),
         ),
         migrations.AlterUniqueTogether(
-            name='flavor', unique_together=set([('settings', 'backend_id')]),
+            name='flavor',
+            unique_together=set([('settings', 'backend_id')]),
         ),
     ]

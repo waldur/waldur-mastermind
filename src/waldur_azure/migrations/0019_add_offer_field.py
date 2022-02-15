@@ -11,7 +11,8 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterModelOptions(
-            name='image', options={'ordering': ['publisher', 'offer', 'name', 'sku']},
+            name='image',
+            options={'ordering': ['publisher', 'offer', 'name', 'sku']},
         ),
         migrations.AddField(
             model_name='image',

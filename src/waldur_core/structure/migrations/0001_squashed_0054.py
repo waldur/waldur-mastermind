@@ -117,7 +117,13 @@ class Migration(migrations.Migration):
                         default=False, help_text='Is company or private person'
                     ),
                 ),
-                ('country', models.CharField(blank=True, max_length=2,),),
+                (
+                    'country',
+                    models.CharField(
+                        blank=True,
+                        max_length=2,
+                    ),
+                ),
                 (
                     'native_name',
                     models.CharField(blank=True, default='', max_length=160),
@@ -184,7 +190,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'verbose_name': 'organization',},
+            options={
+                'verbose_name': 'organization',
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.structure.models.PermissionMixin,
@@ -292,7 +300,9 @@ class Migration(migrations.Migration):
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.structure.models.PermissionMixin,

@@ -15,6 +15,7 @@ class Migration(migrations.Migration):
             field=models.BooleanField(default=False),
         ),
         migrations.AlterModelOptions(
-            name='project', options={'base_manager_name': 'objects'},
+            name='project',
+            options={'base_manager_name': 'objects'},
         ),
     ]

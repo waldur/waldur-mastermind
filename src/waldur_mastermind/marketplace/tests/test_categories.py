@@ -46,7 +46,9 @@ class CategoryCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_authorized_user_can_create_category(self, user):
         response = self.create_category(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -74,7 +76,9 @@ class CategoryUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_authorized_user_can_update_category(self, user):
         response, category = self.update_category(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -104,7 +108,9 @@ class CategoryDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory(title='category')
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_authorized_user_can_delete_category(self, user):
         response = self.delete_category(user)
         self.assertEqual(

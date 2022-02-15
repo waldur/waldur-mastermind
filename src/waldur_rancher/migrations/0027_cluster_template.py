@@ -60,7 +60,9 @@ class Migration(migrations.Migration):
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
             ],
-            options={'ordering': ('name',),},
+            options={
+                'ordering': ('name',),
+            },
         ),
         migrations.CreateModel(
             name='ClusterTemplateNode',
@@ -93,6 +95,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
     ]

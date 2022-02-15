@@ -80,7 +80,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.AddField(
@@ -101,9 +103,11 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='datastore', unique_together=set([('settings', 'backend_id')]),
+            name='datastore',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='customerdatastore', unique_together=set([('customer', 'datastore')]),
+            name='customerdatastore',
+            unique_together=set([('customer', 'datastore')]),
         ),
     ]

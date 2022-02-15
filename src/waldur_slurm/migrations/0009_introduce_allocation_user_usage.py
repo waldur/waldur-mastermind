@@ -13,8 +13,14 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='allocationusage', name='user',),
-        migrations.RemoveField(model_name='allocationusage', name='username',),
+        migrations.RemoveField(
+            model_name='allocationusage',
+            name='user',
+        ),
+        migrations.RemoveField(
+            model_name='allocationusage',
+            name='username',
+        ),
         migrations.CreateModel(
             name='AllocationUserUsage',
             fields=[

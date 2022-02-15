@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class SetInstanceOKTask(core_tasks.StateTransitionTask):
-    """ Additionally mark or related floating IPs as free """
+    """Additionally mark or related floating IPs as free"""
 
     def pre_execute(self, instance):
         self.kwargs['state_transition'] = 'set_ok'
@@ -31,7 +31,7 @@ class SetInstanceOKTask(core_tasks.StateTransitionTask):
 
 
 class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
-    """ Mark instance as erred and delete resources that were not created. """
+    """Mark instance as erred and delete resources that were not created."""
 
     def execute(self, instance):
         super(SetInstanceErredTask, self).execute(instance)
@@ -54,7 +54,7 @@ class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
 
 
 class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
-    """ Mark DR backup and all related resources that are not in state OK as Erred """
+    """Mark DR backup and all related resources that are not in state OK as Erred"""
 
     def execute(self, backup):
         super(SetBackupErredTask, self).execute(backup)
@@ -96,7 +96,7 @@ class ForceDeleteBackupTask(core_tasks.DeletionTask):
 
 
 class VolumeExtendErredTask(core_tasks.ErrorStateTransitionTask):
-    """ Mark volume and its instance as erred on fail """
+    """Mark volume and its instance as erred on fail"""
 
     def execute(self, volume):
         super(VolumeExtendErredTask, self).execute(volume)

@@ -382,7 +382,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                     defaults['issue_type_name'] = issue_type.name
 
                 models.RequestType.objects.update_or_create(
-                    backend_id=backend_request_type.id, defaults=defaults,
+                    backend_id=backend_request_type.id,
+                    defaults=defaults,
                 )
 
     @reraise_exceptions

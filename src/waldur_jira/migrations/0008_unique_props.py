@@ -11,9 +11,11 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterUniqueTogether(
-            name='issuetype', unique_together=set([('settings', 'backend_id')]),
+            name='issuetype',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='priority', unique_together=set([('settings', 'backend_id')]),
+            name='priority',
+            unique_together=set([('settings', 'backend_id')]),
         ),
     ]

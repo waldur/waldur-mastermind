@@ -377,7 +377,8 @@ class ConsumerSshKeyListTest(test.APITransactionTestCase):
         self.consumable_resource = self.mp_fixture.resource
         self.admin = self.mp_fixture.admin
         self.ssh_key = structure_factories.SshPublicKeyFactory(
-            user=self.admin, is_shared=True,
+            user=self.admin,
+            is_shared=True,
         )
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action='keys'
@@ -401,7 +402,9 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         self.consumable_resource = self.mp_fixture.resource
         self.admin = self.mp_fixture.admin
         self.permission = structure_models.ProjectPermission.objects.get(
-            user=self.admin, project=self.consumer_project, is_active=True,
+            user=self.admin,
+            project=self.consumer_project,
+            is_active=True,
         )
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action='project_permissions'
@@ -458,7 +461,8 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.admin = self.fixture.admin
         self.url = factories.ServiceProviderFactory.get_url(
-            self.fixture.service_provider, action='set_offerings_username',
+            self.fixture.service_provider,
+            action='set_offerings_username',
         )
 
     def test_offering_user_creation(self):
@@ -471,7 +475,10 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.offering_owner)
         response = self.client.post(
             self.url,
-            {'user_uuid': self.admin.uuid, 'username': 'SET_OFFERING_USERNAME',},
+            {
+                'user_uuid': self.admin.uuid,
+                'username': 'SET_OFFERING_USERNAME',
+            },
         )
 
         self.assertEqual(201, response.status_code)
@@ -488,11 +495,17 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
 
     def test_offering_user_update(self):
         models.OfferingUser.objects.create(
-            offering=self.offering, user=self.admin, username='ADMIN_OLD',
+            offering=self.offering,
+            user=self.admin,
+            username='ADMIN_OLD',
         )
         self.client.force_login(self.fixture.offering_owner)
         response = self.client.post(
-            self.url, {'user_uuid': self.admin.uuid, 'username': 'ADMIN_NEW',},
+            self.url,
+            {
+                'user_uuid': self.admin.uuid,
+                'username': 'ADMIN_NEW',
+            },
         )
 
         self.assertEqual(201, response.status_code)

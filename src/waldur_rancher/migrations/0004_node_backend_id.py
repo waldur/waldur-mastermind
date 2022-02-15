@@ -19,7 +19,9 @@ class Migration(migrations.Migration):
             field=models.CharField(blank=True, max_length=255),
         ),
         migrations.AddField(
-            model_name='node', name='error_message', field=models.TextField(blank=True),
+            model_name='node',
+            name='error_message',
+            field=models.TextField(blank=True),
         ),
         migrations.AddField(
             model_name='node',

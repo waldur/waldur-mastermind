@@ -54,8 +54,8 @@ def validate_service_type(service_type):
 
 
 class StructureModel(models.Model):
-    """ Generic structure model.
-        Provides transparent interaction with base entities and relations like customer.
+    """Generic structure model.
+    Provides transparent interaction with base entities and relations like customer.
     """
 
     objects = StructureManager()
@@ -278,7 +278,7 @@ class PermissionMixin:
         raise NotImplementedError
 
     def get_users(self, role=None):
-        """ Return all connected to scope users """
+        """Return all connected to scope users"""
         raise NotImplementedError
 
     def get_user_mails(self, role=None):
@@ -484,7 +484,8 @@ class Customer(
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_project_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: [Project], path_to_scope='customer',
+            target_models=lambda: [Project],
+            path_to_scope='customer',
         )
         nc_user_count = quotas_fields.QuotaField()
         nc_resource_count = quotas_fields.CounterQuotaField(
@@ -520,7 +521,7 @@ class Customer(
         )
 
     def get_users(self, role=None):
-        """ Return all connected to customer users """
+        """Return all connected to customer users"""
         return (
             get_user_model()
             .objects.filter(
@@ -787,7 +788,10 @@ class Project(
         return self.name
 
     def get_users(self, role=None):
-        query = Q(projectpermission__project=self, projectpermission__is_active=True,)
+        query = Q(
+            projectpermission__project=self,
+            projectpermission__is_active=True,
+        )
         if role:
             query = query & Q(projectpermission__role=role)
 
@@ -795,8 +799,7 @@ class Project(
 
     @transaction.atomic()
     def _soft_delete(self, using=None):
-        """ Method for project soft delete. It doesn't delete a project, only mark as 'removed', but it sends signals
-        """
+        """Method for project soft delete. It doesn't delete a project, only mark as 'removed', but it sends signals"""
         signals.pre_delete.send(sender=self.__class__, instance=self, using=using)
 
         self.is_removed = True
@@ -871,7 +874,11 @@ class CustomerPermissionReview(core_models.UuidMixin):
 def build_service_settings_query(user):
     return (
         Q(shared=True)
-        | Q(shared=False, customer__projects__permissions__user=user, is_active=True,)
+        | Q(
+            shared=False,
+            customer__projects__permissions__user=user,
+            is_active=True,
+        )
         | Q(shared=False, customer__permissions__user=user, is_active=True)
     )
 
@@ -983,8 +990,8 @@ class BaseServiceProperty(
     core_models.NameMixin,
     models.Model,
 ):
-    """ Base service properties like image, flavor, region,
-        which are usually used for Resource provisioning.
+    """Base service properties like image, flavor, region,
+    which are usually used for Resource provisioning.
     """
 
     class Meta:
@@ -992,7 +999,7 @@ class BaseServiceProperty(
 
     @classmethod
     def get_url_name(cls):
-        """ This name will be used by generic relationships to membership model for URL creation """
+        """This name will be used by generic relationships to membership model for URL creation"""
         return '{}-{}'.format(cls._meta.app_label, cls.__name__.lower())
 
     @classmethod
@@ -1043,8 +1050,8 @@ class BaseResource(
     StructureModel,
 ):
 
-    """ Base resource class. Resource is a provisioned entity of a service,
-        for example: a VM in OpenStack or AWS, or a repository in Github.
+    """Base resource class. Resource is a provisioned entity of a service,
+    for example: a VM in OpenStack or AWS, or a repository in Github.
     """
 
     class Meta:
@@ -1079,7 +1086,7 @@ class BaseResource(
 
     @classmethod
     def get_url_name(cls):
-        """ This name will be used by generic relationships to membership model for URL creation """
+        """This name will be used by generic relationships to membership model for URL creation"""
         return '{}-{}'.format(cls._meta.app_label, cls.__name__.lower())
 
     def get_log_fields(self):
@@ -1087,7 +1094,10 @@ class BaseResource(
 
     @property
     def full_name(self):
-        return '%s %s' % (get_resource_type(self).replace('.', ' '), self.name,)
+        return '%s %s' % (
+            get_resource_type(self).replace('.', ' '),
+            self.name,
+        )
 
     def _get_log_context(self, entity_name):
         context = super(BaseResource, self)._get_log_context(entity_name)
@@ -1104,15 +1114,15 @@ class BaseResource(
         return self.name
 
     def increase_backend_quotas_usage(self, validate=True):
-        """ Increase usage of quotas that were consumed by resource on creation.
+        """Increase usage of quotas that were consumed by resource on creation.
 
-            If validate is True - method should raise QuotaValidationError if
-            at least one of increased quotas if over limit.
+        If validate is True - method should raise QuotaValidationError if
+        at least one of increased quotas if over limit.
         """
         pass
 
     def decrease_backend_quotas_usage(self):
-        """ Decrease usage of quotas that were released on resource deletion """
+        """Decrease usage of quotas that were released on resource deletion"""
         pass
 
     @classmethod
@@ -1215,7 +1225,7 @@ class Snapshot(Storage):
 
 
 class SubResource(BaseResource):
-    """ Resource dependent object that cannot exist without resource. """
+    """Resource dependent object that cannot exist without resource."""
 
     class Meta:
         abstract = True

@@ -76,10 +76,14 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
         related_name='flow',
     )
     project_create_request = models.OneToOneField(
-        ProjectCreateRequest, on_delete=models.CASCADE, related_name='flow',
+        ProjectCreateRequest,
+        on_delete=models.CASCADE,
+        related_name='flow',
     )
     resource_create_request = models.OneToOneField(
-        ResourceCreateRequest, on_delete=models.CASCADE, related_name='flow',
+        ResourceCreateRequest,
+        on_delete=models.CASCADE,
+        related_name='flow',
     )
 
     customer = models.ForeignKey(

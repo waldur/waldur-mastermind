@@ -3,9 +3,9 @@ from django.db.models import signals
 
 
 class OpenStackConfig(AppConfig):
-    """ OpenStack is a toolkit for building private and public clouds.
-        This application adds support for managing OpenStack deployments -
-        tenants, instances, security groups and networks.
+    """OpenStack is a toolkit for building private and public clouds.
+    This application adds support for managing OpenStack deployments -
+    tenants, instances, security groups and networks.
     """
 
     name = 'waldur_openstack.openstack'

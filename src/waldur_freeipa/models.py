@@ -13,7 +13,8 @@ from waldur_core.core import models as core_models
 def validate_username(value):
     if value in settings.WALDUR_FREEIPA['BLACKLISTED_USERNAMES']:
         raise exceptions.ValidationError(
-            _('%(value)s is not valid FreeIPA username.'), params={'value': value},
+            _('%(value)s is not valid FreeIPA username.'),
+            params={'value': value},
         )
 
 

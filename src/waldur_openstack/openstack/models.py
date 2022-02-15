@@ -60,7 +60,10 @@ class ServerGroup(openstack_base_models.BaseServerGroup, structure_models.SubRes
 
     @classmethod
     def get_backend_fields(cls):
-        return super(ServerGroup, cls).get_backend_fields() + ('name', 'policy',)
+        return super(ServerGroup, cls).get_backend_fields() + (
+            'name',
+            'policy',
+        )
 
 
 class SecurityGroup(structure_models.SubResource):
@@ -163,7 +166,11 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
         return 'openstack-fip'
 
     def __str__(self):
-        return '%s:%s (%s)' % (self.address, self.runtime_state, self.service_settings,)
+        return '%s:%s (%s)' % (
+            self.address,
+            self.runtime_state,
+            self.service_settings,
+        )
 
     @classmethod
     def get_backend_fields(cls):
@@ -342,7 +349,8 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
     )
     disable_gateway = models.BooleanField(default=False)
     host_routes = JSONField(
-        default=list, help_text=_('List of additional routes for the subnet.'),
+        default=list,
+        help_text=_('List of additional routes for the subnet.'),
     )
 
     class Meta:

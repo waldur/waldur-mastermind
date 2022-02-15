@@ -381,7 +381,14 @@ class PlanUsageRequestSerializer(serializers.Serializer):
     offering_uuid = serializers.UUIDField(required=False)
     customer_provider_uuid = serializers.UUIDField(required=False)
     o = serializers.ChoiceField(
-        choices=('usage', 'limit', 'remaining', '-usage', '-limit', '-remaining',),
+        choices=(
+            'usage',
+            'limit',
+            'remaining',
+            '-usage',
+            '-limit',
+            '-remaining',
+        ),
         required=False,
     )
 
@@ -976,7 +983,9 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         attributes = attrs.get('attributes')
         if attributes is not None and not isinstance(attributes, dict):
             raise rf_exceptions.ValidationError(
-                {'attributes': _('Dictionary is expected.'),}
+                {
+                    'attributes': _('Dictionary is expected.'),
+                }
             )
 
         if attributes is None and self.instance:
@@ -2043,7 +2052,9 @@ class ResourceSerializer(BaseItemSerializer):
     resource_type = serializers.ReadOnlyField(source='backend_type')
     access_url = serializers.ReadOnlyField(source='offering.access_url')
     project = serializers.HyperlinkedRelatedField(
-        lookup_field='uuid', view_name='project-detail', read_only=True,
+        lookup_field='uuid',
+        view_name='project-detail',
+        read_only=True,
     )
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
@@ -2433,7 +2444,9 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 component.validate_amount(resource, amount, now)
 
             models.ComponentUsage.objects.filter(
-                resource=resource, component=component, billing_period=billing_period,
+                resource=resource,
+                component=component,
+                billing_period=billing_period,
             ).update(recurring=False)
 
             usage, created = models.ComponentUsage.objects.update_or_create(
@@ -2496,7 +2509,8 @@ class OfferingFileSerializer(
 
 
 class OfferingReferralSerializer(
-    serializers.HyperlinkedModelSerializer, core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+    core_serializers.AugmentedSerializerMixin,
 ):
     scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
@@ -2610,12 +2624,14 @@ class MoveResourceSerializer(serializers.Serializer):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=structure_serializers.CustomerSerializer, receiver=add_service_provider,
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_service_provider,
 )
 
 
 class OfferingThumbnailSerializer(
-    MarketplaceProtectedMediaSerializerMixin, serializers.HyperlinkedModelSerializer,
+    MarketplaceProtectedMediaSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     thumbnail = serializers.ImageField(required=True)
 

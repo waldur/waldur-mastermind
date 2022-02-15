@@ -161,7 +161,10 @@ class AllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
                 'lookup_field': 'uuid',
                 'view_name': 'slurm-allocation-detail',
             },
-            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail',},
+            'user': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
         }
 
 

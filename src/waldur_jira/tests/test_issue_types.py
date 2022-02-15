@@ -30,7 +30,8 @@ class IssueTypesTest(test.APITransactionTestCase):
 
     def test_update_existing_issue_type(self):
         issue_type = factories.IssueTypeFactory(
-            settings=self.fixture.service_settings, backend_id=self.mock_issue_type.id,
+            settings=self.fixture.service_settings,
+            backend_id=self.mock_issue_type.id,
         )
         self.fixture.jira_project.issue_types.add(issue_type)
 

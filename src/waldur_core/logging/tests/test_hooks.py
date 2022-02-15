@@ -72,13 +72,17 @@ class HookUpdateTest(BaseHookApiTest):
         response = self.update_hook('web', new_data)
         self.assertEqual(new_data['destination_url'], response.data['destination_url'])
 
-    @data('web',)
+    @data(
+        'web',
+    )
     def test_author_can_update_hook_event_types(self, hook):
         new_event_types = set(self.valid_event_types[:1])
         response = self.update_hook(hook, {'event_types': new_event_types})
         self.assertEqual(new_event_types, response.data['event_types'])
 
-    @data('web',)
+    @data(
+        'web',
+    )
     def test_author_can_update_event_groups(self, hook):
         event_groups = self.valid_event_groups
         event_types = loggers.expand_event_groups(event_groups)
@@ -88,7 +92,9 @@ class HookUpdateTest(BaseHookApiTest):
         self.assertEqual(response.data['event_groups'], set(event_groups))
         self.assertEqual(response.data['event_types'], set(event_types))
 
-    @data('web',)
+    @data(
+        'web',
+    )
     def test_author_can_disable_hook(self, hook):
         response = self.update_hook(hook, {'is_active': False})
         self.assertFalse(response.data['is_active'])

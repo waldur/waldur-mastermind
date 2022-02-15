@@ -28,6 +28,7 @@ def inject_tenant_quotas():
             model.add_quota_field(
                 name=quota_name,
                 quota_field=quota_fields.UsageAggregatorQuotaField(
-                    get_children=get_children, child_quota_name=child_quota_name,
+                    get_children=get_children,
+                    child_quota_name=child_quota_name,
                 ),
             )

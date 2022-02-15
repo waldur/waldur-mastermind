@@ -114,7 +114,10 @@ class InvoiceAdmin(
         return file_response
 
     def pdf_file(self, obj):
-        pdf_ref = rest_reverse('invoice-pdf', kwargs={'uuid': obj.uuid.hex},)
+        pdf_ref = rest_reverse(
+            'invoice-pdf',
+            kwargs={'uuid': obj.uuid.hex},
+        )
 
         return format_html('<a href="%s">download</a>' % pdf_ref)
 

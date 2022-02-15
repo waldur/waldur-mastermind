@@ -11,5 +11,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = build_spl_migrations(
-        ('application', 'cluster', 'ingress', 'service',),
+        (
+            'application',
+            'cluster',
+            'ingress',
+            'service',
+        ),
     )

@@ -294,6 +294,7 @@ class PlanComponentFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(len(response.json()), 2)
         response = self.client.get(
-            self.url, {'offering_uuid': self.fixture_1.offering.uuid.hex},
+            self.url,
+            {'offering_uuid': self.fixture_1.offering.uuid.hex},
         )
         self.assertEqual(len(response.json()), 1)

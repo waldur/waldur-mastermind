@@ -380,7 +380,9 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
             for filter_name, filter_instance in filter_class().filters.items():
                 filter_type = get_field_type(filter_instance)
                 field = coreapi.Field(
-                    name=filter_name, required=False, location=filter_type,
+                    name=filter_name,
+                    required=False,
+                    location=filter_type,
                 )
                 # Prevent double rendering
                 if field not in fields:

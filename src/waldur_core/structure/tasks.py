@@ -38,9 +38,9 @@ def check_expired_permissions():
 
 
 class BackgroundPullTask(core_tasks.BackgroundTask):
-    """ Pull information about object from backend. Method "pull" should be implemented.
+    """Pull information about object from backend. Method "pull" should be implemented.
 
-        Task marks object as ERRED if pull failed and recovers it if pull succeed.
+    Task marks object as ERRED if pull failed and recovers it if pull succeed.
     """
 
     def run(self, serialized_instance):
@@ -58,9 +58,9 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
         ) and serialized_instance in other_task.get('args', [])
 
     def pull(self, instance):
-        """ Pull instance from backend.
+        """Pull instance from backend.
 
-            This method should not handle backend exception.
+        This method should not handle backend exception.
         """
         raise NotImplementedError('Pull task should implement pull method.')
 
@@ -95,14 +95,14 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
             logger.error(logger_message, exc_info=True)
 
     def set_instance_erred(self, instance, error_message):
-        """ Mark instance as erred and save error message """
+        """Mark instance as erred and save error message"""
         instance.set_erred()
         instance.error_message = error_message
         instance.save(update_fields=['state', 'error_message'])
 
 
 class BackgroundListPullTask(core_tasks.BackgroundTask):
-    """ Schedules pull task for each stable object of the model. """
+    """Schedules pull task for each stable object of the model."""
 
     model = NotImplemented
     pull_task = NotImplemented

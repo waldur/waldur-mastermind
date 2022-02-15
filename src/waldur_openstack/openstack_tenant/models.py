@@ -462,7 +462,7 @@ class Backup(structure_models.SubResource):
 
 
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
-    """ This model corresponds to instance restoration from backup. """
+    """This model corresponds to instance restoration from backup."""
 
     backup = models.ForeignKey(
         on_delete=models.CASCADE, to=Backup, related_name='restorations'

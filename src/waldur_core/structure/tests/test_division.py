@@ -69,7 +69,9 @@ class DivisionChangeTest(test.APITransactionTestCase):
         self.fixture.customer.save()
         self.url = factories.CustomerFactory.get_url(self.fixture.customer)
 
-    @data('staff',)
+    @data(
+        'staff',
+    )
     def test_staff_can_change_customer_division(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         new_division_url = factories.DivisionFactory.get_url(self.division_2)
@@ -78,7 +80,9 @@ class DivisionChangeTest(test.APITransactionTestCase):
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.division, self.division_2)
 
-    @data('owner',)
+    @data(
+        'owner',
+    )
     def test_other_can_not_change_customer_division(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         new_division_url = factories.DivisionFactory.get_url(self.division_2)

@@ -139,7 +139,8 @@ def update_aggregate_resources_count_when_resource_is_updated(
                 # Therefore it is okay if project does not exists.
                 continue
             counter, _ = models.AggregateResourceCount.objects.get_or_create(
-                scope=scope, category=instance.offering.category,
+                scope=scope,
+                category=instance.offering.category,
             )
             if delta == 1:
                 counter.count += 1

@@ -30,7 +30,10 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         _tasks += [
             # NB: countdown is needed for synchronization: wait until cluster will get ready for usage
             core_tasks.BackendMethodTask()
-            .si(serialized_instance, 'pull_cluster',)
+            .si(
+                serialized_instance,
+                'pull_cluster',
+            )
             .set(countdown=120)
         ]
         if install_longhorn:
@@ -40,7 +43,8 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 ),
                 tasks.PollLonghornApplicationTask().si(serialized_instance),
                 core_tasks.BackendMethodTask().si(
-                    serialized_instance, 'pull_cluster_workloads',
+                    serialized_instance,
+                    'pull_cluster_workloads',
                 ),
             ]
         return chain(*_tasks)
@@ -96,7 +100,10 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user_id):
         return chain(
-            tasks.CreateNodeTask().si(serialized_instance, user_id=user_id,),
+            tasks.CreateNodeTask().si(
+                serialized_instance,
+                user_id=user_id,
+            ),
             tasks.PollRuntimeStateNodeTask().si(serialized_instance),
         )
 
@@ -108,7 +115,10 @@ class NodeDeleteExecutor(core_executors.BaseExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user_id):
-        return tasks.DeleteNodeTask().si(serialized_instance, user_id=user_id,)
+        return tasks.DeleteNodeTask().si(
+            serialized_instance,
+            user_id=user_id,
+        )
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):

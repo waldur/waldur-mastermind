@@ -38,6 +38,8 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'unique_together': {('user', 'provider')},},
+            options={
+                'unique_together': {('user', 'provider')},
+            },
         ),
     ]

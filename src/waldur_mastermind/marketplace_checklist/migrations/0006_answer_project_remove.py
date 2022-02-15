@@ -12,7 +12,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='answer', name='project',),
+        migrations.RemoveField(
+            model_name='answer',
+            name='project',
+        ),
         migrations.AlterField(
             model_name='answer',
             name='user',

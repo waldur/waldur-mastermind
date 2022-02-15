@@ -71,7 +71,11 @@ def get_datacite_info_helper(referrable):
         content_type = ContentType.objects.get_for_model(referrable)
         referrable.citation_count = datacite_data['attributes']['citationCount']
         referrals_pids = [
-            (x['relatedIdentifier'], x['relationType'], x['resourceTypeGeneral'],)
+            (
+                x['relatedIdentifier'],
+                x['relationType'],
+                x['resourceTypeGeneral'],
+            )
             for x in datacite_data['attributes']['relatedIdentifiers']
         ]
         for pid, rel_type, resource_type in referrals_pids:

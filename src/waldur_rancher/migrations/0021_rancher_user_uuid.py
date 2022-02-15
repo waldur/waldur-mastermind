@@ -22,7 +22,9 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name='rancheruser', name='uuid', field=models.UUIDField(null=True),
+            model_name='rancheruser',
+            name='uuid',
+            field=models.UUIDField(null=True),
         ),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(
@@ -31,6 +33,7 @@ class Migration(migrations.Migration):
             field=waldur_core.core.fields.UUIDField(),
         ),
         migrations.AlterModelOptions(
-            name='rancheruser', options={'ordering': ('user__username',)},
+            name='rancheruser',
+            options={'ordering': ('user__username',)},
         ),
     ]

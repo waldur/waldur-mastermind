@@ -39,11 +39,11 @@ class GenericKeyFilterBackend(BaseFilterBackend):
         return False
 
     def get_related_models(self):
-        """ Return all models that are acceptable as filter argument """
+        """Return all models that are acceptable as filter argument"""
         raise NotImplementedError
 
     def get_field_name(self):
-        """ Get name of filter field name in request """
+        """Get name of filter field name in request"""
         raise NotImplementedError
 
     def get_field_value(self, request):
@@ -157,7 +157,7 @@ class StateFilter(MappedMultipleChoiceFilter):
 
 
 class URLFilter(django_filters.CharFilter):
-    """ Filter by hyperlinks. ViewSet name must be supplied in order to validate URL. """
+    """Filter by hyperlinks. ViewSet name must be supplied in order to validate URL."""
 
     def __init__(self, view_name, lookup_field='uuid', **kwargs):
         super(URLFilter, self).__init__(**kwargs)
@@ -264,18 +264,18 @@ class ExternalFilterBackend(BaseFilterBackend):
 
 
 class SummaryFilter(BaseFilterBackend):
-    """ Base filter for summary querysets """
+    """Base filter for summary querysets"""
 
     def filter_queryset(self, request, queryset, view):
         queryset = self.filter(request, queryset, view)
         return queryset
 
     def get_queryset_filter(self, queryset):
-        """ Return specific for queryset filter if it exists """
+        """Return specific for queryset filter if it exists"""
         raise NotImplementedError()
 
     def get_base_filter(self):
-        """ Return base filter that could be used for all summary objects """
+        """Return base filter that could be used for all summary objects"""
         raise NotImplementedError()
 
     def _get_filter(self, queryset):
@@ -285,7 +285,7 @@ class SummaryFilter(BaseFilterBackend):
             return self.get_base_filter()
 
     def filter(self, request, queryset, view):
-        """ Filter each resource separately using its own filter """
+        """Filter each resource separately using its own filter"""
         summary_queryset = queryset
         filtered_querysets = []
         for queryset in summary_queryset.querysets:

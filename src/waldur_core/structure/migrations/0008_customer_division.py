@@ -44,7 +44,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('name',), 'verbose_name': 'division',},
+            options={
+                'ordering': ('name',),
+                'verbose_name': 'division',
+            },
         ),
         migrations.CreateModel(
             name='DivisionType',
@@ -68,7 +71,10 @@ class Migration(migrations.Migration):
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
             ],
-            options={'ordering': ('name',), 'verbose_name': 'division type',},
+            options={
+                'ordering': ('name',),
+                'verbose_name': 'division type',
+            },
         ),
         migrations.AddField(
             model_name='division',

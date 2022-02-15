@@ -22,7 +22,12 @@ CACHES = {
 
 ROOT_URLCONF = 'waldur_core.structure.tests.urls'
 
-DATABASES = {'default': {'ENGINE': 'django.db.backends.postgresql', 'NAME': 'waldur',}}
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'waldur',
+    }
+}
 
 ALLOWED_HOSTS = ['localhost']
 

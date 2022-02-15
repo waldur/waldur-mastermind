@@ -236,7 +236,7 @@ class JSONField(models.TextField):
 
 
 class YearMonthField(serializers.CharField):
-    """ Field that support yearmonth representation in format YYYY-MM """
+    """Field that support yearmonth representation in format YYYY-MM"""
 
     def to_internal_value(self, value):
         try:

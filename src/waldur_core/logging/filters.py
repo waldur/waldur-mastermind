@@ -75,7 +75,8 @@ class EventFilterBackend(filters.BaseFilterBackend):
 
             content_type = ContentType.objects.get_for_model(scope._meta.model)
             events = models.Feed.objects.filter(
-                content_type=content_type, object_id=scope.id,
+                content_type=content_type,
+                object_id=scope.id,
             ).values_list('event_id', flat=True)
             queryset = queryset.filter(id__in=events)
 

@@ -68,7 +68,8 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
 
     def update_resource_limits(self, resource, new_limits):
         order = marketplace_factories.OrderFactory(
-            project=resource.project, state=marketplace_models.Order.States.EXECUTING,
+            project=resource.project,
+            state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
             order=order,
@@ -150,7 +151,9 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
 
         plan = self.create_plan(self.prices)
         marketplace_models.PlanComponent.objects.create(
-            component=offering_component, plan=plan, price=10,
+            component=offering_component,
+            plan=plan,
+            price=10,
         )
         self.resource = marketplace_factories.ResourceFactory(
             offering=self.offering,

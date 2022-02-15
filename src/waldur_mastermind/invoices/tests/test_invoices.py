@@ -195,7 +195,8 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             offering=self.offering
         )
         self.plan = marketplace_factories.PlanFactory(
-            offering=self.offering, unit=UnitPriceMixin.Units.PER_DAY,
+            offering=self.offering,
+            unit=UnitPriceMixin.Units.PER_DAY,
         )
         self.component = marketplace_factories.PlanComponentFactory(
             component=self.offering_component, price=Decimal(5), plan=self.plan
@@ -209,7 +210,8 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             offering=self.offering_2
         )
         self.plan_2 = marketplace_factories.PlanFactory(
-            offering=self.offering_2, unit=UnitPriceMixin.Units.PER_DAY,
+            offering=self.offering_2,
+            unit=UnitPriceMixin.Units.PER_DAY,
         )
         self.component_2 = marketplace_factories.PlanComponentFactory(
             component=self.offering_component_2, price=Decimal(7), plan=self.plan_2
@@ -241,10 +243,13 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.customer = self.resource_1.project.customer
 
         self.marketplace_support_offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, customer=self.provider.customer,
+            type=PLUGIN_NAME,
+            customer=self.provider.customer,
         )
-        self.support_offering_component = marketplace_factories.OfferingComponentFactory(
-            offering=self.marketplace_support_offering
+        self.support_offering_component = (
+            marketplace_factories.OfferingComponentFactory(
+                offering=self.marketplace_support_offering
+            )
         )
         self.marketplace_support_plan = marketplace_factories.PlanFactory(
             offering=self.marketplace_support_offering,
@@ -311,7 +316,8 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                     [
                         item.total
                         for item in models.InvoiceItem.objects.filter(
-                            invoice=invoice, resource_id__in=[self.resource_3.id],
+                            invoice=invoice,
+                            resource_id__in=[self.resource_3.id],
                         )
                     ]
                 ),
@@ -332,7 +338,8 @@ class InvoiceStatsTest(test.APITransactionTestCase):
                 'uuid': self.marketplace_support_offering.uuid.hex,
                 'offering_name': self.marketplace_support_offering.name,
                 'aggregated_cost': models.InvoiceItem.objects.get(
-                    invoice=invoice, resource_id=self.resource_4.id,
+                    invoice=invoice,
+                    resource_id=self.resource_4.id,
                 ).price,
                 'service_category_title': self.marketplace_support_offering.category.title,
                 'service_provider_name': self.offering.customer.name,

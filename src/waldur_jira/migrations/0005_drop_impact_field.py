@@ -9,6 +9,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='issue', name='impact',),
-        migrations.RemoveField(model_name='project', name='impact_field',),
+        migrations.RemoveField(
+            model_name='issue',
+            name='impact',
+        ),
+        migrations.RemoveField(
+            model_name='project',
+            name='impact_field',
+        ),
     ]

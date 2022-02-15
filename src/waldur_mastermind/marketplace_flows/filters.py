@@ -27,11 +27,13 @@ class ProjectCreateRequestFilter(django_filters.FilterSet):
 class ResourceCreateRequestFilter(django_filters.FilterSet):
     state = core_filters.ReviewStateFilter()
     offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail', field_name='offering__uuid',
+        view_name='marketplace-offering-detail',
+        field_name='offering__uuid',
     )
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
     service_provider = core_filters.URLFilter(
-        view_name='customer-detail', field_name='offering__customer__uuid',
+        view_name='customer-detail',
+        field_name='offering__customer__uuid',
     )
     service_provider_uuid = django_filters.UUIDFilter(
         field_name='offering__customer__uuid'

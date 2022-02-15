@@ -68,7 +68,8 @@ class WaldurCore(BaseModel):
         description='Allows to render native name field in customer and user forms.',
     )
     SITE_NAME = Field(
-        'Waldur', description='Human-friendly name of the Waldur deployment.',
+        'Waldur',
+        description='Human-friendly name of the Waldur deployment.',
     )
     SITE_DESCRIPTION = Field(
         'Your single pane of control for managing projects, teams and resources in a self-service manner.',
@@ -76,10 +77,12 @@ class WaldurCore(BaseModel):
     )
     SITE_ADDRESS = Field('', description='It is used in marketplace order header.')
     SITE_EMAIL = Field(
-        '', description='It is used in marketplace order header and UI footer.',
+        '',
+        description='It is used in marketplace order header and UI footer.',
     )
     SITE_PHONE = Field(
-        '', description='It is used in marketplace order header and UI footer.',
+        '',
+        description='It is used in marketplace order header and UI footer.',
     )
     SITE_LOGO: Optional[str] = Field(
         description='It is used in marketplace order header.'
@@ -187,7 +190,8 @@ class WaldurCore(BaseModel):
         description='It is used for rendering callback URL in HomePort.',
     )
     MASTERMIND_URL = Field(
-        '', description='It is used for rendering callback URL in MasterMind.',
+        '',
+        description='It is used for rendering callback URL in MasterMind.',
     )
     ENABLE_GEOIP = Field(
         True, description='Enable detection of coordinates of virtual machines.'
@@ -234,7 +238,12 @@ class WaldurCore(BaseModel):
         "Possible values are: description, email, full_name, job_title, organization, phone_number",
     )
     USER_REGISTRATION_HIDDEN_FIELDS: List[str] = Field(
-        ['registration_method', 'job_title', 'phone_number', 'organization',],
+        [
+            'registration_method',
+            'job_title',
+            'phone_number',
+            'organization',
+        ],
         description="List of user profile attributes that would be concealed on registration form in HomePort. "
         "Possible values are: job_title, registration_method, phone_number",
     )
@@ -423,7 +432,8 @@ class WaldurAuthSocial(BaseModel):
 
 class WaldurHPC(BaseModel):
     ENABLED = Field(
-        False, description='Enable HPC-specific hooks in Waldur deployment',
+        False,
+        description='Enable HPC-specific hooks in Waldur deployment',
     )
     INTERNAL_CUSTOMER_UUID = Field(
         '',
@@ -524,7 +534,8 @@ class WaldurKeycloak(BaseModel):
 
 class WaldurSlurm(BaseModel):
     ENABLED = Field(
-        False, description='Enable support for SLURM plugin in a deployment',
+        False,
+        description='Enable support for SLURM plugin in a deployment',
     )
     CUSTOMER_PREFIX = Field(
         'waldur_customer_',
@@ -546,7 +557,7 @@ class WaldurSlurm(BaseModel):
         {
             'CPU': 16000,  # Measured unit is CPU-hours
             'GPU': 400,  # Measured unit is GPU-hours
-            'RAM': 100000 * 2 ** 10,  # Measured unit is MB
+            'RAM': 100000 * 2**10,  # Measured unit is MB
         },
         description='Default limits of account that are set when SLURM account is provisioned.',
     )
@@ -608,7 +619,8 @@ class WaldurMarketplace(BaseModel):
         description='Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.',
     )
     ENABLE_RESOURCE_END_DATE = Field(
-        True, description='Allow to view and update resource end date.',
+        True,
+        description='Allow to view and update resource end date.',
     )
 
     class Meta:
@@ -628,11 +640,15 @@ class WaldurMarketplaceScript(BaseModel):
         description='Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
     )
     DOCKER_CLIENT = Field(
-        {'base_url': 'unix://var/run/docker.sock',},
+        {
+            'base_url': 'unix://var/run/docker.sock',
+        },
         description='Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>',
     )
     DOCKER_RUN_OPTIONS = Field(
-        {'mem_limit': '64m',},
+        {
+            'mem_limit': '64m',
+        },
         description='Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>',
     )
     DOCKER_SCRIPT_DIR: 'str' = Field(
@@ -640,7 +656,10 @@ class WaldurMarketplaceScript(BaseModel):
         description='Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see <https://github.com/docker/for-mac/issues/1532>',
     )
     DOCKER_IMAGES = Field(
-        {'python': 'python:3.8-alpine', 'shell': 'alpine:3',},
+        {
+            'python': 'python:3.8-alpine',
+            'shell': 'alpine:3',
+        },
         description='Key is command to execute script, value is image name.',
     )
     K8S_NAMESPACE = Field(
@@ -913,7 +932,8 @@ class WaldurConfiguration(BaseModel):
         description='Default email address to use for automated correspondence from Waldur.',
     )
     DEFAULT_REPLY_TO_EMAIL = Field(
-        '', description='Default email address to use for email replies.',
+        '',
+        description='Default email address to use for email replies.',
     )
     IPSTACK_ACCESS_KEY: Optional[str] = Field(
         description='Unique authentication key used to gain access to the ipstack API.'
@@ -924,7 +944,10 @@ class WaldurConfiguration(BaseModel):
         'Using transactions makes imports safer as a failure during import won’t import only part of the data set.',
     )
     LANGUAGES: List[Tuple[str, str]] = Field(
-        (('en', 'English'), ('et', 'Eesti'),),
+        (
+            ('en', 'English'),
+            ('et', 'Eesti'),
+        ),
         description="The list is a list of two-tuples in the format "
         "(language code, language name) – for example, ('ja', 'Japanese'). "
         "This specifies which languages are available for language selection.",

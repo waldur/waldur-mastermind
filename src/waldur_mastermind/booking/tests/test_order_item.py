@@ -151,7 +151,9 @@ class OrderCreateTest(test.APITransactionTestCase):
                         self.offering
                     ),
                     'attributes': {
-                        'schedules': [{'end': '2019-01-05T23:59:59.000000Z'},]
+                        'schedules': [
+                            {'end': '2019-01-05T23:59:59.000000Z'},
+                        ]
                     },
                 },
             ]

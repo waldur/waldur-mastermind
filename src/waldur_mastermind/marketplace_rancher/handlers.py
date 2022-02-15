@@ -74,7 +74,9 @@ def create_offering_user_for_rancher_user(sender, instance, created=False, **kwa
         return
 
     marketplace_models.OfferingUser.objects.create(
-        offering=offering, user=instance.user, username=instance.user.username,
+        offering=offering,
+        user=instance.user,
+        username=instance.user.username,
     )
 
 

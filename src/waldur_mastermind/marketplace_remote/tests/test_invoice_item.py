@@ -115,7 +115,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         self.client_mock().list_invoice_items.return_value = []
         invoice = InvoiceFactory(customer=self.customer)
         InvoiceItemFactory(
-            invoice=invoice, resource=self.resource, **item_data,
+            invoice=invoice,
+            resource=self.resource,
+            **item_data,
         )
         ResourceInvoicePullTask().run(serialize_instance(self.resource))
         self.assertEqual(
@@ -135,7 +137,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         ]
         invoice = InvoiceFactory(customer=self.customer)
         item = InvoiceItemFactory(
-            invoice=invoice, resource=self.resource, **old_item_data,
+            invoice=invoice,
+            resource=self.resource,
+            **old_item_data,
         )
 
         self.assertNotEqual(new_month_end, item.end)

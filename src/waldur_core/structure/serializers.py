@@ -422,7 +422,9 @@ class CustomerUserSerializer(serializers.ModelSerializer):
     is_service_manager = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField(source='perm.expiration_time')
     permission = serializers.HyperlinkedRelatedField(
-        source='perm.pk', view_name='customer_permission-detail', read_only=True,
+        source='perm.pk',
+        view_name='customer_permission-detail',
+        read_only=True,
     )
     projects = NestedProjectPermissionSerializer(many=True, read_only=True)
 
@@ -1253,10 +1255,14 @@ class BaseResourceSerializer(
 
 class BaseResourceActionSerializer(BaseResourceSerializer):
     project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail', lookup_field='uuid', read_only=True,
+        view_name='project-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
     service_settings = serializers.HyperlinkedRelatedField(
-        view_name='servicesettings-detail', lookup_field='uuid', read_only=True,
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     class Meta(BaseResourceSerializer.Meta):
@@ -1287,10 +1293,12 @@ class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
 
 class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializer):
     external_ips = serializers.ListField(
-        child=serializers.IPAddressField(protocol='ipv4'), read_only=True,
+        child=serializers.IPAddressField(protocol='ipv4'),
+        read_only=True,
     )
     internal_ips = serializers.ListField(
-        child=serializers.IPAddressField(protocol='ipv4'), read_only=True,
+        child=serializers.IPAddressField(protocol='ipv4'),
+        read_only=True,
     )
 
     class Meta(BaseResourceSerializer.Meta):
@@ -1338,7 +1346,8 @@ class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializ
 
 
 class BasePropertySerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
         model = NotImplemented

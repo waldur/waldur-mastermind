@@ -309,7 +309,9 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
     @responses.activate
     def test_when_user_is_not_found_it_is_disabled(self):
         responses.add(
-            method='GET', url=self.user_url, status=404,
+            method='GET',
+            url=self.user_url,
+            status=404,
         )
 
         user = structure_factories.UserFactory(is_staff=True)

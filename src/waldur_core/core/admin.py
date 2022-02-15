@@ -134,7 +134,8 @@ class UserCreationForm(auth_forms.UserCreationForm):
         except get_user_model().DoesNotExist:
             return username
         raise forms.ValidationError(
-            _('Username is not unique.'), code='duplicate_username',
+            _('Username is not unique.'),
+            code='duplicate_username',
         )
 
 
@@ -431,7 +432,7 @@ class ReversionAdmin(VersionAdmin):
 
 
 class ExecutorAdminAction:
-    """ Add executor as action to admin model.
+    """Add executor as action to admin model.
 
     Usage example:
         class PullSecurityGroups(ExecutorAdminAction):
@@ -475,8 +476,14 @@ class ExecutorAdminAction:
             'description': self.short_description,
         }
         request.current_app = admin_class.admin_site.name
-        context.update(media=admin_class.media,)
-        return TemplateResponse(request, self.confirmation_template, context,)
+        context.update(
+            media=admin_class.media,
+        )
+        return TemplateResponse(
+            request,
+            self.confirmation_template,
+            context,
+        )
 
     def execute(self, admin_class, request, queryset):
         errors = defaultdict(list)
@@ -518,11 +525,11 @@ class ExecutorAdminAction:
                 return action_name
 
     def validate(self, instance):
-        """ Raise validation error if action cannot be performed for given instance """
+        """Raise validation error if action cannot be performed for given instance"""
         pass
 
     def get_execute_params(self, request, instance):
-        """ Returns additional parameters for the executor """
+        """Returns additional parameters for the executor"""
         return {}
 
 
@@ -569,7 +576,8 @@ class ExtraActionsMixin:
         extra_context['extra_links'] = links
 
         return super(ExtraActionsMixin, self).changelist_view(
-            request, extra_context=extra_context,
+            request,
+            extra_context=extra_context,
         )
 
     def _get_action_href(self, action):
@@ -625,7 +633,10 @@ class ExtraActionsObjectMixin:
         extra_context['extra_object_links'] = links
 
         return super(ExtraActionsObjectMixin, self).change_view(
-            request, object_id, form_url, extra_context=extra_context,
+            request,
+            object_id,
+            form_url,
+            extra_context=extra_context,
         )
 
     def _get_action_href(self, action):

@@ -19,16 +19,20 @@ class DatastoreGetTest(test.APITransactionTestCase):
         datastore_4 = factories.DatastoreFactory()
 
         factories.CustomerDatastoreFactory(
-            datastore=datastore_1, customer=self.fixture.customer,
+            datastore=datastore_1,
+            customer=self.fixture.customer,
         )
         factories.CustomerDatastoreFactory(
-            datastore=datastore_2, customer=self.fixture.customer,
+            datastore=datastore_2,
+            customer=self.fixture.customer,
         )
         factories.CustomerDatastoreFactory(
-            datastore=datastore_3, customer=self.fixture_2.customer,
+            datastore=datastore_3,
+            customer=self.fixture_2.customer,
         )
         factories.CustomerDatastoreFactory(
-            datastore=datastore_4, customer=self.fixture_2.customer,
+            datastore=datastore_4,
+            customer=self.fixture_2.customer,
         )
         self.url = factories.DatastoreFactory.get_list_url()
 

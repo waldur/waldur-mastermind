@@ -228,7 +228,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=['post'])
     def extend(self, request, uuid=None):
-        """ Increase volume size """
+        """Increase volume size"""
         volume = self.get_object()
         old_size = volume.size
         serializer = self.get_serializer(volume, data=request.data)
@@ -254,7 +254,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=['post'])
     def snapshot(self, request, uuid=None):
-        """ Create snapshot from volume """
+        """Create snapshot from volume"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         snapshot = serializer.save()
@@ -278,7 +278,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=['post'])
     def attach(self, request, uuid=None):
-        """ Attach volume to instance """
+        """Attach volume to instance"""
         volume = self.get_object()
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -297,7 +297,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=['post'])
     def detach(self, request, uuid=None):
-        """ Detach instance from volume """
+        """Detach instance from volume"""
         volume = self.get_object()
         executors.VolumeDetachExecutor().execute(volume)
         return response.Response(
@@ -313,7 +313,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     @decorators.action(detail=True, methods=['post'])
     def retype(self, request, uuid=None):
-        """ Retype detached volume """
+        """Retype detached volume"""
         volume = self.get_object()
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -352,7 +352,8 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
             restoration.volume, context={'request': self.request}
         )
         resource_imported.send(
-            sender=models.Volume, instance=restoration.volume,
+            sender=models.Volume,
+            instance=restoration.volume,
         )
         return response.Response(serialized_volume.data, status=status.HTTP_201_CREATED)
 
@@ -783,15 +784,16 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     @decorators.action(detail=True, methods=['delete'])
     def force_destroy(self, request, uuid=None):
         """This action completely repeats 'destroy', with the exclusion of validators.
-           Destroy's validators require stopped VM. This requirement has expired.
-           But for compatibility with old documentation, it must be left.
+        Destroy's validators require stopped VM. This requirement has expired.
+        But for compatibility with old documentation, it must be left.
         """
         return self.destroy(request, uuid)
 
     force_destroy_validators = [
         InstanceViewSet._has_backups,
         core_validators.StateValidator(
-            models.Instance.States.OK, models.Instance.States.ERRED,
+            models.Instance.States.OK,
+            models.Instance.States.ERRED,
         ),
     ]
     force_destroy_serializer_class = destroy_serializer_class
@@ -859,7 +861,8 @@ class BackupViewSet(structure_views.ResourceViewSet):
 
         # Note that connected volumes will be linked with new marketplace.Resources by handler in openstack_marketplace
         structure_signals.resource_imported.send(
-            sender=models.Instance, instance=backup_restoration.instance,
+            sender=models.Instance,
+            instance=backup_restoration.instance,
         )
 
         # It is assumed that SSH public key is already stored in OpenStack system volume.
@@ -1014,7 +1017,8 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
         private_settings = self.get_private_settings()
         vms = (
             models.Instance.objects.filter(
-                service_settings__in=private_settings, project__customer=OuterRef('pk'),
+                service_settings__in=private_settings,
+                project__customer=OuterRef('pk'),
             )
             .annotate(count=Count('*'))
             .values('count')

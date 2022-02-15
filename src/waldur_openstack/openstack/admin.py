@@ -45,7 +45,7 @@ class TenantAdmin(structure_admin.ResourceAdmin):
     form = TenantAdminForm
 
     class OKTenantAction(ExecutorAdminAction):
-        """ Execute action with tenant that is in state OK """
+        """Execute action with tenant that is in state OK"""
 
         def validate(self, tenant):
             if tenant.state != models.Tenant.States.OK:
@@ -128,9 +128,9 @@ class ImageAdmin(structure_admin.BackendModelAdmin):
 
 
 class TenantResourceAdmin(structure_admin.ResourceAdmin):
-    """ Admin model for resources that are connected to tenant.
+    """Admin model for resources that are connected to tenant.
 
-        Expects that resource has attribute `tenant`.
+    Expects that resource has attribute `tenant`.
     """
 
     list_display = structure_admin.ResourceAdmin.list_display + ('get_tenant',)

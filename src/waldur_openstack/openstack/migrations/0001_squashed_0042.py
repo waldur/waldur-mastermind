@@ -66,7 +66,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -139,7 +141,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='SecurityGroup',
@@ -187,7 +191,9 @@ class Migration(migrations.Migration):
                 ),
                 ('backend_id', models.CharField(blank=True, max_length=128)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='SecurityGroupRule',
@@ -323,7 +329,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.logging.loggers.LoggableMixin,
@@ -331,10 +339,12 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='image', unique_together=set([('settings', 'backend_id')]),
+            name='image',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AlterUniqueTogether(
-            name='flavor', unique_together=set([('settings', 'backend_id')]),
+            name='flavor',
+            unique_together=set([('settings', 'backend_id')]),
         ),
         migrations.AddField(
             model_name='securitygroup',
@@ -434,7 +444,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.logging.loggers.LoggableMixin,
@@ -613,7 +625,10 @@ class Migration(migrations.Migration):
             name='backend_id',
             field=models.CharField(blank=True, max_length=255),
         ),
-        migrations.RemoveField(model_name='floatingip', name='status',),
+        migrations.RemoveField(
+            model_name='floatingip',
+            name='status',
+        ),
         migrations.AddField(
             model_name='securitygroup',
             name='created',
@@ -637,8 +652,14 @@ class Migration(migrations.Migration):
             name='backend_id',
             field=models.CharField(blank=True, max_length=255),
         ),
-        migrations.RemoveField(model_name='network', name='start_time',),
-        migrations.RemoveField(model_name='tenant', name='start_time',),
+        migrations.RemoveField(
+            model_name='network',
+            name='start_time',
+        ),
+        migrations.RemoveField(
+            model_name='tenant',
+            name='start_time',
+        ),
         migrations.CreateModel(
             name='CustomerOpenStack',
             fields=[
@@ -695,7 +716,8 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.AlterUniqueTogether(
-            name='customeropenstack', unique_together=set([('settings', 'customer')]),
+            name='customeropenstack',
+            unique_together=set([('settings', 'customer')]),
         ),
         migrations.AlterField(
             model_name='tenant',
@@ -727,6 +749,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='floatingip', unique_together=set([('tenant', 'address')]),
+            name='floatingip',
+            unique_together=set([('tenant', 'address')]),
         ),
     ]

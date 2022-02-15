@@ -9,7 +9,10 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RemoveField(
-            model_name='allocationuserusage', name='allocation_usage',
+            model_name='allocationuserusage',
+            name='allocation_usage',
         ),
-        migrations.DeleteModel(name='AllocationUsage',),
+        migrations.DeleteModel(
+            name='AllocationUsage',
+        ),
     ]

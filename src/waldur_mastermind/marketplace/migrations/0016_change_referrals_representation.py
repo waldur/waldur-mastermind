@@ -12,7 +12,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='offering', name='referred_pids',),
+        migrations.RemoveField(
+            model_name='offering',
+            name='referred_pids',
+        ),
         migrations.AddField(
             model_name='offering',
             name='referrals',

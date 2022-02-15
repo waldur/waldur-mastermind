@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class AuthTask(tasks.StateTransitionTask):
-    """ Execute request for authentication """
+    """Execute request for authentication"""
 
     def execute(self, auth_result):
         response = client.SignatureRequest.execute(

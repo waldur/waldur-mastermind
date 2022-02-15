@@ -13,7 +13,8 @@ class ImageFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.Image
 
     location = core_filters.URLFilter(
-        view_name='azure-location-detail', field_name='location__uuid',
+        view_name='azure-location-detail',
+        field_name='location__uuid',
     )
     location_uuid = django_filters.UUIDFilter(field_name='location__uuid')
 
@@ -45,7 +46,8 @@ class SizeFilter(structure_filters.ServicePropertySettingsFilter):
         distinct=True,
     )
     location_uuid = django_filters.UUIDFilter(
-        field_name='sizeavailabilityzone__location__uuid', distinct=True,
+        field_name='sizeavailabilityzone__location__uuid',
+        distinct=True,
     )
     zone = django_filters.NumberFilter(
         field_name='sizeavailabilityzone__zone', distinct=True

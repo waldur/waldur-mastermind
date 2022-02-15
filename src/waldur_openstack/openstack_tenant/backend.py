@@ -630,20 +630,27 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 if volume_type_name:
                     try:
                         volume_type = models.VolumeType.objects.get(
-                            name=volume_type_name, settings=volume.service_settings,
+                            name=volume_type_name,
+                            settings=volume.service_settings,
                         )
                         volume.type = volume_type
                         kwargs['volume_type'] = volume_type.backend_id
                     except models.VolumeType.DoesNotExist:
                         logger.error(
                             'Volume type is not set as volume type with name %s is not found. Settings UUID: %s'
-                            % (volume_type_name, volume.service_settings.uuid.hex,)
+                            % (
+                                volume_type_name,
+                                volume.service_settings.uuid.hex,
+                            )
                         )
                     except models.VolumeType.MultipleObjectsReturned:
                         logger.error(
                             'Volume type is not set as multiple volume types with name %s are found.'
                             'Service settings UUID: %s'
-                            % (volume_type_name, volume.service_settings.uuid.hex,)
+                            % (
+                                volume_type_name,
+                                volume.service_settings.uuid.hex,
+                            )
                         )
 
         if volume.availability_zone:
@@ -656,9 +663,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
             if volume_availability_zone_name:
                 try:
-                    volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
-                        name=volume_availability_zone_name,
-                        settings=volume.service_settings,
+                    volume_availability_zone = (
+                        models.VolumeAvailabilityZone.objects.get(
+                            name=volume_availability_zone_name,
+                            settings=volume.service_settings,
+                        )
                     )
                     volume.availability_zone = volume_availability_zone
                     kwargs['availability_zone'] = volume_availability_zone.name
@@ -749,7 +758,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     def import_volume(self, backend_id, project=None, save=True):
-        """ Restore Waldur volume instance based on backend data. """
+        """Restore Waldur volume instance based on backend data."""
         cinder = self.cinder_client
         try:
             backend_volume = cinder.volumes.get(backend_id)
@@ -919,7 +928,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         return snapshot
 
     def import_snapshot(self, backend_snapshot_id, project=None, save=True):
-        """ Restore Waldur Snapshot instance based on backend data. """
+        """Restore Waldur Snapshot instance based on backend data."""
         cinder = self.cinder_client
         try:
             backend_snapshot = cinder.volume_snapshots.get(backend_snapshot_id)
@@ -944,7 +953,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         )
         if hasattr(backend_snapshot, 'volume_id'):
             snapshot.source_volume = models.Volume.objects.filter(
-                service_settings=self.settings, backend_id=backend_snapshot.volume_id,
+                service_settings=self.settings,
+                backend_id=backend_snapshot.volume_id,
             ).first()
         return snapshot
 
@@ -1496,7 +1506,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         missing_zones = set(back_zones_map.keys()) - set(front_zones_map.keys())
         for zone in missing_zones:
             frontend_model.objects.create(
-                settings=self.settings, name=zone,
+                settings=self.settings,
+                name=zone,
             )
 
         stale_zones = set(front_zones_map.keys()) - set(back_zones_map.keys())
@@ -1670,7 +1681,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     'network_id': new_internal_ip.subnet.network.backend_id,
                     # If you specify only a subnet ID, OpenStack Networking
                     # allocates an available IP from that subnet to the port.
-                    'fixed_ips': [{'subnet_id': new_internal_ip.subnet.backend_id,}],
+                    'fixed_ips': [
+                        {
+                            'subnet_id': new_internal_ip.subnet.backend_id,
+                        }
+                    ],
                     'security_groups': list(
                         instance.security_groups.exclude(backend_id='').values_list(
                             'backend_id', flat=True
@@ -1715,7 +1730,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             port = {
                 'network_id': internal_ip.subnet.network.backend_id,
-                'fixed_ips': [{'subnet_id': internal_ip.subnet.backend_id,}],
+                'fixed_ips': [
+                    {
+                        'subnet_id': internal_ip.subnet.backend_id,
+                    }
+                ],
                 'security_groups': security_groups,
             }
             backend_internal_ip = neutron.create_port({'port': port})['port']

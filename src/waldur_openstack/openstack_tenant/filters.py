@@ -95,7 +95,8 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
             return queryset.none()
 
         queryset = queryset.filter(
-            service_settings=instance.service_settings, project=instance.project,
+            service_settings=instance.service_settings,
+            project=instance.project,
         ).exclude(instance=instance)
 
         zones_map = get_valid_availability_zones(instance)
@@ -106,7 +107,9 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
                 if cinder_zone == instance.availability_zone.name
             }
             nova_zones = models.InstanceAvailabilityZone.objects.filter(
-                settings=instance.service_settings, name__in=zone_names, available=True,
+                settings=instance.service_settings,
+                name__in=zone_names,
+                available=True,
             )
             queryset = queryset.filter(availability_zone__in=nova_zones)
         return queryset
@@ -185,7 +188,9 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
                 if cinder_zone == volume.availability_zone.name
             }
             nova_zones = models.InstanceAvailabilityZone.objects.filter(
-                settings=volume.service_settings, name__in=zone_names, available=True,
+                settings=volume.service_settings,
+                name__in=zone_names,
+                available=True,
             )
             queryset = queryset.filter(availability_zone__in=nova_zones)
         return queryset

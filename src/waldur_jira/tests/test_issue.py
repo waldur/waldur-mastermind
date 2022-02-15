@@ -67,10 +67,12 @@ class IssueGetTest(BaseTest):
     def test_staff_can_filter_issues_by_statuses(self):
         self.client.force_authenticate(self.fixture.staff)
         factories.IssueFactory(
-            project=self.fixture.jira_project, status='OK',
+            project=self.fixture.jira_project,
+            status='OK',
         )
         factories.IssueFactory(
-            project=self.fixture.jira_project, status='NOTOK',
+            project=self.fixture.jira_project,
+            status='NOTOK',
         )
 
         response = self.client.get(factories.IssueFactory.get_list_url() + "?status=OK")
@@ -277,7 +279,9 @@ class IssueCreateSubtaskTest(IssueCreateBaseTest):
     def test_parent_issue_valid_for_subtask_only(self):
         self.client.force_authenticate(self.fixture.staff)
 
-        payload = self._get_issue_payload(parent=self.issue_url,)
+        payload = self._get_issue_payload(
+            parent=self.issue_url,
+        )
         response = self.client.post(factories.IssueFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

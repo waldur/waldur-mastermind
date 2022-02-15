@@ -5,7 +5,7 @@ from waldur_core.core import models, tasks, utils
 
 
 class BaseExecutor:
-    """ Base class for describing logical operation with backend.
+    """Base class for describing logical operation with backend.
 
     Executor describes celery signature or primitive of low-level tasks that
     should be executed to provide high-level operation.
@@ -17,7 +17,7 @@ class BaseExecutor:
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        """ Get Celery signature or chain that describes executor action.
+        """Get Celery signature or chain that describes executor action.
 
         Each task should be subclass of LowLevelTask class.
         Celery Signature and Primitives:
@@ -33,19 +33,19 @@ class BaseExecutor:
 
     @classmethod
     def get_success_signature(cls, instance, serialized_instance, **kwargs):
-        """ Get Celery signature of task that should be applied on successful execution. """
+        """Get Celery signature of task that should be applied on successful execution."""
         return None
 
     @classmethod
     def get_failure_signature(cls, instance, serialized_instance, **kwargs):
-        """ Get Celery signature of task that should be applied on failed execution. """
+        """Get Celery signature of task that should be applied on failed execution."""
         return None
 
     @classmethod
     def execute(
         cls, instance, is_async=True, countdown=2, is_heavy_task=False, **kwargs
     ):
-        """ Execute high level-operation """
+        """Execute high level-operation"""
         cls.pre_apply(instance, is_async=is_async, **kwargs)
         serialized_instance = utils.serialize_instance(instance)
 
@@ -70,7 +70,7 @@ class BaseExecutor:
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
-        """ Perform synchronous actions before signature apply """
+        """Perform synchronous actions before signature apply"""
         pass
 
     @classmethod
@@ -98,7 +98,7 @@ class ExecutorException(Exception):
 
 
 class ErrorExecutorMixin:
-    """ Set object as erred on fail. """
+    """Set object as erred on fail."""
 
     @classmethod
     def get_failure_signature(cls, instance, serialized_instance, **kwargs):
@@ -106,7 +106,7 @@ class ErrorExecutorMixin:
 
 
 class SuccessExecutorMixin:
-    """ Set object as OK on success, cleanup action and its details. """
+    """Set object as OK on success, cleanup action and its details."""
 
     @classmethod
     def get_success_signature(cls, instance, serialized_instance, **kwargs):
@@ -116,7 +116,7 @@ class SuccessExecutorMixin:
 
 
 class DeleteExecutorMixin:
-    """ Delete object on success or if force flag is enabled """
+    """Delete object on success or if force flag is enabled"""
 
     @classmethod
     def get_success_signature(cls, instance, serialized_instance, **kwargs):
@@ -139,21 +139,21 @@ class EmptyExecutor(BaseExecutor):
 
 
 class CreateExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
-    """ Default states transition for object creation.
+    """Default states transition for object creation.
 
-     - mark object as OK on success creation;
-     - mark object as erred on failed creation;
+    - mark object as OK on success creation;
+    - mark object as erred on failed creation;
     """
 
     pass
 
 
 class UpdateExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
-    """ Default states transition for object update.
+    """Default states transition for object update.
 
-     - schedule updating before update;
-     - mark object as OK on success update;
-     - mark object as erred on failed update;
+    - schedule updating before update;
+    - mark object as OK on success update;
+    - mark object as erred on failed update;
     """
 
     @classmethod
@@ -171,11 +171,11 @@ class UpdateExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
 
 
 class DeleteExecutor(DeleteExecutorMixin, BaseExecutor):
-    """ Default states transition for object deletion.
+    """Default states transition for object deletion.
 
-     - schedule deleting before deletion;
-     - delete object on success deletion;
-     - mark object as erred on failed deletion;
+    - schedule deleting before deletion;
+    - delete object on success deletion;
+    - mark object as erred on failed deletion;
     """
 
     @classmethod
@@ -185,11 +185,11 @@ class DeleteExecutor(DeleteExecutorMixin, BaseExecutor):
 
 
 class ActionExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
-    """ Default states transition for executing action with object.
+    """Default states transition for executing action with object.
 
-     - schedule updating before action execution;
-     - mark object as OK on success action execution;
-     - mark object as erred on failed action execution;
+    - schedule updating before action execution;
+    - mark object as OK on success action execution;
+    - mark object as erred on failed action execution;
     """
 
     # TODO: After refactoring field action should become mandatory for implementation
@@ -197,7 +197,7 @@ class ActionExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
 
     @classmethod
     def get_action_details(cls, instance, **kwargs):
-        """ Get detailed action description """
+        """Get detailed action description"""
         return {}
 
     @classmethod

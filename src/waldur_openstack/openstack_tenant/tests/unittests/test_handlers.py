@@ -220,7 +220,8 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         because otherwise it violates uniqueness constraint.
         """
         security_group = factories.SecurityGroupFactory(
-            settings=self.service_settings, backend_id='backend_id',
+            settings=self.service_settings,
+            backend_id='backend_id',
         )
         openstack_security_group = openstack_factories.SecurityGroupFactory(
             tenant=self.tenant,
@@ -292,7 +293,8 @@ class FloatingIPHandlerTest(BaseServicePropertyTest):
             tenant=self.tenant, name='New name', state=StateMixin.States.UPDATING
         )
         floating_ip = factories.FloatingIPFactory(
-            settings=self.service_settings, backend_id=openstack_floating_ip.backend_id,
+            settings=self.service_settings,
+            backend_id=openstack_floating_ip.backend_id,
         )
 
         openstack_floating_ip.set_ok()
@@ -421,7 +423,8 @@ class NetworkHandlerTest(BaseServicePropertyTest):
             state=StateMixin.States.UPDATING,
         )
         network = factories.NetworkFactory(
-            settings=self.service_settings, backend_id=openstack_network.backend_id,
+            settings=self.service_settings,
+            backend_id=openstack_network.backend_id,
         )
 
         openstack_network.set_ok()
@@ -504,7 +507,8 @@ class CreateServiceFromTenantTest(TestCase):
             structure_models.ServiceSettings.objects.filter(scope=tenant).exists()
         )
         service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant, type=apps.OpenStackTenantConfig.service_name,
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name,
         )
         self.assertEquals(service_settings.name, tenant.name)
         self.assertEquals(service_settings.customer, tenant.project.customer)
@@ -512,7 +516,8 @@ class CreateServiceFromTenantTest(TestCase):
         self.assertEquals(service_settings.password, tenant.user_password)
         self.assertEquals(service_settings.domain, tenant.service_settings.domain)
         self.assertEquals(
-            service_settings.backend_url, tenant.service_settings.backend_url,
+            service_settings.backend_url,
+            tenant.service_settings.backend_url,
         )
         self.assertEquals(
             service_settings.type, apps.OpenStackTenantConfig.service_name
@@ -529,7 +534,8 @@ class CreateServiceFromTenantTest(TestCase):
         shared_settings.save()
         tenant = openstack_factories.TenantFactory(service_settings=shared_settings)
         private_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant, type=apps.OpenStackTenantConfig.service_name,
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name,
         )
         self.assertTrue('console_type' in private_settings.options)
         self.assertEquals(
@@ -543,7 +549,8 @@ class CreateServiceFromTenantTest(TestCase):
         shared_settings.save()
         tenant = openstack_factories.TenantFactory(service_settings=shared_settings)
         private_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant, type=apps.OpenStackTenantConfig.service_name,
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name,
         )
         self.assertTrue(private_settings.options['config_drive'])
 
@@ -553,7 +560,8 @@ class CreateServiceFromTenantTest(TestCase):
             service_settings=shared_settings, backend_id=None
         )
         private_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant, type=apps.OpenStackTenantConfig.service_name,
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name,
         )
         tenant.backend_id = 'VALID_BACKEND_ID'
         tenant.save()

@@ -127,7 +127,8 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
         )
         estimate = models.PriceEstimate.objects.get(scope=getattr(self.fixture, scope))
         self.assertAlmostEqual(
-            decimal.Decimal(estimate.total), decimal.Decimal(10 * 31),
+            decimal.Decimal(estimate.total),
+            decimal.Decimal(10 * 31),
         )
 
     @data('project', 'customer')
@@ -140,5 +141,6 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
         invoice_item.save(update_fields=['unit_price'])
         estimate = models.PriceEstimate.objects.get(scope=getattr(self.fixture, scope))
         self.assertAlmostEqual(
-            decimal.Decimal(estimate.total), decimal.Decimal(11 * 31),
+            decimal.Decimal(estimate.total),
+            decimal.Decimal(11 * 31),
         )

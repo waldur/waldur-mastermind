@@ -13,7 +13,10 @@ class InvoicesExtension(WaldurExtension):
                 'country': 'Estonia',
                 'email': 'info@opennodecloud.com',
                 'postal': '80041',
-                'phone': {'country_code': '372', 'national_number': '5555555',},
+                'phone': {
+                    'country_code': '372',
+                    'national_number': '5555555',
+                },
                 'bank': 'Estonian Bank',
                 'account': '123456789',
                 'vat_code': 'EE123456789',
@@ -24,13 +27,22 @@ class InvoicesExtension(WaldurExtension):
             'INVOICE_REPORTING': {
                 'ENABLE': False,
                 'EMAIL': 'accounting@waldur.example.com',
-                'CSV_PARAMS': {'delimiter': str(';'),},
+                'CSV_PARAMS': {
+                    'delimiter': str(';'),
+                },
                 'USE_SAF': False,
                 'SERIALIZER_EXTRA_KWARGS': {
-                    'start': {'format': '%d.%m.%Y',},
-                    'end': {'format': '%d.%m.%Y',},
+                    'start': {
+                        'format': '%d.%m.%Y',
+                    },
+                    'end': {
+                        'format': '%d.%m.%Y',
+                    },
                 },
-                'SAF_PARAMS': {'RMAKSULIPP': '20%', 'ARTPROJEKT': 'PROJEKT',},
+                'SAF_PARAMS': {
+                    'RMAKSULIPP': '20%',
+                    'ARTPROJEKT': 'PROJEKT',
+                },
             },
             'SEND_CUSTOMER_INVOICES': False,
         }

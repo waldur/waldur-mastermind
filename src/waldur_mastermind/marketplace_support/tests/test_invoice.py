@@ -54,7 +54,9 @@ class InvoicesBaseTest(test.APITransactionTestCase):
     def get_invoice(self):
         date = datetime.date.today()
         return invoices_models.Invoice.objects.get(
-            customer=self.fixture.customer, month=date.month, year=date.year,
+            customer=self.fixture.customer,
+            month=date.month,
+            year=date.year,
         )
 
 
@@ -120,7 +122,8 @@ class InvoicesTest(InvoicesBaseTest):
             end = month_end(new_start)
 
             old_items = invoices_models.InvoiceItem.objects.filter(
-                project=resource.project, end=new_start,
+                project=resource.project,
+                end=new_start,
             )
 
             unit_price = 0
@@ -133,7 +136,9 @@ class InvoicesTest(InvoicesBaseTest):
             self.assertEqual(unit_price, self.fixture.plan.unit_price)
 
             new_items = invoices_models.InvoiceItem.objects.filter(
-                project=resource.project, start=new_start, end=end,
+                project=resource.project,
+                start=new_start,
+                end=end,
             )
 
             unit_price = 0

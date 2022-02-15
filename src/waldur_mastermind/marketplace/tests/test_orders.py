@@ -496,14 +496,17 @@ class OrderApproveTest(test.APITransactionTestCase):
         mocked_delay.side_effect = process_order
 
         offering = factories.OfferingFactory(
-            customer=self.fixture.customer, type='Marketplace.Basic',
+            customer=self.fixture.customer,
+            type='Marketplace.Basic',
         )
         offering_component = factories.OfferingComponentFactory(
-            offering=offering, billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            offering=offering,
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
         )
         plan = factories.PlanFactory(offering=offering)
         factories.PlanComponentFactory(
-            plan=plan, component=offering_component,
+            plan=plan,
+            component=offering_component,
         )
 
         resource = factories.ResourceFactory(
@@ -592,7 +595,10 @@ class OrderApproveTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         response = self.client.post(
-            factories.OrderItemFactory.get_url(order_item, 'approve',)
+            factories.OrderItemFactory.get_url(
+                order_item,
+                'approve',
+            )
         )
         return response
 

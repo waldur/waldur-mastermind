@@ -32,7 +32,10 @@ class DeleteExpiredBackupsTaskTest(TestCase):
     def test_command_starts_backend_deletion(self, mocked_execute):
         tasks.DeleteExpiredBackups().run()
         mocked_execute.assert_has_calls(
-            [mock.call(self.expired_backup1), mock.call(self.expired_backup2),],
+            [
+                mock.call(self.expired_backup1),
+                mock.call(self.expired_backup2),
+            ],
             any_order=True,
         )
 
@@ -54,7 +57,10 @@ class DeleteExpiredSnapshotsTaskTest(TestCase):
     def test_command_starts_snapshot_deletion(self, mocked_execute):
         tasks.DeleteExpiredSnapshots().run()
         mocked_execute.assert_has_calls(
-            [mock.call(self.expired_snapshot1), mock.call(self.expired_snapshot2),],
+            [
+                mock.call(self.expired_snapshot1),
+                mock.call(self.expired_snapshot2),
+            ],
             any_order=True,
         )
 
@@ -63,7 +69,9 @@ class BackupScheduleTaskTest(TestCase):
     def setUp(self):
         self.disabled_schedule = factories.BackupScheduleFactory(is_active=False)
 
-        self.instance = factories.InstanceFactory(state=models.Instance.States.OK,)
+        self.instance = factories.InstanceFactory(
+            state=models.Instance.States.OK,
+        )
         self.overdue_schedule = factories.BackupScheduleFactory(
             instance=self.instance, timezone='Europe/Tallinn'
         )

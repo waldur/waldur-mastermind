@@ -15,7 +15,8 @@ REMOTE_PERMISSION_ID = '1'
 
 
 @override_settings(
-    WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True}, task_always_eager=True,
+    WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True},
+    task_always_eager=True,
 )
 class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
     def setUp(self) -> None:
@@ -57,11 +58,16 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
 
     def create_permission(self, role, expiration_time=None):
         return self.project.add_user(
-            user=self.new_user, role=role, expiration_time=expiration_time,
+            user=self.new_user,
+            role=role,
+            expiration_time=expiration_time,
         )
 
     def delete_permission(self, role):
-        return self.project.remove_user(user=self.new_user, role=role,)
+        return self.project.remove_user(
+            user=self.new_user,
+            role=role,
+        )
 
     def test_create_remote_permission(self):
         self.create_permission(ProjectRole.ADMINISTRATOR)
@@ -72,10 +78,15 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             {'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
         )
         self.client_mock().get_project_permissions.assert_called_once_with(
-            REMOTE_PROJECT_UUID, REMOTE_USER_UUID, ProjectRole.ADMINISTRATOR,
+            REMOTE_PROJECT_UUID,
+            REMOTE_USER_UUID,
+            ProjectRole.ADMINISTRATOR,
         )
         self.client_mock().create_project_permission.assert_called_once_with(
-            '111', '112', ProjectRole.ADMINISTRATOR, None,
+            '111',
+            '112',
+            ProjectRole.ADMINISTRATOR,
+            None,
         )
 
     def test_create_remote_permission_with_expiration_time(self):
@@ -88,10 +99,15 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             {'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
         )
         self.client_mock().get_project_permissions.assert_called_once_with(
-            REMOTE_PROJECT_UUID, REMOTE_USER_UUID, ProjectRole.ADMINISTRATOR,
+            REMOTE_PROJECT_UUID,
+            REMOTE_USER_UUID,
+            ProjectRole.ADMINISTRATOR,
         )
         self.client_mock().create_project_permission.assert_called_once_with(
-            '111', '112', ProjectRole.ADMINISTRATOR, time.isoformat(),
+            '111',
+            '112',
+            ProjectRole.ADMINISTRATOR,
+            time.isoformat(),
         )
 
     def test_update_remote_permission(self):

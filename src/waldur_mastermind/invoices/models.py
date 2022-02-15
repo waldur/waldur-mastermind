@@ -32,7 +32,7 @@ def get_created_date():
 
 
 class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
-    """ Invoice describes billing information about purchased resources for customers on a monthly basis """
+    """Invoice describes billing information about purchased resources for customers on a monthly basis"""
 
     class Permissions:
         customer_path = 'customer'
@@ -87,7 +87,8 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         help_text=_('Date then invoice moved from state pending to created.'),
     )
     payment_url = models.URLField(
-        help_text=_('URL for initiating payment via payment gateway.'), blank=True,
+        help_text=_('URL for initiating payment via payment gateway.'),
+        blank=True,
     )
     reference_number = models.CharField(
         help_text=_('Reference number associated with the invoice.'),
@@ -455,7 +456,10 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
     sum = models.DecimalField(
         default=0, max_digits=10, decimal_places=2, null=False, blank=False
     )
-    date_of_payment = models.DateField(null=False, blank=False,)
+    date_of_payment = models.DateField(
+        null=False,
+        blank=False,
+    )
     proof = models.FileField(upload_to='proof_of_payment', null=True, blank=True)
     invoice = models.ForeignKey(
         Invoice, on_delete=models.SET_NULL, null=True, blank=True

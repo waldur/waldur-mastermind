@@ -143,7 +143,9 @@ class TenantQuotaSerializer(serializers.Serializer):
 
 class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
     port = serializers.HyperlinkedRelatedField(
-        view_name='openstack-port-detail', lookup_field='uuid', read_only=True,
+        view_name='openstack-port-detail',
+        lookup_field='uuid',
+        read_only=True,
     )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -338,7 +340,7 @@ class SecurityGroupRuleSerializer(
 
 
 class SecurityGroupRuleCreateSerializer(SecurityGroupRuleSerializer):
-    """ Create rules on security group creation """
+    """Create rules on security group creation"""
 
     def to_internal_value(self, data):
         if 'id' in data:
@@ -352,7 +354,7 @@ class SecurityGroupRuleCreateSerializer(SecurityGroupRuleSerializer):
 
 class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
     def to_internal_value(self, data):
-        """ Create new rule if id is not specified, update exist rule if id is specified """
+        """Create new rule if id is not specified, update exist rule if id is specified"""
         security_group = self.context['view'].get_object()
         internal_data = super(SecurityGroupRuleSerializer, self).to_internal_value(data)
         if 'id' not in data:
@@ -546,7 +548,8 @@ def validate_private_cidr(value, enforced_prefixlen=None):
         network = IPv4Network(value, strict=True)
     except (AddressValueError, NetmaskValueError, ValueError):
         raise ValidationError(
-            message=_('Enter a valid IPv4 address.'), code='invalid',
+            message=_('Enter a valid IPv4 address.'),
+            code='invalid',
         )
 
     if enforced_prefixlen and network.prefixlen != enforced_prefixlen:
@@ -558,7 +561,8 @@ def validate_private_cidr(value, enforced_prefixlen=None):
 
     if not any(network.subnet_of(net) for net in ALLOWED_PRIVATE_NETWORKS):
         raise ValidationError(
-            message=_('A private network CIDR is expected.'), code='invalid',
+            message=_('A private network CIDR is expected.'),
+            code='invalid',
         )
 
     return network.with_prefixlen
@@ -571,7 +575,9 @@ def validate_private_subnet_cidr(value):
 class TenantSerializer(structure_serializers.BaseResourceSerializer):
     quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
     subnet_cidr = serializers.CharField(
-        default='192.168.42.0/24', initial='192.168.42.0/24', write_only=True,
+        default='192.168.42.0/24',
+        initial='192.168.42.0/24',
+        write_only=True,
     )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -588,11 +594,18 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ('internal_network_id', 'external_network_id',)
+            + (
+                'internal_network_id',
+                'external_network_id',
+            )
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ('user_username', 'subnet_cidr', 'user_password',)
+            + (
+                'user_username',
+                'subnet_cidr',
+                'user_password',
+            )
         )
         extra_kwargs = dict(
             name={'max_length': 64},
@@ -612,7 +625,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         return fields
 
     def _validate_service_settings(self, service_settings, project):
-        """ Administrator can create tenant only using not shared service settings """
+        """Administrator can create tenant only using not shared service settings"""
         user = self.context['request'].user
         message = _(
             'You do not have permissions to create tenant in this project using selected service.'
@@ -968,7 +981,10 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
                                 'subnet': _(
                                     'There is no subnet with backend_id [%(backend_id)s] in the network [%(network)s]'
                                 )
-                                % {'backend_id': subnet_backend_id, 'network': network,}
+                                % {
+                                    'backend_id': subnet_backend_id,
+                                    'network': network,
+                                }
                             }
                         )
         attrs['service_settings'] = network.service_settings
@@ -1035,7 +1051,9 @@ class SetMtuSerializer(serializers.Serializer):
 
 class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     cidr = serializers.CharField(
-        required=False, initial='192.168.42.0/24', label='CIDR',
+        required=False,
+        initial='192.168.42.0/24',
+        label='CIDR',
     )
     allocation_pools = serializers.JSONField(read_only=True)
     network_name = serializers.CharField(source='network.name', read_only=True)

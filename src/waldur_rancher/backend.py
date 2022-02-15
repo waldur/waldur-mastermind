@@ -342,14 +342,14 @@ class RancherBackend(ServiceBackend):
 
         if ram_allocated:
             node.ram_allocated = int(
-                core_utils.parse_int(ram_allocated) / 2 ** 20
+                core_utils.parse_int(ram_allocated) / 2**20
             )  # convert data to Mi
 
         ram_total = get_backend_node_field('allocatable', 'memory')
 
         if ram_total:
             node.ram_total = int(
-                core_utils.parse_int(ram_total) / 2 ** 20
+                core_utils.parse_int(ram_total) / 2**20
             )  # convert data to Mi
 
         update_node_field('requested', 'pods', field='pods_allocated')
@@ -371,7 +371,9 @@ class RancherBackend(ServiceBackend):
         user.save()
         self.client.create_global_role(user.backend_id, GlobalRoles.user_base)
         signals.rancher_user_created.send(
-            sender=models.RancherUser, instance=user, password=password,
+            sender=models.RancherUser,
+            instance=user,
+            password=password,
         )
 
     def delete_user(self, user):
@@ -463,7 +465,8 @@ class RancherBackend(ServiceBackend):
     def pull_catalogs_for_scope(self, remote_catalogs, scope):
         content_type = ContentType.objects.get_for_model(scope)
         local_catalogs = models.Catalog.objects.filter(
-            content_type=content_type, object_id=scope.id,
+            content_type=content_type,
+            object_id=scope.id,
         )
 
         remote_catalog_map = {

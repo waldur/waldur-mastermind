@@ -12,6 +12,9 @@ class Command(DryRunCommand):
     def handle(self, dry_run, *args, **options):
         ct = ContentType.objects.get_for_model(Tenant)
         for resource in Resource.objects.filter(content_type=ct).exclude(
-            state__in=(Resource.States.TERMINATED, Resource.States.TERMINATING,)
+            state__in=(
+                Resource.States.TERMINATED,
+                Resource.States.TERMINATING,
+            )
         ):
             utils.push_tenant_limits(resource)

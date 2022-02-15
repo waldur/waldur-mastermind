@@ -115,7 +115,8 @@ class NetworkMetadataTest(BaseOpenStackTest):
 
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata['internal_ips'], ['10.0.0.1'],
+            self.resource.backend_metadata['internal_ips'],
+            ['10.0.0.1'],
         )
 
     def test_internal_ip_address_is_updated_on_delete(self):

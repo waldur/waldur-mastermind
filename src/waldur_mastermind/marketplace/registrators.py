@@ -50,7 +50,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     def get_sources(self, customer):
         return (
             marketplace_models.Resource.objects.filter(
-                offering__type=self.plugin_name, project__customer=customer,
+                offering__type=self.plugin_name,
+                project__customer=customer,
             )
             .exclude(
                 state__in=[
@@ -337,7 +338,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if resource.state != ResourceStates.OK:
             return
         related_invoice_items = invoice_models.InvoiceItem.objects.filter(
-            resource=resource, details__offering_component_type=component_type,
+            resource=resource,
+            details__offering_component_type=component_type,
         )
         if not related_invoice_items.exists():
             cls.create_or_update_component_item(

@@ -13,7 +13,8 @@ class SlurmFixture(ProjectFixture):
     @cached_property
     def allocation(self):
         return factories.AllocationFactory(
-            service_settings=self.settings, project=self.project,
+            service_settings=self.settings,
+            project=self.project,
         )
 
     @cached_property

@@ -34,10 +34,16 @@ class MarketplaceSlurmConfig(AppConfig):
             delete_resource_processor=processor.DeleteAllocationProcessor,
             components=(
                 Component(
-                    type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE,
+                    type='cpu',
+                    name='CPU',
+                    measured_unit='hours',
+                    billing_type=USAGE,
                 ),
                 Component(
-                    type='gpu', name='GPU', measured_unit='hours', billing_type=USAGE,
+                    type='gpu',
+                    name='GPU',
+                    measured_unit='hours',
+                    billing_type=USAGE,
                 ),
                 Component(
                     type='ram',

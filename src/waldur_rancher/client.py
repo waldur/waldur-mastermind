@@ -77,11 +77,16 @@ class RancherClient:
         return self._request('put', endpoint, **kwargs)
 
     def _get_yaml(self, endpoint: str):
-        return self._get(endpoint, headers={'accept': 'application/yaml'},)
+        return self._get(
+            endpoint,
+            headers={'accept': 'application/yaml'},
+        )
 
     def _put_yaml(self, endpoint: str, yaml: str):
         return self._put(
-            endpoint, data=yaml, headers={'content-type': 'application/yaml'},
+            endpoint,
+            data=yaml,
+            headers={'content-type': 'application/yaml'},
         )
 
     def login(self, access_key, secret_key):
@@ -181,14 +186,28 @@ class RancherClient:
         )
 
     def enable_user(self, user_id):
-        return self._put('users/{0}'.format(user_id), json={'enabled': True,})
+        return self._put(
+            'users/{0}'.format(user_id),
+            json={
+                'enabled': True,
+            },
+        )
 
     def disable_user(self, user_id):
-        return self._put('users/{0}'.format(user_id), json={'enabled': False,})
+        return self._put(
+            'users/{0}'.format(user_id),
+            json={
+                'enabled': False,
+            },
+        )
 
     def create_global_role(self, user_id, role):
         return self._post(
-            'globalrolebindings', json={'globalRoleId': role, 'userId': user_id,}
+            'globalrolebindings',
+            json={
+                'globalRoleId': role,
+                'userId': user_id,
+            },
         )
 
     def delete_global_role(self, role_id):
@@ -197,7 +216,11 @@ class RancherClient:
     def create_cluster_user_role(self, user_id, cluster_id, role):
         return self._post(
             'clusterroletemplatebindings',
-            json={'roleTemplateId': role, 'clusterId': cluster_id, 'userId': user_id,},
+            json={
+                'roleTemplateId': role,
+                'clusterId': cluster_id,
+                'userId': user_id,
+            },
         )
 
     def create_cluster_group_role(self, group_id, cluster_id, role):
@@ -234,7 +257,11 @@ class RancherClient:
     def create_project_user_role(self, user_id, project_id, role):
         return self._post(
             'projectroletemplatebindings',
-            json={'roleTemplateId': role, 'projectId': project_id, 'userId': user_id,},
+            json={
+                'roleTemplateId': role,
+                'projectId': project_id,
+                'userId': user_id,
+            },
         )
 
     def get_projects_roles(self):
@@ -400,11 +427,14 @@ class RancherClient:
         return self._delete(f'project/{project_id}/workloads/{workload_id}')
 
     def get_workload_yaml(self, project_id: str, workload_id: str):
-        return self._get_yaml(f'project/{project_id}/workloads/{workload_id}/yaml',)
+        return self._get_yaml(
+            f'project/{project_id}/workloads/{workload_id}/yaml',
+        )
 
     def put_workload_yaml(self, project_id: str, workload_id: str, yaml: str):
         return self._put_yaml(
-            f'project/{project_id}/workloads/{workload_id}/yaml', yaml,
+            f'project/{project_id}/workloads/{workload_id}/yaml',
+            yaml,
         )
 
     def list_hpas(self, project_id: str):
@@ -483,7 +513,8 @@ class RancherClient:
 
     def put_hpa_yaml(self, project_id: str, hpa_id: str, yaml: str):
         return self._put_yaml(
-            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml', yaml,
+            f'projects/{project_id}/horizontalpodautoscalers/{hpa_id}/yaml',
+            yaml,
         )
 
     def list_ingresses(self, project_id: str):
@@ -492,11 +523,14 @@ class RancherClient:
         ]
 
     def get_ingress_yaml(self, project_id: str, ingress_id: str):
-        return self._get_yaml(f'project/{project_id}/ingresses/{ingress_id}/yaml',)
+        return self._get_yaml(
+            f'project/{project_id}/ingresses/{ingress_id}/yaml',
+        )
 
     def put_ingress_yaml(self, project_id: str, ingress_id: str, yaml: str):
         return self._put_yaml(
-            f'project/{project_id}/ingresses/{ingress_id}/yaml', yaml,
+            f'project/{project_id}/ingresses/{ingress_id}/yaml',
+            yaml,
         )
 
     def delete_ingress(self, project_id: str, ingress_id: str):
@@ -506,10 +540,15 @@ class RancherClient:
         return self._get(f'project/{project_id}/services', params={'limit': -1})['data']
 
     def get_service_yaml(self, project_id: str, service_id: str):
-        return self._get_yaml(f'project/{project_id}/services/{service_id}/yaml',)
+        return self._get_yaml(
+            f'project/{project_id}/services/{service_id}/yaml',
+        )
 
     def put_service_yaml(self, project_id: str, service_id: str, yaml: str):
-        return self._put_yaml(f'project/{project_id}/services/{service_id}/yaml', yaml,)
+        return self._put_yaml(
+            f'project/{project_id}/services/{service_id}/yaml',
+            yaml,
+        )
 
     def delete_service(self, project_id: str, service_id: str):
         return self._delete(f'project/{project_id}/services/{service_id}')

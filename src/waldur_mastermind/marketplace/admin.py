@@ -500,7 +500,10 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         return file_response
 
     def pdf_file(self, obj):
-        pdf_ref = rest_reverse('marketplace-order-pdf', kwargs={'uuid': obj.uuid.hex},)
+        pdf_ref = rest_reverse(
+            'marketplace-order-pdf',
+            kwargs={'uuid': obj.uuid.hex},
+        )
 
         return format_html('<a href="%s">download</a>' % pdf_ref)
 

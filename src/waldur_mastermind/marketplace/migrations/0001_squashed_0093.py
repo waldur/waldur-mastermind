@@ -103,7 +103,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='AttributeOption',
@@ -192,7 +194,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('created',),},
+            options={
+                'ordering': ('created',),
+            },
         ),
         migrations.CreateModel(
             name='Category',
@@ -302,7 +306,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('category', 'index'),},
+            options={
+                'ordering': ('category', 'index'),
+            },
         ),
         migrations.CreateModel(
             name='CategoryComponent',
@@ -391,7 +397,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='ComponentQuota',
@@ -773,7 +781,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='Order',
@@ -855,7 +865,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('created',), 'verbose_name': 'Order',},
+            options={
+                'ordering': ('created',),
+                'verbose_name': 'Order',
+            },
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
@@ -941,7 +954,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('created',), 'verbose_name': 'Order item',},
+            options={
+                'ordering': ('created',),
+                'verbose_name': 'Order item',
+            },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -1050,7 +1066,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'ordering': ('name',),},
+            options={
+                'ordering': ('name',),
+            },
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
@@ -1270,7 +1288,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='Screenshot',
@@ -1338,7 +1358,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'verbose_name': 'Screenshot',},
+            options={
+                'verbose_name': 'Screenshot',
+            },
         ),
         migrations.CreateModel(
             name='Section',
@@ -1380,7 +1402,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
         ),
         migrations.CreateModel(
             name='ServiceProvider',
@@ -1457,7 +1481,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'verbose_name': 'Service provider',},
+            options={
+                'verbose_name': 'Service provider',
+            },
         ),
         migrations.AddField(
             model_name='orderitem',
@@ -1610,10 +1636,12 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='plancomponent', unique_together=set([('plan', 'component')]),
+            name='plancomponent',
+            unique_together=set([('plan', 'component')]),
         ),
         migrations.AlterUniqueTogether(
-            name='offeringcomponent', unique_together=set([('type', 'offering')]),
+            name='offeringcomponent',
+            unique_together=set([('type', 'offering')]),
         ),
         migrations.AlterUniqueTogether(
             name='componentusage',
@@ -1622,22 +1650,27 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='componentquota', unique_together=set([('resource', 'component')]),
+            name='componentquota',
+            unique_together=set([('resource', 'component')]),
         ),
         migrations.AlterUniqueTogether(
-            name='categorycomponent', unique_together=set([('type', 'category')]),
+            name='categorycomponent',
+            unique_together=set([('type', 'category')]),
         ),
         migrations.AlterUniqueTogether(
-            name='attributeoption', unique_together=set([('attribute', 'key')]),
+            name='attributeoption',
+            unique_together=set([('attribute', 'key')]),
         ),
         migrations.AlterUniqueTogether(
             name='aggregateresourcecount',
             unique_together=set([('category', 'content_type', 'object_id')]),
         ),
         migrations.AlterModelOptions(
-            name='offeringcomponent', options={'ordering': ('name',)},
+            name='offeringcomponent',
+            options={'ordering': ('name',)},
         ),
         migrations.AlterModelOptions(
-            name='plancomponent', options={'ordering': ('component__name',)},
+            name='plancomponent',
+            options={'ordering': ('component__name',)},
         ),
     ]

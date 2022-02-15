@@ -41,13 +41,17 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
     @lru_cache(maxsize=1)
     def _get_order_item(self, resource):
         return marketplace_models.OrderItem.objects.get(
-            resource=resource, type__in=[marketplace_models.OrderItem.Types.CREATE],
+            resource=resource,
+            type__in=[marketplace_models.OrderItem.Types.CREATE],
         )
 
     def get_created_by(self, resource):
         order_item = self._get_order_item(resource)
         uuid = order_item.order.created_by.uuid.hex
-        return reverse('user-detail', kwargs={'uuid': uuid},)
+        return reverse(
+            'user-detail',
+            kwargs={'uuid': uuid},
+        )
 
     def get_created_by_username(self, resource):
         order_item = self._get_order_item(resource)
@@ -61,7 +65,10 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
         order_item = self._get_order_item(resource)
         if order_item.order.approved_by:
             uuid = order_item.order.approved_by.uuid.hex
-            return reverse('user-detail', kwargs={'uuid': uuid},)
+            return reverse(
+                'user-detail',
+                kwargs={'uuid': uuid},
+            )
 
     def get_approved_by_username(self, resource):
         order_item = self._get_order_item(resource)

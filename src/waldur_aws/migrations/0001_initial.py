@@ -44,7 +44,9 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(max_length=255, unique=True)),
             ],
-            options={'ordering': ['name'],},
+            options={
+                'ordering': ['name'],
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -171,7 +173,9 @@ class Migration(migrations.Migration):
                 ),
                 ('size_backend_id', models.CharField(blank=True, max_length=150)),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,
@@ -202,7 +206,9 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(max_length=255, unique=True)),
             ],
-            options={'ordering': ['name'],},
+            options={
+                'ordering': ['name'],
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -246,7 +252,9 @@ class Migration(migrations.Migration):
                 ),
                 ('regions', models.ManyToManyField(to='waldur_aws.Region')),
             ],
-            options={'ordering': ['cores', 'ram'],},
+            options={
+                'ordering': ['cores', 'ram'],
+            },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
@@ -351,7 +359,9 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
-            options={'abstract': False,},
+            options={
+                'abstract': False,
+            },
             bases=(
                 waldur_core.core.models.DescendantMixin,
                 waldur_core.core.models.BackendModelMixin,

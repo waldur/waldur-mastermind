@@ -321,7 +321,10 @@ def notify_about_stale_resource():
     prev_1 = today - relativedelta(months=1)
     prev_2 = today - relativedelta(months=2)
     items = invoices_models.InvoiceItem.objects.filter(
-        Q(invoice__month=today.month, invoice__year=today.year,)
+        Q(
+            invoice__month=today.month,
+            invoice__year=today.year,
+        )
         | Q(invoice__month=prev_1.month, invoice__year=prev_1.year)
         | Q(invoice__month=prev_2.month, invoice__year=prev_2.year)
     )
@@ -434,7 +437,8 @@ def notification_about_project_ending():
         users = set(managers) | set(owners)
 
         project_url = core_utils.format_homeport_link(
-            '/projects/{project_uuid}/', project_uuid=project.uuid.hex,
+            '/projects/{project_uuid}/',
+            project_uuid=project.uuid.hex,
         )
 
         for user in users:

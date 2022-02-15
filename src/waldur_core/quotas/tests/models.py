@@ -30,7 +30,8 @@ class ParentModel(
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         counter_quota = fields.CounterQuotaField(
-            target_models=lambda: [ChildModel], path_to_scope='parent',
+            target_models=lambda: [ChildModel],
+            path_to_scope='parent',
         )
         two_targets_counter_quota = fields.CounterQuotaField(
             target_models=lambda: [ChildModel, SecondChildModel],
@@ -45,7 +46,8 @@ class ParentModel(
             get_children=lambda scope: scope.children.all(),
         )
         limit_aggregator_quota = fields.LimitAggregatorQuotaField(
-            get_children=lambda scope: scope.children.all(), default_limit=0,
+            get_children=lambda scope: scope.children.all(),
+            default_limit=0,
         )
         second_usage_aggregator_quota = fields.UsageAggregatorQuotaField(
             get_children=lambda scope: scope.children.all(),
@@ -62,7 +64,7 @@ class ParentModel(
 
 
 class NonQuotaParentModel(core_models.UuidMixin, core_models.DescendantMixin):
-    """ Allow to make sure that quotas propagation do not fail if quota scope has parent without quotas """
+    """Allow to make sure that quotas propagation do not fail if quota scope has parent without quotas"""
 
     pass
 

@@ -10,7 +10,16 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(model_name='servicesettings', name='certifications',),
-        migrations.RemoveField(model_name='servicesettings', name='geolocations',),
-        migrations.RemoveField(model_name='servicesettings', name='homepage',),
+        migrations.RemoveField(
+            model_name='servicesettings',
+            name='certifications',
+        ),
+        migrations.RemoveField(
+            model_name='servicesettings',
+            name='geolocations',
+        ),
+        migrations.RemoveField(
+            model_name='servicesettings',
+            name='homepage',
+        ),
     ]

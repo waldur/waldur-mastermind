@@ -12,7 +12,12 @@ class EventFactory(factory.DjangoModelFactory):
 
     message = factory.Sequence(lambda i: 'message#%s' % i)
     event_type = factory.Iterator(
-        ['first_event', 'second_event', 'third_event', 'fourth_event',]
+        [
+            'first_event',
+            'second_event',
+            'third_event',
+            'fourth_event',
+        ]
     )
     context = {
         'customer_abbreviation': 'TCAN',
