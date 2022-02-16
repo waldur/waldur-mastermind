@@ -1,6 +1,7 @@
 TENANT_TYPE = 'OpenStack.Admin'
 INSTANCE_TYPE = 'OpenStackTenant.Instance'
 VOLUME_TYPE = 'OpenStackTenant.Volume'
+SHARED_INSTANCE_TYPE = 'OpenStackTenant.SharedInstance'
 
 RAM_TYPE = 'ram'
 CORES_TYPE = 'cores'

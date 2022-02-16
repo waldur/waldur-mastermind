@@ -30,6 +30,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_openstack.openstack import models as openstack_models
         from waldur_openstack.openstack import signals as openstack_signals
         from waldur_openstack.openstack.apps import OpenStackConfig
+        from waldur_openstack.openstack_tenant.apps import OpenStackTenantConfig
         from waldur_openstack.openstack_tenant import (
             models as tenant_models,
             executors as tenant_executors,
@@ -40,7 +41,8 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.marketplace_openstack.registrators import (
-            OpenStackRegistrator,
+            OpenStackTenantRegistrator,
+            OpenStackInstanceRegistrator,
         )
 
         from . import (
@@ -48,6 +50,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             handlers,
             processors,
             INSTANCE_TYPE,
+            SHARED_INSTANCE_TYPE,
             VOLUME_TYPE,
             TENANT_TYPE,
             RAM_TYPE,
@@ -81,6 +84,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
         LIMIT = marketplace_models.OfferingComponent.BillingTypes.LIMIT
+        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(
             offering_type=TENANT_TYPE,
             create_resource_processor=processors.TenantCreateProcessor,
@@ -134,6 +138,37 @@ class MarketplaceOpenStackConfig(AppConfig):
             delete_resource_processor=processors.VolumeDeleteProcessor,
             get_importable_resources_backend_method='get_importable_volumes',
             import_resource_backend_method='import_volume',
+        )
+
+        manager.register(
+            offering_type=SHARED_INSTANCE_TYPE,
+            create_resource_processor=processors.InstanceCreateProcessor,
+            delete_resource_processor=processors.InstanceDeleteProcessor,
+            components=(
+                Component(
+                    type=CORES_TYPE,
+                    name='Cores',
+                    measured_unit='cores',
+                    billing_type=USAGE,
+                ),
+                Component(
+                    type=RAM_TYPE,
+                    name='RAM',
+                    measured_unit='GB',
+                    billing_type=USAGE,
+                    factor=1024,
+                ),
+                Component(
+                    type=STORAGE_TYPE,
+                    name='Storage',
+                    measured_unit='GB',
+                    billing_type=USAGE,
+                    factor=1024,
+                ),
+            ),
+            service_type=OpenStackTenantConfig.service_name,
+            secret_attributes=get_secret_attributes,
+            components_filter=components_filter,
         )
 
         signals.post_save.connect(
@@ -217,7 +252,8 @@ class MarketplaceOpenStackConfig(AppConfig):
             'update_openstack_tenant_usages',
         )
 
-        OpenStackRegistrator.connect()
+        OpenStackTenantRegistrator.connect()
+        OpenStackInstanceRegistrator.connect()
 
         signals.post_save.connect(
             handlers.create_offering_component_for_volume_type,
@@ -252,4 +288,11 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=openstack_models.Tenant,
             dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'import_instances_and_volumes_if_tenant_has_been_imported_if_tenant_has_been_pulled',
+        )
+
+        signals.post_save.connect(
+            handlers.update_usage_when_instance_configuration_is_updated,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
+            'update_usage_when_instance_configuration_is_updated',
         )

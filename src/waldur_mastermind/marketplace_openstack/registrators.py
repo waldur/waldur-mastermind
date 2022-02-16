@@ -2,14 +2,13 @@ from waldur_mastermind.marketplace.registrators import MarketplaceRegistrator
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
+    SHARED_INSTANCE_TYPE,
     STORAGE_TYPE,
     TENANT_TYPE,
 )
 
 
-class OpenStackRegistrator(MarketplaceRegistrator):
-    plugin_name = TENANT_TYPE
-
+class OpenStackBaseRegistrator(MarketplaceRegistrator):
     @classmethod
     def convert_quantity(cls, usage, component_type: str):
         if component_type in (STORAGE_TYPE, RAM_TYPE):
@@ -29,3 +28,11 @@ class OpenStackRegistrator(MarketplaceRegistrator):
             return f'{component_type.replace("gigabytes_", "")} storage'
         else:
             return plan_component.component.name
+
+
+class OpenStackTenantRegistrator(OpenStackBaseRegistrator):
+    plugin_name = TENANT_TYPE
+
+
+class OpenStackInstanceRegistrator(OpenStackBaseRegistrator):
+    plugin_name = SHARED_INSTANCE_TYPE

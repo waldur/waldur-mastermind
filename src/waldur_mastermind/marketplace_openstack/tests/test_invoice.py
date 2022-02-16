@@ -13,11 +13,14 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
     RAM_TYPE,
+    SHARED_INSTANCE_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
 )
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
+from waldur_openstack.openstack_tenant.tests.factories import FlavorFactory
+from waldur_openstack.openstack_tenant.tests.fixtures import OpenStackTenantFixture
 
 from .. import TENANT_TYPE
 
@@ -221,3 +224,35 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
 
         # Assert
         self.assertEqual(mocked_utils.call_count, 0)
+
+
+class SharedInstanceTest(test.APITransactionTestCase):
+    def test_when_instance_is_created_component_usage_is_imported(self):
+        offering = marketplace_factories.OfferingFactory(type=SHARED_INSTANCE_TYPE)
+        for ct in [RAM_TYPE, CORES_TYPE, STORAGE_TYPE]:
+            marketplace_factories.OfferingComponentFactory(
+                offering=offering,
+                type=ct,
+                billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            )
+
+        fixture = OpenStackTenantFixture()
+        resource = marketplace_factories.ResourceFactory(
+            offering=offering,
+            attributes={
+                'flavor': FlavorFactory.get_url(fixture.flavor),
+                'data_volume_size': 1024 * 4,
+            },
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering)
+        marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=plan,
+        )
+        resource.attributes['system_volume_size'] = 1024 * 2
+        resource.save()
+
+        self.assertEqual(
+            3,
+            marketplace_models.ComponentUsage.objects.filter(resource=resource).count(),
+        )
