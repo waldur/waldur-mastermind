@@ -1,8 +1,9 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
+from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
@@ -11,7 +12,18 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, STORAGE_MODE_FIXED, TENANT_TYPE, VOLUME_TYPE, tasks, utils
+from . import (
+    CORES_TYPE,
+    INSTANCE_TYPE,
+    RAM_TYPE,
+    SHARED_INSTANCE_TYPE,
+    STORAGE_MODE_FIXED,
+    STORAGE_TYPE,
+    TENANT_TYPE,
+    VOLUME_TYPE,
+    tasks,
+    utils,
+)
 
 logger = logging.getLogger(__name__)
 States = marketplace_models.Resource.States
@@ -420,3 +432,85 @@ def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs
         for offering in offerings.filter(type=VOLUME_TYPE):
             offering.name = utils.get_offering_name_for_volume(tenant)
             offering.save(update_fields=['name'])
+
+
+def update_usage_when_instance_configuration_is_updated(
+    sender, instance, created=False, **kwargs
+):
+    if instance.offering.type != SHARED_INSTANCE_TYPE:
+        return
+
+    if not created and not instance.tracker.has_changed('attributes'):
+        return
+
+    flavor_url = instance.attributes.get('flavor')
+    if not flavor_url:
+        return
+
+    try:
+        flavor = core_utils.instance_from_url(flavor_url)
+    except ObjectDoesNotExist:
+        logger.warning(
+            'Skipping OpenStack instance usage synchronization because flavor is not found.'
+            'Resource ID: %s',
+            instance.id,
+        )
+        return
+
+    if not isinstance(flavor, openstack_tenant_models.Flavor):
+        logger.warning(
+            'Skipping OpenStack instance usage synchronization because flavor is not found.'
+            'Resource ID: %s',
+            instance.id,
+        )
+        return
+
+    data_volume_size = instance.attributes.get('data_volume_size', 0)
+    system_volume_size = instance.attributes.get('system_volume_size', 0)
+
+    try:
+        plan_period = marketplace_models.ResourcePlanPeriod.objects.get(
+            resource=instance, end=None
+        )
+    except (ObjectDoesNotExist, MultipleObjectsReturned):
+        logger.warning(
+            'Skipping OpenStack instance usage synchronization because valid '
+            'ResourcePlanPeriod is not found. Resource ID: %s',
+            instance.id,
+        )
+        return
+
+    try:
+        ram_component = marketplace_models.OfferingComponent.objects.get(
+            offering=instance.offering, type=RAM_TYPE
+        )
+        cores_component = marketplace_models.OfferingComponent.objects.get(
+            offering=instance.offering, type=CORES_TYPE
+        )
+        storage_component = marketplace_models.OfferingComponent.objects.get(
+            offering=instance.offering, type=STORAGE_TYPE
+        )
+    except marketplace_models.OfferingComponent.DoesNotExist:
+        logger.warning(
+            'Skipping OpenStack instance usage synchronization because related offering component is not found.'
+            'Resource ID: %s',
+            instance.id,
+        )
+        return
+
+    current_date = timezone.now()
+    billing_period = core_utils.month_start(current_date)
+    components = (
+        (ram_component, flavor.ram),
+        (cores_component, flavor.cores),
+        (storage_component, data_volume_size + system_volume_size),
+    )
+
+    for component, usage in components:
+        marketplace_models.ComponentUsage.objects.update_or_create(
+            resource=instance,
+            component=component,
+            billing_period=billing_period,
+            plan_period=plan_period,
+            defaults={'usage': usage, 'date': current_date},
+        )

@@ -125,3 +125,9 @@ class OpenStackTenantFixture(ProjectFixture):
         return factories.VolumeAvailabilityZoneFactory(
             settings=self.openstack_tenant_service_settings,
         )
+
+    @cached_property
+    def flavor(self):
+        return factories.FlavorFactory(
+            settings=self.openstack_tenant_service_settings,
+        )
