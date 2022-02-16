@@ -116,5 +116,5 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 )
 
 
-class BookingDeleteProcessor(processors.DeleteScopedResourceProcessor):
+class BookingDeleteProcessor(processors.BasicDeleteResourceProcessor):
     pass
