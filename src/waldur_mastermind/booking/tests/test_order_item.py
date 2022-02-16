@@ -11,12 +11,13 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 
 
 class OrderItemProcessedTest(test.APITransactionTestCase):
-    def test_resource_is_created_when_order_item_is_processed(self):
-        fixture = fixtures.ProjectFixture()
-        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+    def setUp(self) -> None:
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
 
+    def test_resource_is_created_when_order_item_is_processed(self):
         order_item = marketplace_factories.OrderItemFactory(
-            offering=offering,
+            offering=self.offering,
             attributes={
                 'name': 'item_name',
                 'description': 'Description',
@@ -30,7 +31,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(fixture.staff)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         self.assertTrue(
@@ -38,6 +39,25 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         )
         resource = marketplace_models.Resource.objects.get(name='item_name')
         self.assertEqual(resource.state, marketplace_models.Resource.States.CREATING)
+
+    def test_resource_is_terminating_when_order_item_is_processed(self):
+        resource = marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            state=marketplace_models.Resource.States.OK,
+        )
+
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=self.offering,
+            type=marketplace_models.OrderItem.Types.TERMINATE,
+            resource=resource,
+        )
+
+        serialized_order = core_utils.serialize_instance(order_item.order)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
+        resource.refresh_from_db()
+        self.assertEqual(marketplace_models.Resource.States.TERMINATING, resource.state)
 
 
 @freeze_time('2018-12-01')
