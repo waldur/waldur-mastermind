@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
-from . import models
+from waldur_core.core import signals as core_signals
+from waldur_mastermind.marketplace import serializers as marketplace_serializers
+
+from . import PLUGIN_NAME, constants, models
 
 
 class CredentialsSerializer(serializers.Serializer):
@@ -47,3 +50,15 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
             'old_oecd_fos_2007_code',
             'new_oecd_fos_2007_code',
         )
+
+
+def mark_synced_fields_as_read_only(sender, fields, serializer, **kwargs):
+    if serializer.instance and serializer.instance.type == PLUGIN_NAME:
+        for field_name in constants.OFFERING_FIELDS:
+            fields[field_name] = serializers.ReadOnlyField()
+
+
+core_signals.pre_serializer_fields.connect(
+    mark_synced_fields_as_read_only,
+    sender=marketplace_serializers.OfferingUpdateSerializer,
+)
