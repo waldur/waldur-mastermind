@@ -6,7 +6,14 @@ from django.db import transaction
 
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure.models import Customer, Project, ProjectRole
-from waldur_mastermind.marketplace.models import Offering, Order, OrderItem, Plan
+from waldur_core.structure.utils import move_project
+from waldur_mastermind.marketplace.models import (
+    Offering,
+    Order,
+    OrderItem,
+    Plan,
+    Resource,
+)
 from waldur_mastermind.marketplace.tasks import approve_order, notify_order_approvers
 from waldur_slurm.utils import sanitize_allocation_name
 
@@ -79,13 +86,21 @@ def get_plan():
         return
 
 
-def create_project(customer, user):
+def get_or_create_project(customer, user, wrong_customer):
     try:
-        Project.objects.get(name=user.username)
+        return Project.objects.get(name=user.username, customer=customer)
     except Project.MultipleObjectsReturned:
         logger.warning('Multiple projects with the same name %s exist.', user.username)
         return
     except Project.DoesNotExist:
+        try:
+            # user has changed and has led to a change in INTERNAL/EXTERNAL decision
+            project = Project.objects.get(name=user.username, customer=wrong_customer)
+            move_project(project, customer)
+            return project
+        except Project.DoesNotExist:
+            pass
+
         project = Project.objects.create(customer=customer, name=user.username)
         project.add_user(user, ProjectRole.ADMINISTRATOR)
         return project
@@ -94,8 +109,24 @@ def create_project(customer, user):
         return
 
 
-def create_order(project: Project, user, offering, plan, limits=None):
-    order = Order.objects.create(project=project, created_by=user)
+def get_or_create_order(project: Project, user, offering, plan, limits=None):
+    limits = limits or {}
+    order, order_created = Order.objects.get_or_create(project=project, created_by=user)
+
+    if not order_created:
+        if order.state in [Order.States.REQUESTED_FOR_APPROVAL, Order.States.EXECUTING]:
+            return order, False
+        if order.state == Order.States.DONE:
+            order_item = order.items.first()
+            if (
+                order_item
+                and order_item.state == OrderItem.States.DONE
+                and order_item.resource
+                and order_item.resource.state != Resource.States.ERRED
+            ):
+                return order, False
+
+        order = Order.objects.create(project=project, created_by=user)
 
     order_item = OrderItem.objects.create(
         order=order,
@@ -111,7 +142,7 @@ def create_order(project: Project, user, offering, plan, limits=None):
     order.init_total_cost()
     order.save()
 
-    return order
+    return order, True
 
 
 def check_user(user, affiliations, email_patterns):
@@ -121,12 +152,27 @@ def check_user(user, affiliations, email_patterns):
     return any(re.match(pattern, user.email) for pattern in email_patterns)
 
 
-def handle_new_user(sender, instance, created=False, **kwargs):
-    if not created:
-        return
+def is_internal_user(user):
+    return check_user(
+        user,
+        settings.WALDUR_HPC['INTERNAL_AFFILIATIONS'],
+        settings.WALDUR_HPC['INTERNAL_EMAIL_PATTERNS'],
+    )
 
+
+def is_external_user(user):
+    return check_user(
+        user,
+        settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS'],
+        settings.WALDUR_HPC['EXTERNAL_EMAIL_PATTERNS'],
+    )
+
+
+def handle_new_user(sender, instance, created=False, **kwargs):
     if not settings.WALDUR_HPC['ENABLED']:
         return
+
+    user = instance
 
     internal_customer = get_internal_customer()
     if not internal_customer:
@@ -148,37 +194,35 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         logger.warning('Plan does not match offering.')
         return
 
-    user = instance
+    if is_internal_user(user):
+        project = get_or_create_project(internal_customer, user, external_customer)
 
-    if check_user(
-        user,
-        settings.WALDUR_HPC['INTERNAL_AFFILIATIONS'],
-        settings.WALDUR_HPC['INTERNAL_EMAIL_PATTERNS'],
-    ):
-        project = create_project(internal_customer, user)
         if not project:
             return
-        order = create_order(
+
+        order, order_created = get_or_create_order(
             project,
             user,
             offering,
             plan,
             limits=settings.WALDUR_HPC['INTERNAL_LIMITS'],
         )
-        if not order:
+
+        if not order or not order_created:
             return
+
         approve_order(order, user)
         return
 
-    if check_user(
-        user,
-        settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS'],
-        settings.WALDUR_HPC['EXTERNAL_EMAIL_PATTERNS'],
-    ):
-        project = create_project(external_customer, user)
+    if is_external_user(user):
+        project = get_or_create_project(external_customer, user, internal_customer)
+
         if not project:
             return
-        order = create_order(project, user, offering, plan)
-        if not order:
+
+        order, order_created = get_or_create_order(project, user, offering, plan)
+
+        if not order or not order_created:
             return
+
         transaction.on_commit(lambda: notify_order_approvers.delay(order.uuid))
