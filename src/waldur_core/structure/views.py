@@ -1142,7 +1142,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     ]
 
     @action(detail=True, methods=['post'])
-    def unlink(self, request, resource, uuid=None):
+    def unlink(self, request, uuid=None):
         """
         Delete resource from the database without scheduling operations on backend
         and without checking current state of the resource. It is intended to be used
