@@ -8,11 +8,11 @@ actions. For example:
 class InstanceViewSet(structure_views.BaseResourceViewSet):
 
     @action(detail=True, methods=['post'])
-    def start(self, request, resource, uuid=None):
+    def start(self, request, uuid=None):
         pass
 
     @action(detail=True, methods=['post'])
-    def unlink(self, request, resource, uuid=None):
+    def unlink(self, request, uuid=None):
         pass
 ```
 
