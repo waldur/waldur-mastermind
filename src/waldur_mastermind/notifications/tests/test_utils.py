@@ -92,3 +92,15 @@ class UsersFilterTest(test.APITransactionTestCase):
             }
         )
         self.assertIn(manager, users)
+
+    def test_offering_and_customer_are_specified(self):
+        owner = self.fixture.owner
+        manager = self.fixture.manager
+        users = get_users_for_query(
+            {
+                'customers': [self.fixture.customer],
+                'offerings': [self.offering],
+            }
+        )
+        self.assertIn(owner, users)
+        self.assertIn(manager, users)
