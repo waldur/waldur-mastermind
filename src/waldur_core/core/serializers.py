@@ -240,7 +240,9 @@ class AugmentedSerializerMixin:
 
     def get_fields(self):
         fields = super(AugmentedSerializerMixin, self).get_fields()
-        pre_serializer_fields.send(sender=self.__class__, fields=fields)
+        pre_serializer_fields.send(
+            sender=self.__class__, fields=fields, serializer=self
+        )
 
         try:
             protected_fields = self.Meta.protected_fields

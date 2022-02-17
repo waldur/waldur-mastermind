@@ -6,8 +6,10 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests import fixtures
+from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_remote.tasks import OfferingPullTask
+
+from .. import PLUGIN_NAME
 
 
 class RemoteCustomersTest(test.APITransactionTestCase):
@@ -210,3 +212,22 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
 
         new_plan_component = new_plan.components.first()
         self.assertEqual(self.component, new_plan_component.component)
+
+
+class OfferingUpdateTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = PLUGIN_NAME
+        self.offering.save()
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
+    def test_edit_of_fields_that_are_being_pulled_from_remote_waldur_is_not_available(
+        self,
+    ):
+        old_name = self.offering.name
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.patch(self.url, {'name': 'new_name'})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.name, old_name)
