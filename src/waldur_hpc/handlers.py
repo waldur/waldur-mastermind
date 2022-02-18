@@ -161,6 +161,9 @@ def is_internal_user(user):
 
 
 def is_external_user(user):
+    if is_internal_user(user):
+        return False
+
     return check_user(
         user,
         settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS'],
