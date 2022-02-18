@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib import auth
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from djangosaml2.cache import IdentityCache, OutstandingQueriesCache, StateCache
 from djangosaml2.conf import get_config
@@ -245,6 +246,8 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         # required for validating SAML2 logout requests
         auth.login(request, user)
         _set_subject_id(request.session, session_info['name_id'])
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
         logger.debug('User %s authenticated via SSO.', user)
 
         logger.debug('Sending the post_authenticated signal')
