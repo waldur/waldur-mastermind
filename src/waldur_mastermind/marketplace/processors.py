@@ -309,10 +309,13 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
     def get_resource(self):
         return self.order_item.resource.scope
 
+    def validate_order_item(self, request):
+        action = self._get_action()
+        self.get_viewset()().validate_object_action(action, self.get_resource())
+
     def send_request(self, user, resource):
         delete_attributes = self.order_item.attributes
-        action = delete_attributes.get('action', 'destroy')
-        action = action if hasattr(self.get_viewset(), action) else 'destroy'
+        action = self._get_action()
         view = self.get_viewset().as_view({'delete': action})
         # Delete resource processor operates with scoped resources
 
@@ -332,6 +335,11 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
         processes request to delete existing resource.
         """
         return self.viewset
+
+    def _get_action(self):
+        delete_attributes = self.order_item.attributes
+        action = delete_attributes.get('action', 'destroy')
+        return action if hasattr(self.get_viewset(), action) else 'destroy'
 
 
 class BaseCreateResourceProcessor(CreateResourceProcessor):
