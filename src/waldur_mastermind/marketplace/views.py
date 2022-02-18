@@ -1124,6 +1124,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
                 type=models.OrderItem.Types.TERMINATE,
                 attributes=attributes,
             )
+            utils.validate_order_item(order_item, request)
             order = serializers.create_order(
                 project=resource.project,
                 user=self.request.user,

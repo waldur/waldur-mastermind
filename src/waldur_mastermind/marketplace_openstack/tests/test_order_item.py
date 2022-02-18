@@ -521,6 +521,65 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             openstack_tenant_models.Instance.States.DELETION_SCHEDULED,
         )
 
+    def test_cannot_delete_instance_that_has_backups(self):
+        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.save()
+        self.order_item.state = marketplace_models.OrderItem.States.DONE
+        self.order_item.save()
+        openstack_tenant_factories.BackupFactory(instance=self.instance)
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'terminate')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            url,
+            {
+                'attributes': {
+                    'action': 'force_destroy',
+                    'delete_volumes': True,
+                    'release_floating_ips': True,
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(
+            b'Cannot delete instance that has backups' in response.rendered_content
+        )
+
+    def test_termination_should_not_be_triggered_if_termination_is_already_in_progress(
+        self,
+    ):
+        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.save()
+        self.order_item.state = marketplace_models.OrderItem.States.DONE
+        self.order_item.save()
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'terminate')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            url,
+            {
+                'attributes': {
+                    'action': 'force_destroy',
+                    'delete_volumes': True,
+                    'release_floating_ips': True,
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.post(
+            url,
+            {
+                'attributes': {
+                    'action': 'force_destroy',
+                    'delete_volumes': True,
+                    'release_floating_ips': True,
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(
+            b'Pending order item for resource already exists.'
+            in response.rendered_content
+        )
+
     def trigger_deletion(self):
         process_order(self.order_item.order, self.fixture.staff)
 
