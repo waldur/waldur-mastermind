@@ -202,6 +202,8 @@ def handle_new_user(sender, instance, created=False, **kwargs):
 
         if not project:
             return
+        # assure that user has permissions connected with the project
+        project.add_user(user, ProjectRole.ADMINISTRATOR)
 
         order, order_created = get_or_create_order(
             project,
@@ -222,6 +224,9 @@ def handle_new_user(sender, instance, created=False, **kwargs):
 
         if not project:
             return
+
+        # assure that user has permissions connected with the project
+        project.add_user(user, ProjectRole.ADMINISTRATOR)
 
         order, order_created = get_or_create_order(project, user, offering, plan)
 
