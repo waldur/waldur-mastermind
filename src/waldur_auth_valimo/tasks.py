@@ -55,6 +55,8 @@ class PollTask(views.RefreshTokenMixin, tasks.Task):
             self.refresh_token(user)
             auth_result.user = user
             auth_result.set_ok()
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
             logger.info('PKI login was successfully done for user %s.', user.username)
         except User.DoesNotExist:
             auth_result.details = 'User is not registered.'

@@ -5,6 +5,7 @@ import uuid
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import status, views
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -70,6 +71,8 @@ class OAuthView(RefreshTokenMixin, views.APIView):
 
         user, created = self.authenticate_user(serializer.validated_data)
         token = self.refresh_token(user)
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
 
         event_logger.auth_social.info(
             'User {user_username} with full name {user_full_name} authenticated successfully with {provider}.',

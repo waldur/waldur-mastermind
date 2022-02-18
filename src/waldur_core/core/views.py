@@ -202,6 +202,8 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
             )
 
         token = self.refresh_token(user)
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
 
         logger.debug('Returning token for successful login of user %s', user)
         event_logger.auth.info(
