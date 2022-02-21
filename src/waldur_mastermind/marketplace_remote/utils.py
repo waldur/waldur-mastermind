@@ -1,6 +1,9 @@
+import io
 import logging
 from collections import defaultdict
 
+import requests
+import urllib3
 from django.utils import dateparse
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
@@ -431,3 +434,15 @@ def import_plans(local_offering, remote_offering, local_components_map):
                 plan_component,
                 local_offering,
             )
+
+
+def import_offering_thumbnail(local_offering, remote_offering):
+    thumbnail_url = remote_offering['thumbnail']
+    if thumbnail_url:
+        thumbnail_resp = requests.get(thumbnail_url)
+        content = io.BytesIO(thumbnail_resp.content)
+        file_name = urllib3.util.parse_url(thumbnail_url).path.split('/')[-1]
+        local_offering.thumbnail.save(file_name, content)
+    else:
+        local_offering.thumbnail.delete()
+    local_offering.save(update_fields=['thumbnail'])
