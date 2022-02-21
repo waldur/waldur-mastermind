@@ -55,6 +55,7 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
             'full_description': self.offering.full_description,
             'terms_of_service': self.offering.terms_of_service,
             'options': self.offering.options,
+            'thumbnail': None,
             'components': [
                 {
                     'name': self.component.name,
