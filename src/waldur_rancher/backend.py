@@ -1426,7 +1426,7 @@ class RancherBackend(ServiceBackend):
 
             remote_service_workload_map = {
                 workload_id: local_workloads_map[workload_id]
-                for workload_id in remote_service.get('targetWorkloadIds', [])
+                for workload_id in remote_service.get('targetWorkloadIds') or []
             }
 
             local_service_workload_ids = set(local_service_workload_map.keys())
