@@ -323,6 +323,191 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
         return extra_kwargs
 
 
+class SAPReportSerializer(serializers.Serializer):
+    registrikood = serializers.ReadOnlyField(
+        source='invoice.customer.registration_code'
+    )
+    country = serializers.ReadOnlyField(source='invoice.customer.country')
+    doc_type = serializers.SerializerMethodField(method_name='get_doc_type_field')
+    purch_no_c = serializers.SerializerMethodField(method_name='get_purch_no_c')
+    bill_date = serializers.SerializerMethodField(method_name='get_last_day_of_month')
+    material = serializers.SerializerMethodField(method_name='get_material_code')
+    req_qty = serializers.IntegerField(source='quantity')
+    sales_unit = serializers.SerializerMethodField(method_name='get_sales_unit')
+    cond_value = serializers.SerializerMethodField(method_name='get_cond_value')
+    sales_org = serializers.SerializerMethodField(method_name='get_sales_org_field')
+    sales_off = serializers.SerializerMethodField(method_name='get_empty_field')
+    eeluks = serializers.SerializerMethodField(method_name='get_empty_field')
+    fund = serializers.SerializerMethodField(method_name='get_empty_field')
+    funka = serializers.SerializerMethodField(method_name='get_funka_field')
+    makset = serializers.SerializerMethodField(method_name='get_makset_field')
+    maksjareg = serializers.SerializerMethodField(method_name='get_maksjareg_field')
+    tekst_1 = serializers.SerializerMethodField(method_name='get_vali_field')
+    projektielement = serializers.SerializerMethodField(method_name='get_empty_field')
+    ressurss_kulukont = serializers.SerializerMethodField(
+        method_name='get_ressurss_kulukont_field'
+    )
+    tekst_2 = serializers.SerializerMethodField(method_name='get_tekst_2_field')
+    maarang = serializers.ReadOnlyField(source='get_empty_field')
+    km_kood = serializers.SerializerMethodField(method_name='get_vat')
+    kuluuksus = serializers.SerializerMethodField(method_name='get_empty_field')
+    saaja_info = serializers.SerializerMethodField(method_name='get_saaja_info')
+    divisjon = serializers.SerializerMethodField(method_name='get_empty_field')
+    toetus = serializers.SerializerMethodField(method_name='get_empty_field')
+    partii = serializers.SerializerMethodField(method_name='get_empty_field')
+    ladu = serializers.SerializerMethodField(method_name='get_empty_field')
+    grupitunnus = serializers.ReadOnlyField(source='get_project_name')
+
+    class Meta:
+        fields = (
+            'registrikood',
+            'country',
+            'doc_type',
+            'purch_no_c',
+            'bill_date',
+            'material',
+            'req_qty',
+            'sales_unit',
+            'cond_value',
+            'sales_org',
+            'sales_off',
+            'eeluks',
+            'fund',
+            'funka',
+            'makset',
+            'maksjareg',
+            'tekst_1',
+            'projektielement',
+            'ressurss_kulukont',
+            'tekst_2',
+            'maarang',
+            'km_kood',
+            'kuluuksus',
+            'saaja_info',
+            'divisjon',
+            'toetus',
+            'partii',
+            'ladu',
+            'grupitunnus',
+        )
+
+    def format_date(self, date):
+        if date:
+            return date.strftime('%d.%m.%Y')
+        return ''
+
+    def get_doc_type_field(self, invoice_item):
+        return 'ZETA'
+
+    def get_sales_org_field(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['ORG_CODE']
+
+    def get_sales_unit(self, invoice_item):
+        try:
+            return invoice_item.article_code.split('_')[2]
+        except IndexError:
+            return (
+                'Article code is in unexpected format. Cannot extract sales unit! %s'
+                % invoice_item.article_code
+            )
+
+    def get_cond_value(self, invoice_item):
+        import locale
+
+        locale.setlocale(locale.LC_ALL, 'de_DE.UTF-8')
+        return locale.format_string('%.4f', invoice_item.unit_price)
+
+    def get_material_code(self, invoice_item):
+        try:
+            return invoice_item.article_code.split('_')[0]
+        except IndexError:
+            return (
+                'Article code is in unexpected format. Cannot extract material code! %s'
+                % invoice_item.article_code
+            )
+
+    def get_invoice_date(self, invoice_item):
+        date = invoice_item.invoice.invoice_date
+        return self.format_date(date)
+
+    def get_sales_off_field(self, invoice_item):
+        return ''
+
+    def get_purch_no_c(self, invoice_item: models.InvoiceItem):
+        customer = invoice_item.invoice.customer
+        return customer.agreement_number
+
+    def get_eeluks_field(self, invoice_item):
+        return ''
+
+    def get_empty_field(self, invoice_item):
+        return ''
+
+    def get_funka_field(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['FUNKA']
+
+    def get_makset_field(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['MAKSET']
+
+    def get_maksjareg_field(self, invoice_item):
+        customer = invoice_item.invoice.customer
+        if customer.sponsor_number:
+            return customer.sponsor_number
+        else:
+            return ''
+
+    def get_vali_field(self, invoice_item):
+        if invoice_item.invoice.customer.contact_details:
+            return f'Record no {invoice_item.invoice.number}. {invoice_item.invoice.customer.contact_details}'
+        else:
+            return f'Record no {invoice_item.invoice.number}'
+
+    def get_tekst_2_field(self, invoice_item):
+        # If a single plan for an offering exists, skip it from display
+        if invoice_item.resource and invoice_item.resource.offering.plans.count() == 1:
+            if 'offering_component_name' in invoice_item.details:
+                return (
+                    f'{invoice_item.resource.name} ({invoice_item.resource.offering.name}) / '
+                    f'{invoice_item.details["offering_component_name"]}'
+                )
+            return invoice_item.name
+        if 'plan_name' in invoice_item.details.keys():
+            return f'{invoice_item.name} / {invoice_item.details["plan_name"]}'
+        else:
+            return invoice_item.name
+
+    def get_vat(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['KM_KOOD']
+
+    def get_ressurss_kulukont_field(self, invoice_item):
+        try:
+            return invoice_item.article_code.split('_')[1]
+        except IndexError:
+            return (
+                'Article code is in unexpected format. Cannot extract kulukont! %s'
+                % invoice_item.article_code
+            )
+
+    def get_lisainfo_field(self, invoice_item):
+        return ''
+
+    def get_saaja_info(self, invoice_item):
+        return invoice_item.invoice.customer.contact_details
+
+    def get_measured_unit(self, invoice_item):
+        return invoice_item.measured_unit
+
+    def get_first_day(self, invoice_item):
+        year = invoice_item.invoice.year
+        month = invoice_item.invoice.month
+        return datetime.date(year=year, month=month, day=1)
+
+    def get_last_day_of_month(self, invoice_item):
+        first_day = self.get_first_day(invoice_item)
+        last_day = core_utils.month_end(first_day)
+        return self.format_date(last_day)
+
+
 # SAF is accounting soft from Estonia: www.sysdec.ee/safsaf.htm
 class SAFReportSerializer(serializers.Serializer):
     DOKNR = serializers.ReadOnlyField(source='invoice.number')

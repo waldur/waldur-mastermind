@@ -43,6 +43,13 @@ class InvoicesExtension(WaldurExtension):
                     'RMAKSULIPP': '20%',
                     'ARTPROJEKT': 'PROJEKT',
                 },
+                'USE_SAP': False,
+                'SAP_PARAMS': {
+                    'KM_KOOD': '2',
+                    'ORG_CODE': 'NS20',
+                    'MAKSET': 'Z025',
+                    'FUNKA': '04600',
+                },
             },
             'SEND_CUSTOMER_INVOICES': False,
         }

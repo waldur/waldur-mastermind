@@ -331,7 +331,9 @@ class InvoiceItem(
     def get_project_name(self):
         if self.project_name:
             return self.project_name
-        return self.project.name
+        if self.project:
+            return self.project.name
+        return 'N/A'
 
     @property
     def price(self):

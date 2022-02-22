@@ -160,6 +160,19 @@ def format_invoice_csv(invoices):
             serializer = serializers.SAFReportSerializer(items, many=True)
             writer.writerows(serializer.data)
         return stream.getvalue()
+    elif settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAP'):
+        fields = serializers.SAPReportSerializer.Meta.fields
+        stream = StringIO()
+        writer = DictWriter(stream, fieldnames=fields, **csv_params)
+        writer.writeheader()
+
+        for invoice in invoices:
+            items = utils.filter_invoice_items(
+                invoice.items.order_by('project_name', 'name')
+            )
+            serializer = serializers.SAPReportSerializer(items, many=True)
+            writer.writerows(serializer.data)
+        return stream.getvalue()
 
     fields = serializers.InvoiceItemReportSerializer.Meta.fields
     stream = StringIO()
