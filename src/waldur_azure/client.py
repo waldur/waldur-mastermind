@@ -12,6 +12,7 @@ from azure.mgmt.compute.models import (
     VirtualMachine,
     VirtualMachineImage,
 )
+from azure.mgmt.consumption import ConsumptionManagementClient
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.network.models import (
     NetworkInterface,
@@ -85,6 +86,10 @@ class AzureClient:
     @cached_property
     def network_client(self):
         return NetworkManagementClient(self.credentials, self.subscription_id)
+
+    @cached_property
+    def consumption_client(self):
+        return ConsumptionManagementClient(self.credentials, self.subscription_id)
 
     @cached_property
     def pgsql_client(self):
