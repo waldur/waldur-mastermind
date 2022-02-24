@@ -56,7 +56,8 @@ class SlurmBackend(ServiceBackend):
 
     def sync_users(self, allocation):
         users = allocation.project.get_users()
-        for profile in freeipa_models.Profile.objects.filter(user__in=users):
+        profiles = freeipa_models.Profile.objects.filter(user__in=users)
+        for profile in profiles:
             created = self.add_user(allocation, profile.user, profile.username.lower())
             if created:
                 models.Association.objects.create(
@@ -68,9 +69,7 @@ class SlurmBackend(ServiceBackend):
         backend_usernames = freeipa_models.Profile.objects.filter(
             username__in=all_backend_usernames
         ).values_list('username', flat=True)
-        local_usernames = [
-            association.username for association in allocation.associations.all()
-        ]
+        local_usernames = [profile.username for profile in profiles]
         stale_usernames = set(backend_usernames) - set(local_usernames)
 
         for profile in freeipa_models.Profile.objects.filter(
@@ -78,7 +77,7 @@ class SlurmBackend(ServiceBackend):
         ):
             self.delete_user(allocation, profile.user, profile.username)
             try:
-                models.Association.objects.get(
+                models.Association.objects.filter(
                     allocation=allocation, username__in=stale_usernames
                 ).delete()
             except models.Association.DoesNotExist:
