@@ -39,7 +39,6 @@ class SlurmBackend(ServiceBackend):
         ):
             try:
                 logger.debug('About to pull allocation %s', allocation)
-                self.add_new_users(allocation)
                 self.pull_allocation(allocation)
             except Exception as e:
                 logger.error('Error while pulling allocation [%s]: %s', allocation, e)
@@ -55,10 +54,39 @@ class SlurmBackend(ServiceBackend):
         else:
             return True
 
-    def add_new_users(self, allocation):
+    def sync_users(self, allocation):
         users = allocation.project.get_users()
         for profile in freeipa_models.Profile.objects.filter(user__in=users):
-            self.add_user(allocation, profile.user, profile.username.lower())
+            created = self.add_user(allocation, profile.user, profile.username.lower())
+            if created:
+                models.Association.objects.create(
+                    allocation=allocation,
+                    username=profile.username,
+                )
+
+        all_backend_usernames = self.client.list_account_users(allocation.backend_id)
+        backend_usernames = freeipa_models.Profile.objects.filter(
+            username__in=all_backend_usernames
+        ).values_list('username', flat=True)
+        local_usernames = [
+            association.username for association in allocation.associations.all()
+        ]
+        stale_usernames = set(backend_usernames) - set(local_usernames)
+
+        for profile in freeipa_models.Profile.objects.filter(
+            username__in=stale_usernames
+        ):
+            self.delete_user(allocation, profile.user, profile.username)
+            try:
+                models.Association.objects.get(
+                    allocation=allocation, username__in=stale_usernames
+                ).delete()
+            except models.Association.DoesNotExist:
+                logger.warn(
+                    'Association between %s and %s has been already deleted',
+                    allocation,
+                    profile.user,
+                )
 
     def create_allocation(self, allocation):
         project = allocation.project
@@ -86,7 +114,7 @@ class SlurmBackend(ServiceBackend):
         allocation.save()
 
         self.set_resource_limits(allocation)
-        self.add_new_users(allocation)
+        self.sync_users(allocation)
 
     def delete_allocation(self, allocation):
         account = allocation.backend_id
@@ -129,6 +157,8 @@ class SlurmBackend(ServiceBackend):
             signals.slurm_association_created.send(
                 models.Allocation, allocation=allocation, user=user, username=username
             )
+            return True
+        return False
 
     def delete_user(self, allocation, user, username):
         """
@@ -176,6 +206,7 @@ class SlurmBackend(ServiceBackend):
             self._update_quotas(allocation, usage)
 
     def pull_allocation(self, allocation):
+        self.sync_users(allocation)
         account = allocation.backend_id
 
         if not account.strip():
@@ -190,8 +221,6 @@ class SlurmBackend(ServiceBackend):
         self._update_quotas(allocation, usage)
         limits = self.get_allocation_limits(account)
         self._update_limits(allocation, limits)
-
-        self._update_allocation_associations(allocation)
 
     def get_usage_report(self, accounts):
         report = {}
@@ -310,6 +339,13 @@ class SlurmBackend(ServiceBackend):
         models.Association.objects.filter(
             allocation=allocation, username__in=stale_usernames
         ).delete()
+
+        logger.info(
+            'Associations for allocation %s and users %s have been removed',
+            allocation,
+            stale_usernames,
+        )
+
         new_usernames = set(backend_usernames) - set(local_usernames)
 
         for username in new_usernames:
