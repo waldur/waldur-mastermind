@@ -21,15 +21,25 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         user = UserFactory()
         self.fixture.project.add_user(user, structure_models.ProjectRole.ADMINISTRATOR)
         OfferingUser.objects.create(offering=self.offering, user=user, username='user')
+        user2 = UserFactory()
+        offering2 = factories.OfferingFactory(shared=True)
+        self.fixture.project.add_user(user, structure_models.ProjectRole.MANAGER)
+        OfferingUser.objects.create(offering=offering2, user=user2, username='user2')
 
     def list_permissions(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         return self.client.get(reverse('marketplace-offering-user-list'))
 
-    @data('staff', 'global_support', 'owner', 'admin', 'manager')
+    @data('owner', 'admin', 'manager')
     def test_authorized_user_can_list_offering_users(self, user):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 1)
+        self.assertEqual('user', response.data[0]['username'])
+
+    @data('staff', 'global_support')
+    def test_authorized_privileged_user_can_list_offering_users(self, user):
+        response = self.list_permissions(user)
+        self.assertEqual(len(response.data), 2)
 
     @data(
         'user',
