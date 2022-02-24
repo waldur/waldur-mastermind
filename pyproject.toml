@@ -94,6 +94,7 @@ django-import-export = {git = "https://github.com/waldur/django-import-export", 
 python-waldur-client = {git = "https://github.com/waldur/python-waldur-client", rev = "master"}
 kubernetes = ">=21.7.0"
 Django = "3.2.12"
+azure-mgmt-consumption = "^9.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
