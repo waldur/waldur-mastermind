@@ -1499,6 +1499,14 @@ class OfferingUsersViewSet(
             user=current_user, is_active=True
         )
         customer_ids = customer_permissions.values_list('customer_id', flat=True)
+        all_customer_ids = set(customer_ids) | set(
+            structure_models.Project.objects.filter(id__in=project_ids).values_list(
+                'customer_id', flat=True
+            )
+        )
+        division_ids = structure_models.Customer.objects.filter(
+            id__in=all_customer_ids
+        ).values_list('division_id', flat=True)
 
         queryset = queryset.filter(
             # user can see own remote offering user
@@ -1524,6 +1532,13 @@ class OfferingUsersViewSet(
                 user__projectpermission__is_active=True,
             )
         ).distinct()
+        queryset = queryset.filter(
+            # only offerings managed by customer where the current user has a role
+            Q(offering__customer__id__in=all_customer_ids)
+            |
+            # only offerings from divisions including the current user's customers
+            Q(offering__divisions__in=division_ids)
+        )
         return queryset
 
 
