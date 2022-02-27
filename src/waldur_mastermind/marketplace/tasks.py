@@ -348,7 +348,7 @@ def notify_about_stale_resource():
     for resource in resources:
         mails = resource.project.customer.get_owner_mails()
         resource_url = core_utils.format_homeport_link(
-            '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
+            'projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
             project_uuid=resource.project.uuid.hex,
             resource_uuid=resource.uuid.hex,
         )
@@ -391,7 +391,7 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
     if user.email and user.notifications_enabled:
         bcc.append(user.email)
     resource_url = core_utils.format_homeport_link(
-        '/projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
+        'projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
         project_uuid=resource.project.uuid.hex,
         resource_uuid=resource.uuid.hex,
     )
@@ -437,7 +437,7 @@ def notification_about_project_ending():
         users = set(managers) | set(owners)
 
         project_url = core_utils.format_homeport_link(
-            '/projects/{project_uuid}/',
+            'projects/{project_uuid}/',
             project_uuid=project.uuid.hex,
         )
 
