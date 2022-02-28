@@ -35,6 +35,7 @@ repos:
         exclude: src/waldur_core/server/base_settings.py
         additional_dependencies:
           - flake8-bandit==2.1.0
+          - bandit==1.7.2
 
   - repo: local
     hooks:

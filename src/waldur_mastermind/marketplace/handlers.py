@@ -159,6 +159,7 @@ def update_aggregate_resources_count_when_resource_is_updated(
 
 
 def update_aggregate_resources_count(sender, **kwargs):
+    models.AggregateResourceCount.objects.update(count=0)
     for category in models.Category.objects.all():
         for field, content_type in (
             ('project_id', ContentType.objects.get_for_model(Project)),
