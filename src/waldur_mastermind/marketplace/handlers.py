@@ -167,6 +167,7 @@ def update_aggregate_resources_count(sender, **kwargs):
         ):
             rows = (
                 models.Resource.objects.filter(offering__category=category)
+                .order_by()
                 .exclude(state=models.Resource.States.TERMINATED)
                 .values(field, 'offering__category')
                 .annotate(count=Count('*'))
