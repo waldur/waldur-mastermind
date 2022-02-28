@@ -1734,6 +1734,81 @@ class StatsViewSet(rf_viewsets.ViewSet):
         return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
+    def count_projects_grouped_by_oecd(self, request, *args, **kwargs):
+        results = (
+            structure_models.Project.objects.filter()
+            .values('oecd_fos_2007_code')
+            .annotate(count=Count('id'))
+        )
+        return Response(results, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def projects_usages_grouped_by_oecd(self, request, *args, **kwargs):
+        results = {}
+
+        for project in structure_models.Project.objects.all():
+            code = str(project.oecd_fos_2007_code)
+            if code in results:
+                results[code]['projects_ids'].append(project.id)
+            else:
+                results[code] = {
+                    'projects_ids': [project.id],
+                }
+
+        now = timezone.now()
+
+        for oecd, result in results.items():
+            ids = result.pop('projects_ids')
+            usages = (
+                models.ComponentUsage.objects.filter(
+                    billing_period__year=now.year,
+                    billing_period__month=now.month,
+                    resource__project__id__in=ids,
+                )
+                .values('component__type')
+                .annotate(usage=Sum('usage'))
+            )
+
+            for usage in usages:
+                result[usage['component__type']] = usage['usage']
+
+        return Response(results, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def projects_limits_grouped_by_oecd(self, request, *args, **kwargs):
+        results = {}
+
+        for project in structure_models.Project.objects.all():
+            code = str(project.oecd_fos_2007_code)
+            if code in results:
+                results[code]['projects_ids'].append(project.id)
+            else:
+                results[code] = {
+                    'projects_ids': [project.id],
+                }
+
+        for oecd, result in results.items():
+            ids = result.pop('projects_ids')
+
+            for resource in (
+                models.Resource.objects.filter(
+                    state=models.Resource.States.OK, project__id__in=ids
+                )
+                .exclude(limits={})
+                .values('offering__uuid', 'limits')
+            ):
+                limits = resource['limits']
+
+                for name, value in limits.items():
+                    if value > 0:
+                        if name in result:
+                            result[name] += value
+                        else:
+                            result[name] = value
+
+        return Response(results, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
     def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
         start, end = utils.get_start_and_end_dates_from_request(self.request)
         invoice_items = (
