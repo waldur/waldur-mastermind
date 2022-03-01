@@ -193,5 +193,27 @@ class PluginManager:
     def enable_remote_support(self, offering_type):
         return self.backends.get(offering_type, {}).get('enable_remote_support', False)
 
+    def can_manage_offering_components(self, offering_type):
+        """
+        Returns true if creating/deleting of offering components via api is available.
+        """
+        return self.backends.get(offering_type, {}).get(
+            'can_manage_offering_components', True
+        )
+
+    def get_plan_fields_that_cannot_be_edited(self, offering_type):
+        """
+        Returns plan fields that cannot be edited via api.
+        """
+        return self.backends.get(offering_type, {}).get(
+            'plan_fields_that_cannot_be_edited', []
+        )
+
+    def can_manage_plans(self, offering_type):
+        """
+        Returns true if creating/deleting of plans and plan components via api is available.
+        """
+        return self.backends.get(offering_type, {}).get('can_manage_plans', True)
+
 
 manager = PluginManager()

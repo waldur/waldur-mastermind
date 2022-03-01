@@ -9,7 +9,7 @@ class MarketplaceRemoteConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.marketplace import models, plugins
         from waldur_mastermind.marketplace_remote import PLUGIN_NAME
-        from waldur_mastermind.marketplace_remote import processors
+        from waldur_mastermind.marketplace_remote import processors, constants
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.models import Customer, Project, ProjectPermission
 
@@ -23,6 +23,9 @@ class MarketplaceRemoteConfig(AppConfig):
             update_resource_processor=processors.RemoteUpdateResourceProcessor,
             delete_resource_processor=processors.RemoteDeleteResourceProcessor,
             can_update_limits=True,
+            can_manage_offering_components=False,
+            plan_fields_that_cannot_be_edited=constants.PLAN_FIELDS,
+            can_manage_plans=False,
         )
 
         structure_signals.structure_role_granted.connect(

@@ -1313,14 +1313,17 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 old_component.price = new_price
                 old_component.save(update_fields=['price'])
 
-    def _update_plan_details(self, old_plan, new_plan):
-        PLAN_FIELDS = (
+    def _update_plan_details(self, old_plan, new_plan, offering):
+        plan_fields_that_cannot_be_edited = (
+            plugins.manager.get_plan_fields_that_cannot_be_edited(offering.type)
+        )
+        PLAN_FIELDS = {
             'name',
             'description',
             'unit',
             'max_amount',
             'article_code',
-        )
+        }.difference(set(plan_fields_that_cannot_be_edited))
 
         for key in PLAN_FIELDS:
             if key in new_plan:
@@ -1328,6 +1331,8 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         old_plan.save()
 
     def _update_plans(self, offering, new_plans):
+        can_manage_plans = plugins.manager.can_manage_plans(offering.type)
+
         old_plans = offering.plans.all()
         old_ids = set(old_plans.values_list('uuid', flat=True))
 
@@ -1346,16 +1351,18 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
 
         for plan_uuid, old_plan in updated_plans.items():
             new_plan = new_map[plan_uuid]
-            self._update_plan_details(old_plan, new_plan)
-            self._update_plan_components(old_plan, new_plan)
+            self._update_plan_details(old_plan, new_plan, offering)
+            if can_manage_plans:
+                self._update_plan_components(old_plan, new_plan)
             self._update_quotas(old_plan, new_plan)
 
-        if added_plans:
-            self._create_plans(offering, added_plans)
+        if can_manage_plans:
+            if added_plans:
+                self._create_plans(offering, added_plans)
 
-        for plan in removed_plans:
-            plan.archived = True
-            plan.save()
+            for plan in removed_plans:
+                plan.archived = True
+                plan.save()
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -1372,7 +1379,8 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         if 'components' in validated_data:
             components = validated_data.pop('components', [])
             if 'components' in self.initial_data:
-                self._update_components(instance, components)
+                if plugins.manager.can_manage_offering_components(instance.type):
+                    self._update_components(instance, components)
         if 'plans' in validated_data:
             new_plans = validated_data.pop('plans', [])
             if 'plans' in self.initial_data:

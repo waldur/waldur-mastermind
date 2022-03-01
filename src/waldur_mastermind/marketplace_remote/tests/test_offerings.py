@@ -232,3 +232,55 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, old_name)
+
+    def test_edit_of_offering_component_is_not_available(self):
+        component_type = self.offering.components.filter().first().type
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.patch(
+            self.url,
+            {
+                "components": [
+                    {
+                        "billing_type": "limit",
+                        "type": "test",
+                        "name": "Test",
+                        "description": "",
+                        "measured_unit": "",
+                        "limit_period": None,
+                        "limit_amount": None,
+                        "article_code": "",
+                        "max_value": 500,
+                        "min_value": 1,
+                        "is_boolean": False,
+                        "default_limit": None,
+                        "factor": 1,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.offering.refresh_from_db()
+        self.assertFalse(self.offering.components.filter(type='test').exists())
+        self.assertTrue(self.offering.components.filter(type=component_type).exists())
+
+    def test_edit_of_plans_is_not_available(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        plan = self.fixture.plan
+        old_name = plan.name
+        response = self.client.patch(
+            self.url,
+            {
+                "plans": [
+                    {
+                        "url": factories.PlanFactory.get_url(plan),
+                        "uuid": plan.uuid.hex,
+                        "name": "new_name",
+                        "max_amount": 100,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        plan.refresh_from_db()
+        self.assertEqual(plan.max_amount, 100)
+        self.assertEqual(plan.name, old_name)
