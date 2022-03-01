@@ -18,6 +18,7 @@ class InvitationFilter(django_filters.FilterSet):
         field_name='project__uuid',
     )
     state = django_filters.MultipleChoiceFilter(choices=models.Invitation.State.CHOICES)
+    email = django_filters.CharFilter(lookup_expr='icontains')
 
     o = django_filters.OrderingFilter(fields=('email', 'state', 'created'))
 
