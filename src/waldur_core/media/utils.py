@@ -90,10 +90,20 @@ def get_file_from_token(token):
     return getattr(obj, field, None)
 
 
+def format_content_disposition(filename):
+    return f'attachment; filename="{filename}"'
+
+
+def format_pdf_response(file, filename):
+    file_response = HttpResponse(file, content_type='application/pdf')
+    file_response['Content-Disposition'] = format_content_disposition(filename)
+    return file_response
+
+
 def send_file(file):
     _, file_name = os.path.split(file.name)
     response = HttpResponse()
-    response['Content-Disposition'] = 'attachment; filename=' + file_name
+    response['Content-Disposition'] = format_content_disposition(file_name)
     response['X-Accel-Redirect'] = file.url
     return response
 

@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
-from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import re_path, resolve, reverse
 from django.utils.html import format_html
@@ -20,6 +19,7 @@ from waldur_core.core.admin import (
     format_json_field,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
+from waldur_core.media.utils import format_pdf_response
 from waldur_core.structure.models import (
     PrivateServiceSettings,
     ServiceSettings,
@@ -492,12 +492,8 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         order = models.Order.objects.get(id=pk)
 
         file = utils.create_order_pdf(order)
-        file_response = HttpResponse(file, content_type='application/pdf')
         filename = order.get_filename()
-        file_response[
-            'Content-Disposition'
-        ] = 'attachment; filename="{filename}"'.format(filename=filename)
-        return file_response
+        return format_pdf_response(file, filename)
 
     def pdf_file(self, obj):
         pdf_ref = rest_reverse(

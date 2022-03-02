@@ -5,7 +5,6 @@ import uuid
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
 from django.db.models import Sum
-from django.http import HttpResponse
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions, status
@@ -14,6 +13,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.media.utils import format_pdf_response
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -61,12 +61,8 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         invoice = self.get_object()
 
         file = utils.create_invoice_pdf(invoice)
-        file_response = HttpResponse(file, content_type='application/pdf')
         filename = invoice.get_filename()
-        file_response[
-            'Content-Disposition'
-        ] = 'attachment; filename="{filename}"'.format(filename=filename)
-        return file_response
+        return format_pdf_response(file, filename)
 
     @transaction.atomic
     @action(detail=True, methods=['post'])
