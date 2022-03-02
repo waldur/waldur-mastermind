@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.forms.models import ModelForm
 from django.forms.widgets import CheckboxInput
-from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import re_path, reverse
 from django.utils.html import format_html
@@ -11,6 +10,7 @@ from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
+from waldur_core.media.utils import format_pdf_response
 
 from . import models, tasks, utils
 
@@ -106,12 +106,8 @@ class InvoiceAdmin(
         invoice = models.Invoice.objects.get(id=pk)
 
         file = utils.create_invoice_pdf(invoice)
-        file_response = HttpResponse(file, content_type='application/pdf')
         filename = invoice.get_filename()
-        file_response[
-            'Content-Disposition'
-        ] = 'attachment; filename="{filename}"'.format(filename=filename)
-        return file_response
+        return format_pdf_response(file, filename)
 
     def pdf_file(self, obj):
         pdf_ref = rest_reverse(

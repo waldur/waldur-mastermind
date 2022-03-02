@@ -16,7 +16,6 @@ from django.db.models import (
 from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
-from django.http import HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -41,6 +40,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
+from waldur_core.media.utils import format_pdf_response
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -863,12 +863,8 @@ class OrderViewSet(BaseMarketplaceView):
         order = self.get_object()
 
         file = utils.create_order_pdf(order)
-        file_response = HttpResponse(file, content_type='application/pdf')
         filename = order.get_filename()
-        file_response[
-            'Content-Disposition'
-        ] = 'attachment; filename="{filename}"'.format(filename=filename)
-        return file_response
+        return format_pdf_response(file, filename)
 
     def perform_create(self, serializer):
         project = serializer.validated_data['project']
