@@ -150,7 +150,7 @@ class UserDetailsMixin(models.Model):
     native_name = models.CharField(_('native name'), max_length=100, blank=True)
     phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
     organization = models.CharField(_('organization'), max_length=255, blank=True)
-    job_title = models.CharField(_('job title'), max_length=40, blank=True)
+    job_title = models.CharField(_('job title'), max_length=120, blank=True)
     affiliations = models.JSONField(
         default=list,
         blank=True,
