@@ -80,6 +80,8 @@ class ProjectSection(FeatureSection):
 
     oecd_fos_2007_code = Feature('Enable OECD code.')
 
+    show_industry_flag = Feature('Show industry flag.')
+
 
 class UserSection(FeatureSection):
     class Meta:

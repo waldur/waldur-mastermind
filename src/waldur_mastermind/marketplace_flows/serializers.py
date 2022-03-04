@@ -50,7 +50,12 @@ class ProjectCreateRequestSerializer(
 ):
     class Meta(ReviewSerializerMixin.Meta):
         model = models.ProjectCreateRequest
-        fields = ReviewSerializerMixin.Meta.fields + ('name', 'description', 'end_date')
+        fields = ReviewSerializerMixin.Meta.fields + (
+            'name',
+            'description',
+            'end_date',
+            'is_industry',
+        )
 
 
 class ResourceCreateRequestSerializer(BaseItemSerializer, ReviewSerializerMixin):

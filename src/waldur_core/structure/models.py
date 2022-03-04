@@ -738,6 +738,7 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
     oecd_fos_2007_code = models.CharField(
         choices=OECD_FOS_2007_CODES, null=True, blank=True, max_length=80
     )
+    is_industry = models.BooleanField(default=False)
 
 
 class Project(

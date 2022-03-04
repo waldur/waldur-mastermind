@@ -1729,31 +1729,37 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'])
-    def count_projects_grouped_by_oecd(self, request, *args, **kwargs):
+    def _count_projects_grouped_by_field(self, field_name):
         results = (
             structure_models.Project.objects.filter()
-            .values('oecd_fos_2007_code')
+            .values(field_name)
             .annotate(count=Count('id'))
         )
         return Response(results, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
-    def projects_usages_grouped_by_oecd(self, request, *args, **kwargs):
+    def count_projects_grouped_by_oecd(self, request, *args, **kwargs):
+        return self._count_projects_grouped_by_field('oecd_fos_2007_code')
+
+    @action(detail=False, methods=['get'])
+    def count_projects_grouped_by_industry_flag(self, request, *args, **kwargs):
+        return self._count_projects_grouped_by_field('is_industry')
+
+    def _projects_usages_grouped_by_field(self, field_name):
         results = {}
 
         for project in structure_models.Project.objects.all():
-            code = str(project.oecd_fos_2007_code)
-            if code in results:
-                results[code]['projects_ids'].append(project.id)
+            field_value = str(getattr(project, field_name))
+            if field_value in results:
+                results[field_value]['projects_ids'].append(project.id)
             else:
-                results[code] = {
+                results[field_value] = {
                     'projects_ids': [project.id],
                 }
 
         now = timezone.now()
 
-        for oecd, result in results.items():
+        for key, result in results.items():
             ids = result.pop('projects_ids')
             usages = (
                 models.ComponentUsage.objects.filter(
@@ -1771,19 +1777,26 @@ class StatsViewSet(rf_viewsets.ViewSet):
         return Response(results, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
-    def projects_limits_grouped_by_oecd(self, request, *args, **kwargs):
+    def projects_usages_grouped_by_oecd(self, request, *args, **kwargs):
+        return self._projects_usages_grouped_by_field('oecd_fos_2007_code')
+
+    @action(detail=False, methods=['get'])
+    def projects_usages_grouped_by_industry_flag(self, request, *args, **kwargs):
+        return self._projects_usages_grouped_by_field('is_industry')
+
+    def _projects_limits_grouped_by_field(self, field_name):
         results = {}
 
         for project in structure_models.Project.objects.all():
-            code = str(project.oecd_fos_2007_code)
-            if code in results:
-                results[code]['projects_ids'].append(project.id)
+            field_value = str(getattr(project, field_name))
+            if field_value in results:
+                results[field_value]['projects_ids'].append(project.id)
             else:
-                results[code] = {
+                results[field_value] = {
                     'projects_ids': [project.id],
                 }
 
-        for oecd, result in results.items():
+        for key, result in results.items():
             ids = result.pop('projects_ids')
 
             for resource in (
@@ -1803,6 +1816,14 @@ class StatsViewSet(rf_viewsets.ViewSet):
                             result[name] = value
 
         return Response(results, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def projects_limits_grouped_by_oecd(self, request, *args, **kwargs):
+        return self._projects_limits_grouped_by_field('oecd_fos_2007_code')
+
+    @action(detail=False, methods=['get'])
+    def projects_limits_grouped_by_industry_flag(self, request, *args, **kwargs):
+        return self._projects_limits_grouped_by_field('is_industry')
 
     @action(detail=False, methods=['get'])
     def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
