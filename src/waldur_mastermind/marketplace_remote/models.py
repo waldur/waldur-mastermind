@@ -22,6 +22,8 @@ class ProjectUpdateRequest(UuidMixin, ReviewMixin):
     new_end_date = models.DateField(null=True, blank=True)
     old_oecd_fos_2007_code = models.CharField(null=True, blank=True, max_length=5)
     new_oecd_fos_2007_code = models.CharField(null=True, blank=True, max_length=5)
+    old_is_industry = models.BooleanField(null=True, blank=True)
+    new_is_industry = models.BooleanField(null=True, blank=True)
 
     class Permissions:
         customer_path = 'offering__customer'

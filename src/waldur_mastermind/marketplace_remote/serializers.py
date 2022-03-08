@@ -49,6 +49,8 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
             'new_end_date',
             'old_oecd_fos_2007_code',
             'new_oecd_fos_2007_code',
+            'old_is_industry',
+            'new_is_industry',
         )
 
 
