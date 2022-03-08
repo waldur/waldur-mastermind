@@ -102,7 +102,8 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         # Act
         self.client.force_authenticate(self.fixture.owner)
         self.client.patch(
-            ProjectFactory.get_url(self.project), {'name': 'First project'}
+            ProjectFactory.get_url(self.project),
+            {'name': 'First project', 'is_industry': True},
         )
         request = ProjectUpdateRequest.objects.get(
             project=self.project, offering=self.offering
@@ -117,6 +118,10 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.client_mock().update_project.assert_called_once()
+        self.assertEqual(
+            self.client_mock().update_project.call_args_list[0].kwargs['is_industry'],
+            True,
+        )
 
     def test_when_request_is_rejected_change_is_not_applied_remotely(self):
         # Arrange

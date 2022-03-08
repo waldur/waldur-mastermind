@@ -136,6 +136,7 @@ def create_remote_project(offering, project, client=None):
         description=project.description,
         end_date=project.end_date and project.end_date.isoformat(),
         oecd_fos_2007_code=project.oecd_fos_2007_code,
+        is_industry=project.is_industry,
         type_uuid=project.type and project.type.uuid.hex,
     )
 
@@ -161,6 +162,7 @@ def update_remote_project(request):
             description=request.new_description,
             end_date=request.new_end_date and request.new_end_date.isoformat(),
             oecd_fos_2007_code=request.new_oecd_fos_2007_code,
+            is_industry=request.new_is_industry,
         )
         if any(remote_project.get(key) != value for key, value in payload.items()):
             client.update_project(project_uuid=remote_project['uuid'], **payload)
