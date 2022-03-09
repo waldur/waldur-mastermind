@@ -58,9 +58,11 @@ class SlurmBackend(ServiceBackend):
         users = allocation.project.get_users()
         profiles = freeipa_models.Profile.objects.filter(user__in=users)
         for profile in profiles:
-            created = self.add_user(allocation, profile.user, profile.username.lower())
-            if created:
-                models.Association.objects.create(
+            succeeded = self.add_user(
+                allocation, profile.user, profile.username.lower()
+            )
+            if succeeded:
+                models.Association.objects.get_or_create(
                     allocation=allocation,
                     username=profile.username,
                 )
@@ -75,17 +77,24 @@ class SlurmBackend(ServiceBackend):
         for profile in freeipa_models.Profile.objects.filter(
             username__in=stale_usernames
         ):
-            self.delete_user(allocation, profile.user, profile.username)
-            try:
-                models.Association.objects.filter(
-                    allocation=allocation, username__in=stale_usernames
-                ).delete()
-            except models.Association.DoesNotExist:
-                logger.warn(
-                    'Association between %s and %s has been already deleted',
-                    allocation,
-                    profile.user,
-                )
+            username = profile.username.lower()
+            succeeded = self.delete_user(allocation, profile.user, username)
+            if succeeded:
+                try:
+                    models.Association.objects.get(
+                        allocation=allocation, username=username
+                    ).delete()
+                    logger.info(
+                        'Association between %s and %s has been deleted',
+                        allocation,
+                        profile.user,
+                    )
+                except models.Association.DoesNotExist:
+                    logger.warn(
+                        'Association between %s and %s has been already deleted',
+                        allocation,
+                        profile.user,
+                    )
 
     def create_allocation(self, allocation):
         project = allocation.project
@@ -152,12 +161,18 @@ class SlurmBackend(ServiceBackend):
         default_account = self.settings.options.get('default_account')
         if not self.client.get_association(username, account):
             logger.info('Creating association between %s and %s', username, account)
-            self.client.create_association(username, account, default_account)
-            signals.slurm_association_created.send(
-                models.Allocation, allocation=allocation, user=user, username=username
-            )
-            return True
-        return False
+            try:
+                self.client.create_association(username, account, default_account)
+                signals.slurm_association_created.send(
+                    models.Allocation,
+                    allocation=allocation,
+                    user=user,
+                    username=username,
+                )
+            except base.BatchError as err:
+                logger.error('Unable to create association in Slurm: %s', err)
+                return False
+        return True
 
     def delete_user(self, allocation, user, username):
         """
@@ -172,10 +187,15 @@ class SlurmBackend(ServiceBackend):
 
         if self.client.get_association(username, account):
             logger.info('Deleting association between %s and %s', username, account)
-            self.client.delete_association(username, account)
-            signals.slurm_association_deleted.send(
-                models.Allocation, allocation=allocation, user=user
-            )
+            try:
+                self.client.delete_association(username, account)
+                signals.slurm_association_deleted.send(
+                    models.Allocation, allocation=allocation, user=user
+                )
+            except base.BatchError as err:
+                logger.error('Unable to delete association in Slurm: %s', err)
+                return False
+        return True
 
     def set_resource_limits(self, allocation: models.Allocation):
         # TODO: add default limits configuration (https://opennode.atlassian.net/browse/WAL-3037)
