@@ -280,3 +280,29 @@ class PortFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('openstack-port-list')
+
+
+class ServerGroupFactory(TenantMixin, factory.DjangoModelFactory):
+    class Meta:
+        model = models.ServerGroup
+
+    name = factory.Sequence(lambda n: 'server_group%s' % n)
+    backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+    policy = models.ServerGroup.AFFINITY
+    state = models.ServerGroup.States.OK
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    project = factory.SubFactory(ProjectFactory)
+    tenant = factory.SubFactory(TenantFactory)
+
+    @classmethod
+    def get_url(cls, server_group=None, action=None):
+        if server_group is None:
+            server_group = ServerGroupFactory()
+        url = 'http://testserver' + reverse(
+            'openstack-server-group-detail', kwargs={'uuid': server_group.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstack-server-group-list')

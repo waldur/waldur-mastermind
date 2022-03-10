@@ -1622,7 +1622,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_security_group(self, security_group):
-        neutron = self.neutron_client
+        neutron = self.neutron_admin_client
         try:
             backend_security_group = neutron.create_security_group(
                 {
@@ -1749,6 +1749,26 @@ class OpenStackBackend(BaseOpenStackBackend):
                 },
             )
         except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def create_server_group(self, server_group):
+        nova = self.nova_admin_client
+        try:
+            backend_server_group = nova.server_groups.create(
+                name=server_group.name, policies=server_group.policy
+            )
+            server_group.backend_id = backend_server_group.id
+            server_group.save(update_fields=['backend_id'])
+            event_logger.openstack_server_group.info(
+                'Server group "%s" has been created in the backend.'
+                % server_group.name,
+                event_type='openstack_server_group_created',
+                event_context={
+                    'server_group': server_group,
+                },
+            )
+        except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
     @log_backend_action()
@@ -2440,6 +2460,13 @@ class OpenStackBackend(BaseOpenStackBackend):
             event_context={'server_group': server_group},
         )
 
+    def _log_server_group_created(self, server_group):
+        event_logger.openstack_server_group.info(
+            'Server group "%s" has been created in the backend.' % server_group.name,
+            event_type='openstack_server_group_created',
+            event_context={'server_group': server_group},
+        )
+
     def _backend_server_group_to_server_group(self, backend_server_group, **kwargs):
         server_group = models.ServerGroup(
             name=backend_server_group.name,
@@ -2461,7 +2488,6 @@ class OpenStackBackend(BaseOpenStackBackend):
                 service_settings=tenant.service_settings,
                 project=tenant.project,
             )
-
             try:
                 server_group = tenant.server_groups.get(
                     backend_id=imported_server_group.backend_id
@@ -2548,6 +2574,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         nova = self.nova_client
         try:
             remote_server_group = nova.server_groups.get(local_server_group.backend_id)
+
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 

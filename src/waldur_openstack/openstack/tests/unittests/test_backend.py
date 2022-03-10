@@ -820,3 +820,41 @@ class InvalidateSessionCacheTest(BaseBackendTestCase):
         self.assertFalse(
             get_cached_session_key(service_settings, tenant_id='tenant_id') in cache
         )
+
+
+@ddt
+class PullServerGroupsTest(BaseBackendTestCase):
+    def call_backend(self, is_admin):
+        if is_admin:
+            return self.backend.pull_server_groups()
+        else:
+            return self.backend.pull_tenant_server_groups(self.fixture.tenant)
+
+    @data(True, False)
+    def test_missing_server_groups_are_created(self, is_admin):
+        mock_server_group = mock.Mock()
+        mock_server_group.name = 'mock_server_group'
+        # mock_server_group = models.ServerGroup(name='mock_server_group')
+        mock_server_group.policies = ["affinity"]
+        mock_server_group.id = self.tenant.backend_id
+        mock_server_group.project_id = self.tenant.backend_id
+
+        self.mocked_nova().server_groups.list.return_value = [mock_server_group]
+
+        self.assertFalse(
+            models.ServerGroup.objects.filter(
+                tenant=self.tenant,
+                backend_id=self.tenant.backend_id,
+                name=mock_server_group.name,
+            ).exists()
+        )
+
+        self.call_backend(is_admin)
+
+        self.assertTrue(
+            models.ServerGroup.objects.filter(
+                tenant=self.tenant,
+                backend_id=self.tenant.backend_id,
+                name=mock_server_group.name,
+            ).exists()
+        )
