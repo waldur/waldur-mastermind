@@ -24,7 +24,11 @@ class OpenStackTenantConfig(AppConfig):
             SharedServiceSettings,
         )
         from waldur_core.structure.registry import SupportedServices
-        from waldur_openstack.openstack.models import Tenant, SecurityGroupRule
+        from waldur_openstack.openstack.models import (
+            Tenant,
+            SecurityGroupRule,
+            ServerGroup,
+        )
 
         from .backend import OpenStackTenantBackend
         from . import handlers, models
@@ -244,4 +248,11 @@ class OpenStackTenantConfig(AppConfig):
             handlers.create_service_from_tenant,
             sender=Tenant,
             dispatch_uid='openstack_tenant.handlers.create_service_from_tenant',
+        )
+
+        signals.post_save.connect(
+            handlers.sync_server_group_property_when_resource_is_updated_or_created,
+            sender=ServerGroup,
+            dispatch_uid='openstack_tenant.handlers.'
+            'sync_server_group_property_when_resource_is_updated_or_created',
         )

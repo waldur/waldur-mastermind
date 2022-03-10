@@ -535,6 +535,18 @@ class ServerGroupSerializer(structure_serializers.BaseResourceActionSerializer):
     def get_display_name(self, server_group):
         return f"Name: {server_group.name}, Policy: {server_group.policy}"
 
+    def validate(self, attrs):
+        tenant = self.context['view'].get_object()
+        name = attrs['name']
+
+        if tenant.server_groups.filter(name=name):
+            raise serializers.ValidationError('Server group name should be unique.')
+
+        attrs['tenant'] = tenant
+        attrs['service_settings'] = tenant.service_settings
+        attrs['project'] = tenant.project
+        return super(ServerGroupSerializer, self).validate(attrs)
+
 
 ALLOWED_PRIVATE_NETWORKS = (
     IPv4Network('10.0.0.0/8'),

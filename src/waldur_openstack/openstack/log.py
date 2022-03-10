@@ -96,6 +96,7 @@ class ServerGroupLogger(EventLogger):
             'openstack_server_group_imported',
             'openstack_server_group_pulled',
             'openstack_server_group_cleaned',
+            'openstack_server_group_created',
         )
         event_groups = {
             'resources': event_types,

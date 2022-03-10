@@ -146,7 +146,7 @@ class BaseServerGroup(models.Model):
     class Meta:
         abstract = True
 
-    AFFINITY = 'Affinity'
+    AFFINITY = 'affinity'
 
     POLICIES = ((AFFINITY, 'Affinity'),)
 

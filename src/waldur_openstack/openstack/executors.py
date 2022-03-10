@@ -23,6 +23,16 @@ class SecurityGroupCreateExecutor(core_executors.CreateExecutor):
         )
 
 
+class ServerGroupCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, server_group, serialized_server_group, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_server_group,
+            'create_server_group',
+            state_transition='begin_creating',
+        )
+
+
 class SecurityGroupUpdateExecutor(core_executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, security_group, serialized_security_group, **kwargs):

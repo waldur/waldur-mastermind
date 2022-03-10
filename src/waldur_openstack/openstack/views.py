@@ -430,6 +430,30 @@ class TenantViewSet(structure_views.ResourceViewSet):
     ]
 
     @decorators.action(detail=True, methods=['post'])
+    def create_server_group(self, request, uuid=None):
+        """
+        Example of a request:
+
+        .. code-block:: http
+
+            {
+                "name": "Server group name",
+                "policy": "affinity"
+            }
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        server_group = serializer.save()
+
+        executors.ServerGroupCreateExecutor().execute(server_group)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    create_server_group_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
+    create_server_group_serializer_class = serializers.ServerGroupSerializer
+
+    @decorators.action(detail=True, methods=['post'])
     def change_password(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
