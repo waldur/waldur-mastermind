@@ -1159,7 +1159,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             raise serializers.ValidationError(
                 {
                     'system_volume_size': _(
-                        'System volume size has to be greater than %s'
+                        'System volume size has to be greater than %s MiB'
                     )
                     % image.min_disk
                 }
