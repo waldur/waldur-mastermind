@@ -332,7 +332,7 @@ class SAPReportSerializer(serializers.Serializer):
     purch_no_c = serializers.SerializerMethodField(method_name='get_purch_no_c')
     bill_date = serializers.SerializerMethodField(method_name='get_last_day_of_month')
     material = serializers.SerializerMethodField(method_name='get_material_code')
-    req_qty = serializers.IntegerField(source='quantity')
+    req_qty = serializers.SerializerMethodField(method_name='get_quantity')
     sales_unit = serializers.SerializerMethodField(method_name='get_sales_unit')
     cond_value = serializers.SerializerMethodField(method_name='get_cond_value')
     sales_org = serializers.SerializerMethodField(method_name='get_sales_org_field')
@@ -396,6 +396,9 @@ class SAPReportSerializer(serializers.Serializer):
             return date.strftime('%d.%m.%Y')
         return ''
 
+    def get_quantity(self, invoice_item):
+        return quantize_price(invoice_item.quantity)
+
     def get_doc_type_field(self, invoice_item):
         return 'ZETA'
 
@@ -458,9 +461,9 @@ class SAPReportSerializer(serializers.Serializer):
 
     def get_vali_field(self, invoice_item):
         if invoice_item.invoice.customer.contact_details:
-            return f'Record no {invoice_item.invoice.number}. {invoice_item.invoice.customer.contact_details}'
+            return f'Record no {invoice_item.invoice.number}. Periood: {invoice_item.invoice.month}/{invoice_item.invoice.year}. {invoice_item.invoice.customer.contact_details}'
         else:
-            return f'Record no {invoice_item.invoice.number}'
+            return f'Record no {invoice_item.invoice.number}. Periood: {invoice_item.invoice.month}/{invoice_item.invoice.year}'
 
     def get_tekst_2_field(self, invoice_item):
         # If a single plan for an offering exists, skip it from display
