@@ -1462,6 +1462,10 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         ]
         return self.get_importable_resources(models.Instance, instances)
 
+    def get_expired_instances(self):
+        instances = [instance.backend_id for instance in self.get_instances()]
+        return self.get_expired_resources(models.Instance, instances)
+
     def get_importable_volumes(self):
         volumes = [
             {

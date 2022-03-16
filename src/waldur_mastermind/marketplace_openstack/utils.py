@@ -281,8 +281,7 @@ def restore_limits(resource):
     update_limits(order_item)
 
 
-def import_instances_and_volumes_of_tenant(tenant):
-
+def get_tenant_backend_of_tenant(tenant):
     try:
         service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
     except structure_models.ServiceSettings.DoesNotExist:
@@ -292,13 +291,55 @@ def import_instances_and_volumes_of_tenant(tenant):
         )
         return
 
-    tenant_backend = openstack_tenant_backend.OpenStackTenantBackend(service_settings)
+    return openstack_tenant_backend.OpenStackTenantBackend(service_settings)
+
+
+def import_instances_and_volumes_of_tenant(tenant):
+    tenant_backend = get_tenant_backend_of_tenant(tenant)
+
+    if not tenant_backend:
+        return
 
     for instance in tenant_backend.get_importable_instances():
-        tenant_backend.import_instance(instance['backend_id'], tenant.project)
+        created_instance = tenant_backend.import_instance(
+            instance['backend_id'], tenant.project
+        )
+        create_marketplace_resource_for_imported_resources(created_instance)
 
     for volume in tenant_backend.get_importable_volumes():
-        tenant_backend.import_volume(volume['backend_id'], tenant.project)
+        created_volume = tenant_backend.import_volume(
+            volume['backend_id'], tenant.project
+        )
+        create_marketplace_resource_for_imported_resources(created_volume)
+
+
+def terminate_expired_instances_and_volumes_of_tenant(tenant):
+    tenant_backend = get_tenant_backend_of_tenant(tenant)
+
+    if not tenant_backend:
+        return
+
+    for instance in tenant_backend.get_expired_instances():
+        try:
+            resource = marketplace_models.Resource.objects.get(
+                project=instance.project, scope=instance
+            )
+            resource.set_state_terminated()
+            resource.save()
+        except marketplace_models.Resource.DoesNotExist:
+            pass
+        instance.delete()
+
+    for volume in tenant_backend.get_expired_volumes():
+        try:
+            resource = marketplace_models.Resource.objects.get(
+                project=volume.project, scope=volume
+            )
+            resource.set_state_terminated()
+            resource.save()
+        except marketplace_models.Resource.DoesNotExist:
+            pass
+        volume.delete()
 
 
 def create_offerings_for_volume_and_instance(tenant):
