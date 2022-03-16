@@ -101,3 +101,11 @@ class ServiceBackend:
                 continue
             result.append(remote_resource)
         return result
+
+    def get_expired_resources(self, resource_model, remote_resources_ids):
+        local_resources = resource_model.objects.filter(service_settings=self.settings)
+        result = []
+        for resource in local_resources:
+            if resource.backend_id not in remote_resources_ids:
+                result.append(resource)
+        return result

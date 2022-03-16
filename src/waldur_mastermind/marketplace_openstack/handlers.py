@@ -406,7 +406,7 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
 
     serialized_resource = core_utils.serialize_instance(tenant)
     transaction.on_commit(
-        lambda: tasks.import_instances_and_volumes_of_tenant.delay(serialized_resource)
+        lambda: tasks.sync_instances_and_volumes_of_tenant.delay(serialized_resource)
     )
 
 

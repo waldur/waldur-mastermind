@@ -375,7 +375,7 @@ class TenantImportTest(BaseBackendTestCase):
         response = self.import_tenant()
 
         self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
-        mock_tasks.import_instances_and_volumes_of_tenant.delay.assert_called_once()
+        mock_tasks.sync_instances_and_volumes_of_tenant.delay.assert_called_once()
 
     def import_tenant(self, user='staff'):
         self.client.force_authenticate(getattr(self.fixture, user))

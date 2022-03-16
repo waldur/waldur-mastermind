@@ -27,9 +27,10 @@ def restore_tenant_limits(serialized_resource):
 @shared_task(
     name='waldur_mastermind.marketplace_openstack.import_instances_and_volumes_of_tenant'
 )
-def import_instances_and_volumes_of_tenant(serialized_resource):
+def sync_instances_and_volumes_of_tenant(serialized_resource):
     resource = core_utils.deserialize_instance(serialized_resource)
     utils.import_instances_and_volumes_of_tenant(resource)
+    utils.terminate_expired_instances_and_volumes_of_tenant(resource)
 
 
 @shared_task(
