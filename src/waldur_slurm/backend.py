@@ -250,6 +250,10 @@ class SlurmBackend(ServiceBackend):
             report[line.account][line.user] += line.quotas
 
         for usage in report.values():
+            for user_usage in usage.values():
+                user_usage.cpu = round(user_usage.cpu)
+                user_usage.gpu = round(user_usage.gpu)
+                user_usage.ram = round(user_usage.ram)
             quotas = usage.values()
             total = reduce(operator.add, quotas)
             usage['TOTAL_ACCOUNT_USAGE'] = total

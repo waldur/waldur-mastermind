@@ -12,8 +12,11 @@ logger = logging.getLogger(__name__)
 
 def parse_duration(value):
     """
-    Returns duration in minutes as an integer number.
-    For example 00:01:00 is equal to 1
+    Returns duration in minutes as a float number.
+    For example:
+    00:01:00 is equal to 1.0
+    00:00:03 is equal to 0.05
+    00:01:03 is equal to 1.05
     """
     days_sep = '-'
     us_sep = '.'
@@ -52,7 +55,7 @@ def parse_duration(value):
                 days=dt.day, hours=dt.hour, minutes=dt.minute, seconds=dt.second
             )
 
-    return int(delta.total_seconds()) // 60
+    return int(delta.total_seconds()) / 60
 
 
 class SlurmReportLine(BaseReportLine):
