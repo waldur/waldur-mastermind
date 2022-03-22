@@ -11,6 +11,12 @@ class MarketplaceScriptExtension(WaldurExtension):
         return True
 
     @staticmethod
+    def rest_urls():
+        from .urls import register_in
+
+        return register_in
+
+    @staticmethod
     def celery_tasks():
         from datetime import timedelta
 
