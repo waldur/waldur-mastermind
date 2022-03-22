@@ -1,6 +1,7 @@
-from functools import lru_cache
-
 from rest_framework import serializers
+
+from waldur_core.core.fields import NaturalChoiceField
+from waldur_mastermind.marketplace import models
 
 
 class OrderItemSerializer(serializers.Serializer):
@@ -20,7 +21,6 @@ class OrderItemSerializer(serializers.Serializer):
     resource_name = serializers.ReadOnlyField(source='resource.name')
     resource_backend_id = serializers.ReadOnlyField(source='resource.backend_id')
 
-    @lru_cache(maxsize=1)
     def _get_project(self, order_item):
         return order_item.order.project
 
@@ -54,3 +54,19 @@ class ResourceSerializer(serializers.Serializer):
     plan_name = serializers.ReadOnlyField(source='plan.name')
     resource_uuid = serializers.ReadOnlyField(source='uuid')
     resource_name = serializers.ReadOnlyField(source='name')
+
+
+class DryRunSerializer(
+    serializers.Serializer,
+):
+    serializers.HyperlinkedRelatedField(
+        view_name='marketplace-plan-detail',
+        lookup_field='uuid',
+        queryset=models.Plan.objects.all(),
+        write_only=True,
+    )
+    type = NaturalChoiceField(
+        choices=models.RequestTypeMixin.Types.CHOICES,
+        required=False,
+        default=models.RequestTypeMixin.Types.CREATE,
+    )

@@ -176,7 +176,7 @@ def get_k8s_job_result(api: k8s.client.CoreV1Api, job_name):
     return log
 
 
-def execute_script_in_k8s(image, command, src, **kwargs):
+def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
     """
     This function expects that Kubernetes config file located in path
     from settings.WALDUR_MARKETPLACE_SCRIPT['K8S_CONFIG_PATH'] value
@@ -207,12 +207,12 @@ def execute_script_in_k8s(image, command, src, **kwargs):
     delete_job_from_k8s(batch_v1_api, job_name)
     delete_config_map_from_k8s(api_v1, config_map_name)
 
-    if not job_succeeded:
+    if not job_succeeded and not dry_run:
         raise JobFailedException(pod_log)
     return pod_log
 
 
-def execute_script(image, command, src, **kwargs):
+def execute_script(image, command, src, dry_run=False, **kwargs):
     if (
         settings.WALDUR_MARKETPLACE_SCRIPT['SCRIPT_RUN_MODE']
         == DeploymentOptions.DOCKER.value
@@ -222,13 +222,13 @@ def execute_script(image, command, src, **kwargs):
         settings.WALDUR_MARKETPLACE_SCRIPT['SCRIPT_RUN_MODE']
         == DeploymentOptions.KUBERNETES.value
     ):
-        return execute_script_in_k8s(image, command, src, **kwargs)
+        return execute_script_in_k8s(image, command, src, dry_run=dry_run, **kwargs)
 
 
 class ContainerExecutorMixin:
     hook_type = NotImplemented
 
-    def send_request(self, user, resource=None):
+    def send_request(self, user, resource=None, dry_run=False):
         options = self.order_item.offering.secret_options
 
         serializer = serializers.OrderItemSerializer(instance=self.order_item)
@@ -260,13 +260,16 @@ class ContainerExecutorMixin:
                 else str(value)
                 for key, value in environment.items()
             }
-
-            self.order_item.output = execute_script(
+            output = execute_script(
                 image=image,
                 command=language,
                 src=options[self.hook_type],
+                dry_run=dry_run,
                 environment=environment,
             )
+            if dry_run:
+                return output
+            self.order_item.output = output
             self.order_item.save(update_fields=['output'])
         except DockerException as exc:
             logger.exception(
