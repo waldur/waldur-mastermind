@@ -466,6 +466,57 @@ class OfferingViewSet(
     update_attributes_permissions = [permissions.user_is_owner_or_service_manager]
     update_attributes_validators = [validate_offering_update]
 
+    def _update_action(self, request):
+        offering = self.get_object()
+        serializer = self.get_serializer(offering, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def update_location(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_location_permissions = [permissions.user_is_owner_or_service_manager]
+    update_location_validators = [validate_offering_update]
+    update_location_serializer_class = serializers.OfferingLocationUpdateSerializer
+
+    @action(detail=True, methods=['post'])
+    def update_description(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_description_permissions = [permissions.user_is_owner_or_service_manager]
+    update_description_validators = [validate_offering_update]
+    update_description_serializer_class = (
+        serializers.OfferingDescriptionUpdateSerializer
+    )
+
+    @action(detail=True, methods=['post'])
+    def update_overview(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_overview_permissions = [permissions.user_is_owner_or_service_manager]
+    update_overview_validators = [validate_offering_update]
+    update_overview_serializer_class = serializers.OfferingOverviewUpdateSerializer
+
+    @action(detail=True, methods=['post'])
+    def update_options(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_options_permissions = [permissions.user_is_owner_or_service_manager]
+    update_options_validators = [validate_offering_update]
+    update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
+
+    @action(detail=True, methods=['post'])
+    def update_secret_options(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_secret_options_permissions = [permissions.user_is_owner_or_service_manager]
+    update_secret_options_validators = [validate_offering_update]
+    update_secret_options_serializer_class = (
+        serializers.OfferingSecretOptionsUpdateSerializer
+    )
+
     @action(detail=True, methods=['post'])
     def update_thumbnail(self, request, uuid=None):
         offering = self.get_object()

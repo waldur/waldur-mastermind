@@ -1253,6 +1253,90 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
+class OfferingPartialUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
+    @data('staff', 'owner')
+    def test_update_location(self, user):
+        self.url = factories.OfferingFactory.get_url(self.offering, 'update_location')
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'latitude': 1, 'longitude': 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.latitude, 1)
+        self.assertEqual(self.offering.longitude, 2)
+
+    @data('staff', 'owner')
+    def test_update_description(self, user):
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, 'update_description'
+        )
+        self.client.force_authenticate(getattr(self.fixture, user))
+        new_category = factories.CategoryFactory()
+        response = self.client.post(
+            self.url, {'category': factories.CategoryFactory.get_url(new_category)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.category, new_category)
+
+    @data('staff', 'owner')
+    def test_update_overview(self, user):
+        self.url = factories.OfferingFactory.get_url(self.offering, 'update_overview')
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'name': 'new_name'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.name, 'new_name')
+
+    @data('staff', 'owner')
+    def test_update_options(self, user):
+        self.url = factories.OfferingFactory.get_url(self.offering, 'update_options')
+        self.client.force_authenticate(getattr(self.fixture, user))
+        options = {
+            'order': ['email'],
+            'options': {
+                'email': {
+                    'type': 'string',
+                    'label': 'email',
+                    'default': 'user@example.com',
+                    'required': False,
+                }
+            },
+        }
+        response = self.client.post(self.url, {'options': options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.options, options)
+
+    @data('staff', 'owner')
+    def test_update_secret_options(self, user):
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, 'update_secret_options'
+        )
+        self.client.force_authenticate(getattr(self.fixture, user))
+        secret_options = {
+            'environ': [{'name': 'DJANGO_SETTINGS', 'value': 'settings.py'}],
+            'language': 'python',
+        }
+        response = self.client.post(self.url, {'secret_options': secret_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.secret_options, secret_options)
+
+
+@ddt
 class OfferingDivisionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
