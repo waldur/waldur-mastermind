@@ -150,3 +150,13 @@ def log_subnet_cleaned(sender, instance, **kwargs):
             'subnet': instance,
         },
     )
+
+
+def log_server_group_cleaned(sender, instance, **kwargs):
+    event_logger.openstack_server_group.info(
+        'Server group %s has been cleaned from cache.' % instance.name,
+        event_type='openstack_server_group_cleaned',
+        event_context={
+            'server_group': instance,
+        },
+    )

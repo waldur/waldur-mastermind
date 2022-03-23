@@ -256,3 +256,9 @@ class OpenStackTenantConfig(AppConfig):
             dispatch_uid='openstack_tenant.handlers.'
             'sync_server_group_property_when_resource_is_updated_or_created',
         )
+
+        signals.post_delete.connect(
+            handlers.sync_server_group_property_on_delete,
+            sender=ServerGroup,
+            dispatch_uid='openstack_tenant.handlers.sync_server_group_property_on_delete',
+        )
