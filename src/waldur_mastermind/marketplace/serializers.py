@@ -1394,6 +1394,87 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         return offering
 
 
+class OfferingLocationUpdateSerializer(serializers.ModelSerializer):
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
+
+    class Meta:
+        model = models.Offering
+        fields = (
+            'latitude',
+            'longitude',
+        )
+
+
+class OfferingDescriptionUpdateSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    class Meta:
+        model = models.Offering
+        fields = ('category',)
+
+        related_paths = {
+            'category': ('uuid', 'title'),
+        }
+
+        extra_kwargs = {
+            'category': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-category-detail',
+            },
+        }
+
+
+class OfferingOverviewUpdateSerializer(
+    MarketplaceProtectedMediaSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    def validate_terms_of_service(self, value):
+        return clean_html(value.strip())
+
+    def validate_description(self, value):
+        return clean_html(value.strip())
+
+    def validate_full_description(self, value):
+        return clean_html(value.strip())
+
+    class Meta:
+        model = models.Offering
+        fields = (
+            'name',
+            'description',
+            'full_description',
+            'terms_of_service',
+            'terms_of_service_link',
+            'privacy_policy_link',
+            'access_url',
+        )
+
+
+class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
+    def validate_options(self, options):
+        serializer = OfferingOptionsSerializer(data=options)
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data
+
+    class Meta:
+        model = models.Offering
+        fields = ('options',)
+
+
+class OfferingSecretOptionsUpdateSerializer(serializers.ModelSerializer):
+    def validate_options(self, options):
+        serializer = OfferingOptionsSerializer(data=options)
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data
+
+    class Meta:
+        model = models.Offering
+        fields = ('secret_options',)
+
+
 class OfferingPermissionSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     structure_serializers.BasePermissionSerializer,
