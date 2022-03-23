@@ -834,7 +834,6 @@ class PullServerGroupsTest(BaseBackendTestCase):
     def test_missing_server_groups_are_created(self, is_admin):
         mock_server_group = mock.Mock()
         mock_server_group.name = 'mock_server_group'
-        # mock_server_group = models.ServerGroup(name='mock_server_group')
         mock_server_group.policies = ["affinity"]
         mock_server_group.id = self.tenant.backend_id
         mock_server_group.project_id = self.tenant.backend_id
@@ -858,3 +857,12 @@ class PullServerGroupsTest(BaseBackendTestCase):
                 name=mock_server_group.name,
             ).exists()
         )
+
+    @data(True, False)
+    def test_stale_server_groups_are_deleted(self, is_admin):
+        server_group = self.fixture.server_group
+        self.mocked_nova().server_groups.list.return_value = []
+
+        self.call_backend(is_admin)
+
+        self.assertRaises(models.ServerGroup.DoesNotExist, server_group.refresh_from_db)
