@@ -26,6 +26,7 @@ class OpenStackConfig(AppConfig):
         SubNet = self.get_model('SubNet')
         SecurityGroup = self.get_model('SecurityGroup')
         SecurityGroupRule = self.get_model('SecurityGroupRule')
+        ServerGroup = self.get_model('ServerGroup')
 
         # structure
         from .backend import OpenStackBackend
@@ -101,4 +102,10 @@ class OpenStackConfig(AppConfig):
             handlers.log_subnet_cleaned,
             sender=SubNet,
             dispatch_uid='openstack.handlers.log_subnet_cleaned',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_server_group_cleaned,
+            sender=ServerGroup,
+            dispatch_uid='openstack.handlers.log_server_group_cleaned',
         )

@@ -123,6 +123,7 @@ class ServerGroupViewSet(structure_views.ResourceViewSet):
     serializer_class = serializers.ServerGroupSerializer
     filterset_class = filters.ServerGroupFilter
     pull_executor = executors.ServerGroupPullExecutor
+    delete_executor = executors.ServerGroupDeleteExecutor
 
 
 class FloatingIPViewSet(structure_views.ResourceViewSet):

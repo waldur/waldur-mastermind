@@ -33,6 +33,21 @@ class ServerGroupCreateExecutor(core_executors.CreateExecutor):
         )
 
 
+class ServerGroupDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, server_group, serialized_server_group, **kwargs):
+        if server_group.backend_id:
+            return core_tasks.BackendMethodTask().si(
+                serialized_server_group,
+                'delete_server_group',
+                state_transition='begin_deleting',
+            )
+        else:
+            return core_tasks.StateTransitionTask().si(
+                serialized_server_group, state_transition='begin_deleting'
+            )
+
+
 class SecurityGroupUpdateExecutor(core_executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, security_group, serialized_security_group, **kwargs):
@@ -354,6 +369,10 @@ class TenantDeleteExecutor(core_executors.DeleteExecutor):
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_tenant, backend_check_method='are_all_tenant_volumes_deleted'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant,
+                backend_method='delete_tenant_server_groups',
             ),
         ]
 
@@ -701,6 +720,7 @@ class OpenStackCleanupExecutor(structure_executors.BaseCleanupExecutor):
         (models.SubNet, SubNetDeleteExecutor),
         (models.Network, NetworkDeleteExecutor),
         (models.Tenant, TenantDeleteExecutor),
+        (models.ServerGroup, ServerGroupDeleteExecutor),
     )
 
 

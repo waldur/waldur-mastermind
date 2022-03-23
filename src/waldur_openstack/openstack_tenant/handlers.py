@@ -749,3 +749,30 @@ def sync_server_group_property_when_resource_is_updated_or_created(
             settings=service_settings,
         ),
     )
+
+
+def sync_server_group_property_on_delete(sender, instance, **kwargs):
+    server_group_instance = instance
+
+    if not server_group_instance.backend_id:
+        return
+
+    try:
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=server_group_instance.tenant,
+            type=apps.OpenStackTenantConfig.service_name,
+        )
+    except (
+        django_exceptions.ObjectDoesNotExist,
+        django_exceptions.MultipleObjectsReturned,
+    ):
+        return
+
+    try:
+        server_group = models.ServerGroup.objects.get(
+            settings=service_settings, backend_id=server_group_instance.backend_id
+        )
+    except django_exceptions.ObjectDoesNotExist:
+        return
+
+    server_group.delete()

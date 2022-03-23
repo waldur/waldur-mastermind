@@ -51,3 +51,39 @@ class ServerGroupCreateTest(BaseServerGroupTest):
             server_group = models.ServerGroup.objects.get(name=self.valid_data['name'])
 
             mocked_execute.assert_called_once_with(server_group)
+
+
+@ddt
+class ServerGroupDeleteTest(BaseServerGroupTest):
+    def setUp(self):
+        super(ServerGroupDeleteTest, self).setUp()
+        self.server_group = factories.ServerGroupFactory(
+            service_settings=self.fixture.openstack_service_settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            state=models.ServerGroup.States.OK,
+        )
+        self.url = factories.ServerGroupFactory.get_url(self.server_group)
+
+    @data('admin', 'manager', 'staff', 'owner')
+    def test_project_administrator_can_delete_server_group(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        with patch(
+            'waldur_openstack.openstack.executors.ServerGroupDeleteExecutor.execute'
+        ) as mocked_execute:
+            response = self.client.delete(self.url)
+            self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+            mocked_execute.assert_called_once_with(
+                self.server_group, force=False, is_async=True
+            )
+
+    def test_server_group_can_be_deleted_from_erred_state(self):
+        self.server_group.state = models.ServerGroup.States.ERRED
+        self.server_group.save()
+
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)

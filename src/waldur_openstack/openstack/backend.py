@@ -1474,6 +1474,32 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action()
+    def delete_tenant_server_groups(self, tenant):
+        nova = self.nova_client
+
+        try:
+            server_groups = nova.server_groups.list()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        for server_group in server_groups:
+            logger.info(
+                "Deleting server group %s from tenant %s",
+                server_group.id,
+                tenant.backend_id,
+            )
+            try:
+                server_group.delete()
+            except nova_exceptions.NotFound:
+                logger.debug(
+                    "Server group %s is already gone from tenant %s",
+                    server_group.id,
+                    tenant.backend_id,
+                )
+            except nova_exceptions.ClientException as e:
+                raise OpenStackBackendError(e)
+
+    @log_backend_action()
     def push_security_group_rules(self, security_group):
         neutron = self.neutron_client
 
@@ -1764,6 +1790,21 @@ class OpenStackBackend(BaseOpenStackBackend):
                 'Server group "%s" has been created in the backend.'
                 % server_group.name,
                 event_type='openstack_server_group_created',
+                event_context={
+                    'server_group': server_group,
+                },
+            )
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def delete_server_group(self, server_group):
+        nova = self.nova_admin_client
+        try:
+            nova.server_groups.delete(server_group.backend_id)
+            event_logger.openstack_server_group.info(
+                'Server group "%s" has been deleted' % server_group.name,
+                event_type='openstack_server_group_deleted',
                 event_context={
                     'server_group': server_group,
                 },
