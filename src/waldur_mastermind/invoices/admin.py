@@ -59,9 +59,9 @@ class PaymentTypeFilter(admin.SimpleListFilter):
 
 
 class InvoiceAdmin(
-    VersionAdmin,
     core_admin.ExtraActionsMixin,
     core_admin.UpdateOnlyModelAdmin,
+    VersionAdmin,
     admin.ModelAdmin,
 ):
     inlines = [InvoiceItemInline]
