@@ -228,7 +228,13 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         # assure that user has permissions connected with the project
         project.add_user(user, ProjectRole.ADMINISTRATOR)
 
-        order, order_created = get_or_create_order(project, user, offering, plan)
+        order, order_created = get_or_create_order(
+            project,
+            user,
+            offering,
+            plan,
+            limits=settings.WALDUR_HPC['EXTERNAL_LIMITS'],
+        )
 
         if not order or not order_created:
             return
