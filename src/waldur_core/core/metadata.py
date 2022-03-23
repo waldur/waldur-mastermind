@@ -463,6 +463,10 @@ class WaldurHPC(BaseModel):
         {},
         description='Overrided default values for SLURM offering to be created for users belonging to internal organization.',
     )
+    EXTERNAL_LIMITS = Field(
+        {},
+        description='Overrided default values for SLURM offering to be created for users belonging to external organization.',
+    )
     OFFERING_UUID = Field(
         '',
         description='UUID of a Waldur SLURM offering, which will be used for creating allocations for users',
