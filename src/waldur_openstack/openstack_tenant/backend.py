@@ -767,6 +767,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         volume = self._backend_volume_to_volume(backend_volume)
         volume.service_settings = self.settings
         volume.project = project
+        volume.device = (
+            volume.device or ''
+        )  # In case if device of an imported volume is null
         if save:
             volume.save()
 
