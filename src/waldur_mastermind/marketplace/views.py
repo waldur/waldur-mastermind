@@ -1778,7 +1778,9 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 data.update(self._get_service_provider_info(sp))
                 result.append(data)
 
-        return Response(result, status=status.HTTP_200_OK)
+        return Response(
+            self._expand_result_with_oecd_name(result), status=status.HTTP_200_OK
+        )
 
     def _count_projects_grouped_by_field(self, field_name):
         results = (
@@ -1786,15 +1788,24 @@ class StatsViewSet(rf_viewsets.ViewSet):
             .values(field_name)
             .annotate(count=Count('id'))
         )
-        return Response(results, status=status.HTTP_200_OK)
+
+        return results
 
     @action(detail=False, methods=['get'])
     def count_projects_grouped_by_oecd(self, request, *args, **kwargs):
-        return self._count_projects_grouped_by_field('oecd_fos_2007_code')
+        return Response(
+            self._expand_result_with_oecd_name(
+                self._count_projects_grouped_by_field('oecd_fos_2007_code')
+            ),
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def count_projects_grouped_by_industry_flag(self, request, *args, **kwargs):
-        return self._count_projects_grouped_by_field('is_industry')
+        return Response(
+            self._count_projects_grouped_by_field('is_industry'),
+            status=status.HTTP_200_OK,
+        )
 
     def _projects_usages_grouped_by_field(self, field_name):
         results = {}
@@ -1825,15 +1836,23 @@ class StatsViewSet(rf_viewsets.ViewSet):
             for usage in usages:
                 result[usage['component__type']] = usage['usage']
 
-        return Response(results, status=status.HTTP_200_OK)
+        return results
 
     @action(detail=False, methods=['get'])
     def projects_usages_grouped_by_oecd(self, request, *args, **kwargs):
-        return self._projects_usages_grouped_by_field('oecd_fos_2007_code')
+        return Response(
+            self._replace_keys_from_oecd_code_to_oecd_name(
+                self._projects_usages_grouped_by_field('oecd_fos_2007_code')
+            ),
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def projects_usages_grouped_by_industry_flag(self, request, *args, **kwargs):
-        return self._projects_usages_grouped_by_field('is_industry')
+        return Response(
+            self._projects_usages_grouped_by_field('is_industry'),
+            status=status.HTTP_200_OK,
+        )
 
     def _projects_limits_grouped_by_field(self, field_name):
         results = {}
@@ -1866,15 +1885,23 @@ class StatsViewSet(rf_viewsets.ViewSet):
                         else:
                             result[name] = value
 
-        return Response(results, status=status.HTTP_200_OK)
+        return results
 
     @action(detail=False, methods=['get'])
     def projects_limits_grouped_by_oecd(self, request, *args, **kwargs):
-        return self._projects_limits_grouped_by_field('oecd_fos_2007_code')
+        return Response(
+            self._replace_keys_from_oecd_code_to_oecd_name(
+                self._projects_limits_grouped_by_field('oecd_fos_2007_code')
+            ),
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def projects_limits_grouped_by_industry_flag(self, request, *args, **kwargs):
-        return self._projects_limits_grouped_by_field('is_industry')
+        return Response(
+            self._projects_limits_grouped_by_field('is_industry'),
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=['get'])
     def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
@@ -1913,6 +1940,47 @@ class StatsViewSet(rf_viewsets.ViewSet):
             if service_provider.customer.division
             else '',
         }
+
+    @staticmethod
+    def _expand_result_with_oecd_name(data):
+        if not hasattr(data, '__iter__'):
+            return data
+
+        for d in data:
+            if not isinstance(d, dict):
+                return data
+
+            if 'oecd_fos_2007_code' in d.keys():
+                name = [
+                    c[1]
+                    for c in structure_models.Project.OECD_FOS_2007_CODES
+                    if c[0] == d['oecd_fos_2007_code']
+                ]
+                if name:
+                    d['oecd_fos_2007_name'] = name[0]
+                else:
+                    d['oecd_fos_2007_name'] = ''
+
+        return data
+
+    @staticmethod
+    def _replace_keys_from_oecd_code_to_oecd_name(data):
+        if not isinstance(data, dict):
+            return data
+
+        results = {}
+        for code, value in data.items():
+            name = [
+                c[1]
+                for c in structure_models.Project.OECD_FOS_2007_CODES
+                if c[0] == code
+            ]
+            if name:
+                results[str(name[0])] = value
+            else:
+                results[code] = value
+
+        return results
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
