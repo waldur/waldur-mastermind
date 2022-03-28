@@ -1648,7 +1648,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_security_group(self, security_group):
-        neutron = self.neutron_admin_client
+        neutron = self.neutron_client
         try:
             backend_security_group = neutron.create_security_group(
                 {
@@ -1779,7 +1779,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_server_group(self, server_group):
-        nova = self.nova_admin_client
+        nova = self.nova_client
         try:
             backend_server_group = nova.server_groups.create(
                 name=server_group.name, policies=server_group.policy
@@ -1799,7 +1799,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_server_group(self, server_group):
-        nova = self.nova_admin_client
+        nova = self.nova_client
         try:
             nova.server_groups.delete(server_group.backend_id)
             event_logger.openstack_server_group.info(
