@@ -1976,7 +1976,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 if c[0] == code
             ]
             if name:
-                results[str(name[0])] = value
+                results['%s %s' % (code, str(name[0]))] = value
             else:
                 results[code] = value
 
