@@ -4,6 +4,7 @@ from rest_framework import exceptions
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import utils as structure_utils
 
 from . import models
 
@@ -127,15 +128,7 @@ def user_can_list_importable_resources(request, view, offering=None):
         ):
             return
 
-    owned_customers = set(
-        structure_models.Customer.objects.all()
-        .filter(
-            permissions__user=user,
-            permissions__is_active=True,
-            permissions__role=structure_models.CustomerRole.OWNER,
-        )
-        .distinct()
-    )
+    owned_customers = set(structure_utils.get_customers_owned_by_user(user))
 
     if offering.customer not in owned_customers:
         raise exceptions.PermissionDenied(

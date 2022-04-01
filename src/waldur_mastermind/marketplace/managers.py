@@ -3,6 +3,7 @@ from django.db.models import Q
 
 from waldur_core.core import managers as core_managers
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import utils as structure_utils
 
 
 class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
@@ -51,19 +52,40 @@ class OfferingQuerySet(django_models.QuerySet):
         if user.is_staff:
             return self
 
-        owned_customers = set(
-            structure_models.Customer.objects.all()
-            .filter(
-                permissions__user=user,
-                permissions__is_active=True,
-                permissions__role=structure_models.CustomerRole.OWNER,
-            )
-            .distinct()
+        return self.filter(
+            shared=False, customer__in=structure_utils.get_customers_owned_by_user(user)
         )
-
-        return self.filter(shared=False, customer__in=owned_customers)
 
 
 class OfferingManager(MixinManager):
     def get_queryset(self):
         return OfferingQuerySet(self.model, using=self._db)
+
+
+class ResourceQuerySet(django_models.QuerySet):
+    def filter_for_user(self, user):
+        """
+        Resources are available to both service provider and service consumer.
+        """
+        if user.is_anonymous or user.is_staff or user.is_support:
+            return self
+
+        return self.filter(
+            Q(
+                project__permissions__user=user,
+                project__permissions__is_active=True,
+            )
+            | Q(
+                project__customer__permissions__user=user,
+                project__customer__permissions__is_active=True,
+            )
+            | Q(
+                offering__customer__permissions__user=user,
+                offering__customer__permissions__is_active=True,
+            )
+        ).distinct()
+
+
+class ResourceManager(MixinManager):
+    def get_queryset(self):
+        return ResourceQuerySet(self.model, using=self._db)

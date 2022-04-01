@@ -14,6 +14,7 @@ from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import utils as structure_utils
 from waldur_mastermind.marketplace import plugins
 from waldur_pid import models as pid_models
 
@@ -134,20 +135,10 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
 
             queryset = queryset.filter(shared=False)
 
-            owned_customers = set(
-                structure_models.Customer.objects.all()
-                .filter(
-                    permissions__user=user,
-                    permissions__is_active=True,
-                    permissions__role=structure_models.CustomerRole.OWNER,
-                )
-                .distinct()
-            )
-
             owned_offerings_ids = list(
-                queryset.filter(customer__in=owned_customers).values_list(
-                    'id', flat=True
-                )
+                queryset.filter(
+                    customer__in=structure_utils.get_customers_owned_by_user(user)
+                ).values_list('id', flat=True)
             )
 
             # Import private offerings must be available for admins and managers

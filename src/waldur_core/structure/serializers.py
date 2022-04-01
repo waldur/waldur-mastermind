@@ -386,6 +386,15 @@ class NestedCustomerSerializer(
         }
 
 
+class BasicCustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Customer
+        fields = (
+            'uuid',
+            'name',
+        )
+
+
 class NestedProjectSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,

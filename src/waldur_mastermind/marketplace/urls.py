@@ -99,4 +99,8 @@ urlpatterns = [
         r'^api/marketplace-resource-offerings/(?P<project_uuid>[a-f0-9]+)/(?P<category_uuid>[a-f0-9]+)/$',
         views.ResourceOfferingsViewSet.as_view(),
     ),
+    re_path(
+        r'^api/marketplace-related-customers/(?P<customer_uuid>[a-f0-9]+)/$',
+        views.RelatedCustomersViewSet.as_view(),
+    ),
 ]

@@ -48,6 +48,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.serializers import (
@@ -1122,26 +1123,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
     ) = serializers.ResourceUpdateSerializer
 
     def get_queryset(self):
-        """
-        Resources are available to both service provider and service consumer.
-        """
-        if self.request.user.is_staff or self.request.user.is_support:
-            return self.queryset
-
-        return self.queryset.filter(
-            Q(
-                project__permissions__user=self.request.user,
-                project__permissions__is_active=True,
-            )
-            | Q(
-                project__customer__permissions__user=self.request.user,
-                project__customer__permissions__is_active=True,
-            )
-            | Q(
-                offering__customer__permissions__user=self.request.user,
-                offering__customer__permissions__is_active=True,
-            )
-        ).distinct()
+        return self.queryset.filter_for_user(self.request.user)
 
     @action(detail=True, methods=['get'])
     def details(self, request, uuid=None):
@@ -1419,6 +1401,34 @@ class ResourceOfferingsViewSet(ProjectChoicesViewSet):
             .values_list('offering_id', flat=True)
         )
         return models.Offering.objects.filter(pk__in=offerings)
+
+
+class RelatedCustomersViewSet(ListAPIView):
+    serializer_class = structure_serializers.BasicCustomerSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.NameFilterSet
+
+    def get_customer(self):
+        customer_uuid = self.kwargs['customer_uuid']
+        if not is_uuid_like(customer_uuid):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data='Customer UUID is invalid.'
+            )
+        qs = filter_queryset_for_user(
+            structure_models.Customer.objects.all(), self.request.user
+        )
+        return get_object_or_404(qs, uuid=customer_uuid)
+
+    def get_queryset(self):
+        customer = self.get_customer()
+        customer_ids = (
+            models.Resource.objects.all()
+            .filter_for_user(self.request.user)
+            .filter(offering__customer=customer)
+            .values_list('project__customer_id', flat=True)
+            .distinct()
+        )
+        return structure_models.Customer.objects.filter(id__in=customer_ids)
 
 
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):

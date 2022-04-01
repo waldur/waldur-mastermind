@@ -13,13 +13,12 @@ from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import (
     Customer,
     CustomerPermission,
-    CustomerRole,
     Project,
     ProjectPermission,
     ServiceSettings,
 )
 
-from . import tasks
+from . import tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -346,13 +345,11 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
 
     user = instance
     change_fields = settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES']['FIELDS']
-    organizations = Customer.objects.filter(
-        permissions__user=user,
-        permissions__is_active=True,
-        permissions__role=CustomerRole.OWNER,
-    )
+    organizations = utils.get_customers_owned_by_user(user)
 
-    if not ((set(change_fields) & set(user.tracker.changed())) and organizations):
+    if not (
+        (set(change_fields) & set(user.tracker.changed())) and organizations.exists()
+    ):
         return
 
     fields = []
