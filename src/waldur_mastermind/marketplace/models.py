@@ -1056,7 +1056,7 @@ class Resource(
     report = models.JSONField(blank=True, null=True)
     current_usages = models.JSONField(blank=True, default=dict)
     tracker = FieldTracker()
-    objects = managers.MixinManager('scope')
+    objects = managers.ResourceManager()
     # Effective ID is used when resource is provisioned through remote Waldur
     effective_id = models.CharField(max_length=255, blank=True)
 

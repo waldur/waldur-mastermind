@@ -141,3 +141,15 @@ def move_project(project, customer):
         old_customer=old_customer,
         new_customer=customer,
     )
+
+
+def get_customers_owned_by_user(user):
+    return (
+        structure_models.Customer.objects.all()
+        .filter(
+            permissions__user=user,
+            permissions__is_active=True,
+            permissions__role=structure_models.CustomerRole.OWNER,
+        )
+        .distinct()
+    )
