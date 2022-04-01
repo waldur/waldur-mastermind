@@ -23,6 +23,7 @@ RUN apt-get update       && \
     libsasl2-dev            \
     ldap-utils              \
     lcov                    \
+    locales                 \
     gettext                 \
     logrotate               \
     openssl                 \
@@ -39,6 +40,10 @@ RUN apt-get update       && \
     xfonts-base             \
     fonts-liberation     && \
     rm -rf /var/lib/apt/lists
+
+RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    sed -i -e 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen && \
+    dpkg-reconfigure --frontend=noninteractive locales
 
 # Install xmlsec1
 WORKDIR /tmp/xmlsec1

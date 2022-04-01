@@ -559,9 +559,9 @@ class WaldurSlurm(BaseModel):
     )
     DEFAULT_LIMITS = Field(
         {
-            'CPU': 16000,  # Measured unit is CPU-hours
-            'GPU': 400,  # Measured unit is GPU-hours
-            'RAM': 100000 * 2**10,  # Measured unit is MB
+            'CPU': 16000,  # Measured unit is CPU-minutes
+            'GPU': 400,  # Measured unit is GPU-minutes
+            'RAM': 100000 * 2**10,  # Measured unit is MB-h
         },
         description='Default limits of account that are set when SLURM account is provisioned.',
     )
