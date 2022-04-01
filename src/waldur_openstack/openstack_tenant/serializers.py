@@ -692,6 +692,19 @@ class NestedSecurityGroupSerializer(
         extra_kwargs = {'url': {'lookup_field': 'uuid'}}
 
 
+class NestedServerGroupSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    state = serializers.ReadOnlyField(source='human_readable_state')
+
+    class Meta:
+        model = models.ServerGroup
+        fields = ('url', 'name', 'policy', 'state')
+        read_only_fields = ('name', 'policy', 'state')
+        extra_kwargs = {'url': {'lookup_field': 'uuid'}}
+
+
 class NestedInternalIPSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -854,6 +867,18 @@ def _validate_instance_security_groups(security_groups, settings):
             )
 
 
+def _validate_instance_server_groups(server_groups, settings):
+    """Make sure that server_group belong to specified setting."""
+    for server_group in server_groups:
+        if server_group.settings != settings:
+            error = _(
+                'Server group %s does not belong to the same service settings as instance.'
+            )
+            raise serializers.ValidationError(
+                {'server_groups': error % server_group.name}
+            )
+
+
 def _validate_instance_floating_ips(
     floating_ips_with_subnets, settings, instance_subnets
 ):
@@ -1006,6 +1031,9 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     security_groups = NestedSecurityGroupSerializer(
         queryset=models.SecurityGroup.objects.all(), many=True, required=False
     )
+    server_groups = NestedServerGroupSerializer(
+        queryset=models.ServerGroup.objects.all(), many=True, required=False
+    )
     internal_ips_set = NestedInternalIPSerializer(many=True, required=False)
     floating_ips = NestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all().filter(internal_ip__isnull=True),
@@ -1056,6 +1084,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'volumes',
             'data_volumes',
             'security_groups',
+            'server_groups',
             'internal_ips',
             'floating_ips',
             'internal_ips_set',
@@ -1075,6 +1104,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 'data_volume_size',
                 'floating_ips',
                 'security_groups',
+                'server_groups',
                 'internal_ips_set',
                 'availability_zone',
             )
@@ -1169,6 +1199,9 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         _validate_instance_security_groups(
             attrs.get('security_groups', []), service_settings
         )
+        _validate_instance_server_groups(
+            attrs.get('server_groups', []), service_settings
+        )
         _validate_instance_internal_ips(internal_ips, service_settings)
         subnets = [internal_ip.subnet for internal_ip in internal_ips]
         _validate_instance_floating_ips(
@@ -1229,6 +1262,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         Create volumes and security groups for instance.
         """
         security_groups = validated_data.pop('security_groups', [])
+        server_groups = validated_data.pop('server_groups', [])
         internal_ips = validated_data.pop('internal_ips_set', [])
         floating_ips_with_subnets = validated_data.pop('floating_ips', [])
         service_settings = validated_data['service_settings']
@@ -1267,6 +1301,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         # security groups
         instance.security_groups.add(*security_groups)
+        # server groups
+        instance.server_groups.add(*server_groups)
         # internal IPs
         for internal_ip in internal_ips:
             internal_ip.instance = instance
