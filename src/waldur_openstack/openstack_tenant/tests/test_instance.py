@@ -1149,3 +1149,25 @@ class InstanceConsoleLogTest(InstanceActionsTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('Invalid request.' in response.data)
+
+
+@ddt
+class InstanceRetrieveTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.instance = self.fixture.instance
+        self.url = factories.InstanceFactory.get_url(self.instance)
+
+    @data('staff', 'global_support')
+    def test_field_hypervisor_hostname_is_available(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('hypervisor_hostname' in response.json())
+
+    @data('admin', 'manager', 'owner')
+    def test_field_hypervisor_hostname_is_not_available(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse('hypervisor_hostname' in response.json())

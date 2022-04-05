@@ -1322,10 +1322,21 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except keystone_exceptions.NotFound as e:
             raise OpenStackBackendError(e)
 
+    def get_admin_tenant_client(self):
+        return BaseOpenStackBackend(
+            self.settings.scope.service_settings
+        ).nova_admin_client
+
     def import_instance(self, backend_id, project=None, save=True):
         # NB! This method does not import instance sub-objects like security groups or internal IPs.
         #     They have to be pulled separately.
-        nova = self.nova_client
+
+        if self.settings.scope:
+            # It need use shared service settings to get instance hypervisor_hostname.
+            nova = self.get_admin_tenant_client()
+        else:
+            nova = self.nova_client
+
         try:
             backend_instance = nova.servers.get(backend_id)
             attached_volume_ids = [
@@ -1379,6 +1390,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             availability_zone_name = backend_instance.to_dict().get(
                 'OS-EXT-AZ:availability_zone'
             )
+            hypervisor_hostname = backend_instance.to_dict().get(
+                'OS-EXT-SRV-ATTR:hypervisor_hostname', ''
+            )
             if availability_zone_name:
                 availability_zone = models.InstanceAvailabilityZone.objects.get(
                     name=availability_zone_name, settings=self.settings
@@ -1400,6 +1414,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             created=dateparse.parse_datetime(backend_instance.created),
             backend_id=backend_instance.id,
             availability_zone=availability_zone,
+            hypervisor_hostname=hypervisor_hostname,
         )
 
         if backend_flavor_id:

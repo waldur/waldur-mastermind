@@ -82,6 +82,30 @@ def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
     utils.import_volume_metadata(resource)
 
 
+def synchronize_instance_hypervisor_hostname(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if not created and not set(instance.tracker.changed()) & {
+        'hypervisor_hostname',
+    }:
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug(
+            'Skipping resource synchronization for OpenStack instance '
+            'because marketplace resource does not exist. '
+            'Resource ID: %s',
+            instance.id,
+        )
+        return
+
+    resource.backend_metadata['hypervisor_hostname'] = instance.hypervisor_hostname
+    resource.save()
+
+
 def synchronize_instance_name(sender, instance, created=False, **kwargs):
     if not created and not set(instance.tracker.changed()) & {'name'}:
         return

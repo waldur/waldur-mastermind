@@ -154,3 +154,21 @@ class NetworkMetadataTest(BaseOpenStackTest):
         floating_ip.delete()
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.backend_metadata['external_ips'], [])
+
+
+class HypervisorHostnameMetadataTest(BaseOpenStackTest):
+    def setUp(self):
+        super(HypervisorHostnameMetadataTest, self).setUp()
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.instance = self.fixture.instance
+        self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
+
+    def test_hypervisor_hostname_is_synchronized(self):
+        self.instance.hypervisor_hostname = 'nova_1'
+        self.instance.save()
+
+        self.resource.refresh_from_db()
+
+        self.assertEqual(
+            self.resource.backend_metadata['hypervisor_hostname'], 'nova_1'
+        )

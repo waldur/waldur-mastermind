@@ -22,9 +22,11 @@ class BaseBackendTest(TestCase):
         self.neutron_client_mock = mock.Mock()
         self.cinder_client_mock = mock.Mock()
         self.nova_client_mock = mock.Mock()
+        self.get_admin_tenant_client = mock.Mock()
         self.tenant_backend.neutron_client = self.neutron_client_mock
         self.tenant_backend.cinder_client = self.cinder_client_mock
         self.tenant_backend.nova_client = self.nova_client_mock
+        self.tenant_backend.get_admin_tenant_client = self.get_admin_tenant_client
 
     def _get_valid_volume(self, backend_id):
         return Volume(
@@ -767,10 +769,14 @@ class PullInstanceTest(BaseBackendTest):
 
             @classmethod
             def to_dict(cls):
-                return {'OS-EXT-AZ:availability_zone': 'AZ_TST'}
+                return {
+                    'OS-EXT-AZ:availability_zone': 'AZ_TST',
+                    'OS-EXT-SRV-ATTR:hypervisor_hostname': 'aio1.openstack.local',
+                }
 
         self.nova_client_mock = mock.Mock()
         self.tenant_backend.nova_client = self.nova_client_mock
+        self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
 
         self.nova_client_mock.servers.get.return_value = MockInstance
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
@@ -814,6 +820,14 @@ class PullInstanceTest(BaseBackendTest):
         instance.refresh_from_db()
 
         self.assertEqual(instance.error_message, 'Waldur error.')
+
+    def test_hypervisor_hostname_is_synchronized(self):
+        instance = self.fixture.instance
+
+        self.tenant_backend.pull_instance(instance)
+        instance.refresh_from_db()
+
+        self.assertEqual(instance.hypervisor_hostname, 'aio1.openstack.local')
 
 
 class PullInstanceInternalIpsTest(BaseBackendTest):
@@ -1178,6 +1192,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.backend_id = 'instance_id'
         self.backend_instance = self._get_valid_instance(self.backend_id)
         self.nova_client_mock.servers.get.return_value = self.backend_instance
+        self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
 
         backend_flavor = self._get_valid_flavor(self.backend_id)
         self.backend_instance.flavor = backend_flavor._info

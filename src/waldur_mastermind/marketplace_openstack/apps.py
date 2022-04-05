@@ -178,6 +178,12 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.synchronize_instance_hypervisor_hostname,
+            sender=tenant_models.Instance,
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_instance_hypervisor_hostname',
+        )
+
+        signals.post_save.connect(
             handlers.synchronize_tenant_name,
             sender=openstack_models.Tenant,
             dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_tenant_name',
