@@ -1094,6 +1094,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'action',
             'action_details',
             'tenant_uuid',
+            'hypervisor_hostname',
         )
         protected_fields = (
             structure_serializers.VirtualMachineSerializer.Meta.protected_fields
@@ -1116,6 +1117,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 'runtime_state',
                 'flavor_name',
                 'action',
+                'hypervisor_hostname',
             )
         )
         extra_kwargs = dict(
@@ -1125,6 +1127,15 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             },
             **structure_serializers.VirtualMachineSerializer.Meta.extra_kwargs
         )
+
+    def get_fields(self):
+        fields = super().get_fields()
+        user = self.context['request'].user
+
+        if not user.is_staff and not user.is_support:
+            del fields['hypervisor_hostname']
+
+        return fields
 
     def get_tenant_uuid(self, instance):
         service_settings = instance.service_settings

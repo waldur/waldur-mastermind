@@ -367,6 +367,7 @@ class ResourceFilter(
                 | Q(backend_id=value)
                 | Q(backend_metadata__external_ips__icontains=value)
                 | Q(backend_metadata__internal_ips__icontains=value)
+                | Q(backend_metadata__hypervisor_hostname__icontains=value)
             )
 
     def filter_service_manager(self, queryset, name, value):

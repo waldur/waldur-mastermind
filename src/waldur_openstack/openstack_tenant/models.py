@@ -351,6 +351,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
     subnets = models.ManyToManyField('SubNet', through='InternalIP')
+    hypervisor_hostname = models.CharField(max_length=255, blank=True)
 
     tracker = FieldTracker()
 
@@ -422,6 +423,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
             'disk',
             'runtime_state',
             'availability_zone',
+            'hypervisor_hostname',
         )
 
     @classmethod
