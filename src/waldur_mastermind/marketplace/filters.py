@@ -263,7 +263,9 @@ class OrderFilter(django_filters.FilterSet):
 
 class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(field_name='order__project__uuid')
-    offering_type = django_filters.UUIDFilter(field_name='offering__type')
+    offering_type = django_filters.CharFilter(
+        field_name='offering__type', lookup_expr='exact'
+    )
     category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
     customer_uuid = django_filters.UUIDFilter(
