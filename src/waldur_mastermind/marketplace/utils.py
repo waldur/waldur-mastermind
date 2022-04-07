@@ -71,7 +71,11 @@ def process_order_item(order_item: models.OrderItem, user):
         order_item.error_message = str(e)
         order_item.error_traceback = traceback.format_exc()
         order_item.set_state_erred()
-        logger.error(f'Error processing order item { order_item }.')
+        logger.error(
+            f'Error processing order item { order_item }. '
+            f'Order item ID: { order_item.id }. '
+            f'Exception: { order_item.error_message }.'
+        )
         order_item.save(update_fields=['state', 'error_message', 'error_traceback'])
 
 
