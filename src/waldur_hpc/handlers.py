@@ -111,7 +111,32 @@ def get_or_create_project(customer, user, wrong_customer):
 
 def get_or_create_order(project: Project, user, offering, plan, limits=None):
     limits = limits or {}
-    order, order_created = Order.objects.get_or_create(project=project, created_by=user)
+
+    order_ids = OrderItem.objects.filter(offering=offering).values_list(
+        'order_id', flat=True
+    )
+
+    order, order_created = (
+        Order.objects.filter(
+            project=project,
+            created_by=user,
+            state__in=(
+                Order.States.DONE,
+                Order.States.REQUESTED_FOR_APPROVAL,
+                Order.States.EXECUTING,
+            ),
+            id__in=order_ids,
+        )
+        .order_by('created')
+        .last(),
+        False,
+    )
+
+    if not order:
+        order, order_created = (
+            Order.objects.create(project=project, created_by=user),
+            True,
+        )
 
     if not order_created:
         if order.state in [Order.States.REQUESTED_FOR_APPROVAL, Order.States.EXECUTING]:

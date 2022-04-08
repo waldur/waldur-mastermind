@@ -308,20 +308,23 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
 
     @responses.activate
     def test_when_user_is_not_found_it_is_disabled(self):
+        valid_cuid = (
+            '17b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org'
+        )
+        user_url = f'https://proxy.acc.researcher-access.org/api/userinfo/{valid_cuid}'
         responses.add(
             method='GET',
-            url=self.user_url,
+            url=user_url,
             status=404,
         )
-
         user = structure_factories.UserFactory(is_staff=True)
         self.client.force_login(user)
 
         remote_user = structure_factories.UserFactory(
-            username=self.valid_cuid, email='foo@example.com'
+            username=valid_cuid, email='foo@example.com'
         )
 
-        response = self.client.post(self.url, {'cuid': self.valid_cuid})
+        response = self.client.post(self.url, {'cuid': valid_cuid})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         remote_user.refresh_from_db()

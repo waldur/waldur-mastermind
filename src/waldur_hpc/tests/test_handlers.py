@@ -163,3 +163,53 @@ class TestHandlers(TestCase):
             ).count(),
             2,
         )
+
+        # third login
+        user.last_login = datetime.datetime.now() + datetime.timedelta(days=2)
+        user.save()
+
+        self.assertEqual(
+            marketplace_models.Order.objects.filter(
+                project=project,
+                created_by=user,
+            ).count(),
+            2,
+        )
+
+    def test_ignoring_of_other_orders(self):
+        user = structure_factories.UserFactory(email='user@internal')
+        project = structure_models.Project.objects.get(
+            name=user.username, customer=self.internal_customer
+        )
+        self.assertEqual(
+            marketplace_models.Order.objects.filter(
+                project=project,
+                created_by=user,
+                state=marketplace_models.Order.States.EXECUTING,
+            ).count(),
+            1,
+        )
+
+        other_order = marketplace_factories.OrderFactory(
+            project=project, created_by=user
+        )
+        marketplace_factories.OrderItemFactory(order=other_order)
+        self.assertEqual(
+            marketplace_models.Order.objects.filter(
+                project=project,
+                created_by=user,
+            ).count(),
+            2,
+        )
+
+        # second login
+        user.last_login = datetime.datetime.now() + datetime.timedelta(days=1)
+        user.save()
+
+        self.assertEqual(
+            marketplace_models.Order.objects.filter(
+                project=project,
+                created_by=user,
+            ).count(),
+            2,
+        )
