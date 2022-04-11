@@ -29,7 +29,7 @@ class DryRunTest(test.APITransactionTestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual({'output': output}, response.json())
 
-    @data('owner', 'admin', 'admin', 'manager', 'member')
+    @data('owner', 'admin', 'manager', 'member')
     @mock.patch('waldur_mastermind.marketplace_script.utils.execute_script')
     def test_dry_run_is_forbidden(self, user, execute_script):
         output = self.offering.secret_options['create']
