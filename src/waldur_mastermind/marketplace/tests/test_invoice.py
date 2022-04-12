@@ -1,6 +1,8 @@
+from ddt import data, ddt
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
+from rest_framework.reverse import reverse
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
@@ -119,3 +121,50 @@ class TotalLimitTest(test.APITransactionTestCase):
         self.assertEqual(items.count(), 2)
         self.assertTrue(items.last().unit_price < 0)
         self.assertEqual(items.last().quantity, 5)
+
+
+@ddt
+@freeze_time('2020-11-01')
+class InvoiceItemsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.set_state_ok()
+        self.resource.save()
+        self.invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=11
+        )
+
+        other_fixture = fixtures.MarketplaceFixture()
+        other_resource = other_fixture.resource
+        other_resource.set_state_ok()
+        other_resource.save()
+
+        self.url = reverse('provider-invoice-items-list')
+
+    @data('staff')
+    def test_user_can_get_all_invoice_items(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 2)
+
+    @data('offering_owner', 'service_manager')
+    def test_user_can_get_his_invoice_items(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    @data(
+        'admin',
+        'manager',
+        'member',
+        'customer_support',
+        'customer_support',
+        'owner',
+        'user',
+        'global_support',
+    )
+    def test_user_can_not_get_invoice_items(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
