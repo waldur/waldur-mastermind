@@ -57,6 +57,7 @@ from waldur_core.structure.serializers import (
 )
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_pid import models as pid_models
@@ -1991,6 +1992,16 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 results[code] = value
 
         return results
+
+
+class ProviderInvoiceItemsViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = invoice_models.InvoiceItem.objects.all().order_by('-invoice__created')
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.MarketplaceInvoiceItemsFilterBackend,
+    )
+    filterset_class = filters.MarketplaceInvoiceItemsFilter
+    serializer_class = invoice_serializers.InvoiceItemSerializer
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):

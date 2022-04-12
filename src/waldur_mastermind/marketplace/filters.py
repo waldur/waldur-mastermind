@@ -15,6 +15,7 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
 from waldur_pid import models as pid_models
 
@@ -587,6 +588,58 @@ class PlanComponentFilter(django_filters.FilterSet):
     archived = django_filters.BooleanFilter(
         field_name='plan__archived',
     )
+
+
+class MarketplaceInvoiceItemsFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        user = request.user
+
+        if user.is_staff:
+            return queryset
+
+        customer_ids = structure_models.CustomerPermission.objects.filter(
+            role__in=(
+                structure_models.CustomerRole.OWNER,
+                structure_models.CustomerRole.SERVICE_MANAGER,
+            ),
+            is_active=True,
+            user=user,
+        ).values_list('customer_id', flat=True)
+
+        return queryset.filter(resource__offering__customer_id__in=customer_ids)
+
+
+class MarketplaceInvoiceItemsFilter(django_filters.FilterSet):
+    o = django_filters.OrderingFilter(
+        fields=(
+            ('unit_price', 'unit_price'),
+            ('resource__offering__name', 'resource_offering_name'),
+            ('invoice__customer__name', 'invoice_customer_name'),
+            ('project__name', 'project_name'),
+        )
+    )
+
+    customer_uuid = django_filters.UUIDFilter(
+        field_name='invoice__customer__uuid',
+    )
+    project_uuid = django_filters.UUIDFilter(
+        field_name='project__uuid',
+    )
+    offering_uuid = django_filters.UUIDFilter(
+        field_name='resource__offering__uuid',
+    )
+    invoice_month = django_filters.NumberFilter(field_name='invoice__month')
+    invoice_year = django_filters.NumberFilter(field_name='invoice__year')
+
+    class Meta:
+        model = invoices_models.InvoiceItem
+        fields = [
+            'customer_uuid',
+            'project_uuid',
+            'offering_uuid',
+            'invoice_month',
+            'invoice_year',
+        ]
 
 
 def user_extra_query(user):

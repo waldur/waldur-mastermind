@@ -91,6 +91,11 @@ def register_in(router):
         views.StatsViewSet,
         basename='marketplace-stats',
     )
+    router.register(
+        r'provider-invoice-items',
+        views.ProviderInvoiceItemsViewSet,
+        basename='provider-invoice-items',
+    )
 
 
 urlpatterns = [
