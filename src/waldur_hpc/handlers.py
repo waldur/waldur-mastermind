@@ -171,6 +171,13 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
 
 
 def check_user(user, affiliations, email_patterns):
+    logger.info(
+        "Checking user %s for internal/external belonging. User's affiliations: %s, affiliations: %s, email patterns: %s",
+        user,
+        user.affiliations,
+        affiliations,
+        email_patterns,
+    )
     if set(user.affiliations or []) & set(affiliations):
         return True
 
@@ -178,22 +185,32 @@ def check_user(user, affiliations, email_patterns):
 
 
 def is_internal_user(user):
-    return check_user(
+    is_internal = check_user(
         user,
         settings.WALDUR_HPC['INTERNAL_AFFILIATIONS'],
         settings.WALDUR_HPC['INTERNAL_EMAIL_PATTERNS'],
     )
+
+    if is_internal:
+        logger.info('The user %s is internal one', user)
+
+    return is_internal
 
 
 def is_external_user(user):
     if is_internal_user(user):
         return False
 
-    return check_user(
+    is_external = check_user(
         user,
         settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS'],
         settings.WALDUR_HPC['EXTERNAL_EMAIL_PATTERNS'],
     )
+
+    if is_external:
+        logger.info('The user %s is external one', user)
+
+    return is_external
 
 
 def handle_new_user(sender, instance, created=False, **kwargs):
