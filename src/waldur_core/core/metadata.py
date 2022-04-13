@@ -271,6 +271,10 @@ class WaldurCore(BaseModel):
         description='Relative path to image rendered at the top of sidebar menu in HomePort.'
     )
 
+    SIDEBAR_LOGO_MOBILE: Optional[str] = Field(
+        description='Relative path to image rendered at the top of mobile sidebar menu in HomePort.'
+    )
+
     POWERED_BY_LOGO: Optional[str] = Field(
         description='Relative path to image rendered at the bottom of login menu in HomePort.'
     )
@@ -323,6 +327,7 @@ class WaldurCore(BaseModel):
             'INVITATION_TAX_NUMBER_LABEL',
             'HOMEPORT_SENTRY_DSN',
             'SIDEBAR_LOGO',
+            'SIDEBAR_LOGO_MOBILE',
             'POWERED_BY_LOGO',
             'BRAND_COLOR',
             'HERO_IMAGE',
