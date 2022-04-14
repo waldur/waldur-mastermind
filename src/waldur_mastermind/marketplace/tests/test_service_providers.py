@@ -19,10 +19,8 @@ from . import factories
 @ddt
 class ServiceProviderGetTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = structure_fixtures.ProjectFixture()
-        self.service_provider = factories.ServiceProviderFactory(
-            customer=self.fixture.customer
-        )
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_service_provider_should_be_visible_to_all_authenticated_users(self, user):
@@ -48,7 +46,7 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('staff', 'owner')
+    @data('staff', 'offering_owner')
     def test_service_provider_api_secret_code_is_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -68,6 +66,38 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_user_token_is_visible(self):
+        user = self.fixture.staff
+        self.fixture.order_item.order.project.add_user(
+            user, role=structure_models.ProjectRole.MANAGER
+        )
+        self.client.force_authenticate(user)
+        url = factories.ServiceProviderFactory.get_url(
+            self.fixture.service_provider, 'users'
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+        self.assertTrue('token' in response.json()[0].keys())
+        self.assertTrue('token_lifetime' in response.json()[0].keys())
+
+    @data('staff', 'offering_owner')
+    def test_user_token_is_invisible(self, user):
+        new_user = structure_factories.UserFactory()
+        self.fixture.order_item.order.project.add_user(
+            new_user, role=structure_models.ProjectRole.MANAGER
+        )
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.ServiceProviderFactory.get_url(
+            self.fixture.service_provider, 'users'
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+        self.assertFalse('token' in response.json()[0].keys())
+        self.assertFalse('token_lifetime' in response.json()[0].keys())
 
 
 @ddt
