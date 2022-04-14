@@ -2718,6 +2718,28 @@ core_signals.pre_serializer_fields.connect(
 )
 
 
+def get_marketplace_resource_count(serializer, project):
+    counts = (
+        models.Resource.objects.filter(
+            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING)
+        )
+        .values('offering__category__uuid')
+        .annotate(count=Count('id'))
+    )
+    return {str(c['offering__category__uuid']): c['count'] for c in list(counts)}
+
+
+def add_marketplace_resource_count(sender, fields, **kwargs):
+    fields['marketplace_resource_count'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_resource_count', get_marketplace_resource_count)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.ProjectSerializer,
+    receiver=add_marketplace_resource_count,
+)
+
+
 class OfferingThumbnailSerializer(
     MarketplaceProtectedMediaSerializerMixin,
     serializers.HyperlinkedModelSerializer,
