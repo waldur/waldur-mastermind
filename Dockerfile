@@ -14,6 +14,8 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
 
 FROM python:3.8
 
+ENV LANG C.UTF-8
+
 # Install necessary packages
 RUN apt-get update       && \
     apt-get install -y      \
