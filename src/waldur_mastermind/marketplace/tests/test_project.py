@@ -1,9 +1,10 @@
 import datetime
 
 from freezegun import freeze_time
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import fixtures
 
@@ -41,3 +42,30 @@ class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITransactionTestC
                     id=self.project.id
                 ).exists()
             )
+
+
+class MarketplaceResourceCountTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.resource = self.fixture.resource
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+
+    def test_key_marketplace_resource_count_exists_in_project_response(self):
+        user = getattr(self.fixture, 'staff')
+        self.client.force_authenticate(user)
+        url = structure_factories.ProjectFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+        self.assertTrue(
+            self.resource.offering.category.uuid.hex
+            in str(response.json()[0]['marketplace_resource_count'])
+        )
+        self.assertEqual(
+            response.json()[0]['marketplace_resource_count'][
+                self.resource.offering.category.uuid.hex
+            ],
+            1,
+        )
