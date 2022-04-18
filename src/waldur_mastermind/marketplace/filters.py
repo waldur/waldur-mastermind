@@ -642,6 +642,25 @@ class MarketplaceInvoiceItemsFilter(django_filters.FilterSet):
         ]
 
 
+class PlanFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        user = request.user
+
+        if user.is_staff:
+            return queryset
+
+        customer_ids = structure_models.CustomerPermission.objects.filter(
+            is_active=True, user=user, role=structure_models.CustomerRole.OWNER
+        ).values_list('customer_id', flat=True)
+
+        division_ids = structure_models.Customer.objects.filter(
+            id__in=customer_ids
+        ).values_list('division_id', flat=True)
+        divisions = structure_models.Division.objects.filter(id__in=division_ids)
+
+        return queryset.filter(Q(divisions__isnull=True) | Q(divisions__in=divisions))
+
+
 def user_extra_query(user):
     customer_ids = structure_models.CustomerPermission.objects.filter(
         user=user,

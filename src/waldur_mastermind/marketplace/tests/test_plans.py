@@ -194,3 +194,99 @@ class PlanRenderTest(test.APITransactionTestCase):
         )
 
         self.assertEqual(rendered_plan, rendered_plan_expected)
+
+
+@ddt
+class PlanDivisionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.url = factories.PlanFactory.get_url(self.plan, action='update_divisions')
+        self.delete_url = factories.PlanFactory.get_url(
+            self.plan, action='delete_divisions'
+        )
+        self.division = structure_factories.DivisionFactory()
+        self.division_url = structure_factories.DivisionFactory.get_url(self.division)
+
+    @data('staff', 'owner')
+    def test_user_can_update_divisions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'divisions': [self.division_url]})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.plan.divisions.count(), 1)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_update_divisions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, {'divisions': [self.division_url]})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('staff', 'owner')
+    def test_user_can_delete_divisions(self, user):
+        self.plan.divisions.add(self.division)
+        self.customer.division = self.division
+        self.customer.save()
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.delete_url)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+
+        self.plan.refresh_from_db()
+        self.assertEqual(self.offering.divisions.count(), 0)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_delete_divisions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_get_all_plans(self):
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        url = factories.PlanFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data), 1)
+
+        self.plan.divisions.add(self.division)
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_owner_can_get_his_plans(self):
+        self.client.force_authenticate(getattr(self.fixture, 'owner'))
+        url = factories.PlanFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data), 1)
+
+        self.plan.divisions.add(self.division)
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 0)
+
+        self.customer.division = self.division
+        self.customer.save()
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 1)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_get_not_his_plans(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        url = factories.PlanFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data), 1)
+
+        self.plan.divisions.add(self.division)
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 0)
+
+        self.customer.division = self.division
+        self.customer.save()
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 0)

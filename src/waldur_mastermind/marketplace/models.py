@@ -659,6 +659,9 @@ class Plan(
             'Plan is disabled when maximum amount is reached.'
         ),
     )
+    divisions = models.ManyToManyField(
+        structure_models.Division, related_name='plans', blank=True
+    )
     tracker = FieldTracker()
 
     class Meta:
