@@ -2761,12 +2761,20 @@ class DivisionsSerializer(serializers.Serializer):
     )
 
     def save(self, **kwargs):
-        offering = self.instance
-        divisions = self.validated_data['divisions']
-        offering.divisions.clear()
+        if isinstance(self.instance, models.Offering):
+            offering = self.instance
+            divisions = self.validated_data['divisions']
+            offering.divisions.clear()
 
-        if divisions:
-            offering.divisions.add(*divisions)
+            if divisions:
+                offering.divisions.add(*divisions)
+        elif isinstance(self.instance, models.Plan):
+            plan = self.instance
+            divisions = self.validated_data['divisions']
+            plan.divisions.clear()
+
+            if divisions:
+                plan.divisions.add(*divisions)
 
 
 class CostsSerializer(serializers.Serializer):

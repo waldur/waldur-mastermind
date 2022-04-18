@@ -802,6 +802,7 @@ class PlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
     queryset = models.Plan.objects.all()
     serializer_class = serializers.PlanDetailsSerializer
     filterset_class = filters.PlanFilter
+    filter_backends = (DjangoFilterBackend, filters.PlanFilterBackend)
 
     disabled_actions = ['destroy']
     update_validators = partial_update_validators = [validate_plan_update]
@@ -824,6 +825,26 @@ class PlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
     @action(detail=False)
     def usage_stats(self, request):
         return PlanUsageReporter(self, request).get_report()
+
+    @action(detail=True, methods=['post'])
+    def update_divisions(self, request, uuid):
+        plan = self.get_object()
+        serializer = serializers.DivisionsSerializer(
+            instance=plan, context={'request': request}, data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_divisions_permissions = [structure_permissions.is_owner]
+
+    @action(detail=True, methods=['post'])
+    def delete_divisions(self, request, uuid=None):
+        plan = self.get_object()
+        plan.divisions.clear()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    delete_divisions_permissions = update_divisions_permissions
 
 
 class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
