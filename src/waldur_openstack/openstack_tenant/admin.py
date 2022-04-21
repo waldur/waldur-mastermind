@@ -156,7 +156,7 @@ class SnapshotAdmin(structure_admin.ResourceAdmin):
 class InternalIpInline(admin.TabularInline):
     model = models.InternalIP
 
-    def has_add_permission(self, request):
+    def has_add_permission(self, request, obj=None):
         return False
 
     def get_readonly_fields(self, request, obj=None):
