@@ -140,6 +140,26 @@ class AllocationSetLimitsSerializer(rf_serializers.ModelSerializer):
         fields = ('cpu_limit', 'gpu_limit', 'ram_limit')
 
 
+class AllocationUserUsageCreateSerializer(rf_serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.AllocationUserUsage
+        fields = (
+            'cpu_usage',
+            'ram_usage',
+            'gpu_usage',
+            'month',
+            'year',
+            'user',
+            'username',
+        )
+        extra_kwargs = {
+            'user': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
+        }
+
+
 class AllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
     full_name = rf_serializers.ReadOnlyField(source='user.full_name')
 

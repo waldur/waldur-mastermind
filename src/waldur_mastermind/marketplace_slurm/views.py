@@ -11,6 +11,7 @@ from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.marketplace import models, permissions
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_slurm import models as slurm_models
+from waldur_slurm import serializers as slurm_serializers
 from waldur_slurm import signals as slurm_signals
 
 from . import PLUGIN_NAME, serializers
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 class SlurmViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
-    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
+        object_id=None
+    )
     serializer_class = marketplace_serializers.ResourceSerializer
     disabled_actions = [
         'retrieve',
@@ -34,9 +37,94 @@ class SlurmViewSet(core_views.ActionsViewSet):
     create_association_serializer_class = (
         delete_association_serializer_class
     ) = serializers.SetUsernameSerializer
-    create_association_permissions = delete_association_permissions = [
+
+    create_association_permissions = (
+        delete_association_permissions
+    ) = set_limits_permissions = set_usage_permissions = [
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
+
+    set_limits_serializer_class = slurm_serializers.AllocationSetLimitsSerializer
+
+    @action(detail=True, methods=['post'])
+    def set_limits(self, request, uuid=None):
+        resource = self.get_object()
+        allocation: slurm_models.Allocation = resource.scope
+        old_limits = {
+            'cpu': allocation.cpu_limit,
+            'gpu': allocation.gpu_limit,
+            'ram': allocation.ram_limit,
+        }
+        serializer = self.get_serializer(allocation, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        logger.info(
+            'The limits for allocation %s have been changed from %s to %s',
+            allocation,
+            old_limits,
+            serializer.validated_data,
+        )
+
+        return Response(
+            {'status': _('Limits are successfully set.')},
+            status=status.HTTP_200_OK,
+        )
+
+    set_usage_serializer_class = slurm_serializers.AllocationUserUsageCreateSerializer
+
+    @action(detail=True, methods=['POST'])
+    def set_usage(self, request, uuid=None):
+        resource = self.get_object()
+        allocation: slurm_models.Allocation = resource.scope
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        if payload['username'] == 'TOTAL_ACCOUNT_USAGE':
+            allocation.cpu_usage = payload['cpu_usage']
+            allocation.gpu_usage = payload['gpu_usage']
+            allocation.ram_usage = payload['ram_usage']
+            allocation.save(update_fields=['cpu_usage', 'gpu_usage', 'ram_usage'])
+            logger.info(
+                'The total usage for allocation %s has been set: %s.',
+                allocation,
+                payload,
+            )
+        else:
+            (
+                user_usage,
+                created,
+            ) = slurm_models.AllocationUserUsage.objects.update_or_create(
+                allocation=allocation,
+                user=payload['user'],
+                username=payload['username'],
+                month=payload['month'],
+                year=payload['year'],
+                defaults={
+                    'cpu_usage': payload['cpu_usage'],
+                    'ram_usage': payload['ram_usage'],
+                    'gpu_usage': payload['gpu_usage'],
+                },
+            )
+            if created:
+                logger.info(
+                    'User usage %s has been created with the following params: %s',
+                    user_usage,
+                    payload,
+                )
+            else:
+                logger.info(
+                    'User usage %s has been updated with the following params: %s',
+                    user_usage,
+                    payload,
+                )
+
+        return Response(
+            {
+                'detail': _('Allocation usage has been updated successfully.'),
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['POST'])
     def create_association(self, request, uuid=None):
