@@ -44,6 +44,9 @@ def approve_order(order, user):
 
     for order_item in order.items.filter(
         offering__type__in=[PLUGIN_NAME, REMOTE_PLUGIN_NAME]
+    ).exclude(
+        offering__plugin_options__has_key='auto_approve_remote_orders',
+        offering__plugin_options__auto_approve_remote_orders=True,
     ):
         transaction.on_commit(
             lambda: notify_provider_about_order_item_pending_approval.delay(
@@ -61,7 +64,14 @@ def process_order(serialized_order, serialized_user):
     # only after it gets approved by service provider
     from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 
-    for item in order.items.exclude(offering__type=REMOTE_PLUGIN_NAME):
+    for item in order.items.exclude(
+        offering__type=REMOTE_PLUGIN_NAME,
+        offering__plugin_options__auto_approve_remote_orders__isnull=True,
+    ).exclude(
+        offering__type=REMOTE_PLUGIN_NAME,
+        offering__plugin_options__has_key='auto_approve_remote_orders',
+        offering__plugin_options__auto_approve_remote_orders=False,
+    ):
         item.set_state_executing()
         item.save(update_fields=['state'])
         utils.process_order_item(item, user)
