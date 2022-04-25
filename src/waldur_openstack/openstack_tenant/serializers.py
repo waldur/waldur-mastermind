@@ -1995,3 +1995,43 @@ class SharedSettingsCustomerSerializer(serializers.Serializer):
     created = serializers.ReadOnlyField()
     abbreviation = serializers.ReadOnlyField()
     vm_count = serializers.ReadOnlyField()
+
+
+class BackendInstanceSerializer(serializers.ModelSerializer):
+    availability_zone = serializers.ReadOnlyField(source='availability_zone.name')
+    state = serializers.ReadOnlyField(source='get_state_display')
+
+    class Meta:
+        model = models.Instance
+        fields = (
+            'name',
+            'key_name',
+            'start_time',
+            'state',
+            'runtime_state',
+            'created',
+            'backend_id',
+            'availability_zone',
+            'hypervisor_hostname',
+        )
+
+
+class BackendVolumesSerializer(serializers.ModelSerializer):
+    availability_zone = serializers.ReadOnlyField(source='availability_zone.name')
+    state = serializers.ReadOnlyField(source='get_state_display')
+    type = serializers.ReadOnlyField(source='type.name')
+
+    class Meta:
+        model = models.Volume
+        fields = (
+            'name',
+            'description',
+            'size',
+            'metadata',
+            'backend_id',
+            'type',
+            'bootable',
+            'runtime_state',
+            'state',
+            'availability_zone',
+        )
