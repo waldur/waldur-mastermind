@@ -1057,3 +1057,50 @@ class CustomerDivisionFilterTest(test.APITransactionTestCase):
             else:
                 self.assertEqual(status.HTTP_200_OK, response.status_code)
                 self.assertEqual(len(response.data), 0)
+
+
+class CustomerInetFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.customer.inet = '128.0.0.0/16'
+        self.customer.save()
+
+        self.patcher = mock.patch('waldur_core.structure.managers.core_utils')
+        self.mock = self.patcher.start()
+        self.mock.get_ip_address.return_value = '127.0.0.1'
+
+        self.url = factories.CustomerFactory.get_list_url()
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+
+    def test_staff_can_get_all_projects(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_user_can_get_project_only_if_his_ip_is_contained_inet(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
+
+        self.customer = self.fixture.customer
+        self.customer.inet = '127.0.0.0/16'
+        self.customer.save()
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+        self.customer = self.fixture.customer
+        self.customer.inet = ''
+        self.customer.save()
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_breaks_if_ip_address_is_not_defined(self):
+        self.mock.get_ip_address.return_value = None
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)

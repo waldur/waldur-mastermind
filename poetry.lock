@@ -808,6 +808,19 @@ django = ">=2.2"
 six = ">=1.15.0,<2.0.0"
 
 [[package]]
+name = "django-netfields"
+version = "1.3.0"
+description = "Django PostgreSQL netfields implementation"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+django = ">=1.8"
+netaddr = "*"
+six = "*"
+
+[[package]]
 name = "django-redis-cache"
 version = "3.0.0"
 description = "Redis Cache Backend for Django"
@@ -2696,7 +2709,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "9108f48b6dec34712c8493e2804d2c4dde78bff3d45dd5412a09d6dbb6346dc7"
+content-hash = "61ed78f2b143926e4a456bbd57bb826d7969230ba5c8de376344ce0b3458c40a"
 
 [metadata.files]
 adal = [
@@ -3045,6 +3058,9 @@ django-model-utils = [
 ]
 django-modeltranslation = [
     {file = "django-modeltranslation-0.17.5.tar.gz", hash = "sha256:d9b3278dc3a799261861e090c27a3e1c46b3471e979e07b01cdd4ea2696a9f41"},
+]
+django-netfields = [
+    {file = "django-netfields-1.3.0.tar.gz", hash = "sha256:39171bad19870269732dd5b7988594135f6b97b31e9e963f6740101756034d88"},
 ]
 django-redis-cache = [
     {file = "django-redis-cache-3.0.0.tar.gz", hash = "sha256:9a2eebef421d996a82098a19d17ff6b321265cd73178fa398913019764e8394a"},

@@ -17,7 +17,10 @@ from waldur_core.core import models as core_models
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.structure import models
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    filter_queryset_by_user_ip,
+    filter_queryset_for_user,
+)
 from waldur_core.structure.registry import SupportedServices
 
 User = auth.get_user_model()
@@ -78,7 +81,8 @@ class ScopeTypeFilterBackend(BaseFilterBackend):
 
 class GenericRoleFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        return filter_queryset_for_user(queryset, request.user)
+        queryset = filter_queryset_for_user(queryset, request.user)
+        return filter_queryset_by_user_ip(queryset, request)
 
 
 class GenericUserFilter(BaseFilterBackend):

@@ -291,6 +291,7 @@ class CustomerSerializer(
             'image',
             'default_tax_percent',
             'accounting_start_date',
+            'inet',
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             'access_subnets',

@@ -304,6 +304,7 @@ class CustomerAdmin(
         'accounting_start_date',
         'default_tax_percent',
         'blocked',
+        'inet',
     )
     list_display = (
         'name',

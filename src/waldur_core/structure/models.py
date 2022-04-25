@@ -21,6 +21,7 @@ from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
 from model_utils.managers import SoftDeletableManagerMixin
 from model_utils.models import SoftDeletableModel, TimeStampedModel
+from netfields import CidrAddressField, NetManager
 from reversion import revisions as reversion
 
 from waldur_core.core import fields as core_fields
@@ -473,7 +474,9 @@ class Customer(
     division = models.ForeignKey(
         'Division', null=True, blank=True, on_delete=models.SET_NULL
     )
+    inet = CidrAddressField(null=True, blank=True)
     tracker = FieldTracker()
+    objects = NetManager()
 
     class Meta:
         verbose_name = _('organization')
