@@ -2,6 +2,8 @@ import threading
 
 from django.utils.deprecation import MiddlewareMixin
 
+from waldur_core.core import utils as core_utils
+
 _locals = threading.local()
 
 
@@ -24,19 +26,9 @@ def set_current_user(user):
     set_event_context(context)
 
 
-def get_ip_address(request):
-    """
-    Correct IP address is expected as first element of HTTP_X_FORWARDED_FOR or REMOTE_ADDR
-    """
-    if 'HTTP_X_FORWARDED_FOR' in request.META:
-        return request.META['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
-    elif 'REMOTE_ADDR' in request.META:
-        return request.META['REMOTE_ADDR']
-
-
 class CaptureEventContextMiddleware(MiddlewareMixin):
     def process_request(self, request):
-        ip_address = get_ip_address(request)
+        ip_address = core_utils.get_ip_address(request)
         if not ip_address:
             return
         context = {'ip_address': ip_address}

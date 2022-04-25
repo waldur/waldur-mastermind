@@ -1,6 +1,8 @@
 from django.db import models
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
+from waldur_core.structure import models as structure_models
 
 
 def get_permission_subquery(permissions, user):
@@ -40,6 +42,36 @@ def filter_queryset_for_user(queryset, user):
         return queryset
 
     return queryset.filter(subquery).distinct()
+
+
+def filter_queryset_by_user_ip(queryset, request):
+    user = request.user
+    user_ip = core_utils.get_ip_address(request)
+
+    if user is None or user.is_staff or user.is_support or not user_ip:
+        return queryset
+
+    try:
+        permissions = queryset.model.Permissions
+    except AttributeError:
+        return queryset
+
+    customer_path = getattr(permissions, 'customer_path', None)
+    if not customer_path:
+        return queryset
+
+    if customer_path == 'self':
+        path = 'id__in'
+        none_path = 'id'
+    else:
+        path = customer_path + '__id__in'
+        none_path = customer_path + '_id'
+
+    customers_ids = structure_models.Customer.objects.filter(
+        models.Q(inet__isnull=True) | models.Q(inet__net_contains_or_equals=user_ip)
+    ).values_list('id', flat=True)
+    subquery = models.Q(**{path: customers_ids}) | models.Q(**{none_path: None})
+    return queryset.filter(subquery)
 
 
 class StructureQueryset(models.QuerySet):

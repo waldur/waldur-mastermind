@@ -72,6 +72,7 @@ INSTALLED_APPS = (
     'dbtemplates',
 
     'binary_database_files',
+    'netfields',
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
