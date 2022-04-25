@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
+from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response
 from rest_framework import serializers as rf_serializers
 from rest_framework import status
@@ -17,8 +19,10 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.signals import resource_imported
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
+from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
 
 from . import executors, filters, models, serializers
 
@@ -1049,3 +1053,43 @@ class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.VolumeAvailabilityZoneSerializer
     lookup_field = 'uuid'
     filterset_class = filters.VolumeAvailabilityZoneFilter
+
+
+def backend_instances(self, request, uuid=None):
+    tenant = self.get_object()
+    service_settings = get_object_or_404(
+        structure_models.PrivateServiceSettings.objects, scope=tenant
+    )
+    backend = openstack_tenant_backend.OpenStackTenantBackend(service_settings)
+    try:
+        serializer = serializers.BackendInstanceSerializer(
+            backend.get_instances(), many=True
+        )
+    except (ConnectFailure, OpenStackBackendError) as e:
+        raise exceptions.ValidationError(e)
+    return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+
+openstack_views.TenantViewSet.backend_instances = decorators.action(detail=True)(
+    backend_instances
+)
+
+
+def backend_volumes(self, request, uuid=None):
+    tenant = self.get_object()
+    service_settings = get_object_or_404(
+        structure_models.PrivateServiceSettings.objects, scope=tenant
+    )
+    backend = openstack_tenant_backend.OpenStackTenantBackend(service_settings)
+    try:
+        serializer = serializers.BackendVolumesSerializer(
+            backend.get_volumes(), many=True
+        )
+    except (ConnectFailure, OpenStackBackendError) as e:
+        raise exceptions.ValidationError(e)
+    return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+
+openstack_views.TenantViewSet.backend_volumes = decorators.action(detail=True)(
+    backend_volumes
+)
