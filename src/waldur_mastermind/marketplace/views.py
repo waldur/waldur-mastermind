@@ -364,19 +364,19 @@ class OfferingViewSet(
     activate_permissions = [structure_permissions.is_staff]
 
     activate_validators = pause_validators = archive_validators = destroy_validators = [
-        structure_utils.check_customer_blocked
+        structure_utils.check_customer_blocked_or_archived
     ]
 
     update_permissions = partial_update_permissions = [can_update_offering]
 
     update_validators = partial_update_validators = [
         validate_offering_update,
-        structure_utils.check_customer_blocked,
+        structure_utils.check_customer_blocked_or_archived,
     ]
 
     def perform_create(self, serializer):
         customer = serializer.validated_data['customer']
-        structure_utils.check_customer_blocked(customer)
+        structure_utils.check_customer_blocked_or_archived(customer)
 
         super(OfferingViewSet, self).perform_create(serializer)
 
@@ -877,7 +877,7 @@ class OrderViewSet(BaseMarketplaceView):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OrderFilter
     destroy_validators = partial_update_validators = [
-        structure_utils.check_customer_blocked
+        structure_utils.check_customer_blocked_or_archived
     ]
 
     def get_queryset(self):
@@ -912,7 +912,7 @@ class OrderViewSet(BaseMarketplaceView):
 
     approve_validators = [
         core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
-        structure_utils.check_customer_blocked,
+        structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
     ]
     approve_permissions = [permissions.user_can_approve_order_permission]
@@ -928,7 +928,7 @@ class OrderViewSet(BaseMarketplaceView):
 
     reject_validators = [
         core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
-        structure_utils.check_customer_blocked,
+        structure_utils.check_customer_blocked_or_archived,
     ]
     reject_permissions = [permissions.user_can_reject_order]
 
@@ -942,7 +942,7 @@ class OrderViewSet(BaseMarketplaceView):
 
     def perform_create(self, serializer):
         project = serializer.validated_data['project']
-        structure_utils.check_customer_blocked(project)
+        structure_utils.check_customer_blocked_or_archived(project)
         structure_utils.check_project_end_date(project)
 
         super(OrderViewSet, self).perform_create(serializer)
@@ -1257,7 +1257,7 @@ class ResourceViewSet(core_views.ActionsViewSet):
 
     switch_plan_validators = update_limits_validators = [
         core_validators.StateValidator(models.Resource.States.OK),
-        structure_utils.check_customer_blocked,
+        structure_utils.check_customer_blocked_or_archived,
         utils.check_pending_order_item_exists,
     ]
 

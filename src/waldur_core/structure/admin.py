@@ -304,6 +304,7 @@ class CustomerAdmin(
         'accounting_start_date',
         'default_tax_percent',
         'blocked',
+        'archived',
         'inet',
     )
     list_display = (
@@ -313,7 +314,7 @@ class CustomerAdmin(
         'created',
         'accounting_start_date',
     )
-    list_filter = ('blocked', 'division')
+    list_filter = ('blocked', 'archived', 'division')
     search_fields = ('name', 'uuid', 'abbreviation')
     date_hierarchy = 'created'
     readonly_fields = ('uuid',)

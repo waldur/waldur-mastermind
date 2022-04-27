@@ -139,6 +139,7 @@ class CustomerFilter(NameFilterSet):
             'registration_code',
             'agreement_number',
             'backend_id',
+            'archived',
         ]
 
     def filter_query(self, queryset, name, value):

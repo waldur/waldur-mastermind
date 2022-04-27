@@ -471,6 +471,7 @@ class Customer(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
     blocked = models.BooleanField(default=False)
+    archived = models.BooleanField(default=False)
     division = models.ForeignKey(
         'Division', null=True, blank=True, on_delete=models.SET_NULL
     )

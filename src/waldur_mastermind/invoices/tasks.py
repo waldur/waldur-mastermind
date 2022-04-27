@@ -34,7 +34,7 @@ def create_monthly_invoices():
     for invoice in old_invoices:
         invoice.set_created()
 
-    customers = structure_models.Customer.objects.all()
+    customers = structure_models.Customer.objects.exclude(archived=True)
     if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
@@ -117,7 +117,9 @@ def send_invoice_report():
         },
     ).strip()
     filename = '3M%02d%dWaldur.txt' % (date.month, date.year)
-    invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
+    invoices = models.Invoice.objects.filter(
+        year=date.year, month=date.month, customer__archived=False
+    )
 
     # Report should include only organizations that had accounting running during the invoice period.
     if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
@@ -205,9 +207,11 @@ def send_new_invoices_notification():
         is_active=True, payment_type=models.PaymentType.FIXED_PRICE
     ).values_list('organization_id', flat=True)
 
-    for invoice in models.Invoice.objects.filter(
-        year=date.year, month=date.month
-    ).exclude(customer_id__in=fixed_price_profiles):
+    for invoice in (
+        models.Invoice.objects.filter(year=date.year, month=date.month)
+        .exclude(customer_id__in=fixed_price_profiles)
+        .exclude(customer__archived=True)
+    ):
         send_invoice_notification.delay(invoice.uuid.hex)
 
 

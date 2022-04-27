@@ -85,12 +85,14 @@ def handle_resource_update_success(resource):
     )
 
 
-def check_customer_blocked(obj):
+def check_customer_blocked_or_archived(obj):
     from waldur_core.structure import permissions
 
     customer = permissions._get_customer(obj)
     if customer and customer.blocked:
         raise ValidationError(_('Blocked organization is not available.'))
+    elif customer and customer.archived:
+        raise ValidationError(_('Archived organization is not available.'))
 
 
 def project_is_empty(obj):

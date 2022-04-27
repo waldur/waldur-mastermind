@@ -42,3 +42,14 @@ class InvoiceTest(test.APITransactionTestCase):
             customer=self.resource.project.customer, year=2020, month=12
         )
         self.assertEqual(1, invoice.items.filter(resource=self.resource).count())
+
+    @freeze_time('2020-12-01')
+    def test_invoice_is_not_created_if_customer_has_been_archived(self):
+        self.resource.project.customer.archived = True
+        self.resource.project.customer.save()
+        create_monthly_invoices()
+        self.assertFalse(
+            invoices_models.Invoice.objects.filter(
+                customer=self.resource.project.customer, year=2020, month=12
+            ).exists()
+        )
