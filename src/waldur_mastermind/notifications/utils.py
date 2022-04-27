@@ -1,35 +1,7 @@
-from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from waldur_core.structure.models import Customer, CustomerRole, Project
+from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.models import Resource
-
-
-def get_customer_users(customer, roles):
-    users = set()
-    if CustomerRole.SUPPORT in roles:
-        users |= set(customer.get_support_users())
-    elif CustomerRole.OWNER in roles:
-        users |= set(customer.get_owners())
-    else:
-        # If customer role is specified we should not include all project users
-        users |= set(
-            get_user_model().objects.filter(
-                customerpermission__customer=customer,
-                customerpermission__is_active=True,
-            )
-        )
-    return users
-
-
-def get_project_users(project, roles):
-    users = set()
-    if roles:
-        for role in roles:
-            users |= set(project.get_users(role))
-    else:
-        users |= set(project.get_users())
-    return users
 
 
 def get_users_for_query(query):
@@ -66,9 +38,19 @@ def get_users_for_query(query):
             customers = Customer.objects.filter(id__in=customer_ids)
 
     for customer in customers:
-        users |= get_customer_users(customer, customer_roles)
+        if customer_roles or project_roles:
+            for role in customer_roles:
+                users |= set(customer.get_users_by_role(role))
+        else:
+            # If both customer and project roles are not specified,
+            # we should include all project users as well.
+            users |= set(customer.get_users())
 
     for project in projects:
-        users |= get_project_users(project, project_roles)
+        if project_roles:
+            for role in project_roles:
+                users |= set(project.get_users(role))
+        else:
+            users |= set(project.get_users())
 
     return users
