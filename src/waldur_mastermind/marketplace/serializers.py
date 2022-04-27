@@ -2176,7 +2176,7 @@ class ResourceSerializer(BaseItemSerializer):
             return False
 
         try:
-            structure_utils.check_customer_blocked(resource.project)
+            structure_utils.check_customer_blocked_or_archived(resource.project)
         except ValidationError:
             return False
 

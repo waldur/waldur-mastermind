@@ -289,6 +289,8 @@ class CustomerSerializer(
             'service_managers',
             'backend_id',
             'image',
+            'blocked',
+            'archived',
             'default_tax_percent',
             'accounting_start_date',
             'inet',
@@ -300,6 +302,8 @@ class CustomerSerializer(
             'agreement_number',
             'domain',
             'division',
+            'blocked',
+            'archived',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

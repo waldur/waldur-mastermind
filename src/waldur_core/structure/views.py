@@ -188,12 +188,12 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         self.check_customer_permissions(serializer.instance)
-        utils.check_customer_blocked(serializer.instance)
+        utils.check_customer_blocked_or_archived(serializer.instance)
         return super(CustomerViewSet, self).perform_update(serializer)
 
     def perform_destroy(self, instance):
         self.check_customer_permissions(instance)
-        utils.check_customer_blocked(instance)
+        utils.check_customer_blocked_or_archived(instance)
 
         core_signals.pre_delete_validate.send(
             sender=models.Customer, instance=instance, user=self.request.user
@@ -237,8 +237,11 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         filters.CustomerAccountingStartDateFilter,
     )
     filterset_class = filters.ProjectFilter
-    partial_update_validators = [utils.check_customer_blocked]
-    destroy_validators = [utils.check_customer_blocked, utils.project_is_empty]
+    partial_update_validators = [utils.check_customer_blocked_or_archived]
+    destroy_validators = [
+        utils.check_customer_blocked_or_archived,
+        utils.project_is_empty,
+    ]
 
     def get_serializer_context(self):
         context = super(ProjectViewSet, self).get_serializer_context()
@@ -359,7 +362,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         if not self.can_create_project_with(customer):
             raise PermissionDenied()
 
-        utils.check_customer_blocked(customer)
+        utils.check_customer_blocked_or_archived(customer)
 
         super(ProjectViewSet, self).perform_create(serializer)
 
@@ -570,7 +573,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         if not scope.can_manage_role(self.request.user, role, expiration_time):
             raise PermissionDenied()
 
-        utils.check_customer_blocked(scope)
+        utils.check_customer_blocked_or_archived(scope)
 
         super(BasePermissionViewSet, self).perform_create(serializer)
 
@@ -579,7 +582,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         scope = getattr(permission, self.scope_field)
         role = getattr(permission, 'role', None)
 
-        utils.check_customer_blocked(scope)
+        utils.check_customer_blocked_or_archived(scope)
 
         new_expiration_time = serializer.validated_data.get('expiration_time')
         old_expiration_time = permission.expiration_time
@@ -606,7 +609,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         if not scope.can_manage_role(self.request.user, role, expiration_time):
             raise PermissionDenied()
 
-        utils.check_customer_blocked(scope)
+        utils.check_customer_blocked_or_archived(scope)
 
         scope.remove_user(affected_user, role, removed_by=self.request.user)
 
@@ -947,7 +950,9 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
         permissions.check_access_to_services_management,
     ]
 
-    update_validators = partial_update_validators = [utils.check_customer_blocked]
+    update_validators = partial_update_validators = [
+        utils.check_customer_blocked_or_archived
+    ]
 
     destroy_permissions = [can_user_update_settings]
 
