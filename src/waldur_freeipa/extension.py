@@ -27,4 +27,9 @@ class FreeIPAExtension(WaldurExtension):
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
+            'waldur-freeipa-sync-names': {
+                'task': 'waldur_freeipa.sync_names',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
         }

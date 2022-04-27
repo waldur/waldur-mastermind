@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from python_freeipa import exceptions as freeipa_exceptions
 
+from waldur_core.core import utils as core_utils
+
 from . import models, utils
 from .backend import FreeIPABackend
 
@@ -55,12 +57,17 @@ def _sync_groups():
 
 
 def schedule_sync_names():
-    _sync_names.apply_async(countdown=10)
+    sync_names.apply_async(countdown=10)
+
+
+@shared_task(name='waldur_freeipa.sync_names')
+def sync_names():
+    FreeIPABackend().synchronize_names()
 
 
 @shared_task()
-def _sync_names():
-    FreeIPABackend().synchronize_names()
+def update_user_name(profile_serialized):
+    FreeIPABackend().update_name(core_utils.deserialize_instance(profile_serialized))
 
 
 def schedule_sync_gecos():

@@ -89,3 +89,9 @@ class FreeIPAConfig(AppConfig):
             sender=slurm_models.Allocation,
             dispatch_uid='waldur_mastermind.marketplace_slurm.enable_profile_when_association_is_created',
         )
+
+        signals.post_save.connect(
+            handlers.update_user_name,
+            sender=core_models.User,
+            dispatch_uid='waldur_freeipa.handlers.update_user_name',
+        )
