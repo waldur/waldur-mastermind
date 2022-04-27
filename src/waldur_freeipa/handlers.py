@@ -3,6 +3,8 @@ import logging
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
+from waldur_core.core import utils as core_utils
+
 from . import models, tasks, utils
 from .log import event_logger
 
@@ -102,3 +104,22 @@ def enable_profile_when_association_is_created(sender, allocation, **kwargs):
         is_active=True
     )
     tasks.schedule_sync()
+
+
+def update_user_name(sender, instance, created=False, **kwargs):
+    user = instance
+
+    if created or not set(user.tracker.changed()) & {
+        'first_name',
+        'last_name',
+    }:
+        return
+
+    try:
+        profile = models.Profile.objects.get(is_active=True, user=user)
+    except models.Profile.DoesNotExist:
+        return
+
+    transaction.on_commit(
+        lambda: tasks.update_user_name.delay(core_utils.serialize_instance(profile))
+    )

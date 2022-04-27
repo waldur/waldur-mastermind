@@ -4,6 +4,7 @@ from ddt import data, ddt
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa import tasks
@@ -223,6 +224,24 @@ class ProfileUpdateTest(test.APITransactionTestCase):
             gecos=','.join(
                 [self.user.full_name, self.user.email, self.user.phone_number]
             ),
+        )
+
+
+@override_plugin_settings(ENABLED=True)
+@mock.patch('waldur_freeipa.handlers.tasks')
+class UpdateNameHandlerTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        self.profile = factories.ProfileFactory(user=self.user, is_active=True)
+
+    def test_update_user_name(self, mock_task):
+        user = self.profile.user
+        user.first_name = 'Alex'
+        user.last_name = 'Bloggs'
+        user.save()
+
+        mock_task.update_user_name.delay.assert_called_once_with(
+            core_utils.serialize_instance(self.profile)
         )
 
 
