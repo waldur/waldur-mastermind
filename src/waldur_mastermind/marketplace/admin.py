@@ -194,11 +194,19 @@ class PlanComponentInline(
             return super(PlanComponentInline, self).get_extra(request, obj, **kwargs)
 
 
+class PlanDivisionsInline(admin.StackedInline):
+    model = models.Plan.divisions.through
+    verbose_name = _('division')
+    verbose_name_plural = _('divisions')
+    classes = ['collapse']
+    extra = 1
+
+
 class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
     list_display = ('name', 'offering', 'archived', 'unit', 'unit_price')
     list_filter = ('offering', 'archived')
     search_fields = ('name', 'offering__name')
-    inlines = [PlanComponentInline]
+    inlines = [PlanComponentInline, PlanDivisionsInline]
     protected_fields = ('unit', 'unit_price', 'article_code')
     readonly_fields = ('scope_link', 'backend_id')
     fields = (
