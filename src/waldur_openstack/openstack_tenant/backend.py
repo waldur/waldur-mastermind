@@ -832,7 +832,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         # In our setup volume could be attached only to one instance.
         if getattr(backend_volume, 'attachments', False):
             if 'device' in backend_volume.attachments[0]:
-                volume.device = backend_volume.attachments[0]['device']
+                volume.device = backend_volume.attachments[0]['device'] or ''
 
             if 'server_id' in backend_volume.attachments[0]:
                 volume.instance = models.Instance.objects.filter(
