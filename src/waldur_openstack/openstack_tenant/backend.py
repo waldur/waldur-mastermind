@@ -520,6 +520,48 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         self._delete_stale_properties(models.ServerGroup, server_groups_dict)
 
+    def pull_instance_server_groups(self, instance):
+        nova = self.nova_client
+        server_id = instance.backend_id
+        try:
+            backend_server_groups = nova.server_groups.list()
+            filtered_backend_server_groups = [
+                group
+                for group in backend_server_groups
+                if server_id in group._info['members']
+            ]
+        except nova_exceptions.NotFound:
+            return True
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        backend_ids = set(g.id for g in filtered_backend_server_groups)
+        nc_ids = set(
+            models.ServerGroup.objects.filter(instances=instance)
+            .exclude(backend_id='')
+            .values_list('backend_id', flat=True)
+        )
+
+        # remove stale groups
+        stale_groups = models.ServerGroup.objects.filter(
+            backend_id__in=(nc_ids - backend_ids)
+        )
+        instance.server_groups.remove(*stale_groups)
+
+        # add missing groups
+        for group_id in backend_ids - nc_ids:
+            try:
+                server_group = models.ServerGroup.objects.get(
+                    settings=self.settings, backend_id=group_id
+                )
+            except models.ServerGroup.DoesNotExist:
+                logger.exception(
+                    'Server group with id %s does not exist in database. '
+                    'Settings ID: %s' % (group_id, self.settings.id)
+                )
+            else:
+                instance.server_groups.add(server_group)
+
     def pull_quotas(self):
         self._pull_tenant_quotas(self.tenant_id, self.settings)
 
