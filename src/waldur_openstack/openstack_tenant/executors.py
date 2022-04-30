@@ -337,6 +337,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         _tasks += cls.pull_volumes(serialized_volumes)
         _tasks += cls.pull_security_groups(serialized_instance)
         _tasks += cls.create_floating_ips(instance, serialized_instance)
+        _tasks += cls.pull_server_groups(serialized_instance)
         return chain(*_tasks)
 
     @classmethod
@@ -511,6 +512,14 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_failure_signature(cls, instance, serialized_instance, **kwargs):
         return tasks.SetInstanceErredTask().s(serialized_instance)
+
+    @classmethod
+    def pull_server_groups(cls, serialized_instance):
+        return [
+            core_tasks.BackendMethodTask().si(
+                serialized_instance, 'pull_instance_server_groups'
+            )
+        ]
 
 
 class InstanceUpdateExecutor(core_executors.UpdateExecutor):
@@ -765,6 +774,9 @@ class InstancePullExecutor(core_executors.ActionExecutor):
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance, 'pull_instance_floating_ips'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance, 'pull_instance_server_groups'
             ),
         )
 
