@@ -337,8 +337,8 @@ class SAPReportSerializer(serializers.Serializer):
     cond_value = serializers.SerializerMethodField(method_name='get_cond_value')
     sales_org = serializers.SerializerMethodField(method_name='get_sales_org_field')
     sales_off = serializers.SerializerMethodField(method_name='get_empty_field')
-    eeluks = serializers.SerializerMethodField(method_name='get_empty_field')
-    fund = serializers.SerializerMethodField(method_name='get_empty_field')
+    eeluks = serializers.SerializerMethodField(method_name='get_eeluks_field')
+    fund = serializers.SerializerMethodField(method_name='get_fund_field')
     funka = serializers.SerializerMethodField(method_name='get_funka_field')
     makset = serializers.SerializerMethodField(method_name='get_makset_field')
     maksjareg = serializers.SerializerMethodField(method_name='get_maksjareg_field')
@@ -440,11 +440,14 @@ class SAPReportSerializer(serializers.Serializer):
         customer = invoice_item.invoice.customer
         return customer.agreement_number
 
-    def get_eeluks_field(self, invoice_item):
-        return ''
-
     def get_empty_field(self, invoice_item):
         return ''
+
+    def get_fund_field(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['FUND']
+
+    def get_eeluks_field(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['EELUKS']
 
     def get_funka_field(self, invoice_item):
         return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['FUNKA']

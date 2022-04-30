@@ -49,6 +49,8 @@ class InvoicesExtension(WaldurExtension):
                     'ORG_CODE': 'NS20',
                     'MAKSET': 'Z025',
                     'FUNKA': '04600',
+                    'EELUKS': 'ENA0',
+                    'FUND': '44',
                 },
             },
             'SEND_CUSTOMER_INVOICES': False,
