@@ -206,13 +206,18 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         user.save()
         self.profile.refresh_from_db()
 
-        FreeIPABackend().update_name(self.profile)
+        FreeIPABackend().update_user(self.profile)
         mock_client().user_mod.assert_called_once_with(
             self.profile.username,
             cn=full_name,
             displayname=full_name,
             givenname=first_name or 'N/A',
             sn=last_name or 'N/A',
+            mail=user.email,
+            organization_unit=user.organization,
+            job_title=user.job_title,
+            preferred_language=user.preferred_language,
+            telephonenumber=user.phone_number,
         )
 
     def test_backend_is_called_with_correct_parameters_if_update_gecos(
@@ -229,7 +234,7 @@ class ProfileUpdateTest(test.APITransactionTestCase):
 
 @override_plugin_settings(ENABLED=True)
 @mock.patch('waldur_freeipa.handlers.tasks')
-class UpdateNameHandlerTest(test.APITransactionTestCase):
+class UpdateUserHandlerTest(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
@@ -240,7 +245,16 @@ class UpdateNameHandlerTest(test.APITransactionTestCase):
         user.last_name = 'Bloggs'
         user.save()
 
-        mock_task.update_user_name.delay.assert_called_once_with(
+        mock_task.update_user.delay.assert_called_once_with(
+            core_utils.serialize_instance(self.profile)
+        )
+
+    def test_update_user_email(self, mock_task):
+        user = self.profile.user
+        user.email = 'alex@gmail.com'
+        user.save()
+
+        mock_task.update_user.delay.assert_called_once_with(
             core_utils.serialize_instance(self.profile)
         )
 

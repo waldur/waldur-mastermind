@@ -305,7 +305,7 @@ class FreeIPABackend:
             if e.code == 4202:
                 pass
 
-    def update_name(self, profile):
+    def update_user(self, profile):
         params = {
             # First name and last name are mandatory in FreeIPA but optional in Waldur.
             # Therefore we use placeholders to avoid validation error.
@@ -313,6 +313,11 @@ class FreeIPABackend:
             'sn': profile.user.last_name or 'N/A',
             'cn': profile.user.full_name,
             'displayname': profile.user.full_name,
+            'mail': profile.user.email,
+            'organization_unit': profile.user.organization,
+            'job_title': profile.user.job_title,
+            'preferred_language': profile.user.preferred_language,
+            'telephonenumber': profile.user.phone_number,
         }
         self._update_profile(profile, params)
 

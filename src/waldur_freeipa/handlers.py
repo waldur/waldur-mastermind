@@ -106,12 +106,17 @@ def enable_profile_when_association_is_created(sender, allocation, **kwargs):
     tasks.schedule_sync()
 
 
-def update_user_name(sender, instance, created=False, **kwargs):
+def update_user(sender, instance, created=False, **kwargs):
     user = instance
 
     if created or not set(user.tracker.changed()) & {
         'first_name',
         'last_name',
+        'email',
+        'organization',
+        'job_title',
+        'preferred_language',
+        'phone_number',
     }:
         return
 
@@ -121,5 +126,5 @@ def update_user_name(sender, instance, created=False, **kwargs):
         return
 
     transaction.on_commit(
-        lambda: tasks.update_user_name.delay(core_utils.serialize_instance(profile))
+        lambda: tasks.update_user.delay(core_utils.serialize_instance(profile))
     )
