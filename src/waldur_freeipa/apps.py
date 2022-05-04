@@ -91,7 +91,7 @@ class FreeIPAConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_user_name,
+            handlers.update_user,
             sender=core_models.User,
-            dispatch_uid='waldur_freeipa.handlers.update_user_name',
+            dispatch_uid='waldur_freeipa.handlers.update_user',
         )

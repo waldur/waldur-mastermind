@@ -66,8 +66,8 @@ def sync_names():
 
 
 @shared_task()
-def update_user_name(profile_serialized):
-    FreeIPABackend().update_name(core_utils.deserialize_instance(profile_serialized))
+def update_user(profile_serialized):
+    FreeIPABackend().update_user(core_utils.deserialize_instance(profile_serialized))
 
 
 def schedule_sync_gecos():
