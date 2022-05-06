@@ -9,6 +9,16 @@ from . import models, utils
 class ProfileSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    user = serializers.HyperlinkedRelatedField(
+        source='author.user',
+        view_name='user-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+    user_uuid = serializers.ReadOnlyField(source='user.uuid')
+    user_username = serializers.ReadOnlyField(source='user.username')
+    user_full_name = serializers.ReadOnlyField(source='user.full_name')
+
     class Meta:
         model = models.Profile
         fields = (
@@ -16,6 +26,10 @@ class ProfileSerializer(
             'username',
             'agreement_date',
             'is_active',
+            'user',
+            'user_uuid',
+            'user_username',
+            'user_full_name',
         )
         protected_fields = ('username', 'agreement_date')
         read_only_fields = ('is_active',)
