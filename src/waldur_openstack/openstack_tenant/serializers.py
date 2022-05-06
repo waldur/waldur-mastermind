@@ -1133,7 +1133,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         user = self.context['request'].user
 
         if not user.is_staff and not user.is_support:
-            del fields['hypervisor_hostname']
+            if 'hypervisor_hostname' in fields:
+                del fields['hypervisor_hostname']
 
         return fields
 
