@@ -262,7 +262,9 @@ class OrderFilter(django_filters.FilterSet):
         return queryset.filter(id__in=order_ids)
 
 
-class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
+class OrderItemFilter(
+    OfferingFilterMixin, core_filters.CreatedModifiedFilter, django_filters.FilterSet
+):
     project_uuid = django_filters.UUIDFilter(field_name='order__project__uuid')
     offering_type = django_filters.CharFilter(
         field_name='offering__type', lookup_expr='exact'
