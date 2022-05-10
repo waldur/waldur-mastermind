@@ -322,7 +322,6 @@ class OrderItemFilter(
 class ResourceFilter(
     OfferingFilterMixin,
     structure_filters.NameFilterSet,
-    core_filters.CreatedModifiedFilter,
 ):
     query = django_filters.CharFilter(method='filter_query')
     offering_type = django_filters.CharFilter(field_name='offering__type')
@@ -347,6 +346,8 @@ class ResourceFilter(
             for db_value, representation in models.Resource.States.CHOICES
         },
     )
+    created = django_filters.DateTimeFilter(lookup_expr='gte', label='Created after')
+    modified = django_filters.DateTimeFilter(lookup_expr='gte', label='Modified after')
     o = django_filters.OrderingFilter(
         fields=(
             'name',
