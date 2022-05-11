@@ -556,3 +556,52 @@ class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCas
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
+    test.APITransactionTestCase
+):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = '/api/marketplace-stats/count_unique_users_connected_with_active_resources_of_service_provider/'
+
+    @data(
+        'staff',
+        'global_support',
+    )
+    def test_user_can_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.save()
+
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['count_users'], 0)
+
+        self.fixture.admin
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['count_users'], 1)
+
+        self.fixture.member
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['count_users'], 2)
+
+        self.fixture.manager
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['count_users'], 3)
+
+    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    def test_user_cannot_get_marketplace_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
