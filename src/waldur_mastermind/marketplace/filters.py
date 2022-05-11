@@ -262,9 +262,7 @@ class OrderFilter(django_filters.FilterSet):
         return queryset.filter(id__in=order_ids)
 
 
-class OrderItemFilter(
-    OfferingFilterMixin, core_filters.CreatedModifiedFilter, django_filters.FilterSet
-):
+class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(field_name='order__project__uuid')
     offering_type = django_filters.CharFilter(
         field_name='offering__type', lookup_expr='exact'
@@ -304,6 +302,8 @@ class OrderItemFilter(
         view_name='marketplace-resource-detail', field_name='resource__uuid'
     )
     resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
+    created = django_filters.DateTimeFilter(lookup_expr='gte', label='Created after')
+    modified = django_filters.DateTimeFilter(lookup_expr='gte', label='Modified after')
 
     o = django_filters.OrderingFilter(fields=('created',))
 
@@ -322,6 +322,7 @@ class OrderItemFilter(
 class ResourceFilter(
     OfferingFilterMixin,
     structure_filters.NameFilterSet,
+    core_filters.CreatedModifiedFilter,
 ):
     query = django_filters.CharFilter(method='filter_query')
     offering_type = django_filters.CharFilter(field_name='offering__type')
@@ -346,8 +347,6 @@ class ResourceFilter(
             for db_value, representation in models.Resource.States.CHOICES
         },
     )
-    created = django_filters.DateTimeFilter(lookup_expr='gte', label='Created after')
-    modified = django_filters.DateTimeFilter(lookup_expr='gte', label='Modified after')
     o = django_filters.OrderingFilter(
         fields=(
             'name',
