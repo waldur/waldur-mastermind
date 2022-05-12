@@ -2014,6 +2014,50 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         return results
 
+    @action(detail=False, methods=['get'])
+    def count_unique_users_connected_with_active_resources_of_service_provider(
+        self, request, *args, **kwargs
+    ):
+        resources = models.Resource.objects.filter(
+            state__in=(
+                models.Resource.States.OK,
+                models.Resource.States.TERMINATING,
+                models.Resource.States.UPDATING,
+            )
+        )
+
+        result = {}
+
+        for resource in resources:
+            if not resource.offering.customer:
+                continue
+
+            key = resource.offering.customer.uuid.hex
+            user_ids = set(
+                structure_models.ProjectPermission.objects.filter(
+                    project=resource.project, is_active=True
+                ).values_list('user_id', flat=True)
+            )
+
+            if key in result:
+                user_ids |= result[key]['user_ids']
+
+            result[key] = {
+                'user_ids': user_ids,
+                'customer_uuid': resource.offering.customer.uuid.hex,
+                'customer_name': resource.offering.customer.name,
+                'count_users': len(user_ids),
+            }
+
+        result = list(result.values())
+
+        [r.pop('user_ids') for r in result]
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
 
 class ProviderInvoiceItemsViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = invoice_models.InvoiceItem.objects.all().order_by('-invoice__created')
