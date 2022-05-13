@@ -461,3 +461,96 @@ class ItemRejectTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.OrderItemFactory.get_url(self.order_item, 'reject')
         return self.client.post(url)
+
+
+class BaseItemSetStateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.manager = self.fixture.manager
+
+        self.offering = self.fixture.offering
+        self.offering.type = 'SlurmInvoices.SlurmPackage'
+        self.offering.save()
+
+        self.order_item = self.fixture.order_item
+
+
+@ddt
+class ItemSetStateExecutingTest(BaseItemSetStateTest):
+    @data(
+        ('staff', models.OrderItem.States.PENDING),
+        ('staff', models.OrderItem.States.ERRED),
+        ('offering_owner', models.OrderItem.States.PENDING),
+        ('offering_owner', models.OrderItem.States.ERRED),
+    )
+    def test_authorized_user_can_set_executing_state(self, user_and_state):
+        user, state = user_and_state
+        self.order_item.state = state
+        self.order_item.save()
+
+        response = self.item_set_state_executing(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, models.OrderItem.States.EXECUTING)
+
+    @data('admin', 'manager', 'owner')
+    def test_user_cannot_set_executing_state(self, user):
+        response = self.item_set_state_executing(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def item_set_state_executing(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OrderItemFactory.get_url(self.order_item, 'set_state_executing')
+        return self.client.post(url)
+
+
+@ddt
+class ItemSetStateDoneTest(BaseItemSetStateTest):
+    @data('staff', 'offering_owner')
+    def test_authorized_user_can_set_done_state(self, user):
+        self.order_item.state = models.OrderItem.States.EXECUTING
+        self.order_item.save()
+
+        response = self.item_set_state_done(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, models.OrderItem.States.DONE)
+
+    @data('admin', 'manager', 'owner')
+    def test_user_cannot_set_done_state(self, user):
+        response = self.item_set_state_done(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def item_set_state_done(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OrderItemFactory.get_url(self.order_item, 'set_state_done')
+        return self.client.post(url)
+
+
+@ddt
+class ItemSetStateErredTest(BaseItemSetStateTest):
+    @data('staff', 'offering_owner')
+    def test_authorized_user_can_set_erred_state(self, user):
+        self.order_item.state = models.OrderItem.States.EXECUTING
+        self.order_item.save()
+
+        error_message = 'Resource creation has been failed'
+        response = self.item_set_state_erred(user, error_message)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, models.OrderItem.States.ERRED)
+        self.assertEqual(self.order_item.error_message, error_message)
+
+    @data('admin', 'manager', 'owner')
+    def test_user_cannot_set_erred_state(self, user):
+        response = self.item_set_state_erred(user, 'Resource creation has been failed')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def item_set_state_erred(self, user, error_message):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OrderItemFactory.get_url(self.order_item, 'set_state_erred')
+        return self.client.post(url, {'error_message': error_message})
