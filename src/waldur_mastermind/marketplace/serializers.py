@@ -1812,6 +1812,15 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
         return project.description
 
 
+class OrderItemSetStateErredSerializer(
+    serializers.ModelSerializer, core_serializers.AugmentedSerializerMixin
+):
+    class Meta:
+        model = models.OrderItem
+        fields = ('error_message',)
+        protected_fields = ('error_message',)
+
+
 class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
     estimate = serializers.ReadOnlyField(source='cost')

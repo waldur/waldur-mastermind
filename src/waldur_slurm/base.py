@@ -131,6 +131,7 @@ class BaseBatchClient(metaclass=abc.ABCMeta):
             self.key_path,
             ' '.join(account_command),
         ]
+
         try:
             logger.debug('Executing SSH command: %s', ' '.join(ssh_command))
             return subprocess.check_output(  # noqa: S603

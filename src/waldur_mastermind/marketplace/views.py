@@ -60,6 +60,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
+from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
 from waldur_pid import models as pid_models
 
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
@@ -1013,7 +1014,11 @@ class OrderItemViewSet(BaseMarketplaceView):
             )
         ).distinct()
 
-    approve_permissions = [permissions.can_approve_order_item]
+    approve_permissions = (
+        set_state_executing_permissions
+    ) = set_state_done_permissions = set_state_erred_permissions = [
+        permissions.can_approve_order_item
+    ]
 
     reject_permissions = [permissions.can_reject_order_item]
 
@@ -1108,6 +1113,75 @@ class OrderItemViewSet(BaseMarketplaceView):
             {'details': 'Order item termination has been scheduled.'},
             status=status.HTTP_202_ACCEPTED,
         )
+
+    @action(detail=True, methods=['post'])
+    def set_state_executing(self, request, uuid=None):
+        order_item = self.get_object()
+        if order_item.offering.type != SLURM_PLUGIN_NAME:
+            raise rf_exceptions.MethodNotAllowed(
+                _(
+                    "The order item's offering with %s type does not support this action"
+                    % order_item.offering.type
+                )
+            )
+
+        if order_item.state not in [
+            models.OrderItem.States.PENDING,
+            models.OrderItem.States.ERRED,
+        ]:
+            raise rf_exceptions.ValidationError(
+                _(
+                    'Order item has incorrect state. Expected pending or erred, got %s'
+                    % order_item.get_state_display()
+                )
+            )
+        order_item.set_state_executing()
+        order_item.save(update_fields=['state'])
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def set_state_done(self, request, uuid=None):
+        order_item = self.get_object()
+        if order_item.offering.type != SLURM_PLUGIN_NAME:
+            raise rf_exceptions.MethodNotAllowed(
+                _(
+                    "The order item's offering with %s type does not support this action"
+                    % order_item.offering.type
+                )
+            )
+
+        if order_item.state != models.OrderItem.States.EXECUTING:
+            raise rf_exceptions.ValidationError(
+                _(
+                    'Order item has incorrect state. Expected executing, got %s'
+                    % order_item.get_state_display()
+                )
+            )
+        order_item.set_state_done()
+        order_item.save(update_fields=['state'])
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def set_state_erred(self, request, uuid=None):
+        order_item = self.get_object()
+        if order_item.offering.type != SLURM_PLUGIN_NAME:
+            raise rf_exceptions.MethodNotAllowed(
+                _(
+                    "The order item's offering with %s type does not support this action"
+                    % order_item.offering.type
+                )
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        error_message = serializer.validated_data['error_message']
+
+        order_item.set_state_erred()
+        order_item.error_message = error_message
+        order_item.save(update_fields=['state', 'error_message'])
+        return Response(status=status.HTTP_200_OK)
+
+    set_state_erred_serializer_class = serializers.OrderItemSetStateErredSerializer
 
 
 class CartItemViewSet(core_views.ActionsViewSet):
