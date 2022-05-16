@@ -1817,8 +1817,8 @@ class OrderItemSetStateErredSerializer(
 ):
     class Meta:
         model = models.OrderItem
-        fields = ('error_message',)
-        protected_fields = ('error_message',)
+        fields = ('error_message', 'error_traceback')
+        protected_fields = ('error_message', 'error_traceback')
 
 
 class CartItemSerializer(BaseRequestSerializer):
