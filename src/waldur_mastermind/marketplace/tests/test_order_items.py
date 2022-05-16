@@ -1,3 +1,4 @@
+import traceback
 import unittest
 
 from ddt import data, ddt
@@ -538,19 +539,26 @@ class ItemSetStateErredTest(BaseItemSetStateTest):
         self.order_item.save()
 
         error_message = 'Resource creation has been failed'
-        response = self.item_set_state_erred(user, error_message)
+        error_traceback = traceback.format_exc()
+        user = 'staff'
+        response = self.item_set_state_erred(user, error_message, error_traceback)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order_item.refresh_from_db()
         self.assertEqual(self.order_item.state, models.OrderItem.States.ERRED)
         self.assertEqual(self.order_item.error_message, error_message)
+        self.assertEqual(self.order_item.error_traceback, error_traceback.strip())
 
     @data('admin', 'manager', 'owner')
     def test_user_cannot_set_erred_state(self, user):
-        response = self.item_set_state_erred(user, 'Resource creation has been failed')
+        response = self.item_set_state_erred(
+            user, 'Resource creation has been failed', traceback.format_exc()
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def item_set_state_erred(self, user, error_message):
+    def item_set_state_erred(self, user, error_message, error_traceback):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.OrderItemFactory.get_url(self.order_item, 'set_state_erred')
-        return self.client.post(url, {'error_message': error_message})
+        return self.client.post(
+            url, {'error_message': error_message, 'error_traceback': error_traceback}
+        )

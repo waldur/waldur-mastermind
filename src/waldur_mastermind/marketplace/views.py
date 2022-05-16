@@ -1175,10 +1175,12 @@ class OrderItemViewSet(BaseMarketplaceView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         error_message = serializer.validated_data['error_message']
+        error_traceback = serializer.validated_data['error_traceback']
 
         order_item.set_state_erred()
         order_item.error_message = error_message
-        order_item.save(update_fields=['state', 'error_message'])
+        order_item.error_traceback = error_traceback
+        order_item.save(update_fields=['state', 'error_message', 'error_traceback'])
         return Response(status=status.HTTP_200_OK)
 
     set_state_erred_serializer_class = serializers.OrderItemSetStateErredSerializer
