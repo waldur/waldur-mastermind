@@ -240,7 +240,7 @@ class BaseOpenStackBackend(ServiceBackend):
             if session is not None:
                 try:
                     client = OpenStackClient(session=session, verify_ssl=verify_ssl)
-                except (OpenStackSessionExpired, OpenStackAuthorizationFailed):
+                except OpenStackBackendError:
                     client = None
 
         if client is None:  # create new token if session is not cached or expired
