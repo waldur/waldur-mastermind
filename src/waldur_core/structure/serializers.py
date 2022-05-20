@@ -934,9 +934,18 @@ class UserSerializer(
         agree_with_policy = attrs.pop('agree_with_policy', False)
         if self.instance and not self.instance.agreement_date:
             if not agree_with_policy:
-                raise serializers.ValidationError(
-                    {'agree_with_policy': _('User must agree with the policy.')}
-                )
+                if (
+                    self.instance.is_active
+                    and 'is_active' in attrs.keys()
+                    and not attrs['is_active']
+                    and len(attrs) == 1
+                ):
+                    # Deactivation of user.
+                    pass
+                else:
+                    raise serializers.ValidationError(
+                        {'agree_with_policy': _('User must agree with the policy.')}
+                    )
             else:
                 attrs['agreement_date'] = timezone.now()
 
