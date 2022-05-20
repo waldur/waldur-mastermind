@@ -466,6 +466,7 @@ class UserUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         fixture = fixtures.UserFixture()
         self.user = fixture.user
+        self.staff = fixture.staff
         self.client.force_authenticate(self.user)
         self.url = factories.UserFactory.get_url(self.user)
 
@@ -522,6 +523,28 @@ class UserUpdateTest(test.APITransactionTestCase):
         # Assert
         self.user.refresh_from_db()
         self.assertNotEqual(self.user.organization, 'New org')
+
+    def test_deactivation_of_user_if_policy_has_not_been_accepted(self):
+        self.user.agreement_date = None
+        self.user.is_active = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {'is_active': False})
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEquals(self.user.is_active, False)
+
+    def test_deactivation_of_user_if_policy_has_been_accepted(self):
+        self.user.agreement_date = timezone.now()
+        self.user.is_active = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {'is_active': False})
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEquals(self.user.is_active, False)
 
 
 class UserConfirmEmailTest(test.APITransactionTestCase):
