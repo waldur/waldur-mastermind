@@ -44,6 +44,9 @@ def sync_groups():
     This task is used by Celery beat in order to periodically
     schedule FreeIPA group synchronization.
     """
+    if not settings.WALDUR_FREEIPA['ENABLED']:
+        return
+
     schedule_sync()
 
 
@@ -62,6 +65,9 @@ def schedule_sync_names():
 
 @shared_task(name='waldur_freeipa.sync_names')
 def sync_names():
+    if not settings.WALDUR_FREEIPA['ENABLED']:
+        return
+
     FreeIPABackend().synchronize_names()
 
 
@@ -105,6 +111,9 @@ def sync_profile_ssh_keys(profile_id):
 
 @shared_task(name='waldur_freeipa.disable_accounts_without_allocations')
 def disable_accounts_without_allocations():
+    if not settings.WALDUR_FREEIPA['ENABLED']:
+        return
+
     has_changed = False
     for profile in models.Profile.objects.filter(is_active=True):
         new_is_active = utils.is_profile_active_for_user(profile.user)
