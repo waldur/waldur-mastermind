@@ -12,6 +12,8 @@ class DryRunTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ScriptFixture()
         self.offering = self.fixture.offering
+        self.offering.options.update({'option1': []})
+        self.offering.save()
         self.url = self.fixture.get_dry_run_url(self.offering)
 
     @data('staff', 'offering_owner', 'service_manager')
@@ -24,6 +26,7 @@ class DryRunTest(test.APITransactionTestCase):
         data = {
             'plan': marketplace_factories.PlanFactory.get_url(self.fixture.plan),
             'type': 'Create',
+            'attributes': {'option1': 'value1'},
         }
         response = self.client.post(self.url, data=data)
         self.assertEqual(200, response.status_code)
