@@ -404,14 +404,14 @@ class CustomerStatsTest(test.APITransactionTestCase):
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get('/api/marketplace-stats/project_member_count/')
+        response = self.client.get('/api/marketplace-stats/customer_member_count/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data('owner', 'user', 'customer_support', 'admin', 'manager')
     def test_user_cannot_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get('/api/marketplace-stats/project_member_count/')
+        response = self.client.get('/api/marketplace-stats/customer_member_count/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 

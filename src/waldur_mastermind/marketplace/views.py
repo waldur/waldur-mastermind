@@ -1724,18 +1724,24 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def customer_member_count(self, request, *args, **kwargs):
-        data = (
-            structure_models.CustomerPermission.objects.filter(is_active=True)
+        active_customer_ids = models.Resource.objects.filter(
+            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING)
+        ).values('project__customer_id')
+
+        has_resources = []
+
+        customers = (
+            structure_models.CustomerPermission.objects.filter(
+                is_active=True, customer_id__in=active_customer_ids
+            )
             .values('customer__abbreviation', 'customer__name', 'customer__uuid')
             .annotate(count=Count('customer__uuid'))
         )
-        serializer = serializers.CustomerStatsSerializer(data, many=True)
-        return Response(status=status.HTTP_200_OK, data=serializer.data)
 
-    @action(detail=False, methods=['get'])
-    def project_member_count(self, request, *args, **kwargs):
-        data = (
-            structure_models.ProjectPermission.objects.filter(is_active=True)
+        projects = (
+            structure_models.ProjectPermission.objects.filter(
+                is_active=True, project__customer_id__in=active_customer_ids
+            )
             .values(
                 'project__customer__abbreviation',
                 'project__customer__name',
@@ -1743,8 +1749,52 @@ class StatsViewSet(rf_viewsets.ViewSet):
             )
             .annotate(count=Count('project__customer__uuid'))
         )
-        serializer = serializers.CustomerStatsSerializer(data, many=True)
-        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+        for c in serializers.CustomerStatsSerializer(customers, many=True).data:
+            c['has_resources'] = True
+            c['count'] += sum(
+                [
+                    p['count']
+                    for p in projects
+                    if p['project__customer__uuid'] == c['uuid']
+                ]
+            )
+            has_resources.append(c)
+
+        has_not_resources = []
+
+        customers = (
+            structure_models.CustomerPermission.objects.filter(is_active=True)
+            .exclude(customer_id__in=active_customer_ids)
+            .values('customer__abbreviation', 'customer__name', 'customer__uuid')
+            .annotate(count=Count('customer__uuid'))
+        )
+
+        projects = (
+            structure_models.ProjectPermission.objects.filter(is_active=True)
+            .exclude(project__customer_id__in=active_customer_ids)
+            .values(
+                'project__customer__abbreviation',
+                'project__customer__name',
+                'project__customer__uuid',
+            )
+            .annotate(count=Count('project__customer__uuid'))
+        )
+
+        for c in serializers.CustomerStatsSerializer(customers, many=True).data:
+            c['has_resources'] = False
+            c['count'] += sum(
+                [
+                    p['count']
+                    for p in projects
+                    if p['project__customer__uuid'] == c['uuid']
+                ]
+            )
+            has_not_resources.append(c)
+
+        return Response(
+            status=status.HTTP_200_OK, data=has_resources + has_not_resources
+        )
 
     @action(detail=False, methods=['get'])
     def resources_limits(self, request, *args, **kwargs):
