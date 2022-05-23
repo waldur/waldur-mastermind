@@ -59,7 +59,7 @@ class ResourceSerializer(serializers.Serializer):
 class DryRunSerializer(
     serializers.Serializer,
 ):
-    serializers.HyperlinkedRelatedField(
+    plan = serializers.HyperlinkedRelatedField(
         view_name='marketplace-plan-detail',
         lookup_field='uuid',
         queryset=models.Plan.objects.all(),
@@ -70,3 +70,4 @@ class DryRunSerializer(
         required=False,
         default=models.RequestTypeMixin.Types.CREATE,
     )
+    attributes = serializers.JSONField(required=False)
