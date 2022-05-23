@@ -264,8 +264,16 @@ class RancherClient:
             },
         )
 
-    def get_projects_roles(self):
-        return self._get('projectroletemplatebindings')['data']
+    def get_projects_roles(self, projectId=None, roleTemplateId=None):
+        params = {}
+        if projectId:
+            params['projectId'] = projectId
+        if roleTemplateId:
+            params['roleTemplateId'] = roleTemplateId
+        return self._get(
+            'projectroletemplatebindings',
+            params=params,
+        )['data']
 
     def delete_user(self, user_id):
         return self._delete('users/{0}'.format(user_id))
