@@ -2144,13 +2144,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
     def count_unique_users_connected_with_active_resources_of_service_provider(
         self, request, *args, **kwargs
     ):
-        resources = models.Resource.objects.filter(
-            state__in=(
-                models.Resource.States.OK,
-                models.Resource.States.TERMINATING,
-                models.Resource.States.UPDATING,
-            )
-        )
+        resources = self.get_active_resources()
 
         result = {}
 
@@ -2181,6 +2175,62 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         return Response(
             result,
+            status=status.HTTP_200_OK,
+        )
+
+    def get_active_resources(self):
+        return models.Resource.objects.filter(
+            state__in=(
+                models.Resource.States.OK,
+                models.Resource.States.UPDATING,
+                models.Resource.States.TERMINATING,
+            )
+        )
+
+    @action(detail=False, methods=['get'])
+    def count_active_resources_grouped_by_offering(self, request, *args, **kwargs):
+        result = (
+            self.get_active_resources()
+            .values('offering__uuid', 'offering__name')
+            .annotate(count=Count('id'))
+            .order_by()
+        )
+
+        return Response(
+            serializers.CountStatsSerializer(result, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['get'])
+    def count_active_resources_grouped_by_offering_country(
+        self, request, *args, **kwargs
+    ):
+        result = (
+            self.get_active_resources()
+            .values('offering__country')
+            .annotate(count=Count('id'))
+            .order_by()
+        )
+
+        return Response(
+            serializers.OfferingCountryStatsSerializer(result, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['get'])
+    def count_active_resources_grouped_by_division(self, request, *args, **kwargs):
+        result = (
+            self.get_active_resources()
+            .values(
+                'offering__customer__division__name',
+                'offering__customer__division__uuid',
+            )
+            .annotate(count=Count('id'))
+            .order_by()
+        )
+
+        return Response(
+            serializers.CountStatsSerializer(result, many=True).data,
             status=status.HTTP_200_OK,
         )
 
