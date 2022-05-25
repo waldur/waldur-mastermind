@@ -2853,8 +2853,7 @@ class OfferingComponentStatSerializer(serializers.Serializer):
         return self.get_component_attr(record, 'name')
 
 
-class CustomerStatsSerializer(serializers.Serializer):
-    abbreviation = serializers.SerializerMethodField()
+class CountStatsSerializer(serializers.Serializer):
     name = serializers.SerializerMethodField()
     uuid = serializers.SerializerMethodField()
     count = serializers.SerializerMethodField()
@@ -2864,9 +2863,6 @@ class CustomerStatsSerializer(serializers.Serializer):
             if name in k:
                 return record[k]
 
-    def get_abbreviation(self, record):
-        return self._get_value(record, 'abbreviation')
-
     def get_name(self, record):
         return self._get_value(record, 'name')
 
@@ -2875,6 +2871,18 @@ class CustomerStatsSerializer(serializers.Serializer):
 
     def get_count(self, record):
         return self._get_value(record, 'count')
+
+
+class CustomerStatsSerializer(CountStatsSerializer):
+    abbreviation = serializers.SerializerMethodField()
+
+    def get_abbreviation(self, record):
+        return self._get_value(record, 'abbreviation')
+
+
+class OfferingCountryStatsSerializer(serializers.Serializer):
+    country = serializers.CharField(source='offering__country')
+    count = serializers.IntegerField()
 
 
 class ComponentUsagesStatsSerializer(serializers.Serializer):
