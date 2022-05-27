@@ -1940,31 +1940,6 @@ class StatsViewSet(rf_viewsets.ViewSet):
             self._expand_result_with_oecd_name(result), status=status.HTTP_200_OK
         )
 
-    def _count_projects_grouped_by_field(self, field_name):
-        results = (
-            structure_models.Project.objects.filter()
-            .values(field_name)
-            .annotate(count=Count('id'))
-        )
-
-        return results
-
-    @action(detail=False, methods=['get'])
-    def count_projects_grouped_by_oecd(self, request, *args, **kwargs):
-        return Response(
-            self._expand_result_with_oecd_name(
-                self._count_projects_grouped_by_field('oecd_fos_2007_code')
-            ),
-            status=status.HTTP_200_OK,
-        )
-
-    @action(detail=False, methods=['get'])
-    def count_projects_grouped_by_industry_flag(self, request, *args, **kwargs):
-        return Response(
-            self._count_projects_grouped_by_field('is_industry'),
-            status=status.HTTP_200_OK,
-        )
-
     def _projects_usages_grouped_by_field(self, field_name):
         results = {}
 
@@ -2231,6 +2206,51 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
         return Response(
             serializers.CountStatsSerializer(result, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def _get_count_projects_with_active_resources_grouped_by_provider_and_field(
+        self, grouped_field
+    ):
+        return (
+            structure_models.Project.objects.filter(is_removed=False)
+            .filter(
+                resource__state__in=(
+                    models.Resource.States.OK,
+                    models.Resource.States.UPDATING,
+                    models.Resource.States.TERMINATING,
+                )
+            )
+            .values(
+                'resource__offering__customer__name',
+                'resource__offering__customer__abbreviation',
+                'resource__offering__customer__uuid',
+                grouped_field,
+            )
+            .annotate(count=Count('id'))
+            .order_by('resource__offering__customer__name')
+        )
+
+    @action(detail=False, methods=['get'])
+    def count_projects_grouped_by_provider_and_oecd(self, request, *args, **kwargs):
+        result = self._get_count_projects_with_active_resources_grouped_by_provider_and_field(
+            'oecd_fos_2007_code'
+        )
+        result = self._expand_result_with_oecd_name(result)
+        return Response(
+            serializers.CustomerOecdCodeStatsSerializer(result, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['get'])
+    def count_projects_grouped_by_provider_and_industry_flag(
+        self, request, *args, **kwargs
+    ):
+        result = self._get_count_projects_with_active_resources_grouped_by_provider_and_field(
+            'is_industry'
+        )
+        return Response(
+            serializers.CustomerIndustryFlagStatsSerializer(result, many=True).data,
             status=status.HTTP_200_OK,
         )
 
