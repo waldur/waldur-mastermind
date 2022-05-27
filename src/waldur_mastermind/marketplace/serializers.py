@@ -2880,6 +2880,14 @@ class CustomerStatsSerializer(CountStatsSerializer):
         return self._get_value(record, 'abbreviation')
 
 
+class CustomerOecdCodeStatsSerializer(CustomerStatsSerializer):
+    oecd = serializers.CharField(source='oecd_fos_2007_name')
+
+
+class CustomerIndustryFlagStatsSerializer(CustomerStatsSerializer):
+    is_industry = serializers.CharField()
+
+
 class OfferingCountryStatsSerializer(serializers.Serializer):
     country = serializers.CharField(source='offering__country')
     count = serializers.IntegerField()
