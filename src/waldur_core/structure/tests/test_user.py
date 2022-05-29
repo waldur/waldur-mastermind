@@ -1,6 +1,8 @@
+from datetime import datetime
 from unittest import mock
 
 from ddt import data, ddt
+from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -425,6 +427,34 @@ class UserFilterTest(test.APITransactionTestCase):
         response = self.client.get(url, data={'full_name': 'Francois Jurimae'})
         self.assertContains(response, user_url)
 
+    @override_waldur_core_settings(
+        LOCAL_IDP_NAME='Local DB (name)',
+        LOCAL_IDP_LABEL='Local DB (label)',
+        LOCAL_IDP_MANAGEMENT_URL='http://local-db.example.com/user-details/',
+        LOCAL_IDP_PROTECTED_FIELDS=['full_name'],
+    )
+    def test_user_identity_provider_data(self):
+        user = factories.UserFactory(is_staff=True, full_name='François Jürimäe')
+        self.client.force_authenticate(user)
+        user_url = factories.UserFactory.get_url(user)
+
+        response = self.client.get(user_url)
+        user = response.data
+        self.assertEquals(
+            settings.WALDUR_CORE['LOCAL_IDP_NAME'], user['identity_provider_name']
+        )
+        self.assertEquals(
+            settings.WALDUR_CORE['LOCAL_IDP_LABEL'], user['identity_provider_label']
+        )
+        self.assertEquals(
+            settings.WALDUR_CORE['LOCAL_IDP_MANAGEMENT_URL'],
+            user['identity_provider_management_url'],
+        )
+        self.assertEquals(
+            settings.WALDUR_CORE['LOCAL_IDP_PROTECTED_FIELDS'],
+            user['identity_provider_fields'],
+        )
+
 
 class CustomUsersFilterTest(test.APITransactionTestCase):
     def setUp(self):
@@ -545,6 +575,19 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEquals(self.user.is_active, False)
+
+    @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=['full_name'])
+    def test_user_can_update_only_allowed_fields(self):
+        payload = {
+            'full_name': "New User",
+        }
+        old_name = self.user.full_name
+        self.user.agreement_date = datetime.now()
+        self.user.save()
+        response = self.client.patch(self.url, payload)
+        self.assertEquals(status.HTTP_200_OK, response.status_code)
+        self.user.refresh_from_db()
+        self.assertEqual(old_name, self.user.full_name)
 
 
 class UserConfirmEmailTest(test.APITransactionTestCase):

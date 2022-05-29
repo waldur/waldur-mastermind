@@ -32,6 +32,24 @@ from waldur_core.structure.registry import get_resource_type, get_service_type
 User = auth.get_user_model()
 logger = logging.getLogger(__name__)
 
+SOCIAL_SIGNUP_DETAILS = {
+    'eduteams': {
+        'label_key': 'EDUTEAMS_LABEL',
+        'management_url_key': 'EDUTEAMS_MANAGEMENT_URL',
+        'details_fields_key': 'EDUTEAMS_USER_PROTECTED_FIELDS',
+    },
+    'keycloak': {
+        'label_key': 'KEYCLOAK_LABEL',
+        'management_url_key': 'KEYCLOAK_MANAGEMENT_URL',
+        'details_fields_key': 'KEYCLOAK_USER_PROTECTED_FIELDS',
+    },
+    'tara': {
+        'label_key': 'TARA_LABEL',
+        'management_url_key': 'TARA_MANAGEMENT_URL',
+        'details_fields_key': 'TARA_USER_PROTECTED_FIELDS',
+    },
+}
+
 
 def get_options_serializer_class(service_type):
     return next(
@@ -795,6 +813,10 @@ class UserSerializer(
     project_permissions = serializers.SerializerMethodField()
     requested_email = serializers.SerializerMethodField()
     full_name = serializers.CharField(max_length=200, required=False)
+    identity_provider_name = serializers.SerializerMethodField()
+    identity_provider_label = serializers.SerializerMethodField()
+    identity_provider_management_url = serializers.SerializerMethodField()
+    identity_provider_fields = serializers.SerializerMethodField()
 
     def get_customer_permissions(self, user):
         permissions = models.CustomerPermission.objects.filter(
@@ -820,6 +842,78 @@ class UserSerializer(
             return requested_email.email
         except core_models.ChangeEmailRequest.DoesNotExist:
             pass
+
+    def get_identity_provider_name(self, user):
+        registration_method = user.registration_method
+        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
+            key = SOCIAL_SIGNUP_DETAILS[registration_method]['label_key']
+            return settings.WALDUR_AUTH_SOCIAL[key]
+
+        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+            return settings.WALDUR_AUTH_SAML2['IDENTITY_PROVIDER_LABEL']
+
+        if registration_method == 'valimo':
+            return settings.WALDUR_AUTH_VALIMO['LABEL']
+
+        if registration_method == 'default':
+            return settings.WALDUR_CORE['LOCAL_IDP_NAME']
+
+        return ''
+
+    def get_identity_provider_label(self, user):
+        registration_method = user.registration_method
+        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
+            key = SOCIAL_SIGNUP_DETAILS[registration_method]['label_key']
+            return settings.WALDUR_AUTH_SOCIAL[key]
+
+        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+            return settings.WALDUR_AUTH_SAML2['IDENTITY_PROVIDER_LABEL']
+
+        if registration_method == 'valimo':
+            return settings.WALDUR_AUTH_VALIMO['LABEL']
+
+        if registration_method == 'default':
+            return settings.WALDUR_CORE['LOCAL_IDP_LABEL']
+
+        return ''
+
+    def get_identity_provider_management_url(self, user):
+        registration_method = user.registration_method
+        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
+            key = SOCIAL_SIGNUP_DETAILS[registration_method]['management_url_key']
+            return settings.WALDUR_AUTH_SOCIAL[key]
+
+        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+            return settings.WALDUR_AUTH_SAML2['MANAGEMENT_URL']
+
+        if registration_method == 'valimo':
+            return settings.WALDUR_AUTH_VALIMO['USER_MANAGEMENT_URL']
+
+        if registration_method == 'default':
+            return settings.WALDUR_CORE['LOCAL_IDP_MANAGEMENT_URL']
+
+        return ''
+
+    def get_identity_provider_fields(self, user):
+        registration_method = user.registration_method
+        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
+            key = SOCIAL_SIGNUP_DETAILS[registration_method]['details_fields_key']
+            return settings.WALDUR_AUTH_SOCIAL[key]
+
+        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+            fields = [
+                v[0]
+                for v in settings.WALDUR_AUTH_SAML2['SAML_ATTRIBUTE_MAPPING'].values
+            ]
+            return fields
+
+        if registration_method == 'valimo':
+            return settings.WALDUR_AUTH_VALIMO['USER_PROTECTED_FIELDS']
+
+        if registration_method == 'default':
+            return settings.WALDUR_CORE['LOCAL_IDP_PROTECTED_FIELDS']
+
+        return []
 
     class Meta:
         model = User
@@ -852,6 +946,10 @@ class UserSerializer(
             'affiliations',
             'first_name',
             'last_name',
+            'identity_provider_name',
+            'identity_provider_label',
+            'identity_provider_management_url',
+            'identity_provider_fields',
         )
         read_only_fields = (
             'uuid',
@@ -948,6 +1046,11 @@ class UserSerializer(
                     )
             else:
                 attrs['agreement_date'] = timezone.now()
+
+        if self.instance:
+            idp_fields = self.get_identity_provider_fields(self.instance)
+            allowed_fields = set(attrs.keys()) - set(idp_fields)
+            attrs = {k: v for k, v in attrs.items() if k in allowed_fields}
 
         # Convert validation error from Django to DRF
         # https://github.com/tomchristie/django-rest-framework/issues/2145
