@@ -296,6 +296,19 @@ class WaldurCore(BaseModel):
         description='Link URL in hero section of HomePort landing page.'
     )
 
+    LOCAL_IDP_NAME = Field('Local DB', description='The name of local auth.')
+
+    LOCAL_IDP_LABEL = Field('Local DB', description='The label of local auth.')
+
+    LOCAL_IDP_MANAGEMENT_URL = Field(
+        '', description='The URL for management of local user details.'
+    )
+
+    LOCAL_IDP_PROTECTED_FIELDS: List[str] = Field(
+        [],
+        description='The list of protected fields for local IdP.',
+    )
+
     class Meta:
         public_settings = [
             'CURRENCY_NAME',
@@ -354,6 +367,13 @@ class WaldurAuthSocial(BaseModel):
         description='You may set it to eIDAS, SmartID or MobileID make it more clear to the user '
         'which exact identity provider is configured or preferred for service provider.',
     )
+    TARA_MANAGEMENT_URL = Field(
+        '',
+        description='The endpoint for user details management.',
+    )
+    TARA_USER_PROTECTED_FIELDS: List[str] = Field(
+        [], description='The list of protected fields for TARA IdP.'
+    )
     KEYCLOAK_LABEL = Field(
         'Keycloak', description='Label is used by HomePort for rendering login button.'
     )
@@ -376,6 +396,13 @@ class WaldurAuthSocial(BaseModel):
     KEYCLOAK_VERIFY_SSL = Field(
         True, description='Validate TLS certificate of Keycloak REST API'
     )
+    KEYCLOAK_MANAGEMENT_URL = Field(
+        'http://localhost:8080/auth/realms/waldur/account/#/personal-info',
+        description='The endpoint for user details management.',
+    )
+    KEYCLOAK_USER_PROTECTED_FIELDS: List[str] = Field(
+        [], description='The list of protected fields for Keycloak IdP.'
+    )
     EDUTEAMS_LABEL = Field(
         'eduTEAMS', description='Label is used by HomePort for rendering login button.'
     )
@@ -395,6 +422,12 @@ class WaldurAuthSocial(BaseModel):
     EDUTEAMS_USERINFO_URL = Field(
         'https://proxy.acc.eduteams.org/OIDC/userinfo',
         description='The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.',
+    )
+    EDUTEAMS_MANAGEMENT_URL = Field(
+        '', description='The endpoint for user details management.'
+    )
+    EDUTEAMS_USER_PROTECTED_FIELDS: List[str] = Field(
+        [], description='The list of protected fields for EDUTEAMS IdP.'
     )
     REMOTE_EDUTEAMS_TOKEN_URL = Field(
         'https://proxy.acc.researcher-access.org/OIDC/token',
@@ -767,6 +800,10 @@ class WaldurAuthSAML2(BaseModel):
     DEFAULT_BINDING = Field(saml2.BINDING_HTTP_POST, description='')
     DISCOVERY_SERVICE_URL: str = Field(None, description='')
     DISCOVERY_SERVICE_LABEL: str = Field(None, description='')
+    MANAGEMENT_URL = Field(
+        '',
+        description='The endpoint for user details management.',
+    )
 
     class Meta:
         public_settings = [

@@ -15,6 +15,8 @@ class AuthValimoExtension(WaldurExtension):
             'verify_ssl': False,
             'LABEL': 'Mobile ID',
             'MOBILE_PREFIX': '+372',
+            'USER_MANAGEMENT_URL': [],
+            'USER_PROTECTED_FIELDS': [],
         }
 
     @staticmethod
