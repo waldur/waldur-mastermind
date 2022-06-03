@@ -20,6 +20,7 @@ from waldur_core.core.fields import MappedChoiceField
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import utils
 from waldur_core.structure.exceptions import (
     ServiceBackendError,
     ServiceBackendNotImplemented,
@@ -896,22 +897,9 @@ class UserSerializer(
 
     def get_identity_provider_fields(self, user):
         registration_method = user.registration_method
-        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
-            key = SOCIAL_SIGNUP_DETAILS[registration_method]['details_fields_key']
-            return settings.WALDUR_AUTH_SOCIAL[key]
-
-        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
-            fields = [
-                v[0]
-                for v in settings.WALDUR_AUTH_SAML2['SAML_ATTRIBUTE_MAPPING'].values
-            ]
-            return fields
-
-        if registration_method == 'valimo':
-            return settings.WALDUR_AUTH_VALIMO['USER_PROTECTED_FIELDS']
-
-        if registration_method == 'default':
-            return settings.WALDUR_CORE['LOCAL_IDP_PROTECTED_FIELDS']
+        idp_protected_fields_map = utils.get_idp_protected_fields_map()
+        if registration_method in idp_protected_fields_map:
+            return idp_protected_fields_map[registration_method]
 
         return []
 
