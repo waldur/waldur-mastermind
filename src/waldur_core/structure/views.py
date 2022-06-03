@@ -479,6 +479,23 @@ class UserViewSet(viewsets.ModelViewSet):
     def change_email(self, request, uuid=None):
         user = self.get_object()
 
+        idp_protected_fields_map = utils.get_idp_protected_fields_map()
+        if user.registration_method not in idp_protected_fields_map:
+            return Response(
+                {'detail': _('User has unsupported registration method')},
+                status=status.HTTP_409_CONFLICT,
+            )
+        idp_protected_fields = idp_protected_fields_map[user.registration_method]
+
+        if 'email' in idp_protected_fields:
+            raise ValidationError(
+                {
+                    'detail': _(
+                        'The registration method does not allow direct email modification.'
+                    )
+                }
+            )
+
         serializer = serializers.UserEmailChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

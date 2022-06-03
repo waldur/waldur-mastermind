@@ -372,7 +372,10 @@ class WaldurAuthSocial(BaseModel):
         description='The endpoint for user details management.',
     )
     TARA_USER_PROTECTED_FIELDS: List[str] = Field(
-        [], description='The list of protected fields for TARA IdP.'
+        [
+            'full_name',
+        ],
+        description='The list of protected fields for TARA IdP.',
     )
     KEYCLOAK_LABEL = Field(
         'Keycloak', description='Label is used by HomePort for rendering login button.'
@@ -401,7 +404,8 @@ class WaldurAuthSocial(BaseModel):
         description='The endpoint for user details management.',
     )
     KEYCLOAK_USER_PROTECTED_FIELDS: List[str] = Field(
-        [], description='The list of protected fields for Keycloak IdP.'
+        ['full_name', 'email'],
+        description='The list of protected fields for Keycloak IdP.',
     )
     EDUTEAMS_LABEL = Field(
         'eduTEAMS', description='Label is used by HomePort for rendering login button.'
@@ -427,7 +431,11 @@ class WaldurAuthSocial(BaseModel):
         '', description='The endpoint for user details management.'
     )
     EDUTEAMS_USER_PROTECTED_FIELDS: List[str] = Field(
-        [], description='The list of protected fields for EDUTEAMS IdP.'
+        [
+            'full_name',
+            'email',
+        ],
+        description='The list of protected fields for EDUTEAMS IdP.',
     )
     REMOTE_EDUTEAMS_TOKEN_URL = Field(
         'https://proxy.acc.researcher-access.org/OIDC/token',

@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
@@ -8,6 +9,19 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.signals import project_moved
 
 logger = logging.getLogger(__name__)
+
+
+def get_idp_protected_fields_map():
+    return {
+        'eduteams': settings.WALDUR_AUTH_SOCIAL['EDUTEAMS_USER_PROTECTED_FIELDS'],
+        'keycloak': settings.WALDUR_AUTH_SOCIAL['KEYCLOAK_USER_PROTECTED_FIELDS'],
+        'tara': settings.WALDUR_AUTH_SOCIAL['TARA_USER_PROTECTED_FIELDS'],
+        settings.WALDUR_AUTH_SAML2['NAME']: [
+            v[0] for v in settings.WALDUR_AUTH_SAML2['SAML_ATTRIBUTE_MAPPING'].values()
+        ],
+        'valimo': settings.WALDUR_AUTH_VALIMO['USER_PROTECTED_FIELDS'],
+        'default': settings.WALDUR_CORE['LOCAL_IDP_PROTECTED_FIELDS'],
+    }
 
 
 def update_pulled_fields(instance, imported_instance, fields):
