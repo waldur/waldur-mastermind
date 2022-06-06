@@ -92,9 +92,9 @@ def log_user_save(sender, instance, created=False, **kwargs):
                 )
 
         if token_lifetime_changed:
-            event_logger.user.info(
+            event_logger.token.info(
                 'Token lifetime has been changed for {affected_user_username} to {affected_user_token_lifetime}',
-                event_type='user_token_lifetime_updated',
+                event_type='token_lifetime_updated',
                 event_context={'affected_user': instance},
             )
 
