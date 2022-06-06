@@ -12,7 +12,7 @@ class AuthEventLogger(EventLogger):
             'auth_login_failed_with_username',
             'auth_logged_out',
         )
-        event_groups = {'users': event_types}
+        event_groups = {'auth': event_types}
         nullable_fields = ['user', 'username']
 
     @staticmethod
@@ -36,7 +36,6 @@ class UserEventLogger(EventLogger):
             'user_details_update_succeeded',
             'user_deletion_succeeded',
             'user_password_updated',
-            'user_token_lifetime_updated',
             'user_activated',
             'user_deactivated',
             'user_profile_changed',
@@ -54,7 +53,13 @@ class TokenEventLogger(EventLogger):
     affected_user = User
 
     class Meta:
-        event_types = ('token_created',)
+        event_types = (
+            'token_created',
+            'token_lifetime_updated',
+        )
+        event_groups = {
+            'auth': event_types,
+        }
 
     @staticmethod
     def get_scopes(event_context):
