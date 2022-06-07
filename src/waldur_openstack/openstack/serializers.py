@@ -1007,7 +1007,10 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
         return super(PortSerializer, self).validate(attrs)
 
 
-class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
+class NetworkSerializer(
+    structure_serializers.FieldFilteringMixin,
+    structure_serializers.BaseResourceActionSerializer,
+):
     subnets = _NestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source='tenant.name', read_only=True)
     tenant_uuid = serializers.CharField(source='tenant.uuid', read_only=True)
@@ -1050,6 +1053,11 @@ class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['service_settings'] = tenant.service_settings
         attrs['project'] = tenant.project
         return super(NetworkSerializer, self).validate(attrs)
+
+    def get_filtered_field(self):
+        return [
+            ('segmentation_id', lambda user: user.is_staff or user.is_support),
+        ]
 
 
 class SetMtuSerializer(serializers.Serializer):
