@@ -111,6 +111,39 @@ class PermissionFieldFilteringMixin:
         )
 
 
+class FieldFilteringMixin:
+    """
+    Mixin allowing to filter fields by user.
+
+    In order to constrain the list of fields implement
+    `get_filtered_field()` method returning list of tuples
+    (field name, func for check access).
+    """
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        try:
+            request = self.context['request']
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+
+        for field_name, check_access in self.get_filtered_field():
+            if field_name not in fields:
+                continue
+
+            if not check_access(user):
+                del fields[field_name]
+
+        return fields
+
+    def get_filtered_field(self):
+        raise NotImplementedError(
+            'Implement get_filtered_field() ' 'to return list of tuples '
+        )
+
+
 class PermissionListSerializer(serializers.ListSerializer):
     """
     Allows to filter related queryset by user.

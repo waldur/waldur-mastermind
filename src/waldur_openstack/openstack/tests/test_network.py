@@ -1,5 +1,6 @@
 from unittest import mock
 
+from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_openstack.openstack import models
@@ -266,3 +267,25 @@ class NetworkCreatePortActionTest(BaseNetworkTest):
             'Enter a valid IPv4 or IPv6 address.',
             response.data['non_field_errors'][0],
         )
+
+
+@ddt
+class NetworkFieldsFilterTest(BaseNetworkTest):
+    def setUp(self):
+        super().setUp()
+        self.network = self.fixture.network
+        self.url = factories.NetworkFactory.get_url(self.network)
+
+    @data('staff', 'global_support')
+    def test_user_can_get_field(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('segmentation_id' in response.data)
+
+    @data('admin', 'owner')
+    def test_user_can_not_get_field(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse('segmentation_id' in response.data)

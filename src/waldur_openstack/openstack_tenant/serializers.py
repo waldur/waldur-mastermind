@@ -114,7 +114,10 @@ class UsageStatsSerializer(serializers.Serializer):
     service_provider = serializers.ListField(child=serializers.CharField())
 
 
-class NetworkSerializer(structure_serializers.BasePropertySerializer):
+class NetworkSerializer(
+    structure_serializers.FieldFilteringMixin,
+    structure_serializers.BasePropertySerializer,
+):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Network
         fields = (
@@ -134,6 +137,11 @@ class NetworkSerializer(structure_serializers.BasePropertySerializer):
                 'view_name': 'openstacktenant-subnet-detail',
             },
         }
+
+    def get_filtered_field(self):
+        return [
+            ('segmentation_id', lambda user: user.is_staff or user.is_support),
+        ]
 
 
 class SubNetSerializer(structure_serializers.BasePropertySerializer):
