@@ -463,10 +463,7 @@ class SAPReportSerializer(serializers.Serializer):
             return ''
 
     def get_vali_field(self, invoice_item):
-        if invoice_item.invoice.customer.contact_details:
-            return f'Record no {invoice_item.invoice.number}. Periood: {invoice_item.invoice.month}/{invoice_item.invoice.year}. {invoice_item.invoice.customer.contact_details}'
-        else:
-            return f'Record no {invoice_item.invoice.number}. Periood: {invoice_item.invoice.month}/{invoice_item.invoice.year}'
+        return f'Record no {invoice_item.invoice.number}. Periood: {invoice_item.invoice.month}/{invoice_item.invoice.year}'
 
     def get_tekst_2_field(self, invoice_item):
         # If a single plan for an offering exists, skip it from display
