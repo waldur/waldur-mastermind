@@ -1122,6 +1122,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "httpagentparser"
+version = "1.9.2"
+description = "Extracts OS Browser etc information from http user agent string"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "httplib2"
 version = "0.20.1"
 description = "A comprehensive HTTP client library."
@@ -2709,7 +2717,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "6f8d2eb63bed8eb6f3fb82b6127d0c8d916ea9b6e657d759a6cc5fcb46834444"
+content-hash = "b1c0f3139931145f42e554ff3f32e7f98be1706d551c9ecc94fb9ebc1e46f75f"
 
 [metadata.files]
 adal = [
@@ -3157,6 +3165,9 @@ hiredis = [
     {file = "hiredis-0.2.0-cp37-cp37m-manylinux1_i686.whl", hash = "sha256:09025bdda2a17294be015bccab7c1039ed41c95cdbef8915f27006c5204e656c"},
     {file = "hiredis-0.2.0-cp37-cp37m-manylinux1_x86_64.whl", hash = "sha256:f69bffe7c1ad38be95bbb2c3e5c3f6f4eecb28b2f431a3c3e1532509eea89c92"},
     {file = "hiredis-0.2.0.tar.gz", hash = "sha256:ca958e13128e49674aa4a96f02746f5de5973f39b57297b84d59fd44d314d5b5"},
+]
+httpagentparser = [
+    {file = "httpagentparser-1.9.2.tar.gz", hash = "sha256:a190dfdc5e63b2f1c87729424b19cbc49263d6a1fb585a16ac1c9d9ce127a4bf"},
 ]
 httplib2 = [
     {file = "httplib2-0.20.1-py3-none-any.whl", hash = "sha256:8fa4dbf2fbf839b71f8c7837a831e00fcdc860feca99b8bda58ceae4bc53d185"},

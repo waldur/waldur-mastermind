@@ -13,6 +13,7 @@ from functools import lru_cache
 from itertools import chain
 from operator import itemgetter
 
+import httpagentparser
 import jwt
 import requests
 from django.apps import apps
@@ -487,3 +488,11 @@ def get_ip_address(request):
         return request.META['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
     elif 'REMOTE_ADDR' in request.META:
         return request.META['REMOTE_ADDR']
+
+
+def get_user_agent(request):
+    return request.META.get('HTTP_USER_AGENT', '')
+
+
+def get_device_info(user_agent):
+    return httpagentparser.detect(user_agent)

@@ -1,8 +1,33 @@
+from rest_framework.request import Request
+
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.logging.loggers import EventLogger, event_logger
 
+from . import utils
 
-class AuthEventLogger(EventLogger):
+
+class AuthEventMixin:
+    @staticmethod
+    def request_context_processor(context, request):
+        # This value will be set later if waldur geo module is enable.
+        context['location'] = 'pending'
+
+        # ip_address will be get from threading.local(). The core middleware will set it.
+        context['user_agent'] = utils.get_user_agent(request)
+        context.update(utils.get_device_info(context['user_agent']))
+
+    @property
+    def fields(self):
+        if not hasattr(self, '_fields'):
+            self._fields = super().fields
+            self._fields['request'] = Request
+        return self._fields
+
+    def get_nullable_fields(self):
+        return super().get_nullable_fields() + ['request']
+
+
+class AuthEventLogger(AuthEventMixin, EventLogger):
     user = User
     username = str
 

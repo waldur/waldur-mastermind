@@ -1,8 +1,9 @@
+from waldur_core.core.log import AuthEventMixin
 from waldur_core.core.models import User
 from waldur_core.logging.loggers import EventLogger, event_logger
 
 
-class Saml2AuthEventLogger(EventLogger):
+class Saml2AuthEventLogger(AuthEventMixin, EventLogger):
     user = User
 
     class Meta:

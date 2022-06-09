@@ -261,7 +261,7 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         event_logger.saml2_auth.info(
             'User {user_username} with full name {user_full_name} logged in successfully with SAML2.',
             event_type='auth_logged_in_with_saml2',
-            event_context={'user': user},
+            event_context={'user': user, 'request': request},
         )
         return login_completed(token.key, 'saml2')
 
