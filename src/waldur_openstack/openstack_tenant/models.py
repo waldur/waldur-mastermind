@@ -345,8 +345,12 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     flavor_disk = models.PositiveIntegerField(
         default=0, help_text=_('Flavor disk size in MiB')
     )
-    security_groups = models.ManyToManyField(SecurityGroup, related_name='instances')
-    server_groups = models.ManyToManyField(ServerGroup, related_name='instances')
+    security_groups = models.ManyToManyField(
+        SecurityGroup, related_name='instances', blank=True
+    )
+    server_groups = models.ManyToManyField(
+        ServerGroup, related_name='instances', blank=True
+    )
     # TODO: Move this fields to resource model.
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
