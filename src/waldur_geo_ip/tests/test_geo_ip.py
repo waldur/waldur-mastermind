@@ -1,6 +1,6 @@
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TransactionTestCase
 from django.test.utils import override_settings
 
 from waldur_core.core import utils
@@ -9,7 +9,7 @@ from waldur_core.structure.tests import factories
 from .. import tasks
 
 
-class TestDetectVMCoordinatesTask(TestCase):
+class TestDetectVMCoordinatesTask(TransactionTestCase):
     @mock.patch('requests.get')
     @override_settings(IPSTACK_ACCESS_KEY='IPSTACK_ACCESS_KEY')
     def test_task_sets_coordinates(self, mock_request_get):

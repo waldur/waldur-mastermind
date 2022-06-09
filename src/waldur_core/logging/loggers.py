@@ -71,10 +71,11 @@ class BaseLogger:
                 % (logging_type, ', '.join(self.supported_types))
             )
 
-    def compile_context(self, **kwargs):
+    @property
+    def fields(self):
         # Get a list of fields here in order to be sure all models already loaded.
-        if not hasattr(self, 'fields'):
-            self.fields = {
+        if not hasattr(self, '_fields'):
+            self._fields = {
                 k: self.get_field_model(v)
                 for k, v in self.__class__.__dict__.items()
                 if (
@@ -84,7 +85,9 @@ class BaseLogger:
                     and k != 'Meta'
                 )
             }
+        return self._fields
 
+    def compile_context(self, **kwargs):
         missed = (
             set(self.fields.keys())
             - set(self.get_nullable_fields())
@@ -134,6 +137,11 @@ class BaseLogger:
                 context[entity_name] = entity
             elif entity is None:
                 pass
+            elif hasattr(self, entity_name + '_context_processor') and isinstance(
+                getattr(self, entity_name + '_context_processor'), types.FunctionType
+            ):
+                context_processor = getattr(self, entity_name + '_context_processor')
+                context_processor(context, entity)
             else:
                 context[entity_name] = str(entity)
                 logger.warning(

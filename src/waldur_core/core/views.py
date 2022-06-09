@@ -206,11 +206,12 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         user.save(update_fields=['last_login'])
 
         logger.debug('Returning token for successful login of user %s', user)
+
         event_logger.auth.info(
             'User {user_username} with full name {user_full_name} '
             'authenticated successfully with username and password.',
             event_type='auth_logged_in_with_username',
-            event_context={'user': user},
+            event_context={'user': user, 'request': request},
         )
 
         return Response({'token': token.key})

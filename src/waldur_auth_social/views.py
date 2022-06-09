@@ -80,6 +80,7 @@ class OAuthView(RefreshTokenMixin, views.APIView):
             event_context={
                 'provider': self.provider,
                 'user': user,
+                'request': request,
             },
         )
         return Response(
