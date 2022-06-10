@@ -1490,9 +1490,19 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     def get_instances(self):
-        nova = self.nova_client
+        if self.settings.scope:
+            # It need use shared service settings to get instance hypervisor_hostname.
+            # If setting is shared then scope in None
+            nova = self.get_admin_tenant_client()
+        else:
+            nova = self.nova_client
+
         try:
-            backend_instances = nova.servers.list()
+            # We use search_opts according to the rules in
+            # https://docs.openstack.org/api-ref/compute/?expanded=list-servers-detail#list-server-request
+            backend_instances = nova.servers.list(
+                search_opts={'project_id': self.tenant_id, 'all_tenants': 1}
+            )
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
