@@ -4,7 +4,7 @@ from rest_framework import test
 
 from waldur_freeipa.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
 from waldur_slurm.tests import factories as slurm_factories
 
@@ -27,7 +27,8 @@ class AssociationCreateTest(test.APITransactionTestCase):
         self.url = (
             'http://testserver'
             + reverse(
-                'marketplace-slurm-detail', kwargs={'uuid': self.resource.uuid.hex}
+                'marketplace-slurm-remote-detail',
+                kwargs={'uuid': self.resource.uuid.hex},
             )
             + 'create_association'
             + '/'
@@ -103,7 +104,8 @@ class AssociationDeleteTest(test.APITransactionTestCase):
         self.url = (
             'http://testserver'
             + reverse(
-                'marketplace-slurm-detail', kwargs={'uuid': self.resource.uuid.hex}
+                'marketplace-slurm-remote-detail',
+                kwargs={'uuid': self.resource.uuid.hex},
             )
             + 'delete_association'
             + '/'

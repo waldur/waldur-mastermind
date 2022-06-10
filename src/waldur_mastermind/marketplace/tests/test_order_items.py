@@ -471,7 +471,7 @@ class BaseItemSetStateTest(test.APITransactionTestCase):
         self.manager = self.fixture.manager
 
         self.offering = self.fixture.offering
-        self.offering.type = 'SlurmInvoices.SlurmPackage'
+        self.offering.type = 'Marketplace.Slurm'
         self.offering.save()
 
         self.order_item = self.fixture.order_item

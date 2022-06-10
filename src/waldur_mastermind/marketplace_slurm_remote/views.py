@@ -1,6 +1,7 @@
 import logging
 
 from django.utils.translation import gettext_lazy as _
+from django_fsm import TransitionNotAllowed
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -36,15 +37,15 @@ class SlurmViewSet(core_views.ActionsViewSet):
 
     create_association_serializer_class = (
         delete_association_serializer_class
-    ) = serializers.SetUsernameSerializer
+    ) = serializers.UsernameSerializer
 
     create_association_permissions = (
         delete_association_permissions
-    ) = set_limits_permissions = set_usage_permissions = [
+    ) = (
+        set_limits_permissions
+    ) = set_usage_permissions = set_state_permissions = set_backend_id_permissions = [
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
-
-    set_limits_serializer_class = slurm_serializers.AllocationSetLimitsSerializer
 
     @action(detail=True, methods=['post'])
     def set_limits(self, request, uuid=None):
@@ -71,7 +72,7 @@ class SlurmViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    set_usage_serializer_class = slurm_serializers.AllocationUserUsageCreateSerializer
+    set_limits_serializer_class = slurm_serializers.AllocationSetLimitsSerializer
 
     @action(detail=True, methods=['POST'])
     def set_usage(self, request, uuid=None):
@@ -125,6 +126,8 @@ class SlurmViewSet(core_views.ActionsViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    set_usage_serializer_class = slurm_serializers.AllocationUserUsageCreateSerializer
 
     @action(detail=True, methods=['POST'])
     def create_association(self, request, uuid=None):
@@ -232,3 +235,79 @@ class SlurmViewSet(core_views.ActionsViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=['POST'])
+    def set_state(self, request, uuid=None):
+        resource = self.get_object()
+        allocation: slurm_models.Allocation = resource.scope
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        state = serializer.validated_data['state']
+
+        state_to_methods_map = {
+            'creating': 'begin_creating',
+            'updating': 'begin_updating',
+            'deletion_scheduled': 'schedule_deleting',
+            'update_scheduled': 'schedule_updating',
+            'deleting': 'begin_deleting',
+            'ok': 'set_ok',
+            'erred': 'set_erred',
+        }
+
+        transition_method_name = state_to_methods_map.get(state)
+        if not transition_method_name:
+            raise ValidationError(
+                _('Invalid state: a corresponding method for transition is absent')
+            )
+        try:
+            transition_method = getattr(allocation, transition_method_name)
+            transition_method()
+            allocation.save(update_fields=['state'])
+            return Response(
+                {
+                    'detail': _('Allocation state has been changed to %s' % state),
+                },
+                status.HTTP_200_OK,
+            )
+        except TransitionNotAllowed:
+            return Response(
+                {
+                    'detail': _(
+                        'Allocation state can not be changed from %s to %s.'
+                        % (allocation.state, state)
+                    ),
+                },
+                status.HTTP_409_CONFLICT,
+            )
+
+    set_state_serializer_class = serializers.SetStateSerializer
+
+    @action(detail=True, methods=['POST'])
+    def set_backend_id(self, request, uuid=None):
+        resource = self.get_object()
+        allocation: slurm_models.Allocation = resource.scope
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_backend_id = serializer.validated_data['backend_id']
+        old_backend_id = allocation.backend_id
+        if new_backend_id != old_backend_id:
+            allocation.backend_id = serializer.validated_data['backend_id']
+            allocation.save(update_fields=['backend_id'])
+            logger.info(
+                '%s has changed backend_id from %s to %s',
+                request.user.full_name,
+                old_backend_id,
+                new_backend_id,
+            )
+
+            return Response(
+                {'status': _('Allocation backend_id has been changed.')},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {'status': _('Allocation backend_id is not changed.')},
+                status=status.HTTP_200_OK,
+            )
+
+    set_backend_id_serializer_class = serializers.SetBackendIdSerializer
