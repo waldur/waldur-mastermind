@@ -385,7 +385,11 @@ class OfferingViewSet(
     def importable_resources(self, request, uuid=None):
         offering = self.get_object()
         method = plugins.manager.get_importable_resources_backend_method(offering.type)
-        if not method:
+        if (
+            not method
+            or not offering.scope
+            or not hasattr(offering.scope, 'get_backend')
+        ):
             raise rf_exceptions.ValidationError(
                 'Current offering plugin does not support resource import'
             )
