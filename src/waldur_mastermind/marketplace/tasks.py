@@ -18,6 +18,9 @@ from waldur_core.structure.log import event_logger
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
+from waldur_mastermind.marketplace_slurm_remote import (
+    PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
+)
 
 from . import PLUGIN_NAME, exceptions, models, utils, views
 
@@ -64,13 +67,17 @@ def process_order(serialized_order, serialized_user):
     # only after it gets approved by service provider
     from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 
-    for item in order.items.exclude(
-        offering__type=REMOTE_PLUGIN_NAME,
-        offering__plugin_options__auto_approve_remote_orders__isnull=True,
-    ).exclude(
-        offering__type=REMOTE_PLUGIN_NAME,
-        offering__plugin_options__has_key='auto_approve_remote_orders',
-        offering__plugin_options__auto_approve_remote_orders=False,
+    for item in (
+        order.items.exclude(offering__type=SLURM_REMOTE_PLUGIN_NAME)
+        .exclude(
+            offering__type=REMOTE_PLUGIN_NAME,
+            offering__plugin_options__auto_approve_remote_orders__isnull=True,
+        )
+        .exclude(
+            offering__type=REMOTE_PLUGIN_NAME,
+            offering__plugin_options__has_key='auto_approve_remote_orders',
+            offering__plugin_options__auto_approve_remote_orders=False,
+        )
     ):
         item.set_state_executing()
         item.save(update_fields=['state'])

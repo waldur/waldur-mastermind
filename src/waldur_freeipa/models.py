@@ -28,7 +28,7 @@ class Profile(core_models.UuidMixin, models.Model):
         validators=[
             validate_username,
             validators.RegexValidator(
-                re.compile(r'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'),
+                re.compile(core_models.USERNAME_REGEX),
                 _('Enter a valid username.'),
                 'invalid',
             ),

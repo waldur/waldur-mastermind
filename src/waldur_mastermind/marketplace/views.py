@@ -60,7 +60,9 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm_remote import (
+    PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
+)
 from waldur_pid import models as pid_models
 
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
@@ -1063,10 +1065,12 @@ class OrderItemViewSet(BaseMarketplaceView):
         order_item = self.get_object()
 
         if order_item.state == models.OrderItem.States.EXECUTING:
+            # Basic marketplace resource case
             if not order_item.resource:
                 raise ValidationError('Order item does not have a resource.')
             callbacks.sync_order_item_state(order_item, models.OrderItem.States.DONE)
         elif order_item.state == models.OrderItem.States.PENDING:
+            # Marketplace remote or SLURM remote resource
             order_item.reviewed_at = timezone.now()
             order_item.reviewed_by = request.user
             order_item.set_state_executing()
@@ -1121,7 +1125,7 @@ class OrderItemViewSet(BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def set_state_executing(self, request, uuid=None):
         order_item = self.get_object()
-        if order_item.offering.type != SLURM_PLUGIN_NAME:
+        if order_item.offering.type not in [SLURM_REMOTE_PLUGIN_NAME]:
             raise rf_exceptions.MethodNotAllowed(
                 _(
                     "The order item's offering with %s type does not support this action"
@@ -1146,7 +1150,7 @@ class OrderItemViewSet(BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def set_state_done(self, request, uuid=None):
         order_item = self.get_object()
-        if order_item.offering.type != SLURM_PLUGIN_NAME:
+        if order_item.offering.type not in [SLURM_REMOTE_PLUGIN_NAME]:
             raise rf_exceptions.MethodNotAllowed(
                 _(
                     "The order item's offering with %s type does not support this action"
@@ -1161,14 +1165,13 @@ class OrderItemViewSet(BaseMarketplaceView):
                     % order_item.get_state_display()
                 )
             )
-        order_item.set_state_done()
-        order_item.save(update_fields=['state'])
+        callbacks.sync_order_item_state(order_item, models.OrderItem.States.DONE)
         return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def set_state_erred(self, request, uuid=None):
         order_item = self.get_object()
-        if order_item.offering.type != SLURM_PLUGIN_NAME:
+        if order_item.offering.type not in [SLURM_REMOTE_PLUGIN_NAME]:
             raise rf_exceptions.MethodNotAllowed(
                 _(
                     "The order item's offering with %s type does not support this action"
@@ -1181,10 +1184,10 @@ class OrderItemViewSet(BaseMarketplaceView):
         error_message = serializer.validated_data['error_message']
         error_traceback = serializer.validated_data['error_traceback']
 
-        order_item.set_state_erred()
+        callbacks.sync_order_item_state(order_item, models.OrderItem.States.ERRED)
         order_item.error_message = error_message
         order_item.error_traceback = error_traceback
-        order_item.save(update_fields=['state', 'error_message', 'error_traceback'])
+        order_item.save(update_fields=['error_message', 'error_traceback'])
         return Response(status=status.HTTP_200_OK)
 
     set_state_erred_serializer_class = serializers.OrderItemSetStateErredSerializer

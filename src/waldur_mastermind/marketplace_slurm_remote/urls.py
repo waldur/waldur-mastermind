@@ -3,7 +3,7 @@ from . import views
 
 def register_in(router):
     router.register(
-        r'marketplace-slurm',
+        r'marketplace-slurm-remote',
         views.SlurmViewSet,
-        basename='marketplace-slurm',
+        basename='marketplace-slurm-remote',
     )

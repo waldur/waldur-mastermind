@@ -1,6 +1,9 @@
+import re
+
 from django.conf import settings
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
@@ -48,7 +51,16 @@ class Association(core_models.UuidMixin):
     allocation = models.ForeignKey(
         to=Allocation, on_delete=models.CASCADE, related_name='associations'
     )
-    username = models.CharField(max_length=128)
+    username = models.CharField(
+        max_length=128,
+        validators=[
+            RegexValidator(
+                re.compile(core_models.USERNAME_REGEX),
+                _('Enter a valid username.'),
+                'invalid',
+            ),
+        ],
+    )
 
     def __str__(self):
         return '%s <-> %s' % (self.allocation.name, self.username)

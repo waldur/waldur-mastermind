@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 
 DESCRIPTION_LENGTH = 2000
 
+USERNAME_REGEX = r'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'
+
 
 class DescribableMixin(models.Model):
     """

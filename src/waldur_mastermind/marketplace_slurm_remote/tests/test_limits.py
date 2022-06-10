@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import test
 
 from waldur_mastermind.marketplace.tests import fixtures
-from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 from waldur_slurm.tests import factories as slurm_factories
 
 
@@ -24,7 +24,8 @@ class AllocationSetLimits(test.APITransactionTestCase):
         self.url = (
             'http://testserver'
             + reverse(
-                'marketplace-slurm-detail', kwargs={'uuid': self.resource.uuid.hex}
+                'marketplace-slurm-remote-detail',
+                kwargs={'uuid': self.resource.uuid.hex},
             )
             + 'set_limits'
             + '/'
