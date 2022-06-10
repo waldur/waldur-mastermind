@@ -1176,6 +1176,7 @@ class GetInstancesTest(BaseBackendTest):
         def get_volume(backend_id):
             return self._get_valid_flavor(backend_id=backend_id)
 
+        self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
         self.nova_client_mock.servers.list.return_value = instances
         self.nova_client_mock.flavors.get.side_effect = get_volume
 
