@@ -29,6 +29,7 @@ def get_invitation_context(invitation, sender):
             type=_('project'),
             name=invitation.project.name,
             role=_(get_domain_message(role_display)),
+            org_name=invitation.customer.name,
         )
     else:
         role_display = {
@@ -38,6 +39,7 @@ def get_invitation_context(invitation, sender):
             type=_('organization'),
             name=invitation.customer.name,
             role=_(get_domain_message(role_display)),
+            org_name=invitation.customer.name,
         )
 
     context['sender'] = sender
