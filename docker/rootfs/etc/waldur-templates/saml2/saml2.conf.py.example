@@ -10,7 +10,7 @@ WALDUR_AUTH_SAML2.update({
     # required for assertion consumer, single logout services and entity ID
     'base_url': '',
     # directory with attribute mapping
-    'attribute_map_dir': '/usr/local/lib/python3.6/site-packages/saml2/attributemaps',
+    'attribute_map_dir': '/usr/local/lib/python3.8/site-packages/saml2/attributemaps',
     # set to True to output debugging information
     'debug': False,
     # IdPs metadata XML files stored locally
