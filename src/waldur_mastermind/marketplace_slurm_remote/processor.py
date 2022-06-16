@@ -30,3 +30,12 @@ class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
             allocation: slurm_models.Allocation = marketplace_resource.scope
             allocation.schedule_deleting()
             allocation.save(update_fields=['state'])
+
+
+class UpdateAllocationLimitsProcessor(processors.BasicUpdateResourceProcessor):
+    def update_limits_process(self, user):
+        allocation: slurm_models.Allocation = self.order_item.resource.scope
+        allocation.schedule_updating()
+        allocation.save(update_fields=['state'])
+
+        return False

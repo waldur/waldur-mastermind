@@ -36,6 +36,7 @@ class MarketplaceSlurmConfig(AppConfig):
         manager.register(
             PLUGIN_NAME,
             create_resource_processor=processor.CreateAllocationProcessor,
+            update_resource_processor=processor.UpdateAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
             components=(
                 Component(
