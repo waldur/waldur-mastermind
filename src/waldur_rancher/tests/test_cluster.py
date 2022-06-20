@@ -51,6 +51,15 @@ class ClusterGetTest(test.APITransactionTestCase):
             response.data['rancher_cluster']['uuid'].hex, self.fixture.cluster.uuid.hex
         )
 
+    def test_rancher_cluster_is_none_if_node_is_not_existed(self):
+        self.fixture.node.delete()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            openstack_tenant_factories.InstanceFactory.get_url(self.fixture.instance)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['rancher_cluster'], None)
+
     def test_rancher_cluster_is_filtered_out_for_unrelated_user(self):
         project = ProjectFactory(customer=self.fixture.customer)
         admin = UserFactory()

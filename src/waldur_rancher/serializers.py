@@ -1106,6 +1106,12 @@ def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context['request']
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
     try:
+        instance_type = ContentType.objects.get_for_model(scope)
+        if not models.Node.objects.filter(
+            content_type=instance_type, object_id=scope.id
+        ).exists():
+            return
+
         cluster = queryset.filter(tenant_settings=scope.service_settings).get()
     except models.Cluster.DoesNotExist:
         return None
