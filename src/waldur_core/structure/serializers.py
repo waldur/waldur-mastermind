@@ -181,6 +181,7 @@ class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
             'username',
             'full_name',
             'native_name',
+            'email',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
