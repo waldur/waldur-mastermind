@@ -808,6 +808,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
             instance,
             ssh_key=serializer.validated_data.get('ssh_public_key'),
             flavor=serializer.validated_data['flavor'],
+            server_groups=serializer.validated_data.get('server_groups'),
             is_heavy_task=True,
         )
 
