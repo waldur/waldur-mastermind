@@ -327,6 +327,15 @@ class FreeIPABackend:
         }
         self._update_profile(profile, params)
 
+    def update_name(self, profile):
+        params = {
+            'givenname': profile.user.first_name or 'N/A',
+            'sn': profile.user.last_name or 'N/A',
+            'cn': profile.user.full_name,
+            'displayname': profile.user.full_name,
+        }
+        self._update_profile(profile, params)
+
     def synchronize_names(self):
         for profile in models.Profile.objects.filter(is_active=True):
             self.update_name(profile)
