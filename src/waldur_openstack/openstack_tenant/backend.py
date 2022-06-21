@@ -1080,7 +1080,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         ]
 
     @log_backend_action()
-    def create_instance(self, instance, backend_flavor_id=None, public_key=None):
+    def create_instance(
+        self, instance, backend_flavor_id=None, public_key=None, server_groups=None
+    ):
         nova = self.nova_client
 
         try:
@@ -1147,6 +1149,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
             if self.settings.options.get('config_drive', False) is True:
                 server_create_parameters['config_drive'] = True
+
+            if server_groups is not None:
+                server_create_parameters['scheduler_hints'] = {"group": server_groups}
 
             server = nova.servers.create(**server_create_parameters)
             instance.backend_id = server.id

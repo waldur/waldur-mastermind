@@ -321,7 +321,12 @@ class SnapshotPullExecutor(core_executors.ActionExecutor):
 class InstanceCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(
-        cls, instance, serialized_instance, ssh_key=None, flavor=None
+        cls,
+        instance,
+        serialized_instance,
+        ssh_key=None,
+        flavor=None,
+        server_groups=None,
     ):
         serialized_volumes = [
             core_utils.serialize_instance(volume) for volume in instance.volumes.all()
@@ -333,7 +338,9 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         ]
         _tasks += cls.create_volumes(serialized_volumes)
         _tasks += cls.create_internal_ips(serialized_instance)
-        _tasks += cls.create_instance(serialized_instance, flavor, ssh_key)
+        _tasks += cls.create_instance(
+            serialized_instance, flavor, ssh_key, server_groups
+        )
         _tasks += cls.pull_volumes(serialized_volumes)
         _tasks += cls.pull_security_groups(serialized_instance)
         _tasks += cls.create_floating_ips(instance, serialized_instance)
@@ -404,7 +411,9 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         ]
 
     @classmethod
-    def create_instance(cls, serialized_instance, flavor, ssh_key=None):
+    def create_instance(
+        cls, serialized_instance, flavor, ssh_key=None, server_groups=None
+    ):
         """
         It is assumed that volumes and network ports have been created beforehand.
         """
@@ -414,6 +423,9 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         }
         if ssh_key is not None:
             kwargs['public_key'] = ssh_key.public_key
+
+        if server_groups is not None:
+            kwargs['server_groups'] = server_groups[0].backend_id
 
         # Wait 10 seconds after volume creation due to OpenStack restrictions.
         _tasks.append(
