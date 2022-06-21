@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status, views
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
 from waldur_auth_social.exceptions import OAuthException
@@ -385,4 +385,6 @@ class RemoteEduteamsView(views.APIView):
         cuid = serializer.validated_data['cuid']
 
         user = pull_remote_eduteams_user(cuid)
+        if user is None:
+            raise NotFound('User %s has not been found' % cuid)
         return Response({'uuid': user.uuid.hex})
