@@ -170,6 +170,18 @@ class InvoiceItemCompensationSerializer(serializers.Serializer):
     offering_component_name = serializers.CharField()
 
 
+class InvoiceItemMigrateToSerializer(serializers.HyperlinkedModelSerializer):
+    invoice = serializers.HyperlinkedRelatedField(
+        view_name='invoice-detail',
+        lookup_field='uuid',
+        queryset=models.Invoice.objects.all(),
+    )
+
+    class Meta:
+        model = models.InvoiceItem
+        fields = ('invoice',)
+
+
 class InvoiceSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):

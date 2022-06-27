@@ -348,15 +348,53 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         )
         invoice_item.delete()
 
+    @action(detail=True, methods=['post'])
+    def migrate_to(self, request, **kwargs):
+        invoice_item = self.get_object()
+        serializer = self.get_serializer_class()(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        invoice = serializer.validated_data['invoice']
+
+        if invoice.customer != invoice_item.invoice.customer:
+            raise exceptions.ValidationError(
+                _(
+                    'Moving of items is possible only between invoices of same the customer.'
+                )
+            )
+
+        if invoice == invoice_item.invoice:
+            raise exceptions.ValidationError(
+                _('Invoice item is already in the target invoice.')
+            )
+
+        old_invoice = invoice_item.invoice
+        invoice_item.invoice = invoice
+        invoice_item.save()
+
+        log.event_logger.invoice_item.info(
+            f'Invoice item has been migrated from {old_invoice} to {invoice}',
+            event_type='invoice_item_updated',
+            event_context={
+                'customer': invoice.customer,
+            },
+        )
+
+        return Response(
+            {'invoice_item_uuid': invoice_item.uuid.hex},
+            status=status.HTTP_200_OK,
+        )
+
     create_compensation_serializer_class = serializers.InvoiceItemCompensationSerializer
 
     update_serializer_class = serializers.InvoiceItemUpdateSerializer
 
     partial_update_serializer_class = serializers.InvoiceItemUpdateSerializer
 
+    migrate_to_serializer_class = serializers.InvoiceItemMigrateToSerializer
+
     create_compensation_permissions = (
         update_permissions
-    ) = partial_update_permissions = destroy_permissions = [
+    ) = partial_update_permissions = destroy_permissions = migrate_to_permissions = [
         structure_permissions.is_staff
     ]
 
