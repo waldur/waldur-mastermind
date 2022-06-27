@@ -256,3 +256,37 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
             self.item.terminate()
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, old_quantity)
+
+
+@freeze_time('2019-01-01')
+class InvoiceItemMigrateToTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.item = self.fixture.invoice_item
+        self.target_invoice = factories.InvoiceFactory(
+            customer=self.fixture.customer, month=12, year=2018
+        )
+
+    def test_user_can_migrate_item(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(self.item, 'migrate_to')
+        response = self.client.post(
+            url, {'invoice': factories.InvoiceFactory.get_url(self.target_invoice)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_cannot_migrate_item_between_different_customers(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(self.item, 'migrate_to')
+        response = self.client.post(
+            url, {'invoice': factories.InvoiceFactory.get_url()}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_cannot_migrate_item_if_it_already_in_target_invoice(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(self.item, 'migrate_to')
+        response = self.client.post(
+            url, {'invoice': factories.InvoiceFactory.get_url(self.item)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
