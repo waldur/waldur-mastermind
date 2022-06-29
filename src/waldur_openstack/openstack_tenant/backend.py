@@ -520,7 +520,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         self._delete_stale_properties(models.ServerGroup, server_groups_dict)
 
-    def pull_instance_server_groups(self, instance):
+    def pull_instance_server_group(self, instance):
         nova = self.nova_client
         server_id = instance.backend_id
         try:
@@ -535,32 +535,22 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-        backend_ids = set(g.id for g in filtered_backend_server_groups)
-        nc_ids = set(
-            models.ServerGroup.objects.filter(instances=instance)
-            .exclude(backend_id='')
-            .values_list('backend_id', flat=True)
-        )
-
-        # remove stale groups
-        stale_groups = models.ServerGroup.objects.filter(
-            backend_id__in=(nc_ids - backend_ids)
-        )
-        instance.server_groups.remove(*stale_groups)
-
-        # add missing groups
-        for group_id in backend_ids - nc_ids:
+        try:
+            server_group_backend_id = filtered_backend_server_groups[0].id
+        except IndexError:
+            instance.server_group = None
+        else:
             try:
                 server_group = models.ServerGroup.objects.get(
-                    settings=self.settings, backend_id=group_id
+                    settings=self.settings, backend_id=server_group_backend_id
                 )
             except models.ServerGroup.DoesNotExist:
                 logger.exception(
                     'Server group with id %s does not exist in database. '
-                    'Settings ID: %s' % (group_id, self.settings.id)
+                    'Settings ID: %s' % (server_group_backend_id, self.settings.id)
                 )
             else:
-                instance.server_groups.add(server_group)
+                instance.server_group = server_group
 
     def pull_quotas(self):
         self._pull_tenant_quotas(self.tenant_id, self.settings)
@@ -1081,7 +1071,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_instance(
-        self, instance, backend_flavor_id=None, public_key=None, server_groups=None
+        self, instance, backend_flavor_id=None, public_key=None, server_group=None
     ):
         nova = self.nova_client
 
@@ -1150,8 +1140,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if self.settings.options.get('config_drive', False) is True:
                 server_create_parameters['config_drive'] = True
 
-            if server_groups is not None:
-                server_create_parameters['scheduler_hints'] = {"group": server_groups}
+            if server_group is not None:
+                server_create_parameters['scheduler_hints'] = {"group": server_group}
 
             server = nova.servers.create(**server_create_parameters)
             instance.backend_id = server.id

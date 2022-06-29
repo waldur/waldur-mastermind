@@ -348,8 +348,8 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     security_groups = models.ManyToManyField(
         SecurityGroup, related_name='instances', blank=True
     )
-    server_groups = models.ManyToManyField(
-        ServerGroup, related_name='instances', blank=True
+    server_group = models.ForeignKey(
+        ServerGroup, blank=True, null=True, on_delete=models.SET_NULL
     )
     # TODO: Move this fields to resource model.
     action = models.CharField(max_length=50, blank=True)

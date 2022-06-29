@@ -326,7 +326,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         serialized_instance,
         ssh_key=None,
         flavor=None,
-        server_groups=None,
+        server_group=None,
     ):
         serialized_volumes = [
             core_utils.serialize_instance(volume) for volume in instance.volumes.all()
@@ -339,12 +339,12 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         _tasks += cls.create_volumes(serialized_volumes)
         _tasks += cls.create_internal_ips(serialized_instance)
         _tasks += cls.create_instance(
-            serialized_instance, flavor, ssh_key, server_groups
+            serialized_instance, flavor, ssh_key, server_group
         )
         _tasks += cls.pull_volumes(serialized_volumes)
         _tasks += cls.pull_security_groups(serialized_instance)
         _tasks += cls.create_floating_ips(instance, serialized_instance)
-        _tasks += cls.pull_server_groups(serialized_instance)
+        _tasks += cls.pull_server_group(serialized_instance)
         return chain(*_tasks)
 
     @classmethod
@@ -412,7 +412,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def create_instance(
-        cls, serialized_instance, flavor, ssh_key=None, server_groups=None
+        cls, serialized_instance, flavor, ssh_key=None, server_group=None
     ):
         """
         It is assumed that volumes and network ports have been created beforehand.
@@ -424,8 +424,8 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         if ssh_key is not None:
             kwargs['public_key'] = ssh_key.public_key
 
-        if server_groups is not None:
-            kwargs['server_groups'] = server_groups[0].backend_id
+        if server_group is not None:
+            kwargs['server_group'] = server_group.backend_id
 
         # Wait 10 seconds after volume creation due to OpenStack restrictions.
         _tasks.append(
@@ -526,10 +526,10 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         return tasks.SetInstanceErredTask().s(serialized_instance)
 
     @classmethod
-    def pull_server_groups(cls, serialized_instance):
+    def pull_server_group(cls, serialized_instance):
         return [
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'pull_instance_server_groups'
+                serialized_instance, 'pull_instance_server_group'
             )
         ]
 
@@ -788,7 +788,7 @@ class InstancePullExecutor(core_executors.ActionExecutor):
                 serialized_instance, 'pull_instance_floating_ips'
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'pull_instance_server_groups'
+                serialized_instance, 'pull_instance_server_group'
             ),
         )
 

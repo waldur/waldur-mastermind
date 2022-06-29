@@ -62,7 +62,7 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
         'flavor',
         'image',
         'security_groups',
-        'server_groups',
+        'server_group',
         'internal_ips_set',
         'floating_ips',
         'system_volume_size',
