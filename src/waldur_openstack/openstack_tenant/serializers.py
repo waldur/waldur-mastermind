@@ -875,16 +875,14 @@ def _validate_instance_security_groups(security_groups, settings):
             )
 
 
-def _validate_instance_server_groups(server_groups, settings):
+def _validate_instance_server_group(server_group, settings):
     """Make sure that server_group belong to specified setting."""
-    for server_group in server_groups:
-        if server_group.settings != settings:
-            error = _(
-                'Server group %s does not belong to the same service settings as instance.'
-            )
-            raise serializers.ValidationError(
-                {'server_groups': error % server_group.name}
-            )
+
+    if server_group and server_group.settings != settings:
+        error = _(
+            'Server group %s does not belong to the same service settings as instance.'
+        )
+        raise serializers.ValidationError({'server_group': error % server_group.name})
 
 
 def _validate_instance_floating_ips(
@@ -1039,8 +1037,12 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     security_groups = NestedSecurityGroupSerializer(
         queryset=models.SecurityGroup.objects.all(), many=True, required=False
     )
-    server_groups = NestedServerGroupSerializer(
-        queryset=models.ServerGroup.objects.all(), many=True, required=False
+    server_group = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-server-group-detail',
+        queryset=models.ServerGroup.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
     )
     internal_ips_set = NestedInternalIPSerializer(many=True, required=False)
     floating_ips = NestedFloatingIPSerializer(
@@ -1092,7 +1094,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'volumes',
             'data_volumes',
             'security_groups',
-            'server_groups',
+            'server_group',
             'internal_ips',
             'floating_ips',
             'internal_ips_set',
@@ -1113,7 +1115,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 'data_volume_size',
                 'floating_ips',
                 'security_groups',
-                'server_groups',
+                'server_group',
                 'internal_ips_set',
                 'availability_zone',
             )
@@ -1219,8 +1221,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         _validate_instance_security_groups(
             attrs.get('security_groups', []), service_settings
         )
-        _validate_instance_server_groups(
-            attrs.get('server_groups', []), service_settings
+        _validate_instance_server_group(
+            attrs.get('server_group', None), service_settings
         )
         _validate_instance_internal_ips(internal_ips, service_settings)
         subnets = [internal_ip.subnet for internal_ip in internal_ips]
@@ -1282,7 +1284,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         Create volumes and security groups for instance.
         """
         security_groups = validated_data.pop('security_groups', [])
-        server_groups = validated_data.pop('server_groups', [])
+        server_group = validated_data.get('server_group')
         internal_ips = validated_data.pop('internal_ips_set', [])
         floating_ips_with_subnets = validated_data.pop('floating_ips', [])
         service_settings = validated_data['service_settings']
@@ -1321,8 +1323,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         # security groups
         instance.security_groups.add(*security_groups)
-        # server groups
-        instance.server_groups.add(*server_groups)
+        # server group
+        instance.server_group = server_group
         # internal IPs
         for internal_ip in internal_ips:
             internal_ip.instance = instance
