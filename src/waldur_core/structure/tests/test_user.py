@@ -11,6 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import format_homeport_link
+from waldur_core.media.utils import dummy_image
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories, fixtures
 
@@ -491,12 +492,13 @@ class CustomUsersFilterTest(test.APITransactionTestCase):
         self.assertEquals(actual, expected)
 
 
+@ddt
 @freeze_time('2017-01-19')
 class UserUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        fixture = fixtures.UserFixture()
-        self.user = fixture.user
-        self.staff = fixture.staff
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.user
+        self.staff = self.fixture.staff
         self.client.force_authenticate(self.user)
         self.url = factories.UserFactory.get_url(self.user)
 
@@ -588,6 +590,28 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.assertEquals(status.HTTP_200_OK, response.status_code)
         self.user.refresh_from_db()
         self.assertEqual(old_name, self.user.full_name)
+
+    @data('user', 'staff')
+    def test_user_can_upload_image(self, user):
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(
+            self.url, {'image': dummy_image()}, format='multipart'
+        )
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.image)
+
+    @data('global_support')
+    def test_user_cannot_upload_image(self, user):
+        self.user.agreement_date = timezone.now()
+        self.user.save()
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(
+            self.url, {'image': dummy_image()}, format='multipart'
+        )
+        self.assertEquals(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class UserConfirmEmailTest(test.APITransactionTestCase):

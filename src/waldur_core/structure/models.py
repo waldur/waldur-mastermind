@@ -754,6 +754,7 @@ class Project(
     quotas_models.ExtendableQuotaModelMixin,
     PermissionMixin,
     StructureLoggableMixin,
+    ImageModelMixin,
     TimeStampedModel,
     StructureModel,
     SoftDeletableModel,

@@ -8,6 +8,7 @@ from freezegun import freeze_time
 from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
+from waldur_core.media.utils import dummy_image
 from waldur_core.structure import executors, models, permissions, signals
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
@@ -678,6 +679,34 @@ class ChangeProjectCustomerTest(test.APITransactionTestCase):
         self.assertEqual(
             self.new_customer.quotas.get(name='nc_project_count').usage, 1.0
         )
+
+
+@ddt
+class ChangeProjectImageTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.url = factories.ProjectFactory.get_url(self.project)
+
+    @data('staff', 'owner', 'manager')
+    def test_user_can_update_image(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        self.assertFalse(self.project.image)
+        response = self.client.patch(
+            self.url, {'image': dummy_image()}, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertTrue(self.project.image)
+
+    @data('admin', 'customer_support', 'member', 'global_support')
+    def test_user_cannot_update_image(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        self.assertFalse(self.project.image)
+        response = self.client.patch(
+            self.url, {'image': dummy_image()}, format='multipart'
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class ProjectMoveTest(test.APITransactionTestCase):

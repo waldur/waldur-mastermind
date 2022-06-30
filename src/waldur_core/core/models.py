@@ -26,6 +26,7 @@ from waldur_core.core.validators import (
     validate_ssh_public_key,
 )
 from waldur_core.logging.loggers import LoggableMixin
+from waldur_core.media.models import ImageModelMixin
 
 from .shims import AbstractBaseUser
 
@@ -180,6 +181,7 @@ class User(
     AbstractBaseUser,
     UserDetailsMixin,
     PermissionsMixin,
+    ImageModelMixin,
 ):
     username = models.CharField(
         _('username'),
