@@ -1,8 +1,11 @@
+import datetime
 import unittest
 
+from django.utils import timezone
 from rest_framework import test
 from rest_framework.settings import api_settings
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.billing import models
@@ -96,3 +99,27 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
     def test_default_ordering(self):
         actual = self.execute_request()
         self.assertEqual(self.prices, actual)
+
+
+@override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
+class FinancialReportFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.url = '/api/financial-reports/'
+
+    def test_if_accounting_start_date_is_none(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url, {'accounting_is_running': True})
+        self.assertEqual(len(response.data), 0)
+        response = self.client.get(self.url, {'accounting_is_running': False})
+        self.assertEqual(len(response.data), 0)
+
+    def test_if_accounting_start_date_is_not_none(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        self.fixture.customer.accounting_start_date = (
+            timezone.now() + datetime.timedelta(days=10)
+        )
+        response = self.client.get(self.url, {'accounting_is_running': True})
+        self.assertEqual(len(response.data), 1)
+        response = self.client.get(self.url, {'accounting_is_running': False})
+        self.assertEqual(len(response.data), 0)

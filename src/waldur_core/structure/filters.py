@@ -187,7 +187,10 @@ class AccountingStartDateFilter(BaseFilterBackend):
 
 class CustomerAccountingStartDateFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        query = Q(customer__accounting_start_date__gt=timezone.now())
+        if queryset.model == models.Customer:
+            query = Q(accounting_start_date__gt=timezone.now())
+        else:
+            query = Q(customer__accounting_start_date__gt=timezone.now())
         return filter_by_accounting_is_running(request, queryset, query)
 
 
