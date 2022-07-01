@@ -428,6 +428,7 @@ class ProjectAdmin(
         'managers',
         'members',
         'oecd_fos_2007_code',
+        'image',
     )
 
     list_display = [

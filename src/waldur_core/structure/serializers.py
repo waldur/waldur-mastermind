@@ -223,6 +223,7 @@ class ProjectSerializer(
     ProjectDetailsSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     PermissionFieldFilteringMixin,
+    ProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -246,6 +247,7 @@ class ProjectSerializer(
             'end_date',
             'oecd_fos_2007_code',
             'is_industry',
+            'image',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -279,8 +281,16 @@ class ProjectSerializer(
             attrs.get('customer') if not self.instance else self.instance.customer
         )
         end_date = attrs.get('end_date')
+        image = attrs.get('image')
 
         if end_date:
+            structure_permissions.is_owner(self.context['request'], None, customer)
+
+        if image and self.instance:
+            structure_permissions.is_manager(
+                self.context['request'], None, self.context['view'].get_object()
+            )
+        elif image and not self.instance:
             structure_permissions.is_owner(self.context['request'], None, customer)
 
         return attrs
@@ -830,6 +840,7 @@ class ProjectPermissionLogSerializer(ProjectPermissionSerializer):
 class UserSerializer(
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
+    ProtectedMediaSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     email = serializers.EmailField()
@@ -972,6 +983,7 @@ class UserSerializer(
             'identity_provider_label',
             'identity_provider_management_url',
             'identity_provider_fields',
+            'image',
         )
         read_only_fields = (
             'uuid',
