@@ -64,7 +64,8 @@ def main():
     client = waldur_client_from_module(module)
     try:
         instance = client.get_instance_via_marketplace(
-            name=module.params['name'], project=module.params['project'],
+            name=module.params['name'],
+            project=module.params['project'],
         )
     except WaldurClientException as e:
         module.fail_json(msg=str(e))
