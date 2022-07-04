@@ -13,7 +13,6 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals
-        from waldur_slurm.apps import SlurmConfig
         from waldur_mastermind.marketplace_slurm_remote import (
             handlers,
             processor,
@@ -58,7 +57,6 @@ class MarketplaceSlurmConfig(AppConfig):
                     billing_type=USAGE,
                 ),
             ),
-            service_type=SlurmConfig.service_name,
         )
 
         slurm_signals.slurm_association_created.connect(
