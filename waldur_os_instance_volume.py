@@ -105,7 +105,11 @@ def send_request_to_waldur(client, module):
     wait = module.params['wait']
     interval = module.params['interval']
     timeout = module.params['timeout']
-    params = dict(wait=wait, interval=interval, timeout=timeout,)
+    params = dict(
+        wait=wait,
+        interval=interval,
+        timeout=timeout,
+    )
 
     # Get volume by ID or name and project
     volume = client.get_volume(volume, project)

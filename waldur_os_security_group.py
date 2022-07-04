@@ -399,7 +399,9 @@ def main():
         project=dict(type='str', required=False),
         tenant=dict(type='str', required=True),
     )
-    module = AnsibleModule(argument_spec=fields,)
+    module = AnsibleModule(
+        argument_spec=fields,
+    )
 
     client = waldur_client_from_module(module)
 

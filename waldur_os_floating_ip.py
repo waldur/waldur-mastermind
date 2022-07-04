@@ -109,7 +109,10 @@ def main():
 
     client = waldur_client_from_module(module)
     floating_ips = module.params.get('floating_ips') or [
-        {'address': module.params['address'], 'subnet': module.params['subnet'],}
+        {
+            'address': module.params['address'],
+            'subnet': module.params['subnet'],
+        }
     ]
     instance = module.params['instance']
 
