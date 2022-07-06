@@ -2254,9 +2254,10 @@ class OpenStackBackend(BaseOpenStackBackend):
             'router': {
                 'name': router_name,
                 'tenant_id': tenant_id,
-                'ha': create_ha_routers,
             }
         }
+        if create_ha_routers:
+            options['router']['ha'] = create_ha_routers
 
         try:
             router = neutron.create_router(options)['router']
