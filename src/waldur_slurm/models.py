@@ -31,6 +31,13 @@ class Allocation(UsageMixin, structure_models.BaseResource):
     gpu_limit = models.BigIntegerField(default=0)
     ram_limit = models.BigIntegerField(default=0)
 
+    service_settings = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.ServiceSettings,
+        related_name='+',
+        null=True,
+    )
+
     @classmethod
     def get_url_name(cls):
         return 'slurm-allocation'
