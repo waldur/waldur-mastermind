@@ -1,5 +1,6 @@
 from django.db import transaction
 
+from waldur_core.structure.models import ServiceSettings
 from waldur_mastermind.marketplace import processors
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_slurm import models as slurm_models
@@ -11,9 +12,12 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
             marketplace_resource = marketplace_utils.create_local_resource(
                 self.order_item, None
             )
+            service_settings, _ = ServiceSettings.objects.get_or_create(
+                name='SLURM remote service settings'
+            )
             allocation = slurm_models.Allocation.objects.create(
                 name=self.order_item.attributes['name'],
-                service_settings=self.order_item.offering.scope,
+                service_settings=service_settings,
                 project=self.order_item.order.project,
             )
             marketplace_resource.scope = allocation
