@@ -5,6 +5,7 @@ from django.db.models import signals
 class MarketplaceSlurmConfig(AppConfig):
     name = 'waldur_mastermind.marketplace_slurm_remote'
     verbose_name = 'Marketplace SLURM Remote'
+    service_name = 'SLURM remote'
 
     def ready(self):
         from waldur_mastermind.marketplace.plugins import Component, manager
