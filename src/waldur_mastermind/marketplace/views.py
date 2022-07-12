@@ -640,6 +640,28 @@ class OfferingViewSet(
 
     delete_divisions_permissions = update_divisions_permissions
 
+    @action(detail=True, methods=['post'])
+    def update_components(self, request, uuid=None):
+        offering = self.get_object()
+        serializer: serializers.OfferingComponentSerializer = self.get_serializer(
+            data=request.data, many=True
+        )
+        serializer.is_valid(raise_exception=True)
+        new_components = serializer.validated_data
+
+        offering_update_serializer = serializers.OfferingUpdateSerializer(
+            instance=offering
+        )
+        offering_update_serializer._update_components(offering, new_components)
+
+        return Response(
+            {'detail': _('The components of offering have been updated')},
+            status=status.HTTP_200_OK,
+        )
+
+    update_components_permissions = [permissions.user_is_owner_or_service_manager]
+    update_components_serializer_class = serializers.OfferingComponentSerializer
+
     @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
     def groups(self, *args, **kwargs):
         OFFERING_LIMIT = 4

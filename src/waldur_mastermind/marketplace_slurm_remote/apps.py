@@ -8,7 +8,7 @@ class MarketplaceSlurmConfig(AppConfig):
     service_name = 'SLURM remote'
 
     def ready(self):
-        from waldur_mastermind.marketplace.plugins import Component, manager
+        from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
@@ -32,32 +32,11 @@ class MarketplaceSlurmConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)
         marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
 
-        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(
             PLUGIN_NAME,
             create_resource_processor=processor.CreateAllocationProcessor,
             update_resource_processor=processor.UpdateAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
-            components=(
-                Component(
-                    type='cpu',
-                    name='CPU',
-                    measured_unit='hours',
-                    billing_type=USAGE,
-                ),
-                Component(
-                    type='gpu',
-                    name='GPU',
-                    measured_unit='hours',
-                    billing_type=USAGE,
-                ),
-                Component(
-                    type='ram',
-                    name='RAM',
-                    measured_unit='GB-hours',
-                    billing_type=USAGE,
-                ),
-            ),
         )
 
         slurm_signals.slurm_association_created.connect(
