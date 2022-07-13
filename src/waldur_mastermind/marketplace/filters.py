@@ -70,7 +70,16 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
     description = django_filters.CharFilter(lookup_expr='icontains')
     keyword = django_filters.CharFilter(method='filter_keyword', label='Keyword')
-    o = django_filters.OrderingFilter(fields=('name', 'created', 'type'))
+    o = django_filters.OrderingFilter(
+        fields=(
+            'name',
+            'created',
+            'type',
+            'total_customers',
+            'total_cost',
+            'total_cost_estimated',
+        )
+    )
     type = LooseMultipleChoiceFilter()
 
     def filter_allowed_customer(self, queryset, name, value):
@@ -113,6 +122,21 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
             | Q(customer__abbreviation__icontains=value)
             | Q(customer__native_name__icontains=value)
         )
+
+    def filter_queryset(self, queryset):
+        for name, value in self.form.cleaned_data.items():
+            extra_fields = (
+                'total_customers',
+                'total_cost',
+                'total_cost_estimated',
+            )
+            if name == 'o' and value and self.request.user.is_anonymous:
+                for f in extra_fields:
+                    (f in value) and value.remove(f)
+                    ('-' + f in value) and value.remove('-' + f)
+
+            queryset = self.filters[name].filter(queryset, value)
+        return queryset
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):
