@@ -496,3 +496,9 @@ def get_user_agent(request):
 
 def get_device_info(user_agent):
     return httpagentparser.detect(user_agent)
+
+
+def get_last_month():
+    today = datetime.date.today()
+    first = today.replace(day=1)
+    return first - datetime.timedelta(days=1)

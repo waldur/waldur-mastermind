@@ -1,4 +1,5 @@
 import copy
+import datetime
 import logging
 
 import reversion
@@ -14,7 +15,8 @@ from django.db.models import (
     Subquery,
 )
 from django.db.models.aggregates import Sum
-from django.db.models.fields import FloatField
+from django.db.models.fields import FloatField, IntegerField
+from django.db.models.functions import Coalesce
 from django.db.models.functions.math import Ceil
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
@@ -297,6 +299,13 @@ class OfferingViewSet(
         filters.ExternalOfferingFilterBackend,
     )
 
+    def _check_extra_field_needed(self, field_name):
+        return (
+            field_name == self.request.query_params.get('o', '')
+            or '-' + field_name == self.request.query_params.get('o', '')
+            or self.detail
+        )
+
     def get_queryset(self):
         queryset = super(OfferingViewSet, self).get_queryset()
         if self.request.user.is_anonymous:
@@ -307,6 +316,79 @@ class OfferingViewSet(
                 ],
                 shared=True,
             )
+
+        # add total_customers
+        if self._check_extra_field_needed('total_customers'):
+            resources = (
+                models.Resource.objects.filter(
+                    offering=OuterRef('pk'),
+                    state__in=(
+                        models.Resource.States.OK,
+                        models.Resource.States.UPDATING,
+                        models.Resource.States.TERMINATING,
+                    ),
+                )
+                .order_by()
+                .values('offering')
+            )
+            total_customers = resources.annotate(
+                total=Count(
+                    'project__customer_id',
+                    distinct=True,
+                    output_field=IntegerField(),
+                )
+            ).values('total')
+            queryset = queryset.annotate(total_customers=Coalesce(total_customers, 0))
+
+        # add total_cost
+        if self._check_extra_field_needed('total_cost'):
+            items = (
+                invoice_models.InvoiceItem.objects.filter(
+                    resource__offering=OuterRef('pk'),
+                    invoice__year=core_utils.get_last_month().year,
+                    invoice__month=core_utils.get_last_month().month,
+                )
+                .order_by()
+                .annotate(
+                    price=ExpressionWrapper(
+                        F('quantity') * F('unit_price'), output_field=IntegerField()
+                    )
+                )
+                .values('resource__offering')
+            )
+            total_cost = items.annotate(
+                total=Sum(
+                    'price',
+                    output_field=IntegerField(),
+                )
+            ).values('total')
+            queryset = queryset.annotate(total_cost=Coalesce(total_cost, 0))
+
+        # add total_cost_estimated
+        if self._check_extra_field_needed('total_cost_estimated'):
+            current_month = datetime.date.today()
+            items = (
+                invoice_models.InvoiceItem.objects.filter(
+                    resource__offering=OuterRef('pk'),
+                    invoice__year=current_month.year,
+                    invoice__month=current_month.month,
+                )
+                .order_by()
+                .annotate(
+                    price=ExpressionWrapper(
+                        F('quantity') * F('unit_price'), output_field=IntegerField()
+                    )
+                )
+                .values('resource__offering')
+            )
+            total_cost = items.annotate(
+                total=Sum(
+                    'price',
+                    output_field=IntegerField(),
+                )
+            ).values('total')
+            queryset = queryset.annotate(total_cost_estimated=Coalesce(total_cost, 0))
+
         return queryset
 
     @action(detail=True, methods=['post'])

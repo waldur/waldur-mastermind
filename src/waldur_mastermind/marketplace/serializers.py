@@ -777,6 +777,9 @@ class OfferingDetailsSerializer(
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
     divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
+    total_customers = serializers.ReadOnlyField()
+    total_cost = serializers.ReadOnlyField()
+    total_cost_estimated = serializers.ReadOnlyField()
 
     class Meta:
         model = models.Offering
@@ -827,6 +830,9 @@ class OfferingDetailsSerializer(
             'backend_id',
             'divisions',
             'image',
+            'total_customers',
+            'total_cost',
+            'total_cost_estimated',
         )
         related_paths = {
             'customer': ('uuid', 'name'),

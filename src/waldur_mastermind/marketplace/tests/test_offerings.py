@@ -10,12 +10,14 @@ from ddt import data, ddt
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers
 from waldur_mastermind.marketplace.management.commands.export_offering import (
     export_offering,
@@ -62,6 +64,88 @@ class OfferingGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 1)
         self.assertEqual(len(response.json()[0].keys()), 1)
         self.assertEqual(list(response.json()[0].keys())[0], 'divisions')
+
+
+class OfferingExtraFieldsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering_1 = factories.OfferingFactory(shared=True)
+        self.offering_2 = factories.OfferingFactory(shared=True)
+        self.url = factories.OfferingFactory.get_list_url()
+        self.detail_url = factories.OfferingFactory.get_url(self.offering_2)
+
+    def test_total_customers(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self._check_field_before_set_of_it('total_customers')
+
+        factories.ResourceFactory(
+            offering=self.offering_2,
+            state=models.Resource.States.OK,
+        )
+
+        self._check_field_after_set_of_it('total_customers', 1)
+
+    def test_total_cost_estimated(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self._check_field_before_set_of_it('total_cost_estimated')
+
+        invoice_item = invoices_factories.InvoiceItemFactory()
+        resource = factories.ResourceFactory(
+            project=invoice_item.project,
+            offering=self.offering_2,
+            state=models.Resource.States.OK,
+        )
+        invoice_item.resource = resource
+        invoice_item.unit_price = 10
+        invoice_item.quantity = 2
+        invoice_item.save()
+
+        self._check_field_after_set_of_it('total_cost_estimated', 20)
+
+    def test_total_cost(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self._check_field_before_set_of_it('total_cost')
+
+        invoice_item = invoices_factories.InvoiceItemFactory()
+        resource = factories.ResourceFactory(
+            project=invoice_item.project,
+            offering=self.offering_2,
+            state=models.Resource.States.OK,
+        )
+        invoice_item.resource = resource
+        invoice_item.unit_price = 10
+        invoice_item.quantity = 3
+        invoice_item.save()
+
+        last_month = core_utils.get_last_month()
+        invoice_item.invoice.year = last_month.year
+        invoice_item.invoice.month = last_month.month
+        invoice_item.invoice.save()
+
+        self._check_field_after_set_of_it('total_cost', 30)
+
+    def _check_field_before_set_of_it(self, field_name):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 2)
+        self.assertFalse(field_name in response.json()[0].keys())
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(field_name in response.json().keys())
+
+    def _check_field_after_set_of_it(self, field_name, value):
+        response = self.client.get(self.url, {'o': '-%s' % field_name})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 2)
+        self.assertEqual(response.json()[0][field_name], value)
+        self.assertEqual(response.json()[1][field_name], 0)
+
+        response = self.client.get(self.url, {'o': field_name})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 2)
+        self.assertEqual(response.json()[0][field_name], 0)
+        self.assertEqual(response.json()[1][field_name], value)
 
 
 class OfferingPlanInfoTest(test.APITransactionTestCase):
