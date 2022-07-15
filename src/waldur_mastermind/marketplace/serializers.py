@@ -934,6 +934,10 @@ class OfferingDetailsSerializer(
 
     def get_filtered_plans(self, offering):
         qs = (offering.parent or offering).plans.all()
+        customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
+        if customer_uuid:
+            qs = qs.filter_for_customer(customer_uuid)
+
         return BasePlanSerializer(qs, many=True, context=self.context).data
 
     def get_attributes(self, offering):

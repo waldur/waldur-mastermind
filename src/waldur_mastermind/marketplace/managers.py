@@ -89,3 +89,17 @@ class ResourceQuerySet(django_models.QuerySet):
 class ResourceManager(MixinManager):
     def get_queryset(self):
         return ResourceQuerySet(self.model, using=self._db)
+
+
+class PlanQuerySet(django_models.QuerySet):
+    def filter_for_customer(self, value):
+        customer = structure_models.Customer.objects.get(uuid=value)
+        return self.filter(
+            Q(divisions__isnull=True)
+            | Q(divisions__isnull=False, divisions=customer.division)
+        )
+
+
+class PlanManager(MixinManager):
+    def get_queryset(self):
+        return PlanQuerySet(self.model, using=self._db)
