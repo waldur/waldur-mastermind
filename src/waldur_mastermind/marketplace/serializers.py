@@ -204,6 +204,10 @@ class CategorySerializer(
         if project_uuid and core_utils.is_uuid_like(project_uuid):
             offerings = offerings.filter_for_project(project_uuid)
 
+        offering_name = request.query_params.get('offering_name')
+        if offering_name:
+            offerings = offerings.filter(name__icontains=offering_name)
+
         if customer_uuid:
             offerings = offerings.filter(customer__uuid=customer_uuid)
 
@@ -257,6 +261,7 @@ class BasePlanSerializer(
     quotas = serializers.DictField(
         child=serializers.IntegerField(min_value=0), write_only=True, required=False
     )
+    divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Plan
