@@ -662,6 +662,7 @@ class Plan(
     divisions = models.ManyToManyField(
         structure_models.Division, related_name='plans', blank=True
     )
+    objects = managers.PlanManager()
     tracker = FieldTracker()
 
     class Meta:

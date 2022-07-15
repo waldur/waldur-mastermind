@@ -290,3 +290,40 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         self.customer.save()
         response = self.client.get(url)
         self.assertEqual(len(response.data), 0)
+
+    def test_filter_offerings_plans_by_divisions(self):
+        new_customer = structure_factories.CustomerFactory()
+        self.client.force_authenticate(self.fixture.staff)
+        self.offering.divisions.add(self.division)
+        url = factories.OfferingFactory.get_list_url()
+
+        response = self.client.get(
+            url, {'allowed_customer_uuid': new_customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        new_customer.division = self.division
+        new_customer.save()
+        response = self.client.get(
+            url, {'allowed_customer_uuid': new_customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        url = factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(
+            url, {'allowed_customer_uuid': new_customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+        other_division = structure_factories.DivisionFactory()
+        second_other_division = structure_factories.DivisionFactory()
+        self.plan.divisions.add(other_division)
+        self.plan.divisions.add(second_other_division)
+        response = self.client.get(
+            url, {'allowed_customer_uuid': new_customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 0)
