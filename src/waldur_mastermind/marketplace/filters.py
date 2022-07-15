@@ -575,6 +575,10 @@ class CategoryFilter(django_filters.FilterSet):
         method='filter_has_shared', label='Has shared'
     )
 
+    offering_name = django_filters.CharFilter(
+        field_name='offerings__name', lookup_expr='icontains'
+    )
+
     def filter_customer_uuid(self, queryset, name, value):
         states = self.request.GET.getlist('customers_offerings_state')
         offerings = models.Offering.objects.filter(customer__uuid=value)

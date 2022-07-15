@@ -208,7 +208,7 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
     search_fields = ('name', 'offering__name')
     inlines = [PlanComponentInline, PlanDivisionsInline]
     protected_fields = ('unit', 'unit_price', 'article_code')
-    readonly_fields = ('scope_link', 'backend_id')
+    readonly_fields = ('scope_link', 'backend_id', 'offering_uuid')
     fields = (
         'name',
         'description',
@@ -221,6 +221,10 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
 
     def scope_link(self, obj):
         return get_admin_link_for_scope(obj.scope)
+
+    def offering_uuid(self, obj):
+        if obj:
+            return obj.offering.uuid.hex
 
     scope_link.short_description = 'Scope'
 
