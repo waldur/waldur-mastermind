@@ -225,7 +225,7 @@ class CategorySerializer(
         queryset = queryset.annotate(offering_count=offering_count)
         if has_offerings:
             queryset = queryset.filter(offering_count__gt=0)
-        return queryset.prefetch_related('sections', 'sections__attributes')
+        return queryset.distinct().prefetch_related('sections', 'sections__attributes')
 
     class Meta:
         model = models.Category
