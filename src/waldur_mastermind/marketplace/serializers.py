@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Subquery
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -935,8 +935,18 @@ class OfferingDetailsSerializer(
     def get_filtered_plans(self, offering):
         qs = (offering.parent or offering).plans.all()
         customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
-        if customer_uuid:
-            qs = qs.filter_for_customer(customer_uuid)
+        user = self.context['request'].user
+
+        if user.is_anonymous:
+            qs = qs.filter(divisions__isnull=True)
+        elif user.is_staff or user.is_support:
+            pass
+        elif customer_uuid:
+            qs = qs.filter(
+                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
+            ).filter_for_customer(customer_uuid)
+        else:
+            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
 
         return BasePlanSerializer(qs, many=True, context=self.context).data
 

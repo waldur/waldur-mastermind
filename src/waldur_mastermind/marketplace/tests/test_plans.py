@@ -293,7 +293,7 @@ class PlanDivisionsTest(test.APITransactionTestCase):
 
     def test_filter_offerings_plans_by_divisions(self):
         new_customer = structure_factories.CustomerFactory()
-        self.client.force_authenticate(self.fixture.staff)
+        self.client.force_authenticate(self.fixture.owner)
         self.offering.divisions.add(self.division)
         url = factories.OfferingFactory.get_list_url()
 

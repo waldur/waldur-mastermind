@@ -479,6 +479,90 @@ class OfferingFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 3)
 
 
+class OfferingPlansFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.shared = True
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+        self.plan = self.fixture.plan
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
+    def test_anonymous_user_cannot_get_plans_matched_with_divisions(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+        division = structure_factories.DivisionFactory()
+        self.plan.divisions.add(division)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 0)
+
+    def test_staff_can_get_all_plans(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+        division = structure_factories.DivisionFactory()
+        self.plan.divisions.add(division)
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+    def test_filtering_plans_by_owner(self):
+        self.client.force_authenticate(self.fixture.owner)
+
+        # user can get plans if they are not connected with divisions
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+        division = structure_factories.DivisionFactory()
+        self.plan.divisions.add(division)
+
+        # user cannot get plans if they are connected with divisions
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 0)
+
+        self.fixture.customer.division = division
+        self.fixture.customer.save()
+
+        # user can get plans if they are connected with the same divisions
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+    def test_filtering_plans_by_admin(self):
+        self.client.force_authenticate(self.fixture.admin)
+
+        # user can get plans if they are not connected with divisions
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+        division = structure_factories.DivisionFactory()
+        self.plan.divisions.add(division)
+
+        # user cannot get plans if they are connected with divisions
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 0)
+
+        self.fixture.project.customer.division = division
+        self.fixture.project.customer.save()
+
+        # user can get plans if they are connected with the same divisions
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['plans']), 1)
+
+
 @ddt
 class OfferingCreateTest(test.APITransactionTestCase):
     def setUp(self):
