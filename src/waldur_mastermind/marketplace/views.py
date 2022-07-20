@@ -966,9 +966,17 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
 
     def get_queryset(self):
         queryset = super(PlanComponentViewSet, self).get_queryset()
-        if self.request.user.is_anonymous:
+        user = self.request.user
+
+        if user.is_anonymous:
             return queryset.filter(
-                plan__offering__shared=True,
+                plan__offering__shared=True, plan__divisions__isnull=True
+            )
+        elif user.is_staff or user.is_support:
+            return queryset
+        else:
+            return queryset.filter(
+                Q(plan__divisions__isnull=True) | Q(plan__divisions__in=user.divisions)
             )
 
 
