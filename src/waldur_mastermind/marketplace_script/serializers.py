@@ -56,6 +56,19 @@ class ResourceSerializer(serializers.Serializer):
     resource_name = serializers.ReadOnlyField(source='name')
 
 
+class DryRunTypes(models.RequestTypeMixin.Types):
+    PULL = 4
+    CHOICES = models.RequestTypeMixin.Types.CHOICES + ((PULL, 'Pull'),)
+
+    @classmethod
+    def get_type_display(cls, index):
+        for choice in cls.CHOICES:
+            if index == choice[0]:
+                return choice[1].lower()
+
+        return index
+
+
 class DryRunSerializer(
     serializers.Serializer,
 ):
@@ -66,8 +79,8 @@ class DryRunSerializer(
         write_only=True,
     )
     type = NaturalChoiceField(
-        choices=models.RequestTypeMixin.Types.CHOICES,
+        choices=DryRunTypes.CHOICES,
         required=False,
-        default=models.RequestTypeMixin.Types.CREATE,
+        default=DryRunTypes.CREATE,
     )
     attributes = serializers.JSONField(required=False)

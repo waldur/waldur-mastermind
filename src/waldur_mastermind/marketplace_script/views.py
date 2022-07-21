@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.permissions import user_is_owner_or_service_manager
 
 from . import PLUGIN_NAME
-from .serializers import DryRunSerializer
+from .serializers import DryRunSerializer, DryRunTypes
 from .utils import ContainerExecutorMixin
 
 
@@ -48,7 +48,7 @@ class DryRunView(ActionsViewSet):
         offering = self.get_object()
         order_item = marketplace_models.OrderItem(**serializer.validated_data)
         order_item.offering = offering
-        order_item_type = order_item.get_type_display().lower()
+        order_item_type = DryRunTypes.get_type_display(order_item.type)
 
         project = structure_models.Project(
             name='Dry-run project', customer=offering.customer

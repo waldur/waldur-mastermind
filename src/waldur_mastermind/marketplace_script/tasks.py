@@ -9,7 +9,7 @@ from waldur_mastermind.marketplace_script import PLUGIN_NAME, serializers, utils
 def pull_resources():
     for resource in models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
-        offering__plugin_options__has_key='pull',
+        offering__secret_options__has_key='pull',
         state__in=[models.Resource.States.OK, models.Resource.States.ERRED],
     ):
         pull_resource.delay(resource.id)
@@ -18,7 +18,9 @@ def pull_resources():
 @shared_task
 def pull_resource(resource_id):
     resource = models.Resource.objects.get(id=resource_id)
-    options = resource.offering.plugin_options
+
+    # We use secret_options the same like in ContainerExecutorMixin.send_request
+    options = resource.offering.secret_options
 
     serializer = serializers.ResourceSerializer(instance=resource)
     environment = {key.upper(): str(value) for key, value in serializer.data}
