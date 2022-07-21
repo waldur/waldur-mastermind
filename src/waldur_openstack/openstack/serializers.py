@@ -24,6 +24,7 @@ from waldur_openstack.openstack_base.serializers import (
     BaseSecurityGroupRuleSerializer,
     BaseVolumeTypeSerializer,
 )
+from waldur_openstack.openstack_tenant.models import Instance
 
 from . import models
 
@@ -511,6 +512,7 @@ class ServerGroupSerializer(structure_serializers.BaseResourceActionSerializer):
             'policy',
             'display_name',
             'name',
+            'instances',
         )
         related_paths = ('tenant',)
         read_only_fields = (
@@ -531,9 +533,16 @@ class ServerGroupSerializer(structure_serializers.BaseResourceActionSerializer):
         }
 
     display_name = serializers.SerializerMethodField()
+    instances = serializers.SerializerMethodField()
 
     def get_display_name(self, server_group):
         return f"Name: {server_group.name}, Policy: {server_group.policy}"
+
+    def get_instances(self, server_group):
+        filtered_instances = Instance.objects.filter(
+            server_group__backend_id=server_group.backend_id
+        ).values('backend_id', 'name', 'uuid')
+        return filtered_instances
 
     def validate(self, attrs):
         tenant = self.context['view'].get_object()
