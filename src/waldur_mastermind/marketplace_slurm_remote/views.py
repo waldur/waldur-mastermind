@@ -51,28 +51,30 @@ class SlurmViewSet(core_views.ActionsViewSet):
     def set_limits(self, request, uuid=None):
         resource = self.get_object()
         allocation: slurm_models.Allocation = resource.scope
-        old_limits = {
-            'cpu': allocation.cpu_limit,
-            'gpu': allocation.gpu_limit,
-            'ram': allocation.ram_limit,
-        }
-        serializer = self.get_serializer(allocation, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+
+        new_limits = request.data
+
+        if not isinstance(new_limits, dict):
+            limits_type = type(new_limits)
+            raise ValidationError(
+                _('The payload must have dictionary type, not %s.' % limits_type)
+            )
+
+        old_limits = resource.limits
+        resource.limits = request.data
+        resource.save(update_fields=['limits'])
 
         logger.info(
             'The limits for allocation %s have been changed from %s to %s',
             allocation,
             old_limits,
-            serializer.validated_data,
+            request.data,
         )
 
         return Response(
             {'status': _('Limits are successfully set.')},
             status=status.HTTP_200_OK,
         )
-
-    set_limits_serializer_class = slurm_serializers.AllocationSetLimitsSerializer
 
     @action(detail=True, methods=['POST'])
     def set_usage(self, request, uuid=None):
