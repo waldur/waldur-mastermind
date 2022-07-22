@@ -42,14 +42,10 @@ class AllocationSetLimits(test.APITransactionTestCase):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(self.url, self.new_limits)
         self.assertEqual(200, response.status_code)
-        self.allocation.refresh_from_db()
+        self.resource.refresh_from_db()
         self.assertEqual(
             self.new_limits,
-            {
-                'cpu_limit': self.allocation.cpu_limit,
-                'gpu_limit': self.allocation.gpu_limit,
-                'ram_limit': self.allocation.ram_limit,
-            },
+            self.resource.limits,
         )
 
     @data('owner', 'admin', 'manager', 'member')
