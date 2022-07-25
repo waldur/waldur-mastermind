@@ -13,6 +13,7 @@ from waldur_core.structure.models import (
     Customer,
     CustomerPermission,
     CustomerRole,
+    Project,
     ProjectRole,
 )
 from waldur_core.structure.tests import factories, fixtures
@@ -276,6 +277,20 @@ class CustomerDeleteTest(CustomerBaseTest):
             {'detail': 'Cannot delete organization with existing projects'},
             response.data,
         )
+
+    def test_user_can_delete_customer_with_soft_deleted_projects(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        project = factories.ProjectFactory(customer=self.fixture.customer)
+
+        # sof delete project
+        project.delete()
+        self.assertTrue(Project.objects.filter(id=project.id).exists())
+        project.refresh_from_db()
+        self.assertTrue(project.is_removed)
+
+        response = self.client.delete(self._get_customer_url(self.fixture.customer))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
 
 class BaseCustomerMutationTest(CustomerBaseTest):
