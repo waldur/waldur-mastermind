@@ -577,7 +577,7 @@ class Customer(
     def delete(self, *args, **kwargs):
         """Delete customers' projects if they all mark as 'removed'."""
         if Project.available_objects.filter(customer=self).count() == 0:
-            for project in self.projects.all():
+            for project in Project.objects.filter(customer=self):
                 project.delete(soft=False)
 
         return super(Customer, self).delete(*args, **kwargs)
