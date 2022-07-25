@@ -2,7 +2,7 @@ import functools
 import logging
 from io import BytesIO
 
-from django.conf import settings
+from django.conf import settings as django_settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -68,10 +68,10 @@ class JiraBackend(ServiceBackend):
     model_attachment = models.Attachment
     model_project = models.Project
 
-    def __init__(self, settings, project=None, verify=False):
+    def __init__(self, settings, project=None):
         self.settings = settings
         self.project = project
-        self.verify = verify
+        self.verify = django_settings.WALDUR_JIRA['VERIFY_SSL']
 
     def pull_service_properties(self):
         self.pull_project_templates()
@@ -570,7 +570,7 @@ class JiraBackend(ServiceBackend):
         return project
 
     def import_project_batch(self, project):
-        max_results = settings.WALDUR_JIRA.get('ISSUE_IMPORT_LIMIT')
+        max_results = django_settings.WALDUR_JIRA.get('ISSUE_IMPORT_LIMIT')
         start_at = project.action_details.get('current_issue', 0)
         self.import_project_issues(
             project, order='id', start_at=start_at, max_results=max_results
@@ -701,7 +701,7 @@ class JiraBackend(ServiceBackend):
         return issue_type
 
     def _get_resolution_sla(self, backend_issue):
-        issue_settings = settings.WALDUR_JIRA.get('ISSUE')
+        issue_settings = django_settings.WALDUR_JIRA.get('ISSUE')
         field_name = self.get_field_id_by_name(issue_settings['resolution_sla_field'])
         value = getattr(backend_issue.fields, field_name, None)
 
