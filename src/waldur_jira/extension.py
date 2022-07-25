@@ -10,6 +10,7 @@ class JiraExtension(WaldurExtension):
                 'resolution_sla_field': 'Time to resolution',
             },
             'ISSUE_IMPORT_LIMIT': 10,
+            'VERIFY_SSL': True,
         }
 
     @staticmethod
