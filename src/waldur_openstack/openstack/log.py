@@ -205,6 +205,19 @@ class FloatingIPLogger(EventLogger):
         return {floating_ip, floating_ip.tenant, port}
 
 
+class FlavorLogger(EventLogger):
+    flavor = 'openstack.Flavor'
+
+    class Meta:
+        event_types = (
+            'openstack_flavor_created',
+            'openstack_flavor_deleted',
+        )
+        event_groups = {
+            'resources': event_types,
+        }
+
+
 event_logger.register('openstack_tenant_quota', TenantQuotaLogger)
 event_logger.register('openstack_router', RouterLogger)
 event_logger.register('openstack_network', NetworkLogger)
@@ -214,3 +227,4 @@ event_logger.register('openstack_security_group_rule', SecurityGroupRuleLogger)
 event_logger.register('openstack_server_group', ServerGroupLogger)
 event_logger.register('openstack_port', PortLogger)
 event_logger.register('openstack_floating_ip', FloatingIPLogger)
+event_logger.register('openstack_flavor', FlavorLogger)

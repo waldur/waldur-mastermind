@@ -36,6 +36,12 @@ class CustomerFixture(UserFixture):
         self.customer.add_user(support, models.CustomerRole.SUPPORT)
         return support
 
+    @cached_property
+    def service_manager(self):
+        support = factories.UserFactory()
+        self.customer.add_user(support, models.CustomerRole.SERVICE_MANAGER)
+        return support
+
 
 class ProjectFixture(CustomerFixture):
     @cached_property

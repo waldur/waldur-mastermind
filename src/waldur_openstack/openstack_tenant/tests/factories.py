@@ -52,7 +52,7 @@ class FlavorFactory(factory.DjangoModelFactory):
         )
 
     @classmethod
-    def get_list_url(cls, action):
+    def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('openstacktenant-flavor-list')
         return url if action is None else url + action + '/'
 

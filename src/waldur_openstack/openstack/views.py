@@ -15,19 +15,14 @@ from waldur_core.logging.loggers import event_logger
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
+from waldur_openstack.openstack_base import views as openstack_base_views
 
 from . import executors, filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
 
-class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
-    """
-    VM instance flavor is a pre-defined set of virtual hardware parameters that the instance will use:
-    CPU, memory, disk size etc. VM instance flavor is not to be confused with VM template -- flavor is a set of virtual
-    hardware parameters whereas template is a definition of a system to be installed on this instance.
-    """
-
+class FlavorViewSet(openstack_base_views.FlavorViewSet):
     queryset = models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = serializers.FlavorSerializer
     lookup_field = 'uuid'

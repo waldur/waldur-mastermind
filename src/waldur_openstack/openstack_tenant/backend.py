@@ -2104,3 +2104,50 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         self._pull_zones(backend_zones, models.VolumeAvailabilityZone)
+
+    def create_flavor(self, flavor):
+        nova = self.get_admin_tenant_client()
+        data = {
+            'name': flavor.name,
+            'vcpus': flavor.cores,
+            'ram': flavor.ram,
+            'disk': flavor.disk / 1024,
+            'is_public': False,
+        }
+        try:
+            response = nova.flavors.create(**data)
+            flavor.backend_id = response.id
+            flavor.save()
+            nova.flavors.api.client.post(
+                '/flavors/%s/action' % flavor.backend_id,
+                body={'addTenantAccess': {'tenant': self.tenant_id}},
+            )
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_tenant_flavor.info(
+                'Flavor %s has been created in the backend.' % flavor.name,
+                event_type='openstack_flavor_created',
+                event_context={
+                    'flavor': flavor,
+                },
+            )
+
+    def delete_flavor(self, flavor):
+        if not flavor.backend_id:
+            return
+
+        nova = self.get_admin_tenant_client()
+
+        try:
+            nova.flavors.delete(flavor.backend_id)
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_tenant_flavor.info(
+                'Flavor %s has been deleted in the backend.' % flavor.name,
+                event_type='openstack_flavor_deleted',
+                event_context={
+                    'flavor': flavor,
+                },
+            )

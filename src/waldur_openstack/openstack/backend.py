@@ -181,6 +181,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                         'cores': backend_flavor.vcpus,
                         'ram': backend_flavor.ram,
                         'disk': self.gb2mb(backend_flavor.disk),
+                        'state': models.Flavor.States.OK,
                     },
                 )
 
@@ -2647,3 +2648,45 @@ class OpenStackBackend(BaseOpenStackBackend):
         with transaction.atomic():
             self._update_tenant_server_groups(tenant, backend_server_groups)
             self._remove_stale_server_groups([tenant], backend_server_groups)
+
+    def create_flavor(self, flavor):
+        nova = self.nova_admin_client
+        data = {
+            'name': flavor.name,
+            'vcpus': flavor.cores,
+            'ram': flavor.ram,
+            'disk': flavor.disk / 1024,
+        }
+        try:
+            response = nova.flavors.create(**data)
+            flavor.backend_id = response.id
+            flavor.save()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_flavor.info(
+                'Flavor %s has been created in the backend.' % flavor.name,
+                event_type='openstack_flavor_created',
+                event_context={
+                    'flavor': flavor,
+                },
+            )
+
+    def delete_flavor(self, flavor):
+        if not flavor.backend_id:
+            return
+
+        nova = self.nova_admin_client
+
+        try:
+            nova.flavors.delete(flavor.backend_id)
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            event_logger.openstack_flavor.info(
+                'Flavor %s has been deleted in the backend.' % flavor.name,
+                event_type='openstack_flavor_deleted',
+                event_context={
+                    'flavor': flavor,
+                },
+            )

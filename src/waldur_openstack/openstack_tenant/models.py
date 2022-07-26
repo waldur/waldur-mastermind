@@ -23,10 +23,13 @@ logger = logging.getLogger(__name__)
 TenantQuotas = openstack_models.Tenant.Quotas
 
 
-class Flavor(LoggableMixin, structure_models.ServiceProperty):
+class Flavor(core_models.StateMixin, LoggableMixin, structure_models.ServiceProperty):
     cores = models.PositiveSmallIntegerField(help_text=_('Number of cores in a VM'))
     ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(help_text=_('Root disk size in MiB'))
+
+    class Permissions:
+        customer_path = 'settings__customer'
 
     class Meta:
         unique_together = ('settings', 'backend_id')
@@ -39,6 +42,9 @@ class Flavor(LoggableMixin, structure_models.ServiceProperty):
     @classmethod
     def get_backend_fields(cls):
         return super(Flavor, cls).get_backend_fields() + ('cores', 'ram', 'disk')
+
+    def get_backend(self):
+        return self.settings.get_backend()
 
 
 class Image(openstack_base_models.BaseImage):

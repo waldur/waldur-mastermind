@@ -155,8 +155,22 @@ class FloatingIPEventLogger(EventLogger):
         ]
 
 
+class FlavorLogger(EventLogger):
+    flavor = models.Flavor
+
+    class Meta:
+        event_types = (
+            'openstack_flavor_created',
+            'openstack_flavor_deleted',
+        )
+        event_groups = {
+            'resources': event_types,
+        }
+
+
 event_logger.register('openstack_resource_action', ResourceActionEventLogger)
 event_logger.register('openstack_backup_schedule', BackupScheduleEventLogger)
 event_logger.register('openstack_snapshot_schedule', SnapshotScheduleEventLogger)
 event_logger.register('openstack_backup', BackupEventLogger)
 event_logger.register('openstack_tenant_floating_ip', FloatingIPEventLogger)
+event_logger.register('openstack_tenant_flavor', FlavorLogger)
