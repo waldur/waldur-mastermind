@@ -52,6 +52,14 @@ def is_owner(request, view, obj=None, **kwargs):
         raise exceptions.PermissionDenied()
 
 
+def is_service_manager(request, view, obj=None, **kwargs):
+    if not obj:
+        return
+    customer = _get_customer(obj, **kwargs)
+    if not _has_service_manager_access(request.user, customer):
+        raise exceptions.PermissionDenied()
+
+
 def is_manager(request, view, obj=None, **kwargs):
     if not obj:
         return
@@ -75,6 +83,12 @@ def _has_owner_access(user, customer):
 def _has_manager_access(user, project):
     return _has_owner_access(user, project.customer) or project.has_user(
         user, models.ProjectRole.MANAGER
+    )
+
+
+def _has_service_manager_access(user, customer):
+    return _has_owner_access(user, customer) or customer.has_user(
+        user, models.CustomerRole.SERVICE_MANAGER
     )
 
 

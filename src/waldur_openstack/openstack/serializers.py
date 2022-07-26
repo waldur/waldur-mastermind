@@ -17,12 +17,16 @@ from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
 from waldur_core.quotas import serializers as quotas_serializers
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack_base.serializers import (
     BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
     BaseVolumeTypeSerializer,
+)
+from waldur_openstack.openstack_base.serializers import (
+    FlavorSerializer as BaseFlavorSerializer,
 )
 from waldur_openstack.openstack_tenant.models import Instance
 
@@ -101,15 +105,16 @@ class OpenStackServiceSerializer(BaseOpenStackServiceSerializer):
     )
 
 
-class FlavorSerializer(structure_serializers.BasePropertySerializer):
-    class Meta:
-        model = models.Flavor
-        fields = ('url', 'uuid', 'name', 'cores', 'ram', 'disk', 'display_name')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
-
+class FlavorSerializer(BaseFlavorSerializer):
     display_name = serializers.SerializerMethodField()
+
+    class Meta(BaseFlavorSerializer.Meta):
+        model = models.Flavor
+        fields = BaseFlavorSerializer.Meta.fields + ('display_name',)
+        extra_kwargs = copy.deepcopy(BaseFlavorSerializer.Meta.extra_kwargs)
+        extra_kwargs['settings'][
+            'queryset'
+        ] = structure_models.ServiceSettings.objects.filter(type='OpenStack')
 
     def get_display_name(self, flavor):
         return "{} ({} CPU, {} MB RAM, {} MB HDD)".format(

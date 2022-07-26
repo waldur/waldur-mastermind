@@ -10,6 +10,7 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
+from waldur_core.core.models import StateMixin
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
@@ -17,10 +18,13 @@ from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack_base import models as openstack_base_models
 
 
-class Flavor(LoggableMixin, structure_models.ServiceProperty):
+class Flavor(StateMixin, LoggableMixin, structure_models.ServiceProperty):
     cores = models.PositiveSmallIntegerField(help_text=_('Number of cores in a VM'))
     ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(help_text=_('Root disk size in MiB'))
+
+    class Permissions:
+        customer_path = 'settings__customer'
 
     @classmethod
     def get_url_name(cls):
@@ -30,6 +34,9 @@ class Flavor(LoggableMixin, structure_models.ServiceProperty):
     def get_backend_fields(cls):
         readonly_fields = super(Flavor, cls).get_backend_fields()
         return readonly_fields + ('cores', 'ram', 'disk')
+
+    def get_backend(self):
+        return self.settings.get_backend()
 
 
 class Image(openstack_base_models.BaseImage):

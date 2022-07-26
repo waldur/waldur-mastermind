@@ -1,4 +1,5 @@
 import collections
+import copy
 import logging
 import re
 
@@ -27,6 +28,9 @@ from waldur_openstack.openstack_base.serializers import (
     BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
     BaseVolumeTypeSerializer,
+)
+from waldur_openstack.openstack_base.serializers import (
+    FlavorSerializer as BaseFlavorSerializer,
 )
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
@@ -91,22 +95,13 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class FlavorSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
+class FlavorSerializer(BaseFlavorSerializer):
+    class Meta(BaseFlavorSerializer.Meta):
         model = models.Flavor
-        fields = (
-            'url',
-            'uuid',
-            'name',
-            'settings',
-            'cores',
-            'ram',
-            'disk',
-        )
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'settings': {'lookup_field': 'uuid'},
-        }
+        extra_kwargs = copy.deepcopy(BaseFlavorSerializer.Meta.extra_kwargs)
+        extra_kwargs['settings'][
+            'queryset'
+        ] = structure_models.ServiceSettings.objects.filter(type='OpenStackTenant')
 
 
 class UsageStatsSerializer(serializers.Serializer):
@@ -1385,17 +1380,12 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         return instance
 
 
-class InstanceFlavorChangeSerializer(
-    structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer
-):
+class InstanceFlavorChangeSerializer(serializers.Serializer):
     flavor = serializers.HyperlinkedRelatedField(
         view_name='openstacktenant-flavor-detail',
         lookup_field='uuid',
         queryset=models.Flavor.objects.all(),
     )
-
-    def get_filtered_field_names(self):
-        return ('flavor',)
 
     def validate_flavor(self, value):
         if value is not None:

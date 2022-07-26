@@ -21,6 +21,7 @@ from waldur_core.structure.signals import resource_imported
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack.apps import OpenStackConfig
+from waldur_openstack.openstack_base import views as openstack_base_views
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
 
@@ -137,16 +138,9 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
         return ImageUsageReporter(self, request).get_report()
 
 
-class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
-    """
-    VM instance flavor is a pre-defined set of virtual hardware parameters that the instance will use:
-    CPU, memory, disk size etc. VM instance flavor is not to be confused with VM template -- flavor is a set of virtual
-    hardware parameters whereas template is a definition of a system to be installed on this instance.
-    """
-
+class FlavorViewSet(openstack_base_views.FlavorViewSet):
     queryset = models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = serializers.FlavorSerializer
-    lookup_field = 'uuid'
     filterset_class = filters.FlavorFilter
 
     @decorators.action(detail=False)
