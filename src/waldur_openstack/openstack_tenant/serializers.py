@@ -1037,12 +1037,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     security_groups = NestedSecurityGroupSerializer(
         queryset=models.SecurityGroup.objects.all(), many=True, required=False
     )
-    server_group = serializers.HyperlinkedRelatedField(
-        view_name='openstacktenant-server-group-detail',
-        queryset=models.ServerGroup.objects.all(),
-        lookup_field='uuid',
-        allow_null=True,
-        required=False,
+    server_group = NestedServerGroupSerializer(
+        queryset=models.ServerGroup.objects.all(), required=False
     )
     internal_ips_set = NestedInternalIPSerializer(many=True, required=False)
     floating_ips = NestedFloatingIPSerializer(
