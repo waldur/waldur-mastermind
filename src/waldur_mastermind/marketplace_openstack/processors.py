@@ -48,6 +48,9 @@ class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
         utils.update_limits(self.order_item)
         return True
 
+    def send_request(self, user):
+        return True
+
 
 class TenantDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = openstack_views.TenantViewSet
