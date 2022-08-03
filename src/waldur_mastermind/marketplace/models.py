@@ -1442,6 +1442,9 @@ class OfferingUser(TimeStampedModel):
     def get_log_fields(self):
         return ('offering', 'user', 'username')
 
+    def __str__(self) -> str:
+        return "%s: %s" % (self.offering.name, self.username)
+
 
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)

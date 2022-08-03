@@ -48,6 +48,18 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 0)
 
+    def test_user_can_view_own_offering_user(self):
+        sample_user = UserFactory()
+        OfferingUser.objects.create(
+            offering=self.offering, user=sample_user, username='user3'
+        )
+
+        self.client.force_authenticate(sample_user)
+        response = self.client.get(reverse('marketplace-offering-user-list'))
+
+        self.assertEqual(1, len(response.data))
+        self.assertEqual('user3', response.data[0]['username'])
+
 
 @ddt
 class CreateOfferingUsersTest(test.APITransactionTestCase):

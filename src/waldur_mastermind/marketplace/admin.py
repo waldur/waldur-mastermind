@@ -453,6 +453,10 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     offering_referrals_pull.short_description = _('Pull referrals info for offering(s)')
 
 
+class OfferingUserAdmin(admin.ModelAdmin):
+    list_display = admin.ModelAdmin.list_display + ('offering', 'user', 'username')
+
+
 class OrderItemInline(admin.TabularInline):
     model = models.OrderItem
     fields = ('offering', 'state', 'attributes', 'cost', 'plan', 'resource')
@@ -671,3 +675,4 @@ admin.site.register(models.Screenshot)
 admin.site.register(models.Order, OrderAdmin)
 admin.site.register(models.Plan, PlanAdmin)
 admin.site.register(models.Resource, ResourceAdmin)
+admin.site.register(models.OfferingUser, OfferingUserAdmin)
