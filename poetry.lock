@@ -2052,7 +2052,7 @@ s2repoze = ["paste", "zope.interface", "repoze.who"]
 
 [[package]]
 name = "pytest"
-version = "7.2.0.dev214+g70cac3d46"
+version = "7.2.0.dev227+gf43ddd8ac"
 description = "pytest: simple powerful testing with Python"
 category = "dev"
 optional = false
@@ -2075,7 +2075,7 @@ testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.
 type = "git"
 url = "https://github.com/pytest-dev/pytest"
 reference = "main"
-resolved_reference = "70cac3d464905cb3f7cedba9ea4f61dc56613f55"
+resolved_reference = "f43ddd8acd74a2c3242a3874420072836e0614aa"
 
 [[package]]
 name = "pytest-cov"
@@ -2120,7 +2120,7 @@ pytest = ">=2.5"
 
 [[package]]
 name = "python-cinderclient"
-version = "3.6.0"
+version = "4.3.0"
 description = "OpenStack Block Storage API Client Library"
 category = "main"
 optional = false
@@ -2133,6 +2133,7 @@ keystoneauth1 = ">=3.4.0"
 "oslo.utils" = ">=3.33.0"
 pbr = ">=2.0.0,<2.1.0 || >2.1.0"
 PrettyTable = ">=0.7.1,<0.8"
+requests = ">=2.14.2,<2.20.0 || >2.20.0"
 simplejson = ">=3.5.1"
 six = ">=1.10.0"
 
@@ -2729,7 +2730,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "eda463f222bbe6fa5f8c1fad3e290ef93a545161195c5c7abe2d5acba71f2ae6"
+content-hash = "5f7453350580b8802b9fbf24c384f1433414ae9c33d52a23057ac6b0d9c10bf6"
 
 [metadata.files]
 adal = [
@@ -3769,10 +3770,7 @@ pytest-split-tests = [
     {file = "pytest-split-tests-1.1.0.tar.gz", hash = "sha256:e55bbf127d94ff913a248f32e64f07cd3201e8a82397e8152694e4ffe456e21c"},
     {file = "pytest_split_tests-1.1.0-py2.py3-none-any.whl", hash = "sha256:21be7d6f95291002790fe24e28faa950059694e7abc430d4993d99a4c773bde4"},
 ]
-python-cinderclient = [
-    {file = "python-cinderclient-3.6.0.tar.gz", hash = "sha256:731774221c3414f6ef8e85f2116c41e726b4df67720e1d07d4060ce03513ce85"},
-    {file = "python_cinderclient-3.6.0-py2.py3-none-any.whl", hash = "sha256:64e358e55ba5e8c6acc251ee4d6031407ca48957531fd6cee4e71e738761ae96"},
-]
+python-cinderclient = []
 python-dateutil = [
     {file = "python-dateutil-2.7.3.tar.gz", hash = "sha256:e27001de32f627c22380a688bcc43ce83504a7bc5da472209b4c70f02829f0b8"},
     {file = "python_dateutil-2.7.3-py2.py3-none-any.whl", hash = "sha256:1adb80e7a782c12e52ef9a8182bebeb73f1d7e24e374397af06fb4956c8dc5c0"},

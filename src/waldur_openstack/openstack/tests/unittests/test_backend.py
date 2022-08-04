@@ -36,7 +36,7 @@ class BaseBackendTestCase(test.APITransactionTestCase):
         self.neutron_patcher = mock.patch('neutronclient.v2_0.client.Client')
         self.mocked_neutron = self.neutron_patcher.start()
 
-        self.cinder_patcher = mock.patch('cinderclient.v2.client.Client')
+        self.cinder_patcher = mock.patch('cinderclient.v3.client.Client')
         self.mocked_cinder = self.cinder_patcher.start()
 
         self.glance_patcher = mock.patch('glanceclient.v2.client.Client')
