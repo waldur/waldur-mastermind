@@ -197,12 +197,12 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
         if done:
             with transaction.atomic():
                 # check if a new plan has been requested
-                if resource.plan != self.order_item.plan:
+                if self.order_item.resource.plan != self.order_item.plan:
                     logger.info(
-                        f'Changing plan of a resource {resource.name} from {resource.plan} to {self.order_item.plan}. Order item ID: {self.order_item.id}'
+                        f'Changing plan of a resource {self.order_item.resource.name} from {self.order_item.resource.plan} to {self.order_item.plan}. Order item ID: {self.order_item.id}'
                     )
-                    resource.plan = self.order_item.plan
-                    resource.save(update_fields=['plan'])
+                    self.order_item.resource.plan = self.order_item.plan
+                    self.order_item.resource.save(update_fields=['plan'])
 
                 self.order_item.state = models.OrderItem.States.DONE
                 self.order_item.save(update_fields=['state'])
