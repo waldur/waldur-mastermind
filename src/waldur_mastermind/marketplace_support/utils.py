@@ -9,6 +9,7 @@ from jira import JIRAError
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core.utils import format_homeport_link
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import format_limits_list, get_order_item_url
 from waldur_mastermind.support import backend as support_backend
@@ -124,6 +125,11 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
                 'because a caller is inactive.'
             )
         )
+    except ServiceBackendError as e:
+        issue.delete()
+        order_item.resource.set_state_erred()
+        order_item.resource.save(update_fields=['state'])
+        raise rf_exceptions.ValidationError(e)
 
     if order_item.resource:
         ids = marketplace_models.OrderItem.objects.filter(

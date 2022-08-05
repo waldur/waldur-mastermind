@@ -14,6 +14,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure.exceptions import ServiceBackendError
 
 from . import backend, exceptions, executors, filters, models, serializers
 
@@ -64,6 +65,8 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             backend.get_active_backend().create_confirmation_comment(issue)
         except exceptions.SupportUserInactive:
             raise rf_exceptions.ValidationError({'caller': _('Caller is inactive.')})
+        except ServiceBackendError as e:
+            raise rf_exceptions.ValidationError(e)
 
     create_permissions = [can_create_user]
 

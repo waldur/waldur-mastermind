@@ -189,12 +189,16 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 backend_customer = self.manager.create_customer(
                     user.email, user.full_name
                 )
+        backend_id = self.get_user_id(backend_customer)
         try:
             user.supportcustomer
         except ObjectDoesNotExist:
-            support_customer = models.SupportCustomer(
-                user=user, backend_id=self.get_user_id(backend_customer)
-            )
+            if models.SupportCustomer.objects.filter(backend_id=backend_id).exists():
+                raise ServiceBackendError(
+                    'Issue is not created because JIRA user with the same '
+                    'email is already associated with another user.'
+                )
+            support_customer = models.SupportCustomer(user=user, backend_id=backend_id)
             support_customer.save()
 
     @reraise_exceptions
