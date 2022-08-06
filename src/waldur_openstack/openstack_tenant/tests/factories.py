@@ -128,6 +128,28 @@ class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
         )
 
 
+class ServerGroupFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.ServerGroup
+
+    name = factory.Sequence(lambda n: 'server_group%s' % n)
+    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+    backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+
+    @classmethod
+    def get_url(cls, server_group=None):
+        if server_group is None:
+            server_group = ServerGroupFactory()
+        return 'http://testserver' + reverse(
+            'openstacktenant-server-group-detail',
+            kwargs={'uuid': server_group.uuid.hex},
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstacktenant-server-group-list')
+
+
 class InstanceFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Instance
@@ -136,6 +158,7 @@ class InstanceFactory(factory.DjangoModelFactory):
     service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+    server_group = factory.SubFactory(ServerGroupFactory)
     ram = 2048
 
     @classmethod
