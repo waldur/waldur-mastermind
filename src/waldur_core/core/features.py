@@ -174,9 +174,7 @@ class SupportSection(FeatureSection):
         'Conceal "Change request" from a selection of issue types for non-staff/non-support users.'
     )
 
-    next_branch = Feature(
-        'Render "Try out new version" link in toolbar.'
-    )
+    next_branch = Feature('Render "Try out new version" link in toolbar.')
 
 
 class InvitationsSection(FeatureSection):
