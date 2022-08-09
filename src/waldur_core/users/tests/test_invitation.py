@@ -220,7 +220,7 @@ class InvitationCreateTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
-    @data('project_admin', 'project_manager', 'user')
+    @data('project_admin', 'user')
     def test_user_without_access_cannot_create_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(self.project_invitation)
@@ -277,6 +277,30 @@ class InvitationCreateTest(BaseInvitationTest):
             response.data,
             {'detail': 'You do not have permission to perform this action.'},
         )
+
+    @data(
+        'project_manager',
+    )
+    def test_user_can_create_project_invitation(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        payload = self._get_valid_project_invitation_payload(self.project_invitation)
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_user_cannot_create_project_invitation_if_he_is_manager_in_another_project(
+        self,
+    ):
+        user = self.project_admin
+        another_project = structure_factories.ProjectFactory()
+        another_project.add_user(user, structure_models.ProjectRole.MANAGER)
+        self.client.force_authenticate(user=user)
+        payload = self._get_valid_project_invitation_payload(self.project_invitation)
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_cannot_create_invitation_for_project_and_customer_simultaneously(
         self,
