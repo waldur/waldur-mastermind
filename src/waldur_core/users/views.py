@@ -44,7 +44,7 @@ class InvitationViewSet(ProtectedViewSet):
         project_role = serializer.validated_data.get('project_role')
 
         if not can_manage_invitation_with(
-            self.request.user, customer, customer_role, project_role
+            self.request.user, customer, customer_role, project_role, project
         ):
             raise PermissionDenied()
 

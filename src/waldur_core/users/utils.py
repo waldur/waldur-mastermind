@@ -167,7 +167,9 @@ def get_invitation_link(uuid):
     return core_utils.format_homeport_link('invitation/{uuid}/', uuid=uuid)
 
 
-def can_manage_invitation_with(user, customer, customer_role=None, project_role=None):
+def can_manage_invitation_with(
+    user, customer, customer_role=None, project_role=None, project=None
+):
     if user.is_staff:
         return True
 
@@ -177,8 +179,11 @@ def can_manage_invitation_with(user, customer, customer_role=None, project_role=
     # It is assumed that either customer_role or project_role is not None
     if customer_role:
         return is_owner and can_manage_owners
-    if project_role:
+    if project_role and not project:
         return is_owner
+    if project_role and project:
+        is_manager = project.has_user(user, structure_models.ProjectRole.MANAGER)
+        return is_owner or is_manager
 
 
 def get_users_for_notification_about_request_has_been_submitted(permission_request):
