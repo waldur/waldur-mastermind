@@ -732,7 +732,10 @@ class WaldurAuthSAML2(BaseModel):
     XMLSEC_BINARY = Field(
         '/usr/bin/xmlsec1', description='Full path to the xmlsec1 binary program'
     )
-    ATTRIBUTE_MAP_DIR = Field('', description='Directory with attribute mapping')
+    ATTRIBUTE_MAP_DIR = Field(
+        '/etc/waldur/saml2/attributemaps',
+        description='Directory with attribute mapping',
+    )
     DEBUG = Field(False, description='Set to True to output debugging information')
     IDP_METADATA_LOCAL = Field([], description='IdPs metadata XML files stored locally')
     IDP_METADATA_REMOTE = Field(
