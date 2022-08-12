@@ -4,7 +4,7 @@ import uuid
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions, status
@@ -18,6 +18,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices.models import InvoiceItem
 
 from . import filters, log, models, serializers, tasks, utils
 
@@ -383,6 +384,34 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             {'invoice_item_uuid': invoice_item.uuid.hex},
             status=status.HTTP_200_OK,
         )
+
+    def _get_costs_data(self, paginated_invoices):
+        result_list = []
+        for invoice in paginated_invoices:
+            data = {
+                'price': "{:.2f}".format(invoice['price']),
+                'year': invoice['invoice__year'],
+                'month': invoice['invoice__month'],
+            }
+            result_list.append(data)
+        return result_list
+
+    @action(detail=False, methods=['get'], filterset_class=filters.InvoiceItemFilter)
+    def costs(self, request, *args, **kwargs):
+        project_uuid = request.GET.get('project_uuid', '')
+        invoices = (
+            InvoiceItem.objects.filter(project_uuid=project_uuid)
+            .values('invoice__year', 'invoice__month')
+            .annotate(price=Sum(F('unit_price') * F('quantity')))
+            .values('invoice__year', 'invoice__month', 'price')
+            .order_by('invoice__year')
+        )
+        page = self.paginate_queryset(invoices)
+        if page is not None:
+            data = self._get_costs_data(page)
+            return self.get_paginated_response(data)
+        data = self._get_costs_data(invoices)
+        return Response(data)
 
     create_compensation_serializer_class = serializers.InvoiceItemCompensationSerializer
 

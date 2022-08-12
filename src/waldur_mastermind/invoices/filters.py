@@ -36,6 +36,7 @@ class InvoiceItemFilter(django_filters.FilterSet):
     resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
     year = django_filters.NumberFilter(field_name='invoice__year')
     month = django_filters.NumberFilter(field_name='invoice__month')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
 
 
 class PaymentProfileFilter(django_filters.FilterSet):
