@@ -1561,12 +1561,12 @@ class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
             fields['floating_ips'].view_name = 'openstacktenant-fip-detail'
         return fields
 
-    def validate_floating_ips(self, floating_ips):
+    def validate(self, attrs):
         subnets = self.instance.subnets.all()
         _validate_instance_floating_ips(
-            floating_ips, self.instance.service_settings, subnets
+            attrs['floating_ips'], self.instance.service_settings, subnets
         )
-        return floating_ips
+        return attrs
 
     def update(self, instance, validated_data):
         floating_ips_with_subnets = validated_data['floating_ips']
