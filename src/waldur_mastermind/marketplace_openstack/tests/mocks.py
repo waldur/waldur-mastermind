@@ -9,6 +9,7 @@ class MockInstance:
     key_name: str
     created: str
     flavor: dict
+    networks: dict
 
     def to_dict(self):
         return asdict(self)
@@ -48,6 +49,10 @@ MOCK_INSTANCE = MockInstance(
     key_name='ssh-public',
     created='2020-02-02T02:02',
     flavor={'id': 'std'},
+    networks={
+        'test-int-net': ['192.168.42.60'],
+        'public': ['172.29.249.185'],
+    },
 )
 
 

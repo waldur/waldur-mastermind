@@ -54,6 +54,10 @@ class BaseBackendTest(TestCase):
                 'created': '2012-04-23T08:10:00Z',
                 'OS-SRV-USG:launched_at': '2012-04-23T09:15',
                 'flavor': {'id': backend_id},
+                'networks': {
+                    'test-int-net': ['192.168.42.60'],
+                    'public': ['172.29.249.185'],
+                },
             },
         )
 
@@ -766,6 +770,10 @@ class PullInstanceTest(BaseBackendTest):
             flavor = {'id': 'flavor_id'}
             status = 'ERRED'
             fault = {'message': 'OpenStack Nova error.'}
+            networks = {
+                'test-int-net': ['192.168.42.60'],
+                'public': ['172.29.249.185'],
+            }
 
             @classmethod
             def to_dict(cls):

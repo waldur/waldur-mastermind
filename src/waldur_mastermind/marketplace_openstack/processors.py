@@ -76,6 +76,7 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
         'ssh_public_key',
         'user_data',
         'availability_zone',
+        'connect_directly_to_external_network',
     )
 
 
