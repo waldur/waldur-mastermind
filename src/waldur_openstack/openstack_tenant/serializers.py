@@ -831,13 +831,7 @@ def _validate_instance_internal_ips(internal_ips, settings):
     - make sure that internal_ips does not connect to the same subnet twice;
     """
     if not internal_ips:
-        raise serializers.ValidationError(
-            {
-                'internal_ips_set': _(
-                    'Instance should be connected to at least one network.'
-                )
-            }
-        )
+        return
     subnets = [internal_ip.subnet for internal_ip in internal_ips]
     for subnet in subnets:
         if subnet.settings != settings:
