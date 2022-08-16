@@ -363,6 +363,10 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     subnets = models.ManyToManyField('SubNet', through='InternalIP')
     hypervisor_hostname = models.CharField(max_length=255, blank=True)
 
+    connect_directly_to_external_network = models.BooleanField(default=False)
+    directly_connected_ips = models.CharField(
+        max_length=255, blank=True
+    )  # string representation of coma separated IPs
     tracker = FieldTracker()
 
     class Meta:
@@ -371,7 +375,11 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     @property
     def external_ips(self):
-        return list(self.floating_ips.values_list('address', flat=True))
+        floating_ips = list(self.floating_ips.values_list('address', flat=True))
+        if self.directly_connected_ips:
+            return floating_ips + self.directly_connected_ips.split(',')
+        else:
+            return floating_ips
 
     @property
     def internal_ips(self):
@@ -434,6 +442,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
             'runtime_state',
             'availability_zone',
             'hypervisor_hostname',
+            'directly_connected_ips',
         )
 
     @classmethod

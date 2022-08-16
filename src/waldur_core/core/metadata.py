@@ -939,7 +939,7 @@ class WaldurOpenstack(BaseModel):
         ]
 
 
-class WaldurOpenstackTenat(BaseModel):
+class WaldurOpenstackTenant(BaseModel):
     MAX_CONCURRENT_PROVISION = Field(
         {
             'OpenStackTenant.Instance': 4,
@@ -956,11 +956,16 @@ class WaldurOpenstackTenat(BaseModel):
         False,
         description='If true, specification of availability zone during provisioning will become mandatory',
     )
+    ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION = Field(
+        False,
+        description='If true, allow connecting of Instances directly to external networks',
+    )
 
     class Meta:
         public_settings = [
             'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS',
             'REQUIRE_AVAILABILITY_ZONE',
+            'ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION',
         ]
 
 
@@ -973,7 +978,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()
     WALDUR_OPENSTACK = WaldurOpenstack()
-    WALDUR_OPENSTACK_TENANT = WaldurOpenstackTenat()
+    WALDUR_OPENSTACK_TENANT = WaldurOpenstackTenant()
     WALDUR_MARKETPLACE = WaldurMarketplace()
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()

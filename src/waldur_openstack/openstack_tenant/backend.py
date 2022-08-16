@@ -3,6 +3,7 @@ import re
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
+from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import dateparse, timezone
 from django.utils.functional import cached_property
@@ -1069,9 +1070,32 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             for e in list_extensions.ListExtManager(self.cinder_client).show_all()
         ]
 
+    def _create_port_in_external_network(
+        self, tenant_uuid, external_network_id, security_groups
+    ):
+        logger.debug(
+            'About to create network port in external network. Network ID: %s.',
+            external_network_id,
+        )
+        neutron = self.neutron_client
+        try:
+            port = {
+                'network_id': external_network_id,
+                'tenant_id': tenant_uuid,  # admin only functionality
+                'security_groups': security_groups,
+            }
+            backend_external_port = neutron.create_port({'port': port})['port']
+            return backend_external_port
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
     @log_backend_action()
     def create_instance(
-        self, instance, backend_flavor_id=None, public_key=None, server_group=None
+        self,
+        instance: models.Instance,
+        backend_flavor_id=None,
+        public_key=None,
+        server_group=None,
     ):
         nova = self.nova_client
 
@@ -1100,6 +1124,29 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 for internal_ip in instance.internal_ips_set.all()
                 if internal_ip.backend_id
             ]
+
+            if (
+                settings.WALDUR_OPENSTACK_TENANT[
+                    'ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION'
+                ]
+                and instance.connect_directly_to_external_network
+            ):
+                external_network_id = instance.service_settings.options.get(
+                    'external_network_id'
+                )
+                if not external_network_id:
+                    raise OpenStackBackendError(
+                        'Cannot create an instance directly attached to external network without a defined external_network_id.'
+                    )
+                security_groups = list(
+                    instance.security_groups.values_list('backend_id', flat=True)
+                )
+                external_port_id = self._create_port_in_external_network(
+                    instance.service_settings.options['tenant_id'],
+                    external_network_id,
+                    security_groups,
+                )
+                nics.append({'port-id': external_port_id['id']})
 
             block_device_mapping_v2 = []
             for volume in instance.volumes.iterator():
@@ -1364,12 +1411,17 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             self.settings.scope.service_settings
         ).nova_admin_client
 
-    def import_instance(self, backend_id, project=None, save=True):
+    def import_instance(
+        self, backend_id, project=None, save=True, connected_internal_network_names=None
+    ):
         # NB! This method does not import instance sub-objects like security groups or internal IPs.
         #     They have to be pulled separately.
 
+        if connected_internal_network_names is None:
+            connected_internal_network_names = set()
+
         if self.settings.scope:
-            # It need use shared service settings to get instance hypervisor_hostname.
+            # We need to use admin client from shared service settings to get instance hypervisor_hostname.
             nova = self.get_admin_tenant_client()
         else:
             nova = self.nova_client
@@ -1383,7 +1435,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-        instance = self._backend_instance_to_instance(backend_instance, flavor_id)
+        instance: models.Instance = self._backend_instance_to_instance(
+            backend_instance, flavor_id, connected_internal_network_names
+        )
         with transaction.atomic():
             # import instance volumes, or use existed if they already exist in Waldur.
             volumes = []
@@ -1408,7 +1462,12 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         return instance
 
-    def _backend_instance_to_instance(self, backend_instance, backend_flavor_id=None):
+    def _backend_instance_to_instance(
+        self,
+        backend_instance,
+        backend_flavor_id=None,
+        connected_internal_network_names=None,
+    ):
         # parse launch time
         try:
             d = dateparse.parse_datetime(
@@ -1441,6 +1500,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             models.InstanceAvailabilityZone.DoesNotExist,
         ):
             pass
+        if connected_internal_network_names is None:
+            connected_internal_network_names = set()
+        backend_networks = backend_instance.networks
+        external_backend_networks = (
+            set(backend_networks.keys()) - connected_internal_network_names
+        )
+        external_backend_ips = [
+            ','.join(backend_networks[ext_net]) for ext_net in external_backend_networks
+        ]
 
         instance = models.Instance(
             name=backend_instance.name or backend_instance.id,
@@ -1452,6 +1520,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             backend_id=backend_instance.id,
             availability_zone=availability_zone,
             hypervisor_hostname=hypervisor_hostname,
+            directly_connected_ips=','.join(external_backend_ips),
         )
 
         if backend_flavor_id:
@@ -1607,9 +1676,18 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self._pull_zones(backend_zones, models.InstanceAvailabilityZone)
 
     @log_backend_action()
-    def pull_instance(self, instance, update_fields=None):
+    def pull_instance(self, instance: models.Instance, update_fields=None):
         import_time = timezone.now()
-        imported_instance = self.import_instance(instance.backend_id, save=False)
+        connected_internal_network_names = set(
+            instance.internal_ips_set.all().values_list(
+                'subnet__network__name', flat=True
+            )
+        )
+        imported_instance = self.import_instance(
+            instance.backend_id,
+            save=False,
+            connected_internal_network_names=connected_internal_network_names,
+        )
 
         instance.refresh_from_db()
         if instance.modified < import_time:

@@ -1091,6 +1091,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'internal_ips_set',
             'availability_zone',
             'availability_zone_name',
+            'connect_directly_to_external_network',
             'runtime_state',
             'action',
             'action_details',
@@ -1109,6 +1110,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 'server_group',
                 'internal_ips_set',
                 'availability_zone',
+                'connect_directly_to_external_network',
             )
         )
         read_only_fields = (
@@ -1206,6 +1208,15 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                     )
                     % image.min_disk
                 }
+            )
+        if (
+            attrs.get('connect_directly_to_external_network', False)
+            and 'external_network_id' not in service_settings.options
+        ):
+            raise serializers.ValidationError(
+                gettext(
+                    'Please specify tenant external network to request direct connection to external network.'
+                )
             )
 
         internal_ips = attrs.get('internal_ips_set', [])
