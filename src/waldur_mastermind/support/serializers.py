@@ -113,6 +113,7 @@ class IssueSerializer(
             'type',
             'key',
             'backend_id',
+            'remote_id',
             'link',
             'summary',
             'description',
@@ -161,6 +162,7 @@ class IssueSerializer(
             'caller',
             'template',
             'priority',
+            'remote_id',
         )
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
