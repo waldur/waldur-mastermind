@@ -95,7 +95,9 @@ Run unit tests:
     when: always
     reports:
       junit: report.xml
-      cobertura: coverage.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
   parallel: 10
 
 Run migration test:
