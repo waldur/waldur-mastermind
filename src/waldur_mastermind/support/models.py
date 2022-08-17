@@ -34,6 +34,7 @@ class Issue(
         project_path = 'project'
 
     backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    remote_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     key = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=255)
     link = models.URLField(

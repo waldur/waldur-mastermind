@@ -75,6 +75,9 @@ class IssueFilter(django_filters.FilterSet):
     resource_internal_ip = django_filters.CharFilter(
         method='filter_by_resource_internal_ip', label='Resource internal IP'
     )
+    remote_id = django_filters.CharFilter(
+        lookup_expr='icontains', field_name='remote_id'
+    )
 
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, 'caller')
@@ -126,6 +129,7 @@ class IssueFilter(django_filters.FilterSet):
             ('caller__last_name', 'caller_last_name'),
             ('reporter__name', 'reporter_name'),
             ('assignee__name', 'assignee_name'),
+            ('remote_id', 'remote_id'),
         )
     )
 

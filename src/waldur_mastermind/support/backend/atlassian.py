@@ -2,7 +2,7 @@ import collections
 import json
 import logging
 from datetime import datetime
-from html.parser import HTMLParser
+from html import unescape
 
 import dateutil.parser
 from django.conf import settings
@@ -244,12 +244,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         return args
 
     def _issue_to_dict(self, issue):
-        parser = HTMLParser()
-
         args = {
             'requestFieldValues': {
-                'summary': parser.unescape(issue.summary),
-                'description': parser.unescape(issue.description),
+                'summary': unescape(issue.summary),
+                'description': unescape(issue.description),
             }
         }
 

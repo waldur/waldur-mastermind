@@ -468,6 +468,16 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue('example.com' in response.data['description'])
 
+    def test_create_issue_with_remote_id(self):
+        remote_id = 'RT_ID:1234'
+        factories.SupportUserFactory(user=self.fixture.staff)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(remote_id=remote_id)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['remote_id'], remote_id)
+
     def _create_confirmation_comment(self, expected_body):
         user = self.fixture.staff
         factories.SupportUserFactory(user=user)
