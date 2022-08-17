@@ -438,6 +438,7 @@ class ProjectAdmin(
         'created',
         'get_type_name',
     ]
+    list_filter = ['customer']
     search_fields = ['name', 'uuid']
     change_readonly_fields = ['customer']
     actions = ('cleanup', 'sync_remote')
