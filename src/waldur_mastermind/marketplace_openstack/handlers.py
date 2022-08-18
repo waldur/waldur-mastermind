@@ -138,6 +138,26 @@ def synchronize_instance_after_pull(sender, instance, **kwargs):
             pass
 
 
+def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs):
+    if not created and not set(instance.tracker.changed()) & {
+        'directly_connected_ips',
+    }:
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug(
+            'Skipping resource synchronization for OpenStack instance '
+            'because marketplace resource does not exist. '
+            'Resource ID: %s',
+            instance,
+        )
+        return
+
+    utils.import_instance_metadata(resource)
+
+
 def synchronize_internal_ips(sender, instance, created=False, **kwargs):
     internal_ip = instance
     if not created and not set(internal_ip.tracker.changed()) & {

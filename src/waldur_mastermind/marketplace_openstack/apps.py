@@ -226,6 +226,12 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.synchronize_directly_connected_ips,
+            sender=tenant_models.Instance,
+            dispatch_uid='waldur_mastermind.marketplace_openstack.synchronize_synchronize_directly_connected_ips',
+        )
+
+        signals.post_save.connect(
             handlers.create_resource_of_volume_if_instance_created,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace_openstack.'
