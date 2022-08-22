@@ -1483,12 +1483,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         availability_zone = None
         try:
-            availability_zone_name = backend_instance.to_dict().get(
-                'OS-EXT-AZ:availability_zone'
+            availability_zone_name = (
+                backend_instance.to_dict().get('OS-EXT-AZ:availability_zone') or ''
             )
-            hypervisor_hostname = backend_instance.to_dict().get(
-                'OS-EXT-SRV-ATTR:hypervisor_hostname', ''
+            hypervisor_hostname = (
+                backend_instance.to_dict().get('OS-EXT-SRV-ATTR:hypervisor_hostname')
+                or ''
             )
+
             if availability_zone_name:
                 availability_zone = models.InstanceAvailabilityZone.objects.get(
                     name=availability_zone_name, settings=self.settings
