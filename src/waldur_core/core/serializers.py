@@ -27,8 +27,8 @@ class AuthTokenSerializer(serializers.Serializer):
     """
 
     # Fields are both required, non-blank and don't allow nulls by default
-    username = serializers.CharField()
-    password = serializers.CharField()
+    username = serializers.CharField(max_length=128)
+    password = serializers.CharField(max_length=128)
 
 
 class Base64Field(serializers.CharField):
