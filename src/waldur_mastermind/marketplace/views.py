@@ -21,7 +21,9 @@ from django.db.models.functions.math import Ceil
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
@@ -1971,6 +1973,27 @@ class StatsViewSet(rf_viewsets.ViewSet):
             .annotate(usage=Sum('usage'))
         )
         serializer = serializers.ComponentUsagesStatsSerializer(data, many=True)
+        return Response(
+            self._expand_result_with_information_of_divisions(serializer.data),
+            status=status.HTTP_200_OK,
+        )
+
+    # cache for 1 hour
+    @method_decorator(cache_page(60 * 60))
+    @action(detail=False, methods=['get'])
+    def component_usages_per_month(self, request, *args, **kwargs):
+        start, end = utils.get_start_and_end_dates_from_request(self.request)
+        usages = models.ComponentUsage.objects.filter(
+            billing_period__gte=start, billing_period__lte=end
+        )
+
+        data = usages.values(
+            'resource__offering__uuid',
+            'component__type',
+            'billing_period__year',
+            'billing_period__month',
+        ).annotate(usage=Sum('usage'))
+        serializer = serializers.ComponentUsagesPerMonthStatsSerializer(data, many=True)
         return Response(
             self._expand_result_with_information_of_divisions(serializer.data),
             status=status.HTTP_200_OK,
