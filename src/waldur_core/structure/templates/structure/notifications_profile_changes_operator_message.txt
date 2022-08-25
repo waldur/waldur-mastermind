@@ -1,0 +1,10 @@
+Owner of
+{% for o in organizations %}
+    {{ o.name }} {% if o.abbreviation %} ({{ o.abbreviation }}){% endif %}{% if not forloop.last %}, {% endif %}
+{% endfor %}
+
+{{user.full_name}} (id={{ user.id }}) has changed
+
+{% for f in fields %}
+    {{ f.name }} from {{ f.old_value }} to {{ f.new_value }}{% if not forloop.last %}, {% else %}.{% endif %}
+{% endfor %}

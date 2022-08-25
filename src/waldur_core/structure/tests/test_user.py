@@ -780,8 +780,8 @@ class NotificationsProfileChangesTest(test.APITransactionTestCase):
         self.user.save()
         msg = mock_event_logger.user.info.call_args[0][0]
         test_msg = (
-            'Owner of Customer (ABC) John (id={id}) '
-            'has changed email from john@example.org to new_email_john@example.org.'.format(
+            'User John (id={id}) '
+            'profile has been updated: email from john@example.org to new_email_john@example.org.'.format(
                 id=self.user.id
             )
         )

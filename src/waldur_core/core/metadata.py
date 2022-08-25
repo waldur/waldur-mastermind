@@ -92,8 +92,12 @@ class WaldurCore(BaseModel):
         description='It is used in marketplace order details and invoices for currency formatting.',
     )
     NOTIFICATIONS_PROFILE_CHANGES = Field(
-        {'ENABLED': True, 'FIELDS': ('email', 'phone_number', 'job_title')},
-        description='Allows enabling notifications about profile changes of organization owners.',
+        {
+            'FIELDS': ('email', 'phone_number', 'job_title'),
+            'ENABLE_OPERATOR_OWNER_NOTIFICATIONS': False,
+            'OPERATOR_NOTIFICATION_EMAILS': [],
+        },
+        description='Configure notifications about profile changes of organization owners.',
     )
     COUNTRIES: List[str] = Field(
         [

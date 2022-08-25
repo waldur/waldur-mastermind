@@ -340,9 +340,6 @@ def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
 
 
 def notify_about_user_profile_changes(sender, instance, created=False, **kwargs):
-    if created or not settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES']['ENABLED']:
-        return
-
     user = instance
     change_fields = settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES']['FIELDS']
     organizations = utils.get_customers_owned_by_user(user)
@@ -362,10 +359,10 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
                     'new_value': getattr(user, field, None),
                 }
             )
-
+    context = {'user': user, 'fields': fields, 'organizations': organizations}
     msg = render_to_string(
         'structure/notifications_profile_changes.html',
-        {'user': user, 'fields': fields, 'organizations': organizations},
+        context,
     )
 
     msg = re.sub(r'\s+', ' ', msg).strip()
@@ -373,6 +370,21 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
     event_logger.user.info(
         msg, event_type='user_profile_changed', event_context={'affected_user': user}
     )
+
+    if (
+        settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES'][
+            'ENABLE_OPERATOR_OWNER_NOTIFICATIONS'
+        ]
+        and settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES'][
+            'OPERATOR_NOTIFICATION_EMAILS'
+        ]
+    ):
+        emails = settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES'][
+            'OPERATOR_NOTIFICATION_EMAILS'
+        ]
+        core_utils.broadcast_mail(
+            'structure', 'notifications_profile_changes_operator', context, emails
+        )
 
 
 def update_customer_users_count(sender, **kwargs):
