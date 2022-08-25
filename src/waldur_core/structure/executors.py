@@ -1,4 +1,4 @@
-from celery import chain
+from celery import chain, shared_task
 from django.core import checks
 from django.db.models import Model
 from django.utils.topological_sort import stable_topological_sort
@@ -6,7 +6,6 @@ from django.utils.topological_sort import stable_topological_sort
 from waldur_core.core import WaldurExtension
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
-from waldur_core.core import utils as core_utils
 
 
 class ServiceSettingsCreateExecutor(core_executors.CreateExecutor):
@@ -34,6 +33,14 @@ class ServiceSettingsPullExecutor(core_executors.ActionExecutor):
         return core_tasks.IndependentBackendMethodTask().si(
             serialized_settings, 'sync', state_transition='begin_updating'
         )
+
+
+@shared_task
+def ignore_errors(sig, errors=(Exception,)):
+    try:
+        sig.apply()
+    except errors:
+        pass
 
 
 class BaseCleanupExecutor(core_executors.BaseExecutor):
@@ -98,38 +105,17 @@ class BaseCleanupExecutor(core_executors.BaseExecutor):
         Convert executors to task and combine all deletion task into single sequential task.
         """
         cleanup_tasks = [
-            ProjectResourceCleanupTask().si(
-                core_utils.serialize_class(executor_cls),
-                core_utils.serialize_class(model_cls),
-                serialized_instance,
+            ignore_errors.si(
+                executor_cls().as_signature(resource, force=True, **kwargs)
             )
             for (model_cls, executor_cls) in cls.executors
+            for resource in model_cls.objects.filter(project=instance)
         ]
 
         if not cleanup_tasks:
             return core_tasks.EmptyTask()
 
         return chain(cleanup_tasks)
-
-
-class ProjectResourceCleanupTask(core_tasks.Task):
-    @classmethod
-    def get_description(cls, executor, model, project, *args, **kwargs):
-        return 'Delete "%s" resources for project "%s" using executor %s.' % (
-            model,
-            project,
-            executor,
-        )
-
-    def run(
-        self, serialized_executor, serialized_model, serialized_project, *args, **kwargs
-    ):
-        executor = core_utils.deserialize_class(serialized_executor)
-        model_cls = core_utils.deserialize_class(serialized_model)
-        project = core_utils.deserialize_instance(serialized_project)
-
-        for resource in model_cls.objects.filter(project=project):
-            executor.execute(resource, is_async=False, force=True, **kwargs)
 
 
 class ProjectCleanupExecutor(core_executors.BaseExecutor):

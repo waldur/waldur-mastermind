@@ -8,9 +8,9 @@ from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests import fixtures
 
 
-class PackageCleanupTest(test_backend.BaseBackendTestCase):
+class ProjectCleanupTest(test_backend.BaseBackendTestCase):
     def setUp(self):
-        super(PackageCleanupTest, self).setUp()
+        super(ProjectCleanupTest, self).setUp()
         fixture = fixtures.OpenStackTenantFixture()
         self.staff = fixture.staff
         self.project = fixture.project
