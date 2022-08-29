@@ -358,7 +358,11 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     ]
 
     def activate(self, request, queryset):
-        valid_states = [models.Offering.States.DRAFT, models.Offering.States.PAUSED]
+        valid_states = [
+            models.Offering.States.DRAFT,
+            models.Offering.States.PAUSED,
+            models.Offering.States.ARCHIVED,
+        ]
         valid_offerings = queryset.filter(state__in=valid_states)
         count = valid_offerings.count()
 
