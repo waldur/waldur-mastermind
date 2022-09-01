@@ -311,6 +311,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(component.article_code, 'artcode1')
         self.assertEqual(component.min_value, 1)
         self.assertEqual(component.max_value, 100)
+        self.assertEqual(component.max_available_limit, 200)
 
     def _get_payload(self):
         return {
@@ -338,6 +339,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
                     "article_code": "artcode1",
                     "min_value": 1,
                     "max_value": 100,
+                    "max_available_limit": 200,
                 },
                 {
                     "type": "ram",
@@ -348,6 +350,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
                     "article_code": "artcode2",
                     "min_value": 1024,
                     "max_value": 102400,
+                    "max_available_limit": 204800,
                 },
                 {
                     "type": "storage",
@@ -358,6 +361,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
                     "article_code": "artcode3",
                     "min_value": 1024,
                     "max_value": 102400,
+                    "max_available_limit": 204800,
                 },
             ],
         }
@@ -366,9 +370,9 @@ class OfferingCreateTest(test.APITransactionTestCase):
         payload = self._get_payload()
         payload.pop('components')
         payload['limits'] = {
-            'cores': {'min': 1, 'max': 100},
-            'ram': {'min': 1024, 'max': 102400},
-            'storage': {'min': 1024, 'max': 102400},
+            'cores': {'min': 1, 'max': 100, 'max_available_limit': 200},
+            'ram': {'min': 1024, 'max': 102400, 'max_available_limit': 204800},
+            'storage': {'min': 1024, 'max': 102400, 'max_available_limit': 204800},
         }
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, payload)
@@ -388,6 +392,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(component.min_value, 1)
         self.assertEqual(component.max_value, 100)
+        self.assertEqual(component.max_available_limit, 200)
 
 
 @ddt

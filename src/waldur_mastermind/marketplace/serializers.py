@@ -523,6 +523,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             'article_code',
             'max_value',
             'min_value',
+            'max_available_limit',
             'is_boolean',
             'default_limit',
             'factor',
@@ -962,6 +963,7 @@ class OfferingDetailsSerializer(
 class OfferingComponentLimitSerializer(serializers.Serializer):
     min = serializers.IntegerField(min_value=0)
     max = serializers.IntegerField(min_value=0)
+    max_available_limit = serializers.IntegerField(min_value=0)
 
 
 class OfferingModifySerializer(OfferingDetailsSerializer):
@@ -1127,10 +1129,12 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         for key, values in limits.items():
             min_value = values.get('min_value') or values.get('min')
             max_value = values.get('max_value') or values.get('max')
+            max_available_limit = values.get('max_available_limit')
 
             models.OfferingComponent.objects.filter(offering=offering, type=key).update(
                 min_value=min_value,
                 max_value=max_value,
+                max_available_limit=max_available_limit,
                 article_code=values.get('article_code', ''),
             )
 
@@ -1301,6 +1305,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 'default_limit',
                 'min_value',
                 'max_value',
+                'max_available_limit',
             )
 
         for component_key in updated_components:

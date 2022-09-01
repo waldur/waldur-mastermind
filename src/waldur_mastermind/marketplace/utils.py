@@ -1,6 +1,7 @@
 import base64
 import datetime
 import logging
+import math
 import os
 import traceback
 from io import BytesIO
@@ -26,7 +27,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.common.utils import create_request
+from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
@@ -248,7 +249,12 @@ def get_public_resources_url(customer):
     )
 
 
-def validate_limits(limits, offering):
+def validate_limits(limits, offering, resource=None):
+    """
+    @param limits Maximum/Minimum limit-based components values and maximum available limit
+    @param offering The offering being created
+    @param resource Passing the resource if the limits of the resource are being updated.
+    """
     if not plugins.manager.can_update_limits(offering.type):
         raise serializers.ValidationError(
             {'limits': _('Limits update is not supported for this resource.')}
@@ -265,10 +271,32 @@ def validate_limits(limits, offering):
             {'limits': _('Invalid types: %s') % ', '.join(invalid_types)}
         )
 
-    # Validate max and min limit value.
     components_map = {
         component.type: component
         for component in offering.components.filter(type__in=valid_component_types)
+    }
+
+    all_offering_resources = models.Resource.objects.filter(offering=offering).exclude(
+        limits={}
+    )
+
+    if resource:
+        all_offering_resources = all_offering_resources.exclude(
+            id=resource.id if resource else id
+        ).values('limits')
+    else:
+        all_offering_resources = all_offering_resources.values('limits')
+
+    current_total_limits = {
+        'ram': sum(
+            resource['limits'].get('ram', 0) for resource in all_offering_resources
+        ),
+        'cores': sum(
+            resource['limits'].get('cores', 0) for resource in all_offering_resources
+        ),
+        'storage': sum(
+            resource['limits'].get('storage', 0) for resource in all_offering_resources
+        ),
     }
 
     for key, value in limits.items():
@@ -276,6 +304,7 @@ def validate_limits(limits, offering):
         if not component:
             continue
 
+        # Validate max and min limit value.
         if component.max_value and value > component.max_value:
             raise serializers.ValidationError(
                 _('The limit %s value cannot be more than %s.')
@@ -327,6 +356,39 @@ def validate_limits(limits, offering):
                     raise serializers.ValidationError(
                         _('Total limit exceeds threshold %s.') % component.limit_amount
                     )
+
+        # Validate maximum available limit for all active tenants
+        if (
+            component.max_available_limit
+            and (current_total_limits[component.type] + value)
+            >= component.max_available_limit
+        ):
+            error_message = "Requested %s cannot be provisioned due to offering safety limit. You can allocate up to %s of %s."
+            if component.type == "cores":
+                raise serializers.ValidationError(
+                    _(error_message)
+                    % (
+                        component.type,
+                        component.max_available_limit
+                        - current_total_limits[component.type]
+                        - 1,
+                        component.type,
+                    )
+                )
+            else:
+                raise serializers.ValidationError(
+                    _(error_message)
+                    % (
+                        component.type,
+                        math.floor(
+                            mb_to_gb(
+                                component.max_available_limit
+                                - current_total_limits[component.type]
+                            )
+                        ),
+                        component.type,
+                    )
+                )
 
 
 def validate_attributes(attributes, category):
