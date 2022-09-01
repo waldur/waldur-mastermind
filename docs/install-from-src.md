@@ -60,6 +60,19 @@ vi src/waldur_core/server/settings.py
 ``` bash
 createdb waldur
 createuser waldur
+```
+
+### Add a password *waldur* for this user
+
+``` bash
+psql
+ALTER USER waldur PASSWORD 'waldur'
+\q
+```
+
+### Then run poetry
+
+``` bash
 poetry run waldur migrate --noinput
 ```
 
