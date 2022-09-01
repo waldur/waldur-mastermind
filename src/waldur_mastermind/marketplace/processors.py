@@ -150,7 +150,11 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
 
     def validate_order_item(self, request):
         if self.is_update_limit_order_item():
-            validate_limits(self.order_item.limits, self.order_item.offering)
+            validate_limits(
+                self.order_item.limits,
+                self.order_item.offering,
+                self.order_item.resource,
+            )
             return
 
         self.validate_request(request)

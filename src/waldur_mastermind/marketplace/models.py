@@ -590,6 +590,7 @@ class OfferingComponent(
     # max_value and min_value fields are used if billing_type is LIMIT
     max_value = models.IntegerField(blank=True, null=True)
     min_value = models.IntegerField(blank=True, null=True)
+    max_available_limit = models.IntegerField(blank=True, null=True)
     # is_boolean field allows to render checkbox in UI which set limit amount to 1
     is_boolean = models.BooleanField(default=False)
     # default_limit field is used by UI to prefill limit values

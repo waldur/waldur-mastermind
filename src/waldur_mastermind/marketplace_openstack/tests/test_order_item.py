@@ -112,6 +112,21 @@ class TenantCreateTest(BaseOpenStackTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_max_available_limit_is_checked_against_offering_components(self):
+        create_offering_components(self.offering)
+        self.offering.components.filter(type=CORES_TYPE).update(max_value=50)
+        self.offering.components.filter(type=RAM_TYPE).update(max_value=1024 * 10)
+        self.offering.components.filter(type=STORAGE_TYPE).update(
+            max_value=1024 * 1024 * 10
+        )
+        self.offering.components.filter(type=CORES_TYPE).update(max_available_limit=35)
+
+        response = self.create_order(
+            limits={'cores': 40, 'ram': 1024 * 5, 'storage': 1024 * 1024 * 5}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def create_plan_component(self, type, price):
         return marketplace_factories.PlanComponentFactory(
             component=self.offering.components.get(type=type),
