@@ -124,6 +124,10 @@ class MarketplaceSection(FeatureSection):
 
     review = Feature('Allow to write a review for marketplace offering.')
 
+    show_experimental_ui_components = Feature(
+        'Enabled display of experimental or mocked components in marketplace.'
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:

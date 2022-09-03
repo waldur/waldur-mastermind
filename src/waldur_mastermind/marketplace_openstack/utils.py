@@ -93,9 +93,9 @@ def import_volume_metadata(resource):
     resource.save(update_fields=['backend_metadata'])
 
 
-def import_instance_metadata(resource):
+def import_instance_metadata(resource: marketplace_models.Resource):
     import_resource_metadata(resource)
-    instance = resource.scope
+    instance: openstack_tenant_models.Instance = resource.scope
     resource.backend_metadata['internal_ips'] = instance.internal_ips
     resource.backend_metadata['external_ips'] = instance.external_ips
     resource.save(update_fields=['backend_metadata'])
