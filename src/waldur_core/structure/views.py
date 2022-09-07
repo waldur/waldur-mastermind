@@ -28,6 +28,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.core.views import ReadOnlyActionsViewSet
 from waldur_core.logging import models as logging_models
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
@@ -1193,3 +1194,14 @@ class DivisionTypesViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.DivisionTypesFilter
+
+
+class UserAgreementsViewSet(ReadOnlyActionsViewSet):
+    serializer_class = serializers.UserAgreementSerializer
+
+    def get_queryset(self):
+        queryset = models.UserAgreement.objects.all()
+        agreement_type = self.request.query_params.get('agreement_type')
+        if agreement_type is not None:
+            queryset = queryset.filter(agreement_type=agreement_type)
+        return queryset

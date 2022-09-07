@@ -39,6 +39,11 @@ def register_in(router):
     router.register(
         r'division-types', views.DivisionTypesViewSet, basename='division-type'
     )
+    router.register(
+        r'user-agreements',
+        views.UserAgreementsViewSet,
+        basename='user-agreements',
+    )
 
 
 urlpatterns = [

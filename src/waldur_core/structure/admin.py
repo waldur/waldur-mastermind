@@ -800,6 +800,13 @@ class DivisionAdmin(admin.ModelAdmin):
     list_filter = ('type',)
 
 
+class UserAgreementAdmin(admin.ModelAdmin):
+    fields = ('content', 'agreement_type', 'created', 'modified')
+    readonly_fields = ('created', 'modified')
+    search_fields = ['content']
+    list_filter = ('agreement_type',)
+
+
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
 admin.site.register(models.Project, ProjectAdmin)
@@ -807,3 +814,4 @@ admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
 admin.site.register(models.DivisionType, DivisionTypeAdmin)
 admin.site.register(models.Division, DivisionAdmin)
+admin.site.register(models.UserAgreement, UserAgreementAdmin)
