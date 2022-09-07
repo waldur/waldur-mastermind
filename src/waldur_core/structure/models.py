@@ -1243,4 +1243,26 @@ class SubResource(BaseResource):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
+class UserAgreement(LoggableMixin, TimeStampedModel):
+    class UserAgreements:
+        TOS = 'TOS'
+        PP = 'PP'
+
+        CHOICES = (
+            (TOS, 'Terms of services'),
+            (PP, 'Privacy policy'),
+        )
+
+    content = models.TextField(blank=True)
+    agreement_type = models.CharField(
+        max_length=5, choices=UserAgreements.CHOICES, unique=True
+    )
+
+    class Meta:
+        ordering = ['created']
+
+    def __str__(self):
+        return self.agreement_type
+
+
 reversion.register(Customer)
