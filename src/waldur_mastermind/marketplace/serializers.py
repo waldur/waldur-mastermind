@@ -160,6 +160,12 @@ class CategoryComponentSerializer(serializers.ModelSerializer):
         fields = ('type', 'name', 'description', 'measured_unit')
 
 
+class CategoryHelpArticleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.CategoryHelpArticle
+        fields = ('title', 'url')
+
+
 class CategorySerializer(
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -170,6 +176,7 @@ class CategorySerializer(
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
     components = CategoryComponentSerializer(many=True, read_only=True)
+    articles = CategoryHelpArticleSerializer(many=True, read_only=True)
 
     @staticmethod
     def eager_load(queryset, request):
@@ -239,6 +246,7 @@ class CategorySerializer(
             'sections',
             'columns',
             'components',
+            'articles',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},

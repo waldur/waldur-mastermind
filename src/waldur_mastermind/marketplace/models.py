@@ -1447,6 +1447,15 @@ class OfferingUser(TimeStampedModel):
         return "%s: %s" % (self.offering.name, self.username)
 
 
+class CategoryHelpArticle(models.Model):
+    title = models.CharField(max_length=255, null=True, blank=True)
+    url = models.URLField()
+    categories = models.ManyToManyField(Category, related_name='articles', blank=True)
+
+    def __str__(self):
+        return self.title
+
+
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
 reversion.register(PlanComponent)
