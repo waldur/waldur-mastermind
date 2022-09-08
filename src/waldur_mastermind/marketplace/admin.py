@@ -670,6 +670,11 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         return redirect(reverse('admin:marketplace_resource_changelist'))
 
 
+class CategoryHelpArticleAdmin(admin.ModelAdmin):
+    list_display = ('title', 'url')
+    search_fields = ('title',)
+
+
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category, CategoryAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
@@ -680,3 +685,4 @@ admin.site.register(models.Order, OrderAdmin)
 admin.site.register(models.Plan, PlanAdmin)
 admin.site.register(models.Resource, ResourceAdmin)
 admin.site.register(models.OfferingUser, OfferingUserAdmin)
+admin.site.register(models.CategoryHelpArticle, CategoryHelpArticleAdmin)
