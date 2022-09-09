@@ -144,6 +144,7 @@ class IssueSerializer(
             'first_response_sla',
             'template',
             'feedback',
+            'resolved',
         )
         read_only_fields = (
             'key',
