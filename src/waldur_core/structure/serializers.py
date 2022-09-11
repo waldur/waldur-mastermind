@@ -994,8 +994,6 @@ class UserSerializer(
             'customer_permissions',
             'project_permissions',
             'affiliations',
-            'first_name',
-            'last_name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -1085,6 +1083,15 @@ class UserSerializer(
             idp_fields = self.get_identity_provider_fields(self.instance)
             allowed_fields = set(attrs.keys()) - set(idp_fields)
             attrs = {k: v for k, v in attrs.items() if k in allowed_fields}
+
+        if 'full_name' in attrs and 'first_name' in attrs:
+            raise serializers.ValidationError(
+                {'first_name': _('Cannot specify first name with full name')}
+            )
+        elif 'full_name' in attrs and 'last_name' in attrs:
+            raise serializers.ValidationError(
+                {'last_name': _('Cannot specify last name with full name')}
+            )
 
         # Convert validation error from Django to DRF
         # https://github.com/tomchristie/django-rest-framework/issues/2145
