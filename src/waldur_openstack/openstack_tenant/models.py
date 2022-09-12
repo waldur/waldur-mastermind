@@ -375,11 +375,12 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     @property
     def external_ips(self):
-        floating_ips = list(self.floating_ips.values_list('address', flat=True))
+        floating_ips = set(self.floating_ips.values_list('address', flat=True))
         if self.directly_connected_ips:
-            return floating_ips + self.directly_connected_ips.split(',')
-        else:
-            return floating_ips
+            floating_ips = floating_ips.union(
+                set(self.directly_connected_ips.split(','))
+            )
+        return list(floating_ips - set(self.internal_ips))
 
     @property
     def internal_ips(self):
