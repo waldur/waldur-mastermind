@@ -370,6 +370,7 @@ class CommentSerializer(
             'author_user',
             'author_email',
             'backend_id',
+            'remote_id',
             'created',
         )
         read_only_fields = (
@@ -384,6 +385,7 @@ class CommentSerializer(
             author=('name',),
             issue=('key',),
         )
+        protected_fields = ('remote_id',)
 
     @transaction.atomic()
     def create(self, validated_data):

@@ -253,6 +253,7 @@ class Comment(
     description = models.TextField()
     is_public = models.BooleanField(default=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True)
+    remote_id = models.CharField(max_length=255, blank=True, null=True)
     tracker = FieldTracker()
 
     def clean_message(self, message):
