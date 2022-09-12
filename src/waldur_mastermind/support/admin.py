@@ -53,6 +53,7 @@ class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendMode
         'status',
         'resolution',
         'get_caller_full_name',
+        'remote_id',
     )
     readonly_fields = ('resource',)
 
@@ -153,7 +154,7 @@ class IssueStatusAdmin(admin.ModelAdmin):
 
 
 class CommentAdmin(structure_admin.BackendModelAdmin):
-    list_display = ('get_issue_key', 'is_public', 'author', 'created')
+    list_display = ('get_issue_key', 'is_public', 'author', 'created', 'remote_id')
     list_filter = ('is_public', 'author')
     search_fields = ('description',)
 

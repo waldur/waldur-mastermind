@@ -2,6 +2,7 @@ import collections
 
 import django_filters
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
@@ -200,14 +201,23 @@ class CommentFilter(django_filters.FilterSet):
     author_user = core_filters.URLFilter(
         view_name='user-detail', field_name='author__user__uuid'
     )
+    remote_id_is_set = django_filters.BooleanFilter(
+        method='filter_by_remote_id_is_set', label='Remote ID is set.'
+    )
+
+    def filter_by_remote_id_is_set(self, queryset, name, value):
+        if value is None:
+            return queryset
+        elif value:
+            return queryset.exclude(remote_id='').exclude(remote_id__isnull=True)
+        else:
+            return queryset.filter(Q(remote_id='') | Q(remote_id__isnull=True))
 
     o = django_filters.OrderingFilter(fields=('created', 'modified'))
 
     class Meta:
         model = models.Comment
-        fields = [
-            'is_public',
-        ]
+        fields = ['is_public', 'remote_id_is_set']
 
 
 class SupportUserFilter(django_filters.FilterSet):
