@@ -129,9 +129,7 @@ class SAML2Extension(WaldurExtension):
             'allow_unknown_attributes': True,
             'accepted_time_diff': 120,
         }
-        settings['AUTHENTICATION_BACKENDS'] += (
-            'waldur_auth_saml2.auth.WaldurSaml2Backend',
-        )
+        settings['AUTHENTICATION_BACKENDS'] += ('djangosaml2.backends.Saml2Backend',)
         if settings['WALDUR_AUTH_SAML2']['LOG_FILE'] != '':
             level = settings['WALDUR_AUTH_SAML2']['LOG_LEVEL'].upper()
             settings['LOGGING']['handlers']['file-saml2'] = {
