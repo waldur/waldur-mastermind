@@ -38,6 +38,7 @@ def send_invitation_created(invitation_uuid, sender):
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
     context = utils.get_invitation_context(invitation, sender)
     context['link'] = utils.get_invitation_link(invitation_uuid)
+    context['site_link'] = format_homeport_link()
 
     logger.debug(
         'About to send invitation to {email} to join {name} {type} as {role}'.format(
