@@ -35,6 +35,7 @@ class KeycloakClient:
         if response.ok:
             return response.json()['access_token']
         else:
+            logger.warning('Request failed', response.text)
             raise KeycloakException('Unable to parse access token.')
 
     def _request(self, method, endpoint, json=None):
