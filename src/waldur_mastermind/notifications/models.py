@@ -8,7 +8,7 @@ from waldur_core.logging.models import UuidMixin
 User = get_user_model()
 
 
-class Notification(UuidMixin):
+class BroadcastMessage(UuidMixin):
     author = models.ForeignKey(to=User, on_delete=models.SET_NULL, null=True)
     created = AutoCreatedField()
     subject = models.CharField(max_length=1000, validators=[validate_name])

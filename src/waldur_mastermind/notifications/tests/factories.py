@@ -6,9 +6,9 @@ from waldur_core.structure.tests import factories as structure_factories
 from .. import models
 
 
-class NotificationFactory(factory.DjangoModelFactory):
+class BroadcastMessageFactory(factory.DjangoModelFactory):
     class Meta:
-        model = models.Notification
+        model = models.BroadcastMessage
 
     author = factory.SubFactory(structure_factories.UserFactory)
     subject = factory.Sequence(lambda n: 'subject-%s' % n)
@@ -16,5 +16,5 @@ class NotificationFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('notification-list')
+        url = 'http://testserver' + reverse('broadcastmessage-list')
         return url if action is None else url + action + '/'

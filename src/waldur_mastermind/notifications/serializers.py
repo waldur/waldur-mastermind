@@ -45,13 +45,13 @@ class QuerySerializer(serializers.Serializer):
     )
 
 
-class ReadNotificationSerializer(serializers.ModelSerializer):
+class ReadBroadcastMessageSerializer(serializers.ModelSerializer):
     author_full_name = serializers.ReadOnlyField(source='author.full_name')
     query = serializers.JSONField()
     emails = serializers.JSONField()
 
     class Meta:
-        model = models.Notification
+        model = models.BroadcastMessage
         fields = (
             'uuid',
             'created',
@@ -63,11 +63,11 @@ class ReadNotificationSerializer(serializers.ModelSerializer):
         )
 
 
-class CreateNotificationSerializer(serializers.ModelSerializer):
+class CreateBroadcastMessageSerializer(serializers.ModelSerializer):
     query = QuerySerializer(write_only=True)
 
     class Meta:
-        model = models.Notification
+        model = models.BroadcastMessage
         fields = ('uuid', 'created', 'subject', 'body', 'query')
 
     def create(self, validated_data):
@@ -77,7 +77,9 @@ class CreateNotificationSerializer(serializers.ModelSerializer):
         validated_data['author'] = current_user
         validated_data['emails'] = [user.email for user in matching_users if user.email]
         validated_data['query'] = ''
-        notification = super(CreateNotificationSerializer, self).create(validated_data)
+        broadcast_message = super(CreateBroadcastMessageSerializer, self).create(
+            validated_data
+        )
         serialized_query = {}
         if 'customers' in query:
             serialized_query['customers'] = self.format_options(query['customers'])
@@ -93,15 +95,15 @@ class CreateNotificationSerializer(serializers.ModelSerializer):
             serialized_query['customer_roles'] = list(query['customer_roles'])
         if 'project_roles' in query:
             serialized_query['project_roles'] = list(query['project_roles'])
-        notification.query = serialized_query
-        notification.save(update_fields=['query'])
-        return notification
+        broadcast_message.query = serialized_query
+        broadcast_message.save(update_fields=['query'])
+        return broadcast_message
 
     def format_options(self, options):
         return [{'name': option.name, 'uuid': option.uuid.hex} for option in options]
 
 
-class DryRunNotificationSerializer(serializers.Serializer):
+class DryRunBroadcastMessageSerializer(serializers.Serializer):
     query = QuerySerializer(write_only=True)
 
     class Meta:
