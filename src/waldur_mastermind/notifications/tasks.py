@@ -5,13 +5,13 @@ from waldur_core.core.utils import send_mail
 from . import models
 
 
-@shared_task(name='waldur_mastermind.notifications.send_notification_email')
-def send_notification_email(notification_uuid):
-    notification = models.Notification.objects.get(uuid=notification_uuid)
-    for email in notification.emails:
+@shared_task(name='waldur_mastermind.notifications.send_broadcast_message_email')
+def send_broadcast_message_email(broadcast_message_uuid):
+    broadcast_message = models.BroadcastMessage.objects.get(uuid=broadcast_message_uuid)
+    for email in broadcast_message.emails:
         send_mail(
-            notification.subject,
-            notification.body,
+            broadcast_message.subject,
+            broadcast_message.body,
             [email],
             fail_silently=True,
         )

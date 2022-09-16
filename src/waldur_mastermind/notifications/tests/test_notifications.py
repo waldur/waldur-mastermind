@@ -5,11 +5,11 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.notifications.tests import factories
 
 
-class DryRunNotificationsTest(test.APITransactionTestCase):
+class DryRunBroadcastMessageTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
-        self.url = factories.NotificationFactory.get_list_url(action='dry_run')
+        self.url = factories.BroadcastMessageFactory.get_list_url(action='dry_run')
 
     def test_dry_run(self):
         self.client.force_authenticate(self.fixture.staff)
