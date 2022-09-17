@@ -152,6 +152,7 @@ class CustomerFilter(NameFilterSet):
                 | Q(uuid__icontains=value)
                 | Q(registration_code__icontains=value)
                 | Q(agreement_number__contains=value)
+                | Q(projects__name__icontains=value)
             )
         return queryset
 
