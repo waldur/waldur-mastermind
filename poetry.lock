@@ -857,7 +857,7 @@ resolved_reference = "ed2fe00a224e7d093d70c6c549614627e8c0d96e"
 
 [[package]]
 name = "djangorestframework"
-version = "3.12.2"
+version = "3.12.4"
 description = "Web APIs for Django, made easy."
 category = "main"
 optional = false
@@ -2733,7 +2733,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "e50ea16a7f0c689456e350bb0b53d474e740a88925ac72a6f949b9c71b53655b"
+content-hash = "717f7a7554a81067a64351773d63b9713119f143df69d2397cf0ec860d8e258d"
 
 [metadata.files]
 adal = [
@@ -2960,10 +2960,7 @@ django-reversion = [
     {file = "django_reversion-4.0.1-py3-none-any.whl", hash = "sha256:2e40ed41e08cdd83a05dc70a1974feface52a61ba7d289727117163052081ae6"},
 ]
 django-upload-validator = []
-djangorestframework = [
-    {file = "djangorestframework-3.12.2-py3-none-any.whl", hash = "sha256:0209bafcb7b5010fdfec784034f059d512256424de2a0f084cb82b096d6dd6a7"},
-    {file = "djangorestframework-3.12.2.tar.gz", hash = "sha256:0898182b4737a7b584a2c73735d89816343369f259fea932d90dc78e35d8ac33"},
-]
+djangorestframework = []
 djangosaml2 = [
     {file = "djangosaml2-1.0.5.tar.gz", hash = "sha256:505bb2768294823ce3d682b036fef98981a99fb8cf26b9a46de5eaaa4eb20cb6"},
 ]
