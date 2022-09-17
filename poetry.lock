@@ -576,7 +576,7 @@ python-versions = "*"
 
 [[package]]
 name = "django"
-version = "3.2.14"
+version = "3.2.15"
 description = "A high-level Python Web framework that encourages rapid development and clean, pragmatic design."
 category = "main"
 optional = false
@@ -2733,7 +2733,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "9beed929af928bf5b0a495888f04590d4900a4a22a89eb770912d204af3ebeee"
+content-hash = "e50ea16a7f0c689456e350bb0b53d474e740a88925ac72a6f949b9c71b53655b"
 
 [metadata.files]
 adal = [
