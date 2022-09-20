@@ -1,5 +1,6 @@
 import logging
 from smtplib import SMTPException
+from urllib.parse import urlparse
 
 import requests
 from celery import shared_task
@@ -38,7 +39,8 @@ def send_invitation_created(invitation_uuid, sender):
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
     context = utils.get_invitation_context(invitation, sender)
     context['link'] = utils.get_invitation_link(invitation_uuid)
-    context['site_link'] = format_homeport_link()
+    site_link = format_homeport_link()
+    context['site_host'] = urlparse(site_link).hostname
 
     logger.debug(
         'About to send invitation to {email} to join {name} {type} as {role}'.format(
