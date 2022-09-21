@@ -153,7 +153,7 @@ class CustomerFilter(NameFilterSet):
                 | Q(registration_code__icontains=value)
                 | Q(agreement_number__contains=value)
                 | Q(projects__name__icontains=value)
-            )
+            ).distinct()
         return queryset
 
 
