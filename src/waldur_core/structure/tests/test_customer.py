@@ -266,17 +266,13 @@ class CustomerDeleteTest(CustomerBaseTest):
         response = self.client.delete(self._get_customer_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_user_cannot_delete_customer_with_associated_projects_if_he_is_staff(self):
+    def test_user_can_delete_customer_with_associated_projects_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
         factories.ProjectFactory(customer=self.fixture.customer)
         response = self.client.delete(self._get_customer_url(self.fixture.customer))
 
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertDictContainsSubset(
-            {'detail': 'Cannot delete organization with existing projects'},
-            response.data,
-        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_user_can_delete_customer_with_soft_deleted_projects(self):
         self.client.force_authenticate(user=self.fixture.staff)

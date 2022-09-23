@@ -776,7 +776,7 @@ class Project(
         Customer,
         verbose_name=_('organization'),
         related_name='projects',
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
     )
     tracker = FieldTracker()
     # Entities returned in manager available_objects are limited to not-deleted instances.
