@@ -4,7 +4,6 @@ from datetime import datetime
 
 import mock
 from django.contrib.admin.sites import AdminSite
-from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from rest_framework import serializers as rf_serializers
 
@@ -273,16 +272,13 @@ class CustomerAdminTest(TestCase):
                 support_users=[user1.pk, user2.pk], owners=[user1.pk, user2.pk]
             )
 
-    def test_customer_deleting_is_possible_only_if_related_project_is_removed(self):
+    def test_customer_deleting_is_possible_if_related_project_exists(self):
         site = AdminSite()
         model_admin = structure_admin.CustomerAdmin(structure_models.Customer, site)
         project = factories.ProjectFactory(customer=self.customer)
         request = MockRequest()
         queryset = structure_models.Customer.objects.filter(pk=self.customer.id)
 
-        self.assertRaises(
-            ProtectedError, model_admin.delete_queryset, request, queryset
-        )
         project_id = project.id
         project.delete()
 
