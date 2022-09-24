@@ -1867,7 +1867,7 @@ wcwidth = "*"
 
 [[package]]
 name = "protobuf"
-version = "4.21.5"
+version = "4.21.6"
 description = ""
 category = "main"
 optional = false
@@ -2050,7 +2050,7 @@ s2repoze = ["paste", "zope.interface", "repoze.who"]
 
 [[package]]
 name = "pytest"
-version = "7.2.0.dev281+g5bd41befa"
+version = "7.2.0.dev283+g59b8ec3ce"
 description = "pytest: simple powerful testing with Python"
 category = "dev"
 optional = false
@@ -2074,7 +2074,7 @@ testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.
 type = "git"
 url = "https://github.com/pytest-dev/pytest"
 reference = "main"
-resolved_reference = "5bd41befa8e80afb0779cac5fe4d676a1162bede"
+resolved_reference = "59b8ec3ce11f8e94d924dc97bc1e14f380824b54"
 
 [[package]]
 name = "pytest-cov"
