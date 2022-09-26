@@ -266,7 +266,6 @@ def validate_offering_update(offering):
 class OfferingViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
-    PublicViewsetMixin,
     BaseMarketplaceView,
 ):
     """
@@ -310,14 +309,6 @@ class OfferingViewSet(
 
     def get_queryset(self):
         queryset = super(OfferingViewSet, self).get_queryset()
-        if self.request.user.is_anonymous:
-            return queryset.filter(
-                state__in=[
-                    models.Offering.States.ACTIVE,
-                    models.Offering.States.PAUSED,
-                ],
-                shared=True,
-            )
 
         # add total_customers
         if self._check_extra_field_needed('total_customers'):
@@ -781,6 +772,18 @@ class OfferingViewSet(
                 for customer_id in customer_ids
             ]
         )
+
+
+class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
+    queryset = models.Offering.objects.filter()
+    lookup_field = 'uuid'
+    serializer_class = serializers.OfferingDetailsSerializer
+    filterset_class = filters.OfferingFilter
+    permission_classes = []
+
+    def get_queryset(self):
+        user = self.request.user
+        return utils.get_available_offerings(user)
 
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):

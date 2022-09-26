@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
@@ -35,10 +36,35 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_anonymous_user_can_see_category_item(self):
+    def test_available_offerings_count(self):
         url = factories.CategoryFactory.get_url(self.category)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['offering_count'], 0)
+        self.assertEqual(response.data['available_offerings_count'], 0)
+
+        factories.OfferingFactory(shared=True, state=models.Offering.States.ACTIVE)
+        privat_offering = factories.OfferingFactory(
+            shared=False, state=models.Offering.States.ACTIVE
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['offering_count'], 0)
+        self.assertEqual(response.data['available_offerings_count'], 1)
+
+        division = structure_factories.DivisionFactory()
+        plan = factories.PlanFactory(offering=privat_offering)
+        plan.divisions.add(division)
+
+        user = self.fixture.owner
+        self.fixture.customer.division = division
+        self.fixture.customer.save()
+
+        self.client.force_authenticate(user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['offering_count'], 0)
+        self.assertEqual(response.data['available_offerings_count'], 2)
 
 
 @ddt

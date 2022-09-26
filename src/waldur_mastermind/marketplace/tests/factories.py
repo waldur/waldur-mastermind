@@ -116,8 +116,22 @@ class OfferingFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
+    def get_public_url(cls, offering=None, action=None):
+        if offering is None:
+            offering = OfferingFactory()
+        url = 'http://testserver' + reverse(
+            'marketplace-public-offering-detail', kwargs={'uuid': offering.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-offering-list')
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_public_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-public-offering-list')
         return url if action is None else url + action + '/'
 
     @classmethod
