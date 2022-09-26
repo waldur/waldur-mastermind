@@ -617,6 +617,11 @@ class OpenStackBackend(BaseOpenStackBackend):
                 fixed_ips = []
                 for port in ports:
                     for fixed_ip in port['fixed_ips']:
+                        # skip link local addresses
+                        if fixed_ip['ip_address'].startswith('169.254') or fixed_ip[
+                            'ip_address'
+                        ].startswith('fe80::'):
+                            continue
                         fixed_ips.append(fixed_ip['ip_address'])
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
