@@ -14,7 +14,7 @@ RUN apt-get update    &&\
 
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade setuptools==65.4.0
-RUN pip3 install poetry==1.1.11
+RUN pip3 install poetry==1.2.1
 RUN poetry config virtualenvs.create false
 RUN poetry config experimental.new-installer false
 
