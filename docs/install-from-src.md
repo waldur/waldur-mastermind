@@ -58,6 +58,7 @@ vi src/waldur_core/server/settings.py
 ### Initialise PostgreSQL database
 
 ``` bash
+sudo -u postgres -i
 createdb waldur
 createuser waldur
 ```
@@ -66,8 +67,7 @@ createuser waldur
 
 ``` bash
 psql
-ALTER USER waldur PASSWORD 'waldur'
-\q
+ALTER USER waldur PASSWORD 'waldur';
 ```
 
 ### Then run poetry
