@@ -214,15 +214,6 @@ class CostsStatsTest(StatsBaseTest):
         )
 
     def test_stat_methods_are_not_available_for_anonymous_users(self):
-        offering_url = factories.OfferingFactory.get_url(self.offering)
-
-        result = self.client.get(offering_url)
-        self.assertEqual(result.status_code, status.HTTP_200_OK)
-
-        offering_list_url = factories.OfferingFactory.get_list_url()
-        result = self.client.get(offering_list_url)
-        self.assertEqual(result.status_code, status.HTTP_200_OK)
-
         result = self.client.get(self.url)
         self.assertEqual(result.status_code, status.HTTP_401_UNAUTHORIZED)
 

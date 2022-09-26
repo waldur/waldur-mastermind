@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -173,6 +174,7 @@ class CategorySerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     offering_count = serializers.ReadOnlyField()
+    available_offerings_count = serializers.ReadOnlyField()
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
     components = CategoryComponentSerializer(many=True, read_only=True)
@@ -232,6 +234,20 @@ class CategorySerializer(
         queryset = queryset.annotate(offering_count=offering_count)
         if has_offerings:
             queryset = queryset.filter(offering_count__gt=0)
+
+        # counting available offerings for simple user, not service provider
+        available_offerings = utils.get_available_offerings(request.user)
+        available_offerings = (
+            available_offerings.order_by().annotate(count=Count('*')).values('count')
+        )
+        available_offerings.query.group_by = []
+        available_offerings_count = Subquery(
+            available_offerings[:1], output_field=IntegerField()
+        )
+        queryset = queryset.annotate(
+            available_offerings_count=Coalesce(available_offerings_count, 0)
+        )
+
         return queryset.distinct().prefetch_related('sections', 'sections__attributes')
 
     class Meta:
@@ -243,6 +259,7 @@ class CategorySerializer(
             'description',
             'icon',
             'offering_count',
+            'available_offerings_count',
             'sections',
             'columns',
             'components',
