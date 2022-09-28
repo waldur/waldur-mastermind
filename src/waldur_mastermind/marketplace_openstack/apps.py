@@ -308,3 +308,10 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'update_usage_when_instance_configuration_is_updated',
         )
+
+        signals.post_save.connect(
+            handlers.synchronize_router_backend_metadata,
+            sender=openstack_models.Router,
+            dispatch_uid='waldur_mastermind.marketplace_openstack.'
+            'synchronize_router_backend_metadata',
+        )

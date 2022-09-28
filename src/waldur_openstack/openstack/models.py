@@ -296,6 +296,8 @@ class Router(structure_models.SubResource):
     routes = JSONField(default=list)
     fixed_ips = JSONField(default=list)
 
+    tracker = FieldTracker()
+
     def get_backend(self):
         return self.tenant.get_backend()
 
