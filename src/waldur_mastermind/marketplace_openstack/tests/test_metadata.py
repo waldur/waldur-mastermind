@@ -1,5 +1,6 @@
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
+from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant.tests import (
     fixtures as openstack_tenant_fixtures,
 )
@@ -171,4 +172,57 @@ class HypervisorHostnameMetadataTest(BaseOpenStackTest):
 
         self.assertEqual(
             self.resource.backend_metadata['hypervisor_hostname'], 'nova_1'
+        )
+
+
+class RouterMetadataTest(BaseOpenStackTest):
+    def setUp(self):
+        super(RouterMetadataTest, self).setUp()
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.tenant = self.fixture.tenant
+        self.resource = marketplace_factories.ResourceFactory(scope=self.tenant)
+
+    def test_fixed_ips_is_synchronized(self):
+        router = openstack_factories.RouterFactory(
+            tenant=self.tenant, fixed_ips=['192.168.0.1']
+        )
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            self.resource.backend_metadata.get('router_fixed_ips'), ['192.168.0.1']
+        )
+
+        router.fixed_ips = ['192.168.0.2']
+        router.save()
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            self.resource.backend_metadata.get('router_fixed_ips'), ['192.168.0.2']
+        )
+
+    def test_fixed_ips_is_synchronized_for_multiple_routers(self):
+        router_1 = openstack_factories.RouterFactory(
+            tenant=self.tenant, fixed_ips=['192.168.0.1']
+        )
+        router_2 = openstack_factories.RouterFactory(
+            tenant=self.tenant, fixed_ips=['192.168.1.1']
+        )
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            set(self.resource.backend_metadata.get('router_fixed_ips')),
+            {'192.168.0.1', '192.168.1.1'},
+        )
+
+        router_1.fixed_ips = ['192.168.0.2']
+        router_1.save()
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            set(self.resource.backend_metadata.get('router_fixed_ips')),
+            {'192.168.0.2', '192.168.1.1'},
+        )
+
+        router_2.fixed_ips = ['192.168.1.2']
+        router_2.save()
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            set(self.resource.backend_metadata.get('router_fixed_ips')),
+            {'192.168.0.2', '192.168.1.2'},
         )

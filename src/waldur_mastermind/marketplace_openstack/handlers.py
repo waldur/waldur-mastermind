@@ -558,3 +558,38 @@ def update_usage_when_instance_configuration_is_updated(
             plan_period=plan_period,
             defaults={'usage': usage, 'date': current_date},
         )
+
+
+def synchronize_router_backend_metadata(sender, instance, created=False, **kwargs):
+    router = instance
+
+    if not created and not set(router.tracker.changed()) & {
+        'fixed_ips',
+    }:
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=router.tenant)
+    except ObjectDoesNotExist:
+        logger.debug(
+            'Skipping resource synchronization for OpenStack router '
+            'because marketplace resource does not exist. '
+            'Resource ID: %s',
+            router.id,
+        )
+        return
+
+    metadata_router_ips = set(
+        resource.backend_metadata.get('routers', {}).get(router.uuid.hex, [])
+    )
+    metadata_all_ips = set(resource.backend_metadata.get('router_fixed_ips', []))
+    new_ips = (metadata_all_ips - metadata_router_ips) | set(router.fixed_ips)
+    resource.backend_metadata['router_fixed_ips'] = list(new_ips)
+
+    if 'routers' in resource.backend_metadata.keys():
+        resource.backend_metadata['routers'][router.uuid.hex] = router.fixed_ips
+    else:
+        resource.backend_metadata['routers'] = {}
+        resource.backend_metadata['routers'][router.uuid.hex] = router.fixed_ips
+
+    resource.save()

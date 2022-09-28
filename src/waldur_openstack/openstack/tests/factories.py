@@ -306,3 +306,29 @@ class ServerGroupFactory(TenantMixin, factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('openstack-server-group-list')
+
+
+class RouterFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Router
+
+    tenant = factory.SubFactory(TenantFactory)
+    project = factory.SubFactory(ProjectFactory)
+    service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'router%s' % n)
+    backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+    state = models.Network.States.OK
+
+    @classmethod
+    def get_url(cls, router=None, action=None):
+        if router is None:
+            router = RouterFactory()
+
+        url = 'http://testserver' + reverse(
+            'openstack-router-detail', kwargs={'uuid': router.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstack-router-list')
