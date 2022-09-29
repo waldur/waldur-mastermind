@@ -2315,13 +2315,13 @@ class StatsViewSet(rf_viewsets.ViewSet):
     def count_active_resources_grouped_by_offering(self, request, *args, **kwargs):
         result = (
             self.get_active_resources()
-            .values('offering__uuid', 'offering__name')
+            .values('offering__uuid', 'offering__name', 'offering__country')
             .annotate(count=Count('id'))
             .order_by()
         )
 
         return Response(
-            serializers.CountStatsSerializer(result, many=True).data,
+            serializers.OfferingStatsSerializer(result, many=True).data,
             status=status.HTTP_200_OK,
         )
 

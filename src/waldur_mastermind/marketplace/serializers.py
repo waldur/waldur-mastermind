@@ -2958,3 +2958,10 @@ class ComponentUsagesStatsSerializer(serializers.Serializer):
 class ComponentUsagesPerMonthStatsSerializer(ComponentUsagesStatsSerializer):
     month = serializers.IntegerField(source='billing_period__month')
     year = serializers.IntegerField(source='billing_period__year')
+
+
+class OfferingStatsSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    name = serializers.CharField(source='offering__name')
+    uuid = serializers.CharField(source='offering__uuid')
+    country = serializers.CharField(source='offering__country')
