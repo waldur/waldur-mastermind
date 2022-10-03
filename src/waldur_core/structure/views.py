@@ -1,6 +1,8 @@
 import logging
 from functools import partial
 
+from dbtemplates.models import Template
+from dbtemplates.utils.cache import remove_cached_template
 from django.conf import settings as django_settings
 from django.contrib import auth
 from django.core import exceptions as django_exceptions
@@ -17,7 +19,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from waldur_auth_social.utils import pull_remote_eduteams_user
@@ -28,7 +30,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.core.views import ReadOnlyActionsViewSet
+from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.logging import models as logging_models
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
@@ -1205,3 +1207,63 @@ class UserAgreementsViewSet(ReadOnlyActionsViewSet):
         if agreement_type is not None:
             queryset = queryset.filter(agreement_type=agreement_type)
         return queryset
+
+
+class NotificationViewSet(ActionsViewSet):
+    queryset = models.Notification.objects.all().order_by('id')
+    serializer_class = serializers.NotificationSerializer
+    permission_classes = (rf_permissions.IsAdminUser,)
+    lookup_field = 'uuid'
+
+    @action(detail=True, methods=['post'])
+    def enable(self, request, uuid=None):
+        notification: models.Notification = self.get_object()
+        message = f"The notification {notification.key} has been enabled"
+        if not notification.enabled:
+            notification.enabled = True
+            notification.save()
+            logger.info(message)
+        return Response(
+            {'detail': _(message)},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
+    def disable(self, request, uuid=None):
+        notification: models.Notification = self.get_object()
+        message = f"The notification {notification.key} has been disabled"
+        if notification.enabled:
+            notification.enabled = False
+            notification.save()
+            logger.info(message)
+        return Response(
+            {'detail': _(message)},
+            status=status.HTTP_200_OK,
+        )
+
+
+class NotificationTemplateViewSet(ActionsViewSet):
+    queryset = models.NotificationTemplate.objects.all()
+    serializer_class = serializers.NotificationTemplateDetailSerializers
+    permission_classes = (rf_permissions.IsAdminUser,)
+    lookup_field = 'uuid'
+
+    @action(detail=True, methods=['post'])
+    def override(self, request, uuid=None):
+        template = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_content = serializer.validated_data['content']
+        name = template.path
+        message = f"The template {name} has been overridden"
+        try:
+            template_dbtemplates = Template.objects.get(name=name)
+            template_dbtemplates.content = new_content
+            template_dbtemplates.save()
+            remove_cached_template(template_dbtemplates)
+        except Template.DoesNotExist:
+            raise NotFound('A template %s does not exist.' % name)
+        logger.info(message)
+        return Response({'detail': _(message)}, status=status.HTTP_200_OK)
+
+    override_serializer_class = serializers.NotificationTemplateUpdateSerializers

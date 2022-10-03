@@ -44,6 +44,16 @@ def register_in(router):
         views.UserAgreementsViewSet,
         basename='user-agreements',
     )
+    router.register(
+        r'notification-messages',
+        views.NotificationViewSet,
+        basename='notification-messages',
+    )
+    router.register(
+        r'notification-messages-templates',
+        views.NotificationTemplateViewSet,
+        basename='notification-messages-templates',
+    )
 
 
 urlpatterns = [

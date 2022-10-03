@@ -1265,4 +1265,34 @@ class UserAgreement(LoggableMixin, TimeStampedModel):
         return self.agreement_type
 
 
+class NotificationTemplate(
+    core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
+):
+    path = models.CharField(
+        _('path'), max_length=150, help_text=_("Example: 'flatpages/default.html'")
+    )
+
+    class Meta:
+        ordering = ['name', 'path']
+
+    def __str__(self):
+        return self.path
+
+
+class Notification(
+    core_models.UuidMixin, core_models.DescribableMixin, TimeStampedModel
+):
+    key = models.CharField(max_length=255, unique=True, blank=False)
+    enabled = models.BooleanField(
+        default=True, help_text=_('Indicates if notification is enabled or disabled')
+    )
+    templates = models.ManyToManyField(NotificationTemplate)
+
+    class Meta:
+        ordering = ['key']
+
+    def __str__(self):
+        return self.key
+
+
 reversion.register(Customer)
