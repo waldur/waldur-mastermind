@@ -807,6 +807,28 @@ class UserAgreementAdmin(admin.ModelAdmin):
     list_filter = ('agreement_type',)
 
 
+class TemplateInline(admin.TabularInline):
+    model = models.Notification.templates.through
+
+
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('key', 'description', 'enabled', 'created', 'modified')
+    readonly_fields = ('created', 'modified')
+    search_fields = ('key',)
+    inlines = [
+        TemplateInline,
+    ]
+    exclude = ('templates',)
+
+
+class NotificationTemplateAdmin(admin.ModelAdmin):
+    list_display = ('path', 'name')
+    search_fields = ('path', 'name')
+    inlines = [
+        TemplateInline,
+    ]
+
+
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
 admin.site.register(models.Project, ProjectAdmin)
@@ -815,3 +837,5 @@ admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
 admin.site.register(models.DivisionType, DivisionTypeAdmin)
 admin.site.register(models.Division, DivisionAdmin)
 admin.site.register(models.UserAgreement, UserAgreementAdmin)
+admin.site.register(models.NotificationTemplate, NotificationTemplateAdmin)
+admin.site.register(models.Notification, NotificationAdmin)

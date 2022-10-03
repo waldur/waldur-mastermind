@@ -8,6 +8,7 @@ from django.core import exceptions as django_exceptions
 from django.db import models as django_models
 from django.db import transaction
 from django.db.models import Q
+from django.template.loader import get_template
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
@@ -1556,3 +1557,70 @@ class UserAgreementSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.UserAgreement
         fields = ('content', 'agreement_type', 'created')
+
+
+class NotificationTemplateSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.NotificationTemplate
+        fields = (
+            'uuid',
+            'url',
+            'path',
+            'name',
+        )
+        extra_kwargs = {
+            'url': {
+                'view_name': 'notification-messages-templates-detail',
+                'lookup_field': 'uuid',
+            },
+        }
+
+
+class NotificationSerializer(serializers.HyperlinkedModelSerializer):
+    templates = NotificationTemplateSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.Notification
+        fields = (
+            'uuid',
+            'url',
+            'key',
+            'description',
+            'enabled',
+            'created',
+            'templates',
+        )
+        read_only_fields = ('created', 'enabled')
+        extra_kwargs = {
+            'url': {
+                'view_name': 'notification-messages-detail',
+                'lookup_field': 'uuid',
+            },
+        }
+
+
+class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
+    content = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.NotificationTemplate
+        fields = (
+            'uuid',
+            'url',
+            'path',
+            'name',
+            'content',
+        )
+        extra_kwargs = {
+            'url': {
+                'view_name': 'notification-messages-templates-detail',
+                'lookup_field': 'uuid',
+            },
+        }
+
+    def get_content(self, obj):
+        return get_template(obj.path).template.source
+
+
+class NotificationTemplateUpdateSerializers(serializers.Serializer):
+    content = serializers.CharField()
