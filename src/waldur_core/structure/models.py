@@ -468,7 +468,7 @@ class Customer(
         default=0,
         max_digits=4,
         decimal_places=2,
-        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        validators=[MinValueValidator(0), MaxValueValidator(200)],
     )
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
