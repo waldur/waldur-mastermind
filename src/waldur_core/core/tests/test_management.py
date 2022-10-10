@@ -11,3 +11,10 @@ class CommandsTestCase(TestCase):
         call_command('makemigrations', dry_run=True, stdout=result)
         result_string = result.getvalue()
         self.assertEqual(result_string, 'No changes detected\n')
+
+    def test_no_conflicting_migrations(self):
+
+        result = StringIO()
+        call_command('migrate', stdout=result)
+        result_string = result.getvalue()
+        self.assertFalse('Conflicting migrations detected' in result_string)
