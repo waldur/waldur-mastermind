@@ -2,6 +2,7 @@ import mock
 from ddt import data, ddt
 from rest_framework import test
 
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 from . import fixtures
@@ -14,6 +15,9 @@ class DryRunTest(test.APITransactionTestCase):
         self.fixture = fixtures.ScriptFixture()
         self.offering = self.fixture.offering
         self.offering.options.update({'option1': []})
+        self.offering.project = self.fixture.offering_project
+        self.offering.customer = self.fixture.offering_customer
+        self.offering.state = marketplace_models.Offering.States.ACTIVE
         self.offering.save()
         self.url = self.fixture.get_dry_run_url(self.offering)
 

@@ -236,7 +236,11 @@ class CategorySerializer(
             queryset = queryset.filter(offering_count__gt=0)
 
         # counting available offerings for simple user, not service provider
-        available_offerings = utils.get_available_offerings(request.user)
+        available_offerings = (
+            models.Offering.objects.all()
+            .filter_by_ordering_availability_for_user(request.user)
+            .filter(category=OuterRef('pk'))
+        )
         available_offerings = (
             available_offerings.order_by().annotate(count=Count('*')).values('count')
         )

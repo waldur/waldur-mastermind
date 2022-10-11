@@ -37,7 +37,6 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             'customer_uuid': '12345',
         }
         offering.type = PLUGIN_NAME
-        offering.activate()
         offering.save()
         self.offering = offering
 

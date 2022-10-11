@@ -1,9 +1,12 @@
+from django.conf import settings
 from django.db import models as django_models
 from django.db.models import Q
 
 from waldur_core.core import managers as core_managers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
+
+from . import models
 
 
 class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
@@ -12,7 +15,12 @@ class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
 
 class OfferingQuerySet(django_models.QuerySet):
     def filter_for_user(self, user):
-        if user.is_anonymous or user.is_staff or user.is_support:
+        """Returns offerings related to user."""
+
+        if user.is_anonymous:
+            return self.none()
+
+        if user.is_staff or user.is_support:
             return self
 
         connected_customers = structure_models.Customer.objects.all().filter(
@@ -24,11 +32,34 @@ class OfferingQuerySet(django_models.QuerySet):
         )
 
         return self.filter(
-            Q(shared=True)
-            | Q(shared=False, customer__in=connected_customers)
-            | Q(shared=False, project__in=connected_projects)
-            | Q(shared=True, permissions__user=user, permissions__is_active=True),
+            Q(customer__in=connected_customers)
+            | Q(project__in=connected_projects)
+            | Q(permissions__user=user, permissions__is_active=True),
         ).distinct()
+
+    def filter_by_ordering_availability_for_user(self, user):
+        """Returns offerings available to the user to create an order"""
+
+        queryset = self.filter(
+            state__in=[
+                self.model.States.ACTIVE,
+                self.model.States.PAUSED,
+            ]
+        )
+
+        if user.is_anonymous:
+            if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
+                return self.none()
+            else:
+                return queryset.filter(shared=True)
+
+        # filtering by available plans
+        divisions = user.divisions
+        plans = models.Plan.objects.filter(
+            Q(divisions__isnull=True) | Q(divisions__in=divisions)
+        ).filter(archived=False)
+
+        return queryset.filter(Q(plans__in=plans) | Q(shared=True)).distinct()
 
     def filter_for_customer(self, value):
         customer = structure_models.Customer.objects.get(uuid=value)

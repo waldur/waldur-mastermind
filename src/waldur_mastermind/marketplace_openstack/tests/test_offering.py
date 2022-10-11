@@ -34,7 +34,9 @@ class VpcExternalFilterTest(BaseOpenStackTest):
         super(VpcExternalFilterTest, self).setUp()
         self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            category=self.tenant_category
+            category=self.tenant_category,
+            project=self.fixture.project,
+            customer=self.fixture.customer,
         )
         self.url = marketplace_factories.OfferingFactory.get_list_url()
 

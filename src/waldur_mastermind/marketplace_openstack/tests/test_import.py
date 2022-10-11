@@ -262,7 +262,10 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
     def setUp(self):
         super(TenantImportableResourcesTest, self).setUp()
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_service_settings, type=TENANT_TYPE
+            scope=self.fixture.openstack_service_settings,
+            type=TENANT_TYPE,
+            project=self.fixture.project,
+            customer=self.fixture.customer,
         )
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
 
@@ -312,7 +315,10 @@ class TenantImportTest(BaseBackendTestCase):
             project=self.fixture.project,
         )
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_service_settings, type=TENANT_TYPE
+            scope=self.fixture.openstack_service_settings,
+            type=TENANT_TYPE,
+            project=self.fixture.project,
+            customer=self.fixture.customer,
         )
 
     def test_tenant_is_imported(self):

@@ -783,7 +783,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return utils.get_available_offerings(user)
+        return self.queryset.filter_by_ordering_availability_for_user(user)
 
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
