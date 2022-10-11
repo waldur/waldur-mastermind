@@ -176,7 +176,11 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
 
 class OfferingBookingsViewSet(views.APIView):
     def get(self, request, uuid):
-        offerings = models.Offering.objects.all().filter_for_user(request.user)
+        offerings = (
+            models.Offering.objects.all().filter_by_ordering_availability_for_user(
+                request.user
+            )
+        )
         offering = get_object_or_404(offerings, uuid=uuid)
         bookings = get_offering_bookings(offering)
         serializer = serializers.BookingSerializer(

@@ -2,6 +2,7 @@ from django.utils.functional import cached_property
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
@@ -12,7 +13,9 @@ class BookingFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={'order': []}
+            type=PLUGIN_NAME,
+            options={'order': []},
+            state=marketplace_models.Offering.States.ACTIVE,
         )
 
     @cached_property

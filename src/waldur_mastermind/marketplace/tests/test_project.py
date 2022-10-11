@@ -58,7 +58,7 @@ class MarketplaceResourceCountTest(test.APITransactionTestCase):
         url = structure_factories.ProjectFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(len(response.json()), 2)
         self.assertTrue(
             self.resource.offering.category.uuid.hex
             in str(response.json()[0]['marketplace_resource_count'])

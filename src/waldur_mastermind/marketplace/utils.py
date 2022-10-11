@@ -867,27 +867,3 @@ def format_limits_list(components_map, limits):
         f'{components_map[key].name or components_map[key].type}: {value}'
         for key, value in limits.items()
     )
-
-
-def get_available_offerings(user):
-    """returns available offerings for simple user, not service provider"""
-    queryset = models.Offering.objects.filter(
-        state__in=[
-            models.Offering.States.ACTIVE,
-            models.Offering.States.PAUSED,
-        ]
-    )
-
-    if user.is_anonymous:
-        if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
-            raise rf_exceptions.NotAuthenticated
-        else:
-            return queryset.filter(shared=True)
-
-    # filtering by available plans
-    divisions = user.divisions
-    plans = models.Plan.objects.filter(
-        Q(divisions__isnull=True) | Q(divisions__in=divisions)
-    ).filter(archived=False)
-
-    return queryset.filter(Q(plans__in=plans) | Q(shared=True))

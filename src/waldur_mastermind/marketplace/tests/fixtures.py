@@ -1,7 +1,5 @@
 from django.utils.functional import cached_property
 
-from waldur_core.structure import models as structure_models
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -17,7 +15,11 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={'order': []}
+            type=PLUGIN_NAME,
+            options={'order': []},
+            state=marketplace_models.Offering.States.ACTIVE,
+            project=self.offering_project,
+            customer=self.offering_customer,
         )
 
     @cached_property
@@ -64,7 +66,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def service_provider(self):
         return marketplace_factories.ServiceProviderFactory(
-            customer=self.order_item.offering.customer,
+            customer=self.offering_customer,
             description='ServiceProvider\'s description',
         )
 
@@ -75,17 +77,29 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
         )
 
     @cached_property
-    def service_manager(self):
-        user = structure_factories.UserFactory()
-        self.order_item.offering.customer.add_user(
-            user, role=structure_models.CustomerRole.SERVICE_MANAGER
-        )
-        return user
+    def offering_fixture(self):
+        return structure_fixtures.ProjectFixture()
 
     @cached_property
     def offering_owner(self):
-        user = structure_factories.UserFactory()
-        self.order_item.offering.customer.add_user(
-            user, role=structure_models.CustomerRole.OWNER
-        )
-        return user
+        return self.offering_fixture.owner
+
+    @cached_property
+    def service_manager(self):
+        return self.offering_fixture.service_manager
+
+    @cached_property
+    def offering_admin(self):
+        return self.offering_fixture.admin
+
+    @cached_property
+    def offering_manager(self):
+        return self.offering_fixture.manager
+
+    @cached_property
+    def offering_project(self):
+        return self.offering_fixture.project
+
+    @cached_property
+    def offering_customer(self):
+        return self.offering_fixture.customer

@@ -14,6 +14,14 @@ class CategoryGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()
+        self.category_url = factories.CategoryFactory.get_url(self.category)
+        self.share_offering = factories.OfferingFactory(
+            shared=True, category=self.category, state=models.Offering.States.ACTIVE
+        )
+        self.privat_offering = factories.OfferingFactory(
+            shared=False, category=self.category, state=models.Offering.States.ACTIVE
+        )
+        self.division = structure_factories.DivisionFactory()
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_category_should_be_visible_to_all_authenticated_users(self, user):
@@ -23,6 +31,7 @@ class CategoryGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
+        self.category_url = factories.CategoryFactory.get_url(self.category)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_category_should_be_invisible_to_unauthenticated_users(self):
@@ -36,35 +45,97 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_available_offerings_count(self):
-        url = factories.CategoryFactory.get_url(self.category)
-        response = self.client.get(url)
+    def check_counts(self, offering_count, available_offerings_count):
+        response = self.client.get(self.category_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['offering_count'], 0)
-        self.assertEqual(response.data['available_offerings_count'], 0)
-
-        factories.OfferingFactory(shared=True, state=models.Offering.States.ACTIVE)
-        privat_offering = factories.OfferingFactory(
-            shared=False, state=models.Offering.States.ACTIVE
+        self.assertEqual(response.data['offering_count'], offering_count)
+        self.assertEqual(
+            response.data['available_offerings_count'], available_offerings_count
         )
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['offering_count'], 0)
-        self.assertEqual(response.data['available_offerings_count'], 1)
 
-        division = structure_factories.DivisionFactory()
-        plan = factories.PlanFactory(offering=privat_offering)
-        plan.divisions.add(division)
+    def _create_plan(self, offering_count, available_offerings_count):
+        self.plan = factories.PlanFactory(offering=self.privat_offering)
+        self.check_counts(offering_count, available_offerings_count)
 
-        user = self.fixture.owner
-        self.fixture.customer.division = division
+    def _match_plan_with_division(self, offering_count, available_offerings_count):
+        self.plan.divisions.add(self.division)
+        self.check_counts(offering_count, available_offerings_count)
+
+    def _match_customer_with_division(self, offering_count, available_offerings_count):
+        self.fixture.customer.division = self.division
         self.fixture.customer.save()
+        self.check_counts(offering_count, available_offerings_count)
 
+    def _match_project_with_division(self, offering_count, available_offerings_count):
+        self.fixture.project.division = self.division
+        self.fixture.project.save()
+        self.check_counts(offering_count, available_offerings_count)
+
+    def _create_offering_for_owner(self, offering_count, available_offerings_count):
+        factories.OfferingFactory(
+            shared=False,
+            state=models.Offering.States.ACTIVE,
+            category=self.category,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+        self.check_counts(offering_count, available_offerings_count)
+
+    def test_counts_for_staff(self):
+        user = self.fixture.staff
         self.client.force_authenticate(user)
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['offering_count'], 0)
-        self.assertEqual(response.data['available_offerings_count'], 2)
+
+        self.check_counts(offering_count=2, available_offerings_count=1)
+        self._create_plan(offering_count=2, available_offerings_count=2)
+        self._match_plan_with_division(offering_count=2, available_offerings_count=1)
+        self._match_customer_with_division(
+            offering_count=2, available_offerings_count=1
+        )
+        self._match_project_with_division(offering_count=2, available_offerings_count=1)
+        self._create_offering_for_owner(offering_count=3, available_offerings_count=1)
+
+    @data('owner', 'admin', 'manager')
+    def test_counts_for_authorized_user(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        self.check_counts(offering_count=0, available_offerings_count=1)
+        self._create_plan(offering_count=0, available_offerings_count=2)
+        self._match_plan_with_division(offering_count=0, available_offerings_count=1)
+        self._match_customer_with_division(
+            offering_count=0, available_offerings_count=2
+        )
+        self._match_project_with_division(offering_count=0, available_offerings_count=2)
+        self._create_offering_for_owner(offering_count=1, available_offerings_count=2)
+
+    def test_counts_for_user(self):
+        user = self.fixture.user
+        self.client.force_authenticate(user)
+
+        self.check_counts(offering_count=0, available_offerings_count=1)
+        self._create_plan(offering_count=0, available_offerings_count=2)
+        self._match_plan_with_division(offering_count=0, available_offerings_count=1)
+        self._match_customer_with_division(
+            offering_count=0, available_offerings_count=1
+        )
+        self._match_project_with_division(offering_count=0, available_offerings_count=1)
+        self._create_offering_for_owner(offering_count=0, available_offerings_count=1)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_counts_for_anonymous(self):
+        self.check_counts(offering_count=0, available_offerings_count=1)
+        self._create_plan(offering_count=0, available_offerings_count=1)
+        self._match_plan_with_division(offering_count=0, available_offerings_count=1)
+        self._match_customer_with_division(
+            offering_count=0, available_offerings_count=1
+        )
+        self._match_project_with_division(offering_count=0, available_offerings_count=1)
+        self._create_offering_for_owner(offering_count=0, available_offerings_count=1)
+
+    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_counts_for_anonymous_if_anonymous_cannot_view_offerings(self):
+        response = self.client.get(self.category_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @ddt
