@@ -26,7 +26,6 @@ class InvitationViewSet(ProtectedViewSet):
     queryset = models.Invitation.objects.all().order_by('-created')
     serializer_class = serializers.InvitationSerializer
     filter_backends = (
-        structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
         filters.InvitationCustomerFilterBackend,
     )
@@ -122,6 +121,7 @@ class InvitationViewSet(ProtectedViewSet):
             invitation.customer,
             invitation.customer_role,
             invitation.project_role,
+            invitation.project,
         ):
             raise PermissionDenied()
         elif invitation.state not in (
@@ -153,6 +153,7 @@ class InvitationViewSet(ProtectedViewSet):
             invitation.customer,
             invitation.customer_role,
             invitation.project_role,
+            invitation.project,
         ):
             raise PermissionDenied()
         elif invitation.state != models.Invitation.State.PENDING:
