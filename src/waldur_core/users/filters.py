@@ -6,6 +6,7 @@ from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
+from waldur_core.structure import models as structure_models
 from waldur_core.users import models
 
 
@@ -84,6 +85,21 @@ class InvitationCustomerFilterBackend(BaseFilterBackend):
     )
 
     def filter_queryset(self, request, queryset, view):
+        user = request.user
+
+        if not (user.is_staff or user.is_support):
+            queryset = queryset.filter(
+                Q(
+                    customer__permissions__user=user,
+                    customer__permissions__is_active=True,
+                )
+                | Q(
+                    project__permissions__user=user,
+                    project__permissions__role=structure_models.ProjectRole.MANAGER,
+                    project__permissions__is_active=True,
+                )
+            ).distinct()
+
         customer_uuid = self.extract_customer_uuid(request)
         if not customer_uuid:
             return queryset

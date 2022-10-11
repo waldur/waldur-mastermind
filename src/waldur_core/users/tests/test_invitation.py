@@ -66,13 +66,35 @@ class InvitationRetrieveTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('project_admin', 'project_manager', 'user')
+        #  test list
+        response = self.client.get(factories.InvitationBaseFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_project_manager_can_retrieve_project_invitation(self):
+        self.client.force_authenticate(user=self.project_manager)
+        response = self.client.get(
+            factories.ProjectInvitationFactory.get_url(self.project_invitation)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        #  test list
+        response = self.client.get(factories.InvitationBaseFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    @data('project_admin', 'user')
     def test_unauthorized_user_cannot_retrieve_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.get(
             factories.ProjectInvitationFactory.get_url(self.project_invitation)
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        #  test list
+        response = self.client.get(factories.InvitationBaseFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
 
     @data('staff', 'customer_owner')
     def test_authorized_user_can_retrieve_customer_invitation(self, user):
@@ -418,7 +440,7 @@ class InvitationCreateTest(BaseInvitationTest):
 
 @ddt
 class InvitationCancelTest(BaseInvitationTest):
-    @data('staff', 'customer_owner')
+    @data('staff', 'customer_owner', 'project_manager')
     def test_user_with_access_can_cancel_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
@@ -432,7 +454,7 @@ class InvitationCancelTest(BaseInvitationTest):
             self.project_invitation.state, models.Invitation.State.CANCELED
         )
 
-    @data('project_admin', 'project_manager', 'user')
+    @data('project_admin', 'user')
     def test_user_without_access_cannot_cancel_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
@@ -520,7 +542,7 @@ class InvitationSendTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data('staff', 'customer_owner')
+    @data('staff', 'customer_owner', 'project_manager')
     def test_user_with_access_can_send_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
@@ -539,7 +561,7 @@ class InvitationSendTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('project_admin', 'project_manager', 'user')
+    @data('project_admin', 'user')
     def test_user_without_access_cannot_send_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
