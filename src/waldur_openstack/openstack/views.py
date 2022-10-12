@@ -13,6 +13,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.logging.loggers import event_logger
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 from waldur_openstack.openstack_base import views as openstack_base_views
@@ -475,6 +476,41 @@ class TenantViewSet(structure_views.ResourceViewSet):
         )
 
     pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+
+    @decorators.action(detail=True, methods=['get'])
+    def counters(self, request, uuid=None):
+        from waldur_openstack.openstack_tenant import models as tenant_models
+
+        tenant = self.get_object()
+        service_settings = structure_models.ServiceSettings.objects.filter(
+            scope=tenant
+        ).first()
+        return response.Response(
+            {
+                'instances': tenant_models.Instance.objects.filter(
+                    service_settings=service_settings
+                ).count(),
+                'server_groups': tenant_models.ServerGroup.objects.filter(
+                    settings=service_settings
+                ).count(),
+                'flavors': tenant_models.Flavor.objects.filter(
+                    settings=service_settings
+                ).count(),
+                'images': tenant_models.Image.objects.filter(
+                    settings=service_settings
+                ).count(),
+                'volumes': tenant_models.Volume.objects.filter(
+                    service_settings=service_settings
+                ).count(),
+                'snapshots': tenant_models.Snapshot.objects.filter(
+                    service_settings=service_settings
+                ).count(),
+                'networks': models.Network.objects.filter(tenant=tenant).count(),
+                'floating_ips': models.FloatingIP.objects.filter(tenant=tenant).count(),
+                'ports': models.Port.objects.filter(tenant=tenant).count(),
+                'subnets': models.SubNet.objects.filter(network__tenant=tenant).count(),
+            }
+        )
 
 
 class RouterViewSet(core_views.ReadOnlyActionsViewSet):
