@@ -802,3 +802,33 @@ class TenantExecutorTest(test.APITransactionTestCase):
             ),
             1,
         )
+
+
+class TenantCountersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+        self.network = self.fixture.network
+        self.subnet = self.fixture.subnet
+        self.subnet.network = self.network
+        self.subnet.save()
+
+    def test_counters(self):
+        url = factories.TenantFactory.get_url(self.tenant, action='counters')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(
+            response.data,
+            {
+                'instances': 0,
+                'server_groups': 0,
+                'flavors': 0,
+                'images': 0,
+                'volumes': 0,
+                'snapshots': 0,
+                'networks': 1,
+                'floating_ips': 0,
+                'ports': 0,
+                'subnets': 1,
+            },
+        )
