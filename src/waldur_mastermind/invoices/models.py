@@ -234,7 +234,7 @@ class InvoiceItem(
         max_length=30, help_text=_('Unit of measurement, for example, GB.'), blank=True
     )
     resource = models.ForeignKey(
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         to=marketplace_models.Resource,
         related_name='invoice_items',
         null=True,
