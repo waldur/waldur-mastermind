@@ -830,5 +830,7 @@ class TenantCountersTest(test.APITransactionTestCase):
                 'floating_ips': 0,
                 'ports': 0,
                 'subnets': 1,
+                'security_groups': 0,
+                'routers': 0,
             },
         )

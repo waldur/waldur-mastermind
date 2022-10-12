@@ -508,7 +508,11 @@ class TenantViewSet(structure_views.ResourceViewSet):
                 'networks': models.Network.objects.filter(tenant=tenant).count(),
                 'floating_ips': models.FloatingIP.objects.filter(tenant=tenant).count(),
                 'ports': models.Port.objects.filter(tenant=tenant).count(),
+                'routers': models.Router.objects.filter(tenant=tenant).count(),
                 'subnets': models.SubNet.objects.filter(network__tenant=tenant).count(),
+                'security_groups': models.SecurityGroup.objects.filter(
+                    tenant=tenant
+                ).count(),
             }
         )
 
