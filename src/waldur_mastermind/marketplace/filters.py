@@ -65,6 +65,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
             for db_value, representation in models.Offering.States.CHOICES
         },
     )
+    division_uuid = LooseMultipleChoiceFilter(field_name='divisions__uuid')
     category_uuid = django_filters.UUIDFilter(field_name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
