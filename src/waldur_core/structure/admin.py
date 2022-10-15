@@ -753,6 +753,8 @@ class ResourceAdmin(BackendModelAdmin):
     )
     list_filter = BackendModelAdmin.list_filter + (
         'state',
+        'project',
+        'project__customer',
         DerivedFromSharedSettingsResourceFilter,
     )
     search_fields = ('name',)
