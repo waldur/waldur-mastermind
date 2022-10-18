@@ -92,6 +92,20 @@ class PublicViewsetMixin:
             return super(PublicViewsetMixin, self).get_permissions()
 
 
+class ConnectedOfferingDetailsMixin:
+    @action(detail=True, methods=['get'])
+    def offering(self, request, *args, **kwargs):
+        requested_object = self.get_object()
+        if hasattr(requested_object, 'offering'):
+            offering = requested_object.offering
+            serializer = serializers.OfferingDetailsSerializer(
+                instance=offering, context=self.get_serializer_context()
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response(status.HTTP_204_NO_CONTENT)
+
+
 class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all().order_by('customer__name')
     serializer_class = serializers.ServiceProviderSerializer
@@ -1098,7 +1112,7 @@ class PluginViewSet(views.APIView):
         return Response(payload, status=status.HTTP_200_OK)
 
 
-class OrderItemViewSet(BaseMarketplaceView):
+class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     queryset = models.OrderItem.objects.all()
     filter_backends = (DjangoFilterBackend,)
     serializer_class = serializers.OrderItemDetailsSerializer
@@ -1333,7 +1347,7 @@ class CartItemViewSet(core_views.ActionsViewSet):
     submit_serializer_class = serializers.CartSubmitSerializer
 
 
-class ResourceViewSet(core_views.ActionsViewSet):
+class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
     filterset_class = filters.ResourceFilter
