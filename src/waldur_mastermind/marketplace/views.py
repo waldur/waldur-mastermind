@@ -1324,7 +1324,7 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_erred_serializer_class = serializers.OrderItemSetStateErredSerializer
 
 
-class CartItemViewSet(core_views.ActionsViewSet):
+class CartItemViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.CartItem.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.CartItemSerializer
