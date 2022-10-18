@@ -201,7 +201,7 @@ class CategorySerializer(
 
         offerings = (
             offerings.filter(category=OuterRef('pk'))
-            .filter_for_user(request.user)
+            .filter_by_ordering_availability_for_user(request.user)
             .order_by()
         )
 
