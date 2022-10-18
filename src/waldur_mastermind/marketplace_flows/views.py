@@ -10,6 +10,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet, ReviewViewSet
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import CustomerRole
+from waldur_mastermind.marketplace.views import ConnectedOfferingDetailsMixin
 from waldur_mastermind.support import models as support_models
 
 from . import filters, models, serializers, utils
@@ -66,7 +67,7 @@ class ProjectCreateRequestViewSet(ReviewViewSet):
         )
 
 
-class ResourceCreateRequestViewSet(ReviewViewSet):
+class ResourceCreateRequestViewSet(ConnectedOfferingDetailsMixin, ReviewViewSet):
     lookup_field = 'flow__uuid'
     queryset = models.ResourceCreateRequest.objects.all()
     approve_permissions = reject_permissions = [is_owner_of_service_provider]
