@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import (
     Customer,
     CustomerRole,
@@ -108,3 +109,19 @@ class DryRunBroadcastMessageSerializer(serializers.Serializer):
 
     class Meta:
         fields = ('query',)
+
+
+class UsersBroadcastMessageSerializer(serializers.Serializer):
+    query = QuerySerializer(write_only=True)
+    project_users = structure_serializers.UserSerializer(many=True, read_only=True)
+    customer_users = structure_serializers.UserSerializer(many=True, read_only=True)
+
+    class Meta:
+        fields = ('query', 'project_users', 'customer_users')
+
+    def validate(self, attrs):
+        attrs = super(UsersBroadcastMessageSerializer, self).validate(attrs)
+        query = attrs['query']
+        users = utils.get_grouped_users_for_query(query)
+        attrs.update(users)
+        return attrs

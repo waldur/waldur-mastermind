@@ -45,3 +45,14 @@ class BroadcastMessageViewSet(ActionsViewSet):
             len(matching_users),
             status=status.HTTP_200_OK,
         )
+
+    @decorators.action(detail=False, methods=['post'])
+    def users(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    users_serializer_class = serializers.UsersBroadcastMessageSerializer
