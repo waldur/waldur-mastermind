@@ -59,7 +59,9 @@ class OfferingQuerySet(django_models.QuerySet):
             Q(divisions__isnull=True) | Q(divisions__in=divisions)
         ).filter(archived=False)
 
-        return queryset.filter(Q(plans__in=plans) | Q(shared=True)).distinct()
+        return queryset.filter(
+            Q(plans__in=plans) | Q(parent__plans__in=plans) | Q(shared=True)
+        ).distinct()
 
     def filter_for_customer(self, value):
         customer = structure_models.Customer.objects.get(uuid=value)
