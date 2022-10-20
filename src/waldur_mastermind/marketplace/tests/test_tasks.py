@@ -59,8 +59,11 @@ class NotificationTest(test.APITransactionTestCase):
         admin = project_fixture.admin
         project = project_fixture.project
         resource = factories.ResourceFactory(project=project, name='Test resource')
+        event_type = 'marketplace_resource_create_succeeded'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
+
         tasks.notify_about_resource_change(
-            'marketplace_resource_create_succeeded',
+            event_type,
             {'resource_name': resource.name},
             resource.uuid,
         )
@@ -83,6 +86,8 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         fixture = fixtures.MarketplaceFixture()
         admin = fixture.admin
         manager = fixture.manager
+        event_type = 'marketplace_resource_termination_scheduled'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.notify_about_resource_termination(
             fixture.resource.uuid,
             fixture.offering_owner.uuid,
@@ -112,7 +117,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         mock_broadcast_mail.assert_called()
         self.assertEqual(
             mock_broadcast_mail.call_args[0][1],
-            'marketplace_resource_terminatate_scheduled',
+            'marketplace_resource_termination_scheduled',
         )
 
         tasks.notify_about_resource_termination(
@@ -121,7 +126,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         mock_broadcast_mail.assert_called()
         self.assertEqual(
             mock_broadcast_mail.call_args[0][1],
-            'marketplace_resource_terminatate_scheduled_staff',
+            'marketplace_resource_termination_scheduled_staff',
         )
 
 
@@ -175,6 +180,8 @@ class ProjectEndDate(test.APITransactionTestCase):
 
     def test_notification_about_project_ending(self):
         with freeze_time('2019-12-25'):
+            event_type = 'notification_about_project_ending'
+            structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
             tasks.notification_about_project_ending()
 
             self.assertEqual(len(mail.outbox), 2)
@@ -223,6 +230,8 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         self.resource.offering.save()
 
     def test_send_notify_if_stale_resource_exists(self):
+        event_type = 'notification_about_stale_resources'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 1)
         subject_template_name = '%s/%s_subject.txt' % (
@@ -247,6 +256,8 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
 
     def test_send_notify_if_related_invoice_item_has_not_price(self):
         item = invoices_factories.InvoiceItemFactory(resource=self.resource)
+        event_type = 'notification_about_stale_resources'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         item.unit_price = 0
         item.save()
         self.assertFalse(item.price)

@@ -554,6 +554,8 @@ class RequestApproveTest(BaseInvitationTest):
     @patch('waldur_core.core.utils.send_mail')
     def test_task_notification(self, mock_send_mail):
         permission = structure_factories.CustomerPermissionFactory()
+        event_type = 'structure_role_granted'
+        structure_factories.NotificationFactory(key=f"structure.{event_type}")
         structure_tasks.send_structure_role_granted_notification(
             core_utils.serialize_instance(permission),
             core_utils.serialize_instance(permission.customer),

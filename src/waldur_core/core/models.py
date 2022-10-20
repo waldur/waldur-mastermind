@@ -641,3 +641,29 @@ class BackendMixin(models.Model):
 class Feature(models.Model):
     key = models.TextField(max_length=255, unique=True)
     value = models.BooleanField(default=False)
+
+
+class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
+    path = models.CharField(
+        _('path'), max_length=150, help_text=_("Example: 'flatpages/default.html'")
+    )
+
+    class Meta:
+        ordering = ['name', 'path']
+
+    def __str__(self):
+        return self.path
+
+
+class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
+    key = models.CharField(max_length=255, unique=True, blank=False)
+    enabled = models.BooleanField(
+        default=True, help_text=_('Indicates if notification is enabled or disabled')
+    )
+    templates = models.ManyToManyField(NotificationTemplate)
+
+    class Meta:
+        ordering = ['key']
+
+    def __str__(self):
+        return self.key

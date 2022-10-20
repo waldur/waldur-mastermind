@@ -1,0 +1,1 @@
+Resource {{ resource.name }} termination has been scheduled.

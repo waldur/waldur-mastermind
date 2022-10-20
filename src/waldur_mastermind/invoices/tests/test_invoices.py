@@ -76,6 +76,9 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
 
     @override_settings(task_always_eager=True)
     def test_notification_email_is_rendered(self):
+        event_type = 'notification'
+        structure_factories.NotificationFactory(key=f"invoices.{event_type}")
+
         # Arrange
         self.fixture.owner
 

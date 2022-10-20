@@ -417,7 +417,7 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
     if is_staff_action:
         core_utils.broadcast_mail(
             'marketplace',
-            'marketplace_resource_terminatate_scheduled_staff',
+            'marketplace_resource_termination_scheduled_staff',
             context,
             emails,
             bcc=bcc,
@@ -425,7 +425,7 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
     else:
         core_utils.broadcast_mail(
             'marketplace',
-            'marketplace_resource_terminatate_scheduled',
+            'marketplace_resource_termination_scheduled',
             context,
             emails,
             bcc=bcc,

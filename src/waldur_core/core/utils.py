@@ -268,26 +268,41 @@ def broadcast_mail(
     :param attachment: content of attachment
     :param content_type: the content type of attachment
     """
-    subject_template_name = '%s/%s_subject.txt' % (app, event_type)
-    subject = format_text(subject_template_name, context)
+    from .models import Notification
 
-    text_template_name = '%s/%s_message.txt' % (app, event_type)
-    text_message = format_text(text_template_name, context)
+    notification_key = f"{app}.{event_type}"
+    try:
+        notification = Notification.objects.get(key=notification_key)
+    except Notification.DoesNotExist:
+        return
 
-    html_template_name = '%s/%s_message.html' % (app, event_type)
-    html_message = render_to_string(html_template_name, context)
+    if notification.enabled:
+        subject_template_name = notification.templates.get(
+            path__icontains='subject.txt'
+        ).path
+        subject = format_text(subject_template_name, context)
 
-    for recipient in recipient_list:
-        send_mail(
-            subject,
-            text_message,
-            to=[recipient],
-            html_message=html_message,
-            filename=filename,
-            attachment=attachment,
-            content_type=content_type,
-            bcc=bcc,
-        )
+        text_template_name = notification.templates.get(
+            path__icontains='message.txt'
+        ).path
+        text_message = format_text(text_template_name, context)
+
+        html_template_name = notification.templates.get(
+            path__icontains='message.html'
+        ).path
+        html_message = render_to_string(html_template_name, context)
+
+        for recipient in recipient_list:
+            send_mail(
+                subject,
+                text_message,
+                to=[recipient],
+                html_message=html_message,
+                filename=filename,
+                attachment=attachment,
+                content_type=content_type,
+                bcc=bcc,
+            )
 
 
 def get_ordering(request):

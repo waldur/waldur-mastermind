@@ -36,7 +36,7 @@ from waldur_core.core.admin import (
     ReadOnlyAdminMixin,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
-from waldur_core.core.models import User
+from waldur_core.core.models import Notification, NotificationTemplate, User
 from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.quotas.admin import QuotaInline
@@ -810,7 +810,7 @@ class UserAgreementAdmin(admin.ModelAdmin):
 
 
 class TemplateInline(admin.TabularInline):
-    model = models.Notification.templates.through
+    model = Notification.templates.through
 
 
 class NotificationAdmin(admin.ModelAdmin):
@@ -839,5 +839,5 @@ admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
 admin.site.register(models.DivisionType, DivisionTypeAdmin)
 admin.site.register(models.Division, DivisionAdmin)
 admin.site.register(models.UserAgreement, UserAgreementAdmin)
-admin.site.register(models.NotificationTemplate, NotificationTemplateAdmin)
-admin.site.register(models.Notification, NotificationAdmin)
+admin.site.register(NotificationTemplate, NotificationTemplateAdmin)
+admin.site.register(Notification, NotificationAdmin)

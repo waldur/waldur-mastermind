@@ -746,6 +746,8 @@ class OrderApprovalNotificationTest(test.APITransactionTestCase):
         user_name, option_name = option
         fixture = marketplace_fixtures.MarketplaceFixture()
         user = getattr(fixture, user_name)
+        event_type = 'notification_approval'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         with override_marketplace_settings(**{option_name: True}):
             tasks.notify_order_approvers(fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 1)
@@ -766,6 +768,8 @@ class OrderItemApprovalNotificationTest(test.APITransactionTestCase):
 
     def test_owner_case(self):
         user = self.fixture.offering_owner
+        event_type = 'notification_service_provider_approval'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.notify_provider_about_order_item_pending_approval(
             self.order_item.uuid.hex
         )
@@ -773,6 +777,8 @@ class OrderItemApprovalNotificationTest(test.APITransactionTestCase):
         self.assertEqual(mail.outbox[0].to, [user.email])
 
     def test_service_manager_case(self):
+        event_type = 'notification_service_provider_approval'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         permission = factories.OfferingPermissionFactory(
             offering=self.order_item.offering
         )

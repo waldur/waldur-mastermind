@@ -3,6 +3,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
@@ -39,6 +40,8 @@ class NotificationsTest(test.APITransactionTestCase):
 
     @freeze_time('2019-01-02')
     def test_send_notification_message_one_day_before_event(self):
+        event_type = 'notification'
+        structure_factories.NotificationFactory(key=f"booking.{event_type}")
         tasks.send_notifications_about_upcoming_bookings()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.order_item.order.created_by.email])
