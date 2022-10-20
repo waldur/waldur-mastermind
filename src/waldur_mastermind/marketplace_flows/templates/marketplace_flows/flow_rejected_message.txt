@@ -1,3 +1,5 @@
+{% load i18n %}
+
 {% if flow.customer_create_request.is_rejected %}
 {% trans 'Customer creation request has been rejected.' %}
 

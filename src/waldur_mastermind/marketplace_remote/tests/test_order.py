@@ -4,6 +4,7 @@ from django.core import mail
 from django.test import override_settings
 from rest_framework import test
 
+import waldur_core.structure.tests.factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tasks import approve_order
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -21,6 +22,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.order_item.save()
 
         self.order = self.order_item.order
+
+        event_type = 'notification_service_provider_approval'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
 
     @override_settings(
         task_always_eager=True,

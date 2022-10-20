@@ -3,6 +3,7 @@ from unittest import mock
 from django.core import mail
 from rest_framework import test
 
+import waldur_core.structure.tests.factories as structure_factories
 from waldur_core.structure.models import ProjectRole
 from waldur_rancher import enums, models, tasks, utils
 from waldur_rancher.tests import factories, fixtures
@@ -55,6 +56,8 @@ class UserSyncTest(test.APITransactionTestCase):
         self.assertEqual(mock_tests.notify_create_user.delay.call_count, 3)
 
     def test_notification_message(self):
+        event_type = 'notification_create_user'
+        structure_factories.NotificationFactory(key=f"rancher.{event_type}")
         rancher_user = factories.RancherUserFactory()
         password = 'password'
         url = 'http//example.com'

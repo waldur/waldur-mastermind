@@ -289,31 +289,11 @@ class DivisionFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('division-list')
 
 
-class NotificationFactory(factory.DjangoModelFactory):
-    key = factory.Sequence(lambda n: 'Notification_%s' % n)
-
-    class Meta:
-        model = models.Notification
-
-    @classmethod
-    def get_url(cls, notification=None, action=None):
-        if notification is None:
-            notification = NotificationFactory()
-        url = 'http://testserver' + reverse(
-            'notification-messages-detail', kwargs={'uuid': notification.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('notification-messages-list')
-
-
 class NotificationTemplateFactory(factory.DjangoModelFactory):
-    name = factory.Sequence(lambda n: 'NotificationTemplate_%s' % n)
+    path = factory.Sequence(lambda n: 'NotificationTemplate_%s' % n)
 
     class Meta:
-        model = models.NotificationTemplate
+        model = core_models.NotificationTemplate
 
     @classmethod
     def get_url(cls, notification_template=None, action=None):
@@ -328,3 +308,33 @@ class NotificationTemplateFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('notification-messages-templates-list')
+
+
+class NotificationFactory(factory.DjangoModelFactory):
+    key = factory.Sequence(lambda n: 'Notification_%s' % n)
+
+    class Meta:
+        model = core_models.Notification
+
+    @classmethod
+    def get_url(cls, notification=None, action=None):
+        if notification is None:
+            notification = NotificationFactory()
+        url = 'http://testserver' + reverse(
+            'notification-messages-detail', kwargs={'uuid': notification.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('notification-messages-list')
+
+    @factory.post_generation
+    def templates(self, create, extracted, **kwargs):
+        if not create:
+            return
+
+        module, event_type = self.key.split('.')
+        self.templates.create(path=f"{module}/{event_type}_subject.txt")
+        self.templates.create(path=f"{module}/{event_type}_message.txt")
+        self.templates.create(path=f"{module}/{event_type}_message.html")

@@ -1561,7 +1561,7 @@ class UserAgreementSerializer(serializers.ModelSerializer):
 
 class NotificationTemplateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
-        model = models.NotificationTemplate
+        model = core_models.NotificationTemplate
         fields = (
             'uuid',
             'url',
@@ -1580,7 +1580,7 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
     templates = NotificationTemplateSerializer(many=True, read_only=True)
 
     class Meta:
-        model = models.Notification
+        model = core_models.Notification
         fields = (
             'uuid',
             'url',
@@ -1603,7 +1603,7 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
 
     class Meta:
-        model = models.NotificationTemplate
+        model = core_models.NotificationTemplate
         fields = (
             'uuid',
             'url',

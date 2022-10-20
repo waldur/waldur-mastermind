@@ -10,8 +10,8 @@ from waldur_core.structure.tests import factories, fixtures
 class NotificationList(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
-        self.notification_1 = factories.NotificationFactory()
-        self.notification_2 = factories.NotificationFactory()
+        self.notification_1 = factories.NotificationFactory(key='app_name.event_name')
+        self.notification_2 = factories.NotificationFactory(key='app_name.event_name2')
         self.url = factories.NotificationFactory.get_list_url()
 
     @data('staff')
@@ -36,8 +36,12 @@ class NotificationList(test.APITransactionTestCase):
 class NotificationChangeTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
-        self.notification_1 = factories.NotificationFactory(enabled=False)
-        self.notification_2 = factories.NotificationFactory(enabled=True)
+        self.notification_1 = factories.NotificationFactory(
+            key='app_name.event_name', enabled=False
+        )
+        self.notification_2 = factories.NotificationFactory(
+            key='app_name.event_name2', enabled=True
+        )
         self.url = factories.NotificationFactory.get_url(self.notification_1)
         self.disable_url = factories.NotificationFactory.get_url(
             self.notification_2, action="disable"

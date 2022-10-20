@@ -1210,14 +1210,14 @@ class UserAgreementsViewSet(ReadOnlyActionsViewSet):
 
 
 class NotificationViewSet(ActionsViewSet):
-    queryset = models.Notification.objects.all().order_by('id')
+    queryset = core_models.Notification.objects.all().order_by('id')
     serializer_class = serializers.NotificationSerializer
     permission_classes = (rf_permissions.IsAdminUser,)
     lookup_field = 'uuid'
 
     @action(detail=True, methods=['post'])
     def enable(self, request, uuid=None):
-        notification: models.Notification = self.get_object()
+        notification: core_models.Notification = self.get_object()
         message = f"The notification {notification.key} has been enabled"
         if not notification.enabled:
             notification.enabled = True
@@ -1230,7 +1230,7 @@ class NotificationViewSet(ActionsViewSet):
 
     @action(detail=True, methods=['post'])
     def disable(self, request, uuid=None):
-        notification: models.Notification = self.get_object()
+        notification: core_models.Notification = self.get_object()
         message = f"The notification {notification.key} has been disabled"
         if notification.enabled:
             notification.enabled = False
@@ -1243,7 +1243,7 @@ class NotificationViewSet(ActionsViewSet):
 
 
 class NotificationTemplateViewSet(ActionsViewSet):
-    queryset = models.NotificationTemplate.objects.all()
+    queryset = core_models.NotificationTemplate.objects.all()
     serializer_class = serializers.NotificationTemplateDetailSerializers
     permission_classes = (rf_permissions.IsAdminUser,)
     lookup_field = 'uuid'

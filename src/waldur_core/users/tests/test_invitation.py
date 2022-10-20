@@ -520,6 +520,8 @@ class InvitationSendTest(BaseInvitationTest):
 
     @override_settings(task_always_eager=True)
     def test_invitation_email_is_rendered_correctly(self):
+        event_type = 'invitation_created'
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
         self.client.force_authenticate(user=self.staff)
         response = self.client.post(
             factories.CustomerInvitationFactory.get_url(

@@ -103,6 +103,8 @@ class NotificationTest(TestCase):
         mock.patch.stopall()
 
     def test_send_invoice_with_pdf(self):
+        event_type = 'notification'
+        structure_factories.NotificationFactory(key=f"invoices.{event_type}")
         utils.create_invoice_pdf(self.invoice)
         tasks.send_invoice_notification(self.invoice.uuid)
         self.assertEqual(len(mail.outbox), 1)

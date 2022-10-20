@@ -362,6 +362,8 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             name='Third resource',
         )
 
+        event_type = 'notification_usages'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.send_notifications_about_usages()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.fixture.owner.email])
