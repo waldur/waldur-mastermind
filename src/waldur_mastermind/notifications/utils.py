@@ -4,8 +4,9 @@ from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.models import Resource
 
 
-def get_users_for_query(query):
-    users = set()
+def get_grouped_users_for_query(query):
+    customer_users = set()
+    project_users = set()
 
     customer_division_types = query.get('customer_division_types', [])
     customers = query.get('customers', [])
@@ -40,17 +41,22 @@ def get_users_for_query(query):
     for customer in customers:
         if customer_roles or project_roles:
             for role in customer_roles:
-                users |= set(customer.get_users_by_role(role))
+                customer_users |= set(customer.get_users_by_role(role))
         else:
             # If both customer and project roles are not specified,
             # we should include all project users as well.
-            users |= set(customer.get_users())
+            customer_users |= set(customer.get_users())
 
     for project in projects:
         if project_roles:
             for role in project_roles:
-                users |= set(project.get_users(role))
+                project_users |= set(project.get_users(role))
         else:
-            users |= set(project.get_users())
+            project_users |= set(project.get_users())
 
-    return users
+    return {'project_users': project_users, 'customer_users': customer_users}
+
+
+def get_users_for_query(query):
+    users = get_grouped_users_for_query(query)
+    return users['project_users'] | users['customer_users']
