@@ -2,4 +2,4 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'notifications', views.BroadcastMessageViewSet)
+    router.register(r'broadcast_messages', views.BroadcastMessageViewSet)
