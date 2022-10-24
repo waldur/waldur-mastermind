@@ -2179,6 +2179,8 @@ class ResourceSerializer(BaseItemSerializer):
             'customer_name',
             'offering_uuid',
             'offering_name',
+            'parent_uuid',
+            'parent_name',
             'backend_metadata',
             'is_usage_based',
             'is_limit_based',
@@ -2221,6 +2223,8 @@ class ResourceSerializer(BaseItemSerializer):
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
+    parent_uuid = serializers.ReadOnlyField(source='parent.uuid')
+    parent_name = serializers.ReadOnlyField(source='parent.name')
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
     is_limit_based = serializers.ReadOnlyField(source='offering.is_limit_based')

@@ -867,3 +867,17 @@ def format_limits_list(components_map, limits):
         f'{components_map[key].name or components_map[key].type}: {value}'
         for key, value in limits.items()
     )
+
+
+def link_parent_resource(resource):
+    offering_scope = resource.offering.scope
+    if isinstance(offering_scope, structure_models.ServiceSettings) and isinstance(
+        offering_scope.scope, structure_models.BaseResource
+    ):
+        try:
+            parent_resource = models.Resource.objects.get(scope=offering_scope.scope)
+        except models.Resource.DoesNotExist:
+            pass
+        else:
+            resource.parent = parent_resource
+            resource.save()

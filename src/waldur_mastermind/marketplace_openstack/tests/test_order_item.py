@@ -407,6 +407,13 @@ class InstanceCreateTest(test.APITransactionTestCase):
             marketplace_models.Resource.objects.filter(scope=volume).exists()
         )
 
+    def test_parent_resource_is_linked(self):
+        tenant_resource = marketplace_factories.ResourceFactory(
+            scope=self.fixture.tenant
+        )
+        order_item = self.trigger_instance_creation()
+        self.assertEqual(order_item.resource.parent, tenant_resource)
+
     def trigger_instance_creation(self, **kwargs):
         image = openstack_tenant_factories.ImageFactory(
             settings=self.service_settings, min_disk=10240, min_ram=1024
