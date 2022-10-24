@@ -1057,6 +1057,13 @@ class Resource(
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+    parent = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to='Resource',
+        related_name='children',
+        null=True,
+        blank=True,
+    )
     backend_metadata = models.JSONField(blank=True, default=dict)
     report = models.JSONField(blank=True, null=True)
     current_usages = models.JSONField(blank=True, default=dict)

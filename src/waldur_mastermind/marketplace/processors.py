@@ -7,7 +7,11 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.utils import create_local_resource, validate_limits
+from waldur_mastermind.marketplace.utils import (
+    create_local_resource,
+    link_parent_resource,
+    validate_limits,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +73,8 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
 
         with transaction.atomic():
             resource = create_local_resource(self.order_item, scope)
+
+            link_parent_resource(resource)
 
             if not scope or type(scope) == str:
                 resource_creation_succeeded(resource)
