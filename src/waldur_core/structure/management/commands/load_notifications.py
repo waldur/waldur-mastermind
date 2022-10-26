@@ -1,9 +1,8 @@
 import json
 
-from dbtemplates.models import Template
 from django.core.management.base import BaseCommand
 
-from waldur_core.core.models import Notification, NotificationTemplate
+from waldur_core.core.models import Notification
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 
@@ -44,26 +43,19 @@ class Command(BaseCommand):
         for valid_notification_data in valid_notifications_data:
             notification, created = Notification.objects.get_or_create(
                 key=valid_notification_data['path'],
-                enabled=notifications[valid_notification_data['path']],
             )
-
-            if not created:
+            file_enabled_status = notifications[valid_notification_data['path']]
+            if notification.enabled != file_enabled_status:
+                notification.enabled = notifications[valid_notification_data['path']]
+                notification.save()
                 self.stdout.write(
                     self.style.WARNING(
-                        f'The notification {notification.key} already exists. Skipping'
+                        f'The notification {notification.key} status has been changed to {notification.enabled}'
                     )
                 )
-                pass
-            else:
-                for path, name in valid_notification_data['templates'].items():
-                    notification_template = NotificationTemplate.objects.create(
-                        path=path, name=name
-                    )
-                    if not Template.objects.filter(name=path).exists():
-                        Template.objects.create(name=path)
-                    notification.templates.add(notification_template)
+            if created:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'The notification {notification.key} has been created.'
+                        f'The notification {notification.key} has been created with status {notification.enabled}'
                     )
                 )
