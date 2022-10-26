@@ -1,5 +1,3 @@
-import unittest
-
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -47,33 +45,30 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def check_counts(self, offering_count, available_offerings_count):
+    def check_counts(self, offering_count):
         response = self.client.get(self.category_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['offering_count'], offering_count)
-        self.assertEqual(
-            response.data['available_offerings_count'], available_offerings_count
-        )
 
-    def _create_plan(self, offering_count, available_offerings_count):
+    def _create_plan(self, offering_count):
         self.plan = factories.PlanFactory(offering=self.privat_offering)
-        self.check_counts(offering_count, available_offerings_count)
+        self.check_counts(offering_count)
 
-    def _match_plan_with_division(self, offering_count, available_offerings_count):
+    def _match_plan_with_division(self, offering_count):
         self.plan.divisions.add(self.division)
-        self.check_counts(offering_count, available_offerings_count)
+        self.check_counts(offering_count)
 
-    def _match_customer_with_division(self, offering_count, available_offerings_count):
+    def _match_customer_with_division(self, offering_count):
         self.fixture.customer.division = self.division
         self.fixture.customer.save()
-        self.check_counts(offering_count, available_offerings_count)
+        self.check_counts(offering_count)
 
-    def _match_project_with_division(self, offering_count, available_offerings_count):
+    def _match_project_with_division(self, offering_count):
         self.fixture.project.division = self.division
         self.fixture.project.save()
-        self.check_counts(offering_count, available_offerings_count)
+        self.check_counts(offering_count)
 
-    def _create_offering_for_owner(self, offering_count, available_offerings_count):
+    def _create_offering_for_owner(self, offering_count):
         factories.OfferingFactory(
             shared=False,
             state=models.Offering.States.ACTIVE,
@@ -81,62 +76,49 @@ class CategoryGetTest(test.APITransactionTestCase):
             customer=self.fixture.customer,
             project=self.fixture.project,
         )
-        self.check_counts(offering_count, available_offerings_count)
+        self.check_counts(offering_count)
 
-    @unittest.skip('Temporary disable till counters are fixed')
     def test_counts_for_staff(self):
-        user = self.fixture.staff
-        self.client.force_authenticate(user)
+        self.client.force_authenticate(self.fixture.staff)
 
-        self.check_counts(offering_count=2, available_offerings_count=1)
-        self._create_plan(offering_count=2, available_offerings_count=2)
-        self._match_plan_with_division(offering_count=2, available_offerings_count=1)
-        self._match_customer_with_division(
-            offering_count=2, available_offerings_count=1
-        )
-        self._match_project_with_division(offering_count=2, available_offerings_count=1)
-        self._create_offering_for_owner(offering_count=3, available_offerings_count=1)
+        self.check_counts(offering_count=1)
+        self._create_plan(offering_count=2)
+        self._match_plan_with_division(offering_count=1)
+        self._match_customer_with_division(offering_count=1)
+        self._match_project_with_division(offering_count=1)
+        self._create_offering_for_owner(offering_count=1)
 
-    @unittest.skip('Temporary disable till counters are fixed')
     @data('owner', 'admin', 'manager')
     def test_counts_for_authorized_user(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
 
-        self.check_counts(offering_count=0, available_offerings_count=1)
-        self._create_plan(offering_count=0, available_offerings_count=2)
-        self._match_plan_with_division(offering_count=0, available_offerings_count=1)
-        self._match_customer_with_division(
-            offering_count=0, available_offerings_count=2
-        )
-        self._match_project_with_division(offering_count=0, available_offerings_count=2)
-        self._create_offering_for_owner(offering_count=1, available_offerings_count=2)
+        self.check_counts(offering_count=1)
+        self._create_plan(offering_count=2)
+        self._match_plan_with_division(offering_count=1)
+        self._match_customer_with_division(offering_count=2)
+        self._match_project_with_division(offering_count=2)
+        self._create_offering_for_owner(offering_count=2)
 
-    @unittest.skip('Temporary disable till counters are fixed')
     def test_counts_for_user(self):
         user = self.fixture.user
         self.client.force_authenticate(user)
 
-        self.check_counts(offering_count=0, available_offerings_count=1)
-        self._create_plan(offering_count=0, available_offerings_count=2)
-        self._match_plan_with_division(offering_count=0, available_offerings_count=1)
-        self._match_customer_with_division(
-            offering_count=0, available_offerings_count=1
-        )
-        self._match_project_with_division(offering_count=0, available_offerings_count=1)
-        self._create_offering_for_owner(offering_count=0, available_offerings_count=1)
+        self.check_counts(offering_count=1)
+        self._create_plan(offering_count=2)
+        self._match_plan_with_division(offering_count=1)
+        self._match_customer_with_division(offering_count=1)
+        self._match_project_with_division(offering_count=1)
+        self._create_offering_for_owner(offering_count=1)
 
-    @unittest.skip('Temporary disable till counters are fixed')
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_counts_for_anonymous(self):
-        self.check_counts(offering_count=0, available_offerings_count=1)
-        self._create_plan(offering_count=0, available_offerings_count=1)
-        self._match_plan_with_division(offering_count=0, available_offerings_count=1)
-        self._match_customer_with_division(
-            offering_count=0, available_offerings_count=1
-        )
-        self._match_project_with_division(offering_count=0, available_offerings_count=1)
-        self._create_offering_for_owner(offering_count=0, available_offerings_count=1)
+        self.check_counts(offering_count=1)
+        self._create_plan(offering_count=1)
+        self._match_plan_with_division(offering_count=1)
+        self._match_customer_with_division(offering_count=1)
+        self._match_project_with_division(offering_count=1)
+        self._create_offering_for_owner(offering_count=1)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_counts_for_anonymous_if_anonymous_cannot_view_offerings(self):
