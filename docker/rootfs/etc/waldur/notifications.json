@@ -5,7 +5,7 @@
   "structure.structure_role_granted": true,
   "structure.service_settings_description": true,
   "structure.notifications_profile_changes": false,
-  "users.invitation_created": false,
+  "users.invitation_created": true,
   "users.invitation_requested": true,
   "users.invitation_rejected": true,
   "users.invitation_approved": true,
