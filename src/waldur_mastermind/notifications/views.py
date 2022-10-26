@@ -4,7 +4,7 @@ from rest_framework import decorators, permissions, status
 from rest_framework.response import Response
 
 from waldur_core.core import permissions as core_permissions
-from waldur_core.core.views import ActionsViewSet
+from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 
 from . import filters, models, serializers, tasks, utils
 
@@ -56,3 +56,11 @@ class BroadcastMessageViewSet(ActionsViewSet):
         )
 
     users_serializer_class = serializers.UsersBroadcastMessageSerializer
+
+
+class MessageTemplateViewSet(ReadOnlyActionsViewSet):
+    queryset = models.MessageTemplate.objects.all().order_by('name')
+    serializer_class = serializers.MessageTemplateSerializer
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.MessageTemplateFilterSet

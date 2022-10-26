@@ -125,3 +125,20 @@ class UsersBroadcastMessageSerializer(serializers.Serializer):
         users = utils.get_grouped_users_for_query(query)
         attrs.update(users)
         return attrs
+
+
+class MessageTemplateSerializer(
+    serializers.HyperlinkedModelSerializer,
+):
+    class Meta:
+        model = models.MessageTemplate
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'subject',
+            'body',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
