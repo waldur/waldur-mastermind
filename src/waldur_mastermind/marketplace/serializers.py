@@ -11,7 +11,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
-from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -199,6 +198,7 @@ class CategorySerializer(
                 state=models.Offering.States.ACTIVE
             )
 
+        # counting available offerings for resource order.
         offerings = (
             offerings.filter(category=OuterRef('pk'))
             .filter_by_ordering_availability_for_user(request.user)
@@ -234,23 +234,6 @@ class CategorySerializer(
         queryset = queryset.annotate(offering_count=offering_count)
         if has_offerings:
             queryset = queryset.filter(offering_count__gt=0)
-
-        # counting available offerings for simple user, not service provider
-        available_offerings = (
-            models.Offering.objects.all()
-            .filter_by_ordering_availability_for_user(request.user)
-            .filter(category=OuterRef('pk'))
-        )
-        available_offerings = (
-            available_offerings.order_by().annotate(count=Count('*')).values('count')
-        )
-        available_offerings.query.group_by = []
-        available_offerings_count = Subquery(
-            available_offerings[:1], output_field=IntegerField()
-        )
-        queryset = queryset.annotate(
-            available_offerings_count=Coalesce(available_offerings_count, 0)
-        )
 
         return queryset.distinct().prefetch_related('sections', 'sections__attributes')
 
