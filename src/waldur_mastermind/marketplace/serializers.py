@@ -1625,6 +1625,7 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
 
 
 class BaseItemSerializer(
+    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1644,6 +1645,7 @@ class BaseItemSerializer(
             'provider_uuid',
             'category_title',
             'category_uuid',
+            'category_icon',
             'plan',
             'plan_unit',
             'plan_name',
@@ -1679,6 +1681,7 @@ class BaseItemSerializer(
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
     category_title = serializers.ReadOnlyField(source='offering.category.title')
+    category_icon = ProtectedImageField(source='offering.category.icon', read_only=True)
     category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
     offering_thumbnail = ProtectedFileField(source='offering.thumbnail', read_only=True)
 
