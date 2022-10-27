@@ -411,7 +411,7 @@ class ProjectPermissionRevokeTest(ProjectPermissionBaseTest):
             },
         )
 
-    def test_project_admin_cannot_revoke_role_within_within_another_project(self):
+    def test_project_admin_cannot_revoke_role_within_another_project(self):
         for user, project, _ in self.all_roles:
             if project == 'project11':
                 continue
