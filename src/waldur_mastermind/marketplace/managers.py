@@ -59,8 +59,24 @@ class OfferingQuerySet(django_models.QuerySet):
             Q(divisions__isnull=True) | Q(divisions__in=divisions)
         ).filter(archived=False)
 
+        # filtering by customers and projects
+        connected_customers = structure_models.Customer.objects.all().filter(
+            permissions__user=user, permissions__is_active=True
+        )
+        connected_projects = structure_models.Project.available_objects.all().filter(
+            permissions__user=user, permissions__is_active=True
+        )
+
         return queryset.filter(
-            Q(plans__in=plans) | Q(parent__plans__in=plans) | Q(shared=True)
+            Q(shared=True)
+            | (
+                (
+                    Q(customer__in=connected_customers)
+                    | Q(project__in=connected_projects)
+                    | Q(permissions__user=user, permissions__is_active=True)
+                )
+                & (Q(plans__in=plans) | Q(parent__plans__in=plans))
+            )
         ).distinct()
 
     def filter_for_customer(self, value):

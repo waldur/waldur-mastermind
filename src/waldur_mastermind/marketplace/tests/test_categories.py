@@ -18,8 +18,12 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.share_offering = factories.OfferingFactory(
             shared=True, category=self.category, state=models.Offering.States.ACTIVE
         )
-        self.privat_offering = factories.OfferingFactory(
-            shared=False, category=self.category, state=models.Offering.States.ACTIVE
+        self.private_offering = factories.OfferingFactory(
+            shared=False,
+            category=self.category,
+            state=models.Offering.States.ACTIVE,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
         )
         self.division = structure_factories.DivisionFactory()
 
@@ -51,7 +55,7 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(response.data['offering_count'], offering_count)
 
     def _create_plan(self, offering_count):
-        self.plan = factories.PlanFactory(offering=self.privat_offering)
+        self.plan = factories.PlanFactory(offering=self.private_offering)
         self.check_counts(offering_count)
 
     def _match_plan_with_division(self, offering_count):
@@ -78,11 +82,13 @@ class CategoryGetTest(test.APITransactionTestCase):
         )
         self.check_counts(offering_count)
 
-    def test_counts_for_staff(self):
-        self.client.force_authenticate(self.fixture.staff)
+    @data('staff', 'user')
+    def test_counts_for_unrelated_user(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
 
         self.check_counts(offering_count=1)
-        self._create_plan(offering_count=2)
+        self._create_plan(offering_count=1)
         self._match_plan_with_division(offering_count=1)
         self._match_customer_with_division(offering_count=1)
         self._match_project_with_division(offering_count=1)
@@ -99,17 +105,6 @@ class CategoryGetTest(test.APITransactionTestCase):
         self._match_customer_with_division(offering_count=2)
         self._match_project_with_division(offering_count=2)
         self._create_offering_for_owner(offering_count=2)
-
-    def test_counts_for_user(self):
-        user = self.fixture.user
-        self.client.force_authenticate(user)
-
-        self.check_counts(offering_count=1)
-        self._create_plan(offering_count=2)
-        self._match_plan_with_division(offering_count=1)
-        self._match_customer_with_division(offering_count=1)
-        self._match_project_with_division(offering_count=1)
-        self._create_offering_for_owner(offering_count=1)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_counts_for_anonymous(self):
