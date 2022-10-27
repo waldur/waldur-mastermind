@@ -1908,7 +1908,11 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
             factories.OfferingFactory(
                 state=models.Offering.States.PAUSED, shared=False
             ),
+            factories.OfferingFactory(
+                state=models.Offering.States.ACTIVE, shared=False
+            ),
         ]
+        factories.PlanFactory(offering=self.offerings[-1])
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_anonymous_cannot_view_offerings(self):
@@ -1944,14 +1948,53 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
             self.assertIn('scope', offering)
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager', None)
-    def test_private_offerings_are_hidden(self, user):
+    def test_private_offerings_are_hidden_and_shared_offering_visible(self, user):
         if user:
             user = getattr(self.fixture, user)
             self.client.force_authenticate(user)
         url = factories.OfferingFactory.get_public_list_url()
         response = self.client.get(url)
+
+        shared_exists = None
+        private_exists = None
+
         for offering in response.data:
-            self.assertTrue('shared', offering)
+            if offering['shared']:
+                shared_exists = True
+            else:
+                private_exists = True
+
+        self.assertTrue(shared_exists)
+        self.assertFalse(private_exists)
+
+    @data('owner', 'customer_support', 'admin', 'manager')
+    def test_private_offerings_are_visible_for_related_user(self, user):
+        private_offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+            shared=False,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+        factories.PlanFactory(offering=private_offering)
+
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+        self.assertEqual(len(response.data), 2)
+
+        shared_exists = None
+        private_exists = None
+
+        for offering in response.data:
+            if offering['shared']:
+                shared_exists = True
+            else:
+                private_exists = True
+
+        self.assertTrue(shared_exists)
+        self.assertTrue(private_exists)
 
     def test_anonymous_can_get_offerings(self):
         offering_list_url = factories.OfferingFactory.get_public_list_url()
