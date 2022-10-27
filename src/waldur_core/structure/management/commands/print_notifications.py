@@ -1,7 +1,10 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.template.loader import get_template
 
 from waldur_core.structure.notifications import NOTIFICATIONS
+
+TAB_OF_4 = ' ' * 4
 
 
 class Command(BaseCommand):
@@ -11,16 +14,19 @@ class Command(BaseCommand):
             for app in settings.INSTALLED_APPS:
                 plugin = app.split('.')[1] if len(app.split('.')) == 2 else app
                 if section["key"] == plugin or f"waldur_{section['key']}" == plugin:
-                    print(f"# {app.upper()}")
-                    print()
+                    print(f"## {app.upper()}", end='\n\n')
             for notification in sorted(
                 section['items'], key=lambda section: section['path']
             ):
-                print(f'## {section["key"]}.{notification["path"]}')
-                print()
-                print(notification["description"])
-                print()
-                print("### Templates")
+                print(f'### {section["key"]}.{notification["path"]}', end='\n\n')
+                print(notification["description"], end='\n\n')
+                print("#### Templates", end='\n\n')
                 for template in notification['templates']:
-                    print(f"*{section['key']}/{template.path}*")
+                    template_path = f"{section['key']}/{template.path}"
+                    print(f'=== "{template_path}"', end='\n\n')
+                    print(f"{TAB_OF_4}```")
+                    source = get_template(template_path).template.source
+                    source = source.replace('\n', f'\n{TAB_OF_4}')
+                    print(f"{TAB_OF_4}{source}")
+                    print(f"{TAB_OF_4}```")
                 print()
