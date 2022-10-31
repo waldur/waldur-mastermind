@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -172,7 +172,7 @@ class CategorySerializer(
     core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    offering_count = serializers.ReadOnlyField()
+    offering_count = serializers.SerializerMethodField()
     available_offerings_count = serializers.ReadOnlyField()
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
@@ -181,26 +181,21 @@ class CategorySerializer(
 
     @staticmethod
     def eager_load(queryset, request):
-        offerings_states = request.GET.getlist('customers_offerings_state')
+        return queryset.distinct().prefetch_related('sections', 'sections__attributes')
+
+    def get_offering_count(self, category):
+        request = self.context['request']
         customer_uuid = request.GET.get('customer_uuid')
         shared = request.GET.get('shared')
-        has_offerings = request.GET.get('has_offerings')
 
         try:
             shared = forms.NullBooleanField().to_python(shared)
         except rf_exceptions.ValidationError:
             shared = None
 
-        if offerings_states and customer_uuid:
-            offerings = models.Offering.objects.filter(state__in=offerings_states)
-        else:
-            offerings = models.Offering.objects.filter(
-                state=models.Offering.States.ACTIVE
-            )
-
         # counting available offerings for resource order.
         offerings = (
-            offerings.filter(category=OuterRef('pk'))
+            models.Offering.objects.filter(category=category)
             .filter_by_ordering_availability_for_user(request.user)
             .order_by()
         )
@@ -223,19 +218,7 @@ class CategorySerializer(
         if shared is not None:
             offerings = offerings.filter(shared=shared)
 
-        offerings = offerings.annotate(count=Count('*')).values('count')
-
-        # Workaround for Django bug:
-        # https://code.djangoproject.com/ticket/28296
-        # It allows to remove extra GROUP BY clause from the subquery.
-        offerings.query.group_by = []
-
-        offering_count = Subquery(offerings[:1], output_field=IntegerField())
-        queryset = queryset.annotate(offering_count=offering_count)
-        if has_offerings:
-            queryset = queryset.filter(offering_count__gt=0)
-
-        return queryset.distinct().prefetch_related('sections', 'sections__attributes')
+        return offerings.count()
 
     class Meta:
         model = models.Category
