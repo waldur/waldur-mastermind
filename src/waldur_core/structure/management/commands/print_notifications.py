@@ -2,13 +2,21 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.template.loader import get_template
 
+from waldur_core.server import settings as core_settings
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 TAB_OF_4 = ' ' * 4
 
+CUSTOM_LOADER_SETTING = (
+    core_settings.ADMIN_TEMPLATE_LOADERS,
+    'django.template.loaders.filesystem.Loader',
+    'django.template.loaders.app_directories.Loader',
+)
+
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
+        settings.TEMPLATES[0]['OPTIONS']['loaders'] = CUSTOM_LOADER_SETTING
         print('# Notifications', end='\n\n')
         for section in sorted(NOTIFICATIONS, key=lambda section: section['key']):
             for app in settings.INSTALLED_APPS:
