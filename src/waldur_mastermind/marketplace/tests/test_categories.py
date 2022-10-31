@@ -106,6 +106,17 @@ class CategoryGetTest(test.APITransactionTestCase):
         self._match_project_with_division(offering_count=2)
         self._create_offering_for_owner(offering_count=2)
 
+    def test_counts_for_user(self):
+        user = self.fixture.user
+        self.client.force_authenticate(user)
+
+        self.check_counts(offering_count=1)
+        self._create_plan(offering_count=1)
+        self._match_plan_with_division(offering_count=1)
+        self._match_customer_with_division(offering_count=1)
+        self._match_project_with_division(offering_count=1)
+        self._create_offering_for_owner(offering_count=1)
+
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_counts_for_anonymous(self):
         self.check_counts(offering_count=1)
@@ -119,6 +130,19 @@ class CategoryGetTest(test.APITransactionTestCase):
     def test_counts_for_anonymous_if_anonymous_cannot_view_offerings(self):
         response = self.client.get(self.category_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_do_not_increment_the_counter_if_there_are_multiple_plans(self):
+        user = self.fixture.owner
+        self.client.force_authenticate(user)
+
+        self.check_counts(offering_count=1)
+        factories.PlanFactory(offering=self.private_offering)
+        factories.PlanFactory(offering=self.private_offering)
+        self.check_counts(offering_count=2)
+
+        factories.PlanFactory(offering=self.share_offering)
+        factories.PlanFactory(offering=self.share_offering)
+        self.check_counts(offering_count=2)
 
 
 @ddt
