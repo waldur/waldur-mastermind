@@ -2,13 +2,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.template.loader import get_template
 
-from waldur_core.server import settings as core_settings
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 TAB_OF_4 = ' ' * 4
 
 CUSTOM_LOADER_SETTING = (
-    core_settings.ADMIN_TEMPLATE_LOADERS,
+    'admin_tools.template_loaders.Loader',
     'django.template.loaders.filesystem.Loader',
     'django.template.loaders.app_directories.Loader',
 )
