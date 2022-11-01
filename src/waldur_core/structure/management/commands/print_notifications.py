@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.template.loader import get_template
+from django.template.loader import engines
 
 from waldur_core.structure.notifications import NOTIFICATIONS
 
@@ -15,7 +15,12 @@ CUSTOM_LOADER_SETTING = (
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        settings.TEMPLATES[0]['OPTIONS']['loaders'] = CUSTOM_LOADER_SETTING
+        file_engine = engines.all()
+        # reset loaders to use only filesystem based
+        file_engine[0].engine.loaders = CUSTOM_LOADER_SETTING
+        # reset cached_property
+        del file_engine[0].engine.__dict__["template_loaders"]
+
         print('# Notifications', end='\n\n')
         for section in sorted(NOTIFICATIONS, key=lambda section: section['key']):
             for app in settings.INSTALLED_APPS:
@@ -32,7 +37,7 @@ class Command(BaseCommand):
                     template_path = f"{section['key']}/{template.path}"
                     print(f'=== "{template_path}"', end='\n\n')
                     print(f"{TAB_OF_4}```")
-                    source = get_template(template_path).template.source
+                    source = file_engine[0].get_template(template_path).template.source
                     source = source.replace('\n', f'\n{TAB_OF_4}')
                     print(f"{TAB_OF_4}{source}")
                     print(f"{TAB_OF_4}```")
