@@ -343,6 +343,7 @@ class WaldurCore(BaseModel):
             'INVITATION_CIVIL_NUMBER_HELP_TEXT',
             'INVITATION_TAX_NUMBER_LABEL',
             'HOMEPORT_SENTRY_DSN',
+            'HOMEPORT_URL',
             'SIDEBAR_LOGO',
             'SIDEBAR_LOGO_MOBILE',
             'POWERED_BY_LOGO',
