@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.template.loader import engines
@@ -39,6 +41,8 @@ class Command(BaseCommand):
                     print(f"{TAB_OF_4}```")
                     source = file_engine[0].get_template(template_path).template.source
                     source = source.replace('\n', f'\n{TAB_OF_4}')
-                    print(f"{TAB_OF_4}{source}")
-                    print(f"{TAB_OF_4}```")
+                    source = re.sub(' +\n', '\n', source)
+                    source = source.rstrip()
+                    print(f"{TAB_OF_4}{source}", end='\n')
+                    print(f"\n{TAB_OF_4}```", end='\n\n')
                 print()
