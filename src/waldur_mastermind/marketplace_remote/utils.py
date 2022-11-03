@@ -326,15 +326,16 @@ def parse_order_item_type(serialized_state):
 
 
 def import_order(remote_order, project):
+    approved_at = None
+    if 'approved_at' in remote_order and remote_order['approved_at'] is not None:
+        approved_at = remote_order['approved_at']
     return marketplace_models.Order.objects.create(
         project=project,
         state=parse_order_state(remote_order['state']),
         created_by=get_system_robot(),
         created=parse_datetime(remote_order['created']),
         approved_by=get_system_robot(),
-        approved_at='approved_at' in remote_order
-        and parse_datetime(remote_order['approved_at'])
-        or None,
+        approved_at=approved_at,
     )
 
 
