@@ -25,6 +25,10 @@ class Command(BaseCommand):
         with open(options['templates_file'], 'r') as templates_file:
             templates = yaml.safe_load(templates_file)
 
+        if templates is None:
+            print("Templates file is empty.")
+            return
+
         if options['clean']:
             all_templates = Template.objects.all()
             for template in all_templates:
