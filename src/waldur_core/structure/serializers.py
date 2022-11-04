@@ -596,16 +596,22 @@ class BasePermissionSerializer(
 
 
 class BasicCustomerPermissionSerializer(BasePermissionSerializer):
+    customer_division_name = serializers.ReadOnlyField(source='customer.division.name')
+    customer_division_uuid = serializers.ReadOnlyField(source='customer.division.uuid')
+
     class Meta(BasePermissionSerializer.Meta):
         model = models.CustomerPermission
         fields = (
             'url',
             'pk',
             'role',
+            'customer',
             'customer_uuid',
             'customer_name',
             'customer_native_name',
             'customer_abbreviation',
+            'customer_division_name',
+            'customer_division_uuid',
         )
         related_paths = dict(
             customer=('name', 'native_name', 'abbreviation', 'uuid'),
@@ -623,6 +629,9 @@ class BasicCustomerPermissionSerializer(BasePermissionSerializer):
 class CustomerPermissionSerializer(
     PermissionFieldFilteringMixin, BasePermissionSerializer
 ):
+    customer_division_name = serializers.ReadOnlyField(source='customer.division.name')
+    customer_division_uuid = serializers.ReadOnlyField(source='customer.division.uuid')
+
     class Meta(BasePermissionSerializer.Meta):
         model = models.CustomerPermission
         fields = (
@@ -637,6 +646,8 @@ class CustomerPermissionSerializer(
             'customer_name',
             'customer_native_name',
             'customer_abbreviation',
+            'customer_division_name',
+            'customer_division_uuid',
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
             customer=('name', 'native_name', 'abbreviation', 'uuid'),
