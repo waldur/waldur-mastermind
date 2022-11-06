@@ -1,16 +1,8 @@
-# The dancing with the function and its deletion is done
-# to keep the namespace clean: only __version__ is going to be exposed.
-
-
 def _get_version(package_name='waldur_mastermind'):
-    import pkg_resources
+    from importlib.metadata import version
 
-    # Based on http://stackoverflow.com/a/17638236/175349
-    # and https://github.com/pwaller/__autoversion__/blob/master/__autoversion__.py
-
-    try:
-        return pkg_resources.get_distribution(package_name).version
-    except pkg_resources.DistributionNotFound:
+    package_version = version(package_name)
+    if package_version == '0.0.0':
         import os.path
         import re
         import subprocess  # noqa: S404
@@ -19,11 +11,15 @@ def _get_version(package_name='waldur_mastermind'):
 
         try:
             with open(os.devnull, 'w') as DEV_NULL:
-                description = subprocess.check_output(  # noqa: S603, S607
-                    ['git', 'describe', '--tags', '--dirty=.dirty'],
-                    cwd=repo_dir,
-                    stderr=DEV_NULL,
-                ).strip()
+                description = (
+                    subprocess.check_output(  # noqa: S603, S607
+                        ['git', 'describe', '--tags', '--dirty=.dirty'],
+                        cwd=repo_dir,
+                        stderr=DEV_NULL,
+                    )
+                    .strip()
+                    .decode("utf-8")
+                )
 
             v = re.search(r'-[0-9]+-', description)
             if v is not None:
