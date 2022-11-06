@@ -45,4 +45,3 @@ class Command(BaseCommand):
                     source = source.rstrip()
                     print(f"{TAB_OF_4}{source}", end='\n')
                     print(f"\n{TAB_OF_4}```", end='\n\n')
-                print()
