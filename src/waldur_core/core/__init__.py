@@ -1,8 +1,7 @@
 import inspect
 import json
 import os
-
-import pkg_resources
+from importlib.metadata import entry_points
 
 # WALDUR_DISABLED_EXTENSIONS environment variable contains JSON-encoded list of strings
 # each of which corresponds to Django Application name of corresponding Waldur extension.
@@ -79,7 +78,7 @@ class WaldurExtension:
     def _get_extensions(cls):
         """Get a list of available extensions"""
         assemblies = []
-        for waldur_extension in pkg_resources.iter_entry_points('waldur_extensions'):
+        for waldur_extension in entry_points()['waldur_extensions']:
             extension_module = waldur_extension.load()
             if inspect.isclass(extension_module) and issubclass(extension_module, cls):
                 if not extension_module.is_assembly():
