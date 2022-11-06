@@ -1,4 +1,5 @@
 import bleach
+from bleach.css_sanitizer import CSSSanitizer
 
 ALLOWED_TAGS = [
     "a",
@@ -34,7 +35,9 @@ ALLOWED_ATTRIBUTES = {
     "span": ["style"],
 }
 
-ALLOWED_STYLES = ["font-size", "font-weight", "text-align"]
+css_sanitizer = CSSSanitizer(
+    allowed_css_properties=["font-size", "font-weight", "text-align"]
+)
 
 
 def clean_html(value):
@@ -42,7 +45,7 @@ def clean_html(value):
         value,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        styles=ALLOWED_STYLES,
+        css_sanitizer=css_sanitizer,
         strip=True,
     )
 
