@@ -9,7 +9,7 @@
     },
     "LANGUAGES": {
       "title": "Languages",
-      "description": "The list is a list of two-tuples in the format (language code, language name) \u2013 for example, ('ja', 'Japanese'). This specifies which languages are available for language selection.",
+      "description": "The list is a list of two-tuples in the format (language code, language name) – for example, ('ja', 'Japanese'). This specifies which languages are available for language selection.",
       "default": [
         [
           "en",
@@ -23,6 +23,8 @@
       "type": "array",
       "items": {
         "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
         "items": [
           {
             "type": "string"
@@ -95,18 +97,20 @@
         ],
         "HOMEPORT_SENTRY_DSN": null,
         "SIDEBAR_LOGO": null,
+        "SIDEBAR_LOGO_MOBILE": null,
         "POWERED_BY_LOGO": null,
         "BRAND_COLOR": "#3a8500",
         "HERO_IMAGE": null,
         "HERO_LINK_LABEL": null,
         "HERO_LINK_URL": null,
+        "LOCAL_IDP_PROTECTED_FIELDS": [],
         "EXTENSIONS_AUTOREGISTER": true,
         "TOKEN_KEY": "x-auth-token",
         "INVITATIONS_ENABLED": true,
         "VALIDATE_INVITATION_EMAIL": false,
-        "TOKEN_LIFETIME": 3600.0,
-        "INVITATION_LIFETIME": 604800.0,
-        "GROUP_INVITATION_LIFETIME": 604800.0,
+        "TOKEN_LIFETIME": 3600,
+        "INVITATION_LIFETIME": 604800,
+        "GROUP_INVITATION_LIFETIME": 604800,
         "OWNERS_CAN_MANAGE_OWNERS": false,
         "OWNER_CAN_MANAGE_CUSTOMER": false,
         "BACKEND_FIELDS_EDITABLE": true,
@@ -121,24 +125,25 @@
         "SITE_PHONE": "",
         "CURRENCY_NAME": "EUR",
         "NOTIFICATIONS_PROFILE_CHANGES": {
-          "ENABLED": true,
           "FIELDS": [
             "email",
             "phone_number",
             "job_title"
-          ]
+          ],
+          "ENABLE_OPERATOR_OWNER_NOTIFICATIONS": false,
+          "OPERATOR_NOTIFICATION_EMAILS": []
         },
         "ENABLE_ACCOUNTING_START_DATE": false,
         "USE_ATOMIC_TRANSACTION": true,
         "NOTIFICATION_SUBJECT": "Notifications from Waldur",
         "LOGGING_REPORT_DIRECTORY": "/var/log/waldur",
-        "LOGGING_REPORT_INTERVAL": 604800.0,
+        "LOGGING_REPORT_INTERVAL": 604800,
         "HTTP_CHUNK_SIZE": 50,
         "ONLY_STAFF_CAN_INVITE_USERS": false,
         "INVITATION_CREATE_MISSING_USER": false,
         "INVITATION_DISABLE_MULTIPLE_ROLES": false,
-        "ATTACHMENT_LINK_MAX_AGE": 3600.0,
-        "EMAIL_CHANGE_MAX_AGE": 86400.0,
+        "ATTACHMENT_LINK_MAX_AGE": 3600,
+        "EMAIL_CHANGE_MAX_AGE": 86400,
         "HOMEPORT_URL": "https://example.com/",
         "MASTERMIND_URL": "",
         "ENABLE_GEOIP": true,
@@ -151,7 +156,10 @@
         "FULL_PAGE_TITLE": "Waldur | Cloud Service Management",
         "INVITATION_CIVIL_NUMBER_LABEL": "",
         "INVITATION_CIVIL_NUMBER_HELP_TEXT": "Must start with a country prefix ie EE34501234215",
-        "INVITATION_TAX_NUMBER_LABEL": ""
+        "INVITATION_TAX_NUMBER_LABEL": "",
+        "LOCAL_IDP_NAME": "Local DB",
+        "LOCAL_IDP_LABEL": "Local DB",
+        "LOCAL_IDP_MANAGEMENT_URL": ""
       },
       "allOf": [
         {
@@ -162,6 +170,17 @@
     "WALDUR_AUTH_SOCIAL": {
       "title": "Waldur Auth Social",
       "default": {
+        "TARA_USER_PROTECTED_FIELDS": [
+          "full_name"
+        ],
+        "KEYCLOAK_USER_PROTECTED_FIELDS": [
+          "full_name",
+          "email"
+        ],
+        "EDUTEAMS_USER_PROTECTED_FIELDS": [
+          "full_name",
+          "email"
+        ],
         "REMOTE_EDUTEAMS_ENABLED": false,
         "SMARTIDEE_SECRET": "",
         "SMARTIDEE_CLIENT_ID": "",
@@ -169,6 +188,7 @@
         "TARA_CLIENT_ID": "",
         "TARA_SANDBOX": true,
         "TARA_LABEL": "Riigi Autentimisteenus",
+        "TARA_MANAGEMENT_URL": "",
         "KEYCLOAK_LABEL": "Keycloak",
         "KEYCLOAK_CLIENT_ID": "",
         "KEYCLOAK_SECRET": "",
@@ -176,12 +196,14 @@
         "KEYCLOAK_TOKEN_URL": "",
         "KEYCLOAK_USERINFO_URL": "",
         "KEYCLOAK_VERIFY_SSL": true,
+        "KEYCLOAK_MANAGEMENT_URL": "http://localhost:8080/auth/realms/waldur/account/#/personal-info",
         "EDUTEAMS_LABEL": "eduTEAMS",
         "EDUTEAMS_CLIENT_ID": "",
         "EDUTEAMS_SECRET": "",
         "EDUTEAMS_AUTH_URL": "https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization",
         "EDUTEAMS_TOKEN_URL": "https://proxy.acc.eduteams.org/OIDC/token",
         "EDUTEAMS_USERINFO_URL": "https://proxy.acc.eduteams.org/OIDC/userinfo",
+        "EDUTEAMS_MANAGEMENT_URL": "",
         "REMOTE_EDUTEAMS_TOKEN_URL": "https://proxy.acc.researcher-access.org/OIDC/token",
         "REMOTE_EDUTEAMS_REFRESH_TOKEN": "",
         "REMOTE_EDUTEAMS_USERINFO_URL": "https://proxy.acc.researcher-access.org/api/userinfo",
@@ -244,6 +266,7 @@
         "INTERNAL_CUSTOMER_UUID": "",
         "EXTERNAL_CUSTOMER_UUID": "",
         "INTERNAL_LIMITS": {},
+        "EXTERNAL_LIMITS": {},
         "OFFERING_UUID": "",
         "PLAN_UUID": ""
       },
@@ -395,11 +418,12 @@
           "OpenStackTenant.Snapshot": 4
         },
         "ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS": true,
-        "REQUIRE_AVAILABILITY_ZONE": false
+        "REQUIRE_AVAILABILITY_ZONE": false,
+        "ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION": false
       },
       "allOf": [
         {
-          "$ref": "#/definitions/WaldurOpenstackTenat"
+          "$ref": "#/definitions/WaldurOpenstackTenant"
         }
       ]
     },
@@ -427,6 +451,31 @@
         }
       ]
     },
+    "WALDUR_MARKETPLACE_SCRIPT": {
+      "title": "Waldur Marketplace Script",
+      "default": {
+        "DOCKER_SCRIPT_DIR": null,
+        "SCRIPT_RUN_MODE": "docker",
+        "DOCKER_CLIENT": {
+          "base_url": "unix://var/run/docker.sock"
+        },
+        "DOCKER_RUN_OPTIONS": {
+          "mem_limit": "64m"
+        },
+        "DOCKER_IMAGES": {
+          "python": "python:3.8-alpine",
+          "shell": "alpine:3"
+        },
+        "K8S_NAMESPACE": "default",
+        "K8S_CONFIG_PATH": "~/.kube/config",
+        "K8S_JOB_TIMEOUT": 1800
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurMarketplaceScript"
+        }
+      ]
+    },
     "WALDUR_AUTH_SAML2": {
       "title": "Waldur Auth Saml2",
       "default": {
@@ -439,7 +488,7 @@
         "DISCOVERY_SERVICE_LABEL": null,
         "NAME": "saml2",
         "XMLSEC_BINARY": "/usr/bin/xmlsec1",
-        "ATTRIBUTE_MAP_DIR": "",
+        "ATTRIBUTE_MAP_DIR": "/etc/waldur/saml2/attributemaps",
         "DEBUG": false,
         "IDP_METADATA_LOCAL": [],
         "IDP_METADATA_REMOTE": [],
@@ -464,7 +513,8 @@
         "REGISTRATION_INSTANT": "2017-01-01T00:00:00",
         "ENABLE_SINGLE_LOGOUT": false,
         "ALLOW_TO_SELECT_IDENTITY_PROVIDER": true,
-        "DEFAULT_BINDING": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+        "DEFAULT_BINDING": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+        "MANAGEMENT_URL": ""
       },
       "allOf": [
         {
@@ -498,7 +548,7 @@
     },
     "IMPORT_EXPORT_USE_TRANSACTIONS": {
       "title": "Import Export Use Transactions",
-      "description": "Controls if resource importing should use database transactions. Using transactions makes imports safer as a failure during import won\u2019t import only part of the data set.",
+      "description": "Controls if resource importing should use database transactions. Using transactions makes imports safer as a failure during import won’t import only part of the data set.",
       "default": true,
       "type": "boolean"
     },
@@ -660,6 +710,11 @@
           "description": "Relative path to image rendered at the top of sidebar menu in HomePort.",
           "type": "string"
         },
+        "SIDEBAR_LOGO_MOBILE": {
+          "title": "Sidebar Logo Mobile",
+          "description": "Relative path to image rendered at the top of mobile sidebar menu in HomePort.",
+          "type": "string"
+        },
         "POWERED_BY_LOGO": {
           "title": "Powered By Logo",
           "description": "Relative path to image rendered at the bottom of login menu in HomePort.",
@@ -685,6 +740,15 @@
           "title": "Hero Link Url",
           "description": "Link URL in hero section of HomePort landing page.",
           "type": "string"
+        },
+        "LOCAL_IDP_PROTECTED_FIELDS": {
+          "title": "Local Idp Protected Fields",
+          "description": "The list of protected fields for local IdP.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "EXTENSIONS_AUTOREGISTER": {
           "title": "Extensions Autoregister",
@@ -713,21 +777,21 @@
         "TOKEN_LIFETIME": {
           "title": "Token Lifetime",
           "description": "Defines for how long user token should remain valid if there was no action from user.",
-          "default": 3600.0,
+          "default": 3600,
           "type": "number",
           "format": "time-delta"
         },
         "INVITATION_LIFETIME": {
           "title": "Invitation Lifetime",
           "description": "Defines for how long invitation remains valid.",
-          "default": 604800.0,
+          "default": 604800,
           "type": "number",
           "format": "time-delta"
         },
         "GROUP_INVITATION_LIFETIME": {
           "title": "Group Invitation Lifetime",
           "description": "Defines for how long group invitation remains valid.",
-          "default": 604800.0,
+          "default": 604800,
           "type": "number",
           "format": "time-delta"
         },
@@ -811,14 +875,15 @@
         },
         "NOTIFICATIONS_PROFILE_CHANGES": {
           "title": "Notifications Profile Changes",
-          "description": "Allows enabling notifications about profile changes of organization owners.",
+          "description": "Configure notifications about profile changes of organization owners.",
           "default": {
-            "ENABLED": true,
             "FIELDS": [
               "email",
               "phone_number",
               "job_title"
-            ]
+            ],
+            "ENABLE_OPERATOR_OWNER_NOTIFICATIONS": false,
+            "OPERATOR_NOTIFICATION_EMAILS": []
           },
           "type": "object"
         },
@@ -849,7 +914,7 @@
         "LOGGING_REPORT_INTERVAL": {
           "title": "Logging Report Interval",
           "description": "Files older that specified interval are filtered out.",
-          "default": 604800.0,
+          "default": 604800,
           "type": "number",
           "format": "time-delta"
         },
@@ -880,14 +945,14 @@
         "ATTACHMENT_LINK_MAX_AGE": {
           "title": "Attachment Link Max Age",
           "description": "Max age of secure token for media download.",
-          "default": 3600.0,
+          "default": 3600,
           "type": "number",
           "format": "time-delta"
         },
         "EMAIL_CHANGE_MAX_AGE": {
           "title": "Email Change Max Age",
           "description": "Max age of change email request.",
-          "default": 86400.0,
+          "default": 86400,
           "type": "number",
           "format": "time-delta"
         },
@@ -968,6 +1033,24 @@
           "description": "Custom label for tax number field in invitation creation dialog.",
           "default": "",
           "type": "string"
+        },
+        "LOCAL_IDP_NAME": {
+          "title": "Local Idp Name",
+          "description": "The name of local auth.",
+          "default": "Local DB",
+          "type": "string"
+        },
+        "LOCAL_IDP_LABEL": {
+          "title": "Local Idp Label",
+          "description": "The label of local auth.",
+          "default": "Local DB",
+          "type": "string"
+        },
+        "LOCAL_IDP_MANAGEMENT_URL": {
+          "title": "Local Idp Management Url",
+          "description": "The URL for management of local user details.",
+          "default": "",
+          "type": "string"
         }
       }
     },
@@ -975,6 +1058,41 @@
       "title": "WaldurAuthSocial",
       "type": "object",
       "properties": {
+        "TARA_USER_PROTECTED_FIELDS": {
+          "title": "Tara User Protected Fields",
+          "description": "The list of protected fields for TARA IdP.",
+          "default": [
+            "full_name"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "KEYCLOAK_USER_PROTECTED_FIELDS": {
+          "title": "Keycloak User Protected Fields",
+          "description": "The list of protected fields for Keycloak IdP.",
+          "default": [
+            "full_name",
+            "email"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "EDUTEAMS_USER_PROTECTED_FIELDS": {
+          "title": "Eduteams User Protected Fields",
+          "description": "The list of protected fields for EDUTEAMS IdP.",
+          "default": [
+            "full_name",
+            "email"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "REMOTE_EDUTEAMS_ENABLED": {
           "title": "Remote Eduteams Enabled",
           "description": "Enable remote eduTEAMS extension.",
@@ -1015,6 +1133,12 @@
           "title": "Tara Label",
           "description": "You may set it to eIDAS, SmartID or MobileID make it more clear to the user which exact identity provider is configured or preferred for service provider.",
           "default": "Riigi Autentimisteenus",
+          "type": "string"
+        },
+        "TARA_MANAGEMENT_URL": {
+          "title": "Tara Management Url",
+          "description": "The endpoint for user details management.",
+          "default": "",
           "type": "string"
         },
         "KEYCLOAK_LABEL": {
@@ -1059,6 +1183,12 @@
           "default": true,
           "type": "boolean"
         },
+        "KEYCLOAK_MANAGEMENT_URL": {
+          "title": "Keycloak Management Url",
+          "description": "The endpoint for user details management.",
+          "default": "http://localhost:8080/auth/realms/waldur/account/#/personal-info",
+          "type": "string"
+        },
         "EDUTEAMS_LABEL": {
           "title": "Eduteams Label",
           "description": "Label is used by HomePort for rendering login button.",
@@ -1093,6 +1223,12 @@
           "title": "Eduteams Userinfo Url",
           "description": "The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.",
           "default": "https://proxy.acc.eduteams.org/OIDC/userinfo",
+          "type": "string"
+        },
+        "EDUTEAMS_MANAGEMENT_URL": {
+          "title": "Eduteams Management Url",
+          "description": "The endpoint for user details management.",
+          "default": "",
           "type": "string"
         },
         "REMOTE_EDUTEAMS_TOKEN_URL": {
@@ -1308,6 +1444,12 @@
           "default": {},
           "type": "object"
         },
+        "EXTERNAL_LIMITS": {
+          "title": "External Limits",
+          "description": "Overrided default values for SLURM offering to be created for users belonging to external organization.",
+          "default": {},
+          "type": "object"
+        },
         "OFFERING_UUID": {
           "title": "Offering Uuid",
           "description": "UUID of a Waldur SLURM offering, which will be used for creating allocations for users",
@@ -1510,8 +1652,8 @@
         }
       }
     },
-    "WaldurOpenstackTenat": {
-      "title": "WaldurOpenstackTenat",
+    "WaldurOpenstackTenant": {
+      "title": "WaldurOpenstackTenant",
       "type": "object",
       "properties": {
         "MAX_CONCURRENT_PROVISION": {
@@ -1533,6 +1675,12 @@
         "REQUIRE_AVAILABILITY_ZONE": {
           "title": "Require Availability Zone",
           "description": "If true, specification of availability zone during provisioning will become mandatory",
+          "default": false,
+          "type": "boolean"
+        },
+        "ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION": {
+          "title": "Allow Direct External Network Connection",
+          "description": "If true, allow connecting of Instances directly to external networks",
           "default": false,
           "type": "boolean"
         }
@@ -1614,6 +1762,66 @@
         }
       }
     },
+    "WaldurMarketplaceScript": {
+      "title": "WaldurMarketplaceScript",
+      "type": "object",
+      "properties": {
+        "DOCKER_SCRIPT_DIR": {
+          "title": "Docker Script Dir",
+          "description": "Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see <https://github.com/docker/for-mac/issues/1532>",
+          "type": "string"
+        },
+        "SCRIPT_RUN_MODE": {
+          "title": "Script Run Mode",
+          "description": "Type of jobs deployment. Valid values: \"docker\" for simple docker deployment, \"k8s\" for Kubernetes-based one",
+          "default": "docker",
+          "type": "string"
+        },
+        "DOCKER_CLIENT": {
+          "title": "Docker Client",
+          "description": "Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>",
+          "default": {
+            "base_url": "unix://var/run/docker.sock"
+          },
+          "type": "object"
+        },
+        "DOCKER_RUN_OPTIONS": {
+          "title": "Docker Run Options",
+          "description": "Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>",
+          "default": {
+            "mem_limit": "64m"
+          },
+          "type": "object"
+        },
+        "DOCKER_IMAGES": {
+          "title": "Docker Images",
+          "description": "Key is command to execute script, value is image name.",
+          "default": {
+            "python": "python:3.8-alpine",
+            "shell": "alpine:3"
+          },
+          "type": "object"
+        },
+        "K8S_NAMESPACE": {
+          "title": "K8S Namespace",
+          "description": "Kubernetes namespace where jobs will be executed",
+          "default": "default",
+          "type": "string"
+        },
+        "K8S_CONFIG_PATH": {
+          "title": "K8S Config Path",
+          "description": "Path to Kubernetes configuration file",
+          "default": "~/.kube/config",
+          "type": "string"
+        },
+        "K8S_JOB_TIMEOUT": {
+          "title": "K8S Job Timeout",
+          "description": "Timeout for execution of one Kubernetes job in seconds",
+          "default": 1800,
+          "type": "integer"
+        }
+      }
+    },
     "WaldurAuthSAML2": {
       "title": "WaldurAuthSAML2",
       "type": "object",
@@ -1664,7 +1872,7 @@
         "ATTRIBUTE_MAP_DIR": {
           "title": "Attribute Map Dir",
           "description": "Directory with attribute mapping",
-          "default": "",
+          "default": "/etc/waldur/saml2/attributemaps",
           "type": "string"
         },
         "DEBUG": {
@@ -1807,6 +2015,12 @@
         "DEFAULT_BINDING": {
           "title": "Default Binding",
           "default": "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+          "type": "string"
+        },
+        "MANAGEMENT_URL": {
+          "title": "Management Url",
+          "description": "The endpoint for user details management.",
+          "default": "",
           "type": "string"
         }
       }
