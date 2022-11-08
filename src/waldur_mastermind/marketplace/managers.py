@@ -154,6 +154,38 @@ class PlanQuerySet(django_models.QuerySet):
             | Q(divisions__isnull=False, divisions=customer.division)
         )
 
+    def filter_by_plan_availability_for_user(self, user):
+        queryset = self.filter(
+            offering__state__in=(
+                models.Offering.States.ACTIVE,
+                models.Offering.States.PAUSED,
+            ),
+            archived=False,
+        )
+
+        if user.is_anonymous:
+            if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_PLANS']:
+                return self.none()
+            else:
+                return queryset.filter(offering__shared=True)
+
+        divisions = user.divisions
+
+        connected_customers = structure_models.Customer.objects.filter(
+            permissions__user=user, permissions__is_active=True
+        )
+        connected_projects = structure_models.Project.available_objects.filter(
+            permissions__user=user, permissions__is_active=True
+        )
+        q1 = Q(divisions__isnull=True) | Q(divisions__in=divisions)
+        q2 = (
+            Q(offering__customer__in=connected_customers)
+            | Q(offering__project__in=connected_projects)
+            | Q(offering__permissions__user=user, offering__permissions__is_active=True)
+        )
+        q3 = Q(offering__shared=True)
+        return queryset.filter(q3 | (q2 & q1)).distinct()
+
 
 class PlanManager(MixinManager):
     def get_queryset(self):

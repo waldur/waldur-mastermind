@@ -36,6 +36,11 @@ def register_in(router):
         basename='marketplace-plan-component',
     )
     router.register(
+        r'marketplace-public-plans',
+        views.PublicPlanViewSet,
+        basename='marketplace-public-plan',
+    )
+    router.register(
         r'marketplace-screenshots',
         views.ScreenshotViewSet,
         basename='marketplace-screenshot',
