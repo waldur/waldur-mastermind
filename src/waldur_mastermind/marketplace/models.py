@@ -457,7 +457,7 @@ class Offering(
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-offering'
+        return 'marketplace-provider-offering'
 
     @cached_property
     def component_factors(self):

@@ -209,7 +209,7 @@ class OfferingActivateRequestSerializer(serializers.HyperlinkedModelSerializer):
             },
             'offering': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
             'reviewed_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
             'requested_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},

@@ -196,7 +196,7 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
 
 class OfferingFilterMixin(django_filters.FilterSet):
     offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail',
+        view_name='marketplace-provider-offering-detail',
         field_name='offering__uuid',
     )
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')

@@ -277,7 +277,7 @@ def validate_offering_update(offering):
         )
 
 
-class OfferingViewSet(
+class ProviderOfferingViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
     BaseMarketplaceView,
@@ -322,7 +322,7 @@ class OfferingViewSet(
         )
 
     def get_queryset(self):
-        queryset = super(OfferingViewSet, self).get_queryset()
+        queryset = super().get_queryset()
 
         # add total_customers
         if self._check_extra_field_needed('total_customers'):
@@ -470,7 +470,7 @@ class OfferingViewSet(
         customer = serializer.validated_data['customer']
         structure_utils.check_customer_blocked_or_archived(customer)
 
-        super(OfferingViewSet, self).perform_create(serializer)
+        super().perform_create(serializer)
 
     @action(detail=True, methods=['get'])
     def importable_resources(self, request, uuid=None):

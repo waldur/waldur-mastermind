@@ -371,7 +371,7 @@ class PlanDetailsSerializer(BasePlanSerializer):
             },
             'offering': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
         }
 
@@ -457,7 +457,7 @@ class ScreenshotSerializer(
             'url': {'lookup_field': 'uuid'},
             'offering': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
         }
 
@@ -853,7 +853,10 @@ class OfferingDetailsSerializer(
             'citation_count',
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-provider-offering-detail',
+            },
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             'category': {
                 'lookup_field': 'uuid',
@@ -1542,7 +1545,7 @@ class OfferingPermissionSerializer(
                 'read_only': True,
             },
             'offering': {
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
                 'lookup_field': 'uuid',
                 'queryset': models.Offering.objects.all(),
             },
@@ -1645,7 +1648,7 @@ class BaseItemSerializer(
         extra_kwargs = {
             'offering': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
             'plan': {
                 'lookup_field': 'uuid',
@@ -2643,7 +2646,7 @@ class OfferingFileSerializer(
             url={'lookup_field': 'uuid'},
             offering={
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
         )
 
@@ -2678,7 +2681,7 @@ class OfferingReferralSerializer(
             },
             offering={
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
         )
 
@@ -2705,7 +2708,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = dict(
             offering={
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-offering-detail',
+                'view_name': 'marketplace-provider-offering-detail',
             },
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'},
         )
