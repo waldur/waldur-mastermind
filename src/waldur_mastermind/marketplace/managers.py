@@ -53,6 +53,12 @@ class OfferingQuerySet(django_models.QuerySet):
             else:
                 return queryset.filter(shared=True)
 
+        if user.is_staff or user.is_support:
+            plans = models.Plan.objects.filter(archived=False)
+            return queryset.filter(
+                Q(shared=True) | Q(plans__in=plans) | Q(parent__plans__in=plans)
+            ).distinct()
+
         # filtering by available plans
         divisions = user.divisions
         plans = models.Plan.objects.filter(
