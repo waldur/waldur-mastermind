@@ -27,7 +27,7 @@ class ProjectCreateRequestFilter(django_filters.FilterSet):
 class ResourceCreateRequestFilter(django_filters.FilterSet):
     state = core_filters.ReviewStateFilter()
     offering = core_filters.URLFilter(
-        view_name='marketplace-offering-detail',
+        view_name='marketplace-public-offering-detail',
         field_name='offering__uuid',
     )
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
