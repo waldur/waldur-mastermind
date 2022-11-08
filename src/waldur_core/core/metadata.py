@@ -654,6 +654,10 @@ class WaldurMarketplace(BaseModel):
         True,
         description='Allow anonymous users to see shared offerings in active, paused and archived states',
     )
+    ANONYMOUS_USER_CAN_VIEW_PLANS = Field(
+        True,
+        description='Allow anonymous users to see plans',
+    )
     NOTIFY_STAFF_ABOUT_APPROVALS = Field(
         False,
         description='If true, users with staff role are notified when request for order approval is generated',

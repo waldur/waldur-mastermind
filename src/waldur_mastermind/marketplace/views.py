@@ -999,6 +999,18 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
             )
 
 
+class PublicPlanViewSet(rf_viewsets.ReadOnlyModelViewSet):
+    queryset = models.Plan.objects.filter()
+    serializer_class = serializers.PlanDetailsSerializer
+    filterset_class = filters.PlanFilter
+    permission_classes = []
+    lookup_field = 'uuid'
+
+    def get_queryset(self):
+        user = self.request.user
+        return self.queryset.filter_by_plan_availability_for_user(user)
+
+
 class ScreenshotViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,

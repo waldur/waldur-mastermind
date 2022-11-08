@@ -280,7 +280,10 @@ class BasePlanSerializer(
         )
         read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-public-plan-detail',
+            },
         }
 
     def get_fields(self):
@@ -362,7 +365,10 @@ class PlanDetailsSerializer(BasePlanSerializer):
         fields = BasePlanSerializer.Meta.fields + ('offering',)
         protected_fields = ('offering',)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-public-plan-detail',
+            },
             'offering': {
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-offering-detail',
@@ -1641,7 +1647,10 @@ class BaseItemSerializer(
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-offering-detail',
             },
-            'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+            'plan': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-plan-detail',
+            },
         }
 
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
