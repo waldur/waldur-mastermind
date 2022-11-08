@@ -96,7 +96,7 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
         self.remote_offering['components'][0]['billing_type'] = new_billing_type
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-offerings/{self.offering.backend_id}/',
+            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
             json=self.remote_offering,
         )
         self.task.pull(self.offering)
@@ -117,7 +117,7 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
         }
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-offerings/{self.offering.backend_id}/',
+            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
             json=self.remote_offering,
         )
 
@@ -163,7 +163,7 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
 
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-offerings/{self.offering.backend_id}/',
+            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
             json=self.remote_offering,
         )
 
@@ -193,7 +193,7 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
         remote_plan['uuid'] = new_plan_uuid
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-offerings/{self.offering.backend_id}/',
+            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
             json=self.remote_offering,
         )
 

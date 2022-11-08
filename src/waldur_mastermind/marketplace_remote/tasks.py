@@ -42,7 +42,9 @@ OrderItemInvertStates = {key: val for val, key in models.OrderItem.States.CHOICE
 class OfferingPullTask(BackgroundPullTask):
     def pull(self, local_offering: models.Offering):
         client = get_client_for_offering(local_offering)
-        remote_offering = client.get_marketplace_offering(local_offering.backend_id)
+        remote_offering = client.get_marketplace_public_offering(
+            local_offering.backend_id
+        )
         pull_fields(OFFERING_FIELDS, local_offering, remote_offering)
         utils.import_offering_thumbnail(local_offering, remote_offering)
         self.sync_offering_components(local_offering, remote_offering)

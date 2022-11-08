@@ -66,7 +66,7 @@ class OfferingsListView(RemoteView):
             'field': ['uuid', 'name', 'type', 'state', 'category_title'],
         }
         try:
-            remote_offerings = client.list_marketplace_offerings(params)
+            remote_offerings = client.list_marketplace_public_offerings(params)
         except WaldurClientException as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
@@ -101,7 +101,9 @@ class OfferingCreateView(RemoteView):
         local_category = models.Category.objects.get(uuid=local_category_uuid)
 
         try:
-            remote_offering = client.get_marketplace_offering(remote_offering_uuid)
+            remote_offering = client.get_marketplace_public_offering(
+                remote_offering_uuid
+            )
         except WaldurClientException as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 

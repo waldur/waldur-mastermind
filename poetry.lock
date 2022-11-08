@@ -2299,7 +2299,7 @@ requests = ">=2.6.0"
 type = "git"
 url = "https://github.com/waldur/python-waldur-client"
 reference = "master"
-resolved_reference = "3270b5f3d92c0ef53bddc0b10cfc5ac742b18042"
+resolved_reference = "47bd07e97f53dcd78891d640341ba293771832e1"
 
 [[package]]
 name = "pytz"
