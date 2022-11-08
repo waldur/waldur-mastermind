@@ -15,17 +15,6 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()
         self.category_url = factories.CategoryFactory.get_url(self.category)
-        self.share_offering = factories.OfferingFactory(
-            shared=True, category=self.category, state=models.Offering.States.ACTIVE
-        )
-        self.private_offering = factories.OfferingFactory(
-            shared=False,
-            category=self.category,
-            state=models.Offering.States.ACTIVE,
-            customer=self.fixture.customer,
-            project=self.fixture.project,
-        )
-        self.division = structure_factories.DivisionFactory()
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_category_should_be_visible_to_all_authenticated_users(self, user):
@@ -48,6 +37,25 @@ class CategoryGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+
+
+@ddt
+class CategoryOfferingCountTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.category = factories.CategoryFactory()
+        self.category_url = factories.CategoryFactory.get_url(self.category)
+        self.share_offering = factories.OfferingFactory(
+            shared=True, category=self.category, state=models.Offering.States.ACTIVE
+        )
+        self.private_offering = factories.OfferingFactory(
+            shared=False,
+            category=self.category,
+            state=models.Offering.States.ACTIVE,
+            customer=self.fixture.customer,
+            project=self.fixture.project,
+        )
+        self.division = structure_factories.DivisionFactory()
 
     def check_counts(self, offering_count):
         response = self.client.get(self.category_url)
@@ -82,17 +90,17 @@ class CategoryGetTest(test.APITransactionTestCase):
         )
         self.check_counts(offering_count)
 
-    @data('staff', 'user')
-    def test_counts_for_unrelated_user(self, user):
+    @data('staff', 'global_support')
+    def test_counts_for_staff(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
 
         self.check_counts(offering_count=1)
-        self._create_plan(offering_count=1)
-        self._match_plan_with_division(offering_count=1)
-        self._match_customer_with_division(offering_count=1)
-        self._match_project_with_division(offering_count=1)
-        self._create_offering_for_owner(offering_count=1)
+        self._create_plan(offering_count=2)
+        self._match_plan_with_division(offering_count=2)
+        self._match_customer_with_division(offering_count=2)
+        self._match_project_with_division(offering_count=2)
+        self._create_offering_for_owner(offering_count=2)
 
     @data('owner', 'admin', 'manager')
     def test_counts_for_authorized_user(self, user):

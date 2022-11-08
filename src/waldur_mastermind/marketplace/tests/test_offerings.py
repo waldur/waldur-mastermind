@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import uuid
-from unittest import mock, skip
+from unittest import mock
 
 import pkg_resources
 from ddt import data, ddt
@@ -1754,49 +1754,6 @@ class OfferingQuotaTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingCountTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.customer = self.fixture.customer
-        self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.category = factories.CategoryFactory()
-        self.url = factories.CategoryFactory.get_url(self.category)
-
-    def assert_count(self, user, value, shared=False, project=None):
-        factories.OfferingFactory.create_batch(
-            2,
-            customer=self.customer,
-            category=self.category,
-            shared=shared,
-            state=models.Offering.States.ACTIVE,
-            project=project,
-        )
-        self.client.force_authenticate(user)
-        response = self.client.get(self.url)
-        self.assertEqual(value, response.data['offering_count'])
-
-    @skip('Temporary disable till counters are fixed')
-    @data('staff', 'owner', 'admin', 'manager')
-    def test_authorized_user_can_see_private_offering(self, user):
-        self.assert_count(getattr(self.fixture, user), 2, project=self.fixture.project)
-
-    @data('owner', 'admin', 'manager')
-    def test_unauthorized_user_can_not_see_private_offering(self, user):
-        self.assert_count(
-            getattr(fixtures.ProjectFixture(), user), 0, project=self.fixture.project
-        )
-
-    @skip('Temporary disable till counters are fixed')
-    @data('owner', 'admin', 'manager')
-    def test_other_user_can_not_see_public_offering(self, user):
-        self.assert_count(getattr(fixtures.ProjectFixture(), user), 0, shared=True)
-
-    @data('staff', 'global_support')
-    def test_staff_can_see_offerings_that_are_not_relevant_to_him(self, user):
-        self.assert_count(getattr(fixtures.ProjectFixture(), user), 2, shared=True)
-
-
-@ddt
 class OfferingStateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -1947,7 +1904,7 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         for offering in response.data:
             self.assertIn('scope', offering)
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager', None)
+    @data('owner', 'user', 'customer_support', 'admin', 'manager', None)
     def test_private_offerings_are_hidden_and_shared_offering_visible(self, user):
         if user:
             user = getattr(self.fixture, user)
@@ -1966,6 +1923,26 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
 
         self.assertTrue(shared_exists)
         self.assertFalse(private_exists)
+
+    @data('staff', 'global_support')
+    def test_private_offerings_and_shared_offering_are_visible(self, user):
+        if user:
+            user = getattr(self.fixture, user)
+            self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        shared_exists = None
+        private_exists = None
+
+        for offering in response.data:
+            if offering['shared']:
+                shared_exists = True
+            else:
+                private_exists = True
+
+        self.assertTrue(shared_exists)
+        self.assertTrue(private_exists)
 
     @data('owner', 'customer_support', 'admin', 'manager')
     def test_private_offerings_are_visible_for_related_user(self, user):
