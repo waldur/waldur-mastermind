@@ -95,7 +95,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -122,7 +122,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -150,7 +150,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {'schedules': []},
@@ -167,7 +167,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -191,7 +191,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -215,7 +215,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -254,7 +254,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -282,7 +282,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -309,7 +309,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
                         self.offering
                     ),
                     'attributes': {
@@ -357,7 +357,9 @@ class OrderCreateTest(test.APITransactionTestCase):
             'project': structure_factories.ProjectFactory.get_url(self.project),
             'items': [
                 {
-                    'offering': marketplace_factories.OfferingFactory.get_url(offering),
+                    'offering': marketplace_factories.OfferingFactory.get_public_url(
+                        offering
+                    ),
                     'attributes': {},
                 },
             ],

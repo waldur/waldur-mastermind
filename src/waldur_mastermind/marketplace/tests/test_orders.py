@@ -95,7 +95,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': {},
                 },
@@ -115,7 +115,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': {},
                 },
@@ -136,7 +136,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': {},
                 },
@@ -153,7 +153,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(),
+                    'offering': factories.OfferingFactory.get_public_url(),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': {},
                 },
@@ -171,7 +171,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': {},
                 },
@@ -195,7 +195,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': attributes,
                 },
@@ -218,7 +218,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'attributes': attributes,
                 },
@@ -251,7 +251,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'limits': limits,
                     'attributes': {},
@@ -287,7 +287,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'plan': factories.PlanFactory.get_url(plan),
                     'limits': limits,
                     'attributes': {},
@@ -315,7 +315,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'attributes': {},
                     'accepting_terms_of_service': True,
                 },
@@ -332,7 +332,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'attributes': {},
                 },
             ]
@@ -351,7 +351,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'attributes': {},
                 },
             ]
@@ -369,7 +369,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         add_payload = {
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'attributes': {},
                 },
             ]
@@ -423,7 +423,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'project': structure_factories.ProjectFactory.get_url(self.project),
             'items': [
                 {
-                    'offering': factories.OfferingFactory.get_url(offering),
+                    'offering': factories.OfferingFactory.get_public_url(offering),
                     'attributes': {},
                 },
             ],

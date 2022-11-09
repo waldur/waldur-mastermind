@@ -1648,7 +1648,7 @@ class BaseItemSerializer(
         extra_kwargs = {
             'offering': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-provider-offering-detail',
+                'view_name': 'marketplace-public-offering-detail',
             },
             'plan': {
                 'lookup_field': 'uuid',
