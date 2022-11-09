@@ -60,7 +60,7 @@ class CartSubmitTest(test.APITransactionTestCase):
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(self.offering),
+                'offering': factories.OfferingFactory.get_public_url(self.offering),
             },
         )
         response = self.submit(self.fixture.project)
@@ -83,7 +83,7 @@ class CartSubmitTest(test.APITransactionTestCase):
             )
 
         return {
-            'offering': factories.OfferingFactory.get_url(self.offering),
+            'offering': factories.OfferingFactory.get_public_url(self.offering),
             'plan': factories.PlanFactory.get_url(plan),
             'project': structure_factories.ProjectFactory.get_url(project),
             'limits': limits,
@@ -129,7 +129,7 @@ class CartSubmitTest(test.APITransactionTestCase):
             )
 
         payload = {
-            'offering': factories.OfferingFactory.get_url(self.offering),
+            'offering': factories.OfferingFactory.get_public_url(self.offering),
             'plan': factories.PlanFactory.get_url(plan),
             'limits': limits,
         }
@@ -229,7 +229,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(private_offering),
+                'offering': factories.OfferingFactory.get_public_url(private_offering),
                 'project': structure_factories.ProjectFactory.get_url(
                     consumer_fixture.project
                 ),
@@ -240,7 +240,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(public_offering),
+                'offering': factories.OfferingFactory.get_public_url(public_offering),
                 'project': structure_factories.ProjectFactory.get_url(
                     consumer_fixture.project
                 ),
@@ -267,7 +267,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(offering),
+                'offering': factories.OfferingFactory.get_public_url(offering),
                 'project': structure_factories.ProjectFactory.get_url(fixture.project),
                 'attributes': {'name': 'test'},
             },
@@ -331,7 +331,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(public_offering),
+                'offering': factories.OfferingFactory.get_public_url(public_offering),
                 'project': structure_factories.ProjectFactory.get_url(
                     consumer_fixture.project
                 ),
@@ -456,7 +456,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
         response = self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(self.offering),
+                'offering': factories.OfferingFactory.get_public_url(self.offering),
                 'project': structure_factories.ProjectFactory.get_url(
                     self.fixture.project
                 ),
@@ -474,7 +474,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
         response = self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(self.offering),
+                'offering': factories.OfferingFactory.get_public_url(self.offering),
                 'project': structure_factories.ProjectFactory.get_url(
                     self.fixture.project
                 ),
@@ -490,7 +490,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
         self.client.post(
             factories.CartItemFactory.get_list_url(),
             {
-                'offering': factories.OfferingFactory.get_url(self.offering),
+                'offering': factories.OfferingFactory.get_public_url(self.offering),
                 'project': structure_factories.ProjectFactory.get_url(
                     self.fixture.project
                 ),

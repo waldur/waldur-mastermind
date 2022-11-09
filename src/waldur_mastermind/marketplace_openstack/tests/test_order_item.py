@@ -168,7 +168,9 @@ class TenantCreateTest(BaseOpenStackTest):
 
     def create_order(self, add_attributes=None, user='staff', limits=None):
         project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
-        offering_url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        offering_url = marketplace_factories.OfferingFactory.get_public_url(
+            self.offering
+        )
         plan_url = marketplace_factories.PlanFactory.get_url(self.plan)
 
         attributes = dict(

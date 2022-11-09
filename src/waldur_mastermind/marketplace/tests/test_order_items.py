@@ -103,7 +103,7 @@ class ItemCreateTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_create_item(self):
         url = factories.OrderItemFactory.get_list_url()
         payload = {
-            'offering': factories.OfferingFactory.get_url(self.offering),
+            'offering': factories.OfferingFactory.get_public_url(self.offering),
             'order': factories.OrderFactory.get_url(self.order),
         }
         response = self.client.post(url, payload)
@@ -128,7 +128,7 @@ class ItemCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.OrderItemFactory.get_list_url()
         payload = {
-            'offering': factories.OfferingFactory.get_url(self.offering),
+            'offering': factories.OfferingFactory.get_public_url(self.offering),
             'order': factories.OrderFactory.get_url(self.order),
         }
         return self.client.post(url, payload)
@@ -173,7 +173,9 @@ class ItemUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.OrderItemFactory.get_url(self.order_item)
         payload = {
-            'offering': factories.OfferingFactory.get_url(self.order_item.offering),
+            'offering': factories.OfferingFactory.get_public_url(
+                self.order_item.offering
+            ),
             'plan': factories.PlanFactory.get_url(self.order_item.plan),
         }
         response = self.client.patch(url, payload)
