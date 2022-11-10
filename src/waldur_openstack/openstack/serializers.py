@@ -605,7 +605,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         initial='192.168.42.0/24',
         write_only=True,
     )
-    child_setttings = serializers.SerializerMethodField()
+    child_settings = serializers.SerializerMethodField()
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Tenant
@@ -618,7 +618,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
             'quotas',
             'subnet_cidr',
             'default_volume_type_name',
-            'child_setttings',
+            'child_settings',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -643,7 +643,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
     def validate_subnet_cidr(self, value):
         return validate_private_subnet_cidr(value)
 
-    def get_child_setttings(self, tenant):
+    def get_child_settings(self, tenant):
         try:
             return structure_models.ServiceSettings.objects.get(scope=tenant).uuid.hex
         except (
