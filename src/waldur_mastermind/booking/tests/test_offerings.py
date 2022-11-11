@@ -16,8 +16,11 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            customer=self.fixture.customer, type=PLUGIN_NAME
+            customer=self.fixture.customer,
+            type=PLUGIN_NAME,
+            state=marketplace_models.Offering.States.ACTIVE,
         )
+        marketplace_factories.PlanFactory(offering=self.offering)
         self.google_calendar = google_factories.GoogleCalendarFactory(
             offering=self.offering
         )
@@ -147,7 +150,16 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
 
     def test_marketplace_offering_serializer_has_calendar_info(self):
         self.client.force_authenticate(self.fixture.staff)
+
         url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('google_calendar_is_public' in response.data.keys())
+        self.assertEqual(
+            response.data['google_calendar_is_public'], self.google_calendar.public
+        )
+
+        url = marketplace_factories.OfferingFactory.get_public_url(self.offering)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue('google_calendar_is_public' in response.data.keys())
@@ -157,7 +169,16 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
 
     def test_marketplace_offering_serializer_has_google_calendar_link(self):
         self.client.force_authenticate(self.fixture.staff)
+
         url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('google_calendar_link' in response.data.keys())
+        self.assertEqual(
+            response.data['google_calendar_link'], self.google_calendar.http_link
+        )
+
+        url = marketplace_factories.OfferingFactory.get_public_url(self.offering)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue('google_calendar_link' in response.data.keys())

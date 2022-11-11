@@ -30,7 +30,7 @@ def register_in(router):
         basename='marketplace-offering-permission_log',
     )
     router.register(
-        r'marketplace-plans', views.PlanViewSet, basename='marketplace-plan'
+        r'marketplace-plans', views.ProviderPlanViewSet, basename='marketplace-plan'
     )
     router.register(
         r'marketplace-plan-components',

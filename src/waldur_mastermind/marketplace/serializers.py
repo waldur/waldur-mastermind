@@ -280,14 +280,11 @@ class BasePlanSerializer(
         )
         read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
-            'url': {
-                'lookup_field': 'uuid',
-                'view_name': 'marketplace-public-plan-detail',
-            },
+            'url': {'lookup_field': 'uuid'},
         }
 
     def get_fields(self):
-        fields = super(BasePlanSerializer, self).get_fields()
+        fields = super().get_fields()
         method = self.context['view'].request.method
         if method == 'GET':
             fields['prices'] = serializers.SerializerMethodField()
@@ -357,17 +354,29 @@ class BasePlanSerializer(
         return clean_html(value)
 
 
-class PlanDetailsSerializer(BasePlanSerializer):
-    """Serializer to display the plan in the REST API."""
+class BasePublicPlanSerializer(BasePlanSerializer):
+    """Serializer to display the public plan without offering info."""
 
     class Meta(BasePlanSerializer.Meta):
-        model = models.Plan
-        fields = BasePlanSerializer.Meta.fields + ('offering',)
+        view_name = 'marketplace-public-plan-detail'
+
+
+class BaseProviderPlanSerializer(BasePlanSerializer):
+    """Serializer to display the provider's plan without offering info."""
+
+    class Meta(BasePlanSerializer.Meta):
+        view_name = 'marketplace-plan-detail'
+
+
+class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
+    """Serializer to display the provider's plan in the REST API."""
+
+    class Meta(BaseProviderPlanSerializer.Meta):
+        fields = BaseProviderPlanSerializer.Meta.fields + ('offering',)
         protected_fields = ('offering',)
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-public-plan-detail',
             },
             'offering': {
                 'lookup_field': 'uuid',
@@ -382,6 +391,22 @@ class PlanDetailsSerializer(BasePlanSerializer):
             )
 
         return attrs
+
+
+class PublicPlanDetailsSerializer(BasePublicPlanSerializer):
+    """Serializer to display the public plan in the REST API."""
+
+    class Meta(BasePublicPlanSerializer.Meta):
+        fields = BasePublicPlanSerializer.Meta.fields + ('offering',)
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+            },
+            'offering': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-public-offering-detail',
+            },
+        }
 
 
 class PlanUsageRequestSerializer(serializers.Serializer):
@@ -769,7 +794,6 @@ class OfferingDetailsSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(
         required=False, default={'options': {}, 'order': []}
@@ -777,7 +801,7 @@ class OfferingDetailsSerializer(
     secret_options = serializers.JSONField(required=False)
     components = OfferingComponentSerializer(required=False, many=True)
     order_item_count = serializers.SerializerMethodField()
-    plans = BasePlanSerializer(many=True, required=False)
+    plans = BaseProviderPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(read_only=True)
@@ -855,7 +879,6 @@ class OfferingDetailsSerializer(
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-provider-offering-detail',
             },
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             'category': {
@@ -863,9 +886,10 @@ class OfferingDetailsSerializer(
                 'view_name': 'marketplace-category-detail',
             },
         }
+        view_name = 'marketplace-provider-offering-detail'
 
     def get_fields(self):
-        fields = super(OfferingDetailsSerializer, self).get_fields()
+        fields = super().get_fields()
         if (
             self.instance
             and not self.can_see_secret_options()
@@ -953,7 +977,7 @@ class OfferingDetailsSerializer(
         else:
             qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
 
-        return BasePlanSerializer(qs, many=True, context=self.context).data
+        return BaseProviderPlanSerializer(qs, many=True, context=self.context).data
 
     def get_attributes(self, offering):
         func = manager.get_change_attributes_for_view(offering.type)
@@ -964,16 +988,62 @@ class OfferingDetailsSerializer(
         return offering.attributes
 
 
+class ProviderOfferingDetailsSerializer(OfferingDetailsSerializer):
+    class Meta(OfferingDetailsSerializer.Meta):
+        view_name = 'marketplace-provider-offering-detail'
+
+    def get_filtered_plans(self, offering):
+        qs = (offering.parent or offering).plans.all()
+        customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
+        user = self.context['request'].user
+
+        if user.is_anonymous:
+            qs = qs.filter(divisions__isnull=True)
+        elif user.is_staff or user.is_support:
+            pass
+        elif customer_uuid:
+            qs = qs.filter(
+                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
+            ).filter_for_customer(customer_uuid)
+        else:
+            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
+
+        return BaseProviderPlanSerializer(qs, many=True, context=self.context).data
+
+
+class PublicOfferingDetailsSerializer(OfferingDetailsSerializer):
+    class Meta(OfferingDetailsSerializer.Meta):
+        view_name = 'marketplace-public-offering-detail'
+
+    def get_filtered_plans(self, offering):
+        qs = (offering.parent or offering).plans.all()
+        customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
+        user = self.context['request'].user
+
+        if user.is_anonymous:
+            qs = qs.filter(divisions__isnull=True)
+        elif user.is_staff or user.is_support:
+            pass
+        elif customer_uuid:
+            qs = qs.filter(
+                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
+            ).filter_for_customer(customer_uuid)
+        else:
+            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
+
+        return BasePublicPlanSerializer(qs, many=True, context=self.context).data
+
+
 class OfferingComponentLimitSerializer(serializers.Serializer):
     min = serializers.IntegerField(min_value=0)
     max = serializers.IntegerField(min_value=0)
     max_available_limit = serializers.IntegerField(min_value=0)
 
 
-class OfferingModifySerializer(OfferingDetailsSerializer):
-    class Meta(OfferingDetailsSerializer.Meta):
+class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
+    class Meta(ProviderOfferingDetailsSerializer.Meta):
         model = models.Offering
-        fields = OfferingDetailsSerializer.Meta.fields + ('limits',)
+        fields = ProviderOfferingDetailsSerializer.Meta.fields + ('limits',)
 
     limits = serializers.DictField(
         child=OfferingComponentLimitSerializer(), write_only=True, required=False
@@ -1236,8 +1306,8 @@ class OfferingPauseSerializer(serializers.ModelSerializer):
         fields = ['paused_reason']
 
 
-class PlanUpdateSerializer(BasePlanSerializer):
-    class Meta(BasePlanSerializer.Meta):
+class PlanUpdateSerializer(BaseProviderPlanSerializer):
+    class Meta(BaseProviderPlanSerializer.Meta):
         extra_kwargs = {
             'uuid': {'read_only': False},
         }

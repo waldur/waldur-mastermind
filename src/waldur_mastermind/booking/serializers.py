@@ -107,11 +107,11 @@ class BookingSerializer(serializers.Serializer):
             return order_item.order.created_by.full_name
 
 
-class OfferingSerializer(marketplace_serializers.OfferingDetailsSerializer):
+class OfferingSerializer(marketplace_serializers.PublicOfferingDetailsSerializer):
     googlecalendar = google_serializers.GoogleCalendarSerializer(required=False)
 
-    class Meta(marketplace_serializers.OfferingDetailsSerializer.Meta):
-        fields = marketplace_serializers.OfferingDetailsSerializer.Meta.fields + (
+    class Meta(marketplace_serializers.PublicOfferingDetailsSerializer.Meta):
+        fields = marketplace_serializers.PublicOfferingDetailsSerializer.Meta.fields + (
             'googlecalendar',
         )
         view_name = 'booking-offering-detail'
@@ -130,7 +130,13 @@ def add_google_calendar_info(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    add_google_calendar_info, sender=marketplace_serializers.OfferingDetailsSerializer
+    add_google_calendar_info,
+    sender=marketplace_serializers.ProviderOfferingDetailsSerializer,
+)
+
+core_signals.pre_serializer_fields.connect(
+    add_google_calendar_info,
+    sender=marketplace_serializers.PublicOfferingDetailsSerializer,
 )
 
 
@@ -147,6 +153,11 @@ def add_google_calendar_link(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=marketplace_serializers.OfferingDetailsSerializer,
+    sender=marketplace_serializers.ProviderOfferingDetailsSerializer,
+    receiver=add_google_calendar_link,
+)
+
+core_signals.pre_serializer_fields.connect(
+    sender=marketplace_serializers.PublicOfferingDetailsSerializer,
     receiver=add_google_calendar_link,
 )
