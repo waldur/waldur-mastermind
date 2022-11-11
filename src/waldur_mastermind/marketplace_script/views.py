@@ -15,7 +15,7 @@ from .utils import ContainerExecutorMixin
 class DryRunView(ActionsViewSet):
     queryset = marketplace_models.Offering.objects.filter(type=PLUGIN_NAME)
     lookup_field = 'uuid'
-    serializer_class = marketplace_serializers.OfferingDetailsSerializer
+    serializer_class = marketplace_serializers.PublicOfferingDetailsSerializer
     disabled_actions = [
         'retrieve',
         'list',

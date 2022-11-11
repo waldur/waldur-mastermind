@@ -98,7 +98,7 @@ class ConnectedOfferingDetailsMixin:
         requested_object = self.get_object()
         if hasattr(requested_object, 'offering'):
             offering = requested_object.offering
-            serializer = serializers.OfferingDetailsSerializer(
+            serializer = serializers.PublicOfferingDetailsSerializer(
                 instance=offering, context=self.get_serializer_context()
             )
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -301,7 +301,7 @@ class ProviderOfferingViewSet(
     """
 
     queryset = models.Offering.objects.all()
-    serializer_class = serializers.OfferingDetailsSerializer
+    serializer_class = serializers.ProviderOfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
     update_serializer_class = (
         partial_update_serializer_class
@@ -791,7 +791,7 @@ class ProviderOfferingViewSet(
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
     lookup_field = 'uuid'
-    serializer_class = serializers.OfferingDetailsSerializer
+    serializer_class = serializers.PublicOfferingDetailsSerializer
     filterset_class = filters.OfferingFilter
     permission_classes = []
 
@@ -928,9 +928,9 @@ def validate_plan_archive(plan):
         raise rf_exceptions.ValidationError(_('Plan is already archived.'))
 
 
-class PlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
+class ProviderPlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
     queryset = models.Plan.objects.all()
-    serializer_class = serializers.PlanDetailsSerializer
+    serializer_class = serializers.ProviderPlanDetailsSerializer
     filterset_class = filters.PlanFilter
     filter_backends = (DjangoFilterBackend, filters.PlanFilterBackend)
 
@@ -1001,7 +1001,7 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
 
 class PublicPlanViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Plan.objects.filter()
-    serializer_class = serializers.PlanDetailsSerializer
+    serializer_class = serializers.PublicPlanDetailsSerializer
     filterset_class = filters.PlanFilter
     permission_classes = []
     lookup_field = 'uuid'
