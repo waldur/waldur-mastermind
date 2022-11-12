@@ -27,7 +27,7 @@ class RequestCreateTest(test.APITransactionTestCase):
         offering_url = marketplace_factories.OfferingFactory.get_public_url(
             self.offering
         )
-        plan_url = marketplace_factories.PlanFactory.get_url(self.plan)
+        plan_url = marketplace_factories.PlanFactory.get_public_url(self.plan)
 
         attributes = dict(
             name='My first request-based item',
@@ -63,5 +63,5 @@ class RequestUpdateTest(test.APITransactionTestCase):
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
         url = marketplace_factories.ResourceFactory.get_url(resource, 'switch_plan')
-        payload = {'plan': marketplace_factories.PlanFactory.get_url(plan)}
+        payload = {'plan': marketplace_factories.PlanFactory.get_public_url(plan)}
         return self.client.post(url, payload)

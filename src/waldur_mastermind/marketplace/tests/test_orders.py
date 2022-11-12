@@ -96,7 +96,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': {},
                 },
             ]
@@ -116,7 +116,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': {},
                 },
             ]
@@ -137,7 +137,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': {},
                 },
             ]
@@ -154,7 +154,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': {},
                 },
             ]
@@ -172,7 +172,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': {},
                 },
             ]
@@ -196,7 +196,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': attributes,
                 },
             ]
@@ -219,7 +219,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'attributes': attributes,
                 },
             ]
@@ -252,7 +252,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'limits': limits,
                     'attributes': {},
                 },
@@ -288,7 +288,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             'items': [
                 {
                     'offering': factories.OfferingFactory.get_public_url(offering),
-                    'plan': factories.PlanFactory.get_url(plan),
+                    'plan': factories.PlanFactory.get_public_url(plan),
                     'limits': limits,
                     'attributes': {},
                 },

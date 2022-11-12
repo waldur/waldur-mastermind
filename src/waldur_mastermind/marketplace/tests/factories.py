@@ -265,8 +265,22 @@ class PlanFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
+    def get_public_url(cls, plan=None, action=None):
+        if plan is None:
+            plan = PlanFactory()
+        url = 'http://testserver' + reverse(
+            'marketplace-public-plan-detail', kwargs={'uuid': plan.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-plan-list')
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_public_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-public-plan-list')
         return url if action is None else url + action + '/'
 
 

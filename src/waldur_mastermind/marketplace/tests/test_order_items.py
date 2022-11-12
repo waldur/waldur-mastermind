@@ -176,7 +176,7 @@ class ItemUpdateTest(test.APITransactionTestCase):
             'offering': factories.OfferingFactory.get_public_url(
                 self.order_item.offering
             ),
-            'plan': factories.PlanFactory.get_url(self.order_item.plan),
+            'plan': factories.PlanFactory.get_public_url(self.order_item.plan),
         }
         response = self.client.patch(url, payload)
         self.order_item.refresh_from_db()

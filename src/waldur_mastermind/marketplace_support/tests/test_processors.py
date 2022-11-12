@@ -434,7 +434,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
 
     def test_plan_validation(self):
         response = self.request_switch_plan(
-            add_payload={'plan': marketplace_factories.PlanFactory.get_url()}
+            add_payload={'plan': marketplace_factories.PlanFactory.get_public_url()}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -449,7 +449,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         url = marketplace_factories.ResourceFactory.get_url(
             resource=self.resource, action='switch_plan'
         )
-        payload = {'plan': marketplace_factories.PlanFactory.get_url(self.plan)}
+        payload = {'plan': marketplace_factories.PlanFactory.get_public_url(self.plan)}
 
         if add_payload:
             payload.update(add_payload)

@@ -84,7 +84,7 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         return {
             'offering': factories.OfferingFactory.get_public_url(self.offering),
-            'plan': factories.PlanFactory.get_url(plan),
+            'plan': factories.PlanFactory.get_public_url(plan),
             'project': structure_factories.ProjectFactory.get_url(project),
             'limits': limits,
             'attributes': {'name': 'test'},
@@ -130,7 +130,7 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         payload = {
             'offering': factories.OfferingFactory.get_public_url(self.offering),
-            'plan': factories.PlanFactory.get_url(plan),
+            'plan': factories.PlanFactory.get_public_url(plan),
             'limits': limits,
         }
 
@@ -358,7 +358,7 @@ class CartUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.cart_item.user)
         return self.client.patch(
             factories.CartItemFactory.get_url(item=self.cart_item),
-            {'plan': factories.PlanFactory.get_url(plan)},
+            {'plan': factories.PlanFactory.get_public_url(plan)},
         )
 
     def test_update_cart_item(self):

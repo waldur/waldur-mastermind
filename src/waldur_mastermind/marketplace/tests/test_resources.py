@@ -131,7 +131,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(resource, 'switch_plan')
-        payload = {'plan': factories.PlanFactory.get_url(plan)}
+        payload = {'plan': factories.PlanFactory.get_public_url(plan)}
         return self.client.post(url, payload)
 
     def test_plan_switch_is_available_if_plan_limit_is_not_reached(self):

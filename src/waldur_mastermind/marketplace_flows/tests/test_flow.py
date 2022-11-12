@@ -38,7 +38,7 @@ class CreateResourceFlowTest(test.APITransactionTestCase):
             'resource_create_request': {
                 'name': 'Test VM',
                 'offering': OfferingFactory.get_public_url(self.offering),
-                'plan': PlanFactory.get_url(self.plan),
+                'plan': PlanFactory.get_public_url(self.plan),
                 'attributes': {},
             },
         }
