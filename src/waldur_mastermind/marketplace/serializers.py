@@ -1722,7 +1722,7 @@ class BaseItemSerializer(
             },
             'plan': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-plan-detail',
+                'view_name': 'marketplace-public-plan-detail',
             },
         }
 
@@ -2329,7 +2329,7 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         fields = ('plan',)
 
     plan = serializers.HyperlinkedRelatedField(
-        view_name='marketplace-plan-detail',
+        view_name='marketplace-public-plan-detail',
         lookup_field='uuid',
         queryset=models.Plan.objects.all(),
         required=True,

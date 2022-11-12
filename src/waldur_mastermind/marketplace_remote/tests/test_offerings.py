@@ -272,7 +272,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             {
                 "plans": [
                     {
-                        "url": factories.PlanFactory.get_url(plan),
+                        "url": factories.PlanFactory.get_public_url(plan),
                         "uuid": plan.uuid.hex,
                         "name": "new_name",
                         "max_amount": 100,
