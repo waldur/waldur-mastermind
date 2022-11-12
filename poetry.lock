@@ -2285,7 +2285,7 @@ six = ">=1.10.0"
 
 [[package]]
 name = "python-waldur-client"
-version = "0.1.6"
+version = "0.1.7"
 description = "REST client for the Waldur API."
 category = "main"
 optional = false
@@ -2754,7 +2754,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "1e7bc89e9d6069a0039b986e11ba64831c000f6bdd51c0a2cfe7c7b4caedf7c7"
+content-hash = "5600dceb54521373f08fb76fe94153c4119398f1a0647870d21c28cb7e250cfc"
 
 [metadata.files]
 adal = [
@@ -3961,7 +3961,7 @@ python-novaclient = [
     {file = "python_novaclient-10.3.0-py2.py3-none-any.whl", hash = "sha256:e8332be7bd0acbad7cba6d07a2dded0438571793b38d0d6b647fd875f9402d62"},
 ]
 python-waldur-client = [
-    {file = "python-waldur-client-0.1.6.tar.gz", hash = "sha256:4cf8ad75b3a047b5ea54cb6c7ca04c972a8582085256b04e4171565964635021"},
+    {file = "python-waldur-client-0.1.7.tar.gz", hash = "sha256:eedb3b867446eb4f32cf8641721232fe2870ec79d661de8bb0520af1928fa41d"},
 ]
 pytz = [
     {file = "pytz-2022.6-py2.py3-none-any.whl", hash = "sha256:222439474e9c98fced559f1709d89e6c9cbf8d79c794ff3eb9f8800064291427"},
