@@ -321,7 +321,10 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
 
     def validate_order_item(self, request):
         action = self._get_action()
-        self.get_viewset()().validate_object_action(action, self.get_resource())
+        resource = self.get_resource()
+        if not resource:
+            raise serializers.ValidationError('Resource is not found.')
+        self.get_viewset()().validate_object_action(action, resource)
 
     def send_request(self, user, resource):
         delete_attributes = self.order_item.attributes
