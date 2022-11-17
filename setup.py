@@ -4,7 +4,7 @@ from setuptools import setup
 
 install_requires = [
     'requests>=2.6.0',
-    'python-waldur-client>=0.1.1',
+    'python-waldur-client>=0.1.7',
 ]
 
 tests_requires = [
