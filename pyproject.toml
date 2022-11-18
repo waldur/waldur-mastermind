@@ -58,7 +58,7 @@ psycopg2-binary = "2.9.5"
 pycountry = "22.3.5"
 PyJWT = "^2.3.0"
 pyOpenSSL = "22.1.0"
-pysaml2 = {git = "https://github.com/IdentityPython/pysaml2", rev = "4fa20a9"}
+pysaml2 = {git = "https://github.com/IdentityPython/pysaml2", rev = "0fb127f"}
 python-cinderclient = "4.3.0"
 python-dateutil = "2.7.3"
 python-digitalocean = "1.16.0"
