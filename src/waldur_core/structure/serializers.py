@@ -744,6 +744,7 @@ class CustomerPermissionReviewSerializer(
 class ProjectPermissionSerializer(
     PermissionFieldFilteringMixin, BasePermissionSerializer
 ):
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
 
     class Meta(BasePermissionSerializer.Meta):
@@ -758,6 +759,7 @@ class ProjectPermissionSerializer(
             'project',
             'project_uuid',
             'project_name',
+            'customer_uuid',
             'customer_name',
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
