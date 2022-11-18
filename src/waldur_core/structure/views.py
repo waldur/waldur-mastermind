@@ -23,7 +23,6 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from waldur_auth_social.utils import pull_remote_eduteams_user
-from waldur_core.core import managers as core_managers
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import signals as core_signals
@@ -31,7 +30,6 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
-from waldur_core.logging import models as logging_models
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -1093,32 +1091,6 @@ class ProjectCountersView(BaseCounterView):
         qs = model.objects.filter(project=self.object).only('pk')
         qs = filter_queryset_for_user(qs, self.request.user)
         return qs.count()
-
-
-class UserCountersView(BaseCounterView):
-    """
-    Count number of entities related to current user
-
-    .. code-block:: javascript
-
-        {
-            "keys": 1,
-            "hooks": 1
-        }
-    """
-
-    def get_fields(self):
-        return {'keys': self.get_keys, 'hooks': self.get_hooks}
-
-    def get_keys(self):
-        return core_models.SshPublicKey.objects.filter(
-            user_uuid=self.request.user.uuid.hex
-        ).count()
-
-    def get_hooks(self):
-        return core_managers.SummaryQuerySet(
-            logging_models.BaseHook.get_all_models()
-        ).count()
 
 
 class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):

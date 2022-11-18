@@ -67,9 +67,4 @@ urlpatterns = [
         views.ProjectCountersView.as_view({'get': 'list'}),
         name='project_counters',
     ),
-    re_path(
-        r'^user-counters/$',
-        views.UserCountersView.as_view({'get': 'list'}),
-        name='user_counters',
-    ),
 ]

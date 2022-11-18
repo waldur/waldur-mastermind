@@ -6,7 +6,6 @@ API_GROUPS = {
     'user': [
         '/api/users/',
         '/api/user-invitations/',
-        '/api/user-counters/',
     ],
     'organization': [
         '/api/customers/',
