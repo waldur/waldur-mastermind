@@ -1172,6 +1172,7 @@ class DivisionTypesViewSet(core_views.ReadOnlyActionsViewSet):
 
 class UserAgreementsViewSet(ReadOnlyActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
+    permission_classes = []
 
     def get_queryset(self):
         queryset = models.UserAgreement.objects.all()
