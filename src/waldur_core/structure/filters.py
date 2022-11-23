@@ -497,6 +497,10 @@ class ProjectPermissionFilter(UserPermissionFilter):
         view_name='project-detail',
         field_name='project__uuid',
     )
+    project_name = django_filters.CharFilter(
+        field_name='project__name',
+        lookup_expr='icontains',
+    )
 
 
 class CustomerPermissionFilter(UserPermissionFilter):
@@ -510,6 +514,10 @@ class CustomerPermissionFilter(UserPermissionFilter):
     customer_url = core_filters.URLFilter(
         view_name='customer-detail',
         field_name='customer__uuid',
+    )
+    customer_name = django_filters.CharFilter(
+        field_name='customer__name',
+        lookup_expr='icontains',
     )
 
 
