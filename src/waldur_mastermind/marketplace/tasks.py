@@ -447,7 +447,7 @@ def notification_about_project_ending():
             .exclude(notifications_enabled=False)
         )
         owners = (
-            project.customer.get_users(structure_models.CustomerRole.OWNER)
+            project.customer.get_owners()
             .exclude(email='')
             .exclude(notifications_enabled=False)
         )

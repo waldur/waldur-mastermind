@@ -7,6 +7,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
@@ -192,6 +193,24 @@ class ProjectEndDate(test.APITransactionTestCase):
                 {self.fixture.manager.email, self.fixture.owner.email},
             )
             self.assertTrue(self.fixture.project.uuid.hex in mail.outbox[0].body)
+
+    def test_member_of_other_project_is_excluded(self):
+        other_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
+        manager = structure_factories.UserFactory()
+        other_project.add_user(manager, structure_models.ProjectRole.MANAGER)
+
+        with freeze_time('2019-12-25'):
+            event_type = 'notification_about_project_ending'
+            structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
+            tasks.notification_about_project_ending()
+
+            self.assertEqual(len(mail.outbox), 2)
+            self.assertEqual(
+                {mail.outbox[0].to[0], mail.outbox[1].to[0]},
+                {self.fixture.manager.email, self.fixture.owner.email},
+            )
 
     @freeze_time('2020-01-02')
     def test_expired_project_is_deleted_if_there_are_no_active_resources(self):

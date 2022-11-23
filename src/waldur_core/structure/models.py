@@ -526,6 +526,8 @@ class Customer(
 
     def get_users(self, role=None):
         """Return all connected to customer users"""
+        if role:
+            return self.get_users_by_role(role)
         return (
             get_user_model()
             .objects.filter(
