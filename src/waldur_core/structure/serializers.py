@@ -631,6 +631,7 @@ class CustomerPermissionSerializer(
 ):
     customer_division_name = serializers.ReadOnlyField(source='customer.division.name')
     customer_division_uuid = serializers.ReadOnlyField(source='customer.division.uuid')
+    customer_projects_count = serializers.SerializerMethodField()
 
     class Meta(BasePermissionSerializer.Meta):
         model = models.CustomerPermission
@@ -641,6 +642,8 @@ class CustomerPermissionSerializer(
             'created',
             'expiration_time',
             'created_by',
+            'created_by_full_name',
+            'created_by_username',
             'customer',
             'customer_uuid',
             'customer_name',
@@ -648,9 +651,20 @@ class CustomerPermissionSerializer(
             'customer_abbreviation',
             'customer_division_name',
             'customer_division_uuid',
+            'customer_created',
+            'customer_email',
+            'customer_projects_count',
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
-            customer=('name', 'native_name', 'abbreviation', 'uuid'),
+            customer=(
+                'name',
+                'native_name',
+                'abbreviation',
+                'uuid',
+                'created',
+                'email',
+            ),
+            created_by=('full_name', 'username'),
             **BasePermissionSerializer.Meta.related_paths
         )
         protected_fields = ('customer', 'role', 'user', 'created_by', 'created')
@@ -705,6 +719,11 @@ class CustomerPermissionSerializer(
     def get_filtered_field_names(self):
         return ('customer',)
 
+    def get_customer_projects_count(self, permission):
+        return models.Project.available_objects.filter(
+            customer=permission.customer
+        ).count()
+
 
 class CustomerPermissionLogSerializer(CustomerPermissionSerializer):
     class Meta(CustomerPermissionSerializer.Meta):
@@ -746,6 +765,7 @@ class ProjectPermissionSerializer(
 ):
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    project_resources_count = serializers.SerializerMethodField()
 
     class Meta(BasePermissionSerializer.Meta):
         model = models.ProjectPermission
@@ -756,14 +776,21 @@ class ProjectPermissionSerializer(
             'created',
             'expiration_time',
             'created_by',
+            'created_by_full_name',
+            'created_by_username',
             'project',
             'project_uuid',
             'project_name',
+            'project_created',
+            'project_resources_count',
+            'project_end_date',
             'customer_uuid',
             'customer_name',
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
-            project=('name', 'uuid'), **BasePermissionSerializer.Meta.related_paths
+            project=('name', 'uuid', 'created', 'end_date'),
+            created_by=('full_name', 'username'),
+            **BasePermissionSerializer.Meta.related_paths
         )
         protected_fields = ('project', 'role', 'user', 'created_by', 'created')
         extra_kwargs = {
@@ -819,6 +846,17 @@ class ProjectPermissionSerializer(
 
     def get_filtered_field_names(self):
         return ('project',)
+
+    def get_project_resources_count(self, permission):
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        return marketplace_models.Resource.objects.filter(
+            state__in=(
+                marketplace_models.Resource.States.OK,
+                marketplace_models.Resource.States.UPDATING,
+            ),
+            project=permission.project,
+        ).count()
 
 
 class BasicProjectPermissionSerializer(BasePermissionSerializer):
