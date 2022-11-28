@@ -37,6 +37,8 @@ from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
+from waldur_core.structure.notifications import NOTIFICATIONS
+
 
 def flatten(*xs):
     return tuple(chain.from_iterable(xs))
@@ -203,6 +205,17 @@ def format_text(template_name, context):
     return template.render(Context(context, autoescape=False)).strip()
 
 
+def find_template_from_registry(app, event_type, template_suffix):
+    # TODO: refactor
+    for _notification in NOTIFICATIONS:
+        if _notification['key'] == app:
+            for _item in _notification['items']:
+                if _item['path'] == event_type:
+                    for _template in _item['templates']:
+                        if _template.path == f"{event_type}_{template_suffix}":
+                            return f"{app}/{_template.path}"
+
+
 def send_mail(
     subject,
     body,
@@ -277,19 +290,16 @@ def broadcast_mail(
         return
 
     if notification.enabled:
-        subject_template_name = notification.templates.get(
-            path__icontains='subject.txt'
-        ).path
+        subject_template_name = find_template_from_registry(
+            app, event_type, "subject.txt"
+        )
+        text_template_name = find_template_from_registry(app, event_type, "message.txt")
+        html_template_name = find_template_from_registry(
+            app, event_type, "message.html"
+        )
+
         subject = format_text(subject_template_name, context)
-
-        text_template_name = notification.templates.get(
-            path__icontains='message.txt'
-        ).path
         text_message = format_text(text_template_name, context)
-
-        html_template_name = notification.templates.get(
-            path__icontains='message.html'
-        ).path
         html_message = render_to_string(html_template_name, context)
 
         for recipient in recipient_list:
