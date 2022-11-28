@@ -47,6 +47,7 @@ class CartSubmitTest(test.APITransactionTestCase):
             type='TEST_TYPE',
             scope=self.service_settings,
         )
+        self.plan = factories.PlanFactory(offering=self.offering)
 
     def submit(self, project):
         return self.client.post(
@@ -73,8 +74,6 @@ class CartSubmitTest(test.APITransactionTestCase):
             'cpu_count': 5,
         }
 
-        plan = factories.PlanFactory(offering=self.offering)
-
         for key in limits.keys():
             models.OfferingComponent.objects.create(
                 offering=self.offering,
@@ -84,7 +83,7 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         return {
             'offering': factories.OfferingFactory.get_public_url(self.offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
+            'plan': factories.PlanFactory.get_public_url(self.plan),
             'project': structure_factories.ProjectFactory.get_url(project),
             'limits': limits,
             'attributes': {'name': 'test'},
@@ -103,6 +102,30 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         order_item = models.OrderItem.objects.last()
         self.assertEqual(order_item.limits['cpu_count'], 5)
+
+    def test_plan_validate(self):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(self.fixture.project)
+        payload.pop('plan')
+
+        self.plan.delete()
+        response = self.client.post(url, payload)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+        # if we have only one available plan then plan field is not required
+        factories.PlanFactory(offering=self.offering)
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # if we have few available plans then plan field is required
+        factories.PlanFactory(offering=self.offering)
+        response = self.client.post(url, payload)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
     def test_project_is_validated_when_cart_item_is_created(self):
         self.client.force_authenticate(self.fixture.user)
@@ -234,6 +257,9 @@ class AutoapproveTest(test.APITransactionTestCase):
                     consumer_fixture.project
                 ),
                 'attributes': {'name': 'test'},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=private_offering)
+                ),
             },
         )
 
@@ -245,6 +271,9 @@ class AutoapproveTest(test.APITransactionTestCase):
                     consumer_fixture.project
                 ),
                 'attributes': {'name': 'test'},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=public_offering)
+                ),
             },
         )
 
@@ -270,6 +299,9 @@ class AutoapproveTest(test.APITransactionTestCase):
                 'offering': factories.OfferingFactory.get_public_url(offering),
                 'project': structure_factories.ProjectFactory.get_url(fixture.project),
                 'attributes': {'name': 'test'},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=offering)
+                ),
             },
         )
 
@@ -336,6 +368,9 @@ class AutoapproveTest(test.APITransactionTestCase):
                     consumer_fixture.project
                 ),
                 'attributes': {'name': 'test'},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=public_offering)
+                ),
             },
         )
 
@@ -461,6 +496,9 @@ class QuotasValidateTest(test.APITransactionTestCase):
                     self.fixture.project
                 ),
                 'attributes': {'name': 'test', 'cores': 1},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=self.offering)
+                ),
             },
         )
 
@@ -479,6 +517,9 @@ class QuotasValidateTest(test.APITransactionTestCase):
                     self.fixture.project
                 ),
                 'attributes': {'name': 'test', 'cores': 2},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=self.offering)
+                ),
             },
         )
 
@@ -495,6 +536,9 @@ class QuotasValidateTest(test.APITransactionTestCase):
                     self.fixture.project
                 ),
                 'attributes': {'name': 'test', 'cores': 1},
+                'plan': factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=self.offering)
+                ),
             },
         )
 
