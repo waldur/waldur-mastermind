@@ -1,3 +1,4 @@
+import datetime
 from unittest import mock
 
 from ddt import data, ddt
@@ -1207,3 +1208,53 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url)
         self.assertEqual(403, response.status_code)
+
+
+class ResourceUsageLimitsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.user = self.fixture.staff
+
+        self.resource = factories.ResourceFactory()
+        self.resource.state = models.Resource.States.OK
+        self.resource.limits = {'cpu': 100}
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT,
+            limit_period=models.OfferingComponent.LimitPeriods.TOTAL,
+        )
+        self.resource.plan = factories.PlanFactory(offering=self.resource.offering)
+        factories.PlanComponentFactory(
+            component=self.offering_component,
+            plan=self.resource.plan,
+        )
+        self.resource.save()
+
+        self.url = factories.ResourceFactory.get_url(self.resource)
+
+        factories.ComponentUsageFactory(
+            resource=self.resource, component=self.offering_component, usage=10
+        )
+        factories.ComponentUsageFactory(
+            resource=self.resource,
+            component=self.offering_component,
+            usage=5,
+            date=datetime.datetime(year=datetime.date.today().year - 1, month=1, day=1),
+        )
+
+    def test_if_limit_period_is_total(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['limit_usage'], {'cpu': 15})
+
+    def test_if_limit_period_is_annual(self):
+        self.offering_component.limit_period = (
+            models.OfferingComponent.LimitPeriods.ANNUAL
+        )
+        self.offering_component.save()
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['limit_usage'], {'cpu': 10})
