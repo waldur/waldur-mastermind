@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -2263,6 +2263,7 @@ class ResourceSerializer(BaseItemSerializer):
             'report',
             'end_date',
             'username',
+            'limit_usage',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2273,6 +2274,7 @@ class ResourceSerializer(BaseItemSerializer):
             'access_url',
             'report',
             'description',
+            'limit_usage',
         )
         view_name = 'marketplace-resource-detail'
         extra_kwargs = dict(
@@ -2304,6 +2306,7 @@ class ResourceSerializer(BaseItemSerializer):
     can_terminate = serializers.SerializerMethodField()
     report = serializers.JSONField(read_only=True)
     username = serializers.SerializerMethodField()
+    limit_usage = serializers.SerializerMethodField()
 
     def get_can_terminate(self, resource):
         view = self.context['view']
@@ -2343,6 +2346,53 @@ class ResourceSerializer(BaseItemSerializer):
         ).first()
         if offering_user:
             return offering_user.username
+
+    def get_limit_usage(self, resource):
+        if not resource.offering.is_limit_based or not resource.plan:
+            return
+
+        limit_usage = {}
+
+        for plan_component in resource.plan.components.all():
+            if (
+                plan_component.component.billing_type
+                == models.OfferingComponent.BillingTypes.LIMIT
+            ):
+                if (
+                    plan_component.component.limit_period
+                    == models.OfferingComponent.LimitPeriods.TOTAL
+                ):
+                    limit_usage[
+                        plan_component.component.type
+                    ] = models.ComponentUsage.objects.filter(
+                        resource=resource,
+                        component=plan_component.component,
+                    ).aggregate(
+                        total=Sum('usage')
+                    )[
+                        'total'
+                    ]
+
+                if (
+                    plan_component.component.limit_period
+                    == models.OfferingComponent.LimitPeriods.ANNUAL
+                ):
+                    year_start = datetime.date(
+                        year=datetime.date.today().year, month=1, day=1
+                    )
+                    limit_usage[
+                        plan_component.component.type
+                    ] = models.ComponentUsage.objects.filter(
+                        resource=resource,
+                        component=plan_component.component,
+                        date__gte=year_start,
+                    ).aggregate(
+                        total=Sum('usage')
+                    )[
+                        'total'
+                    ]
+
+        return limit_usage
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
