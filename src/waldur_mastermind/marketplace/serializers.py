@@ -1681,6 +1681,7 @@ class BaseItemSerializer(
             'offering_name',
             'offering_uuid',
             'offering_description',
+            'offering_image',
             'offering_thumbnail',
             'offering_type',
             'offering_terms_of_service',
@@ -1707,6 +1708,8 @@ class BaseItemSerializer(
                 'name',
                 'uuid',
                 'description',
+                'image',
+                'thumbnail',
                 'type',
                 'terms_of_service',
                 'shared',
@@ -1732,6 +1735,7 @@ class BaseItemSerializer(
     category_icon = ProtectedImageField(source='offering.category.icon', read_only=True)
     category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
     offering_thumbnail = ProtectedFileField(source='offering.thumbnail', read_only=True)
+    offering_image = ProtectedFileField(source='offering.image', read_only=True)
 
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
