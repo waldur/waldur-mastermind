@@ -355,12 +355,19 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
         user = self.request.user
 
         if value and not user.is_staff:
-            return queryset.filter(
+            query_owner = Q(
                 offering__customer__permissions__user__uuid=user.uuid.hex,
                 offering__customer__permissions__is_active=True,
                 offering__customer__permissions__role=structure_models.CustomerRole.OWNER,
+            )
+            query_pending = query_owner & Q(
                 state=models.OrderItem.States.PENDING,
             )
+            query_executing = query_owner & Q(
+                state=models.OrderItem.States.EXECUTING,
+                resource__isnull=False,
+            )
+            return queryset.filter(query_pending | query_executing)
 
         return queryset
 
@@ -368,12 +375,19 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
         user = self.request.user
 
         if value and not user.is_staff:
-            return queryset.filter(
+            query_owner = Q(
                 order__project__customer__permissions__user__uuid=user.uuid.hex,
                 order__project__customer__permissions__is_active=True,
                 order__project__customer__permissions__role=structure_models.CustomerRole.OWNER,
+            )
+            query_pending = query_owner & Q(
                 state=models.OrderItem.States.PENDING,
             )
+            query_executing = query_owner & Q(
+                state=models.OrderItem.States.EXECUTING,
+                resource__isnull=False,
+            )
+            return queryset.filter(query_pending | query_executing)
 
         return queryset
 

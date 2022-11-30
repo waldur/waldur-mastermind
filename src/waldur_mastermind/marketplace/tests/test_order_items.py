@@ -576,7 +576,6 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
         self.url = factories.OrderItemFactory.get_list_url()
 
     @data(
-        'staff',
         'owner',
     )
     def test_user_can_get_item_if_can_manage_as_owner_is_enabled(self, user):
@@ -585,6 +584,18 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'can_manage_as_owner': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
+
+        self.order_item.state = models.OrderItem.States.EXECUTING
+        self.order_item.save()
+        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+        self.order_item.resource = None
+        self.order_item.save()
+        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
 
     @data(
         'offering_owner',
@@ -597,7 +608,6 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 0)
 
     @data(
-        'staff',
         'offering_owner',
     )
     def test_user_can_get_item_if_can_manage_as_service_provider_is_enabled(self, user):
@@ -606,6 +616,18 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'can_manage_as_service_provider': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
+
+        self.order_item.state = models.OrderItem.States.EXECUTING
+        self.order_item.save()
+        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+        self.order_item.resource = None
+        self.order_item.save()
+        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
 
     @data(
         'owner',
