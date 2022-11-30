@@ -564,3 +564,57 @@ class ItemSetStateErredTest(BaseItemSetStateTest):
         return self.client.post(
             url, {'error_message': error_message, 'error_traceback': error_traceback}
         )
+
+
+@ddt
+class OrderItemPermissionFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.order_item = self.fixture.order_item
+        self.order_item.state = models.OrderItem.States.PENDING
+        self.order_item.save()
+        self.url = factories.OrderItemFactory.get_list_url()
+
+    @data(
+        'staff',
+        'owner',
+    )
+    def test_user_can_get_item_if_can_manage_as_owner_is_enabled(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+    @data(
+        'offering_owner',
+    )
+    def test_user_can_not_get_item_if_can_manage_as_owner_is_enabled(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
+
+    @data(
+        'staff',
+        'offering_owner',
+    )
+    def test_user_can_get_item_if_can_manage_as_service_provider_is_enabled(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+    @data(
+        'owner',
+    )
+    def test_user_can_not_get_item_if_can_manage_as_service_provider_is_enabled(
+        self, user
+    ):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)

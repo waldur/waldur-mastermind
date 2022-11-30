@@ -329,6 +329,14 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
     created = django_filters.DateTimeFilter(lookup_expr='gte', label='Created after')
     modified = django_filters.DateTimeFilter(lookup_expr='gte', label='Modified after')
+    can_manage_as_service_provider = django_filters.BooleanFilter(
+        method='filter_manage_as_service_provider',
+        label='Can manage as service provider',
+    )
+    can_manage_as_owner = django_filters.BooleanFilter(
+        method='filter_manage_as_owner',
+        label='Can manage as owner',
+    )
 
     o = django_filters.OrderingFilter(fields=('created',))
 
@@ -342,6 +350,32 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
             offering__permissions__user__uuid=value,
             offering__permissions__is_active=True,
         )
+
+    def filter_manage_as_service_provider(self, queryset, name, value):
+        user = self.request.user
+
+        if value and not user.is_staff:
+            return queryset.filter(
+                offering__customer__permissions__user__uuid=user.uuid.hex,
+                offering__customer__permissions__is_active=True,
+                offering__customer__permissions__role=structure_models.CustomerRole.OWNER,
+                state=models.OrderItem.States.PENDING,
+            )
+
+        return queryset
+
+    def filter_manage_as_owner(self, queryset, name, value):
+        user = self.request.user
+
+        if value and not user.is_staff:
+            return queryset.filter(
+                order__project__customer__permissions__user__uuid=user.uuid.hex,
+                order__project__customer__permissions__is_active=True,
+                order__project__customer__permissions__role=structure_models.CustomerRole.OWNER,
+                state=models.OrderItem.States.PENDING,
+            )
+
+        return queryset
 
 
 class ResourceFilter(
