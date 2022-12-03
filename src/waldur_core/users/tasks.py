@@ -146,7 +146,9 @@ def cancel_expired_group_invitations():
 def send_mail_notification_about_permission_request_has_been_submitted(
     permission_request_id,
 ):
-    permission_request = models.PermissionRequest.objects.get(id=permission_request_id)
+    permission_request: models.PermissionRequest = models.PermissionRequest.objects.get(
+        id=permission_request_id
+    )
     requests_link = format_homeport_link('profile/permission-requests/')
     users = utils.get_users_for_notification_about_request_has_been_submitted(
         permission_request
