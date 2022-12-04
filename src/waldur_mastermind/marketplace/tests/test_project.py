@@ -53,19 +53,13 @@ class MarketplaceResourceCountTest(test.APITransactionTestCase):
         self.resource.save()
 
     def test_key_marketplace_resource_count_exists_in_project_response(self):
-        user = getattr(self.fixture, 'staff')
+        user = self.fixture.staff
         self.client.force_authenticate(user)
-        url = structure_factories.ProjectFactory.get_list_url()
+        url = structure_factories.ProjectFactory.get_url(self.fixture.resource.project)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 2)
-        self.assertTrue(
-            self.resource.offering.category.uuid.hex
-            in str(response.json()[0]['marketplace_resource_count'])
-        )
+        counters = response.json()['marketplace_resource_count']
         self.assertEqual(
-            response.json()[0]['marketplace_resource_count'][
-                self.resource.offering.category.uuid.hex
-            ],
+            counters[self.resource.offering.category.uuid.hex],
             1,
         )
