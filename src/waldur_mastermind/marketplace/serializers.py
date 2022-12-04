@@ -2920,11 +2920,13 @@ core_signals.pre_serializer_fields.connect(
 
 def get_marketplace_resource_count(serializer, project):
     counts = (
-        models.Resource.objects.filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING)
+        models.Resource.objects.order_by()
+        .filter(
+            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING),
+            project=project,
         )
         .values('offering__category__uuid')
-        .annotate(count=Count('id'))
+        .annotate(count=Count('*'))
     )
     return {str(c['offering__category__uuid']): c['count'] for c in list(counts)}
 
