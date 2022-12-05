@@ -5,7 +5,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.booking.utils import (
-    get_offering_bookings,
+    get_offering_bookings_and_busy_slots,
     get_other_offering_booking_requests,
 )
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -92,7 +92,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 )
 
         # Check that there are no other bookings.
-        bookings = get_offering_bookings(offering)
+        bookings = get_offering_bookings_and_busy_slots(offering)
         for period in schedules:
             if is_interval_in_schedules(
                 TimePeriod(period['start'], period['end']), bookings

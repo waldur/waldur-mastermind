@@ -1,6 +1,7 @@
 import datetime
 import functools
 
+import pytz
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -207,3 +208,12 @@ class GoogleCalendar:
     @reraise_exceptions
     def unshare_calendar(self, calendar_id):
         self.service.acl().delete(calendarId=calendar_id, ruleId='default').execute()
+
+    @reraise_exceptions
+    def get_calendar(self, calendar_id):
+        return self.service.calendars().get(calendarId=calendar_id).execute()
+
+    @reraise_exceptions
+    def get_calendar_time_zone(self, calendar_id):
+        calendar = self.get_calendar(calendar_id)
+        return pytz.timezone(calendar['timeZone'])

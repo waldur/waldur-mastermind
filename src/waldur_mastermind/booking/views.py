@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_mastermind.booking.utils import get_offering_bookings
+from waldur_mastermind.booking.utils import get_offering_bookings_and_busy_slots
 from waldur_mastermind.google import models as google_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
@@ -182,7 +182,7 @@ class OfferingBookingsViewSet(views.APIView):
             )
         )
         offering = get_object_or_404(offerings, uuid=uuid)
-        bookings = get_offering_bookings(offering)
+        bookings = get_offering_bookings_and_busy_slots(offering)
         serializer = serializers.BookingSerializer(
             instance=bookings, many=True, context={'request': request}
         )
