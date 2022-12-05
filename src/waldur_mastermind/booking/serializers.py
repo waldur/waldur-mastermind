@@ -91,6 +91,10 @@ class BookingSerializer(serializers.Serializer):
 
     def get_created_by_full_name(self, booking):
         order_item = booking.order_item
+
+        if not order_item:
+            return 'google calendar'
+
         user = self.context['request'].user
         user_customers = set(
             user.customerpermission_set.filter(is_active=True).values_list(

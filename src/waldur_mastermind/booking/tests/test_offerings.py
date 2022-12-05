@@ -36,12 +36,12 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
             {
                 'start': '2020-02-12T02:00:00+03:00',
                 'end': '2020-02-15T02:00:00+03:00',
-                'id': '123',
+                'id': 'booking123',
             },
             {
                 'start': '2020-03-01T02:00:00+03:00',
                 'end': '2020-03-05T02:00:00+03:00',
-                'id': '456',
+                'id': 'booking456',
             },
         ]
 
@@ -87,7 +87,7 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
         mock_build().events().list().execute().get.return_value = []
         sync_bookings = calendar.SyncBookings(self.offering)
 
-        need_to_add, need_to_delete, need_to_update = sync_bookings.get_bookings()
+        need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
         self.assertEqual(len(need_to_add), 2)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 0)
@@ -104,7 +104,7 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
             'start'
         ] = '2020-03-02T02:00:00+03:00'
         self.resource_2.save()
-        need_to_add, need_to_delete, need_to_update = sync_bookings.get_bookings()
+        need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
         self.assertEqual(len(need_to_add), 1)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 1)
@@ -115,7 +115,7 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
             'start'
         ] = '2020-02-02T02:00:00+03:00'
         self.resource_2.save()
-        need_to_add, need_to_delete, need_to_update = sync_bookings.get_bookings()
+        need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
         self.assertEqual(len(need_to_add), 1)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 1)

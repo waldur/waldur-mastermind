@@ -1,4 +1,3 @@
-import collections
 import copy
 import datetime
 import logging
@@ -7,22 +6,43 @@ import re
 from dateutil.parser import parse as parse_datetime
 from django.utils import timezone
 
+from waldur_mastermind.booking import models as models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import PLUGIN_NAME
+
+try:
+    # using Python 3.10+
+    from collections.abc import Sequence
+except ImportError:
+    # using Python 3.10-
+    from collections import Sequence
 
 logger = logging.getLogger(__name__)
 
 
 class TimePeriod:
     def __init__(
-        self, start, end, period_id=None, location=None, attendees=None, order_item=None
+        self,
+        start,
+        end,
+        period_id=None,
+        location=None,
+        attendees=None,
+        order_item=None,
+        time_zone=None,
     ):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)
 
+        if not start.tzname() and time_zone:
+            start = start.replace(tzinfo=time_zone)
+
         if not isinstance(end, datetime.datetime):
             end = parse_datetime(end)
+
+        if not end.tzname() and time_zone:
+            end = end.replace(tzinfo=time_zone)
 
         self.start = start
         self.end = end
@@ -33,7 +53,7 @@ class TimePeriod:
         self.attendees = attendees or []
         self.order_item = order_item
 
-        if not isinstance(self.attendees, collections.Sequence):
+        if not isinstance(self.attendees, Sequence):
             self.attendees = [self.attendees]
 
 
@@ -97,6 +117,21 @@ def get_offering_bookings(offering):
                     )
 
     return bookings
+
+
+def get_offering_bookings_and_busy_slots(offering):
+    slots = get_offering_bookings(offering)
+
+    for slot in models.BusySlot.objects.filter(offering=offering):
+        slots.append(
+            TimePeriod(
+                slot.start,
+                slot.end,
+                slot.backend_id,
+            )
+        )
+
+    return slots
 
 
 def get_other_offering_booking_requests(order_item):
