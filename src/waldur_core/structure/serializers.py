@@ -197,6 +197,7 @@ class BasicProjectSerializer(core_serializers.BasicInfoSerializer):
 class PermissionProjectSerializer(BasicProjectSerializer):
     class Meta(BasicProjectSerializer.Meta):
         list_serializer_class = PermissionListSerializer
+        fields = BasicProjectSerializer.Meta.fields + ('image',)
 
 
 class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
