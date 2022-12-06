@@ -2010,28 +2010,6 @@ class CartItemSerializer(BaseRequestSerializer):
         instance.save(update_fields=['cost'])
         return instance
 
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-
-        if not self.instance:
-            plan = attrs.get('plan')
-            offering = attrs.get('offering')
-            user = self.context['request'].user
-
-            if not plan:
-                plans = models.Plan.objects.filter(
-                    offering=offering
-                ).filter_by_plan_availability_for_user(user)
-
-                if len(plans) == 1:
-                    attrs['plan'] = plans[0]
-                else:
-                    raise rf_exceptions.ValidationError(
-                        {'plan': _('This field is required.')}
-                    )
-
-        return attrs
-
 
 class CartSubmitSerializer(serializers.Serializer):
     project = serializers.HyperlinkedRelatedField(
