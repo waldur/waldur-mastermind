@@ -17,7 +17,7 @@ class BaseReportFormatterTest(TransactionTestCase):
         self.fixture = fixtures.InvoiceFixture()
 
         self.customer = self.fixture.customer
-        self.customer.agreement_number = 100
+        self.customer.agreement_number = "100"
         self.customer.contact_details = 'Contact details'
         self.customer.save()
 

@@ -51,11 +51,6 @@ class WaldurCore(BaseModel):
         'If this flag is disabled it is impossible to edit any field that corresponds to '
         'backend value via /admin. Such restriction allows to save information from corruption.',
     )
-    INITIAL_CUSTOMER_AGREEMENT_NUMBER = Field(
-        4000,
-        description='Allows to tweak initial value of agreement number. '
-        'It is assumed that organization owner should accept terms of services when organization is registered via Waldur HomePort.',
-    )
     CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION = Field(
         False,
         description='Enables generation of the first project on organization creation.',
