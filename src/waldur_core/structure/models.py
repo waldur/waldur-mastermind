@@ -335,14 +335,6 @@ class CustomerPermission(BasePermission):
         return '%s | %s' % (self.customer.name, self.get_role_display())
 
 
-def get_next_agreement_number():
-    initial_number = settings.WALDUR_CORE['INITIAL_CUSTOMER_AGREEMENT_NUMBER']
-    last_number = Customer.objects.aggregate(models.Max('agreement_number')).get(
-        'agreement_number__max'
-    )
-    return (last_number or initial_number) + 1
-
-
 class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         verbose_name = _('division type')
@@ -413,7 +405,7 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
     abbreviation = models.CharField(max_length=12, blank=True)
     contact_details = models.TextField(blank=True, validators=[MaxLengthValidator(500)])
 
-    agreement_number = models.PositiveIntegerField(null=True, blank=True)
+    agreement_number = models.CharField(max_length=160, default='', blank=True)
     sponsor_number = models.PositiveIntegerField(
         null=True,
         blank=True,

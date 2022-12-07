@@ -199,7 +199,6 @@ class CustomerAdminForm(ModelForm):
             self.owners = User.objects.none()
             self.support_users = User.objects.none()
             self.service_managers = User.objects.none()
-        self.fields['agreement_number'].initial = models.get_next_agreement_number()
 
         textarea_attrs = {'cols': '40', 'rows': '4'}
         self.fields['contact_details'].widget.attrs = textarea_attrs
