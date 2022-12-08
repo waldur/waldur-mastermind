@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from unittest import mock
 
 from ddt import data, ddt
@@ -14,6 +15,7 @@ from waldur_core.structure.models import CustomerRole, Project, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
 from waldur_core.structure.utils import move_project
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class ProjectPermissionGrantTest(TransactionTestCase):
@@ -745,3 +747,69 @@ class ProjectMoveTest(test.APITransactionTestCase):
         self.project.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.project.customer, old_customer)
+
+
+class ProjectListFilterTest(test.APITransactionTestCase):
+    _valid_backend_id = uuid.uuid4()
+    _valid_effective_id = uuid.uuid4()
+
+    def setUp(self):
+        self.user_fixture = fixtures.UserFixture()
+        self.project1 = factories.ProjectFactory(name='project_1')
+        self.project2 = factories.ProjectFactory(name='project_2')
+
+        offering = marketplace_factories.OfferingFactory()
+        self.resource1 = marketplace_factories.ResourceFactory(
+            project=self.project1,
+            offering=offering,
+            effective_id=ProjectListFilterTest._valid_effective_id,
+            backend_id=ProjectListFilterTest._valid_backend_id,
+        )
+        self.resource2 = marketplace_factories.ResourceFactory(
+            project=self.project2,
+            offering=offering,
+            name='resource_2',
+            backend_id='non_uuid_backend_id',
+            effective_id='non_uuid_effective_id',
+        )
+        self.url = factories.ProjectFactory.get_list_url()
+
+    def test_filter_projects_by_uuid_like_resource_effective_id(self):
+        self.client.force_authenticate(self.user_fixture.staff)
+        response = self.client.get(
+            self.url, {'query': ProjectListFilterTest._valid_effective_id}
+        )
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.project1.name)
+
+    def test_filter_projects_by_uuid_like_resource_backend_id(self):
+        self.client.force_authenticate(self.user_fixture.staff)
+        response = self.client.get(
+            self.url, {'query': ProjectListFilterTest._valid_backend_id}
+        )
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.project1.name)
+
+    def test_filter_projects_by_non_uuid_like_resource_effective_id(self):
+        self.client.force_authenticate(self.user_fixture.staff)
+        response = self.client.get(self.url, {'query': 'non_uuid_effective_id'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.project2.name)
+
+    def test_filter_projects_by_non_uuid_like_resource_backend_id(self):
+        self.client.force_authenticate(self.user_fixture.staff)
+        response = self.client.get(self.url, {'query': 'non_uuid_backend_id'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.project2.name)
+
+    def test_filter_projects_by_resource_name(self):
+        self.client.force_authenticate(self.user_fixture.staff)
+        response = self.client.get(self.url, {'query': 'resource_2'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.project2.name)
+
+    def test_filter_projects_by_name(self):
+        self.client.force_authenticate(self.user_fixture.staff)
+        response = self.client.get(self.url, {'query': 'project_1'})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['name'], self.project1.name)
