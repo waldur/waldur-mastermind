@@ -2,6 +2,8 @@
 
 from django.db import migrations, models
 
+MARKER = 999999999
+
 
 class Migration(migrations.Migration):
 
@@ -9,7 +11,14 @@ class Migration(migrations.Migration):
         ('structure', '0036_remove_notification_and_notification_template'),
     ]
 
+    def add_placeholder_values(apps, schema_editor):
+        Customer = apps.get_model('structure', 'Customer')
+        Customer.objects.filter(agreement_number__isnull=True).update(
+            agreement_number=MARKER
+        )
+
     operations = [
+        migrations.RunPython(add_placeholder_values),
         migrations.AlterField(
             model_name='customer',
             name='agreement_number',
