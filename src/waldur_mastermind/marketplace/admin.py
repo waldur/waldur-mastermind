@@ -295,13 +295,24 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         OfferingUserInline,
         DivisionsInline,
     ]
-    list_display = ('name', 'uuid', 'customer', 'state', 'category', 'billable')
+    list_display = (
+        'name',
+        'uuid',
+        'customer',
+        'state',
+        'type',
+        'category',
+        'billable',
+        'created',
+    )
     list_filter = (
         'state',
         'shared',
         'billable',
+        'type',
         ('category', RelatedOnlyDropdownFilter),
     )
+    date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
     fields = (
         'uuid',
