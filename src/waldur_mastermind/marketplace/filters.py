@@ -435,17 +435,22 @@ class ResourceFilter(
         if is_uuid_like(value):
             if queryset.filter(uuid=value).exists():
                 return queryset.filter(uuid=value)
-            else:
-                return self.filter_scope_uuid(queryset, name, value)
+
+        query = queryset.filter(
+            Q(name__icontains=value)
+            | Q(backend_id=value)
+            | Q(effective_id=value)
+            | Q(backend_metadata__external_ips__icontains=value)
+            | Q(backend_metadata__internal_ips__icontains=value)
+            | Q(backend_metadata__hypervisor_hostname__icontains=value)
+            | Q(backend_metadata__router_fixed_ips__icontains=value)
+        )
+
+        # TODO: Drop union once plugin UUID is deprecated
+        if is_uuid_like(value):
+            return query.union(self.filter_scope_uuid(queryset, name, value))
         else:
-            return queryset.filter(
-                Q(name__icontains=value)
-                | Q(backend_id=value)
-                | Q(backend_metadata__external_ips__icontains=value)
-                | Q(backend_metadata__internal_ips__icontains=value)
-                | Q(backend_metadata__hypervisor_hostname__icontains=value)
-                | Q(backend_metadata__router_fixed_ips__icontains=value)
-            )
+            return query
 
     def filter_service_manager(self, queryset, name, value):
         return queryset.filter(
