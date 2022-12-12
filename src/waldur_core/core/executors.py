@@ -1,7 +1,10 @@
+import logging
 import operator
 from functools import reduce
 
 from waldur_core.core import models, tasks, utils
+
+logger = logging.getLogger(__name__)
 
 
 class BaseExecutor:
@@ -60,8 +63,20 @@ class BaseExecutor:
                 queue=is_heavy_task and 'heavy' or None,
             )
         else:
-            result = signature.apply()
-            callback = link if not result.failed() else link_error
+
+            try:
+                result = signature.apply()
+            except Exception as exc:
+                logger.exception(
+                    'Unable to execute task sequence %s for %s. Exception: %s',
+                    cls,
+                    instance,
+                    exc,
+                )
+                callback = link_error
+            else:
+                callback = link if not result.failed() else link_error
+
             if callback is not None:
                 if not callback.immutable:
                     callback.args = (result.id,) + callback.args
