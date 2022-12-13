@@ -228,13 +228,12 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             },
         )
 
-    def test_project_manager_can_grant_new_admin_role_within_his_project(self):
+    def test_project_manager_cannot_grant_new_admin_role_within_his_project(self):
         self.assert_user_access_to_permission_granting(
             login_user='project_manager1',
             affected_user='no_role',
             affected_project='project11',
-            expected_status=status.HTTP_201_CREATED,
-            role='admin',
+            expected_status=status.HTTP_403_FORBIDDEN,
         )
 
     def test_project_manager_cannot_grant_new_manager_role_within_his_project(self):
@@ -245,7 +244,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             expected_status=status.HTTP_403_FORBIDDEN,
             role='manager',
             expected_payload={
-                'detail': 'You do not have permission to perform this action.',
+                'detail': 'Project managers can not add users to the project directly.',
             },
         )
 
@@ -255,7 +254,6 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
             affected_user='no_role',
             affected_project='project12',
             expected_status=status.HTTP_400_BAD_REQUEST,
-            role='admin',
         )
 
     def test_project_admin_cannot_grant_new_role_within_his_project(self):

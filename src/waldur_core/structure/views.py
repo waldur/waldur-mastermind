@@ -33,6 +33,7 @@ from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import structure_role_updated
 
 logger = logging.getLogger(__name__)
@@ -209,7 +210,16 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
     def users(self, request, uuid=None):
         """A list of users connected to the customer."""
         customer = self.get_object()
+        user = request.user
         queryset = customer.get_users()
+
+        if not (
+            _has_owner_access(user, customer)
+            or user.is_support
+            or customer.has_user(user, models.CustomerRole.SUPPORT)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
         # we need to handle filtration manually because we want to filter only customer users, not customers.
         name_filter_backend = filters.UserConcatenatedNameOrderingBackend()
         queryset = name_filter_backend.filter_queryset(request, queryset, self)
@@ -587,6 +597,17 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         scope = serializer.validated_data[self.scope_field]
         role = serializer.validated_data.get('role')
         expiration_time = serializer.validated_data.get('expiration_time')
+
+        if isinstance(scope, models.Project):
+
+            if scope.has_user(
+                self.request.user, models.ProjectRole.MANAGER, expiration_time
+            ):
+                raise PermissionDenied(
+                    {
+                        'detail': "Project managers can not add users to the project directly."
+                    }
+                )
 
         if not scope.can_manage_role(self.request.user, role, expiration_time):
             raise PermissionDenied()

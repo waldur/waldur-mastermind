@@ -622,11 +622,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
     all_users = (
         'staff',
         'owner',
-        'manager',
-        'admin',
-        'customer_support',
-        'member',
         'global_support',
+        'customer_support',
     )
 
     def setUp(self):
@@ -644,19 +641,16 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 5)
+        self.assertEqual(len(response.data), 2)
 
         self.assertSetEqual(
-            {user['role'] for user in response.data}, {'owner', 'support', None, None}
+            {user['role'] for user in response.data}, {'owner', 'support'}
         )
         self.assertSetEqual(
             {user['uuid'] for user in response.data},
             {
                 self.fixture.owner.uuid.hex,
-                self.fixture.admin.uuid.hex,
-                self.fixture.manager.uuid.hex,
                 self.fixture.customer_support.uuid.hex,
-                self.fixture.member.uuid.hex,
             },
         )
         self.assertSetEqual(
@@ -664,7 +658,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
                 user['projects'] and user['projects'][0]['role'] or None
                 for user in response.data
             },
-            {None, 'admin', 'manager', 'member'},
+            {None},
         )
 
     def test_user_can_not_list_project_users(self):
