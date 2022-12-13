@@ -830,9 +830,9 @@ class Project(
         if self.customer.has_user(user, CustomerRole.OWNER, timestamp):
             return True
 
-        return role == ProjectRole.ADMINISTRATOR and self.has_user(
-            user, ProjectRole.MANAGER, timestamp
-        )
+        return (
+            role == ProjectRole.ADMINISTRATOR or role == ProjectRole.MEMBER
+        ) and self.has_user(user, ProjectRole.MANAGER, timestamp)
 
     def get_log_fields(self):
         return ('uuid', 'customer', 'name')
