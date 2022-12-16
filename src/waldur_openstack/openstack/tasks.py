@@ -1,3 +1,6 @@
+from celery import shared_task
+from django.utils import timezone
+
 from waldur_core.core import tasks as core_tasks
 
 from . import models, signals
@@ -54,3 +57,14 @@ class SendSignalTenantPullSucceeded(core_tasks.Task):
 
     def execute(self, tenant):
         signals.tenant_pull_succeeded.send(models.Tenant, instance=tenant)
+
+
+@shared_task(name='openstack.mark_as_erred_old_tenants_in_deleting_state')
+def mark_as_erred_old_tenants_in_deleting_state():
+    models.Tenant.objects.filter(
+        modified__lte=timezone.now() - timezone.timedelta(days=1),
+        state=models.Tenant.States.DELETING,
+    ).update(
+        state=models.Tenant.States.ERRED,
+        error_message='Deletion error. Deleting took more than a day.',
+    )

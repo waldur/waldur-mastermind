@@ -4,11 +4,12 @@ from unittest.mock import patch
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_openstack.openstack import executors, models
+from waldur_openstack.openstack import executors, models, tasks
 from waldur_openstack.openstack.tests import factories, fixtures
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 
@@ -834,3 +835,22 @@ class TenantCountersTest(test.APITransactionTestCase):
                 'routers': 0,
             },
         )
+
+
+class TenantTasksTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+
+    def test_mark_as_erred_old_tenants_in_deleting_state(self):
+        with freeze_time('2022-01-01'):
+            self.tenant.state = models.Tenant.States.DELETING
+            self.tenant.save()
+            tasks.mark_as_erred_old_tenants_in_deleting_state()
+            self.tenant.refresh_from_db()
+            self.assertEqual(self.tenant.state, models.Tenant.States.DELETING)
+
+        with freeze_time('2022-01-02'):
+            tasks.mark_as_erred_old_tenants_in_deleting_state()
+            self.tenant.refresh_from_db()
+            self.assertEqual(self.tenant.state, models.Tenant.States.ERRED)

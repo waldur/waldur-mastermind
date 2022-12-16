@@ -22,6 +22,11 @@ class OpenStackExtension(WaldurExtension):
                 'schedule': timedelta(hours=12),
                 'args': (),
             },
+            'openstack_mark_as_erred_old_tenants_in_deleting_state': {
+                'task': 'openstack.mark_as_erred_old_tenants_in_deleting_state',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
         }
 
     @staticmethod
