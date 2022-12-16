@@ -86,7 +86,7 @@ MIDDLEWARE = (
     'waldur_core.logging.middleware.CaptureEventContextMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'axes.middleware.AxesMiddleware'
+    'axes.middleware.AxesMiddleware',
 )
 
 REST_FRAMEWORK = {

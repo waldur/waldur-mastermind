@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
+import waldur_core.core.middleware
 import waldur_core.logging.middleware
 
 TOKEN_KEY = settings.WALDUR_CORE.get('TOKEN_KEY', 'x-auth-token')
@@ -93,6 +94,7 @@ def user_capturing_auth(auth):
             if result is not None:
                 user, _ = result
                 waldur_core.logging.middleware.set_current_user(user)
+                waldur_core.core.middleware.set_current_user(user)
                 token = user.auth_token
                 if token:
                     token.created = timezone.now()

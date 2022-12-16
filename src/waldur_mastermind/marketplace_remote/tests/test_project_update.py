@@ -3,6 +3,7 @@ from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status, test
 
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -39,7 +40,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
 
     def test_when_project_is_updated_request_is_created_for_each_offering(self):
         old_name = self.project.name
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_login(self.fixture.owner)
         self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'New project name'}
         )
@@ -61,12 +62,12 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.assertTrue(response.status_code, status.HTTP_200_OK)
 
     def test_when_consecutive_update_is_applied_previous_request_is_cancelled(self):
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_login(self.fixture.owner)
         self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'First project'}
         )
 
-        self.client.force_authenticate(self.fixture.admin)
+        self.client.force_login(self.fixture.admin)
         self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'Second project'}
         )
@@ -100,7 +101,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.client_mock().list_projects.return_value = [{'uuid': 'valid_uuid'}]
 
         # Act
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_login(self.fixture.owner)
         self.client.patch(
             ProjectFactory.get_url(self.project),
             {'name': 'First project', 'is_industry': True},
@@ -108,7 +109,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         request = ProjectUpdateRequest.objects.get(
             project=self.project, offering=self.offering
         )
-        self.client.force_authenticate(self.fixture.offering_owner)
+        self.client.force_login(self.fixture.offering_owner)
         base_url = reverse(
             "marketplace-project-update-request-detail",
             kwargs={'uuid': request.uuid.hex},
@@ -125,7 +126,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
 
     def test_when_request_is_rejected_change_is_not_applied_remotely(self):
         # Arrange
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_login(self.fixture.owner)
         self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'First project'}
         )
@@ -134,7 +135,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         )
 
         # Act
-        self.client.force_authenticate(self.fixture.offering_owner)
+        self.client.force_login(self.fixture.offering_owner)
         base_url = reverse(
             "marketplace-project-update-request-detail",
             kwargs={'uuid': request.uuid.hex},
@@ -144,3 +145,25 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(0, self.client_mock().update_project.call_count)
+
+    def test_when_changes_made_my_same_owner_they_applied_immediately(self):
+        offering_owner = self.fixture.offering_owner
+        self.client.force_login(offering_owner)
+        self.fixture.customer.add_user(
+            offering_owner, structure_models.CustomerRole.OWNER
+        )
+
+        response = self.client.patch(
+            ProjectFactory.get_url(self.project), {'name': 'First project'}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.project.refresh_from_db()
+
+        self.assertEqual('First project', self.project.name)
+        requests = ProjectUpdateRequest.objects.filter(
+            project=self.project,
+            offering=self.offering,
+            state=ProjectUpdateRequest.States.APPROVED,
+        )
+        self.assertEqual(1, requests.count())
