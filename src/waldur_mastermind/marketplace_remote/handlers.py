@@ -3,8 +3,10 @@ import logging
 from django.conf import settings
 from django.db import transaction
 
+from waldur_core.core import middleware
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
@@ -78,10 +80,15 @@ def sync_permission_with_remote_customer(
 
 
 def create_request_when_project_is_updated(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
 
-    if created:
+    user = middleware.get_current_user()
+
+    if not user:
         return
 
     if not set(instance.tracker.changed()) & set(
@@ -106,12 +113,21 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
     )
     offerings = models.Offering.objects.filter(id__in=offering_ids)
     for offering in offerings:
-        models.ProjectUpdateRequest.objects.create(
+        project_request = models.ProjectUpdateRequest.objects.create(
             project=instance,
             offering=offering,
             state=models.ProjectUpdateRequest.States.PENDING,
             **payload,
         )
+        # Auto-approve if possible
+        # Code from waldur_mastermind.marketplace.permissions.user_is_service_provider_owner_or_service_provider_manager
+        if structure_permissions._has_owner_access(
+            user, offering.customer
+        ) or offering.customer.has_user(
+            user, role=structure_models.CustomerRole.SERVICE_MANAGER
+        ):
+            project_request.state = models.ProjectUpdateRequest.States.APPROVED
+            project_request.save(update_fields=['state'])
 
 
 def sync_remote_project_when_request_is_approved(
