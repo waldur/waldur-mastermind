@@ -103,3 +103,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def offering_customer(self):
         return self.offering_fixture.customer
+
+    @cached_property
+    def offering_support(self):
+        return self.offering_fixture.customer_support
