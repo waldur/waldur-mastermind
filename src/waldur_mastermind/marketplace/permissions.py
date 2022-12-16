@@ -159,11 +159,15 @@ def user_is_owner_or_service_manager(request, view, obj=None):
 
     if isinstance(obj, models.Offering):
         offering = obj
-    elif isinstance(obj, models.Resource):
+    elif hasattr(obj.__class__, 'Permissions'):
         customer = structure_permissions._get_customer(obj)
 
-        if structure_permissions._has_owner_access(request.user, customer):
+        if structure_permissions._has_owner_access(
+            request.user, customer
+        ) or structure_permissions._has_service_manager_access(request.user, customer):
             return
+        elif not hasattr(obj, 'offering'):
+            raise exceptions.PermissionDenied()
 
         offering = obj.offering
     else:

@@ -139,6 +139,7 @@ waldur_marketplace_support = "waldur_mastermind.marketplace_support.extension:Ma
 waldur_marketplace_vmware = "waldur_mastermind.marketplace_vmware.extension:MarketplaceVMwareExtension"
 waldur_marketplace_remote = "waldur_mastermind.marketplace_remote.extension:MarketplaceRemoteExtension"
 waldur_marketplace_flows = "waldur_mastermind.marketplace_flows.extension:MarketplaceFlowsExtension"
+waldur_marketplace_promotions = "waldur_mastermind.promotions.extension:MarketplacePromotionsExtension"
 waldur_openstack = "waldur_openstack.openstack.extension:OpenStackExtension"
 waldur_openstack_tenant = "waldur_openstack.openstack_tenant.extension:OpenStackTenantExtension"
 waldur_notifications = "waldur_mastermind.notifications.extension:NotificationsExtension"

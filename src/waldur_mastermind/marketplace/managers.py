@@ -14,7 +14,7 @@ class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
 
 
 class OfferingQuerySet(django_models.QuerySet):
-    def filter_for_user(self, user):
+    def filter_for_user(self, user, customer_roles=None, project_roles=None):
         """Returns offerings related to user."""
 
         if user.is_anonymous:
@@ -27,9 +27,19 @@ class OfferingQuerySet(django_models.QuerySet):
             permissions__user=user, permissions__is_active=True
         )
 
+        if customer_roles is not None:
+            connected_customers = connected_customers.filter(
+                permissions__role__in=customer_roles
+            )
+
         connected_projects = structure_models.Project.available_objects.all().filter(
             permissions__user=user, permissions__is_active=True
         )
+
+        if project_roles is not None:
+            connected_projects = connected_projects.filter(
+                permissions__role__in=project_roles
+            )
 
         return self.filter(
             Q(customer__in=connected_customers)
