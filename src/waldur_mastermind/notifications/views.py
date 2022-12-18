@@ -1,9 +1,10 @@
-from django.db import transaction
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, permissions, status
 from rest_framework.response import Response
 
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 
 from . import filters, models, serializers, tasks, utils
@@ -11,27 +12,26 @@ from . import filters, models, serializers, tasks, utils
 
 class BroadcastMessageViewSet(ActionsViewSet):
     queryset = models.BroadcastMessage.objects.all().order_by('-created')
-    create_serializer_class = serializers.CreateBroadcastMessageSerializer
-    serializer_class = serializers.ReadBroadcastMessageSerializer
+    serializer_class = serializers.BroadcastMessageSerializer
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.BroadcastMessageFilterSet
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        broadcast_message = serializer.save()
-        if broadcast_message.emails:
-            transaction.on_commit(
-                lambda: tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
-            )
-
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializers.ReadBroadcastMessageSerializer(instance=broadcast_message).data,
-            status=status.HTTP_201_CREATED,
-            headers=headers,
+    update_validators = [
+        core_validators.StateValidator(
+            models.BroadcastMessage.States.DRAFT,
+            models.BroadcastMessage.States.SCHEDULED,
         )
+    ]
+    lookup_field = 'uuid'
+
+    @decorators.action(detail=True, methods=['post'])
+    def send(self, request, *args, **kwargs):
+        broadcast_message = self.get_object()
+        tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
+        broadcast_message.state = models.BroadcastMessage.States.SENT
+        broadcast_message.send_at = timezone.now()
+        broadcast_message.save(update_fields=['state', 'send_at'])
+        return Response(status=status.HTTP_202_ACCEPTED)
 
     @decorators.action(detail=False, methods=['post'])
     def dry_run(self, request, *args, **kwargs):

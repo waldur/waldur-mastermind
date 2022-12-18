@@ -46,10 +46,33 @@ class QuerySerializer(serializers.Serializer):
     )
 
 
-class ReadBroadcastMessageSerializer(serializers.ModelSerializer):
+def format_options(options):
+    return [{'name': option.name, 'uuid': option.uuid.hex} for option in options]
+
+
+def serialize_query(query):
+    serialized_query = {}
+    if 'customers' in query:
+        serialized_query['customers'] = format_options(query['customers'])
+    if 'projects' in query:
+        serialized_query['projects'] = format_options(query['projects'])
+    if 'offerings' in query:
+        serialized_query['offerings'] = format_options(query['offerings'])
+    if 'customer_division_types' in query:
+        serialized_query['customer_division_types'] = format_options(
+            query['customer_division_types']
+        )
+    if 'customer_roles' in query:
+        serialized_query['customer_roles'] = list(query['customer_roles'])
+    if 'project_roles' in query:
+        serialized_query['project_roles'] = list(query['project_roles'])
+    return serialized_query
+
+
+class BroadcastMessageSerializer(serializers.ModelSerializer):
     author_full_name = serializers.ReadOnlyField(source='author.full_name')
-    query = serializers.JSONField()
-    emails = serializers.JSONField()
+    state = serializers.ReadOnlyField()
+    emails = serializers.ReadOnlyField()
 
     class Meta:
         model = models.BroadcastMessage
@@ -61,47 +84,28 @@ class ReadBroadcastMessageSerializer(serializers.ModelSerializer):
             'query',
             'author_full_name',
             'emails',
+            'state',
+            'send_at',
         )
 
-
-class CreateBroadcastMessageSerializer(serializers.ModelSerializer):
-    query = QuerySerializer(write_only=True)
-
-    class Meta:
-        model = models.BroadcastMessage
-        fields = ('uuid', 'created', 'subject', 'body', 'query')
+    def validate_query(self, query):
+        serializer = QuerySerializer(data=query)
+        serializer.is_valid()
+        return serializer.validated_data
 
     def create(self, validated_data):
-        query = validated_data.pop('query')
         current_user = self.context['request'].user
-        matching_users = utils.get_users_for_query(query)
         validated_data['author'] = current_user
+        matching_users = utils.get_users_for_query(validated_data['query'])
         validated_data['emails'] = [user.email for user in matching_users if user.email]
-        validated_data['query'] = ''
-        broadcast_message = super(CreateBroadcastMessageSerializer, self).create(
-            validated_data
-        )
-        serialized_query = {}
-        if 'customers' in query:
-            serialized_query['customers'] = self.format_options(query['customers'])
-        if 'projects' in query:
-            serialized_query['projects'] = self.format_options(query['projects'])
-        if 'offerings' in query:
-            serialized_query['offerings'] = self.format_options(query['offerings'])
-        if 'customer_division_types' in query:
-            serialized_query['customer_division_types'] = self.format_options(
-                query['customer_division_types']
-            )
-        if 'customer_roles' in query:
-            serialized_query['customer_roles'] = list(query['customer_roles'])
-        if 'project_roles' in query:
-            serialized_query['project_roles'] = list(query['project_roles'])
-        broadcast_message.query = serialized_query
-        broadcast_message.save(update_fields=['query'])
-        return broadcast_message
+        validated_data['query'] = serialize_query(validated_data['query'])
+        return super().create(validated_data)
 
-    def format_options(self, options):
-        return [{'name': option.name, 'uuid': option.uuid.hex} for option in options]
+    def update(self, instance, validated_data):
+        matching_users = utils.get_users_for_query(validated_data['query'])
+        validated_data['emails'] = [user.email for user in matching_users if user.email]
+        validated_data['query'] = serialize_query(validated_data['query'])
+        return super().update(instance, validated_data)
 
 
 class DryRunBroadcastMessageSerializer(serializers.Serializer):
