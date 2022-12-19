@@ -2055,8 +2055,8 @@ s2repoze = ["paste", "repoze.who", "zope.interface"]
 [package.source]
 type = "git"
 url = "https://github.com/IdentityPython/pysaml2"
-reference = "2a8dd85"
-resolved_reference = "2a8dd85ea2cb2631391b3efa3113b9f3f6779028"
+reference = "master"
+resolved_reference = "964e885054d9f0ac8e228267e194d183f93c34e0"
 
 [[package]]
 name = "pytest"
@@ -2754,7 +2754,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "7eed458f799a910e1ca491ffb82935a8fceb0bb88d0f8f9931bafdd8bfdab0b2"
+content-hash = "52ef3ac8d869b1f8bf85ccdcc1b78fe4e91fd670e93752475f778d90a168d2cc"
 
 [metadata.files]
 adal = [
