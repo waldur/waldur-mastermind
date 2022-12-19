@@ -11,13 +11,7 @@ from django.contrib.admin import SimpleListFilter
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models as django_models
 from django.db import transaction
-from django.forms import (
-    CharField,
-    ChoiceField,
-    ModelForm,
-    ModelMultipleChoiceField,
-    RadioSelect,
-)
+from django.forms import CharField, ChoiceField, ModelForm, ModelMultipleChoiceField
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -566,9 +560,7 @@ class ServiceSettingsAdminForm(ModelForm):
 
     def __init__(self, *args, **kwargs):
         super(ServiceSettingsAdminForm, self).__init__(*args, **kwargs)
-        self.fields['type'] = ChoiceField(
-            choices=SupportedServices.get_choices(), widget=RadioSelect
-        )
+        self.fields['type'] = ChoiceField(choices=SupportedServices.get_choices())
 
 
 class ServiceTypeFilter(SimpleListFilter):
