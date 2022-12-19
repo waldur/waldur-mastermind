@@ -22,7 +22,7 @@ class KeyOrderingFilter(django_filters.OrderingFilter):
         ]
 
     def filter(self, qs, value):
-        if isinstance(value, collections.Iterable) and any(
+        if isinstance(value, collections.abc.Iterable) and any(
             v in ['key', '-key'] for v in value
         ):
             qs = qs.extra(

@@ -64,7 +64,7 @@ def _upload_file(manager, issue, upload_file, filename):
 
     js = utils.json_loads(r)
 
-    if not js or not isinstance(js, collections.Iterable):
+    if not js or not isinstance(js, collections.abc.Iterable):
         raise JIRAError("Unable to parse JSON: %s" % js)
 
     attachment = Attachment(manager._options, manager._session, js[0])
