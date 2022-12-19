@@ -84,7 +84,7 @@ class KeycloakBackend:
             remote_subgroup_ids = set(remote_subgroup_map.keys())
 
             local_subgroups = ProjectGroup.objects.filter(
-                project__customer=local_group_map[group_id]
+                project__customer=local_group_map[group_id], project__is_removed=False
             )
             local_subgroup_names = {
                 str(subgroup.backend_id): subgroup.project.name
