@@ -2022,8 +2022,13 @@ class CartItemSerializer(BaseRequestSerializer):
 
             if not plan:
                 plans = models.Plan.objects.filter(
-                    Q(offering=offering) | Q(offering=offering.parent)
+                    offering=offering
                 ).filter_by_plan_availability_for_user(user)
+                if not plans.exists() and offering.parent:
+                    # try to lookup parent offering's plan
+                    plans = models.Plan.objects.filter(
+                        offering=offering.parent
+                    ).filter_by_plan_availability_for_user(user)
 
                 if len(plans) == 1:
                     attrs['plan'] = plans[0]
