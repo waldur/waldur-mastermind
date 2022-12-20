@@ -3,20 +3,6 @@
 from django.db import migrations, models
 
 
-def from_strings_to_number(apps, schema_editor):
-    Feedback = apps.get_model('support', 'Feedback')
-    matching = {
-        'negative': '2',
-        'neutral': '3',
-        'positive': '4',
-    }
-
-    for feedback in Feedback.objects.all():
-        if feedback.evaluation in matching.keys():
-            feedback.evaluation = matching[feedback.evaluation]
-            feedback.save()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -24,7 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(from_strings_to_number),
         migrations.AlterField(
             model_name='feedback',
             name='evaluation',

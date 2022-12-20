@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0077_resource_parent_data'),
+        ('marketplace', '0001_squashed_0076'),
     ]
 
     operations = [

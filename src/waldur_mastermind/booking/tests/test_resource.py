@@ -282,7 +282,7 @@ class ResourceGetTest(test.APITransactionTestCase):
             },
         )
 
-    def test_migration(self):
+    def test_sort(self):
         self.resource = self.fixture.resource
         self.resource.attributes = {
             'schedules': [
@@ -305,21 +305,9 @@ class ResourceGetTest(test.APITransactionTestCase):
         }
         self.resource.save()
 
-        migration = __import__(
-            'waldur_mastermind.booking.migrations.0001_initial',
-            fromlist=['0001_initial'],
-        )
-        func = migration.sort_schedules
+        utils.sort_attributes_schedules(self.resource.attributes)
+        self.resource.save()
 
-        class Apps(object):
-            @staticmethod
-            def get_model(app, klass):
-                if klass == 'Resource':
-                    return marketplace_models.Resource
-
-        mock_apps = Apps()
-        func(mock_apps, None)
-        self.resource.refresh_from_db()
         self.assertEqual(
             self.resource.attributes,
             {

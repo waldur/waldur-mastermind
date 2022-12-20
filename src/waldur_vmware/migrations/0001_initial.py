@@ -8,5 +8,3 @@ class Migration(migrations.Migration):
     dependencies = [
         ('structure', '0009_project_is_removed'),
     ]
-
-    operations = []

@@ -6,5 +6,3 @@ class Migration(migrations.Migration):
     dependencies = [
         ('logging', '0007_drop_alerts'),
     ]
-
-    operations = []

@@ -5,7 +5,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('support', '0010_error_traceback'),
-        ('marketplace', '0039_clear_scope_for_support_offering'),
     ]
 
     operations = [

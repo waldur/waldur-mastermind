@@ -3,11 +3,6 @@
 from django.db import migrations, models
 
 
-def is_active_set_null(apps, schema_editor):
-    PaymentProfile = apps.get_model('invoices', 'PaymentProfile')
-    PaymentProfile.objects.filter(is_active=False).update(is_active=None)
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -20,5 +15,4 @@ class Migration(migrations.Migration):
             name='is_active',
             field=models.NullBooleanField(default=True),
         ),
-        migrations.RunPython(is_active_set_null),
     ]
