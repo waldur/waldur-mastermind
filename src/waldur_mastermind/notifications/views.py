@@ -64,3 +64,4 @@ class MessageTemplateViewSet(ReadOnlyActionsViewSet):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.MessageTemplateFilterSet
+    lookup_field = 'uuid'
