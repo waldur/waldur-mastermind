@@ -1,15 +1,31 @@
-from django.db import migrations
-
-from waldur_core.core.migration_utils import build_spl_migrations
+import django.db.models.deletion
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('structure', '0021_project_backend_id'),
         ('waldur_digitalocean', '0003_droplet_error_traceback'),
+        ('structure', '0038_cleanup_agreement_number_placeholder'),
     ]
 
-    operations = build_spl_migrations(
-        ('droplet',),
-    )
+    operations = [
+        migrations.AddField(
+            model_name='droplet',
+            name='project',
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name='+',
+                to='structure.Project',
+            ),
+        ),
+        migrations.AddField(
+            model_name='droplet',
+            name='service_settings',
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name='+',
+                to='structure.ServiceSettings',
+            ),
+        ),
+    ]

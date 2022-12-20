@@ -10,6 +10,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('notifications', '0004_messagetemplate'),
+        ('marketplace', '0001_squashed_0076'),
         ('booking', '0001_initial'),
     ]
 

@@ -4,11 +4,6 @@ import django_fsm
 from django.db import migrations, models
 
 
-def set_flavor_state(apps, schema_editor):
-    Flavor = apps.get_model('openstack', 'Flavor')
-    Flavor.objects.update(state=3)
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -47,5 +42,4 @@ class Migration(migrations.Migration):
             name='flavor',
             unique_together=set(),
         ),
-        migrations.RunPython(set_flavor_state),
     ]

@@ -7,5 +7,3 @@ class Migration(migrations.Migration):
         ('waldur_rancher', '0017_add_settings_and_template'),
         ('contenttypes', '0002_remove_content_type_name'),
     ]
-
-    operations = []

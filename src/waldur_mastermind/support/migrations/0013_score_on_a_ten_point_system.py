@@ -3,14 +3,6 @@
 from django.db import migrations, models
 
 
-def switch_to_ten_point_system(apps, schema_editor):
-    Feedback = apps.get_model('support', 'Feedback')
-
-    for feedback in Feedback.objects.all():
-        feedback.evaluation *= 2
-        feedback.save()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -18,7 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(switch_to_ten_point_system),
         migrations.AlterField(
             model_name='feedback',
             name='evaluation',

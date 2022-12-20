@@ -6,5 +6,3 @@ class Migration(migrations.Migration):
     dependencies = [
         ('core', '0017_affiliations_default'),
     ]
-
-    operations = []
