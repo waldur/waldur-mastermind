@@ -1,3 +1,5 @@
+import collections
+
 from django.db.models import Q
 
 from waldur_core.structure.models import Customer, Project
@@ -60,3 +62,49 @@ def get_grouped_users_for_query(query):
 def get_users_for_query(query):
     users = get_grouped_users_for_query(query)
     return users['project_users'] | users['customer_users']
+
+
+def get_recipients_for_query(query):
+    users = {}
+    user_offerings = collections.defaultdict(set)
+    user_customers = collections.defaultdict(set)
+
+    customers = query.get('customers', [])
+    offerings = query.get('offerings', [])
+
+    if offerings:
+        resources = Resource.objects.filter(
+            Q(offering__in=offerings) | Q(offering__parent__in=offerings)
+        ).exclude(state=Resource.States.TERMINATED)
+
+        for resource in resources:
+            customer = resource.project.customer
+            if customers and customer not in customers:
+                continue
+            for user in customer.get_users():
+                users[user.id] = user
+                user_offerings[user.id].add(resource.offering)
+                user_customers[user.id].add(customer)
+
+    for customer in customers:
+        for user in customer.get_users():
+            users[user.id] = user
+            user_customers[user.id].add(customer)
+
+    result = []
+    for user_id, user in users.items():
+        result.append(
+            {
+                'full_name': user.full_name,
+                'email': user.email,
+                'offerings': [
+                    {'uuid': offering.uuid, 'name': offering.name}
+                    for offering in user_offerings[user_id]
+                ],
+                'customers': [
+                    {'uuid': customer.uuid, 'name': customer.name}
+                    for customer in user_customers[user_id]
+                ],
+            }
+        )
+    return result

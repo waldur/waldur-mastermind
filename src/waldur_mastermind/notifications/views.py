@@ -57,6 +57,18 @@ class BroadcastMessageViewSet(ActionsViewSet):
 
     users_serializer_class = serializers.UsersBroadcastMessageSerializer
 
+    @decorators.action(detail=False)
+    def recipients(self, request, *args, **kwargs):
+        serializer = serializers.QuerySerializer(
+            context=self.get_serializer_context(), data=request.query_params
+        )
+        serializer.is_valid(raise_exception=True)
+        users = utils.get_recipients_for_query(serializer.validated_data)
+        return Response(
+            users,
+            status=status.HTTP_200_OK,
+        )
+
 
 class MessageTemplateViewSet(ReadOnlyActionsViewSet):
     queryset = models.MessageTemplate.objects.all().order_by('name')
