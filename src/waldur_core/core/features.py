@@ -64,6 +64,10 @@ class CustomerSection(FeatureSection):
         'Hide billing step in organization creation wizard.'
     )
 
+    payments_for_staff_only = Feature(
+        'Make payments menu visible for staff users only.'
+    )
+
 
 class ProjectSection(FeatureSection):
     class Meta:
