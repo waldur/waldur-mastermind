@@ -361,7 +361,11 @@ class Offering(
     )
     # Volume offering is linked with VPC offering via parent field
     parent = models.ForeignKey(
-        on_delete=models.CASCADE, to='Offering', null=True, blank=True
+        on_delete=models.CASCADE,
+        to='Offering',
+        null=True,
+        blank=True,
+        related_name='children',
     )
     attributes = models.JSONField(
         blank=True, default=dict, help_text=_('Fields describing Category.')

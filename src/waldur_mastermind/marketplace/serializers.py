@@ -787,6 +787,12 @@ class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class ChildOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Offering
+        fields = ('uuid', 'name', 'type')
+
+
 class OfferingDetailsSerializer(
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
@@ -800,6 +806,7 @@ class OfferingDetailsSerializer(
     )
     secret_options = serializers.JSONField(required=False)
     components = OfferingComponentSerializer(required=False, many=True)
+    children = ChildOfferingSerializer(many=True, read_only=True)
     order_item_count = serializers.SerializerMethodField()
     plans = BaseProviderPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
@@ -867,6 +874,7 @@ class OfferingDetailsSerializer(
             'total_cost_estimated',
             'parent_description',
             'parent_uuid',
+            'children',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
