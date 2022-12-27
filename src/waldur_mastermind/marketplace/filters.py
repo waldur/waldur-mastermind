@@ -54,6 +54,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     allowed_customer_uuid = django_filters.UUIDFilter(method='filter_allowed_customer')
     service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     project_uuid = django_filters.UUIDFilter(method='filter_project')
+    parent_uuid = django_filters.UUIDFilter(field_name='parent__uuid')
     attributes = django_filters.CharFilter(method='filter_attributes')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[

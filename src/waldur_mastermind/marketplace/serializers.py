@@ -866,11 +866,15 @@ class OfferingDetailsSerializer(
             'total_cost',
             'total_cost_estimated',
             'parent_description',
+            'parent_uuid',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
-            'parent': ('description',),
+            'parent': (
+                'uuid',
+                'description',
+            ),
         }
         protected_fields = ('customer', 'type')
         read_only_fields = (
