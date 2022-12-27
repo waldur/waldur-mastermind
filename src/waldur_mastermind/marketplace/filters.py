@@ -448,7 +448,11 @@ class ResourceFilter(
 
         # TODO: Drop union once plugin UUID is deprecated
         if is_uuid_like(value):
-            return query.union(self.filter_scope_uuid(queryset, name, value))
+            plugin_resources_qs = self.filter_scope_uuid(queryset, name, value)
+            if plugin_resources_qs.exists():
+                return plugin_resources_qs
+            else:
+                return query
         else:
             return query
 
