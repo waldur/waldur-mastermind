@@ -1258,3 +1258,15 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['limit_usage'], {'cpu': 10})
+
+    def test_if_limit_period_is_null(self):
+        self.offering_component.limit_period = None
+        self.offering_component.save()
+
+        self.resource.current_usages = {'cpu': 5}
+        self.resource.save()
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['limit_usage'], {'cpu': 5})

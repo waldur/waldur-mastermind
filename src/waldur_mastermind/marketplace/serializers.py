@@ -2416,6 +2416,10 @@ class ResourceSerializer(BaseItemSerializer):
                     )[
                         'total'
                     ]
+                if plan_component.component.limit_period is None:
+                    limit_usage[
+                        plan_component.component.type
+                    ] = resource.current_usages.get(plan_component.component.type)
 
         return limit_usage
 
