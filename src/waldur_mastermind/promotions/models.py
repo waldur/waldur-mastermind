@@ -1,5 +1,8 @@
+import datetime
+
 from django.db import models as django_models
 from django_fsm import FSMIntegerField, transition
+from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.models import DescribableMixin
@@ -66,6 +69,7 @@ class Campaign(UuidMixin, DescribableMixin):
     service_provider = django_models.ForeignKey(
         marketplace_models.ServiceProvider, on_delete=django_models.CASCADE
     )
+    tracker = FieldTracker()
 
     class Permissions:
         customer_path = 'service_provider__customer'
@@ -82,8 +86,65 @@ class Campaign(UuidMixin, DescribableMixin):
     def terminate(self):
         pass
 
+    def get_discount_price(self, unit_price):
+        if self.discount_type == DiscountType.DISCOUNT:
+            return unit_price * (100 - self.discount) / 100
+        else:
+            return self.discount
+
+    @classmethod
+    def get_discount_for_resource(cls, resource, year, month, unit_price):
+        discount = None, unit_price
+
+        for dr in DiscountedResource.objects.filter(resource=resource):
+            campaign = dr.campaign
+            created = dr.created
+
+            invoice_date = datetime.date(year=year, month=month, day=1)
+            discount_end = datetime.date(
+                year=created.year,
+                month=created.month + campaign.months - 1,  # if campaign.months==1
+                # then discount price will be on one month only
+                day=1,
+            )
+
+            if invoice_date > discount_end:
+                continue
+
+            unit_price = campaign.get_discount_price(unit_price)
+
+            if not discount[0] or discount[1] > unit_price:
+                discount = campaign, unit_price
+
+        return discount
+
+    def check_resource_on_conditions_of_campaign(self, resource):
+        other_offerings = (
+            marketplace_models.Resource.objects.exclude(
+                state=marketplace_models.Resource.States.TERMINATED
+            )
+            .filter(project__customer=resource.customer)
+            .values_list('offering_id', flat=True)
+        )
+
+        if (
+            self.offerings.filter(id=resource.offering.id).exists()
+            and (
+                not self.required_offerings.count()
+                or not self.required_offerings.excude(id__in=other_offerings).exists()
+            )
+            and (
+                not self.stock
+                or self.stock < DiscountedResource.objects(campaign=self).count()
+            )
+        ):
+            return True
+
 
 class DiscountedResource(TimeStampedModel):
+    # We add resource in this model when it approved and
+    # after checking coupon, stock, state, start/end dates and offerings.
+
     campaign = django_models.ForeignKey(Campaign, on_delete=django_models.CASCADE)
     resource = django_models.ForeignKey(
         'marketplace.Resource', on_delete=django_models.CASCADE
