@@ -1,4 +1,3 @@
-from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, permissions, status
 from rest_framework.response import Response
@@ -28,9 +27,6 @@ class BroadcastMessageViewSet(ActionsViewSet):
     def send(self, request, *args, **kwargs):
         broadcast_message = self.get_object()
         tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
-        broadcast_message.state = models.BroadcastMessage.States.SENT
-        broadcast_message.send_at = timezone.now()
-        broadcast_message.save(update_fields=['state', 'send_at'])
         return Response(status=status.HTTP_202_ACCEPTED)
 
     @decorators.action(detail=False, methods=['post'])
