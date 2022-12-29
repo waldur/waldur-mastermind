@@ -57,6 +57,9 @@ class CampaignSerializer(
         attrs = super().validate(attrs)
         start_date = attrs.get('start_date')
         end_date = attrs.get('end_date')
+        stock = attrs.get('stock')
+        auto_apply = attrs.get('auto_apply', True)
+
         user = self.context['request'].user
         offerings = attrs.get('offerings', [])
         required_offerings = attrs.get('required_offerings', [])
@@ -106,6 +109,11 @@ class CampaignSerializer(
         if start_date and end_date and start_date > end_date:
             raise serializers.ValidationError(
                 {'end_date': _('Campaign end cannot be before the start date.')}
+            )
+
+        if auto_apply and stock:
+            raise serializers.ValidationError(
+                {'stock': _('Stock cannot be defined if auto_apply is true.')}
             )
 
         return attrs

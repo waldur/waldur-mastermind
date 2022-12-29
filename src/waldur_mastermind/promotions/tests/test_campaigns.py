@@ -71,6 +71,14 @@ class CreateCampaignTest(test.APITransactionTestCase):
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_validate_stock(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_payload(
+            stock=10,
+        )
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class GetCampaignTest(test.APITransactionTestCase):

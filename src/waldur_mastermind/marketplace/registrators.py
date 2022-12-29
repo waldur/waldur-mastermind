@@ -16,6 +16,7 @@ from waldur_mastermind.invoices.utils import get_current_month_end, get_full_day
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils
+from waldur_mastermind.promotions import models as promotions_models
 
 logger = logging.getLogger(__name__)
 
@@ -118,15 +119,33 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     unit = invoice_models.Units.QUANTITY
                     quantity = 1
 
+                # find campaigns
+                (
+                    campaign,
+                    discounted_unit_price,
+                ) = promotions_models.Campaign.get_discount_for_resource(
+                    resource=resource,
+                    year=invoice.year,
+                    month=invoice.month,
+                    unit_price=unit_price,
+                )
+                name = f'{self.get_name(resource)} / {self.get_component_name(plan_component)}'
+                details = self.get_component_details(resource, plan_component)
+
+                if campaign:
+                    name += ' Discount.'
+                    details['campaign_uuid'] = campaign.uuid.hex
+                    details['unit_price'] = float(unit_price)
+
                 invoice_models.InvoiceItem.objects.create(
-                    name=f'{self.get_name(resource)} / {self.get_component_name(plan_component)}',
-                    details=self.get_component_details(resource, plan_component),
+                    name=name,
+                    details=details,
                     resource=resource,
                     project=resource.project,
                     invoice=invoice,
                     start=start,
                     end=end,
-                    unit_price=unit_price,
+                    unit_price=discounted_unit_price,
                     unit=unit,
                     quantity=quantity,
                     measured_unit=plan_component.component.measured_unit,
