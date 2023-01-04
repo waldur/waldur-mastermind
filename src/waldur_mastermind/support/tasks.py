@@ -150,7 +150,7 @@ def _send_email(
     text_message = text_template.render(Context(context, autoescape=False))
     subject = subject_template.render(Context(context, autoescape=False)).strip()
 
-    logger.debug('About to send an issue update notification to %s' % receiver.email)
+    logger.info('About to send an issue update notification to %s' % receiver.email)
 
     try:
         core_utils.send_mail(

@@ -42,7 +42,7 @@ def send_invitation_created(invitation_uuid, sender):
     site_link = format_homeport_link()
     context['site_host'] = urlparse(site_link).hostname
 
-    logger.debug(
+    logger.info(
         'About to send invitation to {email} to join {name} {type} as {role}'.format(
             email=invitation.email, **context
         )
