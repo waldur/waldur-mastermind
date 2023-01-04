@@ -2,6 +2,7 @@ import calendar
 import datetime
 import functools
 import importlib
+import logging
 import os
 import re
 import time
@@ -38,6 +39,8 @@ from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
 from waldur_core.structure.notifications import NOTIFICATIONS
+
+logger = logging.getLogger(__name__)
 
 
 def flatten(*xs):
@@ -303,6 +306,11 @@ def broadcast_mail(
         html_message = render_to_string(html_template_name, context)
 
         for recipient in recipient_list:
+            logger.info(
+                'About to send {event_type} notification to {recipient}'.format(
+                    event_type=event_type, recipient=recipient
+                )
+            )
             send_mail(
                 subject,
                 text_message,

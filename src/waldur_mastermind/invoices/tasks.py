@@ -82,7 +82,7 @@ def send_invoice_notification(invoice_uuid):
     attachment = utils.create_invoice_pdf(invoice)
     content_type = 'application/pdf'
 
-    logger.debug(
+    logger.info(
         'About to send invoice {invoice} notification to {emails}'.format(
             invoice=invoice, emails=emails
         )
@@ -133,7 +133,7 @@ def send_invoice_report():
 
     # Please note that email body could be empty if there are no valid invoices
     emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
-    logger.debug('About to send accounting report to {emails}'.format(emails=emails))
+    logger.info('About to send accounting report to {emails}'.format(emails=emails))
     core_utils.send_mail(
         subject=subject,
         body=body,
@@ -250,6 +250,9 @@ def send_monthly_invoicing_reports_about_customers():
             today.year,
         )
         emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
+        logger.info(
+            'About to send monthly invoicing report to {emails}'.format(emails=emails)
+        )
         core_utils.send_mail(
             subject=subject,
             body=body,

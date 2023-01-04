@@ -173,7 +173,7 @@ class EmailHook(BaseHook):
 
     def process(self, event):
         if not self.email:
-            logger.debug(
+            logger.info(
                 'Skipping processing of email hook (PK=%s) because email is not defined'
                 % self.pk
             )
@@ -183,7 +183,7 @@ class EmailHook(BaseHook):
         )
         text_message = event.message
         html_message = render_to_string('logging/email.html', {'events': [event]})
-        logger.debug(
+        logger.info(
             'Submitting email hook to %s, payload: %s', self.email, text_message
         )
         send_mail(
