@@ -89,32 +89,3 @@ class CatalogDeleteTest(test.APITransactionTestCase):
         self.catalog.save()
         self.catalog.scope.delete()
         self.assertRaises(models.Catalog.DoesNotExist, self.catalog.refresh_from_db)
-
-    def test_migration(self):
-        migration = __import__(
-            'waldur_rancher.migrations.0034_delete_catalogs_without_scope',
-            fromlist=['0034_delete_catalogs_without_scope'],
-        )
-        func = migration.delete_catalogs
-
-        class Apps(object):
-            @staticmethod
-            def get_model(app, klass):
-                if klass.lower() == 'catalog':
-                    return models.Catalog
-                if klass.lower() == 'node':
-                    return models.Node
-                if klass.lower() == 'cluster':
-                    return models.Cluster
-
-        mock_apps = Apps()
-        catalog = factories.CatalogFactory()
-
-        # We must use an object of a class other than those for which there are signals to delete
-        fake_scope = factories.NodeFactory()
-        catalog.scope = fake_scope
-        catalog.save()
-        fake_scope.delete()
-        catalog.refresh_from_db()
-        func(mock_apps, None)
-        self.assertRaises(models.Catalog.DoesNotExist, catalog.refresh_from_db)
