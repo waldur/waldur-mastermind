@@ -107,4 +107,4 @@ def get_recipients_for_query(query):
                 ],
             }
         )
-    return result
+    return sorted(result, key=lambda row: row['full_name'])
