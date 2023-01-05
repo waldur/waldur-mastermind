@@ -126,8 +126,7 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
         ) or offering.customer.has_user(
             user, role=structure_models.CustomerRole.SERVICE_MANAGER
         ):
-            project_request.state = models.ProjectUpdateRequest.States.APPROVED
-            project_request.save(update_fields=['state'])
+            project_request.approve(user, 'Auto approval')
 
 
 def sync_remote_project_when_request_is_approved(
