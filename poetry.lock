@@ -2056,7 +2056,7 @@ s2repoze = ["paste", "repoze.who", "zope.interface"]
 type = "git"
 url = "https://github.com/IdentityPython/pysaml2"
 reference = "master"
-resolved_reference = "964e885054d9f0ac8e228267e194d183f93c34e0"
+resolved_reference = "803eb892542a721fe6c494b91c3924a31ec6e403"
 
 [[package]]
 name = "pytest"
