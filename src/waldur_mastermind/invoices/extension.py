@@ -51,6 +51,7 @@ class InvoicesExtension(WaldurExtension):
                     'FUNKA': '04600',
                     'EELUKS': 'ENA0',
                     'FUND': '44',
+                    'KULUUKSUS': '',
                 },
             },
             'SEND_CUSTOMER_INVOICES': False,

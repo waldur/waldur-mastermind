@@ -362,7 +362,7 @@ class SAPReportSerializer(serializers.Serializer):
     tekst_2 = serializers.SerializerMethodField(method_name='get_tekst_2_field')
     maarang = serializers.ReadOnlyField(source='get_empty_field')
     km_kood = serializers.SerializerMethodField(method_name='get_vat')
-    kuluuksus = serializers.SerializerMethodField(method_name='get_empty_field')
+    kuluuksus = serializers.SerializerMethodField(method_name='get_kuluuksus_field')
     saaja_info = serializers.SerializerMethodField(method_name='get_saaja_info')
     divisjon = serializers.SerializerMethodField(method_name='get_empty_field')
     toetus = serializers.SerializerMethodField(method_name='get_empty_field')
@@ -416,6 +416,9 @@ class SAPReportSerializer(serializers.Serializer):
 
     def get_sales_org_field(self, invoice_item):
         return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['ORG_CODE']
+
+    def get_kuluuksus_field(self, invoice_item):
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAP_PARAMS']['KULUUKSUS']
 
     def get_sales_unit(self, invoice_item):
         try:
