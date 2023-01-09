@@ -5,9 +5,9 @@
 Quotas is Django application that provides generic implementation of quotas tracking functionality:
 
 1. Store and query resource limits and usages for project, customer or any other model.
-1. Aggregate quota usage in object hierarchies.
-1. Aggregate historical data for charting and analysis.
-1. Prevent user from consuming an entire system's resources by
+2. Aggregate quota usage in object hierarchies.
+3. Aggregate historical data for charting and analysis.
+4. Prevent user from consuming an entire system's resources by
   raising alerts when quota threshold has been reached.
 
 ## Define quota fields
@@ -81,7 +81,7 @@ Usage:
 1. Add ``quotas__limit`` and ``-quotas__limit`` to filter meta ``order_by`` attribute
   if you want order by quotas limits and ``quotas__usage``, ``-quota__usage`` if you want to order by quota usage.
 
-1. Add `quotas__<limit or usage>__<quota_name>` to meta `order_by` attribute if you want to allow user to order `<quota_name>`. For example, `quotas__limit__ram` will enable ordering by `ram` quota.
+2. Add `quotas__<limit or usage>__<quota_name>` to meta `order_by` attribute if you want to allow user to order `<quota_name>`. For example, `quotas__limit__ram` will enable ordering by `ram` quota.
 
 Ordering can be done only by one quota at a time.
 
