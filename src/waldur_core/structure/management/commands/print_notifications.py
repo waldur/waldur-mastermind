@@ -16,6 +16,8 @@ CUSTOM_LOADER_SETTING = (
 
 
 class Command(BaseCommand):
+    help = """Prints Mastermind notifications with a description and templates"""
+
     def handle(self, *args, **options):
         file_engine = engines.all()
         # reset loaders to use only filesystem based
@@ -38,10 +40,10 @@ class Command(BaseCommand):
                 for template in notification['templates']:
                     template_path = f"{section['key']}/{template.path}"
                     print(f'=== "{template_path}"', end='\n\n')
-                    print(f"{TAB_OF_4}```")
+                    print(f"```txt")
                     source = file_engine[0].get_template(template_path).template.source
                     source = source.replace('\n', f'\n{TAB_OF_4}')
                     source = re.sub(' +\n', '\n', source)
                     source = source.rstrip()
                     print(f"{TAB_OF_4}{source}", end='\n')
-                    print(f"\n{TAB_OF_4}```", end='\n\n')
+                    print(f"\n```", end='\n\n')
