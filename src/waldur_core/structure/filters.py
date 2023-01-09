@@ -570,10 +570,16 @@ class ServiceSettingsFilter(NameFilterSet):
     state = core_filters.StateFilter()
     customer = django_filters.UUIDFilter(field_name='customer__uuid')
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
+    scope_uuid = django_filters.UUIDFilter(
+        method=core_filters.get_generic_field_filter(
+            models.BaseResource.get_all_models()
+        ),
+        label='Scope UUID',
+    )
 
     class Meta:
         model = models.ServiceSettings
-        fields = ('name', 'type', 'state', 'shared')
+        fields = ('name', 'type', 'state', 'shared', 'scope_uuid')
 
 
 class ServiceSettingsScopeFilterBackend(core_filters.GenericKeyFilterBackend):

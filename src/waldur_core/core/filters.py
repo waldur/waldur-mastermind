@@ -385,3 +385,15 @@ class ReviewStateFilter(MappedMultipleChoiceFilter):
             },
         )
         super().__init__(*args, **kwargs)
+
+
+def get_generic_field_filter(get_related_models: list):
+    def generic_field_filter(queryset, name, value):
+        for klass in get_related_models:
+            if klass.objects.filter(uuid=value).exists():
+                obj = klass.objects.get(uuid=value)
+                ct = ContentType.objects.get_for_model(klass)
+                return queryset.filter(object_id=obj.id, content_type=ct)
+        return queryset.none()
+
+    return generic_field_filter
