@@ -72,6 +72,12 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
     description = django_filters.CharFilter(lookup_expr='icontains')
     keyword = django_filters.CharFilter(method='filter_keyword', label='Keyword')
+    scope_uuid = django_filters.UUIDFilter(
+        method=core_filters.get_generic_field_filter(
+            [structure_models.ServiceSettings]
+        ),
+        label='Scope UUID',
+    )
     o = django_filters.OrderingFilter(
         fields=(
             'name',
