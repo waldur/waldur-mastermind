@@ -6,6 +6,6 @@ source /etc/waldur/celery.conf
 mkdir -p /run/waldur/celerybeat
 chown -R waldur:waldur /run/waldur/celerybeat
 cd /run/waldur/celerybeat
-gosu waldur sh -c "celery -A $CELERY_APP beat --loglevel=$CELERYBEAT_LOG_LEVEL --logfile=$CELERYBEAT_LOG_FILE --pidfile=$CELERYBEAT_PID_FILE $CELERYBEAT_OPTS"
+gosu waldur sh -c "celery -A $CELERY_APP beat --loglevel=$CELERYBEAT_LOG_LEVEL --pidfile=$CELERYBEAT_PID_FILE $CELERYBEAT_OPTS"
 
 exit 0
