@@ -4,37 +4,37 @@
 
 1. Define active backend.
 
-> ``` python
-> # For Service Desk
-> WALDUR_SUPPORT.update({
->     'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
-> })
-> # For JIRA
-> WALDUR_SUPPORT.update({
->     'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:JiraBackend',
-> })
-> ```
+    ``` python
+    # For Service Desk
+    WALDUR_SUPPORT.update({
+        'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
+    })
+    # For JIRA
+    WALDUR_SUPPORT.update({
+        'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:JiraBackend',
+    })
+    ```
 
-1. Setup connection. Define server URL and user details to connect JIRA
+2. Setup connection. Define server URL and user details to connect JIRA
     or Service Desk to Waldur:
 
-> ``` python
-> WALDUR_SUPPORT['CREDENTIALS'].update({
->     'server': <server URL>,
->     'username': <Atlassian user username>,
->     'password': <Atlassian user password>,
-> })
-> ```
+    ``` python
+    WALDUR_SUPPORT['CREDENTIALS'].update({
+        'server': <server URL>,
+        'username': <Atlassian user username>,
+        'password': <Atlassian user password>,
+    })
+    ```
 
-1. Project setup. Define project key.
+3. Project setup. Define project key.
 
-> ``` python
-> WALDUR_SUPPORT['PROJECT'].update({
->     'key': <project key>,
-> })
-> ```
+    ``` python
+    WALDUR_SUPPORT['PROJECT'].update({
+        'key': <project key>,
+    })
+    ```
 
-1. Project issues setup.
+4. Project issues setup.
 
     4.1. Make sure that selected project supports registered types of issues: `WALDUR_SUPPORT['ISSUE']['types']`.
 
@@ -62,11 +62,11 @@ Step by step guide:
 
 1. Log in to JIRA as administrator
 
-1. Click on a cogwheel in the upper right corner and pick 'System'.
+2. Click on a cogwheel in the upper right corner and pick 'System'.
 
-1. Scroll down to the lower left corner and find a "WebHook" option under the Advanced tab.
+3. Scroll down to the lower left corner and find a "WebHook" option under the Advanced tab.
 
-1. Now click on "Create a Web Hook" You will be presented with a web
+4. Now click on "Create a Web Hook" You will be presented with a web
     hook creation view. There are only 3 mandatory fields - Name, Status and URL.
 
     4.1 Name your hook

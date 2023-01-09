@@ -29,10 +29,10 @@ Add an entry point of name `waldur_extensions` to your package
 
 1. Keep plugin's documentation within plugin's code repository.
 
-1. The documentation page should start with plugin's title and
+2. The documentation page should start with plugin's title and
     description.
 
-1. Keep plugin's documentation page structure similar to the Waldur's main documentation page:
+3. Keep plugin's documentation page structure similar to the Waldur's main documentation page:
 
     **Guide** - should contain at least **installation** steps.
     **API** - should include description of API extension, if any.
