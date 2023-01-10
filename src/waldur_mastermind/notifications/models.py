@@ -30,7 +30,7 @@ class BroadcastMessage(UuidMixin):
     state = models.CharField(
         max_length=30, choices=States.CHOICES, default=States.DRAFT
     )
-    send_at = models.DateTimeField(null=True)
+    send_at = models.DateField(null=True)
     author = models.ForeignKey(to=User, on_delete=models.SET_NULL, null=True)
     created = AutoCreatedField()
     subject = models.CharField(max_length=1000, validators=[validate_name])
