@@ -414,6 +414,13 @@ def create_offerings_for_volume_and_instance(tenant):
 def create_marketplace_resource_for_imported_resources(
     instance, offering=None, plan=None
 ):
+    if marketplace_models.Resource.objects.filter(scope=instance).exists():
+        logger.warning(
+            'Skipping creation of marketplace resource '
+            'for OpenStack instance with ID %s because it already exists.',
+            instance.id,
+        )
+        return
     resource = marketplace_models.Resource(
         # backend_id is None if instance is being restored from backup because
         # on database level there's uniqueness constraint enforced for backend_id
