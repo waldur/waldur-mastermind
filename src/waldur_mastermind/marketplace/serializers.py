@@ -24,6 +24,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
+from waldur_core.core.models import User
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.media.serializers import (
     ProtectedFileField,
@@ -38,16 +39,22 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import ServiceSettingsSerializer
+from waldur_mastermind.billing.serializers import get_payment_profiles
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices.models import InvoiceItem
+from waldur_mastermind.invoices.utils import get_current_month, get_current_year
 from waldur_mastermind.marketplace.permissions import (
     check_availability_of_auto_approving,
 )
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
-from waldur_mastermind.marketplace.utils import validate_attributes
+from waldur_mastermind.marketplace.utils import (
+    get_service_provider_resources,
+    get_service_provider_user_ids,
+    validate_attributes,
+)
 from waldur_pid import models as pid_models
 
 from . import log, models, permissions, plugins, tasks, utils
@@ -3127,3 +3134,111 @@ class OfferingStatsSerializer(serializers.Serializer):
     name = serializers.CharField(source='offering__name')
     uuid = serializers.CharField(source='offering__uuid')
     country = serializers.CharField(source='offering__country')
+
+
+class ProviderProjectSerializer(
+    MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
+):
+    class Meta:
+        model = structure_models.Project
+        fields = (
+            'uuid',
+            'name',
+            'image',
+        )
+
+
+class ProviderUserSerializer(
+    ProtectedMediaSerializerMixin, serializers.ModelSerializer
+):
+    class Meta:
+        model = User
+        fields = (
+            'uuid',
+            'full_name',
+            'email',
+            'image',
+        )
+
+
+class ProviderCustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = structure_models.Customer
+        fields = (
+            'uuid',
+            'name',
+            'abbreviation',
+            'phone_number',
+            'email',
+            'payment_profiles',
+            'billing_price_estimate',
+            'projects_count',
+            'users_count',
+            'projects',
+            'users',
+        )
+
+    payment_profiles = serializers.SerializerMethodField()
+    billing_price_estimate = serializers.SerializerMethodField()
+    projects_count = serializers.SerializerMethodField()
+    users_count = serializers.SerializerMethodField()
+    projects = serializers.SerializerMethodField()
+    users = serializers.SerializerMethodField()
+
+    def get_resources(self, customer):
+        service_provider = self.context['service_provider']
+        return get_service_provider_resources(service_provider).filter(
+            project__customer=customer
+        )
+
+    def get_users_qs(self, customer):
+        service_provider = self.context['service_provider']
+        user = self.context['view'].request.user
+        ids = get_service_provider_user_ids(user, service_provider, customer)
+        return get_user_model().objects.filter(id__in=ids)
+
+    def get_billing_price_estimate(self, customer):
+        resources = self.get_resources(customer)
+        invoice_items = InvoiceItem.objects.filter(
+            resource__in=resources,
+            invoice__year=get_current_year(),
+            invoice__month=get_current_month(),
+        )
+        result = {
+            'total': 0.0,
+            'current': 0.0,
+            'tax': 0.0,
+            'tax_current': 0.0,
+        }
+        for item in invoice_items:
+            result['current'] += item.price
+            result['tax'] += item.tax
+            result['tax_current'] += item.tax_current
+            result['total'] += item.total
+        return result
+
+    def get_payment_profiles(self, customer):
+        return get_payment_profiles(self, customer)
+
+    def get_projects_count(self, customer):
+        return self.get_resources(customer).count()
+
+    def get_users_count(self, customer):
+        return self.get_users_qs(customer).count()
+
+    def get_projects(self, customer):
+        resources = self.get_resources(customer)
+        projects = structure_models.Project.available_objects.filter(
+            id__in=resources.values_list('project_id')
+        )[:5]
+        serializer = ProviderProjectSerializer(
+            instance=projects, many=True, context=self.context
+        )
+        return serializer.data
+
+    def get_users(self, customer):
+        users = self.get_users_qs(customer)[:5]
+        serializer = ProviderUserSerializer(
+            instance=users, many=True, context=self.context
+        )
+        return serializer.data

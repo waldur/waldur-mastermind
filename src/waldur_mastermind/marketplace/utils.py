@@ -784,23 +784,35 @@ def create_local_resource(order_item, scope, effective_id=''):
     return resource
 
 
-def get_service_provider_project_ids(service_provider):
-    offering_ids = models.Offering.objects.filter(
-        shared=True, customer=service_provider.customer
-    ).values_list('id', flat=True)
+def get_service_provider_resources(service_provider):
+    return models.Resource.objects.filter(
+        offering__customer=service_provider.customer, offering__shared=True
+    ).exclude(state=models.Resource.States.TERMINATED)
+
+
+def get_service_provider_customer_ids(service_provider):
     return (
-        models.Resource.objects.filter(offering_id__in=offering_ids)
-        .exclude(state=models.Resource.States.TERMINATED)
+        get_service_provider_resources(service_provider)
+        .values_list('project__customer_id', flat=True)
+        .distinct()
+    )
+
+
+def get_service_provider_project_ids(service_provider):
+    return (
+        get_service_provider_resources(service_provider)
         .values_list('project_id', flat=True)
         .distinct()
     )
 
 
-def get_service_provider_user_ids(user, service_provider):
+def get_service_provider_user_ids(user, service_provider, customer=None):
     project_ids = get_service_provider_project_ids(service_provider)
     qs = structure_models.ProjectPermission.objects.filter(
         project_id__in=project_ids, is_active=True
     )
+    if customer:
+        qs = qs.filter(project__customer=customer)
     if not user.is_staff and not user.is_support:
         qs = qs.filter(user__is_active=True)
     return qs.values_list('user_id', flat=True).distinct()
