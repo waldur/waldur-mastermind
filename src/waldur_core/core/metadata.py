@@ -266,6 +266,11 @@ class WaldurCore(BaseModel):
         description='Sentry Data Source Name for Waldur HomePort project.'
     )
 
+    HOMEPORT_SENTRY_ENVIRONMENT: str = Field(
+        description='Sentry environment name for Waldur Homeport.',
+        default='waldur-production',
+    )
+
     SIDEBAR_LOGO: Optional[str] = Field(
         description='Relative path to image rendered at the top of sidebar menu in HomePort.'
     )
@@ -338,6 +343,7 @@ class WaldurCore(BaseModel):
             'INVITATION_CIVIL_NUMBER_HELP_TEXT',
             'INVITATION_TAX_NUMBER_LABEL',
             'HOMEPORT_SENTRY_DSN',
+            'HOMEPORT_SENTRY_ENVIRONMENT',
             'HOMEPORT_URL',
             'SIDEBAR_LOGO',
             'SIDEBAR_LOGO_MOBILE',
