@@ -37,4 +37,8 @@ LOGGING = {
         'level': 'DEBUG',
         'handlers': ['console'],
     },
+
+    # Default empty dict.
+    # An extension can set up its own logger, e.g. 'djangosaml2' for SAML2
+    'loggers': {}
 }
