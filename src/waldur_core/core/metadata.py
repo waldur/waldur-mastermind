@@ -271,6 +271,11 @@ class WaldurCore(BaseModel):
         default='waldur-production',
     )
 
+    HOMEPORT_SENTRY_TRACES_SAMPLE_RATE: float = Field(
+        description='Percentage of transactions sent to Sentry for tracing.',
+        default=0.2,
+    )
+
     SIDEBAR_LOGO: Optional[str] = Field(
         description='Relative path to image rendered at the top of sidebar menu in HomePort.'
     )
@@ -344,6 +349,7 @@ class WaldurCore(BaseModel):
             'INVITATION_TAX_NUMBER_LABEL',
             'HOMEPORT_SENTRY_DSN',
             'HOMEPORT_SENTRY_ENVIRONMENT',
+            'HOMEPORT_SENTRY_TRACES_SAMPLE_RATE',
             'HOMEPORT_URL',
             'SIDEBAR_LOGO',
             'SIDEBAR_LOGO_MOBILE',
