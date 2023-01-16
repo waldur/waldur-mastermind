@@ -50,5 +50,10 @@ class MarketplaceOpenStackExtension(WaldurExtension):
                 'task': 'waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes',
                 'schedule': timedelta(hours=6),
                 'args': (),
-            }
+            },
+            'marketplace-openstack.refresh-instance-backend-metadata': {
+                'task': 'waldur_mastermind.marketplace_openstack.refresh_instance_backend_metadata',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
         }

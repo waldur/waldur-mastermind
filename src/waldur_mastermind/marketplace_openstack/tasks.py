@@ -52,3 +52,13 @@ def create_resources_for_lost_instances_and_volumes():
                 utils.create_marketplace_resource_for_imported_resources(instance)
             except (ObjectDoesNotExist, MultipleObjectsReturned):
                 continue
+
+
+@shared_task(
+    name='waldur_mastermind.marketplace_openstack.refresh_instance_backend_metadata'
+)
+def refresh_instance_backend_metadata():
+    instances = marketplace_models.Resource.objects.filter(offering__type=INSTANCE_TYPE)
+    for instance in instances:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+        utils.import_instance_metadata(resource)
