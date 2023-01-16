@@ -128,6 +128,8 @@ class CampaignSerializer(
     class Meta:
         model = models.Campaign
         fields = (
+            'uuid',
+            'name',
             'url',
             'start_date',
             'end_date',
