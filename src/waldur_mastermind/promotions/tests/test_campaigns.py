@@ -18,6 +18,7 @@ class CreateCampaignTest(test.APITransactionTestCase):
 
     def _get_payload(self, **kwargs):
         payload = {
+            "name": "test",
             "start_date": datetime.date.today(),
             "end_date": datetime.date.today() + datetime.timedelta(days=30),
             "discount_type": models.DiscountType.DISCOUNT,
@@ -172,6 +173,7 @@ class UpdateCampaignTest(test.APITransactionTestCase):
 
     def _get_payload(self, **kwargs):
         payload = {
+            "name": self.campaign.name,
             "start_date": self.campaign.start_date,
             "end_date": self.campaign.end_date,
             "discount_type": self.campaign.discount_type,

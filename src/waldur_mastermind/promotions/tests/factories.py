@@ -12,6 +12,7 @@ class CampaignFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Campaign
 
+    name = factory.Sequence(lambda n: 'Campaign %s' % n)
     start_date = datetime.date.today()
     end_date = datetime.date.today() + datetime.timedelta(days=30)
     discount = 50

@@ -5,7 +5,7 @@ from django_fsm import FSMIntegerField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
-from waldur_core.core.models import DescribableMixin
+from waldur_core.core.models import DescribableMixin, NameMixin
 from waldur_core.logging.models import UuidMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -25,7 +25,7 @@ class DiscountType(django_models.CharField):
         super().__init__(*args, **kwargs)
 
 
-class Campaign(UuidMixin, DescribableMixin):
+class Campaign(UuidMixin, DescribableMixin, NameMixin):
     class States:
         DRAFT = 1
         ACTIVE = 2

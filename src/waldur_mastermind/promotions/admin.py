@@ -4,7 +4,7 @@ from . import models
 
 
 class CampaignAdmin(admin.ModelAdmin):
-    list_display = ('service_provider', 'start_date', 'end_date', 'state')
+    list_display = ('name', 'service_provider', 'start_date', 'end_date', 'state')
 
 
 class DiscountedResourceAdmin(admin.ModelAdmin):
