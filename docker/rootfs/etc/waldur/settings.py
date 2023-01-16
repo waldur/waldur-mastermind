@@ -133,6 +133,8 @@ if DEBUG:
 # Sentry integration
 # See also: https://docs.sentry.io/platforms/python/guides/django/
 sentry_dsn = env.get('SENTRY_DSN')
+sentry_traces_sample_rate = float(env.get('SENTRY_TRACES_SAMPLE_RATE', 0.2))
+
 if sentry_dsn:
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration
@@ -141,7 +143,11 @@ if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
         integrations=[DjangoIntegration(), CeleryIntegration()],
+        # https://docs.sentry.io/platforms/python/guides/django/performance/
+        traces_sample_rate=sentry_traces_sample_rate,
     )
+
+    WALDUR_CORE['HOMEPORT_SENTRY_TRACES_SAMPLE_RATE'] = sentry_traces_sample_rate
 
 # Additional configuration files for Waldur
 # 'override.conf.py' must be the first element to override settings in core.ini but not plugin configuration.
