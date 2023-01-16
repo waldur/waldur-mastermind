@@ -1,6 +1,6 @@
 import collections
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from celery.app import shared_task
@@ -11,6 +11,7 @@ from django.utils import dateparse, timezone
 from rest_framework import exceptions as rf_exceptions
 from waldur_client import WaldurClient, WaldurClientException
 
+from waldur_core.core.mixins import ReviewStateMixin
 from waldur_core.core.utils import deserialize_instance, month_start, serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
@@ -20,6 +21,7 @@ from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_item_state
 from waldur_mastermind.marketplace.utils import create_local_resource
+from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
@@ -823,3 +825,37 @@ def clean_remote_projects():
 def trigger_order_item_callback(serialized_order_item):
     order_item = deserialize_instance(serialized_order_item)
     requests.post(order_item.callback_url)
+
+
+@shared_task(
+    name='waldur_mastermind.marketplace_remote.notify_about_pending_project_update_requests'
+)
+def notify_about_pending_project_update_requests():
+    from waldur_core.core import utils as core_utils
+
+    week_ago = datetime.now() - timedelta(weeks=1)
+    pending_project_update_requests = (
+        remote_models.ProjectUpdateRequest.objects.filter(
+            state=ReviewStateMixin.States.PENDING
+        )
+        .order_by('project_id')
+        .distinct('project_id')
+        .filter(created__lte=week_ago)
+    )
+
+    for pending_project_update_request in pending_project_update_requests:
+        mails = pending_project_update_request.project.customer.get_owner_mails()
+        project_url = core_utils.format_homeport_link(
+            'projects/{project_uuid}/marketplace-project-update-requests/',
+            project_uuid=pending_project_update_request.project.uuid.hex,
+        )
+        context = {
+            'project_update_request': pending_project_update_request,
+            'project_url': project_url,
+        }
+        core_utils.broadcast_mail(
+            'marketplace_remote',
+            'notification_about_pending_project_updates',
+            context,
+            mails,
+        )

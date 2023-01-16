@@ -211,3 +211,13 @@ class RancherSection(NotificationSection):
     notification_create_user = Notification(
         'notification_create_user', 'A notification for created rancher user'
     )
+
+
+class MarketplaceRemoteSection(NotificationSection):
+    class Meta:
+        key = 'marketplace_remote'
+
+    notification_about_pending_project_updates = Notification(
+        'notification_about_pending_project_updates',
+        'A notification about pending project updates',
+    )

@@ -308,8 +308,8 @@ class RequestDeleteTest(RequestActionBaseTest):
         issue = self.get_issue()
         resource = issue.resource.resource
         self.assertTrue('Terminate resource' in issue.description)
-        self.assertTrue(resource.plan.name in issue.description)
-        self.assertTrue(resource.uuid.hex in issue.description)
+        self.assertTrue(resource.plan.name in issue.description, issue.description)
+        self.assertTrue(resource.uuid.hex in issue.description, issue.description)
 
     def get_issue(self):
         response = self.request_resource_termination()

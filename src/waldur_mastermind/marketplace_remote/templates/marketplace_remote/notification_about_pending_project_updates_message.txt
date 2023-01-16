@@ -1,0 +1,8 @@
+Hello!
+
+We noticed that you have pending project update requests.
+Perhaps you would like to have a look at them?
+
+The project is:
+    {{ project_update_request.project.name }} {{ project_url }}
+Thank you!
