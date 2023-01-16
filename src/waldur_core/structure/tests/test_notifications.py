@@ -112,6 +112,10 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
             self.notification_template_1, action="override"
         )
 
+    def tearDown(self):
+        super().tearDown()
+        Template.objects.all().delete()
+
     @data(
         'staff',
     )

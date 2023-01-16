@@ -1,18 +1,25 @@
 import uuid
 from unittest import mock
 
+from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import test
 
-from waldur_core.core.utils import serialize_instance
+from waldur_core.core.utils import format_text, serialize_instance
 from waldur_core.structure.models import CustomerRole
-from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
+from waldur_core.structure.tests.factories import (
+    NotificationFactory,
+    ProjectFactory,
+    UserFactory,
+)
+from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests.utils import create_system_robot
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
+from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 
 
 @override_settings(WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True})
@@ -452,3 +459,53 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         self.fixture.resource.refresh_from_db()
         self.assertEqual(self.fixture.resource.effective_id, 'effective_id')
         self.assertEqual(self.fixture.resource.attributes, {'sample_attr': 1})
+
+
+class NotificationAboutPendingProjectUpdatesTest(test.APITransactionTestCase):
+    def setUp(self):
+        from datetime import datetime, timedelta
+
+        project_fixture = ProjectFixture()
+        fixture = fixtures.MarketplaceFixture()
+        self.owner = project_fixture.owner
+        self.project = project_fixture.project
+        self.offering = fixture.offering
+
+        self.week_ago = datetime.now() - timedelta(weeks=1)
+
+    def test_send_notify_if_week_old_pending_project_update_exists(self):
+        ProjectUpdateRequest.objects.create(
+            project=self.project,
+            offering=self.offering,
+            old_name='old name',
+            new_name='new name',
+            state=ProjectUpdateRequest.States.PENDING,
+            created=self.week_ago,
+        )
+
+        event_type = 'notification_about_pending_project_updates'
+        NotificationFactory(key=f"marketplace_remote.{event_type}")
+        tasks.notify_about_pending_project_update_requests()
+        self.assertEqual(len(mail.outbox), 1)
+        subject_template_name = '%s/%s_subject.txt' % (
+            'marketplace_remote',
+            'notification_about_pending_project_updates',
+        )
+        subject = format_text(subject_template_name, {})
+        self.assertEqual(mail.outbox[0].subject, subject)
+        self.assertEqual(mail.outbox[0].to[0], self.owner.email)
+        self.assertTrue(self.project.name in mail.outbox[0].body)
+
+    def test_do_not_send_notify_if_pending_project_update_is_recent(self):
+        ProjectUpdateRequest.objects.create(
+            project=self.project,
+            offering=self.offering,
+            old_name='old name',
+            new_name='new name',
+            state=ProjectUpdateRequest.States.PENDING,
+        )
+
+        event_type = 'notification_about_pending_project_updates'
+        NotificationFactory(key=f"marketplace_remote.{event_type}")
+        tasks.notify_about_pending_project_update_requests()
+        self.assertEqual(len(mail.outbox), 0)

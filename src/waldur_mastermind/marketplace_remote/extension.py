@@ -62,4 +62,9 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 'schedule': timedelta(minutes=60),
                 'args': (),
             },
+            'waldur-remote-notify-about-pending-project-update-requests': {
+                'task': 'waldur_mastermind.marketplace_remote.notify_about_pending_project_update_requests',
+                'schedule': timedelta(weeks=1),
+                'args': (),
+            },
         }
