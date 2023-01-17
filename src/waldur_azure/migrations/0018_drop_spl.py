@@ -6,7 +6,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('waldur_azure', '0017_error_traceback'),
-        ('structure', '0038_cleanup_agreement_number_placeholder'),
+        ('structure', '0021_project_backend_id'),
     ]
 
     operations = [
