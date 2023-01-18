@@ -5,7 +5,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('structure', '0038_cleanup_agreement_number_placeholder'),
+        ('structure', '0021_project_backend_id'),
         ('openstack_tenant', '0020_create_or_update_security_group_rules'),
     ]
 
