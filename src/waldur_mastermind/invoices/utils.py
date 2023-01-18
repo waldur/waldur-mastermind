@@ -6,6 +6,7 @@ from calendar import monthrange
 from decimal import Decimal
 
 import pdfkit
+from constance import config
 from django.conf import settings
 from django.db.models import Sum
 from django.template.loader import render_to_string
@@ -100,7 +101,7 @@ def filter_invoice_items(items):
 
 def create_invoice_pdf(invoice):
     all_items = filter_invoice_items(invoice.items.all())
-    logo_path = settings.WALDUR_CORE['SITE_LOGO']
+    logo_path = config.SITE_LOGO
     if logo_path:
         with open(logo_path, 'rb') as image_file:
             deployment_logo = base64.b64encode(image_file.read()).decode("utf-8")
@@ -110,7 +111,7 @@ def create_invoice_pdf(invoice):
     context = dict(
         invoice=invoice,
         issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'],
-        currency=settings.WALDUR_CORE['CURRENCY_NAME'],
+        currency=config.CURRENCY_NAME,
         deployment_logo=deployment_logo,
         items=all_items,
     )

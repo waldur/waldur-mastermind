@@ -1,6 +1,6 @@
 import logging
 
-from django.conf import settings
+from constance import config
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.utils.timezone import now
@@ -109,8 +109,8 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
 
     email_context = {
         'resource_name': resource.name,
-        'support_email': settings.WALDUR_CORE['SITE_EMAIL'],
-        'support_phone': settings.WALDUR_CORE['SITE_PHONE'],
+        'support_email': config.SITE_EMAIL,
+        'support_phone': config.SITE_PHONE,
     }
 
     if resource.state != models.Resource.States.OK:

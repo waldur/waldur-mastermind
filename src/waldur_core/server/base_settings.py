@@ -73,6 +73,10 @@ INSTALLED_APPS = (
 
     'binary_database_files',
     'netfields',
+
+    'constance',
+    'constance.backends.database',
+
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
@@ -264,6 +268,46 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 globals().update(WaldurConfiguration().dict())
+
+CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
+CONSTANCE_DBS = "default"
+CONSTANCE_SUPERUSER_ONLY = False
+CONSTANCE_CONFIG = {
+    'SITE_NAME': ('Waldur', 'Human-friendly name of the Waldur deployment.'),
+    'SITE_DESCRIPTION': (
+        'Your single pane of control for managing projects, teams and resources in a self-service manner.',
+        'Description of the Waldur deployment.'
+    ),
+    'SITE_ADDRESS': ('', 'It is used in marketplace order header.'),
+    'SITE_EMAIL': ('', 'It is used in marketplace order header and UI footer.'),
+    'SITE_PHONE': ('', 'It is used in marketplace order header and UI footer.'),
+    'SITE_LOGO': ('', 'It is used in marketplace order header.'),
+    'CURRENCY_NAME': ('EUR', 'It is used in marketplace order details and invoices for currency formatting.'),
+    'DOCS_URL': ('', 'Renders link to docs in header'),
+    'SHORT_PAGE_TITLE': ('Waldur', 'It is used as prefix for page title.'),
+    'FULL_PAGE_TITLE': (
+        'Waldur | Cloud Service Management',
+        "It is used as default page title if it's not specified explicitly."
+    ),
+    'SIDEBAR_LOGO': ('', 'Relative path to image rendered at the top of sidebar menu in HomePort.'),
+    'SIDEBAR_LOGO_MOBILE': ('', 'Relative path to image rendered at the top of mobile sidebar menu in HomePort.'),
+    'POWERED_BY_LOGO': ('', 'Relative path to image rendered at the bottom of login menu in HomePort.'),
+    'BRAND_COLOR': ('#3a8500', 'Hex color definition is used in HomePort landing page for login button.'),
+    'HERO_IMAGE': ('', 'Relative path to image rendered at hero section of HomePort landing page.'),
+    'HERO_LINK_LABEL': (
+        '',
+        'Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.'
+    ),
+    'HERO_LINK_URL': ('', 'Link URL in hero section of HomePort landing page.'),
+}
+
+CONSTANCE_CONFIG_FIELDSETS = {
+    'Whitelabeling settings': (
+        'SITE_NAME', 'SITE_DESCRIPTION', 'SITE_ADDRESS', 'SITE_EMAIL', 'SITE_PHONE', 'SITE_LOGO',
+        'CURRENCY_NAME', 'DOCS_URL', 'SHORT_PAGE_TITLE', 'FULL_PAGE_TITLE', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE',
+        'POWERED_BY_LOGO', 'BRAND_COLOR', 'HERO_IMAGE', 'HERO_LINK_LABEL', 'HERO_LINK_URL',
+    ),
+}
 
 for ext in WaldurExtension.get_extensions():
     INSTALLED_APPS += (ext.django_app(),)

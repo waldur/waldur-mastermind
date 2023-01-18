@@ -3,6 +3,7 @@ import datetime
 import logging
 
 from celery import shared_task
+from constance import config
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -133,7 +134,7 @@ def notify_order_approvers(uuid):
     context = {
         'order_url': link,
         'order': order,
-        'site_name': settings.WALDUR_CORE['SITE_NAME'],
+        'site_name': config.SITE_NAME,
     }
 
     logger.info(
@@ -169,10 +170,11 @@ def notify_provider_about_order_item_pending_approval(order_item_uuid):
         'organizations/{organization_uuid}/marketplace-order-items/',
         organization_uuid=service_provider_org.uuid,
     )
+
     context = {
         'order_item_url': link,
         'order': order_item.order,
-        'site_name': settings.WALDUR_CORE['SITE_NAME'],
+        'site_name': config.SITE_NAME,
     }
 
     logger.info(

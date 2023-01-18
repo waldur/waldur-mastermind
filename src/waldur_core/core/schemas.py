@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
 
-from django.conf import settings
+from constance import config
 from django.http.response import Http404
 from django.urls import NoReverseMatch
 from django.utils.encoding import force_str, smart_str
@@ -445,9 +445,7 @@ class WaldurSchemaView(APIView):
         if group and group not in API_GROUPS:
             raise Http404
 
-        generator = WaldurSchemaGenerator(
-            title=settings.WALDUR_CORE['SITE_NAME'], group=group
-        )
+        generator = WaldurSchemaGenerator(title=config.SITE_NAME, group=group)
         schema = generator.get_schema(request=request)
 
         if not schema:

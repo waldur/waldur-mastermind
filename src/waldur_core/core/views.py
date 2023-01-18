@@ -415,6 +415,13 @@ def get_public_settings():
             for s, v in ext.get_dynamic_settings().items():
                 public_settings[settings_name][s] = v
 
+    from constance.admin import get_values
+
+    constance_settings = get_values()
+
+    if public_settings.get('WALDUR_CORE'):
+        public_settings['WALDUR_CORE'].update(constance_settings)
+
     cache.set(
         'API_CONFIGURATION', public_settings, None
     )  # Cache invalidation is handled explicitly

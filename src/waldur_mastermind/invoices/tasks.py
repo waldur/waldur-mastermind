@@ -4,6 +4,7 @@ from io import StringIO
 
 import pdfkit
 from celery import shared_task
+from constance import config
 from django.conf import settings
 from django.db.models import Q
 from django.template.loader import render_to_string
@@ -75,7 +76,7 @@ def send_invoice_notification(invoice_uuid):
     content_type = None
 
     filename = '%s_%s_%s.pdf' % (
-        settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
+        config.SITE_NAME.replace(' ', '_'),
         invoice.year,
         invoice.month,
     )
