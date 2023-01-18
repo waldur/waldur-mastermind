@@ -2,6 +2,7 @@ import logging
 from smtplib import SMTPException
 
 from celery import shared_task
+from constance import config
 from django.conf import settings
 from django.core import signing
 from django.template import Context, Template
@@ -139,7 +140,7 @@ def _send_email(
         'issue_url': core_utils.format_homeport_link(
             'support/issue/{uuid}/', uuid=issue.uuid
         ),
-        'site_name': settings.WALDUR_CORE['SITE_NAME'],
+        'site_name': config.SITE_NAME,
         'issue': issue,
     }
 

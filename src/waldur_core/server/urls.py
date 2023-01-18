@@ -1,3 +1,4 @@
+from constance import config
 from django.conf import settings
 from django.conf.urls import include
 from django.contrib import admin
@@ -49,7 +50,7 @@ urlpatterns += [
         r'^$',
         core_views.ExtraContextTemplateView.as_view(
             template_name='landing/index.html',
-            extra_context={'site_name': settings.WALDUR_CORE['SITE_NAME']},
+            extra_context={'site_name': config.SITE_NAME},
         ),
     ),
     re_path(
@@ -58,7 +59,7 @@ urlpatterns += [
             template_name='landing/apidocs.html',
             extra_context={
                 'api_groups': sorted(API_GROUPS.keys()),
-                'site_name': settings.WALDUR_CORE['SITE_NAME'],
+                'site_name': config.SITE_NAME,
             },
         ),
     ),

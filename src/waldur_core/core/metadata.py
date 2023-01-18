@@ -62,30 +62,6 @@ class WaldurCore(BaseModel):
         False,
         description='Allows to render native name field in customer and user forms.',
     )
-    SITE_NAME = Field(
-        'Waldur',
-        description='Human-friendly name of the Waldur deployment.',
-    )
-    SITE_DESCRIPTION = Field(
-        'Your single pane of control for managing projects, teams and resources in a self-service manner.',
-        description='Description of the Waldur deployment.',
-    )
-    SITE_ADDRESS = Field('', description='It is used in marketplace order header.')
-    SITE_EMAIL = Field(
-        '',
-        description='It is used in marketplace order header and UI footer.',
-    )
-    SITE_PHONE = Field(
-        '',
-        description='It is used in marketplace order header and UI footer.',
-    )
-    SITE_LOGO: Optional[str] = Field(
-        description='It is used in marketplace order header.'
-    )
-    CURRENCY_NAME = Field(
-        'EUR',
-        description='It is used in marketplace order details and invoices for currency formatting.',
-    )
     NOTIFICATIONS_PROFILE_CHANGES = Field(
         {
             'FIELDS': ('email', 'phone_number', 'job_title'),
@@ -215,19 +191,11 @@ class WaldurCore(BaseModel):
     SUPPORT_PORTAL_URL = Field(
         '', description='Support portal URL is rendered as a shortcut on dashboard'
     )
-    DOCS_URL = Field('', description='Renders link to docs in header')
     EXTERNAL_LINKS: List[ExternalLink] = Field(
         [],
         description='Render external links in dropdown in header. '
         'Each item should be object with label and url fields. '
         'For example: {"label": "Helpdesk", "url": "`https://example.com/`"}',
-    )
-    SHORT_PAGE_TITLE = Field(
-        'Waldur', description="it is used as prefix for page title."
-    )
-    FULL_PAGE_TITLE = Field(
-        'Waldur | Cloud Service Management',
-        description="It is used as default page title if it's not specified explicitly.",
     )
     USER_MANDATORY_FIELDS: List[str] = Field(
         ['full_name', 'email'],
@@ -276,35 +244,6 @@ class WaldurCore(BaseModel):
         default=0.2,
     )
 
-    SIDEBAR_LOGO: Optional[str] = Field(
-        description='Relative path to image rendered at the top of sidebar menu in HomePort.'
-    )
-
-    SIDEBAR_LOGO_MOBILE: Optional[str] = Field(
-        description='Relative path to image rendered at the top of mobile sidebar menu in HomePort.'
-    )
-
-    POWERED_BY_LOGO: Optional[str] = Field(
-        description='Relative path to image rendered at the bottom of login menu in HomePort.'
-    )
-
-    BRAND_COLOR: Optional[str] = Field(
-        '#3a8500',
-        description='Hex color definition is used in HomePort landing page for login button.',
-    )
-
-    HERO_IMAGE: Optional[str] = Field(
-        description='Relative path to image rendered at hero section of HomePort landing page.'
-    )
-
-    HERO_LINK_LABEL: Optional[str] = Field(
-        description='Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.'
-    )
-
-    HERO_LINK_URL: Optional[str] = Field(
-        description='Link URL in hero section of HomePort landing page.'
-    )
-
     LOCAL_IDP_NAME = Field('Local DB', description='The name of local auth.')
 
     LOCAL_IDP_LABEL = Field('Local DB', description='The label of local auth.')
@@ -320,12 +259,6 @@ class WaldurCore(BaseModel):
 
     class Meta:
         public_settings = [
-            'CURRENCY_NAME',
-            'SITE_NAME',
-            'SITE_EMAIL',
-            'SITE_ADDRESS',
-            'SITE_PHONE',
-            'SITE_DESCRIPTION',
             'MASTERMIND_URL',
             'AUTHENTICATION_METHODS',
             'INVITATIONS_ENABLED',
@@ -338,10 +271,7 @@ class WaldurCore(BaseModel):
             'TRANSLATION_DOMAIN',
             'GOOGLE_ANALYTICS_ID',
             'SUPPORT_PORTAL_URL',
-            'DOCS_URL',
             'EXTERNAL_LINKS',
-            'SHORT_PAGE_TITLE',
-            'FULL_PAGE_TITLE',
             'USER_MANDATORY_FIELDS',
             'USER_REGISTRATION_HIDDEN_FIELDS',
             'INVITATION_CIVIL_NUMBER_LABEL',
@@ -351,13 +281,6 @@ class WaldurCore(BaseModel):
             'HOMEPORT_SENTRY_ENVIRONMENT',
             'HOMEPORT_SENTRY_TRACES_SAMPLE_RATE',
             'HOMEPORT_URL',
-            'SIDEBAR_LOGO',
-            'SIDEBAR_LOGO_MOBILE',
-            'POWERED_BY_LOGO',
-            'BRAND_COLOR',
-            'HERO_IMAGE',
-            'HERO_LINK_LABEL',
-            'HERO_LINK_URL',
         ]
 
 

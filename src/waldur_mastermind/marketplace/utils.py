@@ -7,6 +7,7 @@ import traceback
 from io import BytesIO
 
 import pdfkit
+from constance import config
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
@@ -118,7 +119,7 @@ def create_screenshot_thumbnail(screenshot):
 
 
 def create_order_pdf(order):
-    logo_path = settings.WALDUR_CORE['SITE_LOGO']
+    logo_path = config.SITE_LOGO
     if logo_path:
         with open(logo_path, 'rb') as image_file:
             deployment_logo = base64.b64encode(image_file.read()).decode("utf-8")
@@ -127,11 +128,11 @@ def create_order_pdf(order):
 
     context = dict(
         order=order,
-        currency=settings.WALDUR_CORE['CURRENCY_NAME'],
-        deployment_name=settings.WALDUR_CORE['SITE_NAME'],
-        deployment_address=settings.WALDUR_CORE['SITE_ADDRESS'],
-        deployment_email=settings.WALDUR_CORE['SITE_EMAIL'],
-        deployment_phone=settings.WALDUR_CORE['SITE_PHONE'],
+        currency=config.CURRENCY_NAME,
+        deployment_name=config.SITE_NAME,
+        deployment_address=config.SITE_ADDRESS,
+        deployment_email=config.SITE_EMAIL,
+        deployment_phone=config.SITE_PHONE,
         deployment_logo=deployment_logo,
     )
     html = render_to_string('marketplace/order.html', context)
