@@ -36,6 +36,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
+from waldur_client import WaldurClientException
 
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -1280,6 +1281,37 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             {'details': 'Order item termination has been scheduled.'},
             status=status.HTTP_202_ACCEPTED,
         )
+
+    @action(detail=True, methods=['post'])
+    def cancel_termination(self, request, uuid=None):
+        from waldur_mastermind.marketplace_remote import utils, PLUGIN_NAME
+
+        order_item = self.get_object()
+
+        if not request.user.is_staff:
+            raise ValidationError('Only staff is allowed to cancel termination order.')
+
+        if order_item.type != models.OrderItem.Types.TERMINATE:
+            raise ValidationError('This is not a termination order item.')
+
+        if order_item.state != models.OrderItem.States.EXECUTING:
+            raise ValidationError('This is not an executing order item.')
+
+        if order_item.resource.offering.type != PLUGIN_NAME:
+            raise ValidationError('This is not a remote order item.')
+
+        client = utils.get_client_for_offering(order_item.resource.offering)
+
+        try:
+            remote_order = client.get_order(order_item.backend_id)
+            remote_item = remote_order['items'][0]
+            remote_item_uuid = remote_item['uuid']
+            client.marketplace_order_item_reject(remote_item_uuid)
+        except WaldurClientException as exc:
+            raise ValidationError(exc)
+        callbacks.sync_order_item_state(order_item, models.OrderItem.States.TERMINATED)
+
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def set_state_executing(self, request, uuid=None):
