@@ -1780,7 +1780,9 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         dry_run = serializer.validated_data['dry_run']
 
         if self.action == 'set_usage':
-            data_serializer = serializers.ComponentUsageCreateSerializer(data=data)
+            data_serializer = serializers.ComponentUsageCreateSerializer(
+                data=data, context={'request': request}
+            )
             data_serializer.is_valid(raise_exception=True)
             if not dry_run:
                 data_serializer.save()

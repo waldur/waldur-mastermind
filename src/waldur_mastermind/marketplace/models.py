@@ -1369,6 +1369,9 @@ class ComponentUsage(
     recurring = models.BooleanField(
         default=False, help_text='Reported value is reused every month until changed.'
     )
+    modified_by = models.ForeignKey(
+        to=User, related_name='+', blank=True, null=True, on_delete=models.SET_NULL
+    )
 
     tracker = FieldTracker()
 

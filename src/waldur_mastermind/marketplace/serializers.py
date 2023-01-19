@@ -2630,6 +2630,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             'customer_uuid',
             'recurring',
             'billing_period',
+            'modified_by',
         )
 
     def get_project_uuid(self, instance):
@@ -2755,6 +2756,9 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         components_map = self.get_components_map(resource.plan.offering)
         now = timezone.now()
         billing_period = core_utils.month_start(now)
+        user: User = self.context['request'].user
+        if user.is_anonymous:
+            user = None
 
         for usage in self.validated_data['usages']:
             amount = usage['amount']
@@ -2780,6 +2784,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     'date': now,
                     'description': description,
                     'recurring': recurring,
+                    'modified_by': user,
                 },
             )
             if created:
@@ -2789,7 +2794,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     amount,
                 )
                 logger.info(message)
-                log.log_component_usage_creation_succeeded(usage)
             else:
                 message = 'Usage has been updated for %s, component: %s, value: %s' % (
                     resource,
@@ -2797,7 +2801,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                     amount,
                 )
                 logger.info(message)
-                log.log_component_usage_update_succeeded(usage)
         resource.current_usages = {
             usage['type']: usage['amount'] for usage in self.validated_data['usages']
         }
