@@ -1,13 +1,11 @@
 import datetime
 
-import mock
 from ddt import data, ddt
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
@@ -205,41 +203,6 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.current_usages, {'cpu': 5, 'ram': 5})
 
-    @mock.patch('waldur_mastermind.marketplace.serializers.logger')
-    def test_event_log_is_created_if_component_usage_has_been_created(
-        self, mock_logger
-    ):
-        self.client.force_authenticate(self.fixture.staff)
-        usage_data = self.get_usage_data()
-        response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', usage_data
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        mock_logger.info.assert_called_with(
-            'Usage has been created for %s, component: ram, value: 5' % self.resource
-        )
-
-        date = timezone.now()
-        billing_period = core_utils.month_start(date)
-        component_usage = models.ComponentUsage.objects.get(
-            resource=self.resource,
-            component=self.offering_component,
-            date=date,
-            billing_period=billing_period,
-        )
-
-        logging_models.Event.objects.get(
-            message='Marketplace component usage %s has been created.'
-            % component_usage.uuid
-        )
-        usage_data['usages'][0]['amount'] = 8
-        self.client.post('/api/marketplace-component-usages/set_usage/', usage_data)
-
-        logging_models.Event.objects.get(
-            message='Marketplace component usage %s has been updated.'
-            % component_usage.uuid
-        )
-
     @data('admin', 'manager', 'user')
     def test_other_user_can_not_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
@@ -294,12 +257,17 @@ class SubmitUsageTest(test.APITransactionTestCase):
             '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        component_usages = models.ComponentUsage.objects.filter(
+            resource=self.resource, component=self.offering_component
+        )
         self.assertEqual(
             2,
             models.ComponentUsage.objects.filter(
                 resource=self.resource, component=self.offering_component
             ).count(),
         )
+        component_usage = component_usages.last()
+        self.assertEqual(self.fixture.staff, component_usage.modified_by)
 
     @freeze_time('2019-06-19')
     def test_component_usage_is_updated_for_current_month_if_it_already_exists(self):
@@ -317,14 +285,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
             '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        component_usage = models.ComponentUsage.objects.filter(
+            resource=self.resource, component=self.offering_component
+        ).get()
         self.assertEqual(
             5,
-            models.ComponentUsage.objects.filter(
-                resource=self.resource, component=self.offering_component
-            )
-            .get()
-            .usage,
+            component_usage.usage,
         )
+        self.assertEqual(self.fixture.staff, component_usage.modified_by)
 
     def test_total_amount_exceeds_month_limit(self):
         self.offering_component.limit_period = (
@@ -414,6 +382,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         usage = models.ComponentUsage.objects.first()
         self.assertEqual(usage.usage, 15)
+        self.assertIsNone(usage.modified_by)
 
     def test_usage_is_not_updated_if_billing_period_is_closed(self):
         self.plan_period.end = parse_datetime('2016-01-10')
