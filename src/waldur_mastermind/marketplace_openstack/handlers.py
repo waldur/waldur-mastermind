@@ -305,6 +305,11 @@ def import_resource_metadata_when_resource_is_created(
     if not created:
         return
 
+    #  If the resource has just been created and the save_base method has not yet completed,
+    #  then the resource.tracker.__exit__ method has not yet been called
+    #  and the tracker includes the fields set when the resource was created.
+    instance.tracker.set_saved_fields(fields=instance.tracker.changed())
+
     if isinstance(instance.scope, openstack_tenant_models.Volume):
         utils.import_volume_metadata(instance)
 
