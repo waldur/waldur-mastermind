@@ -209,14 +209,10 @@ def format_text(template_name, context):
 
 
 def find_template_from_registry(app, event_type, template_suffix):
-    # TODO: refactor
-    for _notification in NOTIFICATIONS:
-        if _notification['key'] == app:
-            for _item in _notification['items']:
-                if _item['path'] == event_type:
-                    for _template in _item['templates']:
-                        if _template.path == f"{event_type}_{template_suffix}":
-                            return f"{app}/{_template.path}"
+    app_dict = NOTIFICATIONS.get(app)
+    for section in app_dict:
+        if event_type == section.get('path'):
+            return f"{app}/{event_type}_{template_suffix}"
 
 
 def send_mail(

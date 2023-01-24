@@ -26,19 +26,19 @@ class Command(BaseCommand):
         del file_engine[0].engine.__dict__["template_loaders"]
 
         print('# Notifications', end='\n\n')
-        for section in sorted(NOTIFICATIONS, key=lambda section: section['key']):
+        for key, section in NOTIFICATIONS.items():
             for app in settings.INSTALLED_APPS:
                 plugin = app.split('.')[1] if len(app.split('.')) == 2 else app
-                if section["key"] == plugin or f"waldur_{section['key']}" == plugin:
+                if key == plugin or f"waldur_{key}" == plugin:
                     print(f"## {app.upper()}", end='\n\n')
             for notification in sorted(
-                section['items'], key=lambda section: section['path']
+                section, key=lambda notification: notification['path']
             ):
-                print(f'### {section["key"]}.{notification["path"]}', end='\n\n')
+                print(f'### {key}.{notification["path"]}', end='\n\n')
                 print(notification["description"], end='\n\n')
                 print("#### Templates", end='\n\n')
                 for template in notification['templates']:
-                    template_path = f"{section['key']}/{template.path}"
+                    template_path = f"{key}/{template.path}"
                     print(f'=== "{template_path}"', end='\n\n')
                     print(f"```txt")
                     source = file_engine[0].get_template(template_path).template.source
