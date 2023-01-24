@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth.hashers import is_password_usable
+from django.core.cache import cache
 from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 
@@ -159,3 +160,7 @@ def log_token_create(sender, instance, created=False, **kwargs):
             event_type='token_created',
             event_context={'affected_user': instance.user},
         )
+
+
+def constance_updated(sender, key, old_value, new_value, **kwargs):
+    cache.delete('API_CONFIGURATION')
