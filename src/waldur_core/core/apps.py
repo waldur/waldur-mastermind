@@ -1,3 +1,4 @@
+from constance import signals as constance_signals
 from django.apps import AppConfig
 from django.contrib.auth import get_user_model
 from django.db.models import signals
@@ -66,6 +67,8 @@ class CoreConfig(AppConfig):
             sender=Token,
             dispatch_uid='waldur_core.core.handlers.log_token_create',
         )
+
+        constance_signals.config_updated.connect(handlers.constance_updated)
 
         for index, model in enumerate(StateMixin.get_all_models()):
             fsm_signals.post_transition.connect(
