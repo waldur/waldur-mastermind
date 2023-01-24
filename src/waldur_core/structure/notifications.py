@@ -27,20 +27,19 @@ class Notification:
             ]
 
 
-NOTIFICATIONS = []
+NOTIFICATIONS = dict()
 
 
 class NotificationSectionMetaclass(type):
     def __new__(self, name, bases, attrs):
         if 'Meta' in attrs:
             section = {
-                'key': attrs['Meta'].key,
-                'items': [],
+                attrs['Meta'].key: [],
             }
-            NOTIFICATIONS.append(section)
+            NOTIFICATIONS.update(section)
             for _, notification in attrs.items():
                 if isinstance(notification, Notification):
-                    section['items'].append(
+                    section[attrs['Meta'].key].append(
                         {
                             'path': notification.key,
                             'description': notification.description,

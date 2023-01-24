@@ -23,14 +23,14 @@ class Command(BaseCommand):
 
         valid_notifications_data = []
 
-        for section in NOTIFICATIONS:
-            for notification in section['items']:
-                path = f"{section['key']}.{notification['path']}"
+        for key, section in NOTIFICATIONS.items():
+            for notification in section:
+                path = f"{key}.{notification['path']}"
                 if path in notifications:
                     notification_data = {
                         "path": path,
                         "templates": {
-                            f"{section['key']}/{template.path}": template.name
+                            f"{key}/{template.path}": template.name
                             for template in notification['templates']
                         },
                     }
