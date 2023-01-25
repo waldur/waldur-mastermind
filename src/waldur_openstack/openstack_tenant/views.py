@@ -717,6 +717,19 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     console_log_serializer_class = serializers.ConsoleLogSerializer
     console_log_permissions = [structure_permissions.is_administrator]
 
+    @decorators.action(detail=True, methods=['get'])
+    def counters(self, request, uuid=None):
+        instance = self.get_object()
+        return response.Response(
+            {
+                'volumes': instance.volumes.count(),
+                'backups': instance.backups.count(),
+                'backup_schedules': instance.backup_schedules.count(),
+                'security_groups': instance.security_groups.count(),
+                'internal_ips': instance.internal_ips_set.count(),
+            }
+        )
+
 
 class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all()
