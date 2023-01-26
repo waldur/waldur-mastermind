@@ -71,11 +71,14 @@ class Request:
             data,
             headers,
         )
+        # workaround for https://github.com/psf/requests/pull/5596 as requests need to go directly
+        proxies = {'http': '', 'https': ''}
         response = requests.post(
             url,
             data=data,
             headers=headers,
             cert=cert,
+            proxies=proxies,
             verify=cls.settings['verify_ssl'],
         )
         if response.ok:
