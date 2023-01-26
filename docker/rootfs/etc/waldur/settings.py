@@ -145,7 +145,7 @@ if sentry_dsn:
         integrations=[DjangoIntegration(), CeleryIntegration()],
         # https://docs.sentry.io/platforms/python/guides/django/performance/
         traces_sample_rate=sentry_traces_sample_rate,
-        version='waldur-mastermind@' + importlib.metadata.version('waldur-mastermind'),
+        release='waldur-mastermind@' + importlib.metadata.version('waldur-mastermind'),
     )
 
     WALDUR_CORE['HOMEPORT_SENTRY_TRACES_SAMPLE_RATE'] = sentry_traces_sample_rate
