@@ -119,6 +119,11 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
             state=models.ProjectUpdateRequest.States.PENDING,
             **payload,
         )
+        logger.info(
+            "The project update request %s has been created by user %s",
+            project_request,
+            user,
+        )
         # Auto-approve if possible
         # Code from waldur_mastermind.marketplace.permissions.user_is_service_provider_owner_or_service_provider_manager
         if structure_permissions._has_owner_access(
@@ -126,7 +131,18 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
         ) or offering.customer.has_user(
             user, role=structure_models.CustomerRole.SERVICE_MANAGER
         ):
+            logger.info(
+                "The user %s can automatically approve the request %s.",
+                user,
+                project_request,
+            )
             project_request.approve(user, 'Auto approval')
+        else:
+            logger.info(
+                "The user %s can not automatically approve the request %s. Manual approval is required.",
+                user,
+                project_request,
+            )
 
 
 def sync_remote_project_when_request_is_approved(

@@ -1,3 +1,5 @@
+from datetime import date
+
 import mock
 from django.test import override_settings
 from django.urls import reverse
@@ -146,7 +148,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(0, self.client_mock().update_project.call_count)
 
-    def test_when_changes_made_my_same_owner_they_applied_immediately(self):
+    def test_when_changes_made_by_same_owner_they_applied_immediately(self):
         offering_owner = self.fixture.offering_owner
         self.client.force_login(offering_owner)
         self.fixture.customer.add_user(
@@ -161,6 +163,25 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.project.refresh_from_db()
 
         self.assertEqual('First project', self.project.name)
+        requests = ProjectUpdateRequest.objects.filter(
+            project=self.project,
+            offering=self.offering,
+            state=ProjectUpdateRequest.States.APPROVED,
+        )
+        self.assertEqual(1, requests.count())
+
+    def test_when_changes_made_by_staff_they_applied_immediately(self):
+        staff = self.fixture.staff
+        self.client.force_login(staff)
+
+        response = self.client.patch(
+            ProjectFactory.get_url(self.project), {'end_date': '2023-01-26'}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.project.refresh_from_db()
+
+        self.assertEqual(date(2023, 1, 26), self.project.end_date)
         requests = ProjectUpdateRequest.objects.filter(
             project=self.project,
             offering=self.offering,
