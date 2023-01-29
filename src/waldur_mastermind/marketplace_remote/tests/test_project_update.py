@@ -178,7 +178,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectFactory.get_url(self.project), {'end_date': '2023-01-26'}
         )
 
-        self.assertEqual(200, response.status_code)
+        self.assertEqual(200, response.status_code, response.data)
         self.project.refresh_from_db()
 
         self.assertEqual(date(2023, 1, 26), self.project.end_date)
