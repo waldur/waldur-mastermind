@@ -3,6 +3,7 @@ from datetime import date
 import mock
 from django.test import override_settings
 from django.urls import reverse
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
@@ -170,6 +171,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(1, requests.count())
 
+    @freeze_time('2023-01-01')
     def test_when_changes_made_by_staff_they_applied_immediately(self):
         staff = self.fixture.staff
         self.client.force_login(staff)
