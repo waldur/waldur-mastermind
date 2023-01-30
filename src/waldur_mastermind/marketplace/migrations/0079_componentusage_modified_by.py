@@ -36,6 +36,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(cleanup_component_usage_log),
         migrations.AddField(
             model_name='componentusage',
             name='modified_by',
@@ -47,5 +48,4 @@ class Migration(migrations.Migration):
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
-        migrations.RunPython(cleanup_component_usage_log),
     ]
