@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(cleanup_component_usage_log),
+        # migrations.RunPython(cleanup_component_usage_log),
         migrations.AddField(
             model_name='componentusage',
             name='modified_by',
