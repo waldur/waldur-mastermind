@@ -605,16 +605,17 @@ class IssueTest(test.APITransactionTestCase):
             name='CANCELED', type=support_models.IssueStatus.Types.CANCELED
         )
         self.offering_request = factories.OfferingStateRequestFactory(issue=self.issue)
+        PlanFactory(offering=self.offering_request.offering)
         self.offering_request.submit()
 
-    def test_request_will_by_approved_if_issue_has_been_resolved(self):
+    def test_request_will_be_approved_if_issue_has_been_resolved(self):
         self.issue.set_resolved()
         self.offering_request.refresh_from_db()
         self.assertEqual(
             self.offering_request.state, OfferingStateRequest.States.APPROVED
         )
 
-    def test_request_will_by_rejected_if_issue_has_been_canceled(self):
+    def test_request_will_be_rejected_if_issue_has_been_canceled(self):
         self.issue.set_canceled()
         self.offering_request.refresh_from_db()
         self.assertEqual(

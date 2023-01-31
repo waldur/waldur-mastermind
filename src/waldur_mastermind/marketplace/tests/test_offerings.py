@@ -1762,6 +1762,7 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             customer=self.customer, project=self.fixture.project, shared=True
         )
+        self.plan = factories.PlanFactory(offering=self.offering)
         self.fixture.service_manager = UserFactory()
         self.offering.add_user(self.fixture.service_manager)
 
@@ -1844,6 +1845,24 @@ class OfferingStateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.paused_reason, 'Not available anymore.')
+
+    def test_authorized_user_can_not_activate_offering_without_plans(self):
+        self.plan.delete()
+        response, _ = self.update_offering_state('staff', 'activate')
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    @data('owner', 'service_manager')
+    def test_authorized_user_can_not_unpause_offering_without_plans(self, user):
+        self.plan.delete()
+        self.offering.state = models.Offering.States.PAUSED
+        self.offering.save()
+
+        response, offering = self.update_offering_state(user, 'unpause')
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
     def update_offering_state(self, user, state, payload=None):
         user = getattr(self.fixture, user)

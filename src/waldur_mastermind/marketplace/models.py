@@ -302,6 +302,10 @@ class CategoryComponentUsage(core_mixins.ScopeMixin):
         return 'component: %s, date: %s' % (str(self.component.name), self.date)
 
 
+def offering_has_plans(offering):
+    return offering.plans.count() or (offering.parent and offering.parent.plans.count())
+
+
 class Offering(
     core_models.BackendMixin,
     core_models.UuidMixin,
@@ -436,7 +440,12 @@ class Offering(
             path_to_scope='offering',
         )
 
-    @transition(field=state, source=[States.DRAFT, States.PAUSED], target=States.ACTIVE)
+    @transition(
+        field=state,
+        source=[States.DRAFT, States.PAUSED],
+        target=States.ACTIVE,
+        conditions=[offering_has_plans],
+    )
     def activate(self):
         pass
 
@@ -444,7 +453,12 @@ class Offering(
     def pause(self):
         pass
 
-    @transition(field=state, source=States.PAUSED, target=States.ACTIVE)
+    @transition(
+        field=state,
+        source=States.PAUSED,
+        target=States.ACTIVE,
+        conditions=[offering_has_plans],
+    )
     def unpause(self):
         pass
 
