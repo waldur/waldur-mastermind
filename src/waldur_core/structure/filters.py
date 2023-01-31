@@ -743,6 +743,7 @@ class UserRolesFilter(BaseFilterBackend):
             query = query | Q(
                 projectpermission__role__in=project_roles,
                 projectpermission__project__customer_id=customer.id,
+                projectpermission__is_active=True,
             )
 
         if organization_roles:
@@ -750,6 +751,7 @@ class UserRolesFilter(BaseFilterBackend):
             query = query | Q(
                 customerpermission__role__in=organization_roles,
                 customerpermission__customer_id=customer.id,
+                customerpermission__is_active=True,
             )
 
         return queryset.filter(query)

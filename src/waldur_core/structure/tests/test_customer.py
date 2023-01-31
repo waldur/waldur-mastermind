@@ -813,6 +813,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['is_service_manager'], True)
 
+        # Even if user has project role, he is skipped when organization filter is applied
+        self.fixture.project.add_user(user, role=ProjectRole.MEMBER)
         permission = CustomerPermission.objects.get(
             customer=self.fixture.customer, user=user, role=CustomerRole.SERVICE_MANAGER
         )
