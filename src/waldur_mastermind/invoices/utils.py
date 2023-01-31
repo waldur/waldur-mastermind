@@ -220,3 +220,23 @@ def get_monthly_invoicing_reports():
     context = get_monthly_invoicing_reports_context()
     html = render_to_string('invoices/monthly_invoicing_reports.html', context)
     return html
+
+
+def get_billing_price_estimate_for_resources(resources):
+    invoice_items = models.InvoiceItem.objects.filter(
+        resource__in=resources,
+        invoice__year=get_current_year(),
+        invoice__month=get_current_month(),
+    )
+    result = {
+        'total': 0.0,
+        'current': 0.0,
+        'tax': 0.0,
+        'tax_current': 0.0,
+    }
+    for item in invoice_items:
+        result['current'] += item.price
+        result['tax'] += item.tax
+        result['tax_current'] += item.tax_current
+        result['total'] += item.total
+    return result

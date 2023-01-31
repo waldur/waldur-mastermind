@@ -166,6 +166,26 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         return self.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=['GET'])
+    def customer_projects(self, request, uuid=None):
+        service_provider = self.get_object()
+        customer_uuid = request.query_params.get('customer_uuid')
+        if not customer_uuid or not is_uuid_like(customer_uuid):
+            return self.get_paginated_response([])
+        project_ids = (
+            utils.get_service_provider_resources(service_provider)
+            .filter(project__customer__uuid=customer_uuid)
+            .values_list('project_id', flat=True)
+        )
+        projects = structure_models.Project.available_objects.filter(id__in=project_ids)
+        page = self.paginate_queryset(projects)
+        context = self.get_serializer_context()
+        context['service_provider'] = service_provider
+        serializer = serializers.ProviderCustomerProjectSerializer(
+            page, many=True, context=context
+        )
+        return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=['GET'])
     def projects(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
         projects = structure_models.Project.available_objects.filter(id__in=project_ids)

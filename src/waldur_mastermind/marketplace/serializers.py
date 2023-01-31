@@ -44,7 +44,7 @@ from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices.models import InvoiceItem
-from waldur_mastermind.invoices.utils import get_current_month, get_current_year
+from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.permissions import (
     check_availability_of_auto_approving,
 )
@@ -3139,6 +3139,42 @@ class OfferingStatsSerializer(serializers.Serializer):
     country = serializers.CharField(source='offering__country')
 
 
+class ProviderCustomerProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = structure_models.Project
+        fields = (
+            'uuid',
+            'name',
+            'description',
+            'end_date',
+            'resources_count',
+            'users_count',
+            'billing_price_estimate',
+        )
+
+    resources_count = serializers.SerializerMethodField()
+    users_count = serializers.SerializerMethodField()
+    billing_price_estimate = serializers.SerializerMethodField()
+
+    def get_resources(self, instance):
+        service_provider = self.context['service_provider']
+        return utils.get_service_provider_resources(service_provider).filter(
+            project=instance
+        )
+
+    def get_resources_count(self, instance):
+        return self.get_resources(instance).count()
+
+    def get_users_count(self, instance):
+        return structure_models.ProjectPermission.objects.filter(
+            project=instance, is_active=True
+        ).count()
+
+    def get_billing_price_estimate(self, instance):
+        resources = self.get_resources(instance)
+        return get_billing_price_estimate_for_resources(resources)
+
+
 class ProviderProjectSerializer(
     MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
 ):
@@ -3202,29 +3238,13 @@ class ProviderCustomerSerializer(serializers.ModelSerializer):
 
     def get_billing_price_estimate(self, customer):
         resources = self.get_resources(customer)
-        invoice_items = InvoiceItem.objects.filter(
-            resource__in=resources,
-            invoice__year=get_current_year(),
-            invoice__month=get_current_month(),
-        )
-        result = {
-            'total': 0.0,
-            'current': 0.0,
-            'tax': 0.0,
-            'tax_current': 0.0,
-        }
-        for item in invoice_items:
-            result['current'] += item.price
-            result['tax'] += item.tax
-            result['tax_current'] += item.tax_current
-            result['total'] += item.total
-        return result
+        return get_billing_price_estimate_for_resources(resources)
 
     def get_payment_profiles(self, customer):
         return get_payment_profiles(self, customer)
 
     def get_projects_count(self, customer):
-        return self.get_resources(customer).count()
+        return self.get_resources(customer).values_list('project_id').distinct().count()
 
     def get_users_count(self, customer):
         return self.get_users_qs(customer).count()
