@@ -647,7 +647,7 @@ version = "1.0.17"
 description = "A storage system for Django that stores uploaded files in both the database and file system."
 category = "main"
 optional = false
-python-versions = ">=3.6,<3.11"
+python-versions = ">=3.6,<3.12"
 develop = false
 
 [package.dependencies]
@@ -657,7 +657,7 @@ Django = ">=2.2,<5"
 type = "git"
 url = "https://github.com/waldur/django-binary-database-files.git"
 reference = "fix/load-command-for-db-files"
-resolved_reference = "932810fad08d1c6ce98326b61950eb69730a7ae8"
+resolved_reference = "e3d7a53c08053dbf69165e28800c54fc9a636234"
 
 [[package]]
 name = "django-constance"
@@ -2085,7 +2085,7 @@ s2repoze = ["paste", "repoze.who", "zope.interface"]
 type = "git"
 url = "https://github.com/IdentityPython/pysaml2"
 reference = "master"
-resolved_reference = "803eb892542a721fe6c494b91c3924a31ec6e403"
+resolved_reference = "63b228837a27eda562c4335148c06c3ad0a89981"
 
 [[package]]
 name = "pytest"
@@ -2493,6 +2493,7 @@ falcon = ["falcon (>=1.4)"]
 fastapi = ["fastapi (>=0.79.0)"]
 flask = ["blinker (>=1.1)", "flask (>=0.11)"]
 httpx = ["httpx (>=0.16.0)"]
+opentelemetry = ["opentelemetry-distro (>=0.350b0)"]
 pure-eval = ["asttokens", "executing", "pure-eval"]
 pymongo = ["pymongo (>=3.1)"]
 pyspark = ["pyspark (>=2.4.4)"]
@@ -2782,8 +2783,8 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.8,<3.11"
-content-hash = "6d11d6191579853a4cbb29fe0bcb5ce1479313a954888a7e1b9861c6506da1a5"
+python-versions = "^3.8,<3.12"
+content-hash = "b023e6e9cd6337eda36a0f021e8dfaf8b4819eb5482215705784b71a2f91292c"
 
 [metadata.files]
 adal = [
