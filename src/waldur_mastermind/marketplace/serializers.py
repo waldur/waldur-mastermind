@@ -3200,6 +3200,28 @@ class ProviderUserSerializer(
         )
 
 
+class DetailedProviderUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = (
+            'uuid',
+            'full_name',
+            'organization',
+            'email',
+            'phone_number',
+            'projects_count',
+        )
+
+    projects_count = serializers.SerializerMethodField()
+
+    def get_projects_count(self, user):
+        service_provider = self.context['service_provider']
+        projects = utils.get_service_provider_project_ids(service_provider)
+        return structure_models.ProjectPermission.objects.filter(
+            user=user, project__in=projects, is_active=True
+        ).count()
+
+
 class ProviderCustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = structure_models.Customer
