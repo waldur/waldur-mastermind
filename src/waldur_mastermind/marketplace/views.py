@@ -219,11 +219,14 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['GET'])
     def users(self, request, uuid=None):
+        service_provider = self.get_object()
         user_ids = self.get_customer_user_ids()
         users = core_models.User.objects.filter(id__in=user_ids)
         page = self.paginate_queryset(users)
-        serializer = structure_serializers.UserSerializer(
-            page, many=True, context=self.get_serializer_context()
+        context = self.get_serializer_context()
+        context['service_provider'] = service_provider
+        serializer = serializers.DetailedProviderUserSerializer(
+            page, many=True, context=context
         )
         return self.get_paginated_response(serializer.data)
 
