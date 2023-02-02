@@ -138,6 +138,10 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
                 ),
                 timezone.now(),
             )
+            self.assertEqual(
+                invoice_item.quantity,
+                24,  # From 2019-09-18 to 2019-09-10 => 8 days, 3 gb of storage per day
+            )
 
 
 class StorageModeInvoiceTest(BaseTenantInvoiceTest):
