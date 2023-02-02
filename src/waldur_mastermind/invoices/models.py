@@ -395,7 +395,10 @@ class InvoiceItem(
             last_period['total'] = str(
                 int(last_period['quantity']) * last_period['billing_periods']
             )
-            self.save(update_fields=['details'])
+            self.quantity = sum(
+                int(period['total']) for period in resource_limit_periods
+            )
+            self.save(update_fields=['details', 'quantity'])
 
     def __str__(self):
         return self.name or '<InvoiceItem %s>' % self.pk
