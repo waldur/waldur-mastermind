@@ -1718,6 +1718,23 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
 
+    @action(detail=True, methods=['get'])
+    def offering_for_subresources(self, request, uuid=None):
+        resource = self.get_object()
+
+        try:
+            service_settings = structure_models.ServiceSettings.objects.get(
+                scope=resource.scope,
+            )
+        except structure_models.ServiceSettingsDoesNotExist:
+            return Response([])
+
+        offerings = models.Offering.objects.filter(scope=service_settings)
+        result = [
+            {'uuid': offering.uuid.hex, 'type': offering.type} for offering in offerings
+        ]
+        return Response(result)
+
 
 class ProjectChoicesViewSet(ListAPIView):
     def get_project(self):
