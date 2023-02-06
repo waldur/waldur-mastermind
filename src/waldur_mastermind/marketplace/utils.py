@@ -250,22 +250,108 @@ def get_public_resources_url(customer):
     )
 
 
-def validate_limits(limits, offering, resource=None):
-    """
-    @param limits Maximum/Minimum limit-based components values and maximum available limit
-    @param offering The offering being created
-    @param resource Passing the resource if the limits of the resource are being updated.
-    """
-    if not plugins.manager.can_update_limits(offering.type):
+def validate_limit_amount(value, component):
+    if not component.limit_amount:
+        return
+
+    if component.limit_period == models.OfferingComponent.LimitPeriods.MONTH:
+        current = (
+            models.ComponentQuota.objects.filter(
+                component=component,
+                modified__year=timezone.now().year,
+                modified__month=timezone.now().month,
+            )
+            .exclude(limit=-1)
+            .aggregate(sum=Sum('limit'))['sum']
+        ) or 0
+        if current + value > component.limit_amount:
+            raise serializers.ValidationError(
+                _('Monthly limit exceeds threshold %s.') % component.limit_amount
+            )
+
+    elif component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
+        current = (
+            models.ComponentQuota.objects.filter(
+                component=component,
+                modified__year=timezone.now().year,
+            )
+            .exclude(limit=-1)
+            .aggregate(sum=Sum('limit'))['sum']
+        ) or 0
+        if current + value > component.limit_amount:
+            raise serializers.ValidationError(
+                _('Annual limit exceeds threshold %s.') % component.limit_amount
+            )
+
+    elif component.limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
+        current = (
+            models.ComponentQuota.objects.filter(
+                component=component,
+            )
+            .exclude(limit=-1)
+            .aggregate(sum=Sum('limit'))['sum']
+        ) or 0
+        if current + value > component.limit_amount:
+            raise serializers.ValidationError(
+                _('Total limit exceeds threshold %s.') % component.limit_amount
+            )
+
+
+def validate_maximum_available_limit(value, component, resource=None):
+    if not component.max_available_limit:
+        return
+
+    all_offering_resources = models.Resource.objects.filter(
+        offering=component.offering
+    ).exclude(limits={})
+
+    if resource:
+        all_offering_resources = all_offering_resources.exclude(id=resource.id)
+
+    current_total_limits = sum(
+        resource['limits'].get(component.type, 0)
+        for resource in all_offering_resources.values('limits')
+    )
+
+    if current_total_limits + value >= component.max_available_limit:
+        error_message = "Requested %s cannot be provisioned due to offering safety limit. You can allocate up to %s of %s."
+        if component.type == "cores":
+            value = component.max_available_limit - current_total_limits - 1
+        else:
+            value = math.floor(
+                mb_to_gb(component.max_available_limit - current_total_limits)
+            )
+
         raise serializers.ValidationError(
-            {'limits': _('Limits update is not supported for this resource.')}
+            _(error_message)
+            % (
+                component.type,
+                value,
+                component.type,
+            )
         )
 
+
+def validate_min_max_limit(value, component):
+    if component.max_value and value > component.max_value:
+        raise serializers.ValidationError(
+            _('The limit %s value cannot be more than %s.')
+            % (value, component.max_value)
+        )
+    if component.min_value and value < component.min_value:
+        raise serializers.ValidationError(
+            _('The limit %s value cannot be less than %s.')
+            % (value, component.min_value)
+        )
+
+
+def get_components_map(limits, offering):
     valid_component_types = set(
         offering.components.filter(
             billing_type=models.OfferingComponent.BillingTypes.LIMIT
         ).values_list('type', flat=True)
     )
+
     invalid_types = set(limits.keys()) - valid_component_types
     if invalid_types:
         raise serializers.ValidationError(
@@ -277,119 +363,32 @@ def validate_limits(limits, offering, resource=None):
         for component in offering.components.filter(type__in=valid_component_types)
     }
 
-    all_offering_resources = models.Resource.objects.filter(offering=offering).exclude(
-        limits={}
-    )
-
-    if resource:
-        all_offering_resources = all_offering_resources.exclude(
-            id=resource.id if resource else id
-        ).values('limits')
-    else:
-        all_offering_resources = all_offering_resources.values('limits')
-
-    current_total_limits = {
-        'ram': sum(
-            resource['limits'].get('ram', 0) for resource in all_offering_resources
-        ),
-        'cores': sum(
-            resource['limits'].get('cores', 0) for resource in all_offering_resources
-        ),
-        'storage': sum(
-            resource['limits'].get('storage', 0) for resource in all_offering_resources
-        ),
-    }
-
+    result = []
     for key, value in limits.items():
         component = components_map.get(key)
-        if not component:
-            continue
+        if component:
+            result.append((component, value))
+    return result
 
-        # Validate max and min limit value.
-        if component.max_value and value > component.max_value:
-            raise serializers.ValidationError(
-                _('The limit %s value cannot be more than %s.')
-                % (value, component.max_value)
-            )
-        if component.min_value and value < component.min_value:
-            raise serializers.ValidationError(
-                _('The limit %s value cannot be less than %s.')
-                % (value, component.min_value)
-            )
-        if component.limit_amount:
-            if component.limit_period == models.OfferingComponent.LimitPeriods.MONTH:
-                current = (
-                    models.ComponentQuota.objects.filter(
-                        component=component,
-                        modified__year=timezone.now().year,
-                        modified__month=timezone.now().month,
-                    )
-                    .exclude(limit=-1)
-                    .aggregate(sum=Sum('limit'))['sum']
-                ) or 0
-                if current + value > component.limit_amount:
-                    raise serializers.ValidationError(
-                        _('Monthly limit exceeds threshold %s.')
-                        % component.limit_amount
-                    )
-            elif component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
-                current = (
-                    models.ComponentQuota.objects.filter(
-                        component=component,
-                        modified__year=timezone.now().year,
-                    )
-                    .exclude(limit=-1)
-                    .aggregate(sum=Sum('limit'))['sum']
-                ) or 0
-                if current + value > component.limit_amount:
-                    raise serializers.ValidationError(
-                        _('Annual limit exceeds threshold %s.') % component.limit_amount
-                    )
-            elif component.limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
-                current = (
-                    models.ComponentQuota.objects.filter(
-                        component=component,
-                    )
-                    .exclude(limit=-1)
-                    .aggregate(sum=Sum('limit'))['sum']
-                ) or 0
-                if current + value > component.limit_amount:
-                    raise serializers.ValidationError(
-                        _('Total limit exceeds threshold %s.') % component.limit_amount
-                    )
 
-        # Validate maximum available limit for all active tenants
-        if (
-            component.max_available_limit
-            and (current_total_limits[component.type] + value)
-            >= component.max_available_limit
-        ):
-            error_message = "Requested %s cannot be provisioned due to offering safety limit. You can allocate up to %s of %s."
-            if component.type == "cores":
-                raise serializers.ValidationError(
-                    _(error_message)
-                    % (
-                        component.type,
-                        component.max_available_limit
-                        - current_total_limits[component.type]
-                        - 1,
-                        component.type,
-                    )
-                )
-            else:
-                raise serializers.ValidationError(
-                    _(error_message)
-                    % (
-                        component.type,
-                        math.floor(
-                            mb_to_gb(
-                                component.max_available_limit
-                                - current_total_limits[component.type]
-                            )
-                        ),
-                        component.type,
-                    )
-                )
+def validate_limits(limits, offering, resource=None):
+    """
+    @param limits Maximum/Minimum limit-based components values and maximum available limit
+    @param offering The offering being created
+    @param resource Passing the resource if the limits of the resource are being updated.
+    """
+    if not plugins.manager.can_update_limits(offering.type):
+        raise serializers.ValidationError(
+            {'limits': _('Limits update is not supported for this resource.')}
+        )
+
+    for component, value in get_components_map(limits, offering):
+
+        validate_min_max_limit(value, component)
+
+        validate_limit_amount(value, component)
+
+        validate_maximum_available_limit(value, component, resource)
 
 
 def validate_attributes(attributes, category):
