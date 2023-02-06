@@ -230,6 +230,35 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         )
         return self.get_paginated_response(serializer.data)
 
+    @action(detail=True, methods=['GET'])
+    def user_customers(self, request, uuid=None):
+        service_provider = self.get_object()
+        user_uuid = request.query_params.get('user_uuid')
+        if not user_uuid or not is_uuid_like(user_uuid):
+            return self.get_paginated_response([])
+        resources = utils.get_service_provider_resources(service_provider)
+        project_permissions = structure_models.ProjectPermission.objects.filter(
+            user__uuid=user_uuid,
+            is_active=True,
+            project__in=resources.values_list('project_id', flat=True),
+        )
+        customer_permissions = structure_models.CustomerPermission.objects.filter(
+            user__uuid=user_uuid,
+            is_active=True,
+            customer__in=resources.values_list('project__customer_id', flat=True),
+        )
+        customers = structure_models.Customer.objects.filter(
+            Q(id__in=project_permissions.values_list('project__customer_id'))
+            | Q(id__in=customer_permissions.values_list('customer_id'))
+        )
+        page = self.paginate_queryset(customers)
+        context = self.get_serializer_context()
+        context['service_provider'] = service_provider
+        serializer = serializers.ProviderCustomerSerializer(
+            page, many=True, context=context
+        )
+        return self.get_paginated_response(serializer.data)
+
     def check_related_resources(request, view, obj=None):
         if obj and obj.has_active_offerings:
             raise rf_exceptions.ValidationError(
