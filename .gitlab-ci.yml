@@ -37,7 +37,7 @@ Run linters:
     - pre-commit run --all
 
 .Unit test runner:
-  image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   stage: test
   interruptible: true
   rules:
@@ -55,7 +55,7 @@ Run linters:
         - poetry.lock
         - gitlab-ci-test/**/*
   services:
-    - name: "$CI_REGISTRY/waldur/waldur-pipelines/postgres:12-alpine"
+    - name: "registry.hpc.ut.ee/mirror/library/postgres:12-alpine"
       alias: postgres
       command:
         [
@@ -117,7 +117,7 @@ Try building docker image:
         - Dockerfile
         - docker/**/*
   services:
-    - name: "$CI_REGISTRY/waldur/waldur-pipelines/docker:19.03.12-dind"
+    - name: "registry.hpc.ut.ee/mirror/library/docker:19.03.12-dind"
       alias: docker
       command: ["--mtu=1400"]
   variables:
@@ -132,7 +132,7 @@ Build docker image for tests:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
-    - name: "$CI_REGISTRY/waldur/waldur-pipelines/docker:19.03.12-dind"
+    - name: "registry.hpc.ut.ee/mirror/library/docker:19.03.12-dind"
       alias: docker
       command: ["--mtu=1400"]
   variables:
@@ -140,9 +140,9 @@ Build docker image for tests:
   script:
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT
     - cat docker/rootfs/COMMIT
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    - docker build . -f gitlab-ci-test/Dockerfile -t $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
-    - docker push $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+    - echo "$WALDUR_DOCKER_HUB_PASSWORD" | docker login -u "$WALDUR_DOCKER_HUB_USER" --password-stdin
+    - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
+    - docker push $WALDUR_MASTERMIND_TEST_IMAGE
 
 Lint docker image:
   extends: .Lint docker image template
@@ -165,7 +165,7 @@ Upload configuration guide:
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: $CI_REGISTRY/$WALDUR_MASTERMIND_TEST_IMAGE
+  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     CONF_GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
     CLI_GUIDE_PATH: docs/admin-guide/mastermind-configuration/cli-guide.md
