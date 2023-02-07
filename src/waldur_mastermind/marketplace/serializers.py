@@ -3197,12 +3197,17 @@ class DetailedProviderUserSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'uuid',
+            'username',
             'full_name',
+            'first_name',
+            'last_name',
             'organization',
             'email',
             'phone_number',
             'projects_count',
             'registration_method',
+            'affiliations',
+            'is_active',
         )
 
     projects_count = serializers.SerializerMethodField()
@@ -3213,6 +3218,20 @@ class DetailedProviderUserSerializer(serializers.ModelSerializer):
         return structure_models.ProjectPermission.objects.filter(
             user=user, project__in=projects, is_active=True
         ).count()
+
+    def get_fields(self):
+        fields = super(DetailedProviderUserSerializer, self).get_fields()
+
+        try:
+            request = self.context['view'].request
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+
+        if not user.is_staff and not user.is_support:
+            del fields['is_active']
+
+        return fields
 
 
 class ProviderCustomerSerializer(serializers.ModelSerializer):
