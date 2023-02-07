@@ -229,10 +229,10 @@ def get_billing_price_estimate_for_resources(resources):
         invoice__month=get_current_month(),
     )
     result = {
-        'total': 0.0,
-        'current': 0.0,
-        'tax': 0.0,
-        'tax_current': 0.0,
+        'total': Decimal(0.0),
+        'current': Decimal(0.0),
+        'tax': Decimal(0.0),
+        'tax_current': Decimal(0.0),
     }
     for item in invoice_items:
         result['current'] += item.price
