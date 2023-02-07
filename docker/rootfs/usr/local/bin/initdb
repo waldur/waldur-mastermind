@@ -29,6 +29,6 @@ echo "INFO: Load Terms Of Service and Privacy Policy"
 gosu waldur sh -c "waldur load_user_agreements --tos /etc/waldur/terms-of-service.html --pp /etc/waldur/privacy-policy.html"
 
 echo "INFO: Setting whitelabeling settings"
-./set_whitelabeling.sh
+/usr/local/bin/set_whitelabeling.sh
 
 exit 0
