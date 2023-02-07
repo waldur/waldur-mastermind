@@ -307,6 +307,18 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
 
+    @action(detail=True, methods=['GET'])
+    def offerings(self, request, uuid=None):
+        service_provider = self.get_object()
+        offerings = models.Offering.objects.filter(
+            customer=service_provider.customer,
+            billable=True,
+            shared=True,
+        )
+        page = self.paginate_queryset(offerings)
+        serializer = serializers.ProviderOfferingSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
 
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()

@@ -3279,3 +3279,36 @@ class ProviderCustomerSerializer(serializers.ModelSerializer):
             instance=users, many=True, context=self.context
         )
         return serializer.data
+
+
+class ProviderOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Offering
+        fields = (
+            'uuid',
+            'name',
+            'category_title',
+            'type',
+            'state',
+            'resources_count',
+            'billing_price_estimate',
+            'components',
+        )
+
+    category_title = serializers.ReadOnlyField(source='category.title')
+    resources_count = serializers.SerializerMethodField()
+    billing_price_estimate = serializers.SerializerMethodField()
+    state = serializers.ReadOnlyField(source='get_state_display')
+    components = OfferingComponentSerializer(required=False, many=True)
+
+    def get_resources(self, offering):
+        return models.Resource.objects.filter(offering=offering).exclude(
+            state=models.Resource.States.TERMINATED
+        )
+
+    def get_resources_count(self, offering):
+        return self.get_resources(offering).count()
+
+    def get_billing_price_estimate(self, offering):
+        resources = self.get_resources(offering)
+        return get_billing_price_estimate_for_resources(resources)
