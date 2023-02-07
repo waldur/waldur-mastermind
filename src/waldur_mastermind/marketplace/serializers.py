@@ -3202,6 +3202,7 @@ class DetailedProviderUserSerializer(serializers.ModelSerializer):
             'email',
             'phone_number',
             'projects_count',
+            'registration_method',
         )
 
     projects_count = serializers.SerializerMethodField()
