@@ -15,6 +15,7 @@ from rest_framework import status
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.log import event_logger
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
@@ -68,18 +69,32 @@ def process_order(serialized_order, serialized_user):
     # only after it gets approved by service provider
     from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 
-    for item in (
-        order.items.exclude(offering__type=SLURM_REMOTE_PLUGIN_NAME)
-        .exclude(
-            offering__type=REMOTE_PLUGIN_NAME,
-            offering__plugin_options__auto_approve_remote_orders__isnull=True,
-        )
-        .exclude(
-            offering__type=REMOTE_PLUGIN_NAME,
-            offering__plugin_options__has_key='auto_approve_remote_orders',
-            offering__plugin_options__auto_approve_remote_orders=False,
-        )
-    ):
+    for item in order.items.exclude(offering__type=SLURM_REMOTE_PLUGIN_NAME):
+        if item.offering.type == REMOTE_PLUGIN_NAME:
+            # If an offering has auto_approve_remote_orders flag set to True, an item can be processed without approval
+            auto_approve_remote_orders = item.offering.plugin_options.get(
+                'auto_approve_remote_orders', False
+            )
+            # A service provider owner or a service manager is not required to approve an order item manually
+            user_is_service_provider_owner = structure_permissions._has_owner_access(
+                user, item.offering.customer
+            )
+            user_is_service_provider_offering_manger = (
+                structure_permissions._has_service_manager_access(
+                    user, item.offering.customer
+                )
+                and item.offering.has_user(user)
+            )
+            # If any condition is not met, the order item is requested for manual approval
+            if (
+                auto_approve_remote_orders
+                or user_is_service_provider_owner
+                or user_is_service_provider_offering_manger
+            ):
+                pass
+            else:
+                continue
+
         item.set_state_executing()
         item.save(update_fields=['state'])
         utils.process_order_item(item, user)
