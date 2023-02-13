@@ -45,7 +45,6 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
-from waldur_core.media.utils import format_pdf_response
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -1162,14 +1161,6 @@ class OrderViewSet(BaseMarketplaceView):
         structure_utils.check_customer_blocked_or_archived,
     ]
     reject_permissions = [permissions.user_can_reject_order]
-
-    @action(detail=True)
-    def pdf(self, request, uuid=None):
-        order = self.get_object()
-
-        file = utils.create_order_pdf(order)
-        filename = order.get_filename()
-        return format_pdf_response(file, filename)
 
     def perform_create(self, serializer):
         project = serializer.validated_data['project']

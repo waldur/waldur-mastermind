@@ -13,7 +13,6 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.media.utils import format_pdf_response
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -56,14 +55,6 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     send_notification_permissions = [structure_permissions.is_staff]
     send_notification_validators = [_is_invoice_created]
-
-    @action(detail=True)
-    def pdf(self, request, uuid=None):
-        invoice = self.get_object()
-
-        file = utils.create_invoice_pdf(invoice)
-        filename = invoice.get_filename()
-        return format_pdf_response(file, filename)
 
     @transaction.atomic
     @action(detail=True, methods=['post'])

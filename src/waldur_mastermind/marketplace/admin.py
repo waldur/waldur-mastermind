@@ -2,12 +2,11 @@ from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
 from django.shortcuts import redirect
-from django.urls import re_path, resolve, reverse
+from django.urls import resolve, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ungettext
 from modeltranslation import admin as modeltranslation_admin
-from rest_framework.reverse import reverse as rest_reverse
 from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
@@ -19,7 +18,6 @@ from waldur_core.core.admin import (
     format_json_field,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
-from waldur_core.media.utils import format_pdf_response
 from waldur_core.structure.models import (
     PrivateServiceSettings,
     ServiceSettings,
@@ -32,7 +30,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
 
-from . import executors, models, utils
+from . import executors, models
 
 
 class GoogleCredentialsAdminForm(ModelForm):
@@ -489,7 +487,6 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         'state',
         'total_cost',
         'modified',
-        'pdf_file',
     ]
     readonly_fields = (
         'created',
@@ -500,7 +497,6 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         'project',
         'approved_by',
         'total_cost',
-        'pdf_file',
     )
 
     list_filter = ('state', 'created')
@@ -509,30 +505,6 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
     def get_extra_actions(self):
         return []
-
-    def get_urls(self):
-        my_urls = [
-            re_path(
-                r'^(.+)/change/pdf_file/$',
-                self.admin_site.admin_view(self.pdf_file_view),
-            ),
-        ]
-        return my_urls + super(OrderAdmin, self).get_urls()
-
-    def pdf_file_view(self, request, pk=None):
-        order = models.Order.objects.get(id=pk)
-
-        file = utils.create_order_pdf(order)
-        filename = order.get_filename()
-        return format_pdf_response(file, filename)
-
-    def pdf_file(self, obj):
-        pdf_ref = rest_reverse(
-            'marketplace-order-pdf',
-            kwargs={'uuid': obj.uuid.hex},
-        )
-
-        return format_html('<a href="%s">download</a>' % pdf_ref)
 
 
 class ResourceForm(ModelForm):

@@ -1,4 +1,3 @@
-import base64
 import datetime
 import logging
 import math
@@ -6,8 +5,6 @@ import os
 import traceback
 from io import BytesIO
 
-import pdfkit
-from constance import config
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
@@ -16,7 +13,6 @@ from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
-from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from PIL import Image
@@ -116,28 +112,6 @@ def create_screenshot_thumbnail(screenshot):
     temp_thumb.seek(0)
     screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)
     temp_thumb.close()
-
-
-def create_order_pdf(order):
-    logo_path = config.SITE_LOGO
-    if logo_path:
-        with open(logo_path, 'rb') as image_file:
-            deployment_logo = base64.b64encode(image_file.read()).decode("utf-8")
-    else:
-        deployment_logo = None
-
-    context = dict(
-        order=order,
-        currency=config.CURRENCY_NAME,
-        deployment_name=config.SITE_NAME,
-        deployment_address=config.SITE_ADDRESS,
-        deployment_email=config.SITE_EMAIL,
-        deployment_phone=config.SITE_PHONE,
-        deployment_logo=deployment_logo,
-    )
-    html = render_to_string('marketplace/order.html', context)
-    pdf = pdfkit.from_string(html, False)
-    return pdf
 
 
 def import_resource_metadata(resource):

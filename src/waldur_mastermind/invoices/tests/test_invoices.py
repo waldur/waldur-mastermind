@@ -1,6 +1,5 @@
 import datetime
 from decimal import Decimal
-from unittest import mock
 
 from ddt import data, ddt
 from django.core import mail
@@ -53,14 +52,6 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         )
         self.fixture.invoice.state = models.Invoice.States.CREATED
         self.fixture.invoice.save(update_fields=['state'])
-
-        self.patcher = mock.patch('waldur_mastermind.invoices.utils.pdfkit')
-        mock_pdfkit = self.patcher.start()
-        mock_pdfkit.from_string.return_value = b'PDF'
-
-    def tearDown(self):
-        super(InvoiceSendNotificationTest, self).tearDown()
-        mock.patch.stopall()
 
     @data('staff')
     def test_user_can_send_invoice_notification(self, user):
