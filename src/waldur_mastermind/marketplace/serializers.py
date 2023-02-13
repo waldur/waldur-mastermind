@@ -16,7 +16,6 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
-from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -2159,7 +2158,6 @@ class OrderSerializer(
             'state',
             'items',
             'total_cost',
-            'file',
             'type',
             'error_message',
         )
@@ -2182,15 +2180,6 @@ class OrderSerializer(
             'approved_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
         }
-
-    file = serializers.SerializerMethodField()
-
-    def get_file(self, obj):
-        return reverse(
-            'marketplace-order-pdf',
-            kwargs={'uuid': obj.uuid.hex},
-            request=self.context['request'],
-        )
 
     error_message = serializers.SerializerMethodField()
 

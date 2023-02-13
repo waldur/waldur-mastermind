@@ -1,5 +1,4 @@
 from datetime import timedelta
-from unittest import mock
 
 from ddt import data, ddt
 from django.core import mail
@@ -10,7 +9,7 @@ from freezegun import freeze_time
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
 
 
@@ -94,18 +93,9 @@ class NotificationTest(TestCase):
         self.fixture = structure_fixtures.CustomerFixture()
         self.fixture.owner
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
-        self.patcher = mock.patch('waldur_mastermind.invoices.utils.pdfkit')
-        mock_pdfkit = self.patcher.start()
-        mock_pdfkit.from_string.return_value = b'pdf content'
 
-    def tearDown(self):
-        super(NotificationTest, self).tearDown()
-        mock.patch.stopall()
-
-    def test_send_invoice_with_pdf(self):
-        event_type = 'notification'
-        structure_factories.NotificationFactory(key=f"invoices.{event_type}")
-        utils.create_invoice_pdf(self.invoice)
+    def test_send_invoice(self):
+        structure_factories.NotificationFactory(key="invoices.notification")
         tasks.send_invoice_notification(self.invoice.uuid)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(len(mail.outbox[0].attachments), 1)

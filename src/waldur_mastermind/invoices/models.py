@@ -159,9 +159,6 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
 
-    def get_filename(self):
-        return 'invoice_{}.pdf'.format(self.uuid)
-
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 

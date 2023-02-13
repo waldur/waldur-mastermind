@@ -2,17 +2,14 @@ from django.contrib import admin
 from django.forms.models import ModelForm
 from django.forms.widgets import CheckboxInput
 from django.shortcuts import redirect
-from django.urls import re_path, reverse
-from django.utils.html import format_html
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-from rest_framework.reverse import reverse as rest_reverse
 from reversion.admin import VersionAdmin
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
-from waldur_core.media.utils import format_pdf_response
 
-from . import models, tasks, utils
+from . import models, tasks
 
 
 class InvoiceItemInline(core_admin.UpdateOnlyModelAdmin, admin.StackedInline):
@@ -73,15 +70,13 @@ class InvoiceAdmin(
         'total',
         'year',
         'month',
-        'pdf_file',
         'backend_id',
     ]
-    readonly_fields = ('customer', 'total', 'year', 'month', 'pdf_file')
+    readonly_fields = ('customer', 'total', 'year', 'month')
     list_display = ('customer', 'total', 'year', 'month', 'state', 'payment_type')
     list_filter = ('state', 'customer', PaymentTypeFilter)
     search_fields = ('customer__name', 'uuid')
     date_hierarchy = 'invoice_date'
-    actions = ('create_pdf',)
 
     def payment_type(self, obj):
         if obj.customer.paymentprofile_set.filter(is_active=True).exists():
@@ -92,32 +87,6 @@ class InvoiceAdmin(
         return ''
 
     payment_type.short_description = _('Payment type')
-
-    def get_urls(self):
-        my_urls = [
-            re_path(
-                r'^(.+)/change/pdf_file/$',
-                self.admin_site.admin_view(self.pdf_file_view),
-            ),
-        ]
-        return my_urls + super(InvoiceAdmin, self).get_urls()
-
-    def pdf_file_view(self, request, pk=None):
-        invoice = models.Invoice.objects.get(id=pk)
-
-        file = utils.create_invoice_pdf(invoice)
-        filename = invoice.get_filename()
-        return format_pdf_response(file, filename)
-
-    def pdf_file(self, obj):
-        pdf_ref = rest_reverse(
-            'invoice-pdf',
-            kwargs={'uuid': obj.uuid.hex},
-        )
-
-        return format_html('<a href="%s">download</a>' % pdf_ref)
-
-    pdf_file.short_description = "File"
 
     def get_extra_actions(self):
         return [

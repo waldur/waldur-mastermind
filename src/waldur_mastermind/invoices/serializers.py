@@ -5,7 +5,6 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
-from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -192,7 +191,6 @@ class InvoiceSerializer(
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
-    file = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Invoice
@@ -213,7 +211,6 @@ class InvoiceSerializer(
             'customer',
             'customer_details',
             'items',
-            'file',
             'backend_id',
             'payment_url',
             'reference_number',
@@ -238,13 +235,6 @@ class InvoiceSerializer(
             'bank_name': invoice.customer.bank_name,
             'bank_account': invoice.customer.bank_account,
         }
-
-    def get_file(self, obj):
-        return reverse(
-            'invoice-pdf',
-            kwargs={'uuid': obj.uuid.hex},
-            request=self.context['request'],
-        )
 
     def get_items(self, invoice):
         qs = invoice.items.all().order_by('project_name', 'name')

@@ -2,7 +2,6 @@ import logging
 from csv import DictWriter
 from io import StringIO
 
-import pdfkit
 from celery import shared_task
 from constance import config
 from django.conf import settings
@@ -71,17 +70,13 @@ def send_invoice_notification(invoice_uuid):
 
     emails = invoice.customer.get_owner_mails()
 
-    filename = None
-    attachment = None
-    content_type = None
-
-    filename = '%s_%s_%s.pdf' % (
+    filename = '%s_%s_%s.html' % (
         config.SITE_NAME.replace(' ', '_'),
         invoice.year,
         invoice.month,
     )
-    attachment = utils.create_invoice_pdf(invoice)
-    content_type = 'application/pdf'
+    attachment = utils.create_invoice_html(invoice)
+    content_type = 'text/html'
 
     logger.info(
         'About to send invoice {invoice} notification to {emails}'.format(
@@ -239,9 +234,8 @@ def send_notifications_about_upcoming_ends():
 def send_monthly_invoicing_reports_about_customers():
     if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
         report = utils.get_monthly_invoicing_reports()
-        pdf = pdfkit.from_string(report, False)
         today = timezone.datetime.today()
-        filename = '%02d_%04d_invoice_report.pdf' % (today.month, today.year)
+        filename = '%02d_%04d_invoice_report.html' % (today.month, today.year)
         subject = 'Financial report for %02d-%04d' % (
             today.month,
             today.year,
@@ -258,7 +252,7 @@ def send_monthly_invoicing_reports_about_customers():
             subject=subject,
             body=body,
             to=emails,
-            attachment=pdf,
+            attachment=report,
             filename=filename,
-            content_type='application/pdf',
+            content_type='text/html',
         )

@@ -37,10 +37,7 @@ RUN apt-get update       && \
     libxslt-dev             \
     libyaml-dev             \
     tini                    \
-    uwsgi-src               \
-    xfonts-75dpi            \
-    xfonts-base             \
-    fonts-liberation     && \
+    uwsgi-src            && \
     rm -rf /var/lib/apt/lists
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
@@ -51,10 +48,6 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
 WORKDIR /tmp/xmlsec1
 COPY --from=xmlsec1 /xmlsec1/*.deb ./
 RUN dpkg -i ./*.deb && rm ./*.deb
-
-RUN curl -LO https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_amd64.deb && \
-    dpkg -i wkhtmltox_0.12.6-1.buster_amd64.deb                                                                      && \
-    rm wkhtmltox_0.12.6-1.buster_amd64.deb
 
 # Create python3.8 uwsgi plugin
 RUN PYTHON=python3.8 uwsgi --build-plugin "/usr/src/uwsgi/plugins/python python38" && \

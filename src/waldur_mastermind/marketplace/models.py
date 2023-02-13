@@ -959,9 +959,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
     def fail(self):
         pass
 
-    def get_filename(self):
-        return 'marketplace_order_{}.pdf'.format(self.uuid)
-
     def add_item(self, **kwargs):
         order_item = OrderItem(order=self, **kwargs)
         order_item.clean()

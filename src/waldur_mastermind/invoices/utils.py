@@ -5,7 +5,6 @@ import re
 from calendar import monthrange
 from decimal import Decimal
 
-import pdfkit
 from constance import config
 from django.conf import settings
 from django.db.models import Sum
@@ -99,7 +98,7 @@ def filter_invoice_items(items):
     ]  # skip empty, but leave in credit and debit
 
 
-def create_invoice_pdf(invoice):
+def create_invoice_html(invoice):
     all_items = filter_invoice_items(invoice.items.all())
     logo_path = config.SITE_LOGO
     if logo_path:
@@ -115,9 +114,7 @@ def create_invoice_pdf(invoice):
         deployment_logo=deployment_logo,
         items=all_items,
     )
-    html = render_to_string('invoices/invoice.html', context)
-    pdf = pdfkit.from_string(html, False)
-    return pdf
+    return render_to_string('invoices/invoice.html', context)
 
 
 def get_price_per_day(price, unit):
@@ -218,8 +215,7 @@ def get_monthly_invoicing_reports_context():
 
 def get_monthly_invoicing_reports():
     context = get_monthly_invoicing_reports_context()
-    html = render_to_string('invoices/monthly_invoicing_reports.html', context)
-    return html
+    return render_to_string('invoices/monthly_invoicing_reports.html', context)
 
 
 def get_billing_price_estimate_for_resources(resources):
