@@ -272,6 +272,9 @@ globals().update(WaldurConfiguration().dict())
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
 CONSTANCE_DBS = "default"
 CONSTANCE_SUPERUSER_ONLY = False
+CONSTANCE_ADDITIONAL_FIELDS = {
+    'image_field': ['django.forms.ImageField', {'required': False}]
+}
 CONSTANCE_CONFIG = {
     'SITE_NAME': ('Waldur', 'Human-friendly name of the Waldur deployment.'),
     'SITE_DESCRIPTION': (
@@ -281,7 +284,6 @@ CONSTANCE_CONFIG = {
     'SITE_ADDRESS': ('', 'It is used in marketplace order header.'),
     'SITE_EMAIL': ('', 'It is used in marketplace order header and UI footer.'),
     'SITE_PHONE': ('', 'It is used in marketplace order header and UI footer.'),
-    'SITE_LOGO': ('', 'It is used in marketplace order header.'),
     'CURRENCY_NAME': ('EUR', 'It is used in marketplace order details and invoices for currency formatting.'),
     'DOCS_URL': ('', 'Renders link to docs in header'),
     'SHORT_PAGE_TITLE': ('Waldur', 'It is used as prefix for page title.'),
@@ -289,24 +291,34 @@ CONSTANCE_CONFIG = {
         'Waldur | Cloud Service Management',
         "It is used as default page title if it's not specified explicitly."
     ),
-    'SIDEBAR_LOGO': ('', 'Relative path to image rendered at the top of sidebar menu in HomePort.'),
-    'SIDEBAR_LOGO_MOBILE': ('', 'Relative path to image rendered at the top of mobile sidebar menu in HomePort.'),
-    'POWERED_BY_LOGO': ('', 'Relative path to image rendered at the bottom of login menu in HomePort.'),
     'BRAND_COLOR': ('#3a8500', 'Hex color definition is used in HomePort landing page for login button.'),
-    'HERO_IMAGE': ('', 'Relative path to image rendered at hero section of HomePort landing page.'),
     'HERO_LINK_LABEL': (
         '',
         'Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.'
     ),
     'HERO_LINK_URL': ('', 'Link URL in hero section of HomePort landing page.'),
+    # images, logos, favicons
+    'POWERED_BY_LOGO': ('', 'The image rendered at the bottom of login menu in HomePort.', 'image_field'),
+    'HERO_IMAGE': ('', 'The image rendered at hero section of HomePort landing page.', 'image_field'),
+    'SIDEBAR_LOGO': ('', 'The image rendered at the top of sidebar menu in HomePort.', 'image_field'),
+    'SIDEBAR_LOGO_MOBILE': (
+        '', 'The image rendered at the top of mobile sidebar menu in HomePort.', 'image_field'
+    ),
+    'SITE_LOGO': ('', 'The image used in marketplace order header.', 'image_field'),
+    'LOGIN_LOGO': ('', 'A custom .png image file for login page', 'image_field'),
+    'FAVICON': ('', 'A custom favicon .png image file', 'image_field'),
+
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
-    'Whitelabeling settings': (
-        'SITE_NAME', 'SITE_DESCRIPTION', 'SITE_ADDRESS', 'SITE_EMAIL', 'SITE_PHONE', 'SITE_LOGO',
-        'CURRENCY_NAME', 'DOCS_URL', 'SHORT_PAGE_TITLE', 'FULL_PAGE_TITLE', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE',
-        'POWERED_BY_LOGO', 'BRAND_COLOR', 'HERO_IMAGE', 'HERO_LINK_LABEL', 'HERO_LINK_URL',
+    'Whitelabeling settings (Text, links, etc)': (
+        'SITE_NAME', 'SITE_DESCRIPTION', 'SITE_ADDRESS', 'SITE_EMAIL', 'SITE_PHONE',
+        'CURRENCY_NAME', 'DOCS_URL', 'SHORT_PAGE_TITLE', 'FULL_PAGE_TITLE',
+        'BRAND_COLOR', 'HERO_LINK_LABEL', 'HERO_LINK_URL',
     ),
+    'Whitelabeling settings (Logos, images, favicons)': (
+        'SITE_LOGO', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE', 'POWERED_BY_LOGO', 'HERO_IMAGE', 'LOGIN_LOGO', 'FAVICON'
+    )
 }
 
 for ext in WaldurExtension.get_extensions():
