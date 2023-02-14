@@ -195,9 +195,22 @@ class BasicProjectSerializer(core_serializers.BasicInfoSerializer):
 
 
 class PermissionProjectSerializer(BasicProjectSerializer):
+    resource_count = serializers.SerializerMethodField()
+
     class Meta(BasicProjectSerializer.Meta):
         list_serializer_class = PermissionListSerializer
-        fields = BasicProjectSerializer.Meta.fields + ('image',)
+        fields = BasicProjectSerializer.Meta.fields + ('image', 'resource_count')
+
+    def get_resource_count(self, project):
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        return marketplace_models.Resource.objects.filter(
+            state__in=(
+                marketplace_models.Resource.States.OK,
+                marketplace_models.Resource.States.UPDATING,
+            ),
+            project=project,
+        ).count()
 
 
 class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
