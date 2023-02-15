@@ -2574,3 +2574,46 @@ for view in (structure_views.ProjectCountersView, structure_views.CustomerCounte
         }
 
     view.register_dynamic_counter(inject_resources_counter)
+
+
+def can_mutate_robot_account(request, view, obj=None):
+    if not obj:
+        return
+    if request.user.is_staff:
+        return
+    if obj.resource.offering.customer.has_user(request.user):
+        return
+    raise PermissionDenied(
+        'Only staff, service provider owner and '
+        'service provider manager can add, remove or update robot accounts'
+    )
+
+
+class RobotAccountViewSet(core_views.ActionsViewSet):
+    queryset = models.RobotAccount.objects.all()
+    lookup_field = 'uuid'
+    create_serializer_class = serializers.RobotAccountSerializer
+    update_serializer_class = serializers.RobotAccountSerializer
+    serializer_class = serializers.RobotAccountDetailsSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.RobotAccountFilter
+
+    unsafe_methods_permissions = [can_mutate_robot_account]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        customers = structure_models.CustomerPermission.objects.filter(
+            user=user, is_active=True
+        ).values_list('customer_id')
+        projects = structure_models.ProjectPermission.objects.filter(
+            user=user, is_active=True
+        ).values_list('project_id')
+        subquery = (
+            Q(resource__project__in=projects)
+            | Q(resource__project__customer__in=customers)
+            | Q(resource__offering__customer__in=customers)
+        )
+        return qs.filter(subquery)

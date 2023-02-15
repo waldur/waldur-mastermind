@@ -30,7 +30,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_pid import tasks as pid_tasks
 from waldur_pid import utils as pid_utils
 
-from . import executors, models
+from . import executors, models, utils
 
 
 class GoogleCredentialsAdminForm(ModelForm):
@@ -536,6 +536,19 @@ class SharedOfferingFilter(admin.SimpleListFilter):
             return queryset
 
 
+class RobotAccountInline(admin.StackedInline):
+    model = models.RobotAccount
+    extra = 1
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        object_id = request.resolver_match.kwargs.get('object_id')
+        if db_field.name == "users" and object_id:
+            resource = models.Resource.objects.get(id=object_id)
+            users = utils.get_resource_users(resource)
+            kwargs["queryset"] = users
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+
 class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     form = ResourceForm
     list_display = ('uuid', 'name', 'project', 'state', 'category', 'created')
@@ -557,6 +570,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     fields = readonly_fields + ('plan', 'state')
     date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
+    inlines = (RobotAccountInline,)
 
     def category(self, obj):
         return obj.offering.category

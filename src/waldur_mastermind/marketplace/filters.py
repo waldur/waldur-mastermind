@@ -499,6 +499,16 @@ class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return 'scope'
 
 
+class RobotAccountFilter(django_filters.FilterSet):
+    resource = core_filters.URLFilter(
+        view_name='marketplace-resource-detail', field_name='resource__uuid'
+    )
+
+    class Meta:
+        model = models.RobotAccount
+        fields = ['type']
+
+
 class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
         model = models.Plan

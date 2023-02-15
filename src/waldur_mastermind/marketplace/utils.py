@@ -867,3 +867,15 @@ def link_parent_resource(resource):
         else:
             resource.parent = parent_resource
             resource.save()
+
+
+def get_resource_users(resource):
+    project_user_ids = structure_models.ProjectPermission.objects.filter(
+        project=resource.project, is_active=True
+    ).values_list('user_id')
+    customer_user_ids = structure_models.CustomerPermission.objects.filter(
+        customer=resource.project.customer, is_active=True
+    ).values_list('user_id')
+    return core_models.User.objects.filter(
+        Q(id__in=project_user_ids) | Q(id__in=customer_user_ids)
+    )

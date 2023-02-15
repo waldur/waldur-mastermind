@@ -1481,6 +1481,19 @@ class CategoryHelpArticle(models.Model):
         return self.title
 
 
+class RobotAccount(TimeStampedModel, core_models.UuidMixin):
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
+    type = models.CharField(max_length=5)
+    # empty string should be allowed because name is set by
+    # service provider after the account is created
+    username = models.CharField(max_length=32, blank=True)
+    users = models.ManyToManyField(User)
+    keys = models.JSONField(blank=True, default=list)
+
+    class Meta:
+        unique_together = ('resource', 'type')
+
+
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
 reversion.register(PlanComponent)

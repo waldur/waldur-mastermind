@@ -17,6 +17,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 
+from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
@@ -25,6 +26,7 @@ from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.models import User
 from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.media.serializers import (
     ProtectedFileField,
     ProtectedImageField,
@@ -3321,3 +3323,56 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
     def get_billing_price_estimate(self, offering):
         resources = self.get_resources(offering)
         return get_billing_price_estimate_for_resources(resources)
+
+
+class RobotAccountSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.RobotAccount
+        fields = (
+            'uuid',
+            'created',
+            'modified',
+            'type',
+            'username',
+            'resource',
+            'users',
+            'keys',
+        )
+        extra_kwargs = dict(
+            resource={
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-resource-detail',
+            },
+            users={'lookup_field': 'uuid', 'view_name': 'user-detail'},
+        )
+
+    def validate_keys(self, keys):
+        if not isinstance(keys, list):
+            raise serializers.ValidationError(
+                'JSON list of SSH public keys is expected.'
+            )
+        for key in keys:
+            validate_ssh_public_key(key)
+        return keys
+
+    def validate(self, validated_data):
+        resource = validated_data['resource']
+        users = validated_data['users']
+        resource_users = utils.get_resource_users(resource)
+        if set(user.id for user in users) - set(user.id for user in resource_users):
+            raise serializers.ValidationError(
+                'User should belong to the same project or organization as resource.'
+            )
+        return validated_data
+
+
+class RobotAccountDetailsSerializer(RobotAccountSerializer):
+    users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
+    keys = serializers.SerializerMethodField()
+
+    def get_keys(self, instance):
+        user_keys = core_models.SshPublicKey.objects.filter(
+            user__in=instance.users.all()
+        ).values_list('public_key', flat=True)
+        extra_keys = instance.keys or []
+        return list(user_keys) + extra_keys
