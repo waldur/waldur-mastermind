@@ -108,6 +108,11 @@ def register_in(router):
         views.PublicOfferingViewSet,
         basename='marketplace-public-offering',
     )
+    router.register(
+        r'marketplace-robot-accounts',
+        views.RobotAccountViewSet,
+        basename='marketplace-robot-account',
+    )
 
 
 urlpatterns = [
