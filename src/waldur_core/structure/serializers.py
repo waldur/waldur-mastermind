@@ -242,6 +242,9 @@ class ProjectSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
+    resources_count = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Project
         fields = (
@@ -263,6 +266,8 @@ class ProjectSerializer(
             'oecd_fos_2007_code',
             'is_industry',
             'image',
+            'resources_count',
+            'role',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -310,6 +315,29 @@ class ProjectSerializer(
 
         return attrs
 
+    def get_resources_count(self, project):
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        return marketplace_models.Resource.objects.filter(
+            state__in=(
+                marketplace_models.Resource.States.OK,
+                marketplace_models.Resource.States.UPDATING,
+            ),
+            project=project,
+        ).count()
+
+    def get_role(self, project):
+        user = self.context['request'].user
+        if user.is_staff:
+            return 'staff'
+        if user.is_support:
+            return 'support'
+        permission = models.ProjectPermission.objects.filter(
+            user=user, project=project, is_active=True
+        ).first()
+        if permission:
+            return permission.role
+
 
 class CountrySerializerMixin(serializers.Serializer):
     COUNTRIES = core_fields.COUNTRIES
@@ -346,6 +374,8 @@ class CustomerSerializer(
     division_parent_uuid = serializers.ReadOnlyField(source='division.parent.uuid')
     division_type_name = serializers.ReadOnlyField(source='division.type.name')
     division_type_uuid = serializers.ReadOnlyField(source='division.type.uuid')
+    role = serializers.SerializerMethodField()
+    projects_count = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Customer
@@ -372,6 +402,8 @@ class CustomerSerializer(
             'default_tax_percent',
             'accounting_start_date',
             'inet',
+            'role',
+            'projects_count',
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             'access_subnets',
@@ -455,6 +487,21 @@ class CustomerSerializer(
                         {'vat_code': _('Unable to check VAT number.')}
                     )
         return attrs
+
+    def get_role(self, customer):
+        user = self.context['request'].user
+        if user.is_staff:
+            return 'staff'
+        if user.is_support:
+            return 'support'
+        permission = models.CustomerPermission.objects.filter(
+            user=user, customer=customer, is_active=True
+        ).first()
+        if permission:
+            return permission.role
+
+    def get_projects_count(self, customer):
+        return models.Project.available_objects.filter(customer=customer).count()
 
 
 class NestedCustomerSerializer(
@@ -645,7 +692,6 @@ class CustomerPermissionSerializer(
 ):
     customer_division_name = serializers.ReadOnlyField(source='customer.division.name')
     customer_division_uuid = serializers.ReadOnlyField(source='customer.division.uuid')
-    customer_projects_count = serializers.SerializerMethodField()
 
     class Meta(BasePermissionSerializer.Meta):
         model = models.CustomerPermission
@@ -667,7 +713,6 @@ class CustomerPermissionSerializer(
             'customer_division_uuid',
             'customer_created',
             'customer_email',
-            'customer_projects_count',
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
             customer=(
@@ -733,11 +778,6 @@ class CustomerPermissionSerializer(
     def get_filtered_field_names(self):
         return ('customer',)
 
-    def get_customer_projects_count(self, permission):
-        return models.Project.available_objects.filter(
-            customer=permission.customer
-        ).count()
-
 
 class CustomerPermissionLogSerializer(CustomerPermissionSerializer):
     class Meta(CustomerPermissionSerializer.Meta):
@@ -779,7 +819,6 @@ class ProjectPermissionSerializer(
 ):
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
-    project_resources_count = serializers.SerializerMethodField()
 
     class Meta(BasePermissionSerializer.Meta):
         model = models.ProjectPermission
@@ -796,7 +835,6 @@ class ProjectPermissionSerializer(
             'project_uuid',
             'project_name',
             'project_created',
-            'project_resources_count',
             'project_end_date',
             'customer_uuid',
             'customer_name',
@@ -860,17 +898,6 @@ class ProjectPermissionSerializer(
 
     def get_filtered_field_names(self):
         return ('project',)
-
-    def get_project_resources_count(self, permission):
-        from waldur_mastermind.marketplace import models as marketplace_models
-
-        return marketplace_models.Resource.objects.filter(
-            state__in=(
-                marketplace_models.Resource.States.OK,
-                marketplace_models.Resource.States.UPDATING,
-            ),
-            project=permission.project,
-        ).count()
 
 
 class BasicProjectPermissionSerializer(BasePermissionSerializer):
