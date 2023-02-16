@@ -580,7 +580,7 @@ python-versions = "*"
 
 [[package]]
 name = "django"
-version = "3.2.17"
+version = "3.2.18"
 description = "A high-level Python Web framework that encourages rapid development and clean, pragmatic design."
 category = "main"
 optional = false
@@ -2741,7 +2741,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "2ef399bffc7fc24fd9c681087c0f9706c9f775b604333d118597dd9a02e42f0c"
+content-hash = "5745010b90b73c9505b57b7a08c63944eb0d40f62a5cc46e10b4e9a126e1f820"
 
 [metadata.files]
 adal = [
@@ -3156,8 +3156,8 @@ distlib = [
     {file = "distlib-0.3.6.tar.gz", hash = "sha256:14bad2d9b04d3a36127ac97f30b12a19268f211063d8f8ee4f47108896e11b46"},
 ]
 django = [
-    {file = "Django-3.2.17-py3-none-any.whl", hash = "sha256:59c39fc342b242fb42b6b040ad8b1b4c15df438706c1d970d416d63cdd73e7fd"},
-    {file = "Django-3.2.17.tar.gz", hash = "sha256:644288341f06ebe4938eec6801b6bd59a6534a78e4aedde2a153075d11143894"},
+    {file = "Django-3.2.18-py3-none-any.whl", hash = "sha256:4d492d9024c7b3dfababf49f94511ab6a58e2c9c3c7207786f1ba4eb77750706"},
+    {file = "Django-3.2.18.tar.gz", hash = "sha256:08208dfe892eb64fff073ca743b3b952311104f939e7f6dae954fe72dcc533ba"},
 ]
 django-admin-tools = [
     {file = "django-admin-tools-0.9.2.tar.gz", hash = "sha256:65c97a2dadf1b2ed5e27bc9ba4c34a4c3448fd2569be98f3bbf6056ccd757b51"},
