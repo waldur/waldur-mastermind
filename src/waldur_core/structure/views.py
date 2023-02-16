@@ -7,8 +7,7 @@ from django.conf import settings as django_settings
 from django.contrib import auth
 from django.core import exceptions as django_exceptions
 from django.db import transaction
-from django.db.models import CharField, F, Q, Value
-from django.db.models.functions import Concat
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.functional import cached_property
@@ -584,99 +583,6 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['get'])
-    def projects(self, request, uuid=None):
-        from django.db.models import Count, IntegerField
-        from django.db.models.expressions import OuterRef, Subquery
-        from waldur_mastermind.marketplace import models as marketplace_models
-
-        user = self.request.user
-        permissions = list(
-            models.ProjectPermission.objects.filter(is_active=True, user=user)
-            .annotate(
-                project_uuid=F('project__uuid'),
-                project_name=F('project__name'),
-                project_created=F('project__created'),
-                project_end_date=F('project__end_date'),
-                customer_uuid=F('project__customer__uuid'),
-                customer_name=F('project__customer__name'),
-                created_by_full_name=Concat(
-                    F('created_by__first_name'),
-                    Value(' '),
-                    F('created_by__last_name'),
-                    output_field=CharField(),
-                ),
-                created_by_username=F('created_by__username'),
-                project_resources_count=Subquery(
-                    marketplace_models.Resource.objects.filter(
-                        state__in=(
-                            marketplace_models.Resource.States.OK,
-                            marketplace_models.Resource.States.UPDATING,
-                        ),
-                        project=OuterRef('project_id'),
-                    )
-                    .annotate(count=Count('id'))
-                    .values('count')[:1],
-                    output_field=IntegerField(),
-                ),
-            )
-            .values(
-                'project_uuid',
-                'project_name',
-                'project_created',
-                'project_end_date',
-                'customer_uuid',
-                'customer_name',
-                'role',
-                'expiration_time',
-                'created',
-                'created_by_full_name',
-                'created_by_username',
-                'project_resources_count',
-            )
-        )
-        for customer_permission in models.CustomerPermission.objects.filter(
-            is_active=True, user=user
-        ):
-            for project in models.Project.objects.filter(
-                customer=customer_permission.customer
-            ).annotate(
-                project_resources_count=Subquery(
-                    marketplace_models.Resource.objects.filter(
-                        state__in=(
-                            marketplace_models.Resource.States.OK,
-                            marketplace_models.Resource.States.UPDATING,
-                        ),
-                        project=OuterRef('pk'),
-                    )
-                    .annotate(count=Count('id'))
-                    .values('count')[:1],
-                    output_field=IntegerField(),
-                )
-            ):
-                permissions.append(
-                    {
-                        'project_uuid': project.uuid.hex,
-                        'project_name': project.name,
-                        'project_created': project.created,
-                        'project_end_date': project.end_date,
-                        'customer_uuid': project.customer.uuid.hex,
-                        'customer_name': project.customer.name,
-                        'role': customer_permission.role,
-                        'expiration_time': customer_permission.expiration_time,
-                        'created': customer_permission.created,
-                        'created_by_full_name': customer_permission.created_by
-                        and customer_permission.created_by.full_name
-                        or None,
-                        'created_by_username': customer_permission.created_by
-                        and customer_permission.created_by.username
-                        or None,
-                        'project_resources_count': project.project_resources_count,
-                    }
-                )
-        permissions = sorted(permissions, key=lambda row: row['project_name'])
-        return Response(permissions)
 
 
 class BasePermissionViewSet(viewsets.ModelViewSet):
