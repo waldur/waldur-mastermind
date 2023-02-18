@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0028_offering_component_rename_fix'),
     ]

@@ -3,7 +3,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0002_immutable_default_json'),
     ]

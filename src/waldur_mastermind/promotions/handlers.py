@@ -60,7 +60,6 @@ def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs
     for resource in marketplace_models.Resource.objects.filter(
         state=marketplace_models.Resource.States.OK,
     ):
-
         if campaign.check_resource_on_conditions_of_campaign(resource):
             models.DiscountedResource.objects.create(
                 campaign=campaign,

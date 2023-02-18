@@ -3,7 +3,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_rancher', '0002_cluster_backend_id_not_null'),
     ]

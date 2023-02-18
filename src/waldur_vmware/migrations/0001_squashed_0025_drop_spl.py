@@ -13,7 +13,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('waldur_vmware', '0001_initial'),
         ('waldur_vmware', '0002_virtualmachine'),

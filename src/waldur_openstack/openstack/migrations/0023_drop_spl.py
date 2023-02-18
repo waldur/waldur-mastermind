@@ -5,7 +5,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0022_remove_tenant_extra_configuration'),
     ]

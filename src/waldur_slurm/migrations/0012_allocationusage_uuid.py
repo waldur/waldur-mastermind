@@ -4,7 +4,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_slurm', '0011_change_ram_usage_to_mb'),
     ]

@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name='waldur_geo_ip.detect_vm_coordinates')
 def detect_vm_coordinates(serialized_virtual_machine):
-
     try:
         vm = core_utils.deserialize_instance(serialized_virtual_machine)
     except exceptions.ObjectDoesNotExist:

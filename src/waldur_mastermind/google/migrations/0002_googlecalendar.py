@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0035_offeringpermission'),
         ('google', '0001_initial'),

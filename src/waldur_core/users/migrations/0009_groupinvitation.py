@@ -10,7 +10,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('structure', '0024_project_oecd_fos_2007_code'),

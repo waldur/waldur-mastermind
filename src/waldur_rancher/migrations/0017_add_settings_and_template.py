@@ -11,7 +11,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0010_customer_geolocation'),
         ('waldur_rancher', '0016_namespace'),

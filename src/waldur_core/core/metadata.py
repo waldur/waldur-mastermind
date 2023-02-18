@@ -563,7 +563,6 @@ class WaldurPID(BaseModel):
 
 
 class WaldurMarketplace(BaseModel):
-
     THUMBNAIL_SIZE = Field(
         (120, 120),
         description='Size of the thumbnail to generate when screenshot is uploaded for an offering.',
@@ -663,7 +662,6 @@ class WaldurMarketplaceScript(BaseModel):
 
 
 class WaldurAuthSAML2(BaseModel):
-
     NAME = Field(
         'saml2',
         description='Name used for assigning the registration method to the user',

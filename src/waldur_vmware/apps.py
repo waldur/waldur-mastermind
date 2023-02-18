@@ -10,8 +10,8 @@ class VMwareConfig(AppConfig):
     def ready(self):
         from waldur_core.structure.registry import SupportedServices
 
-        from .backend import VMwareBackend
         from . import handlers, models
+        from .backend import VMwareBackend
 
         SupportedServices.register_backend(VMwareBackend)
 

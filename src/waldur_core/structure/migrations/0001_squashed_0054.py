@@ -36,7 +36,6 @@ def create_quotas(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [

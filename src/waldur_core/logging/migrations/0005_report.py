@@ -7,7 +7,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('logging', '0004_json_field'),
     ]

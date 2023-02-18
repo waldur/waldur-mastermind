@@ -7,7 +7,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_slurm', '0016_drop_deposit_fields'),
     ]

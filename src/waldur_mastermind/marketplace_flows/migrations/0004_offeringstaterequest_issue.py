@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('support', '0015_fill_attachment_mime_type'),
         ('marketplace_flows', '0003_long_project_name'),

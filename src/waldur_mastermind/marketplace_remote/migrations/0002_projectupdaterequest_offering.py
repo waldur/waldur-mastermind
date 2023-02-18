@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0061_order_item_review'),
         ('marketplace_remote', '0001_initial'),

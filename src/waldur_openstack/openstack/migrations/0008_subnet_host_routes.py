@@ -6,7 +6,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0007_add_routes'),
     ]

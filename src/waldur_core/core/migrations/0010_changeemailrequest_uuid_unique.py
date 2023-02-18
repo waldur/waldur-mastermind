@@ -4,7 +4,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('core', '0009_changeemailrequest_uuid_populate'),
     ]

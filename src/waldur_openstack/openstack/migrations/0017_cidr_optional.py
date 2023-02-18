@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0016_securitygrouprule_remote_group'),
     ]

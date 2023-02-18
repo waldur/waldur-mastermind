@@ -7,14 +7,16 @@ class MarketplaceSlurmConfig(AppConfig):
     verbose_name = 'Marketplace SLURM'
 
     def ready(self):
-        from waldur_mastermind.marketplace.plugins import Component, manager
-        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace.plugins import Component, manager
         from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals
         from waldur_slurm.apps import SlurmConfig
-        from . import handlers, processor, registrators as slurm_registrators
+
+        from . import handlers, processor
+        from . import registrators as slurm_registrators
 
         slurm_registrators.SlurmRegistrator.connect()
 

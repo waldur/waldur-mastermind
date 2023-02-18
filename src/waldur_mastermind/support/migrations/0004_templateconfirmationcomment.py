@@ -6,7 +6,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('support', '0003_cascade_delete_support_customer'),
     ]

@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_rancher', '0007_cluster_tenant_settings'),
     ]

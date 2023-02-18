@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0009_project_is_removed'),
         ('waldur_rancher', '0006_node_initial_data'),

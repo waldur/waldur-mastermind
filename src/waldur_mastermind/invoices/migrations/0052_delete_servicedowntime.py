@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0051_remove_invoiceitem_product_code'),
     ]

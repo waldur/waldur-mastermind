@@ -51,7 +51,6 @@ def expand_added_nodes(
     ssh_public_key,
     security_groups=None,
 ):
-
     try:
         base_image_name = rancher_settings.get_option('base_image_name')
         image = openstack_tenant_models.Image.objects.get(

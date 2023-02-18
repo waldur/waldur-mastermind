@@ -9,7 +9,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0033_alter_project_customer'),
     ]

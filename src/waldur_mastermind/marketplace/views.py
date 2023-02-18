@@ -1339,7 +1339,7 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['post'])
     def cancel_termination(self, request, uuid=None):
-        from waldur_mastermind.marketplace_remote import utils, PLUGIN_NAME
+        from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
 
         order_item = self.get_object()
 

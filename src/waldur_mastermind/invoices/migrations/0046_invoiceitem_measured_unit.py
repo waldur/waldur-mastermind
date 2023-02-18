@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0045_invoiceitem_resource_fix'),
     ]

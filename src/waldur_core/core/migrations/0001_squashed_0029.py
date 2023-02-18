@@ -15,7 +15,6 @@ import waldur_core.media.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('core', '0001_squashed_0008'),
         ('core', '0002_remove_organization'),

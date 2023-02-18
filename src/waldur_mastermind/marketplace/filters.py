@@ -471,7 +471,6 @@ class ResourceFilter(
         )
 
     def filter_scope_uuid(self, queryset, name, value):
-
         for offering_type in plugins.manager.get_offering_types():
             resource_model = plugins.manager.get_resource_model(offering_type)
 

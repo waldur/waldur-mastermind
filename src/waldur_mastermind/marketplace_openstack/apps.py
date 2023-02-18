@@ -9,7 +9,7 @@ def get_secret_attributes():
 
 
 def components_filter(offering, qs):
-    from . import STORAGE_MODE_FIXED, AVAILABLE_LIMITS, STORAGE_TYPE
+    from . import AVAILABLE_LIMITS, STORAGE_MODE_FIXED, STORAGE_TYPE
 
     storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
     if storage_mode == STORAGE_MODE_FIXED:
@@ -27,36 +27,33 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_core.quotas import models as quota_models
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
+        from waldur_mastermind.marketplace import filters as marketplace_filters
+        from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace.plugins import Component, manager
+        from waldur_mastermind.marketplace_openstack.registrators import (
+            OpenStackInstanceRegistrator,
+            OpenStackTenantRegistrator,
+        )
         from waldur_openstack.openstack import models as openstack_models
         from waldur_openstack.openstack import signals as openstack_signals
         from waldur_openstack.openstack.apps import OpenStackConfig
+        from waldur_openstack.openstack_tenant import executors as tenant_executors
+        from waldur_openstack.openstack_tenant import models as tenant_models
         from waldur_openstack.openstack_tenant.apps import OpenStackTenantConfig
-        from waldur_openstack.openstack_tenant import (
-            models as tenant_models,
-            executors as tenant_executors,
-        )
-        from waldur_mastermind.marketplace import models as marketplace_models
-        from waldur_mastermind.marketplace import filters as marketplace_filters
-        from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.marketplace.plugins import manager
-        from waldur_mastermind.marketplace.plugins import Component
-        from waldur_mastermind.marketplace_openstack.registrators import (
-            OpenStackTenantRegistrator,
-            OpenStackInstanceRegistrator,
-        )
 
         from . import (
+            AVAILABLE_LIMITS,
+            CORES_TYPE,
+            INSTANCE_TYPE,
+            RAM_TYPE,
+            SHARED_INSTANCE_TYPE,
+            STORAGE_TYPE,
+            TENANT_TYPE,
+            VOLUME_TYPE,
             filters,
             handlers,
             processors,
-            INSTANCE_TYPE,
-            SHARED_INSTANCE_TYPE,
-            VOLUME_TYPE,
-            TENANT_TYPE,
-            RAM_TYPE,
-            CORES_TYPE,
-            STORAGE_TYPE,
-            AVAILABLE_LIMITS,
         )
 
         marketplace_filters.ExternalOfferingFilterBackend.register(

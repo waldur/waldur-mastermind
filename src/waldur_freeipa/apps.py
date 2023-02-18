@@ -8,14 +8,14 @@ class FreeIPAConfig(AppConfig):
 
     def ready(self):
         from waldur_core.core import models as core_models
-        from waldur_core.quotas.fields import QuotaField
         from waldur_core.quotas import models as quota_models
+        from waldur_core.quotas.fields import QuotaField
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals
 
-        from . import handlers, utils, models
+        from . import handlers, models, utils
 
         for model in (structure_models.Customer, structure_models.Project):
             signals.post_save.connect(

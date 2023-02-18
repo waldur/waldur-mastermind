@@ -5,7 +5,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_auth_saml2', '0001_initial'),
     ]

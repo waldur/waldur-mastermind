@@ -5,7 +5,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0001_squashed_0054'),
     ]

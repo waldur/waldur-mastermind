@@ -17,7 +17,6 @@ import waldur_core.logging.loggers
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0005_customer_domain'),
         ('core', '0003_enlarge_username'),

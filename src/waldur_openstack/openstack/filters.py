@@ -38,7 +38,6 @@ class FloatingIPFilter(structure_filters.BaseResourceFilter):
 
 
 class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
-
     o = django_filters.OrderingFilter(fields=('cores', 'ram', 'disk'))
 
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):

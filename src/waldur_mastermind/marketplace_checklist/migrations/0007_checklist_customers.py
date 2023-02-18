@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0014_remove_customer_type'),
         ('marketplace_checklist', '0006_answer_project_remove'),

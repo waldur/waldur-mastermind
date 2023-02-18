@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0019_servicesettings_remove_deprecated_fields'),
     ]

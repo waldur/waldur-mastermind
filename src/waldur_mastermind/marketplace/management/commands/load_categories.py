@@ -519,7 +519,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-
         all_categories = available_categories.keys()
         for category_short in options['category']:
             if category_short not in all_categories:

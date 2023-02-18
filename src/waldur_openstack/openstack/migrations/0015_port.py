@@ -14,7 +14,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0014_securitygrouprule_ethertype'),
     ]

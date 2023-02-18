@@ -9,11 +9,11 @@ class MarketplaceAzureConfig(AppConfig):
     def ready(self):
         from waldur_azure import models as azure_models
         from waldur_azure.apps import AzureConfig
-        from waldur_mastermind.marketplace.plugins import manager
-        from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_core.structure import signals as structure_signals
+        from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace.plugins import manager
 
-        from . import handlers, processors, VIRTUAL_MACHINE_TYPE, SQL_SERVER_TYPE
+        from . import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE, handlers, processors
 
         resource_models = (
             azure_models.VirtualMachine,

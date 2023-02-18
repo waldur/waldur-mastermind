@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0022_project_end_date'),
         ('marketplace', '0049_offeringuser'),

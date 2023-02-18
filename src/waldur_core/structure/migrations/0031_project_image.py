@@ -6,7 +6,6 @@ import waldur_core.media.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0030_customer_archived'),
     ]

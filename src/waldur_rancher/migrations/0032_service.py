@@ -15,7 +15,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0013_extend_description_limits'),
         ('waldur_rancher', '0031_extend_description_limits'),

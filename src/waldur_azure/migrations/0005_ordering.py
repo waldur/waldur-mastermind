@@ -3,7 +3,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_azure', '0004_storageaccount'),
     ]

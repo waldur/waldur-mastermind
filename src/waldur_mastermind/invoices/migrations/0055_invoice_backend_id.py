@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0054_fix_resource_limit_periods'),
     ]

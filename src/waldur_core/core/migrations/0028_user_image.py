@@ -6,7 +6,6 @@ import waldur_core.media.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('core', '0027_alter_user_job_title'),
     ]

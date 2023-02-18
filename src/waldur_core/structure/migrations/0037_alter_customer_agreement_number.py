@@ -6,7 +6,6 @@ MARKER = 999999999
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0036_remove_notification_and_notification_template'),
     ]

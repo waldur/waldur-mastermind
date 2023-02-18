@@ -7,7 +7,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('notifications', '0004_messagetemplate'),
         ('marketplace', '0001_squashed_0076'),

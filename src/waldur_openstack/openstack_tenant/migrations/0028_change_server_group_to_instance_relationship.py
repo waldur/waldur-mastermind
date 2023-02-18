@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack_tenant', '0027_make_m2m_instnace_fields_optional'),
     ]

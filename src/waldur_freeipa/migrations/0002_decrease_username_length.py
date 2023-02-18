@@ -8,7 +8,6 @@ import waldur_freeipa.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_freeipa', '0001_initial'),
     ]

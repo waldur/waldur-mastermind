@@ -7,7 +7,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0007_customer_blocked'),
     ]

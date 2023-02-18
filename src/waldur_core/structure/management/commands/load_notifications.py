@@ -17,7 +17,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-
         with open(options['notifications_file'], 'r') as notifications_file:
             notifications = json.load(notifications_file)
 

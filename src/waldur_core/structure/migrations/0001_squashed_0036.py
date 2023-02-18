@@ -18,7 +18,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('structure', '0001_squashed_0054'),
         ('structure', '0002_immutable_default_json'),

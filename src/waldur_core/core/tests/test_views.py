@@ -7,7 +7,6 @@ from waldur_core.core import WaldurExtension
 class ViewsetsTest(TestCase):
     def test_default_ordering_must_be_defined_for_all_viewsets(self):
         for ext in WaldurExtension.get_extensions():
-
             try:
                 views = __import__(
                     ext.django_app() + '.views',

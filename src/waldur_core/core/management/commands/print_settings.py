@@ -38,7 +38,7 @@ class Command(BaseCommand):
 
         print('# Configuration guide', end='\n\n')
 
-        for (section_name, section) in nested:
+        for section_name, section in nested:
             type_ = section.type_
             default_value = pprint.pformat(section.default.dict())
             print(f'## {section_name} plugin')
@@ -49,7 +49,7 @@ class Command(BaseCommand):
             for field_name, field in sorted(type_.__fields__.items()):
                 print_section(field, field_name)
 
-        print(f'## Other variables')
+        print('## Other variables')
         print()
-        for (section_name, section) in flat:
+        for section_name, section in flat:
             print_section(section, section_name, print_default=True)

@@ -9,7 +9,6 @@ import waldur_mastermind.invoices.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0010_customer_geolocation'),
         ('invoices', '0033_downtime_offering_and_resource'),

@@ -3,7 +3,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_vmware', '0018_port_runtime_state'),
     ]

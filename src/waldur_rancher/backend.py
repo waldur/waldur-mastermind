@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 class RancherBackend(ServiceBackend):
-
     DEFAULTS = {
         'cloud_init_template': '#cloud-config\n'
         'packages: \n'

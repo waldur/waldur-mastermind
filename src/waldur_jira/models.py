@@ -118,7 +118,6 @@ class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty)
 
 
 class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
-
     type = models.ForeignKey(on_delete=models.CASCADE, to=IssueType)
     parent = models.ForeignKey(
         on_delete=models.CASCADE, to='Issue', blank=True, null=True

@@ -9,7 +9,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('core', '0028_user_image'),
     ]

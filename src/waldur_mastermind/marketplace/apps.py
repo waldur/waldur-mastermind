@@ -13,15 +13,10 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.serializers import BaseResourceSerializer
 
-        from . import (
-            handlers,
-            models,
-            utils,
-            signals as marketplace_signals,
-            processors,
-            registrators as marketplace_registrators,
-            PLUGIN_NAME,
-        )
+        from . import PLUGIN_NAME, handlers, models, processors
+        from . import registrators as marketplace_registrators
+        from . import signals as marketplace_signals
+        from . import utils
         from .plugins import manager
 
         signals.post_save.connect(

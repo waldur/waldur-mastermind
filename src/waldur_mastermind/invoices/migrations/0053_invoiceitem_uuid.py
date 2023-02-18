@@ -13,7 +13,6 @@ def gen_uuid(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0052_delete_servicedowntime'),
     ]

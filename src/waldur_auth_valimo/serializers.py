@@ -4,7 +4,6 @@ from . import models
 
 
 class AuthResultSerializer(serializers.ModelSerializer):
-
     token = serializers.SerializerMethodField()
 
     class Meta:

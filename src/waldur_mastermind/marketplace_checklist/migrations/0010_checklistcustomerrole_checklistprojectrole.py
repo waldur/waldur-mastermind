@@ -7,7 +7,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace_checklist', '0009_category_icon'),
     ]

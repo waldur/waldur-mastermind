@@ -9,7 +9,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0037_paymentprofile_is_active_null '),
     ]

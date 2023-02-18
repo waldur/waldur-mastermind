@@ -8,7 +8,6 @@ import waldur_rancher.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0010_customer_geolocation'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

@@ -8,7 +8,12 @@ class StructureConfig(AppConfig):
     verbose_name = 'Structure'
 
     def ready(self):
-        from waldur_core.core.models import User, ChangeEmailRequest
+        from django.core import checks
+
+        from waldur_core.core.models import ChangeEmailRequest, User
+        from waldur_core.quotas import signals as quota_signals
+        from waldur_core.structure import handlers
+        from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.executors import check_cleanup_executors
         from waldur_core.structure.models import (
             BaseResource,
@@ -16,11 +21,6 @@ class StructureConfig(AppConfig):
             VirtualMachine,
         )
         from waldur_core.users.models import PermissionRequest
-        from waldur_core.structure import handlers
-        from waldur_core.structure import signals as structure_signals
-        from waldur_core.quotas import signals as quota_signals
-
-        from django.core import checks
 
         checks.register(check_cleanup_executors)
 

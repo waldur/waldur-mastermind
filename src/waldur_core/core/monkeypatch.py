@@ -16,7 +16,7 @@ def get_field_name(self):
 
 
 def patch_fsm_field_mixin(cls):
-    from django_fsm import TransitionNotAllowed, pre_transition, post_transition
+    from django_fsm import TransitionNotAllowed, post_transition, pre_transition
 
     def change_state(self, instance, method, *args, **kwargs):
         meta = method._django_fsm

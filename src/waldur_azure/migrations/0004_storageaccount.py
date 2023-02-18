@@ -15,7 +15,6 @@ import waldur_core.logging.loggers
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_azure', '0003_redesign'),
     ]

@@ -29,7 +29,6 @@ def cleanup_component_usage_log(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('marketplace', '0078_alter_offering_parent'),

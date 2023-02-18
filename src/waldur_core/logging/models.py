@@ -208,8 +208,8 @@ class SystemNotification(EventTypesMixin, models.Model):
 
     @classmethod
     def get_hooks(cls, event_type, project=None, customer=None):
-        from waldur_core.structure import models as structure_models
         from waldur_core.logging import loggers
+        from waldur_core.structure import models as structure_models
 
         groups = [
             g[0]

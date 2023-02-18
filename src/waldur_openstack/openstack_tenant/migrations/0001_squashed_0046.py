@@ -16,7 +16,6 @@ import waldur_openstack.openstack_tenant.models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [

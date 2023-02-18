@@ -13,7 +13,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_vmware', '0001_initial'),
     ]

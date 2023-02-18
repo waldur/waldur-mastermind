@@ -8,6 +8,7 @@ class SAML2Config(AppConfig):
 
     def ready(self):
         from djangosaml2.signals import pre_user_save
+
         from . import handlers
 
         pre_user_save.connect(

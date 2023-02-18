@@ -75,7 +75,6 @@ class DigitalOceanBackend(ServiceBackend):
         backend_size_id=None,
         ssh_key_uuid=None,
     ):
-
         if ssh_key_uuid:
             ssh_key = SshPublicKey.objects.get(uuid=ssh_key_uuid)
             backend_ssh_key = self.get_or_create_ssh_key(ssh_key)

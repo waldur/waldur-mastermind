@@ -272,7 +272,7 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
         self.volume.service_settings.set_quota_limit(
             f'gigabytes_{self.volume.type.name}', 0
         )
-        self.volume.service_settings.set_quota_limit(f'storage', 0)
+        self.volume.service_settings.set_quota_limit('storage', 0)
         response = self.create_snapshot()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 

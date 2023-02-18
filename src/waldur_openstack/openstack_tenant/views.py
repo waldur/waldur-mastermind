@@ -1011,7 +1011,6 @@ class SharedSettingsBaseView(generics.GenericAPIView):
 
 
 class SharedSettingsInstances(SharedSettingsBaseView):
-
     serializer_class = serializers.InstanceSerializer
 
     def get_queryset(self):
@@ -1022,7 +1021,6 @@ class SharedSettingsInstances(SharedSettingsBaseView):
 
 
 class SharedSettingsCustomers(SharedSettingsBaseView):
-
     serializer_class = serializers.SharedSettingsCustomerSerializer
 
     def get_queryset(self):

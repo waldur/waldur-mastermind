@@ -8,14 +8,14 @@ class SlurmConfig(AppConfig):
     service_name = 'SLURM'
 
     def ready(self):
-        from waldur_core.quotas.fields import QuotaField, CounterQuotaField
-        from waldur_core.structure.registry import SupportedServices
+        from waldur_core.quotas.fields import CounterQuotaField, QuotaField
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
+        from waldur_core.structure.registry import SupportedServices
         from waldur_freeipa import models as freeipa_models
 
-        from .backend import SlurmBackend
         from . import handlers, models, utils
+        from .backend import SlurmBackend
 
         SupportedServices.register_backend(SlurmBackend)
 

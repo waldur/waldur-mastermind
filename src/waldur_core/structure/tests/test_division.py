@@ -108,7 +108,6 @@ class DivisionTypeListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
     def test_list_filters(self):
-
         rows = [
             {'name': 'name', 'valid': self.type_1.name[2:], 'invalid': 'AAA'},
             {

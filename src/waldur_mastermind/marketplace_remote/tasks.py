@@ -570,9 +570,7 @@ def sync_remote_project_permissions():
         return
 
     for project, offerings in utils.get_projects_with_remote_offerings().items():
-
         for offering in offerings:
-
             local_permissions = utils.collect_local_permissions(offering, project)
             client = utils.get_client_for_offering(offering)
 

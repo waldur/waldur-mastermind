@@ -36,7 +36,6 @@ class CreateMonthlyInvoiceTest(TestCase):
         self.assertEqual(models.InvoiceItem.objects.count(), 1)
 
     def test_old_invoices_are_marked_as_created(self):
-
         # previous year
         with freeze_time('2016-11-01'):
             invoice1 = factories.InvoiceFactory()

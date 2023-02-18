@@ -58,7 +58,6 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
 
 
 class DropletSerializer(structure_serializers.VirtualMachineSerializer):
-
     region = serializers.HyperlinkedRelatedField(
         view_name='digitalocean-region-detail',
         lookup_field='uuid',

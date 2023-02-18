@@ -15,7 +15,6 @@ def gen_uuid(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_rancher', '0020_extend_icon_url_size'),
     ]

@@ -2,7 +2,6 @@ from waldur_mastermind.marketplace import processors
 
 from .utils import ContainerExecutorMixin
 
-
 """
 It is expected that offering plugin_options field is dict with following structure:
 

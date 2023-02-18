@@ -6,7 +6,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0019_floatingip_port'),
     ]

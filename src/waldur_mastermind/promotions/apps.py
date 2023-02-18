@@ -8,8 +8,7 @@ class BookingConfig(AppConfig):
 
     def ready(self):
         from waldur_mastermind.marketplace import models as marketplace_models
-        from waldur_mastermind.promotions import models
-        from waldur_mastermind.promotions import handlers
+        from waldur_mastermind.promotions import handlers, models
 
         signals.pre_save.connect(
             handlers.create_discounted_resource,

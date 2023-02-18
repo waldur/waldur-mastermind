@@ -21,7 +21,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-
         with open(options['templates_file'], 'r') as templates_file:
             templates = yaml.safe_load(templates_file)
 

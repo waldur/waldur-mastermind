@@ -7,11 +7,14 @@ class MarketplaceRemoteConfig(AppConfig):
     verbose_name = 'Remote Marketplace'
 
     def ready(self):
-        from waldur_mastermind.marketplace import models, plugins
-        from waldur_mastermind.marketplace_remote import PLUGIN_NAME
-        from waldur_mastermind.marketplace_remote import processors, constants
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.models import Customer, Project, ProjectPermission
+        from waldur_mastermind.marketplace import models, plugins
+        from waldur_mastermind.marketplace_remote import (
+            PLUGIN_NAME,
+            constants,
+            processors,
+        )
 
         from . import handlers
 

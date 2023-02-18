@@ -19,6 +19,7 @@ class OpenStackConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.registry import SupportedServices
+
         from . import handlers
 
         Tenant = self.get_model('Tenant')

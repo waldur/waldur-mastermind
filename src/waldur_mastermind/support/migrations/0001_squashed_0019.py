@@ -12,7 +12,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('support', '0001_squashed_0037'),
         ('support', '0002_nullable_issue_caller'),

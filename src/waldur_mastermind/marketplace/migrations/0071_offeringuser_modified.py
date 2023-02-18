@@ -6,7 +6,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0070_alter_offeringpermission_is_active'),
     ]

@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0048_fix_slurm_invoice_items'),
     ]

@@ -5,7 +5,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_jira', '0016_project_template_null'),
     ]

@@ -2,7 +2,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [('marketplace', '0059_offering_image')]
 
     operations = [

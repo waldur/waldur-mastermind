@@ -12,9 +12,9 @@ class QuotasConfig(AppConfig):
     verbose_name = 'Quotas'
 
     def ready(self):
-        from waldur_core.structure import signals as structure_signals
-        from waldur_core.structure import models as structure_models
         from waldur_core.quotas import handlers, utils
+        from waldur_core.structure import models as structure_models
+        from waldur_core.structure import signals as structure_signals
 
         Quota = self.get_model('Quota')
 

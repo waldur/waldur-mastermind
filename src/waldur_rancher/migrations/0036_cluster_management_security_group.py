@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0022_remove_tenant_extra_configuration'),
         ('waldur_rancher', '0035_drop_spl'),

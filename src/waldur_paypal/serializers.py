@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 class PaymentSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-
     amount = serializers.DecimalField(max_digits=9, decimal_places=2)
     state = serializers.ReadOnlyField(source='get_state_display')
     return_url = serializers.CharField(write_only=True)
@@ -95,7 +94,6 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-
     pdf = ProtectedFileField(read_only=True)
     items = InvoiceItemSerializer(many=True, read_only=True)
     payment_url = serializers.SerializerMethodField()

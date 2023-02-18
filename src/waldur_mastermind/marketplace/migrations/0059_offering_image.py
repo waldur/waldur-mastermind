@@ -6,7 +6,6 @@ import waldur_core.media.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0058_policy_links'),
     ]

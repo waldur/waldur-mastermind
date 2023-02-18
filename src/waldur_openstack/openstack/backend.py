@@ -387,7 +387,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         return floating_ip
 
     def pull_security_groups(self, tenants=None):
-
         if tenants is None:
             tenants = models.Tenant.objects.filter(
                 state=models.Tenant.States.OK,
