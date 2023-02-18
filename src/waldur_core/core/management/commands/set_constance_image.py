@@ -13,7 +13,9 @@ def make_constance_file_value(image_path, setting_key):
 
     filename = os.path.basename(image_path)
     path = default_storage.save(filename, image_content)
-    Constance.objects.filter(key=setting_key).update(value=os.path.split(path)[1])
+    setting = Constance.objects.get_or_create(key=setting_key)
+    setting.value = os.path.split(path)[1]
+    setting.save()
 
 
 class Command(BaseCommand):
