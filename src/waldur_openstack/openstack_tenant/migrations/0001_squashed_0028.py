@@ -14,7 +14,6 @@ import waldur_openstack.openstack_tenant.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('openstack_tenant', '0001_squashed_0046'),
         ('openstack_tenant', '0002_volumetype_is_default'),

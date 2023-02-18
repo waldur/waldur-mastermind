@@ -19,7 +19,7 @@ TENANT_PATHS = {
 
 def inject_tenant_quotas():
     for model in TENANT_PATHS:
-        for (quota_name, child_quota_name) in TENANT_QUOTAS:
+        for quota_name, child_quota_name in TENANT_QUOTAS:
 
             def get_children(scope):
                 path = TENANT_PATHS[type(scope)]

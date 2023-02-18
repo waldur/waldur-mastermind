@@ -17,7 +17,6 @@ import waldur_core.logging.loggers
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('waldur_slurm', '0001_initial'),
         ('waldur_slurm', '0002_add_gpu_ram_quotas'),

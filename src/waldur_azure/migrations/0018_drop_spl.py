@@ -3,7 +3,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_azure', '0017_error_traceback'),
         ('structure', '0021_project_backend_id'),

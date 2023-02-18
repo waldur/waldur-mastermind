@@ -12,11 +12,11 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
-        from waldur_mastermind.marketplace.plugins import manager, Component
-        from waldur_rancher.apps import RancherConfig
+        from waldur_mastermind.marketplace.plugins import Component, manager
         from waldur_rancher import models as rancher_models
+        from waldur_rancher.apps import RancherConfig
 
-        from . import handlers, PLUGIN_NAME, processors, registrators
+        from . import PLUGIN_NAME, handlers, processors, registrators
 
         registrators.RancherRegistrator.connect()
 

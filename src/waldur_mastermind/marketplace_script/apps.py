@@ -8,7 +8,8 @@ class MarketplaceScriptConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import PLUGIN_NAME, processors, registrators as script_registrators
+        from . import PLUGIN_NAME, processors
+        from . import registrators as script_registrators
 
         manager.register(
             offering_type=PLUGIN_NAME,

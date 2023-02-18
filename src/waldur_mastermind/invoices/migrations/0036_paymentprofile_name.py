@@ -6,7 +6,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0035_payment_profile_is_active'),
     ]

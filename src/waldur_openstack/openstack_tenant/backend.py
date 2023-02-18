@@ -134,7 +134,6 @@ class InternalIPSynchronizer:
     @transaction.atomic
     def execute(self):
         for remote_ip in self.remote_ips:
-
             # Check if related subnet exists.
             if not hasattr(remote_ip, '_subnet_backend_id'):
                 continue

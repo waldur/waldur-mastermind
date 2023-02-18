@@ -52,7 +52,6 @@ class TestHookService(test.APITransactionTestCase):
 
     @mock.patch('requests.post')
     def test_webhook_makes_post_request_against_destination_url(self, requests_post):
-
         # Create web hook for customer owner
         self.web_hook = logging_models.WebHook.objects.create(
             user=self.owner,

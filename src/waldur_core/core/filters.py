@@ -124,7 +124,6 @@ class LooseMultipleChoiceFilter(MultipleChoiceFilter):
 
 
 class StateFilter(MappedMultipleChoiceFilter):
-
     DEFAULT_CHOICES = (
         ('Creation Scheduled', 'Creation Scheduled'),
         ('Creating', 'Creating'),

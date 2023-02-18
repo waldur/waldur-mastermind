@@ -31,7 +31,6 @@ def create_offering_users_for_rancher_users(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0051_remove_offering_allowed_customers'),
         ('waldur_rancher', '0036_cluster_management_security_group'),

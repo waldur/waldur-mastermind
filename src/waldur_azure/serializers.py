@@ -123,7 +123,6 @@ class BaseResourceGroupSerializer(BaseResourceSerializer):
 class VirtualMachineSerializer(
     structure_serializers.VirtualMachineSerializer, BaseResourceGroupSerializer
 ):
-
     image = serializers.HyperlinkedRelatedField(
         view_name='azure-image-detail',
         lookup_field='uuid',
@@ -282,7 +281,6 @@ class VirtualMachineSerializer(
 
 
 class PublicIPSerializer(BaseResourceSerializer):
-
     location = serializers.HyperlinkedRelatedField(
         view_name='azure-location-detail',
         lookup_field='uuid',

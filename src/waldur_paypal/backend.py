@@ -22,7 +22,6 @@ class PaypalPayment:
 
 
 class PaypalBackend:
-
     BACKEND_SERVERS_MAP = {
         'sandbox': 'https://www.sandbox.paypal.com',
         'live': 'https://www.paypal.com',

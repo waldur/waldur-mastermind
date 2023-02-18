@@ -115,7 +115,6 @@ class GoogleCalendar:
         location=None,
         attendees=None,
     ):
-
         # check
         try:
             self.service.events().get(

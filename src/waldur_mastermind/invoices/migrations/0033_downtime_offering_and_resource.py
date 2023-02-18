@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0013_increase_limit_range'),
         ('invoices', '0032_genericinvoiceitem_name'),

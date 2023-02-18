@@ -18,20 +18,20 @@ class OpenStackTenantConfig(AppConfig):
         from waldur_core.quotas.fields import QuotaField, TotalQuotaField
         from waldur_core.quotas.models import Quota
         from waldur_core.structure.models import (
-            ServiceSettings,
-            Project,
             Customer,
+            Project,
+            ServiceSettings,
             SharedServiceSettings,
         )
         from waldur_core.structure.registry import SupportedServices
         from waldur_openstack.openstack.models import (
-            Tenant,
             SecurityGroupRule,
             ServerGroup,
+            Tenant,
         )
 
-        from .backend import OpenStackTenantBackend
         from . import handlers, models
+        from .backend import OpenStackTenantBackend
 
         SupportedServices.register_backend(OpenStackTenantBackend)
 

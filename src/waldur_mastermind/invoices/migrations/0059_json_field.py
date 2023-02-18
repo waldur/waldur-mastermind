@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0058_add_invoice_payment_fields'),
     ]

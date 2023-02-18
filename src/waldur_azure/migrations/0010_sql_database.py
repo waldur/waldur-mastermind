@@ -9,7 +9,6 @@ import waldur_azure.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_azure', '0009_publicip_resource_group'),
     ]

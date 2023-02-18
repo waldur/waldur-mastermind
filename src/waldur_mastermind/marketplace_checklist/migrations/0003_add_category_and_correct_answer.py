@@ -8,7 +8,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace_checklist', '0002_question_solution'),
     ]

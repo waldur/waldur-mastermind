@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0047_componentusage_backend_id'),
     ]

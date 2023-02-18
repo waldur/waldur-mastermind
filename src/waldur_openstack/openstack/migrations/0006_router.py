@@ -13,7 +13,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0005_error_traceback'),
     ]

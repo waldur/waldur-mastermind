@@ -6,7 +6,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack_tenant', '0014_cidr_ipv6'),
     ]

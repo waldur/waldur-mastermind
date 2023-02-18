@@ -10,7 +10,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('users', '0001_squashed_0004'),
         ('users', '0002_add_user_details'),

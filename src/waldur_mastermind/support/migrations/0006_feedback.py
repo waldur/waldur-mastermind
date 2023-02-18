@@ -10,7 +10,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('support', '0005_extend_icon_url_size'),
     ]

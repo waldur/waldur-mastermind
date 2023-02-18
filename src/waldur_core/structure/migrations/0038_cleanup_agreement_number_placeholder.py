@@ -6,7 +6,6 @@ MARKER = '999999999'
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0037_alter_customer_agreement_number'),
     ]

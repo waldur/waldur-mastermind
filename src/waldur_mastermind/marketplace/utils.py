@@ -357,7 +357,6 @@ def validate_limits(limits, offering, resource=None):
         )
 
     for component, value in get_components_map(limits, offering):
-
         validate_min_max_limit(value, component)
 
         validate_limit_amount(value, component)
@@ -602,7 +601,6 @@ def move_resource(resource: models.Resource, project):
 
     order_ids = resource.orderitem_set.values_list('order_id', flat=True)
     for order in models.Order.objects.filter(pk__in=order_ids):
-
         if order.items.exclude(resource=resource).exists():
             raise MoveResourceException(
                 'Resource moving is not possible, '
@@ -617,7 +615,6 @@ def move_resource(resource: models.Resource, project):
         invoice__state=invoice_models.Invoice.States.PENDING,
         project=old_project,
     ):
-
         start_invoice = invoice_item.invoice
 
         target_invoice, _ = registrators.RegistrationManager.get_or_create_invoice(

@@ -599,7 +599,6 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         expiration_time = serializer.validated_data.get('expiration_time')
 
         if isinstance(scope, models.Project):
-
             if scope.has_user(
                 self.request.user, models.ProjectRole.MANAGER, expiration_time
             ):

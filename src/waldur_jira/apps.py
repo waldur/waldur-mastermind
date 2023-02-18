@@ -9,8 +9,8 @@ class JiraConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas import fields as quota_fields
-        from waldur_core.structure.registry import SupportedServices
         from waldur_core.structure import models as structure_models
+        from waldur_core.structure.registry import SupportedServices
         from waldur_core.structure.signals import resource_imported
 
         from . import handlers

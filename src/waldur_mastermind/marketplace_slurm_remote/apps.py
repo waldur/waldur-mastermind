@@ -8,18 +8,20 @@ class MarketplaceSlurmConfig(AppConfig):
     service_name = 'SLURM remote'
 
     def ready(self):
-        from waldur_mastermind.marketplace.plugins import manager
-        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
-        from waldur_slurm import models as slurm_models
-        from waldur_slurm import signals as slurm_signals
+        from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace import signals as marketplace_signals
+        from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_slurm_remote import (
+            PLUGIN_NAME,
             handlers,
             processor,
+        )
+        from waldur_mastermind.marketplace_slurm_remote import (
             registrators as slurm_registrators,
         )
-        from waldur_mastermind.marketplace import signals as marketplace_signals
+        from waldur_slurm import models as slurm_models
+        from waldur_slurm import signals as slurm_signals
 
         slurm_registrators.SlurmRegistrator.connect()
 

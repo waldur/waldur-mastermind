@@ -7,7 +7,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_rancher', '0003_node_roles'),
     ]

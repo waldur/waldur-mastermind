@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace_openstack', '0013_rename_offering_type'),
     ]

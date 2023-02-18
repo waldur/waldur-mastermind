@@ -5,7 +5,6 @@ import waldur_mastermind.invoices.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('invoices', '0039_payment_invoice'),
     ]

@@ -15,7 +15,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0012_customer_sponsor_number'),
         ('waldur_rancher', '0028_verbose_name_for_template'),

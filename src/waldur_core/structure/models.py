@@ -349,7 +349,6 @@ class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
 
 class Division(core_models.UuidMixin, core_models.NameMixin, models.Model):
-
     type = models.ForeignKey(on_delete=models.CASCADE, to='DivisionType')
     parent = models.ForeignKey(
         on_delete=models.CASCADE, to='Division', null=True, blank=True

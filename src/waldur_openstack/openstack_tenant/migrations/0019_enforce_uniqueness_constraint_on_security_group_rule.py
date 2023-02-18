@@ -2,7 +2,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack_tenant', '0018_delete_invalid_security_group_rules'),
     ]

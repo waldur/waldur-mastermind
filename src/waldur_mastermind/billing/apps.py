@@ -9,8 +9,8 @@ class BillingConfig(AppConfig):
     def ready(self):
         from waldur_core.core import signals as core_signals
         from waldur_core.structure import serializers as structure_serializers
-        from waldur_mastermind.invoices import models as invoices_models
         from waldur_mastermind.billing.serializers import add_price_estimate
+        from waldur_mastermind.invoices import models as invoices_models
 
         from . import handlers, models
 

@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 
 class OpenStackServiceSerializer(BaseOpenStackServiceSerializer):
-
     tenant_name = serializers.CharField(
         source='options.tenant_name',
         label=_('Tenant name'),

@@ -3,7 +3,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0021_project_backend_id'),
         ('waldur_vmware', '0024_error_traceback'),

@@ -254,7 +254,6 @@ class LoggableMixin:
         return ('uuid', 'name')
 
     def _get_log_context(self, entity_name=None):
-
         context = {}
         for field in self.get_log_fields():
             try:
@@ -326,7 +325,11 @@ class BaseLoggerRegistry:
 
 class EventLoggerRegistry(BaseLoggerRegistry):
     def get_loggers(self):
-        return [l for l in self.__dict__.values() if isinstance(l, EventLogger)]
+        return [
+            logger
+            for logger in self.__dict__.values()
+            if isinstance(logger, EventLogger)
+        ]
 
 
 def get_valid_events():

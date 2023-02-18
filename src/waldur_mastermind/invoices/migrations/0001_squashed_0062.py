@@ -13,7 +13,6 @@ import waldur_mastermind.invoices.utils
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('invoices', '0001_squashed_0030'),
         ('invoices', '0031_rename_invoice_item_model'),

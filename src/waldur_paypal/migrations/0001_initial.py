@@ -12,7 +12,6 @@ import waldur_core.logging.loggers
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [

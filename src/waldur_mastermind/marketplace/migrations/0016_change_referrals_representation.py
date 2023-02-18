@@ -6,7 +6,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0015_add_citation_info'),
     ]

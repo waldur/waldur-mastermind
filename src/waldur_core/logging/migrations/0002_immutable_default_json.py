@@ -5,7 +5,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('logging', '0001_squashed_0010'),
     ]

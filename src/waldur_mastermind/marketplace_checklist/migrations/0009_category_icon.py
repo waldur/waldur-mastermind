@@ -6,7 +6,6 @@ import waldur_core.media.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace_checklist', '0008_answer_remove'),
     ]

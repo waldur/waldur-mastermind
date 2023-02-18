@@ -521,7 +521,6 @@ class ExecutorAdminAction:
             admin_class.message_user(request, message, level=messages.ERROR)
 
     def get_action_name(self, admin_class):
-
         for action_name in admin_class.actions:
             action_obj = getattr(admin_class, action_name, None)
             if isinstance(action_obj, self.__class__) and action_obj.confirmation:

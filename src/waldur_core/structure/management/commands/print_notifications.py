@@ -40,10 +40,10 @@ class Command(BaseCommand):
                 for template in notification['templates']:
                     template_path = f"{key}/{template.path}"
                     print(f'=== "{template_path}"', end='\n\n')
-                    print(f"```txt")
+                    print("```txt")
                     source = file_engine[0].get_template(template_path).template.source
                     source = source.replace('\n', f'\n{TAB_OF_4}')
                     source = re.sub(' +\n', '\n', source)
                     source = source.rstrip()
                     print(f"{TAB_OF_4}{source}", end='\n')
-                    print(f"\n```", end='\n\n')
+                    print("\n```", end='\n\n')

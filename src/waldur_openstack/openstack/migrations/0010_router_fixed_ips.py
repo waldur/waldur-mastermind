@@ -6,7 +6,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('openstack', '0009_subnet_is_connected'),
     ]

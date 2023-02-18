@@ -6,19 +6,14 @@ class MarketplaceVMwareConfig(AppConfig):
     verbose_name = 'Marketplace VMware'
 
     def ready(self):
-        from waldur_mastermind.marketplace.plugins import Component
-        from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace.plugins import Component, manager
         from waldur_vmware import models as vmware_models
         from waldur_vmware import signals as vmware_signals
         from waldur_vmware.apps import VMwareConfig
 
-        from . import (
-            handlers,
-            processors,
-            VIRTUAL_MACHINE_TYPE,
-        )
+        from . import VIRTUAL_MACHINE_TYPE, handlers, processors
 
         resource_models = (vmware_models.VirtualMachine,)
 

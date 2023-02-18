@@ -63,7 +63,6 @@ class BaseExecutor:
                 queue=is_heavy_task and 'heavy' or None,
             )
         else:
-
             try:
                 result = signature.apply()
             except Exception as exc:

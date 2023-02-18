@@ -17,7 +17,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('marketplace', '0001_squashed_0093'),
         ('marketplace', '0002_offeringcomponent_use_limit_for_billing'),

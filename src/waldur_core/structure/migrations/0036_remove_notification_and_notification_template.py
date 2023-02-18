@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0035_alter_customer_default_tax_percent'),
     ]

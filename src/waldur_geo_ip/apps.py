@@ -8,8 +8,8 @@ class GeoIPConfig(AppConfig):
     name = 'waldur_geo_ip'
 
     def ready(self):
-        from waldur_geo_ip.mixins import IPCoordinatesMixin
         from waldur_core.logging.models import Event
+        from waldur_geo_ip.mixins import IPCoordinatesMixin
 
         from . import handlers
 

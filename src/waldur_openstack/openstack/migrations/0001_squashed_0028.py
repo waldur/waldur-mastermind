@@ -15,7 +15,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('openstack', '0001_squashed_0042'),
         ('openstack', '0002_volumetype'),

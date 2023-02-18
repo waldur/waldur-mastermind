@@ -12,7 +12,6 @@ import waldur_freeipa.models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [

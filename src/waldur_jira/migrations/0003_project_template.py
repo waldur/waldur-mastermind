@@ -8,7 +8,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('waldur_jira', '0002_resource'),
     ]

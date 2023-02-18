@@ -7,9 +7,11 @@ class PayPalConfig(AppConfig):
     verbose_name = 'PayPal'
 
     def ready(self):
-        from . import handlers
-        from waldur_mastermind.invoices import signals as cost_signals
         from django.conf import settings
+
+        from waldur_mastermind.invoices import signals as cost_signals
+
+        from . import handlers
 
         if not settings.WALDUR_PAYPAL['ENABLED']:
             return

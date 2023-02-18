@@ -59,7 +59,7 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.prices = [200, 100, 300, 0]
         customers = structure_factories.CustomerFactory.create_batch(len(self.prices))
-        for (customer, price) in zip(customers, self.prices):
+        for customer, price in zip(customers, self.prices):
             if price == 0:
                 continue
             project = structure_factories.ProjectFactory(customer=customer)

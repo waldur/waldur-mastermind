@@ -9,7 +9,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0026_project_managers'),
         ('openstack_tenant', '0022_securitygrouprule_length'),

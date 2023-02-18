@@ -25,7 +25,6 @@ def fix_offering_state_without_plans(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0079_componentusage_modified_by'),
     ]

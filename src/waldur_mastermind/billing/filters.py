@@ -12,7 +12,6 @@ from . import models
 
 class CustomerEstimatedCostFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-
         order_by = get_ordering(request)
         if order_by not in ('estimated_cost', '-estimated_cost'):
             return queryset
@@ -29,7 +28,6 @@ class CustomerEstimatedCostFilter(BaseFilterBackend):
 
 class CustomerTotalCostFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-
         order_by = get_ordering(request)
         if order_by not in ('total_cost', '-total_cost'):
             return queryset

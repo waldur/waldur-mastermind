@@ -6,7 +6,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('promotions', '0001_initial'),
     ]

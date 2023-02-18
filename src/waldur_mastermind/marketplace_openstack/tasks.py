@@ -41,7 +41,6 @@ def create_resources_for_lost_instances_and_volumes():
         (INSTANCE_TYPE, openstack_tenant_models.Instance),
         (VOLUME_TYPE, openstack_tenant_models.Volume),
     ):
-
         ids = marketplace_models.Resource.objects.filter(
             offering__type=offering_type
         ).values_list('object_id', flat=True)

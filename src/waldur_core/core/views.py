@@ -379,7 +379,7 @@ def get_public_settings():
         for s in keys:
             public_settings[s] = getattr(settings, s, None)
 
-    for (settings_name, section) in WaldurConfiguration().__fields__.items():
+    for settings_name, section in WaldurConfiguration().__fields__.items():
         type_ = section.type_
         try:
             keys = type_.Meta.public_settings

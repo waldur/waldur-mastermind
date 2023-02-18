@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0036_offeringcomponent_backend_id'),
         ('contenttypes', '0002_remove_content_type_name'),

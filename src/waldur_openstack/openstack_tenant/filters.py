@@ -9,7 +9,6 @@ from . import models
 
 
 class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
-
     name_iregex = django_filters.CharFilter(field_name='name', lookup_expr='iregex')
 
     o = django_filters.OrderingFilter(fields=('cores', 'ram', 'disk'))

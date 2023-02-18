@@ -7,7 +7,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('notifications', '0003_rename_notification_broadcastmessage'),
     ]

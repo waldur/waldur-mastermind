@@ -150,7 +150,6 @@ class PriorityFilter(structure_filters.NameFilterSet):
 
 
 class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
-
     content_type_field = 'resource_content_type'
     object_id_field = 'resource_object_id'
 
@@ -164,7 +163,6 @@ class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class CommentIssueResourceFilterBackend(IssueResourceFilterBackend):
-
     content_type_field = 'issue__resource_content_type'
     object_id_field = 'issue__resource_object_id'
 

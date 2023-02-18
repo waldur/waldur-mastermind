@@ -14,7 +14,6 @@ import waldur_rancher.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('waldur_rancher', '0001_initial'),
         ('waldur_rancher', '0002_cluster_backend_id_not_null'),

@@ -11,7 +11,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0012_customer_sponsor_number'),
         ('waldur_rancher', '0023_workload'),

@@ -1328,7 +1328,6 @@ class PlanUpdateSerializer(BaseProviderPlanSerializer):
 
 
 class OfferingUpdateSerializer(OfferingModifySerializer):
-
     plans = PlanUpdateSerializer(many=True, required=False, write_only=True)
 
     def _update_components(self, instance, components):
@@ -2130,7 +2129,6 @@ class OrderSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-
     state = serializers.ReadOnlyField(source='get_state_display')
     items = NestedOrderItemSerializer(many=True)
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')

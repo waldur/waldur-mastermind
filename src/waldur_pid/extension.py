@@ -10,7 +10,6 @@ class PIDExtension(WaldurExtension):
 
     @staticmethod
     def celery_tasks():
-
         return {
             'waldur-pid-update-all-referrables': {
                 'task': 'waldur_pid.update_all_referrables',

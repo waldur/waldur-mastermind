@@ -15,7 +15,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('waldur_jira', '0001_initial'),
         ('waldur_jira', '0002_resource'),

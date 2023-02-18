@@ -6,7 +6,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0024_project_oecd_fos_2007_code'),
     ]

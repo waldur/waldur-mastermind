@@ -8,7 +8,6 @@ def fill_state(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('notifications', '0005_broadcastmessage_state'),
     ]

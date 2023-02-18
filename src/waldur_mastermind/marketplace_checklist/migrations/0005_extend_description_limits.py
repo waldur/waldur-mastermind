@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace_checklist', '0004_i18n_questions_and_checklists'),
     ]

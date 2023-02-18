@@ -8,7 +8,6 @@ import waldur_core.logging.loggers
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0031_project_image'),
     ]

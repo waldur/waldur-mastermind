@@ -6,7 +6,6 @@ import waldur_core.media.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace_checklist', '0010_checklistcustomerrole_checklistprojectrole'),
     ]

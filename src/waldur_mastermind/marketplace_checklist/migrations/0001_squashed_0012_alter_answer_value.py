@@ -14,7 +14,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     replaces = [
         ('marketplace_checklist', '0001_initial'),
         ('marketplace_checklist', '0002_question_solution'),

@@ -212,7 +212,7 @@ class ApiDocs:
                 "",
                 "   **",
             ]
-            f.writelines([l + '\n' for l in lines])
+            f.writelines([line + '\n' for line in lines])
 
     def _write_docstring(self, file, docstring):
         file.write('\n'.join(['\t' + s for s in docstring.split('\n')]) + '\n')

@@ -14,7 +14,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('structure', '0026_project_managers'),
         ('openstack', '0025_port_security_group'),

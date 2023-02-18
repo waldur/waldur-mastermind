@@ -8,7 +8,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [

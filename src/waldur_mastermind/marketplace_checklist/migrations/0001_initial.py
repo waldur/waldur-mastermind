@@ -11,7 +11,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [

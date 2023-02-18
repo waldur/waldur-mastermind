@@ -63,7 +63,7 @@ class AzureServiceCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, self.valid_payload)
         response_options = response.data['options']
-        for (k, v) in self.valid_payload['options'].items():
+        for k, v in self.valid_payload['options'].items():
             self.assertEqual(response_options[k], v)
 
     def test_manager_can_not_see_secret_fields(self, mocked_backend):

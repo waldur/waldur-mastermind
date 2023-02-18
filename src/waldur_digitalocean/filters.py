@@ -6,7 +6,6 @@ from . import models
 
 
 class ImageFilter(structure_filters.BaseServicePropertyFilter):
-
     o = OrderingFilter(fields=('distribution', 'type'))
 
     class Meta:
