@@ -91,6 +91,7 @@ def get_file_from_token(token):
 
 
 def format_content_disposition(filename):
+    filename = filename.replace(',', '_')
     return f'attachment; filename="{filename}"'
 
 
