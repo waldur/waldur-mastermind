@@ -727,6 +727,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                 'backup_schedules': instance.backup_schedules.count(),
                 'security_groups': instance.security_groups.count(),
                 'internal_ips': instance.internal_ips_set.count(),
+                'floating_ips': instance.floating_ips.count(),
             }
         )
 
