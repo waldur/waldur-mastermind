@@ -834,19 +834,18 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
     def setUp(self):
         super(TenantUpdateLimitValidationTest, self).setUp()
-        marketplace_models.OfferingComponent.objects.create(
-            offering=self.offering,
+        create_offering_components(self.offering)
+        self.offering.components.filter(type='cores').update(
             max_value=20,
             min_value=2,
-            type='cores',
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
 
     def update_limits(self, user, resource, limits=None):
-        limits = limits or {'cores': 10}
+        defaults = {'cores': 10, 'ram': 10240, 'storage': 102400}
+        defaults.update(limits or {})
         self.client.force_authenticate(user)
         url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
-        payload = {'limits': limits}
+        payload = {'limits': defaults}
         return self.client.post(url, payload)
 
     def test_validation_if_requested_available_limits(self):

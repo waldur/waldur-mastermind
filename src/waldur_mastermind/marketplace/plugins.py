@@ -53,6 +53,7 @@ class PluginManager:
         for example, VPC username and password.
         :key available_limits: optional list of strings each of which corresponds to offering component type,
         which supports user-defined limits, such as VPC RAM and vCPU.
+        :key limits_validator: optional function to validate limis.
         :key: can_update_limits: boolean which indicates whether plugin allows user to set limits on resource.
         :key resource_model: optional Django model class which corresponds to resource.
         :key get_filtered_components: optional function to filter out enabled offering components.
@@ -128,6 +129,12 @@ class PluginManager:
         Returns true if plugin allows user to set limits on resource.
         """
         return self.backends.get(offering_type, {}).get('can_update_limits', False)
+
+    def get_limits_validator(self, offering_type):
+        """
+        Returns function to validate limis.
+        """
+        return self.backends.get(offering_type, {}).get('limits_validator')
 
     def get_resource_model(self, offering_type):
         """

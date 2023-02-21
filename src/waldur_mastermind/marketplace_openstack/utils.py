@@ -168,6 +168,24 @@ def import_limits(resource):
     resource.save(update_fields=['limits'])
 
 
+def tenant_limits_validator(limits):
+    cores = limits.get(CORES_TYPE) or 0
+    if not cores:
+        raise exceptions.ValidationError('CPU limit is mandatory.')
+
+    ram = limits.get(RAM_TYPE) or 0
+    if not ram:
+        raise exceptions.ValidationError('RAM limit is mandatory.')
+
+    storage = sum(
+        value
+        for key, value in limits.items()
+        if key.startswith('gigabytes_') or key == STORAGE_TYPE
+    )
+    if not storage:
+        raise exceptions.ValidationError('Storage limit is mandatory.')
+
+
 def map_limits_to_quotas(limits, offering):
     quotas = {
         TenantQuotas.vcpu.name: limits.get(CORES_TYPE),
