@@ -356,6 +356,10 @@ def validate_limits(limits, offering, resource=None):
             {'limits': _('Limits update is not supported for this resource.')}
         )
 
+    limits_validator = plugins.manager.get_limits_validator(offering.type)
+    if limits_validator:
+        limits_validator(limits)
+
     for component, value in get_components_map(limits, offering):
         validate_min_max_limit(value, component)
 

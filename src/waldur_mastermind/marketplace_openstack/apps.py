@@ -54,6 +54,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             filters,
             handlers,
             processors,
+            utils,
         )
 
         marketplace_filters.ExternalOfferingFilterBackend.register(
@@ -116,6 +117,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             components_filter=components_filter,
             available_limits=AVAILABLE_LIMITS,
             can_update_limits=True,
+            limits_validator=utils.tenant_limits_validator,
             get_importable_resources_backend_method='get_importable_tenants',
             import_resource_backend_method='import_tenant',
         )
