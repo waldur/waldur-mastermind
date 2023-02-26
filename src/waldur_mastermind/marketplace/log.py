@@ -273,7 +273,7 @@ def log_resource_limit_update_succeeded(resource):
 
 def log_resource_limit_update_failed(resource):
     event_logger.marketplace_resource.info(
-        'Update limits of resource {resource_name} is failed.',
+        'Updating limits of resource {resource_name} has failed.',
         event_type='marketplace_resource_update_limits_failed',
         event_context={'resource': resource},
     )

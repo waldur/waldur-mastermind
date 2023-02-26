@@ -12,32 +12,36 @@ class GoogleCredentialsFactory(factory.DjangoModelFactory):
         model = models.GoogleCredentials
 
     service_provider = factory.SubFactory(marketplace_factories.ServiceProviderFactory)
-    client_id = factory.Sequence(lambda n: 'client_id-%s' % n)
-    project_id = factory.Sequence(lambda n: 'project_id-%s' % n)
-    client_secret = factory.Sequence(lambda n: 'client_secret-%s' % n)
+    calendar_token = factory.Sequence(lambda n: 'calendar_token_%s' % n)
+    calendar_refresh_token = factory.Sequence(lambda n: 'calendar_refresh_token_%s' % n)
 
     @classmethod
-    def get_url(cls, credentials=None):
+    def get_authorize_url(cls, credentials=None):
         if credentials is None:
             credentials = GoogleCredentialsFactory()
 
         return (
             'http://testserver'
             + reverse(
-                'google_credential-detail',
+                'google-auth-detail',
                 kwargs={'uuid': credentials.service_provider.uuid.hex},
             )
-            + 'google_credentials/'
+            + 'authorize/'
         )
 
     @classmethod
-    def get_authorize_url(cls, credentials=None):
+    def get_url(cls, credentials=None):
         if credentials is None:
             credentials = GoogleCredentialsFactory()
         return 'http://testserver' + reverse(
             'google-auth-detail',
             kwargs={'uuid': credentials.service_provider.uuid.hex},
         )
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('google-auth-list')
+        return url if action is None else url + action + '/'
 
 
 class GoogleCalendarFactory(factory.DjangoModelFactory):

@@ -4,6 +4,7 @@ from django.utils.dateparse import datetime_re, parse_datetime
 from django.utils.translation import gettext_lazy as _
 from rest_framework.serializers import ValidationError
 
+from waldur_mastermind.booking.models import BookingSlot
 from waldur_mastermind.booking.utils import (
     get_offering_bookings_and_busy_slots,
     get_other_offering_booking_requests,
@@ -11,13 +12,12 @@ from waldur_mastermind.booking.utils import (
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import processors
 
-from .utils import TimePeriod, is_interval_in_schedules, sort_attributes_schedules
+from .utils import TimePeriod, is_interval_in_schedules
 
 
 class BookingCreateProcessor(processors.BaseOrderItemProcessor):
     def process_order_item(self, user):
         with transaction.atomic():
-            sort_attributes_schedules(self.order_item.attributes)
             resource = marketplace_models.Resource(
                 project=self.order_item.order.project,
                 offering=self.order_item.offering,
@@ -31,6 +31,13 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
             resource.save()
             self.order_item.resource = resource
             self.order_item.save(update_fields=['resource'])
+
+            for slot in self.order_item.attributes.get('schedules'):
+                BookingSlot.objects.create(
+                    resource=resource,
+                    start=slot['start'],
+                    end=slot['end'],
+                )
 
     def validate_order_item(self, request):
         schedules = self.order_item.attributes.get('schedules')

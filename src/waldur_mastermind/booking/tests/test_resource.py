@@ -7,7 +7,7 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
-from .. import PLUGIN_NAME, utils
+from .. import PLUGIN_NAME
 from . import fixtures
 
 
@@ -237,99 +237,6 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 3)
         self.assertEqual(response.data[0]['uuid'], self.resource_3.uuid.hex)
         self.assertEqual(response.data[2]['uuid'], self.resource_1.uuid.hex)
-
-    def test_function_sort_attributes_schedules(self):
-        attributes = {
-            'schedules': [
-                {
-                    'start': '2020-02-12T02:00:00+03:00',
-                    'end': '2020-02-15T02:00:00+03:00',
-                    'id': '2',
-                },
-                {
-                    'start': '2020-03-12T02:00:00+03:00',
-                    'end': '2020-03-15T02:00:00+03:00',
-                    'id': '3',
-                },
-                {
-                    'start': '2020-01-12T02:00:00+03:00',
-                    'end': '2020-01-15T02:00:00+03:00',
-                    'id': '1',
-                },
-            ]
-        }
-        utils.sort_attributes_schedules(attributes)
-        self.assertEqual(
-            attributes,
-            {
-                'schedules': [
-                    {
-                        'start': '2020-01-11T23:00:00+00:00',
-                        'end': '2020-01-14T23:00:00+00:00',
-                        'id': '1',
-                    },
-                    {
-                        'start': '2020-02-11T23:00:00+00:00',
-                        'end': '2020-02-14T23:00:00+00:00',
-                        'id': '2',
-                    },
-                    {
-                        'start': '2020-03-11T23:00:00+00:00',
-                        'end': '2020-03-14T23:00:00+00:00',
-                        'id': '3',
-                    },
-                ]
-            },
-        )
-
-    def test_sort(self):
-        self.resource = self.fixture.resource
-        self.resource.attributes = {
-            'schedules': [
-                {
-                    'start': '2020-02-12T02:00:00+03:00',
-                    'end': '2020-02-15T02:00:00+03:00',
-                    'id': '2',
-                },
-                {
-                    'start': '2020-03-12T02:00:00+03:00',
-                    'end': '2020-03-15T02:00:00+03:00',
-                    'id': '3',
-                },
-                {
-                    'start': '2020-01-12T02:00:00+03:00',
-                    'end': '2020-01-15T02:00:00+03:00',
-                    'id': '1',
-                },
-            ]
-        }
-        self.resource.save()
-
-        utils.sort_attributes_schedules(self.resource.attributes)
-        self.resource.save()
-
-        self.assertEqual(
-            self.resource.attributes,
-            {
-                'schedules': [
-                    {
-                        'start': '2020-01-11T23:00:00+00:00',
-                        'end': '2020-01-14T23:00:00+00:00',
-                        'id': '1',
-                    },
-                    {
-                        'start': '2020-02-11T23:00:00+00:00',
-                        'end': '2020-02-14T23:00:00+00:00',
-                        'id': '2',
-                    },
-                    {
-                        'start': '2020-03-11T23:00:00+00:00',
-                        'end': '2020-03-14T23:00:00+00:00',
-                        'id': '3',
-                    },
-                ]
-            },
-        )
 
     @data(
         'staff',

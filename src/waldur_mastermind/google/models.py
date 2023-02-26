@@ -11,9 +11,6 @@ class GoogleCredentials(models.Model):
     service_provider = models.OneToOneField(
         marketplace_models.ServiceProvider, on_delete=models.CASCADE
     )
-    client_id = models.CharField(max_length=255)
-    project_id = models.CharField(max_length=255)
-    client_secret = models.CharField(max_length=255)
     calendar_token = models.CharField(max_length=255, blank=True)
     calendar_refresh_token = models.CharField(max_length=255, blank=True)
 

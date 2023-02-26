@@ -31,6 +31,7 @@ class TimePeriod:
         attendees=None,
         order_item=None,
         time_zone=None,
+        name=None,
     ):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)
@@ -52,6 +53,7 @@ class TimePeriod:
         self.location = location
         self.attendees = attendees or []
         self.order_item = order_item
+        self.name = name
 
         if not isinstance(self.attendees, Sequence):
             self.attendees = [self.attendees]
@@ -80,6 +82,14 @@ def get_offering_bookings(offering):
     ).order_by('created')
     bookings = []
 
+    if offering.latitude and offering.longitude:
+        location = '{%s}, {%s}' % (
+            offering.latitude,
+            offering.longitude,
+        )
+    else:
+        location = None
+
     for resource in resources:
         order_item = (
             resources.first()
@@ -87,7 +97,6 @@ def get_offering_bookings(offering):
             .first()
         )
         attendees = []
-        location = None
 
         if order_item:
             email = order_item.order.created_by.email or None
@@ -95,24 +104,22 @@ def get_offering_bookings(offering):
             if email:
                 attendees = [{'displayName': full_name, 'email': email}]
 
-            if resource.offering.latitude and resource.offering.longitude:
-                location = '{%s}, {%s}' % (
-                    resource.offering.latitude,
-                    resource.offering.longitude,
-                )
+        schedule = models.BookingSlot.objects.filter(resource=resource).order_by(
+            'start'
+        )
 
-        schedule = resource.attributes.get('schedules')
         if schedule:
             for period in schedule:
                 if period:
                     bookings.append(
                         TimePeriod(
-                            period['start'],
-                            period['end'],
-                            period.get('id'),
+                            period.start,
+                            period.end,
+                            period.backend_id,
                             attendees=attendees,
                             location=location,
                             order_item=order_item,
+                            name=period.resource.name,
                         )
                     )
 
@@ -217,13 +224,13 @@ def change_attributes_for_view(attrs):
     return attributes
 
 
-def sort_attributes_schedules(attributes):
-    schedules = attributes.get('schedules')
-    if not schedules:
-        return
-
-    for s in schedules:
-        s['start'] = parse_datetime(s['start']).astimezone(timezone.utc).isoformat()
-        s['end'] = parse_datetime(s['end']).astimezone(timezone.utc).isoformat()
-
-    attributes['schedules'] = sorted(schedules, key=lambda schedule: schedule['start'])
+# def sort_attributes_schedules(attributes):
+#     schedules = attributes.get('schedules')
+#     if not schedules:
+#         return
+#
+#     for s in schedules:
+#         s['start'] = parse_datetime(s['start']).astimezone(timezone.utc).isoformat()
+#         s['end'] = parse_datetime(s['end']).astimezone(timezone.utc).isoformat()
+#
+#     attributes['schedules'] = sorted(schedules, key=lambda schedule: schedule['start'])

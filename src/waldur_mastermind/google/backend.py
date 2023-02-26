@@ -2,12 +2,14 @@ import datetime
 import functools
 
 import pytz
+from django.conf import settings
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_mastermind.google import models as google_models
 
 
 class GoogleBackendError(ServiceBackendError):
@@ -26,6 +28,8 @@ def reraise_exceptions(func):
 
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
+CLIENT_ID = settings.WALDUR_GOOGLE['CLIENT_ID']
+CLIENT_SECRET = settings.WALDUR_GOOGLE['CLIENT_SECRET']
 
 
 class GoogleAuthorize:
@@ -41,13 +45,11 @@ class GoogleAuthorize:
     ):
         scopes = scopes or SCOPES
         self.service_provider = service_provider
-        self.credentials = service_provider.googlecredentials
         self.flow = Flow.from_client_config(
             {
                 "web": {
-                    "client_id": self.credentials.client_id,
-                    "project_id": self.credentials.project_id,
-                    "client_secret": self.credentials.client_secret,
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
@@ -57,15 +59,21 @@ class GoogleAuthorize:
         )
         self.flow.redirect_uri = redirect_uri
 
-    def get_authorization_url(self):
-        auth_url, _ = self.flow.authorization_url(prompt='consent')
+    def get_authorization_url(self, service_provider_uuid):
+        auth_url, _ = self.flow.authorization_url(
+            prompt='consent', state=service_provider_uuid
+        )
         return auth_url
 
     def create_tokens(self, code):
         tokens = self.flow.fetch_token(code=code)
-        self.credentials.calendar_token = tokens.get('access_token')
-        self.credentials.calendar_refresh_token = tokens.get('refresh_token')
-        self.credentials.save()
+        google_models.GoogleCredentials.objects.update_or_create(
+            service_provider=self.service_provider,
+            defaults=dict(
+                calendar_token=tokens.get('access_token'),
+                calendar_refresh_token=tokens.get('refresh_token'),
+            ),
+        )
 
 
 class GoogleCalendar:
@@ -81,8 +89,8 @@ class GoogleCalendar:
         return Credentials(
             token=self.tokens.calendar_token,
             token_uri='https://oauth2.googleapis.com/token',
-            client_id=self.tokens.client_id,
-            client_secret=self.tokens.client_secret,
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
             scopes=SCOPES,
             expiry=datetime.datetime.now(),
             refresh_token=self.tokens.calendar_refresh_token,

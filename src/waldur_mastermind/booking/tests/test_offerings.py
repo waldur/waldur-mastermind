@@ -1,9 +1,12 @@
+import re
+
 import mock
 from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.booking import models
 from waldur_mastermind.google.tests import factories as google_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -36,12 +39,10 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
             {
                 'start': '2020-02-12T02:00:00+03:00',
                 'end': '2020-02-15T02:00:00+03:00',
-                'id': 'booking123',
             },
             {
                 'start': '2020-03-01T02:00:00+03:00',
                 'end': '2020-03-05T02:00:00+03:00',
-                'id': 'booking456',
             },
         ]
 
@@ -55,6 +56,18 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
             offering=self.offering,
             state=marketplace_models.Resource.States.OK,
             attributes={'schedules': [self.schedules[1]]},
+        )
+
+        self.slot_1 = models.BookingSlot.objects.create(
+            resource=self.resource_1,
+            start=self.schedules[0]['start'],
+            end=self.schedules[0]['end'],
+        )
+
+        self.slot_2 = models.BookingSlot.objects.create(
+            resource=self.resource_2,
+            start=self.schedules[1]['start'],
+            end=self.schedules[1]['end'],
         )
 
     @data('owner', 'staff')
@@ -94,32 +107,32 @@ class BookingOfferingActionsTest(test.APITransactionTestCase):
 
         mock_build().events().list().execute().get.return_value = [
             {
-                'start': {'dateTime': self.schedules[1]['start']},
-                'end': {'dateTime': self.schedules[1]['end']},
-                'id': self.schedules[1]['id'],
+                'start': {'dateTime': self.slot_2.start},
+                'end': {'dateTime': self.slot_2.end},
+                'id': self.slot_2.backend_id,
             }
         ]
 
-        self.resource_2.attributes['schedules'][0][
-            'start'
-        ] = '2020-03-02T02:00:00+03:00'
-        self.resource_2.save()
+        self.slot_2.start = '2020-03-02T02:00:00+03:00'
+        self.slot_2.save()
         need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
         self.assertEqual(len(need_to_add), 1)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 1)
-        self.assertEqual(need_to_update[0].id, self.schedules[1]['id'])
+        self.assertEqual(
+            need_to_update[0].id, re.sub(r'[^a-z0-9]', '', self.slot_2.backend_id)
+        )
 
         # Past events are also being updated
-        self.resource_2.attributes['schedules'][0][
-            'start'
-        ] = '2020-02-02T02:00:00+03:00'
-        self.resource_2.save()
+        self.slot_2.start = '2020-02-02T02:00:00+03:00'
+        self.slot_2.save()
         need_to_add, need_to_delete, need_to_update, _ = sync_bookings.get_bookings()
         self.assertEqual(len(need_to_add), 1)
         self.assertEqual(len(need_to_delete), 0)
         self.assertEqual(len(need_to_update), 1)
-        self.assertEqual(need_to_update[0].id, self.schedules[1]['id'])
+        self.assertEqual(
+            need_to_update[0].id, re.sub(r'[^a-z0-9]', '', self.slot_2.backend_id)
+        )
 
     @mock.patch('waldur_mastermind.google.backend.build')
     def test_automatically_create_google_calendar(self, mock_build):

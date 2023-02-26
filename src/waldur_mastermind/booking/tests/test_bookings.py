@@ -4,6 +4,7 @@ from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.booking import models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -29,11 +30,21 @@ class BookingsTest(test.APITransactionTestCase):
         self.fixture = fixtures.BookingFixture()
         self.fixture.resource.attributes = {'schedules': [self.schedules[0]]}
         self.fixture.resource.save()
+        self.slot_1 = models.BookingSlot.objects.create(
+            resource=self.fixture.resource,
+            start=self.schedules[0]['start'],
+            end=self.schedules[0]['end'],
+        )
 
-        marketplace_factories.ResourceFactory(
+        self.resource_2 = marketplace_factories.ResourceFactory(
             offering=self.fixture.offering,
             state=marketplace_models.Resource.States.OK,
             attributes={'schedules': [self.schedules[1]]},
+        )
+        self.slot_2 = models.BookingSlot.objects.create(
+            resource=self.resource_2,
+            start=self.schedules[1]['start'],
+            end=self.schedules[1]['end'],
         )
 
     def test_offering_bookings(self):
