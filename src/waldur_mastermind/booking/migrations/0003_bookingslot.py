@@ -7,7 +7,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('marketplace', '0079_componentusage_modified_by'),
         ('booking', '0002_busyslot'),
