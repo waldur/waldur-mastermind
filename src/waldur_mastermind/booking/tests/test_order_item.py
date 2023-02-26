@@ -5,6 +5,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.booking import PLUGIN_NAME
+from waldur_mastermind.booking import models as booking_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -239,7 +240,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         )
 
     def test_do_not_create_order_if_schedules_are_not_valid(self):
-        marketplace_factories.ResourceFactory(
+        resource = marketplace_factories.ResourceFactory(
             offering=self.offering,
             state=marketplace_models.Resource.States.OK,
             attributes={
@@ -251,6 +252,13 @@ class OrderCreateTest(test.APITransactionTestCase):
                 ]
             },
         )
+
+        self.slot_1 = booking_models.BookingSlot.objects.create(
+            resource=resource,
+            start=resource.attributes['schedules'][0]['start'],
+            end=resource.attributes['schedules'][0]['end'],
+        )
+
         add_payload = {
             'items': [
                 {

@@ -3,7 +3,10 @@ from waldur_core.core import WaldurExtension
 
 class GoogleExtension(WaldurExtension):
     class Settings:
-        pass
+        WALDUR_GOOGLE = {
+            'CLIENT_ID': '',
+            'CLIENT_SECRET': '',
+        }
 
     @staticmethod
     def django_app():

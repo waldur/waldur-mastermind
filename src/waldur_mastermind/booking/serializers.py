@@ -5,11 +5,18 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import signals as core_signals
+from waldur_mastermind.booking import models as booking_models
 from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
 from . import PLUGIN_NAME
+
+
+class BookingSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = booking_models.BookingSlot
+        fields = ('start', 'end', 'backend_id')
 
 
 class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
@@ -20,6 +27,7 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
     approved_by_username = serializers.SerializerMethodField()
     approved_by_full_name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    slots = serializers.SerializerMethodField()
 
     class Meta(marketplace_serializers.ResourceSerializer.Meta):
         view_name = 'booking-resource-detail'
@@ -32,6 +40,7 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
             'approved_by_username',
             'approved_by_full_name',
             'description',
+            'slots',
         )
         extra_kwargs = copy.copy(
             marketplace_serializers.ResourceSerializer.Meta.extra_kwargs
@@ -82,6 +91,12 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
 
     def get_description(self, resource):
         return resource.attributes.get('description', '')
+
+    def get_slots(self, resource):
+        slots = booking_models.BookingSlot.objects.filter(resource=resource).order_by(
+            'start'
+        )
+        return BookingSlotSerializer(instance=slots, many=True).data
 
 
 class BookingSerializer(serializers.Serializer):

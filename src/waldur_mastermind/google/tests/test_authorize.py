@@ -33,9 +33,3 @@ class GoogleAuthTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_authorize_is_not_available_if_tokens_do_not_exist(self):
-        self.credentials.delete()
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

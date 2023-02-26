@@ -109,7 +109,7 @@ class SyncBookings:
 
         for booking in need_to_add:
             self.backend.create_event(
-                summary=self.offering.name,
+                summary=booking.name or self.offering.name,
                 event_id=booking.id,
                 start=booking.start,
                 end=booking.end,
