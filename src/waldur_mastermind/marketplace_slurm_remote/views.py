@@ -1,5 +1,7 @@
 import logging
 
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from django_fsm import TransitionNotAllowed
 from rest_framework import status
@@ -18,6 +20,8 @@ from waldur_slurm import signals as slurm_signals
 from . import PLUGIN_NAME, serializers
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 class SlurmViewSet(core_views.ActionsViewSet):
@@ -138,19 +142,28 @@ class SlurmViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         username = serializer.validated_data['username']
 
-        profiles = freeipa_models.Profile.objects.filter(username__iexact=username)
-        if not profiles:
-            raise ValidationError(
-                _(
-                    'There is no FreeIPA profile with the given username (case insensitive search).'
+        if settings.WALDUR_MARKETPLACE_REMOTE_SLURM['USE_WALDUR_USERNAMES']:
+            users = User.objects.filter(username=username)
+            if not users:
+                raise ValidationError(_('There is no users with the given username.'))
+            user = users.first()
+        else:
+            profiles = freeipa_models.Profile.objects.filter(username=username)
+            if not profiles:
+                raise ValidationError(
+                    _(
+                        'There is no FreeIPA profile with the given username (case insensitive search).'
+                    )
                 )
-            )
-        if len(profiles) > 1:
-            raise ValidationError(
-                _('There are more than one FreeIPA profile with the given username.')
-            )
+            if len(profiles) > 1:
+                raise ValidationError(
+                    _(
+                        'There are more than one FreeIPA profile with the given username.'
+                    )
+                )
 
-        profile = profiles.first()
+            user = profiles.first().user
+
         allocation = resource.scope
         if not allocation:
             raise ValidationError(
@@ -166,7 +179,7 @@ class SlurmViewSet(core_views.ActionsViewSet):
             slurm_signals.slurm_association_created.send(
                 slurm_models.Allocation,
                 allocation=allocation,
-                user=profile.user,
+                user=user,
                 username=username,
             )
             return Response(

@@ -661,6 +661,13 @@ class WaldurMarketplaceScript(BaseModel):
     )
 
 
+class WaldurMarketplaceRemoteSlurm(BaseModel):
+    USE_WALDUR_USERNAMES = Field(
+        True,
+        description='Fetch usernames from Waldur rather then FreeIPA profiles.',
+    )
+
+
 class WaldurAuthSAML2(BaseModel):
     NAME = Field(
         'saml2',
@@ -918,6 +925,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_OPENSTACK_TENANT = WaldurOpenstackTenant()
     WALDUR_MARKETPLACE = WaldurMarketplace()
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
+    WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
