@@ -41,4 +41,9 @@ urlpatterns = [
         views.FeedbackAverageReportViewSet.as_view(),
         name='support-feedback-average-report',
     ),
+    re_path(
+        r'^api/support-zammad-webhook/$',
+        views.ZammadWebHookReceiverView.as_view(),
+        name='zammad-web-hook-receiver',
+    ),
 ]

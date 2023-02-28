@@ -2,11 +2,13 @@ import logging
 
 from django.db import transaction
 from django.db.models import Avg, Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import permissions, response, status, views, viewsets
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
@@ -15,6 +17,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
 from . import backend, exceptions, executors, filters, models, serializers
 
@@ -257,3 +260,18 @@ class FeedbackAverageReportViewSet(views.APIView):
         else:
             result = None
         return response.Response(result, status=status.HTTP_200_OK)
+
+
+class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
+    authentication_classes = ()
+    permission_classes = ()
+
+    def post(self, request):
+        ticket_id = request.data.get('ticket', {}).get('id')
+
+        if not ticket_id:
+            raise ValidationError('Key ticket.id is required.')
+
+        issue = get_object_or_404(models.Issue, backend_id=ticket_id)
+        ZammadServiceBackend().update_waldur_issue_from_zammad(issue)
+        return response.Response(status=status.HTTP_200_OK)
