@@ -913,6 +913,28 @@ class WaldurOpenstackTenant(BaseModel):
         ]
 
 
+class WaldurZammad(BaseModel):
+    ZAMMAD_API_URL = Field(
+        '',
+        description='Address of Zammad server. For example http://localhost:8080',
+    )
+    ZAMMAD_TOKEN = Field(
+        '',
+        description='Authorization token.',
+    )
+    ZAMMAD_GROUP = Field(
+        '',
+        description='The name of the group to which the ticket will be added. '
+        'If not specified, the first group will be used.',
+    )
+    ZAMMAD_ARTICLE_TYPE = Field(
+        'fax',
+        description='Type of a comment.'
+        'Default is fax because it allows to separate Waldur comments from other comments'
+        'https://docs.zammad.org/en/latest/api/ticket/articles.html#articles',
+    )
+
+
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
@@ -927,6 +949,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
+    WALDUR_ZAMMAD = WaldurZammad()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
     )
