@@ -60,6 +60,11 @@ if [ -n "$DOCS_URL" ]; then
   echo "[+] DOCS_URL has been set to: $DOCS_URL"
 fi
 
+if [ -n "$SUPPORT_PORTAL_URL" ]; then
+  waldur constance set SUPPORT_PORTAL_URL "$SUPPORT_PORTAL_URL"
+  echo "[+] SUPPORT_PORTAL_URL has been set to: $SUPPORT_PORTAL_URL"
+fi
+
 if [ -n "$POWERED_BY_LOGO" ]; then
   if [ -f "$POWERED_BY_LOGO" ]; then
     waldur set_constance_image POWERED_BY_LOGO "$POWERED_BY_LOGO"
