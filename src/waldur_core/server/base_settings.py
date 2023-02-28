@@ -297,6 +297,7 @@ CONSTANCE_CONFIG = {
         'Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.'
     ),
     'HERO_LINK_URL': ('', 'Link URL in hero section of HomePort landing page.'),
+    'SUPPORT_PORTAL_URL': ('', 'Link URL to support portal. Rendered as a shortcut on dashboard'),
     # images, logos, favicons
     'POWERED_BY_LOGO': ('', 'The image rendered at the bottom of login menu in HomePort.', 'image_field'),
     'HERO_IMAGE': ('', 'The image rendered at hero section of HomePort landing page.', 'image_field'),
@@ -314,7 +315,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     'Whitelabeling settings (Text, links, etc)': (
         'SITE_NAME', 'SITE_DESCRIPTION', 'SITE_ADDRESS', 'SITE_EMAIL', 'SITE_PHONE',
         'CURRENCY_NAME', 'DOCS_URL', 'SHORT_PAGE_TITLE', 'FULL_PAGE_TITLE',
-        'BRAND_COLOR', 'HERO_LINK_LABEL', 'HERO_LINK_URL',
+        'BRAND_COLOR', 'HERO_LINK_LABEL', 'HERO_LINK_URL', 'SUPPORT_PORTAL_URL',
     ),
     'Whitelabeling settings (Logos, images, favicons)': (
         'SITE_LOGO', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE', 'POWERED_BY_LOGO', 'HERO_IMAGE', 'LOGIN_LOGO', 'FAVICON'
