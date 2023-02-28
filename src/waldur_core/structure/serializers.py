@@ -404,6 +404,7 @@ class CustomerSerializer(
             'inet',
             'role',
             'projects_count',
+            'sponsor_number',
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             'access_subnets',
@@ -414,6 +415,7 @@ class CustomerSerializer(
             'division',
             'blocked',
             'archived',
+            'sponsor_number',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
