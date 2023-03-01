@@ -35,6 +35,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
     except django_exceptions.ObjectDoesNotExist:
         return
 
+    new_limits = {}
     for component in manager.get_components(PLUGIN_NAME):
         usage = getattr(allocation, component.type + '_usage')
         limit = getattr(allocation, component.type + '_limit')
@@ -51,6 +52,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                 allocation.id,
             )
         else:
+            new_limits[component.type] = limit
             marketplace_models.ComponentQuota.objects.update_or_create(
                 resource=resource,
                 component=offering_component,
@@ -76,6 +78,16 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                     plan_period=plan_period,
                     defaults={'usage': usage, 'date': date},
                 )
+
+    if resource.limits != new_limits:
+        logger.debug(
+            'Syncing limits for SLURM. Allocation ID: %s. Old limits: %s. New limits: %s',
+            allocation.id,
+            resource.limits,
+            new_limits,
+        )
+        resource.limits = new_limits
+        resource.save(update_fields=['limits'])
 
 
 def create_offering_user_for_slurm_user(sender, allocation, user, username, **kwargs):
