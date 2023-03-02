@@ -30,7 +30,7 @@ def generate_username(username):
     prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
     if prefix:
         username = '%s%s' % (prefix, username)
-    return username
+    return username.lower()
 
 
 def is_profile_active_for_user(user):
