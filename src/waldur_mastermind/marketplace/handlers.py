@@ -405,6 +405,14 @@ def drop_offering_permissions_if_service_manager_role_is_revoked(
         perm.revoke()
 
 
+def update_customer_of_offering_if_project_has_been_moved(
+    sender, project, old_customer, new_customer, **kwargs
+):
+    models.Offering.objects.filter(project=project, customer=old_customer).update(
+        customer=new_customer
+    )
+
+
 def disable_empty_service_settings(offering):
     service_settings = getattr(offering, 'scope', None)
     if not service_settings:

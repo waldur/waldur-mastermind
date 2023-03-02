@@ -5,6 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.utils import move_project
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import fixtures
 
@@ -63,3 +64,22 @@ class MarketplaceResourceCountTest(test.APITransactionTestCase):
             counters[self.resource.offering.category.uuid.hex],
             1,
         )
+
+
+class ProjectMoveTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.project = self.fixture.offering.project
+        self.old_customer = self.project.customer
+        self.new_customer = structure_factories.CustomerFactory()
+
+    def change_customer(self):
+        move_project(self.project, self.new_customer)
+        self.project.refresh_from_db()
+
+    def test_change_customer(self):
+        self.change_customer()
+        self.assertEqual(self.new_customer, self.project.customer)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.customer, self.new_customer)

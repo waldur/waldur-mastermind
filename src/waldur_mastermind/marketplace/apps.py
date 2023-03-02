@@ -188,6 +188,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace.drop_offering_permissions_if_service_manager_role_is_revoked',
         )
 
+        structure_signals.project_moved.connect(
+            handlers.update_customer_of_offering_if_project_has_been_moved,
+            sender=structure_models.Project,
+            dispatch_uid='waldur_mastermind.marketplace.update_customer_of_offering_if_project_has_been_moved',
+        )
+
         signals.post_save.connect(
             handlers.resource_has_been_renamed,
             sender=models.Resource,
