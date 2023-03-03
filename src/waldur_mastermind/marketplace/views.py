@@ -315,7 +315,9 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             shared=True,
         )
         page = self.paginate_queryset(offerings)
-        serializer = serializers.ProviderOfferingSerializer(page, many=True)
+        serializer = serializers.ProviderOfferingSerializer(
+            page, many=True, context=self.get_serializer_context()
+        )
         return self.get_paginated_response(serializer.data)
 
 

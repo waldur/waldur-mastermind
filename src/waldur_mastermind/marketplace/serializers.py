@@ -3302,6 +3302,8 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
             'resources_count',
             'billing_price_estimate',
             'components',
+            'plans',
+            'options',
         )
 
     category_title = serializers.ReadOnlyField(source='category.title')
@@ -3309,6 +3311,7 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
     billing_price_estimate = serializers.SerializerMethodField()
     state = serializers.ReadOnlyField(source='get_state_display')
     components = OfferingComponentSerializer(required=False, many=True)
+    plans = BaseProviderPlanSerializer(many=True, required=False)
 
     def get_resources(self, offering):
         return models.Resource.objects.filter(offering=offering).exclude(
