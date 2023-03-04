@@ -14,7 +14,7 @@ def sync_limits(apps, schema_editor):
         try:
             allocation = Allocation.objects.get(id=resource.object_id)
         except ObjectDoesNotExist:
-            pass
+            return
         resource.limits = {
             'cpu': allocation.cpu_limit,
             'gpu': allocation.gpu_limit,
