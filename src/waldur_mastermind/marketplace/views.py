@@ -167,7 +167,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     @action(detail=True, methods=['GET'])
     def customer_projects(self, request, uuid=None):
         service_provider = self.get_object()
-        customer_uuid = request.query_params.get('customer_uuid')
+        customer_uuid = request.query_params.get('project_customer_uuid')
         if not customer_uuid or not is_uuid_like(customer_uuid):
             return self.get_paginated_response([])
         project_ids = (
