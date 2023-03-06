@@ -329,6 +329,16 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     retype_serializer_class = serializers.VolumeRetypeSerializer
 
+    @decorators.action(detail=True, methods=['get'])
+    def counters(self, request, uuid=None):
+        instance = self.get_object()
+        return response.Response(
+            {
+                'snapshots': instance.snapshots.count(),
+                'snapshot_schedules': instance.snapshot_schedules.count(),
+            }
+        )
+
 
 class SnapshotViewSet(structure_views.ResourceViewSet):
     queryset = models.Snapshot.objects.all().order_by('name')
