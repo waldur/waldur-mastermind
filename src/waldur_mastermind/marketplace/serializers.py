@@ -3369,11 +3369,14 @@ class RobotAccountSerializer(serializers.HyperlinkedModelSerializer):
 
 class RobotAccountDetailsSerializer(RobotAccountSerializer):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
-    keys = serializers.SerializerMethodField()
+    user_keys = serializers.SerializerMethodField()
 
-    def get_keys(self, instance):
-        user_keys = core_models.SshPublicKey.objects.filter(
-            user__in=instance.users.all()
-        ).values_list('public_key', flat=True)
-        extra_keys = instance.keys or []
-        return list(user_keys) + extra_keys
+    class Meta(RobotAccountSerializer.Meta):
+        fields = RobotAccountSerializer.Meta.fields + ('user_keys',)
+
+    def get_user_keys(self, instance):
+        return structure_serializers.SshKeySerializer(
+            core_models.SshPublicKey.objects.filter(user__in=instance.users.all()),
+            context=self.context,
+            many=True,
+        ).data
