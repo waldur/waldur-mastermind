@@ -15,3 +15,15 @@ class MarketplaceSlurmRemoteExtension(WaldurExtension):
     @staticmethod
     def is_assembly():
         return True
+
+    @staticmethod
+    def celery_tasks():
+        from datetime import timedelta
+
+        return {
+            'waldur-create-offering-users-for-remote-slurm-offerings': {
+                'task': 'waldur_mastermind.marketplace_slurm_remote.sync_offering_users',
+                'schedule': timedelta(days=1),
+                'args': (),
+            },
+        }

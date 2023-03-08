@@ -7,7 +7,7 @@ from django.utils import timezone
 from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 
@@ -78,44 +78,6 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                 )
 
 
-def create_offering_user_for_slurm_user(sender, allocation, user, username, **kwargs):
-    try:
-        offering = marketplace_models.Offering.objects.get(
-            scope=allocation.service_settings
-        )
-    except marketplace_models.Offering.DoesNotExist:
-        logger.warning(
-            'Skipping SLURM user synchronization because offering is not found. '
-            'SLURM settings ID: %s',
-            allocation.service_settings_id,
-        )
-        return
-
-    marketplace_models.OfferingUser.objects.update_or_create(
-        offering=offering,
-        user=user,
-        defaults={'username': username},
-    )
-
-
-def drop_offering_user_for_slurm_user(sender, allocation, user, **kwargs):
-    try:
-        offering = marketplace_models.Offering.objects.get(
-            scope=allocation.service_settings
-        )
-    except marketplace_models.Offering.DoesNotExist:
-        logger.warning(
-            'Skipping SLURM user synchronization because offering is not found. '
-            'SLURM settings ID: %s',
-            allocation.service_settings_id,
-        )
-        return
-
-    marketplace_models.OfferingUser.objects.filter(
-        offering=offering, user=user
-    ).delete()
-
-
 def terminate_allocation_when_resource_is_terminated(sender, instance, **kwargs):
     resource: marketplace_models.Resource = instance
     if resource.offering.type != PLUGIN_NAME:
@@ -124,3 +86,60 @@ def terminate_allocation_when_resource_is_terminated(sender, instance, **kwargs)
     allocation = resource.scope
     allocation.begin_deleting()
     allocation.save(update_fields=['state'])
+
+
+def create_offering_users_when_project_role_granted(sender, structure, user, **kwargs):
+    project = structure
+    resources = project.resource_set.filter(
+        state=marketplace_models.Resource.States.OK, offering__type=PLUGIN_NAME
+    )
+    offering_ids = set(resources.values_list('offering_id', flat=True))
+    offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
+
+    for offering in offerings:
+        if not offering.secret_options.get('service_provider_can_create_offering_user'):
+            logger.info(
+                'It is not allowed to create users for current offering %s.', offering
+            )
+            continue
+
+        username = utils.generate_username(user, offering)
+
+        marketplace_models.OfferingUser.objects.create(
+            offering=offering,
+            user=user,
+            username=username,
+        )
+
+
+def create_offering_user_for_new_resource(sender, instance, **kwargs):
+    resource: marketplace_models.Resource = instance
+    project = resource.project
+    users = project.get_users()
+    offering = resource.offering
+    if not offering.secret_options.get('service_provider_can_create_offering_user'):
+        logger.info(
+            'It is not allowed to create users for current offering %s.', offering
+        )
+        return
+
+    for user in users:
+        if marketplace_models.OfferingUser.objects.filter(
+            offering=offering,
+            user=user,
+        ).exists():
+            logger.info('An offering user for %s in %s already exists', user, offering)
+            continue
+
+        username = utils.generate_username(user, offering)
+
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            offering=offering,
+            user=user,
+            username=username,
+        )
+
+        offering_user.set_propagation_date()
+        offering_user.save()
+
+        logger.info('The offering user %s has been created', offering_user)

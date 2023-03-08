@@ -8,6 +8,8 @@ class MarketplaceSlurmConfig(AppConfig):
     service_name = 'SLURM remote'
 
     def ready(self):
+        from waldur_core.structure import models as structure_models
+        from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import signals as marketplace_signals
@@ -21,7 +23,6 @@ class MarketplaceSlurmConfig(AppConfig):
             registrators as slurm_registrators,
         )
         from waldur_slurm import models as slurm_models
-        from waldur_slurm import signals as slurm_signals
 
         slurm_registrators.SlurmRegistrator.connect()
 
@@ -41,20 +42,20 @@ class MarketplaceSlurmConfig(AppConfig):
             delete_resource_processor=processor.DeleteAllocationProcessor,
         )
 
-        slurm_signals.slurm_association_created.connect(
-            handlers.create_offering_user_for_slurm_user,
-            sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketplace_slurm_remote.create_offering_user_for_slurm_user',
-        )
-
-        slurm_signals.slurm_association_deleted.connect(
-            handlers.drop_offering_user_for_slurm_user,
-            sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketplace_slurm_remote.drop_offering_user_for_slurm_user',
-        )
-
         marketplace_signals.resource_deletion_succeeded.connect(
             handlers.terminate_allocation_when_resource_is_terminated,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace_slurm_remote.terminate_allocation_when_resource_is_terminated',
+        )
+
+        structure_signals.structure_role_granted.connect(
+            handlers.create_offering_users_when_project_role_granted,
+            sender=structure_models.Project,
+            dispatch_uid='waldur_mastermind.marketplace_slurm_remote.create_offering_user_when_project_role_created',
+        )
+
+        marketplace_signals.resource_creation_succeeded.connect(
+            handlers.create_offering_user_for_new_resource,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace_slurm_remote.create_offering_user_for_new_resource',
         )
