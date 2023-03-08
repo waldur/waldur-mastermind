@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from django_fsm import TransitionNotAllowed
@@ -10,12 +9,10 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from waldur_core.core import views as core_views
-from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.marketplace import models, permissions
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_slurm import models as slurm_models
 from waldur_slurm import serializers as slurm_serializers
-from waldur_slurm import signals as slurm_signals
 
 from . import PLUGIN_NAME, serializers
 
@@ -138,31 +135,10 @@ class SlurmViewSet(core_views.ActionsViewSet):
     @action(detail=True, methods=['POST'])
     def create_association(self, request, uuid=None):
         resource = self.get_object()
+        offering = resource.offering
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         username = serializer.validated_data['username']
-
-        if settings.WALDUR_MARKETPLACE_REMOTE_SLURM['USE_WALDUR_USERNAMES']:
-            users = User.objects.filter(username=username)
-            if not users:
-                raise ValidationError(_('There is no users with the given username.'))
-            user = users.first()
-        else:
-            profiles = freeipa_models.Profile.objects.filter(username=username)
-            if not profiles:
-                raise ValidationError(
-                    _(
-                        'There is no FreeIPA profile with the given username (case insensitive search).'
-                    )
-                )
-            if len(profiles) > 1:
-                raise ValidationError(
-                    _(
-                        'There are more than one FreeIPA profile with the given username.'
-                    )
-                )
-
-            user = profiles.first().user
 
         allocation = resource.scope
         if not allocation:
@@ -176,12 +152,24 @@ class SlurmViewSet(core_views.ActionsViewSet):
         )
         if created:
             logger.info('The association %s has been created', association)
-            slurm_signals.slurm_association_created.send(
-                slurm_models.Allocation,
-                allocation=allocation,
-                user=user,
-                username=username,
+            offering_users = models.OfferingUser.objects.filter(
+                offering=offering, username=username
             )
+            if offering_users.count() == 0:
+                logger.info(
+                    'There is no offering user for %s with username %s',
+                    offering,
+                    username,
+                )
+            else:
+                offering_user = offering_users.first()
+                if offering_user.propagation_date is None:
+                    offering_user.set_propagation_date()
+                    offering_user.save(update_fields=['propagation_date'])
+                    logger.info(
+                        'The corresponding offering user %s has been marked as propagated',
+                        offering_user,
+                    )
             return Response(
                 {
                     'detail': _(
@@ -207,19 +195,6 @@ class SlurmViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         username = serializer.validated_data['username']
 
-        profiles = freeipa_models.Profile.objects.filter(username__iexact=username)
-        if not profiles:
-            raise ValidationError(
-                _(
-                    'There is no FreeIPA profile with the given username (case insensitive search).'
-                )
-            )
-        if len(profiles) > 1:
-            raise ValidationError(
-                _('There are more than one FreeIPA profile with the given username.')
-            )
-
-        profile = profiles.first()
         allocation = resource.scope
         if not allocation:
             raise ValidationError(
@@ -237,10 +212,6 @@ class SlurmViewSet(core_views.ActionsViewSet):
         for association in associations:
             association.delete()
             logger.info('The association %s has been deleted', association)
-
-            slurm_signals.slurm_association_deleted.send(
-                slurm_models.Allocation, allocation=allocation, user=profile.user
-            )
 
         return Response(
             {

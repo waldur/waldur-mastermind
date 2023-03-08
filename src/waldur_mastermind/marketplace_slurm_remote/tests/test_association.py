@@ -2,7 +2,8 @@ from ddt import data, ddt
 from django.urls import reverse
 from rest_framework import test
 
-from waldur_freeipa.tests import factories
+from waldur_freeipa.tests import factories as freeipa_factories
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
@@ -18,12 +19,15 @@ class AssociationCreateTest(test.APITransactionTestCase):
             project=self.fixture.project
         )
         self.resource.scope = self.allocation
+        self.resource.state = marketplace_models.Resource.States.OK
         self.resource.save()
         offering = self.resource.offering
         offering.type = PLUGIN_NAME
+        offering.secret_options = {'service_provider_can_create_offering_user': True}
+        offering.plugin_options = {'username_generation_policy': 'waldur_username'}
         offering.save()
 
-        self.user = self.fixture.user
+        self.user = self.fixture.admin
         self.url = (
             'http://testserver'
             + reverse(
@@ -33,13 +37,16 @@ class AssociationCreateTest(test.APITransactionTestCase):
             + 'create_association'
             + '/'
         )
-        self.profile = factories.ProfileFactory(
+        self.profile = freeipa_factories.ProfileFactory(
             user=self.user, username=self.user.username
         )
         self.username = self.profile.username
 
     @data('staff', 'offering_owner', 'service_manager')
     def test_association_creation_is_allowed(self, user):
+        offering_user = marketplace_models.OfferingUser.objects.get(
+            offering=self.resource.offering, user=self.user, propagation_date=None
+        )
         self.assertFalse(
             slurm_models.Association.objects.filter(
                 username=self.username, allocation=self.allocation
@@ -57,6 +64,10 @@ class AssociationCreateTest(test.APITransactionTestCase):
             slurm_models.Association.objects.filter(
                 username=self.username, allocation=self.allocation
             ).exists()
+        )
+        offering_user.refresh_from_db()
+        self.assertIsNotNone(
+            offering_user.propagation_date, offering_user.propagation_date
         )
 
     @data('owner', 'admin', 'manager', 'member')
@@ -87,7 +98,7 @@ class AssociationDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.user = self.fixture.user
-        self.profile = factories.ProfileFactory(
+        self.profile = freeipa_factories.ProfileFactory(
             user=self.user, username=self.user.username
         )
         self.username = self.profile.username

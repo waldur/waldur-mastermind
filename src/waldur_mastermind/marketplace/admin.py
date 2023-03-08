@@ -467,7 +467,12 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
 
 
 class OfferingUserAdmin(admin.ModelAdmin):
-    list_display = admin.ModelAdmin.list_display + ('offering', 'user', 'username')
+    list_display = admin.ModelAdmin.list_display + (
+        'offering',
+        'user',
+        'username',
+        'propagation_date',
+    )
 
 
 class OrderItemInline(admin.TabularInline):

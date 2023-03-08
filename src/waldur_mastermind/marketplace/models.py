@@ -1460,6 +1460,7 @@ class OfferingUser(TimeStampedModel):
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
+    propagation_date = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         unique_together = ('offering', 'user')
@@ -1467,6 +1468,10 @@ class OfferingUser(TimeStampedModel):
 
     def get_log_fields(self):
         return ('offering', 'user', 'username')
+
+    def set_propagation_date(self):
+        now = timezone.datetime.today()
+        self.propagation_date = now
 
     def __str__(self) -> str:
         return "%s: %s" % (self.offering.name, self.username)
