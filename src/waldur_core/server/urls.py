@@ -1,3 +1,5 @@
+import os
+
 from constance import config
 from django.conf import settings
 from django.conf.urls import include
@@ -19,7 +21,7 @@ logging_urls.register_in(router)
 quotas_urls.register_in(router)
 structure_urls.register_in(router)
 users_urls.register_in(router)
-
+static_path = os.path.join(settings.BASE_DIR, 'static')
 
 urlpatterns = [
     re_path(r'^admin/', admin.site.urls),
@@ -62,6 +64,47 @@ urlpatterns += [
                 'site_name': config.SITE_NAME,
             },
         ),
+    ),
+    re_path(
+        r'^api/icons/login_logo/',
+        core_views.get_whitelabeling_logo,
+        kwargs={
+            'logo_type': 'LOGIN_LOGO',
+            'default_image': static_path + '/waldur_core/img/login_logo.png',
+        },
+    ),
+    re_path(
+        r'^api/icons/site_logo/',
+        core_views.get_whitelabeling_logo,
+        kwargs={'logo_type': 'SITE_LOGO'},
+    ),
+    re_path(
+        r'^api/icons/sidebar_logo/',
+        core_views.get_whitelabeling_logo,
+        kwargs={'logo_type': 'SIDEBAR_LOGO'},
+    ),
+    re_path(
+        r'^api/icons/sidebar_logo_mobile/',
+        core_views.get_whitelabeling_logo,
+        kwargs={'logo_type': 'SIDEBAR_LOGO_MOBILE'},
+    ),
+    re_path(
+        r'^api/icons/powered_by_logo/',
+        core_views.get_whitelabeling_logo,
+        kwargs={'logo_type': 'POWERED_BY_LOGO'},
+    ),
+    re_path(
+        r'^api/icons/hero_image/',
+        core_views.get_whitelabeling_logo,
+        kwargs={'logo_type': 'HERO_IMAGE'},
+    ),
+    re_path(
+        r'^api/icons/favicon/',
+        core_views.get_whitelabeling_logo,
+        kwargs={
+            'logo_type': 'FAVICON',
+            'default_image': static_path + '/waldur_core/img/favicon.ico',
+        },
     ),
 ]
 

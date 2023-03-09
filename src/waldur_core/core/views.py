@@ -1,13 +1,16 @@
 import functools
 import logging
+import mimetypes
 from urllib.parse import urlencode
 
 import reversion
+from constance import config
 from django.conf import settings
 from django.contrib import auth
 from django.core.cache import cache
+from django.core.files.storage import default_storage
 from django.db.models import ProtectedError
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.translation import gettext_lazy as _
@@ -576,3 +579,20 @@ class CeleryStatsViewSet(APIView):
             data,
             status=status.HTTP_200_OK,
         )
+
+
+@api_view(['GET'])
+@permission_classes((rf_permissions.AllowAny,))
+def get_whitelabeling_logo(request, logo_type, default_image=None):
+    try:
+        file_name = getattr(config, logo_type)
+        content_type, encoding = mimetypes.guess_type(file_name)
+        return FileResponse(default_storage.open(file_name), content_type=content_type)
+    except NotImplementedError:  # storage cannot handle empty response
+        if default_image:
+            content_type, encoding = mimetypes.guess_type(default_image)
+            image_data = open(default_image, "rb").read()
+            return HttpResponse(image_data, content_type=content_type)
+    return Response(
+        {'error': f'{logo_type} not found'}, status=status.HTTP_404_NOT_FOUND
+    )
