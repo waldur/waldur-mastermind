@@ -445,25 +445,27 @@ class ResourceInvoicePullTask(BackgroundPullTask):
             local_customer, date
         )
         local_invoice_items = local_invoice.items.filter(resource=local_resource)
-        local_item_names = set([item.name for item in local_invoice_items])
-        remote_item_names = set([item['name'] for item in remote_invoice_items])
-        new_item_names = remote_item_names - local_item_names
-        stale_item_names = local_item_names - remote_item_names
-        existing_item_names = local_item_names & remote_item_names
+        local_invoice_items.filter(backend_uuid=None).delete()
 
-        if len(stale_item_names) > 0:
-            invoice_models.InvoiceItem.objects.filter(
-                name__in=stale_item_names
-            ).delete()
+        local_item_ids = {item.backend_uuid.hex for item in local_invoice_items}
+        remote_item_ids = {item['uuid'] for item in remote_invoice_items}
+
+        new_item_ids = remote_item_ids - local_item_ids
+        stale_item_ids = local_item_ids - remote_item_ids
+        existing_item_ids = local_item_ids & remote_item_ids
+
+        if len(stale_item_ids) > 0:
+            invoice_models.InvoiceItem.objects.filter(name__in=stale_item_ids).delete()
             logger.info(
-                f'The following invoice items for resource [uuid={local_resource.uuid}] have been deleted: {stale_item_names}'
+                f'The following invoice items for resource [uuid={local_resource.uuid}] have been deleted: {stale_item_ids}'
             )
 
         new_invoice_items = [
-            item for item in remote_invoice_items if item['name'] in new_item_names
+            item for item in remote_invoice_items if item['uuid'] in new_item_ids
         ]
         for item in new_invoice_items:
             invoice_models.InvoiceItem.objects.create(
+                backend_uuid=item['uuid'],
                 resource=local_resource,
                 invoice=local_invoice,
                 start=dateparse.parse_datetime(item['start']),
@@ -479,11 +481,11 @@ class ResourceInvoicePullTask(BackgroundPullTask):
             )
 
         existing_invoice_items = [
-            item for item in remote_invoice_items if item['name'] in existing_item_names
+            item for item in remote_invoice_items if item['uuid'] in existing_item_ids
         ]
         for item in existing_invoice_items:
             local_item = local_invoice_items.get(
-                name=item['name'],
+                backend_uuid=item['uuid'],
             )
             local_item.start = dateparse.parse_datetime(item['start'])
             local_item.end = dateparse.parse_datetime(item['end'])

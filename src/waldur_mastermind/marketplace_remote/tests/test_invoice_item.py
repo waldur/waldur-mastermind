@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from unittest import mock
 
 from django.utils import timezone
@@ -59,6 +60,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             'quantity': quantity,
             'start': start.isoformat(),
             'end': end.isoformat(),
+            'uuid': uuid.uuid4().hex,
         }
 
     @freeze_time('2021-08-17')
@@ -140,6 +142,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             invoice=invoice,
             resource=self.resource,
             **old_item_data,
+            backend_uuid=new_item_data['uuid'],
         )
 
         self.assertNotEqual(new_month_end, item.end)

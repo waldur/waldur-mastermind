@@ -258,6 +258,7 @@ class InvoiceItem(
         max_length=structure_models.PROJECT_NAME_LENGTH, blank=True
     )
     project_uuid = models.CharField(max_length=32, blank=True)
+    backend_uuid = models.UUIDField(null=True, blank=True)
 
     tracker = FieldTracker()
 
