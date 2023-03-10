@@ -58,6 +58,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
             'resource_uuid',
             'resource_name',
             'billing_type',
+            'backend_uuid',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'invoice-item-detail'},
@@ -65,6 +66,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-resource-detail',
             },
+            'backend_uuid': {'read_only': True},
         }
 
 
