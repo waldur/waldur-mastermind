@@ -17,4 +17,4 @@ def sync_offering_users():
         plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
 
-    utils.user_offerings_mapping(offerings, create=True)
+    utils.user_offerings_mapping(offerings)

@@ -1,7 +1,6 @@
 import logging
 import re
 import unicodedata
-from collections import defaultdict
 from enum import Enum
 
 from waldur_core.structure import models as structure_models
@@ -99,7 +98,7 @@ def generate_username(user, offering):
     return ''
 
 
-def user_offerings_mapping(offerings, create=False):
+def user_offerings_mapping(offerings):
     resources = marketplace_models.Resource.objects.filter(
         state=marketplace_models.Resource.States.OK, offering__in=offerings
     )
@@ -108,7 +107,7 @@ def user_offerings_mapping(offerings, create=False):
     project_ids = resources.values_list('project_id', flat=True)
     projects = structure_models.Project.objects.filter(id__in=project_ids)
 
-    user_offerings_map = defaultdict(set)
+    user_offerings_set = set()
 
     for project in projects:
         users = project.get_users()
@@ -121,17 +120,16 @@ def user_offerings_mapping(offerings, create=False):
 
         for user in users:
             for offering in project_offerings:
-                user_offerings_map[user.id].add(offering.id)
-                if create:
-                    if not marketplace_models.OfferingUser.objects.filter(
-                        user=user, offering=user
-                    ).exists():
-                        username = generate_username(user, offering)
-                        offering_user = marketplace_models.OfferingUser.objects.create(
-                            user=user, offering=offering, username=username
-                        )
-                        offering_user.set_propagation_date()
-                        offering_user.save()
-                        logger.info('Offering user %s has been created.')
+                user_offerings_set.add((user, offering))
 
-    return user_offerings_map
+    for user, offering in user_offerings_set:
+        if not marketplace_models.OfferingUser.objects.filter(
+            user=user, offering=user
+        ).exists():
+            username = generate_username(user, offering)
+            offering_user = marketplace_models.OfferingUser.objects.create(
+                user=user, offering=offering, username=username
+            )
+            offering_user.set_propagation_date()
+            offering_user.save()
+            logger.info('Offering user %s has been created.')
