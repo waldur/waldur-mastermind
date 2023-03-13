@@ -145,7 +145,7 @@ def create_offering_users_for_existing_users(apps, schema_editor):
                     user_offerings_set.add((user, offering))
 
         for user, offering in user_offerings_set:
-            if not OfferingUser.objects.filter(user=user, offering=user).exists():
+            if not OfferingUser.objects.filter(user=user, offering=offering).exists():
                 username = generate_username(user, offering)
                 offering_user = OfferingUser.objects.create(
                     user=user, offering=offering, username=username
