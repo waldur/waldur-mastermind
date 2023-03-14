@@ -1,3 +1,8 @@
+import datetime
+
+from django.conf import settings
+from django.utils.timezone import now
+
 from waldur_zammad.backend import ZammadBackend, ZammadBackendError
 
 from . import SupportBackend
@@ -6,6 +11,15 @@ from . import SupportBackend
 class ZammadServiceBackend(SupportBackend):
     def __init__(self):
         self.manager = ZammadBackend()
+
+    def comment_destroy_is_available(self, comment):
+        if now() - comment.created < datetime.timedelta(
+            minutes=settings.WALDUR_ZAMMAD['COMMENT_COOLDOWN_DURATION']
+        ):
+            return True
+
+    def comment_update_is_available(self, comment=None):
+        return False
 
     def create_issue(self, issue):
         try:
@@ -31,4 +45,7 @@ class ZammadServiceBackend(SupportBackend):
         return issue.save()
 
     def create_confirmation_comment(self, issue):
+        pass
+
+    def create_comment(self, comment):
         pass

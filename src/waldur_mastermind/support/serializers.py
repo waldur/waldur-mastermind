@@ -21,7 +21,7 @@ from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
-from . import models
+from . import backend, models
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -104,6 +104,8 @@ class IssueSerializer(
         help_text=_('Set true if issue is created by regular user via portal.'),
     )
     feedback = NestedFeedbackSerializer(required=False)
+    update_is_available = serializers.SerializerMethodField()
+    destroy_is_available = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Issue
@@ -145,6 +147,8 @@ class IssueSerializer(
             'template',
             'feedback',
             'resolved',
+            'update_is_available',
+            'destroy_is_available',
         )
         read_only_fields = (
             'key',
@@ -212,6 +216,12 @@ class IssueSerializer(
             return get_resource_type(obj.resource_content_type.model_class())
         if isinstance(obj.resource, marketplace_models.Resource):
             return 'Marketplace.Resource'
+
+    def get_update_is_available(self, obj):
+        return backend.get_active_backend().comment_update_is_available(obj)
+
+    def get_destroy_is_available(self, obj):
+        return backend.get_active_backend().comment_update_is_available(obj)
 
     def validate(self, attrs):
         if self.instance is not None:
@@ -355,6 +365,8 @@ class CommentSerializer(
 
     author_uuid = serializers.ReadOnlyField(source='author.user.uuid')
     author_email = serializers.ReadOnlyField(source='author.user.email')
+    update_is_available = serializers.SerializerMethodField()
+    destroy_is_available = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Comment
@@ -372,6 +384,8 @@ class CommentSerializer(
             'backend_id',
             'remote_id',
             'created',
+            'update_is_available',
+            'destroy_is_available',
         )
         read_only_fields = (
             'issue',
@@ -386,6 +400,12 @@ class CommentSerializer(
             issue=('key',),
         )
         protected_fields = ('remote_id',)
+
+    def get_update_is_available(self, obj):
+        return backend.get_active_backend().comment_update_is_available(obj)
+
+    def get_destroy_is_available(self, obj):
+        return backend.get_active_backend().comment_update_is_available(obj)
 
     @transaction.atomic()
     def create(self, validated_data):

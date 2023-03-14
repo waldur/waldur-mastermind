@@ -55,3 +55,15 @@ class SupportBackend:
         This method should pull priorities from backend and to the local database.
         """
         raise NotImplementedError
+
+    def update_is_available(self, issue=None):
+        return False
+
+    def destroy_is_available(self, issue=None):
+        return False
+
+    def comment_update_is_available(self, comment=None):
+        return True
+
+    def comment_destroy_is_available(self, comment=None):
+        return True
