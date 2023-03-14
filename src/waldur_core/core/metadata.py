@@ -933,6 +933,13 @@ class WaldurZammad(BaseModel):
         'Default is fax because it allows to separate Waldur comments from other comments'
         'https://docs.zammad.org/en/latest/api/ticket/articles.html#articles',
     )
+    COMMENT_COOLDOWN_DURATION = Field(
+        5,
+        description='Time in minutes.'
+        'Time in minutes while comment deletion is available'
+        'https://github.com/zammad/zammad/issues/2687, '
+        'https://github.com/zammad/zammad/issues/3086',
+    )
 
 
 class WaldurConfiguration(BaseModel):

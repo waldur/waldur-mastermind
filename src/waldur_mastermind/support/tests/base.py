@@ -25,6 +25,10 @@ class BaseTest(test.APITransactionTestCase):
         self.fixture = fixtures.SupportFixture()
         mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
         self.mock_get_active_backend = mock_patch.start()
+        self.mock_get_active_backend().update_is_available.return_value = True
+        self.mock_get_active_backend().destroy_is_available.return_value = True
+        self.mock_get_active_backend().comment_update_is_available.return_value = True
+        self.mock_get_active_backend().comment_destroy_is_available.return_value = True
 
     def tearDown(self):
         mock.patch.stopall()

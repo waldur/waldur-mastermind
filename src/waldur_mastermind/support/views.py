@@ -78,14 +78,24 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         issue = serializer.save()
         backend.get_active_backend().update_issue(issue)
 
+    def _update_is_available_validator(issue):
+        if not backend.get_active_backend().update_is_available(issue):
+            raise ValidationError('Updating is not available.')
+
     update_permissions = partial_update_permissions = [is_staff_or_support]
+    update_validators = partial_update_validators = [_update_is_available_validator]
 
     @transaction.atomic()
     def perform_destroy(self, issue):
         backend.get_active_backend().delete_issue(issue)
         issue.delete()
 
+    def _destroy_is_available_validator(issue):
+        if not backend.get_active_backend().destroy_is_available(issue):
+            raise ValidationError('Destroying is not available.')
+
     destroy_permissions = [is_staff_or_support]
+    destroy_validators = [_destroy_is_available_validator]
 
     def _comment_permission(request, view, obj=None):
         user = request.user
@@ -142,14 +152,24 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         comment = serializer.save()
         backend.get_active_backend().update_comment(comment)
 
+    def _update_is_available_validator(comment):
+        if not backend.get_active_backend().comment_update_is_available(comment):
+            raise ValidationError('Updating is not available.')
+
     update_permissions = partial_update_permissions = [structure_permissions.is_staff]
+    update_validators = partial_update_validators = [_update_is_available_validator]
 
     @transaction.atomic()
     def perform_destroy(self, comment):
         backend.get_active_backend().delete_comment(comment)
         comment.delete()
 
+    def _destroy_is_available_validator(comment):
+        if not backend.get_active_backend().comment_destroy_is_available(comment):
+            raise ValidationError('Destroying is not available.')
+
     destroy_permissions = [structure_permissions.is_staff]
+    destroy_validators = [_destroy_is_available_validator]
 
     def get_queryset(self):
         queryset = super(CommentViewSet, self).get_queryset()
