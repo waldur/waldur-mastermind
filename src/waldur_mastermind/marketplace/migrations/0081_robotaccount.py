@@ -55,7 +55,10 @@ class Migration(migrations.Migration):
                         to='marketplace.resource',
                     ),
                 ),
-                ('users', models.ManyToManyField(to=settings.AUTH_USER_MODEL)),
+                (
+                    'users',
+                    models.ManyToManyField(to=settings.AUTH_USER_MODEL, blank=True),
+                ),
             ],
             options={
                 'unique_together': {('resource', 'type')},
