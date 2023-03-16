@@ -2866,6 +2866,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
             'user_username',
             'created',
             'modified',
+            'propagation_date',
         )
         extra_kwargs = dict(
             offering={
