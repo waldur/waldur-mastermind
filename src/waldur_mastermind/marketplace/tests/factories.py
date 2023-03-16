@@ -437,3 +437,24 @@ class OfferingPermissionFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-offering-permission-list')
         return url if action is None else url + action + '/'
+
+
+class RobotAccountFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.RobotAccount
+
+    resource = factory.SubFactory(ResourceFactory)
+    type = 'cicd'
+    username = 'waldur'
+
+    @classmethod
+    def get_url(cls, account=None):
+        if account is None:
+            account = RobotAccountFactory()
+        return 'http://testserver' + reverse(
+            'marketplace-robot-account-detail', kwargs={'uuid': account.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('marketplace-robot-account-list')

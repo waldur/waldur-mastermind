@@ -1492,7 +1492,7 @@ class RobotAccount(TimeStampedModel, core_models.UuidMixin):
     # empty string should be allowed because name is set by
     # service provider after the account is created
     username = models.CharField(max_length=32, blank=True)
-    users = models.ManyToManyField(User)
+    users = models.ManyToManyField(User, blank=True)
     keys = models.JSONField(blank=True, default=list)
 
     class Meta:

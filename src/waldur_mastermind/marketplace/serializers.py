@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -3326,7 +3326,9 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
         return get_billing_price_estimate_for_resources(resources)
 
 
-class RobotAccountSerializer(serializers.HyperlinkedModelSerializer):
+class RobotAccountSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     class Meta:
         model = models.RobotAccount
         fields = (
@@ -3339,6 +3341,7 @@ class RobotAccountSerializer(serializers.HyperlinkedModelSerializer):
             'users',
             'keys',
         )
+        protected_fields = ['resource']
         extra_kwargs = dict(
             resource={
                 'lookup_field': 'uuid',
@@ -3357,8 +3360,27 @@ class RobotAccountSerializer(serializers.HyperlinkedModelSerializer):
         return keys
 
     def validate(self, validated_data):
-        resource = validated_data['resource']
-        users = validated_data['users']
+        if self.instance:
+            resource = self.instance.resource
+        else:
+            resource = validated_data['resource']
+
+        request = self.context['request']
+        if not request.user.is_staff and not resource.offering.customer.has_user(
+            request.user
+        ):
+            raise PermissionDenied(
+                'Only staff, service provider owner and '
+                'service provider manager can add, remove or update robot accounts'
+            )
+
+        if 'users' in validated_data:
+            users = validated_data['users']
+        elif self.instance:
+            users = self.instance.users.all()
+        else:
+            users = []
+
         resource_users = utils.get_resource_users(resource)
         if set(user.id for user in users) - set(user.id for user in resource_users):
             raise serializers.ValidationError(
