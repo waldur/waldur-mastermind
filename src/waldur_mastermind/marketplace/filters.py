@@ -622,6 +622,15 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
 
 class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    is_not_propagated = django_filters.BooleanFilter(
+        field_name='propagation_date', widget=BooleanWidget, lookup_expr='isnull'
+    )
+    propagated_after = django_filters.DateTimeFilter(
+        field_name='propagation_date', lookup_expr='gte'
+    )
+    propagated_before = django_filters.DateTimeFilter(
+        field_name='propagation_date', lookup_expr='lte'
+    )
     o = django_filters.OrderingFilter(fields=('created',))
 
     class Meta:
