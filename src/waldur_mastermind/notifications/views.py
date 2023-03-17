@@ -29,30 +29,6 @@ class BroadcastMessageViewSet(ActionsViewSet):
         tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
         return Response(status=status.HTTP_202_ACCEPTED)
 
-    @decorators.action(detail=False, methods=['post'])
-    def dry_run(self, request, *args, **kwargs):
-        serializer = serializers.DryRunBroadcastMessageSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        query = serializer.validated_data.get('query')
-        matching_users = utils.get_users_for_query(query)
-
-        return Response(
-            len(matching_users),
-            status=status.HTTP_200_OK,
-        )
-
-    @decorators.action(detail=False, methods=['post'])
-    def users(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK,
-        )
-
-    users_serializer_class = serializers.UsersBroadcastMessageSerializer
-
     @decorators.action(detail=False)
     def recipients(self, request, *args, **kwargs):
         serializer = serializers.QuerySerializer(
@@ -60,10 +36,8 @@ class BroadcastMessageViewSet(ActionsViewSet):
         )
         serializer.is_valid(raise_exception=True)
         users = utils.get_recipients_for_query(serializer.validated_data)
-        return Response(
-            users,
-            status=status.HTTP_200_OK,
-        )
+        paginated_result = self.paginate_queryset(users)
+        return self.get_paginated_response(paginated_result)
 
 
 class MessageTemplateViewSet(ReadOnlyActionsViewSet):
