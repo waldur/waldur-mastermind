@@ -243,9 +243,10 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     serializer_class = serializers.ProjectSerializer
     lookup_field = 'uuid'
     filter_backends = (
+        filters.ProjectEstimatedCostFilter,
         filters.GenericRoleFilter,
-        DjangoFilterBackend,
         filters.CustomerAccountingStartDateFilter,
+        DjangoFilterBackend,
     )
     filterset_class = filters.ProjectFilter
     partial_update_validators = [utils.check_customer_blocked_or_archived]
