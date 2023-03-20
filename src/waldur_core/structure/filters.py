@@ -6,7 +6,7 @@ from django.conf import settings as django_settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 from django.db.models.functions import Concat
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
@@ -22,6 +22,7 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
 )
 from waldur_core.structure.registry import SupportedServices
+from waldur_mastermind.billing import models as billing_models
 
 User = auth.get_user_model()
 
@@ -251,6 +252,7 @@ class ProjectFilter(NameFilterSet):
             ('customer__name', 'customer_name'),
             ('customer__native_name', 'customer_native_name'),
             ('customer__abbreviation', 'customer_abbreviation'),
+            ('estimated_cost', 'estimated_cost'),
         )
     )
 
@@ -755,3 +757,19 @@ class UserRolesFilter(BaseFilterBackend):
             )
 
         return queryset.filter(query)
+
+
+class ProjectEstimatedCostFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        order_by = get_ordering(request)
+        if order_by not in ('estimated_cost', '-estimated_cost'):
+            return queryset
+
+        ct = ContentType.objects.get_for_model(models.Project)
+        estimates = billing_models.PriceEstimate.objects.filter(
+            content_type=ct, object_id=OuterRef('pk')
+        )
+        queryset = queryset.annotate(
+            estimated_cost=Subquery(estimates.values('total')[:1])
+        )
+        return order_with_nulls(queryset, order_by)
