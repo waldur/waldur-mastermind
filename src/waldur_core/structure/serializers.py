@@ -376,6 +376,7 @@ class CustomerSerializer(
     division_type_uuid = serializers.ReadOnlyField(source='division.type.uuid')
     role = serializers.SerializerMethodField()
     projects_count = serializers.SerializerMethodField()
+    users_count = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Customer
@@ -404,6 +405,7 @@ class CustomerSerializer(
             'inet',
             'role',
             'projects_count',
+            'users_count',
             'sponsor_number',
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
@@ -504,6 +506,9 @@ class CustomerSerializer(
 
     def get_projects_count(self, customer):
         return models.Project.available_objects.filter(customer=customer).count()
+
+    def get_users_count(self, customer):
+        return customer.get_users().count()
 
 
 class NestedCustomerSerializer(
