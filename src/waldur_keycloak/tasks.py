@@ -14,4 +14,10 @@ def sync_groups():
         logger.debug('Skipping Keycloak synchronization because plugin is disabled.')
         return
 
-    KeycloakBackend().synchronize_groups()
+    backend = KeycloakBackend()
+    backend.client.login()
+    try:
+        backend.synchronize_groups()
+    finally:
+        if backend.client.is_logged_in:
+            backend.client.logout()

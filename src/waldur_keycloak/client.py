@@ -17,8 +17,10 @@ class KeycloakClient:
         self.client_secret = client_secret
         self.username = username
         self.password = password
+        self.access_token = None
+        self.refresh_token = None
 
-    def get_access_token(self):
+    def login(self):
         token_url = f'{self.base_url}/realms/{self.realm}/protocol/openid-connect/token'
         data = {
             'client_id': self.client_id,
@@ -33,16 +35,44 @@ class KeycloakClient:
             logger.warning('Unable to send authentication request. Error is %s', e)
             raise KeycloakException('Unable to send authentication request.')
         if response.ok:
-            return response.json()['access_token']
+            payload = response.json()
+            self.access_token = payload['access_token']
+            self.refresh_token = payload['refresh_token']
         else:
             logger.warning('Request failed', response.text)
             raise KeycloakException('Unable to parse access token.')
 
+    @property
+    def is_logged_in(self):
+        return self.access_token is not None and self.refresh_token is not None
+
+    def logout(self):
+        logout_url = (
+            f'{self.base_url}/realms/{self.realm}/protocol/openid-connect/logout'
+        )
+        data = {
+            'client_id': self.client_id,
+            'client_secret': self.client_secret,
+            'refresh_token': self.refresh_token,
+        }
+        try:
+            response = requests.post(logout_url, data=data)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send logout request. Error is %s', e)
+            raise KeycloakException('Unable to send logout request.')
+        if response.status_code != 204:
+            logger.warning('Logout failed', response.text)
+            raise KeycloakException('Unable to logout.')
+        else:
+            self.access_token = None
+            self.refresh_token = None
+
     def _request(self, method, endpoint, json=None):
-        access_token = self.get_access_token()
+        if not self.is_logged_in:
+            raise KeycloakException('User is not logged in.')
         if not endpoint.startswith(self.base_url):
             url = f'{self.base_url}/admin/realms/{self.realm}/{endpoint}'
-        headers = {'Authorization': 'Bearer ' + access_token}
+        headers = {'Authorization': 'Bearer ' + self.access_token}
         try:
             response = requests.request(method, url, json=json, headers=headers)
         except requests.RequestException as e:
