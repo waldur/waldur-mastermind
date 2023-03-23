@@ -15,33 +15,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('waldur_jira', '0001_initial'),
-        ('waldur_jira', '0002_resource'),
-        ('waldur_jira', '0003_project_template'),
-        ('waldur_jira', '0004_issue_types'),
-        ('waldur_jira', '0005_drop_impact_field'),
-        ('waldur_jira', '0006_add_parent_for_subtask'),
-        ('waldur_jira', '0007_add_priority'),
-        ('waldur_jira', '0008_unique_props'),
-        ('waldur_jira', '0009_drop_old_fields'),
-        ('waldur_jira', '0010_issue_resolution_sla'),
-        ('waldur_jira', '0011_unique_together'),
-        ('waldur_jira', '0012_backend_id_null'),
-        ('waldur_jira', '0013_extend_jira_issue_fields'),
-        ('waldur_jira', '0014_refactor_issue_field'),
-        ('waldur_jira', '0015_attachment_thumbnail'),
-        ('waldur_jira', '0016_project_template_null'),
-        ('waldur_jira', '0017_project_action'),
-        ('waldur_jira', '0018_project_runtime_state'),
-        ('waldur_jira', '0019_immutable_default_json'),
-        ('waldur_jira', '0020_file_is_mandatory'),
-        ('waldur_jira', '0021_extend_icon_url_size'),
-        ('waldur_jira', '0022_extend_description_limits'),
-        ('waldur_jira', '0023_error_traceback'),
-        ('waldur_jira', '0024_drop_spl'),
-    ]
-
     initial = True
 
     dependencies = [

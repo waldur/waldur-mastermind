@@ -14,53 +14,13 @@ import waldur_rancher.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('waldur_rancher', '0001_initial'),
-        ('waldur_rancher', '0002_cluster_backend_id_not_null'),
-        ('waldur_rancher', '0003_node_roles'),
-        ('waldur_rancher', '0004_node_backend_id'),
-        ('waldur_rancher', '0005_node_name_is_unique'),
-        ('waldur_rancher', '0006_node_initial_data'),
-        ('waldur_rancher', '0007_cluster_tenant_settings'),
-        ('waldur_rancher', '0008_node_annotations'),
-        ('waldur_rancher', '0009_runtime_state'),
-        ('waldur_rancher', '0010_rancher_user'),
-        ('waldur_rancher', '0011_catalog'),
-        ('waldur_rancher', '0012_cluster_initial_data'),
-        ('waldur_rancher', '0013_remove_cluster_initial_data'),
-        ('waldur_rancher', '0014_drop_constraints'),
-        ('waldur_rancher', '0015_project'),
-        ('waldur_rancher', '0016_namespace'),
-        ('waldur_rancher', '0017_add_settings_and_template'),
-        ('waldur_rancher', '0017_pull_settings'),
-        ('waldur_rancher', '0018_template_icon'),
-        ('waldur_rancher', '0019_settings_non_null'),
-        ('waldur_rancher', '0020_extend_icon_url_size'),
-        ('waldur_rancher', '0021_rancher_user_uuid'),
-        ('waldur_rancher', '0022_rancheruserprojectlink'),
-        ('waldur_rancher', '0023_workload'),
-        ('waldur_rancher', '0024_hpa'),
-        ('waldur_rancher', '0025_hpa_state'),
-        ('waldur_rancher', '0026_hpa_description'),
-        ('waldur_rancher', '0027_cluster_template'),
-        ('waldur_rancher', '0028_verbose_name_for_template'),
-        ('waldur_rancher', '0029_application'),
-        ('waldur_rancher', '0030_ingress'),
-        ('waldur_rancher', '0031_extend_description_limits'),
-        ('waldur_rancher', '0032_service'),
-        ('waldur_rancher', '0033_error_traceback'),
-        ('waldur_rancher', '0034_delete_catalogs_without_scope'),
-        ('waldur_rancher', '0035_drop_spl'),
-        ('waldur_rancher', '0036_cluster_management_security_group'),
-        ('waldur_rancher', '0037_json_field'),
-    ]
-
     initial = True
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('structure', '0001_squashed_0036'),
         ('contenttypes', '0002_remove_content_type_name'),
+        ('openstack', '0001_squashed_0028'),
     ]
 
     operations = [

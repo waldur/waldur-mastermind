@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0025_long_project_name'),
+        ('structure', '0001_squashed_0036'),
         ('marketplace_flows', '0004_offeringstaterequest_issue'),
     ]
 

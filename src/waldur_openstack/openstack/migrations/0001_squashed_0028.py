@@ -15,37 +15,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('openstack', '0001_squashed_0042'),
-        ('openstack', '0002_volumetype'),
-        ('openstack', '0003_extend_description_limits'),
-        ('openstack', '0004_network_mtu'),
-        ('openstack', '0005_error_traceback'),
-        ('openstack', '0006_router'),
-        ('openstack', '0007_add_routes'),
-        ('openstack', '0008_subnet_host_routes'),
-        ('openstack', '0009_subnet_is_connected'),
-        ('openstack', '0010_router_fixed_ips'),
-        ('openstack', '0011_drop_invalid_volume_type_quotas'),
-        ('openstack', '0012_securitygrouprule_description'),
-        ('openstack', '0013_securitygrouprule_direction'),
-        ('openstack', '0014_securitygrouprule_ethertype'),
-        ('openstack', '0015_port'),
-        ('openstack', '0016_securitygrouprule_remote_group'),
-        ('openstack', '0017_cidr_optional'),
-        ('openstack', '0018_cidr_ipv6'),
-        ('openstack', '0019_floatingip_port'),
-        ('openstack', '0020_add_fixed_ips'),
-        ('openstack', '0021_port_device_info'),
-        ('openstack', '0022_remove_tenant_extra_configuration'),
-        ('openstack', '0023_drop_spl'),
-        ('openstack', '0024_securitygrouprule_length'),
-        ('openstack', '0025_port_security_group'),
-        ('openstack', '0026_servergroup'),
-        ('openstack', '0027_alter_servergroup_policy'),
-        ('openstack', '0028_flavor_state'),
-    ]
-
     initial = True
 
     dependencies = [

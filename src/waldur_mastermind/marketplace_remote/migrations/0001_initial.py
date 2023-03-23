@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0025_long_project_name'),
+        ('structure', '0001_squashed_0036'),
     ]
 
     operations = [

@@ -13,48 +13,12 @@ import waldur_mastermind.invoices.utils
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('invoices', '0001_squashed_0030'),
-        ('invoices', '0031_rename_invoice_item_model'),
-        ('invoices', '0032_genericinvoiceitem_name'),
-        ('invoices', '0033_downtime_offering_and_resource'),
-        ('invoices', '0034_paymentprofile'),
-        ('invoices', '0035_payment_profile_is_active'),
-        ('invoices', '0036_paymentprofile_name'),
-        ('invoices', '0037_paymentprofile_is_active_null '),
-        ('invoices', '0038_payment'),
-        ('invoices', '0039_payment_invoice'),
-        ('invoices', '0040_invoice_created'),
-        ('invoices', '0041_update_invoice_items_scope'),
-        ('invoices', '0042_update_invoice_items_resource_name'),
-        ('invoices', '0043_drop_package_column'),
-        ('invoices', '0044_invoiceitem_resource'),
-        ('invoices', '0045_invoiceitem_resource_fix'),
-        ('invoices', '0046_invoiceitem_measured_unit'),
-        ('invoices', '0047_migrate_slurm_measured_unit'),
-        ('invoices', '0048_fix_slurm_invoice_items'),
-        ('invoices', '0049_remove_invoice_file_field'),
-        ('invoices', '0050_fix_slurm_invoice_items_for_march'),
-        ('invoices', '0051_remove_invoiceitem_product_code'),
-        ('invoices', '0052_delete_servicedowntime'),
-        ('invoices', '0053_invoiceitem_uuid'),
-        ('invoices', '0054_fix_resource_limit_periods'),
-        ('invoices', '0055_invoice_backend_id'),
-        ('invoices', '0056_fill_quantity'),
-        ('invoices', '0057_long_project_name'),
-        ('invoices', '0058_add_invoice_payment_fields'),
-        ('invoices', '0059_json_field'),
-        ('invoices', '0060_alter_paymentprofile_is_active'),
-        ('invoices', '0061_total_cost'),
-        ('invoices', '0062_alter_invoiceitem_resource'),
-    ]
-
     initial = True
 
     dependencies = [
         ('contenttypes', '0002_remove_content_type_name'),
-        ('marketplace', '0073_update_internal_name_validator'),
-        ('structure', '0010_customer_geolocation'),
+        ('marketplace', '0001_squashed_0076'),
+        ('structure', '0001_squashed_0036'),
     ]
 
     operations = [

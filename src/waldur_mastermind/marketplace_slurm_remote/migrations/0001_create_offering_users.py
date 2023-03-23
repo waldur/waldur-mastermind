@@ -168,7 +168,7 @@ def create_offering_users_for_existing_users(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0082_offeringuser_propagation_date'),
+        ('marketplace', '0001_squashed_0076'),
         ('structure', '0001_squashed_0036'),
         ('core', '0001_squashed_0029'),
         ('waldur_freeipa', '0003_is_active_false'),

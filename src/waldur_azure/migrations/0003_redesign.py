@@ -18,8 +18,8 @@ import waldur_core.logging.loggers
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0005_customer_domain'),
-        ('core', '0003_enlarge_username'),
+        ('structure', '0001_squashed_0036'),
+        ('core', '0001_squashed_0029'),
         ('waldur_azure', '0002_immutable_default_json'),
     ]
 

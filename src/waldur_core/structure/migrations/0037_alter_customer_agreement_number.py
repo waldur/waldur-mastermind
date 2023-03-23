@@ -7,7 +7,7 @@ MARKER = 999999999
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0036_remove_notification_and_notification_template'),
+        ('structure', '0001_squashed_0036'),
     ]
 
     def add_placeholder_values(apps, schema_editor):

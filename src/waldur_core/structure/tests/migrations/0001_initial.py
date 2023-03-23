@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0021_project_backend_id'),
+        ('structure', '0001_squashed_0036'),
     ]
 
     operations = [

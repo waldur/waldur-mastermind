@@ -14,40 +14,6 @@ import waldur_openstack.openstack_tenant.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('openstack_tenant', '0001_squashed_0046'),
-        ('openstack_tenant', '0002_volumetype_is_default'),
-        ('openstack_tenant', '0003_extend_description_limits'),
-        ('openstack_tenant', '0004_fill_tenant_id'),
-        ('openstack_tenant', '0005_internalip_allowed_address_pairs'),
-        ('openstack_tenant', '0006_error_traceback'),
-        ('openstack_tenant', '0007_subnet_is_connected'),
-        ('openstack_tenant', '0008_drop_invalid_volume_type_quotas'),
-        ('openstack_tenant', '0009_securitygrouprule_description'),
-        ('openstack_tenant', '0010_securitygrouprule_direction'),
-        ('openstack_tenant', '0011_securitygrouprule_ethertype'),
-        ('openstack_tenant', '0012_cidr_optional'),
-        ('openstack_tenant', '0013_securitygrouprule_remote_group'),
-        ('openstack_tenant', '0014_cidr_ipv6'),
-        ('openstack_tenant', '0015_add_fixed_ips'),
-        ('openstack_tenant', '0016_internalip_device_info'),
-        ('openstack_tenant', '0017_pull_remote_group'),
-        ('openstack_tenant', '0018_delete_invalid_security_group_rules'),
-        (
-            'openstack_tenant',
-            '0019_enforce_uniqueness_constraint_on_security_group_rule',
-        ),
-        ('openstack_tenant', '0020_create_or_update_security_group_rules'),
-        ('openstack_tenant', '0021_drop_spl'),
-        ('openstack_tenant', '0022_securitygrouprule_length'),
-        ('openstack_tenant', '0023_servergroup'),
-        ('openstack_tenant', '0024_alter_servergroup_policy'),
-        ('openstack_tenant', '0025_instance_server_groups'),
-        ('openstack_tenant', '0026_instance_hypervisor_hostname'),
-        ('openstack_tenant', '0027_make_m2m_instnace_fields_optional'),
-        ('openstack_tenant', '0028_change_server_group_to_instance_relationship'),
-    ]
-
     initial = True
 
     dependencies = [

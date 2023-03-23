@@ -14,27 +14,12 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('marketplace_checklist', '0001_initial'),
-        ('marketplace_checklist', '0002_question_solution'),
-        ('marketplace_checklist', '0003_add_category_and_correct_answer'),
-        ('marketplace_checklist', '0004_i18n_questions_and_checklists'),
-        ('marketplace_checklist', '0005_extend_description_limits'),
-        ('marketplace_checklist', '0006_answer_project_remove'),
-        ('marketplace_checklist', '0007_checklist_customers'),
-        ('marketplace_checklist', '0008_answer_remove'),
-        ('marketplace_checklist', '0009_category_icon'),
-        ('marketplace_checklist', '0010_checklistcustomerrole_checklistprojectrole'),
-        ('marketplace_checklist', '0011_question_image'),
-        ('marketplace_checklist', '0012_alter_answer_value'),
-    ]
-
     initial = True
 
     dependencies = [
-        ('structure', '0014_remove_customer_type'),
+        ('structure', '0001_squashed_0036'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('marketplace', '0009_offering_parent'),
+        ('marketplace', '0001_squashed_0076'),
     ]
 
     operations = [
