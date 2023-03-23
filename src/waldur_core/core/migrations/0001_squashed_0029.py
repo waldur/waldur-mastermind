@@ -15,38 +15,6 @@ import waldur_core.media.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('core', '0001_squashed_0008'),
-        ('core', '0002_remove_organization'),
-        ('core', '0003_enlarge_username'),
-        ('core', '0004_user_details'),
-        ('core', '0005_user_backend_id'),
-        ('core', '0006_extend_organization'),
-        ('core', '0007_changeemailrequest'),
-        ('core', '0008_changeemailrequest_uuid'),
-        ('core', '0009_changeemailrequest_uuid_populate'),
-        ('core', '0010_changeemailrequest_uuid_unique'),
-        ('core', '0011_extend_description_limits'),
-        ('core', '0012_drop_slurm_packages'),
-        ('core', '0013_user_is_identity_manager'),
-        ('core', '0014_user_affiliations'),
-        ('core', '0015_user_first_and_last_name'),
-        ('core', '0016_clean_affiliations'),
-        ('core', '0017_affiliations_default'),
-        ('core', '0018_drop_leftover_tables'),
-        ('core', '0019_drop_zabbix_tables'),
-        ('core', '0020_feature'),
-        ('core', '0021_user_last_sync'),
-        ('core', '0022_long_email'),
-        ('core', '0023_query_field'),
-        ('core', '0024_query_field_fix'),
-        ('core', '0025_user_notifications_enabled'),
-        ('core', '0026_json_field'),
-        ('core', '0027_alter_user_job_title'),
-        ('core', '0028_user_image'),
-        ('core', '0029_notification_notificationtemplate'),
-    ]
-
     initial = True
 
     dependencies = [

@@ -13,38 +13,10 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('waldur_vmware', '0001_initial'),
-        ('waldur_vmware', '0002_virtualmachine'),
-        ('waldur_vmware', '0003_disk'),
-        ('waldur_vmware', '0004_template'),
-        ('waldur_vmware', '0005_virtualmachine_template'),
-        ('waldur_vmware', '0006_cluster'),
-        ('waldur_vmware', '0007_customer_cluster'),
-        ('waldur_vmware', '0008_network'),
-        ('waldur_vmware', '0009_customer_network'),
-        ('waldur_vmware', '0010_virtualmachine_networks'),
-        ('waldur_vmware', '0011_add_datastore'),
-        ('waldur_vmware', '0012_template_disk'),
-        ('waldur_vmware', '0013_add_folder'),
-        ('waldur_vmware', '0014_virtualmachine_folder'),
-        ('waldur_vmware', '0015_customer_folder'),
-        ('waldur_vmware', '0016_port'),
-        ('waldur_vmware', '0017_customer_network_pair'),
-        ('waldur_vmware', '0018_port_runtime_state'),
-        ('waldur_vmware', '0019_port_service_project_link'),
-        ('waldur_vmware', '0020_guest_power_state'),
-        ('waldur_vmware', '0021_virtualmachine_tools_state'),
-        ('waldur_vmware', '0022_virtualmachine_tools_installed'),
-        ('waldur_vmware', '0023_extend_description_limits'),
-        ('waldur_vmware', '0024_error_traceback'),
-        ('waldur_vmware', '0025_drop_spl'),
-    ]
-
     initial = True
 
     dependencies = [
-        ('structure', '0038_cleanup_agreement_number_placeholder'),
+        ('structure', '0001_squashed_0036'),
     ]
 
     operations = [

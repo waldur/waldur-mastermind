@@ -17,38 +17,10 @@ import waldur_core.logging.loggers
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('waldur_slurm', '0001_initial'),
-        ('waldur_slurm', '0002_add_gpu_ram_quotas'),
-        ('waldur_slurm', '0003_allocationusage'),
-        ('waldur_slurm', '0004_increase_precision'),
-        ('waldur_slurm', '0005_add_deposit'),
-        ('waldur_slurm', '0006_allocationusage_deposit_usage'),
-        ('waldur_slurm', '0007_fill_backend_id'),
-        ('waldur_slurm', '0008_change_limits_default_values'),
-        ('waldur_slurm', '0009_introduce_allocation_user_usage'),
-        ('waldur_slurm', '0010_change_default_ram_limit'),
-        ('waldur_slurm', '0011_change_ram_usage_to_mb'),
-        ('waldur_slurm', '0012_allocationusage_uuid'),
-        ('waldur_slurm', '0013_extend_description_limits'),
-        ('waldur_slurm', '0014_fix_backend_id'),
-        ('waldur_slurm', '0015_allocation_error_traceback'),
-        ('waldur_slurm', '0016_drop_deposit_fields'),
-        ('waldur_slurm', '0017_association'),
-        ('waldur_slurm', '0018_add_allocation_month_year'),
-        ('waldur_slurm', '0019_fill_allocation_user_usage'),
-        ('waldur_slurm', '0020_fill_component_usage'),
-        ('waldur_slurm', '0021_delete_allocation_usage'),
-        ('waldur_slurm', '0022_allocation_user_usage_mandatory_fields'),
-        ('waldur_slurm', '0023_drop_spl'),
-        ('waldur_slurm', '0024_change_default_allocation_limits'),
-        ('waldur_slurm', '0025_change_validation_for_association_username'),
-    ]
-
     initial = True
 
     dependencies = [
-        ('structure', '0038_cleanup_agreement_number_placeholder'),
+        ('structure', '0001_squashed_0036'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

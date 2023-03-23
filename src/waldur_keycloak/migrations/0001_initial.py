@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0024_project_oecd_fos_2007_code'),
+        ('structure', '0001_squashed_0036'),
     ]
 
     operations = [

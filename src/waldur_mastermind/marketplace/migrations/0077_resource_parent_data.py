@@ -57,7 +57,7 @@ def link_parent_resource(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0076_resource_parent'),
+        ('marketplace', '0001_squashed_0076'),
     ]
 
     operations = [

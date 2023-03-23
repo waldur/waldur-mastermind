@@ -12,33 +12,11 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('support', '0001_squashed_0037'),
-        ('support', '0002_nullable_issue_caller'),
-        ('support', '0003_cascade_delete_support_customer'),
-        ('support', '0004_templateconfirmationcomment'),
-        ('support', '0005_extend_icon_url_size'),
-        ('support', '0006_feedback'),
-        ('support', '0007_extended_evaluation'),
-        ('support', '0008_offering_backend_id'),
-        ('support', '0009_extend_description_limits'),
-        ('support', '0010_error_traceback'),
-        ('support', '0011_drop_offering'),
-        ('support', '0012_issue_feedback_request'),
-        ('support', '0013_score_on_a_ten_point_system'),
-        ('support', '0014_unique_issue_attachment'),
-        ('support', '0015_fill_attachment_mime_type'),
-        ('support', '0016_requesttype_fields'),
-        ('support', '0017_alter_requesttype_fields'),
-        ('support', '0018_issue_remote_id'),
-        ('support', '0019_comment_remote_id'),
-    ]
-
     initial = True
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0001_squashed_0054'),
+        ('structure', '0001_squashed_0036'),
         ('contenttypes', '0002_remove_content_type_name'),
     ]
 

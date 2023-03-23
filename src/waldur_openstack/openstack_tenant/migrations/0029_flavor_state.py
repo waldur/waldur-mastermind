@@ -11,7 +11,7 @@ def set_flavor_state(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('openstack_tenant', '0028_change_server_group_to_instance_relationship'),
+        ('openstack_tenant', '0001_squashed_0028'),
     ]
 
     operations = [

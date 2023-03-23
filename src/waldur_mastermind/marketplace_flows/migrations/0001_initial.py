@@ -18,8 +18,8 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0023_add_special_robot_staff_user'),
-        ('marketplace', '0053_resource_end_date'),
+        ('structure', '0001_squashed_0036'),
+        ('marketplace', '0001_squashed_0076'),
     ]
 
     operations = [

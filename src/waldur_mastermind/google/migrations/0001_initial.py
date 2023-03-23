@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0033_mandatory_offering_type'),
+        ('marketplace', '0001_squashed_0076'),
     ]
 
     operations = [

@@ -18,45 +18,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('structure', '0001_squashed_0054'),
-        ('structure', '0002_immutable_default_json'),
-        ('structure', '0003_order_by_name'),
-        ('structure', '0004_customer_homepage'),
-        ('structure', '0005_customer_domain'),
-        ('structure', '0006_customer_backend_id'),
-        ('structure', '0007_customer_blocked'),
-        ('structure', '0008_customer_division'),
-        ('structure', '0009_project_is_removed'),
-        ('structure', '0010_customer_geolocation'),
-        ('structure', '0011_allow_duplicate_agreement_numbers'),
-        ('structure', '0012_customer_sponsor_number'),
-        ('structure', '0013_extend_description_limits'),
-        ('structure', '0014_remove_customer_type'),
-        ('structure', '0015_servicesettings_error_traceback'),
-        ('structure', '0016_customerpermissionreview'),
-        ('structure', '0017_remove_customer_is_company'),
-        ('structure', '0018_servicesettings_is_active'),
-        ('structure', '0019_servicesettings_remove_deprecated_fields'),
-        ('structure', '0020_drop_servicecertification_model'),
-        ('structure', '0021_project_backend_id'),
-        ('structure', '0022_project_end_date'),
-        ('structure', '0023_add_special_robot_staff_user'),
-        ('structure', '0024_project_oecd_fos_2007_code'),
-        ('structure', '0025_long_project_name'),
-        ('structure', '0026_project_managers'),
-        ('structure', '0027_null_boolean_field'),
-        ('structure', '0028_project_is_industry'),
-        ('structure', '0029_customer_inet'),
-        ('structure', '0030_customer_archived'),
-        ('structure', '0031_project_image'),
-        ('structure', '0032_useragreement'),
-        ('structure', '0033_alter_project_customer'),
-        ('structure', '0034_notification_notificationtemplate'),
-        ('structure', '0035_alter_customer_default_tax_percent'),
-        ('structure', '0036_remove_notification_and_notification_template'),
-    ]
-
     initial = True
 
     dependencies = [

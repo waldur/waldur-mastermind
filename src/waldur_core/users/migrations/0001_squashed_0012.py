@@ -10,21 +10,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ('users', '0001_squashed_0004'),
-        ('users', '0002_add_user_details'),
-        ('users', '0003_extend_organization'),
-        ('users', '0004_invitation_error_traceback'),
-        ('users', '0005_remove_invitation_link_template'),
-        ('users', '0006_invitation_affiliations'),
-        ('users', '0007_clean_affiliations'),
-        ('users', '0008_affiliations_default'),
-        ('users', '0009_groupinvitation'),
-        ('users', '0010_permissionrequest'),
-        ('users', '0011_json_field'),
-        ('users', '0012_alter_invitation_job_title'),
-    ]
-
     initial = True
 
     dependencies = [

@@ -12,7 +12,7 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0059_offering_image'),
+        ('marketplace', '0001_squashed_0076'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('marketplace_flows', '0001_initial'),
     ]

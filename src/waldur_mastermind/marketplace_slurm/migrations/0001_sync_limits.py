@@ -25,8 +25,11 @@ def sync_limits(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0061_order_item_review'),
-        ('waldur_slurm', '0024_change_default_allocation_limits'),
+        ('marketplace', '0001_squashed_0076'),
+        (
+            'waldur_slurm',
+            '0001_squashed_0025_change_validation_for_association_username',
+        ),
     ]
 
     operations = [
