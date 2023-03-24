@@ -290,6 +290,7 @@ class DivisionFactory(factory.DjangoModelFactory):
 
 
 class NotificationTemplateFactory(factory.DjangoModelFactory):
+    name = factory.Sequence(lambda n: 'NotificationTemplate_%s' % n)
     path = factory.Sequence(lambda n: 'NotificationTemplate_%s' % n)
 
     class Meta:
