@@ -32,6 +32,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     model_comment = models.Comment
     model_issue = models.Issue
     model_attachment = models.Attachment
+    backend_name = 'atlassian'
 
     def __init__(self):
         self.settings = Settings(
@@ -456,3 +457,30 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         value = getattr(backend_issue.fields, field_name, None)
         # we treat any value we receive from backend as True. Unset / missing value means False.
         return bool(value)
+
+    def pull_support_users(self):
+        """
+        Pull support users from backend.
+        Note that support users are not deleted in JIRA.
+        Instead, they are marked as disabled.
+        Therefore, Waldur replicates the same behaviour.
+        """
+
+        backend_users = self.get_users()
+
+        for backend_user in backend_users:
+            user, created = models.SupportUser.objects.get_or_create(
+                backend_id=backend_user.backend_id,
+                backend_name=self.backend_name,
+                defaults={'name': backend_user.name},
+            )
+            if not created and user.name != backend_user.name:
+                user.name = backend_user.name
+                user.save()
+            if not user.is_active:
+                user.is_active = True
+                user.save()
+
+        models.SupportUser.objects.filter(backend_name=self.backend_name).exclude(
+            backend_id__in=[u.backend_id for u in backend_users]
+        ).update(is_active=False)

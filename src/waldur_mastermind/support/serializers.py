@@ -246,7 +246,9 @@ class IssueSerializer(
             # if change of reporter is supported, use it
             if settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS']:
                 reporter = models.SupportUser.objects.filter(
-                    user=request_user, is_active=True
+                    user=request_user,
+                    is_active=True,
+                    backend_name=backend.get_active_backend().backend_name,
                 ).first()
                 if not reporter:
                     raise serializers.ValidationError(
@@ -423,7 +425,7 @@ class SupportUserSerializer(
 ):
     class Meta:
         model = models.SupportUser
-        fields = ('url', 'uuid', 'name', 'backend_id', 'user')
+        fields = ('url', 'uuid', 'name', 'backend_id', 'user', 'backend_name')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'},

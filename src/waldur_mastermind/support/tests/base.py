@@ -6,6 +6,8 @@ from django.conf import settings
 from django.test import override_settings
 from rest_framework import test
 
+from waldur_mastermind.support.backend import atlassian
+
 from . import fixtures
 
 
@@ -29,6 +31,11 @@ class BaseTest(test.APITransactionTestCase):
         self.mock_get_active_backend().destroy_is_available.return_value = True
         self.mock_get_active_backend().comment_update_is_available.return_value = True
         self.mock_get_active_backend().comment_destroy_is_available.return_value = True
+        self.mock_get_active_backend().backend_name = None
+        self.mock_get_active_backend().pull_support_users = (
+            atlassian.ServiceDeskBackend.pull_support_users
+        )
+        self.mock_get_active_backend().get_users.return_value = [1]
 
     def tearDown(self):
         mock.patch.stopall()

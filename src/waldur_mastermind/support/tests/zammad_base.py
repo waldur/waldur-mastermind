@@ -3,6 +3,8 @@ from unittest import mock
 from django.conf import settings
 from rest_framework import test
 
+from waldur_zammad.backend import User
+
 from . import fixtures
 
 
@@ -21,6 +23,9 @@ class BaseTest(test.APITransactionTestCase):
             'waldur_mastermind.support.backend.zammad.ZammadBackend'
         )
         self.mock_zammad = mock_patch.start()
+        self.mock_zammad().get_user_by_login.return_value = User(
+            1, 'test@test.com', 'test', 'test', 'test', 'test', True
+        )
 
     def tearDown(self):
         mock.patch.stopall()

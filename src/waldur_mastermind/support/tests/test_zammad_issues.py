@@ -38,7 +38,7 @@ class IssueCreateTest(zammad_base.BaseTest):
 
     def test_create_issue(self):
         user = self.fixture.staff
-        factories.SupportUserFactory(user=user)
+        factories.SupportUserFactory(user=user, backend_name='zammad')
         self.client.force_authenticate(user)
 
         response = self.client.post(self.url, data=self._get_valid_payload())

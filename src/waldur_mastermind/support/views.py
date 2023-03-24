@@ -294,4 +294,5 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
 
         issue = get_object_or_404(models.Issue, backend_id=ticket_id)
         ZammadServiceBackend().update_waldur_issue_from_zammad(issue)
+        ZammadServiceBackend().update_waldur_comments_from_zammad(issue)
         return response.Response(status=status.HTTP_200_OK)

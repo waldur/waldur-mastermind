@@ -5,7 +5,7 @@ from ddt import data, ddt
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import exceptions, models, tasks
+from waldur_mastermind.support import exceptions, tasks
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import override_support_settings
@@ -44,18 +44,33 @@ class SupportUserRetrieveTest(base.BaseTest):
 
 
 @override_support_settings(ENABLED=True)
-@mock.patch('waldur_mastermind.support.backend.get_active_backend')
 class SupportUserPullTest(base.BaseTest):
-    def test_if_user_is_not_available_he_is_marked_as_disabled(self, mocked_backend):
-        # Arrange
-        mocked_backend().get_users.return_value = [
-            models.SupportUser(backend_id='alice'),
+    def setUp(self):
+        mock_patch = mock.patch('waldur_jira.backend.JIRA')
+        self.mocked_jira = mock_patch.start()
+
+        class AtlassianUser:
+            displayName = 'alice'
+            name = 'alice'
+            key = 'alice'
+            accountId = 'alice'
+
+        self.mocked_jira().search_assignable_users_for_projects.return_value = [
+            AtlassianUser()
         ]
-        alice = factories.SupportUserFactory(backend_id='alice')
-        bob = factories.SupportUserFactory(backend_id='bob')
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_if_user_is_not_available_he_is_marked_as_disabled(self):
+        # Arrange
+        alice = factories.SupportUserFactory(
+            backend_id='alice', backend_name='atlassian'
+        )
+        bob = factories.SupportUserFactory(backend_id='bob', backend_name='atlassian')
 
         # Act
-        tasks.pull_support_users()
+        ServiceDeskBackend().pull_support_users()
 
         # Assert
         alice.refresh_from_db()
@@ -63,12 +78,11 @@ class SupportUserPullTest(base.BaseTest):
         self.assertTrue(alice.is_active)
         self.assertFalse(bob.is_active)
 
-    def test_if_user_is_available_he_is_marked_as_enabled(self, mocked_backend):
+    def test_if_user_is_available_he_is_marked_as_enabled(self):
         # Arrange
-        mocked_backend().get_users.return_value = [
-            models.SupportUser(backend_id='alice'),
-        ]
-        alice = factories.SupportUserFactory(backend_id='alice', is_active=False)
+        alice = factories.SupportUserFactory(
+            backend_id='alice', is_active=False, backend_name='atlassian'
+        )
 
         # Act
         tasks.pull_support_users()

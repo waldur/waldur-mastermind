@@ -67,3 +67,6 @@ class SupportBackend:
 
     def comment_destroy_is_available(self, comment=None):
         return True
+
+    def pull_support_users(self):
+        raise NotImplementedError

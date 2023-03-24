@@ -19,7 +19,15 @@ from . import managers
 logger = logging.getLogger(__name__)
 
 
+class BackendNameMixin(models.Model):
+    backend_name = models.CharField(max_length=255, blank=True, null=True, default=None)
+
+    class Meta:
+        abstract = True
+
+
 class Issue(
+    BackendNameMixin,
     core_models.UuidMixin,
     structure_models.StructureLoggableMixin,
     core_models.BackendModelMixin,
@@ -28,12 +36,13 @@ class Issue(
 ):
     class Meta:
         ordering = ['-created']
+        unique_together = ('backend_name', 'backend_id')
 
     class Permissions:
         customer_path = 'customer'
         project_path = 'project'
 
-    backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    backend_id = models.CharField(max_length=255, blank=True, null=True)
     remote_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     key = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=255)
@@ -200,9 +209,15 @@ class Priority(
         return self.name
 
 
-class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
+class SupportUser(
+    BackendNameMixin,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    models.Model,
+):
     class Meta:
         ordering = ['name']
+        unique_together = ('backend_name', 'backend_id')
 
     user = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -211,7 +226,7 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
         blank=True,
         null=True,
     )
-    backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    backend_id = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(
         _('active'),
         default=True,
@@ -231,6 +246,7 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
 
 class Comment(
+    BackendNameMixin,
     core_models.UuidMixin,
     core_models.BackendModelMixin,
     TimeStampedModel,
@@ -238,7 +254,7 @@ class Comment(
 ):
     class Meta:
         ordering = ['-created']
-        unique_together = ('backend_id', 'issue')
+        unique_together = ('backend_name', 'backend_id')
 
     class Permissions:
         customer_path = 'issue__customer'
@@ -299,6 +315,7 @@ class Comment(
 
 
 class Attachment(
+    BackendNameMixin,
     core_models.UuidMixin,
     TimeStampedModel,
     structure_models.StructureLoggableMixin,
@@ -309,7 +326,7 @@ class Attachment(
         project_path = 'issue__project'
 
     class Meta:
-        unique_together = ('issue', 'backend_id')
+        unique_together = ('backend_name', 'backend_id')
 
     issue = models.ForeignKey(
         on_delete=models.CASCADE, to=Issue, related_name='attachments'
