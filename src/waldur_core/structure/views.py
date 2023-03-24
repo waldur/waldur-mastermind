@@ -1241,6 +1241,8 @@ class NotificationTemplateViewSet(ActionsViewSet):
     serializer_class = serializers.NotificationTemplateDetailSerializers
     permission_classes = (rf_permissions.IsAdminUser,)
     lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.NotificationTemplateFilter
 
     @action(detail=True, methods=['post'])
     def override(self, request, uuid=None):

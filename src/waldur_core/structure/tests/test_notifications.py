@@ -189,3 +189,44 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         response = self.client.post(self.override_url, new_content)
 
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+
+@ddt
+class NotificationTemplateFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.notification_template_1 = factories.NotificationTemplateFactory(
+            name='invitation_approved', path='users/invitation_approved_message.txt'
+        )
+        self.notification_template_2 = factories.NotificationTemplateFactory(
+            name='invitation_rejected', path='users/invitation_rejected_message.txt'
+        )
+        self.url = factories.NotificationTemplateFactory.get_list_url()
+
+    @data(
+        'staff',
+    )
+    def test_notification_template_name_filter(self, user):
+        if user:
+            self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.json()), 2)
+        response = self.client.get(
+            self.url,
+            {'name': 'invitation'},
+        )
+        self.assertEqual(len(response.json()), 2)
+
+    @data(
+        'staff',
+    )
+    def test_notification_template_name_exact_filter(self, user):
+        if user:
+            self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.json()), 2)
+        response = self.client.get(
+            self.url,
+            {'name_exact': 'invitation_approved'},
+        )
+        self.assertEqual(len(response.json()), 1)

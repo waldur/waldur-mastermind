@@ -773,3 +773,15 @@ class ProjectEstimatedCostFilter(BaseFilterBackend):
             estimated_cost=Subquery(estimates.values('total')[:1])
         )
         return order_with_nulls(queryset, order_by)
+
+
+class NotificationTemplateFilter(NameFilterSet):
+    path = django_filters.CharFilter(lookup_expr='icontains')
+    path_exact = django_filters.CharFilter(field_name='path', lookup_expr='exact')
+
+    class Meta:
+        model = core_models.NotificationTemplate
+        fields = [
+            'name',
+            'path',
+        ]
