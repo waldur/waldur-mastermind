@@ -18,30 +18,10 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name='waldur_mastermind.support.pull_support_users')
 def pull_support_users():
-    """
-    Pull support users from backend.
-    Note that support users are not deleted in JIRA.
-    Instead, they are marked as disabled.
-    Therefore, Waldur replicates the same behaviour.
-    """
-
     if not settings.WALDUR_SUPPORT['ENABLED']:
         return
 
-    backend_users = backend.get_active_backend().get_users()
-    for backend_user in backend_users:
-        user, created = models.SupportUser.objects.get_or_create(
-            backend_id=backend_user.backend_id, defaults={'name': backend_user.name}
-        )
-        if not created and user.name != backend_user.name:
-            user.name = backend_user.name
-            user.save()
-        if not user.is_active:
-            user.is_active = True
-            user.save()
-    models.SupportUser.objects.exclude(
-        backend_id__in=[u.backend_id for u in backend_users]
-    ).update(is_active=False)
+    backend.get_active_backend().pull_support_users()
 
 
 @shared_task(name='waldur_mastermind.support.pull_priorities')

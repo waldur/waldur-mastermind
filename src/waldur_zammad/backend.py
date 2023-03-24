@@ -32,8 +32,11 @@ def reraise_exceptions(msg=None):
     return wrap
 
 
-Comment = namedtuple('Comment', 'id creator created content')
+Comment = namedtuple(
+    'Comment', 'id creator created content is_public user_id is_waldur_comment'
+)
 Issue = namedtuple('Issue', 'id status summary')
+User = namedtuple('User', 'id email login firstname lastname name is_active')
 
 
 class ZammadBackend:
@@ -52,12 +55,31 @@ class ZammadBackend:
             response['title'],
         )
 
+    def _zammad_response_to_user(self, response):
+        if response['firstname'] and response['lastname']:
+            name = '%s %s' % (response['firstname'], response['lastname'])
+        else:
+            name = response['login']
+
+        return User(
+            response['id'],
+            response['email'],
+            response['login'],
+            response['firstname'],
+            response['lastname'],
+            name,
+            response['active'],
+        )
+
     def _zammad_response_to_comment(self, response):
         return Comment(
             response.get('id', ''),
             response.get('created_by'),
             response.get('created_at'),
             clean_html(response.get('body', '')),
+            not response.get('internal', False),
+            response.get('sender_id'),
+            response.get('type') == ZAMMAD_ARTICLE_TYPE,
         )
 
     @reraise_exceptions('An issue is not found.')
@@ -68,38 +90,69 @@ class ZammadBackend:
     def get_groups(self):
         return list(self.manager.group.all())
 
-    def get_user(self, email):
-        response = self.manager.user.search({'query': email})
+    def get_user_by_field(self, value, field_name):
+        """ " value: email, login, firstname, lastname and so on."""
+        response = self.manager.user.search({'query': value})
 
-        if response:
-            return response[0]
+        if len(response) == 1:
+            return self._zammad_response_to_user(response[0])
+        elif len(response) > 1:
+            result = [r for r in response if r[field_name] == value]
+            if len(result) == 1:
+                return self._zammad_response_to_user(result[0])
+
+    def get_user_by_login(self, login):
+        return self.get_user_by_field(login, 'login')
+
+    def get_user_by_email(self, email):
+        return self.get_user_by_field(email, 'email')
+
+    @reraise_exceptions('An user is not found.')
+    def get_user_by_id(self, user_id):
+        response = self.manager.user.find(user_id)
+        return self._zammad_response_to_user(response)
+
+    def get_users(self):
+        response = self.manager.user._connection.session.get(
+            self.manager.user.url, params={}
+        )
+        json_response = self.manager.user._raise_or_return_json(response)
+        return [self._zammad_response_to_user(r) for r in json_response]
 
     @reraise_exceptions('Creating an user has been failed.')
-    def add_user(self, email):
-        return self.manager.user.create({'login': email, 'email': email})
+    def add_user(self, login, email, firstname, lastname):
+        response = self.manager.user.create(
+            {
+                'login': login,
+                'email': email,
+                'firstname': firstname,
+                'lastname': lastname,
+            }
+        )
+        return self._zammad_response_to_user(response)
 
     @reraise_exceptions('Creating a comment has been failed.')
     def add_comment(self, ticket_id, content):
-        response = self.manager.ticket_article.create(
-            {
-                'ticket_id': ticket_id,
-                'body': content,
-            }
-        )
-
+        params = {
+            'ticket_id': ticket_id,
+            'body': content,
+            'type': ZAMMAD_ARTICLE_TYPE,
+        }
+        response = self.manager.ticket_article.create(params)
         return self._zammad_response_to_comment(response)
 
-    @reraise_exceptions('Creating an issue has been failed.')
-    def add_issue(self, subject, description, email, group=None):
+    @reraise_exceptions('Deleting a comment has failed.')
+    def del_comment(self, comment_id):
+        self.manager.ticket_article.destroy(comment_id)
+        return
+
+    @reraise_exceptions('Creating an issue has failed.')
+    def add_issue(self, subject, description, customer_id, group=None):
         group = group or ZAMMAD_GROUP or self.get_groups()[0]['name']
-
-        if not self.get_user(email):
-            self.add_user(email)
-
         response = self.manager.ticket.create(
             {
                 'title': subject,
-                'customer': email,
+                'customer_id': customer_id,
                 'group': group,
                 "article": {
                     "subject": "Task description",
@@ -112,7 +165,9 @@ class ZammadBackend:
 
         return self._zammad_response_to_issue(response)
 
-    @reraise_exceptions('Comments have not been got because an issue is not found.')
+    @reraise_exceptions(
+        'Comments have not been received as referenced issue has not been found.'
+    )
     def get_comments(self, ticket_id):
         comments = []
 
