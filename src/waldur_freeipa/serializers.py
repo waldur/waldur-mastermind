@@ -51,4 +51,4 @@ class ProfileSerializer(
 
         validated_data['is_active'] = utils.is_profile_active_for_user(user)
 
-        return super(ProfileSerializer, self).create(validated_data)
+        return super().create(validated_data)

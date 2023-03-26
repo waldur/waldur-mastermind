@@ -299,7 +299,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
                 'view_name': 'openstacktenant-volume-availability-zone-detail',
             },
             size={'required': False, 'allow_null': True},
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def get_instance_name(self, volume):
@@ -307,7 +307,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             return volume.instance.name
 
     def validate(self, attrs):
-        attrs = super(VolumeSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
 
         if self.instance is None:
             # image validation
@@ -374,7 +374,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             validated_data['size'] = validated_data['snapshot'].size
         if validated_data.get('image'):
             validated_data['image_name'] = validated_data['image'].name
-        return super(VolumeSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class VolumeExtendSerializer(serializers.Serializer):
@@ -501,7 +501,7 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
                 'gigabytes_' + new_type.name, instance.size / 1024, validate=True
             )
 
-        return super(VolumeRetypeSerializer, self).update(instance, validated_data)
+        return super().update(instance, validated_data)
 
 
 class SnapshotRestorationSerializer(
@@ -563,7 +563,7 @@ class SnapshotRestorationSerializer(
         volume.increase_backend_quotas_usage()
         validated_data['volume'] = volume
 
-        return super(SnapshotRestorationSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
@@ -610,7 +610,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
                 'lookup_field': 'uuid',
                 'view_name': 'openstacktenant-snapshot-schedule-detail',
             },
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def validate(self, attrs):
@@ -622,7 +622,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['service_settings'] = source_volume.service_settings
         attrs['project'] = source_volume.project
         attrs['size'] = source_volume.size
-        return super(SnapshotSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 class NestedVolumeSerializer(
@@ -672,9 +672,7 @@ class NestedSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
                     _('Security group with id %s does not exist') % data['id']
                 )
         else:
-            internal_data = super(
-                NestedSecurityGroupRuleSerializer, self
-            ).to_internal_value(data)
+            internal_data = super().to_internal_value(data)
             return models.SecurityGroupRule(**internal_data)
 
 
@@ -750,7 +748,7 @@ class NestedInternalIPSerializer(
         }
 
     def to_internal_value(self, data):
-        internal_value = super(NestedInternalIPSerializer, self).to_internal_value(data)
+        internal_value = super().to_internal_value(data)
         return models.InternalIP(
             subnet=internal_value['subnet'], settings=internal_value['subnet'].settings
         )
@@ -812,9 +810,7 @@ class NestedFloatingIPSerializer(
         if 'url' in data:
             # use HyperlinkedRelatedModelSerializer (parent of NestedFloatingIPSerializer)
             # method to convert "url" to FloatingIP object
-            floating_ip = super(NestedFloatingIPSerializer, self).to_internal_value(
-                data
-            )
+            floating_ip = super().to_internal_value(data)
 
         # use HyperlinkedModelSerializer (parent of HyperlinkedRelatedModelSerializer)
         # to convert "subnet" to SubNet object
@@ -1122,7 +1118,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 'lookup_field': 'uuid',
                 'view_name': 'openstacktenant-instance-availability-zone-detail',
             },
-            **structure_serializers.VirtualMachineSerializer.Meta.extra_kwargs
+            **structure_serializers.VirtualMachineSerializer.Meta.extra_kwargs,
         )
 
     def get_fields(self):
@@ -1167,7 +1163,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         return name
 
     def validate(self, attrs):
-        attrs = super(InstanceSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
 
         # skip validation on object update
         if self.instance is not None:
@@ -1291,7 +1287,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             # OpenStack only allows latin letters, digits, dashes, underscores and spaces
             # as key names, thus we mangle the original name.
             safe_name = re.sub(r'[^-a-zA-Z0-9 _]+', '_', ssh_key.name)[:17]
-            validated_data['key_name'] = '{0}-{1}'.format(ssh_key.uuid.hex, safe_name)
+            validated_data['key_name'] = f'{ssh_key.uuid.hex}-{safe_name}'
             validated_data['key_fingerprint'] = ssh_key.fingerprint
 
         flavor = validated_data['flavor']
@@ -1315,7 +1311,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         validated_data['disk'] = total_disk
 
-        instance = super(InstanceSerializer, self).create(validated_data)
+        instance = super().create(validated_data)
 
         # security groups
         instance.security_groups.add(*security_groups)
@@ -1334,7 +1330,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         # volumes
         volumes = []
         system_volume = models.Volume.objects.create(
-            name='{0}-system'.format(
+            name='{}-system'.format(
                 instance.name[:143]
             ),  # volume name cannot be longer than 150 symbols
             service_settings=service_settings,
@@ -1350,7 +1346,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         if data_volume_size:
             data_volume = models.Volume.objects.create(
-                name='{0}-data'.format(
+                name='{}-data'.format(
                     instance.name[:145]
                 ),  # volume name cannot be longer than 150 symbols
                 service_settings=service_settings,
@@ -1363,7 +1359,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         for index, volume in enumerate(data_volumes):
             data_volume = models.Volume.objects.create(
-                name='{0}-data-{1}'.format(
+                name='{}-data-{}'.format(
                     instance.name[:140], index + 2
                 ),  # volume name cannot be longer than 150 symbols
                 service_settings=service_settings,
@@ -1554,7 +1550,7 @@ class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
     )
 
     def get_fields(self):
-        fields = super(InstanceFloatingIPsUpdateSerializer, self).get_fields()
+        fields = super().get_fields()
         instance = self.instance
         if instance:
             queryset = models.FloatingIP.objects.all().filter(
@@ -1707,16 +1703,14 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
 
         instance.increase_backend_quotas_usage()
         validated_data['instance'] = instance
-        backup_restoration = super(BackupRestorationSerializer, self).create(
-            validated_data
-        )
+        backup_restoration = super().create(validated_data)
         # restoration for each instance volume from snapshot.
         for snapshot in backup.snapshots.all():
             volume = models.Volume(
                 source_snapshot=snapshot,
                 service_settings=snapshot.service_settings,
                 project=snapshot.project,
-                name='{0}-volume'.format(instance.name[:143]),
+                name=f'{instance.name[:143]}-volume',
                 description='Restored from backup %s' % backup.uuid.hex,
                 size=snapshot.size,
             )
@@ -1786,11 +1780,11 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['service_settings'] = instance.service_settings
         attrs['project'] = instance.project
         attrs['metadata'] = self.get_backup_metadata(instance)
-        return super(BackupSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
     @transaction.atomic
     def create(self, validated_data):
-        backup = super(BackupSerializer, self).create(validated_data)
+        backup = super().create(validated_data)
         self.create_backup_snapshots(backup)
         return backup
 
@@ -1886,7 +1880,7 @@ class BackupScheduleSerializer(BaseScheduleSerializer):
         attrs['service_settings'] = instance.service_settings
         attrs['project'] = instance.project
         attrs['state'] = instance.States.OK
-        return super(BackupScheduleSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 class SnapshotScheduleSerializer(BaseScheduleSerializer):
@@ -1921,7 +1915,7 @@ class SnapshotScheduleSerializer(BaseScheduleSerializer):
         attrs['service_settings'] = volume.service_settings
         attrs['project'] = volume.project
         attrs['state'] = volume.States.OK
-        return super(SnapshotScheduleSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 def get_instance(openstack_floating_ip):

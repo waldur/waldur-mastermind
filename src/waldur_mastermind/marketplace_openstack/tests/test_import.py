@@ -37,7 +37,7 @@ from .utils import BaseOpenStackTest
 
 class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
     def setUp(self):
-        super(ImportAsMarketplaceResourceTest, self).setUp()
+        super().setUp()
         self.fixture = OpenStackTenantFixture()
 
     def test_import_volume_as_marketplace_resource(self):
@@ -100,7 +100,7 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
 
 class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
     def setUp(self):
-        super(BaseInstanceImportTest, self).setUp()
+        super().setUp()
         self.fixture = OpenStackTenantFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.openstack_tenant_service_settings,
@@ -116,7 +116,7 @@ class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
 
 class InstanceImportableResourcesTest(BaseInstanceImportTest):
     def setUp(self):
-        super(InstanceImportableResourcesTest, self).setUp()
+        super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
         self.client.force_authenticate(self.fixture.owner)
 
@@ -124,7 +124,7 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEquals(
+        self.assertEqual(
             response.data,
             [
                 {
@@ -147,7 +147,7 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
 
 class InstanceImportTest(BaseInstanceImportTest):
     def setUp(self):
-        super(InstanceImportTest, self).setUp()
+        super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'import_resource')
         self.client.force_authenticate(self.fixture.owner)
 
@@ -184,7 +184,7 @@ class InstanceImportTest(BaseInstanceImportTest):
 
 class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
     def setUp(self):
-        super(BaseVolumeImportTest, self).setUp()
+        super().setUp()
         self.fixture = OpenStackTenantFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.openstack_tenant_service_settings,
@@ -198,7 +198,7 @@ class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
 
 class VolumeImportableResourcesTest(BaseVolumeImportTest):
     def setUp(self):
-        super(VolumeImportableResourcesTest, self).setUp()
+        super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
         self.client.force_authenticate(self.fixture.owner)
 
@@ -227,7 +227,7 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
 
 class VolumeImportTest(BaseVolumeImportTest):
     def setUp(self):
-        super(VolumeImportTest, self).setUp()
+        super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'import_resource')
         self.client.force_authenticate(self.fixture.owner)
 
@@ -260,7 +260,7 @@ class VolumeImportTest(BaseVolumeImportTest):
 @ddt
 class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
     def setUp(self):
-        super(TenantImportableResourcesTest, self).setUp()
+        super().setUp()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.openstack_service_settings,
             type=TENANT_TYPE,
@@ -278,8 +278,8 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
 
         response = self.client.get(self.url)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEquals(
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
             response.data,
             [
                 {
@@ -302,13 +302,13 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
 
-        self.assertEquals(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
 class TenantImportTest(BaseBackendTestCase):
     def setUp(self):
-        super(TenantImportTest, self).setUp()
+        super().setUp()
         self.fixture = OpenStackFixture()
         self.backend_tenant = TenantFactory.build(
             service_settings=self.fixture.openstack_service_settings,
@@ -324,8 +324,8 @@ class TenantImportTest(BaseBackendTestCase):
     def test_tenant_is_imported(self):
         response = self.import_tenant()
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEquals(response.data['backend_id'], self.backend_tenant.backend_id)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['backend_id'], self.backend_tenant.backend_id)
         self.assertTrue(
             models.Tenant.objects.filter(
                 backend_id=self.backend_tenant.backend_id
@@ -343,22 +343,20 @@ class TenantImportTest(BaseBackendTestCase):
     @data('admin', 'manager', 'owner')
     def test_user_cannot_import_tenant(self, user):
         response = self.import_tenant(user)
-        self.assertEquals(
-            response.status_code, status.HTTP_403_FORBIDDEN, response.data
-        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     def test_tenant_cannot_be_imported_if_backend_id_exists_already(self):
         self.backend_tenant.save()
         response = self.import_tenant()
-        self.assertEquals(
+        self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
     def test_imported_tenant_has_user_password_and_username(self):
         response = self.import_tenant()
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEquals(response.data['backend_id'], self.backend_tenant.backend_id)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['backend_id'], self.backend_tenant.backend_id)
 
         tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
         self.assertIsNotNone(tenant.user_username)
@@ -366,13 +364,13 @@ class TenantImportTest(BaseBackendTestCase):
 
     def test_imported_tenant_settings_have_username_and_password_set(self):
         response = self.import_tenant()
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
         service_settings = ServiceSettings.objects.get(scope=tenant)
 
-        self.assertEquals(tenant.user_username, service_settings.username)
-        self.assertEquals(tenant.user_password, service_settings.password)
+        self.assertEqual(tenant.user_username, service_settings.username)
+        self.assertEqual(tenant.user_password, service_settings.password)
 
     @mock.patch('waldur_mastermind.marketplace_openstack.handlers.tasks')
     def test_import_instances_and_volumes_if_tenant_has_been_imported(self, mock_tasks):
@@ -380,7 +378,7 @@ class TenantImportTest(BaseBackendTestCase):
         marketplace_factories.CategoryFactory(default_volume_category=True)
         response = self.import_tenant()
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         mock_tasks.sync_instances_and_volumes_of_tenant.delay.assert_called_once()
 
     def import_tenant(self, user='staff'):

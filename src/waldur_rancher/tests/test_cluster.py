@@ -24,7 +24,7 @@ from waldur_rancher.tests import factories, fixtures, utils
 
 class ClusterGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ClusterGetTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.fixture_2 = fixtures.RancherFixture()
         self.url = factories.ClusterFactory.get_list_url()
@@ -79,7 +79,7 @@ class ClusterGetTest(test.APITransactionTestCase):
 
 class BaseClusterCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(BaseClusterCreateTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.url = factories.ClusterFactory.get_list_url()
         openstack_service_settings = (
@@ -252,7 +252,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
         cluster = models.Cluster.objects.get(name='new-cluster')
-        self.assertNotEquals(
+        self.assertNotEqual(
             cluster.node_set.all()[0].name, cluster.node_set.all()[1].name
         )
 
@@ -723,7 +723,7 @@ class ClusterPullTest(test.APITransactionTestCase):
 
 class ClusterUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ClusterUpdateTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.cluster_name = self.fixture.cluster.name
         self.url = factories.ClusterFactory.get_url(self.fixture.cluster)
@@ -760,7 +760,7 @@ class ClusterUpdateTest(test.APITransactionTestCase):
 
 class ClusterDeleteTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ClusterDeleteTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.cluster_name = self.fixture.cluster.name
         self.url = factories.ClusterFactory.get_url(self.fixture.cluster)

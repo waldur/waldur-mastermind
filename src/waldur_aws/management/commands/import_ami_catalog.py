@@ -46,9 +46,7 @@ class Command(BaseCommand):
         new_ids = csv_ids - nc_ids
         if new_ids:
             new_ids_list = ', '.join(sorted(new_ids))
-            self.stdout.write(
-                'The following AMIs would be created: {}.'.format(new_ids_list)
-            )
+            self.stdout.write(f'The following AMIs would be created: {new_ids_list}.')
 
         common_ids = nc_ids & csv_ids
         updated_ids = set()
@@ -62,15 +60,13 @@ class Command(BaseCommand):
         if updated_ids:
             updated_ids_list = ', '.join(sorted(updated_ids))
             self.stdout.write(
-                'The following AMIs would be updated: {}'.format(updated_ids_list)
+                f'The following AMIs would be updated: {updated_ids_list}'
             )
 
         stale_ids = nc_ids - csv_ids
         if stale_ids:
             stale_ids_list = ', '.join(sorted(stale_ids))
-            self.stdout.write(
-                'The following AMIs would be deleted: {}'.format(stale_ids_list)
-            )
+            self.stdout.write(f'The following AMIs would be deleted: {stale_ids_list}')
 
         if not new_ids and not stale_ids and not updated_ids:
             self.stdout.write('There are no changes to apply.')

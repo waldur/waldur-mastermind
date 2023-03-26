@@ -176,7 +176,7 @@ class BackendTest(TestCase):
         allocation = factories.AllocationFactory(name=sample_name)
         hexpart = allocation.uuid.hex[:5]
 
-        final_correct_name = ("%s%s_%s" % (prefix, hexpart, correct_name))[
+        final_correct_name = (f"{prefix}{hexpart}_{correct_name}")[
             : models.SLURM_ALLOCATION_NAME_MAX_LEN
         ]
         backend = allocation.get_backend()

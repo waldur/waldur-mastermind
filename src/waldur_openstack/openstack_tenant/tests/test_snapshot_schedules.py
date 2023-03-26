@@ -13,7 +13,7 @@ class BaseSnapshotScheduleTest(test.APITransactionTestCase):
 
 class SnapshotScheduleActivateTest(BaseSnapshotScheduleTest):
     def setUp(self):
-        super(SnapshotScheduleActivateTest, self).setUp()
+        super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_url(
             self.fixture.snapshot_schedule, 'activate'
         )
@@ -38,7 +38,7 @@ class SnapshotScheduleActivateTest(BaseSnapshotScheduleTest):
 
 class SnapshotScheduleDeactivateTest(BaseSnapshotScheduleTest):
     def setUp(self):
-        super(SnapshotScheduleDeactivateTest, self).setUp()
+        super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_url(
             self.fixture.snapshot_schedule, 'deactivate'
         )
@@ -65,7 +65,7 @@ class SnapshotScheduleDeactivateTest(BaseSnapshotScheduleTest):
 @ddt
 class SnapshotScheduleRetrieveTest(BaseSnapshotScheduleTest):
     def setUp(self):
-        super(SnapshotScheduleRetrieveTest, self).setUp()
+        super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_list_url()
 
     @data('owner', 'global_support', 'admin', 'manager', 'staff')
@@ -97,7 +97,7 @@ class SnapshotScheduleRetrieveTest(BaseSnapshotScheduleTest):
 @ddt
 class SnapshotScheduleDeleteTest(BaseSnapshotScheduleTest):
     def setUp(self):
-        super(SnapshotScheduleDeleteTest, self).setUp()
+        super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_url(
             self.fixture.snapshot_schedule
         )

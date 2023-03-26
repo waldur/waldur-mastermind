@@ -61,7 +61,7 @@ def create_report(serialized_report):
 
     today = datetime.datetime.today()
     timestamp = today.strftime('%Y%m%dT%H%M%S')
-    archive_filename = 'waldur-logs-%s-%s.tar.gz' % (timestamp, report.uuid.hex)
+    archive_filename = f'waldur-logs-{timestamp}-{report.uuid.hex}.tar.gz'
 
     try:
         cf = create_report_archive(
@@ -70,7 +70,7 @@ def create_report(serialized_report):
         )
     except (tarfile.TarError, OSError, ValueError) as e:
         report.state = Report.States.ERRED
-        error_message = 'Error message: %s. Traceback: %s' % (
+        error_message = 'Error message: {}. Traceback: {}'.format(
             str(e),
             traceback.format_exc(),
         )

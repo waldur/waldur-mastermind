@@ -192,7 +192,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['tenant'] = tenant = self.context['view'].get_object()
         attrs['service_settings'] = tenant.service_settings
         attrs['project'] = tenant.project
-        return super(FloatingIPSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 class FloatingIPAttachSerializer(serializers.Serializer):
@@ -468,7 +468,7 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
         attrs['tenant'] = tenant
         attrs['service_settings'] = tenant.service_settings
         attrs['project'] = tenant.project
-        return super(SecurityGroupSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
     def create(self, validated_data):
         rules = validated_data.pop('rules', [])
@@ -558,7 +558,7 @@ class ServerGroupSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['tenant'] = tenant
         attrs['service_settings'] = tenant.service_settings
         attrs['project'] = tenant.project
-        return super(ServerGroupSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 ALLOWED_PRIVATE_NETWORKS = (
@@ -652,7 +652,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
             return None
 
     def get_fields(self):
-        fields = super(TenantSerializer, self).get_fields()
+        fields = super().get_fields()
         if not settings.WALDUR_OPENSTACK['TENANT_CREDENTIALS_VISIBLE']:
             for field in ('user_username', 'user_password', 'access_url'):
                 if field in fields:
@@ -754,7 +754,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
             )
 
     def validate(self, attrs):
-        attrs = super(TenantSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
 
         if not self.instance:
             self._validate_service_settings(attrs['service_settings'], attrs['project'])
@@ -804,7 +804,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
 
         subnet_cidr = validated_data.pop('subnet_cidr')
         with transaction.atomic():
-            tenant = super(TenantSerializer, self).create(validated_data)
+            tenant = super().create(validated_data)
             network = models.Network.objects.create(
                 name=slugified_name + '-int-net',
                 description=_('Internal network for tenant %s') % tenant.name,
@@ -1028,7 +1028,7 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['network'] = network
         attrs['tenant'] = network.tenant
 
-        return super(PortSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 class NetworkSerializer(
@@ -1076,7 +1076,7 @@ class NetworkSerializer(
         attrs['tenant'] = tenant = self.context['view'].get_object()
         attrs['service_settings'] = tenant.service_settings
         attrs['project'] = tenant.project
-        return super(NetworkSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
     def get_filtered_field(self):
         return [
@@ -1205,7 +1205,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
 
     def update(self, instance, validated_data):
         host_routes = validated_data.pop('host_routes', [])
-        instance = super(SubNetSerializer, self).update(instance, validated_data)
+        instance = super().update(instance, validated_data)
         instance.host_routes = host_routes
         instance.save()
         return instance

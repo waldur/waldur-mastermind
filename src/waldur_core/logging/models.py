@@ -254,7 +254,7 @@ class SystemNotification(EventTypesMixin, models.Model):
                     )
 
     def __str__(self):
-        return '%s | %s' % (self.hook_content_type, self.name)
+        return f'{self.hook_content_type} | {self.name}'
 
 
 class Report(UuidMixin, TimeStampedModel):

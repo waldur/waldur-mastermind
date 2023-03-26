@@ -28,7 +28,7 @@ MOCK_CLUSTER = {
 
 class BaseClusterImportTest(test.APITransactionTestCase):
     def setUp(self):
-        super(BaseClusterImportTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.offering = OfferingFactory(
             scope=self.fixture.settings,
@@ -41,13 +41,13 @@ class BaseClusterImportTest(test.APITransactionTestCase):
         self.mocked_client.login.return_value = None
 
     def tearDown(self):
-        super(BaseClusterImportTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
 
 class ClusterImportableResourcesTest(BaseClusterImportTest):
     def setUp(self):
-        super(ClusterImportableResourcesTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(self.fixture.owner)
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
 
@@ -75,7 +75,7 @@ class ClusterImportableResourcesTest(BaseClusterImportTest):
 
 class ClusterImportResourceTest(BaseClusterImportTest):
     def setUp(self):
-        super(ClusterImportResourceTest, self).setUp()
+        super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'import_resource')
         self.client.force_authenticate(self.fixture.owner)
         self.mocked_client.get_cluster.return_value = MOCK_CLUSTER

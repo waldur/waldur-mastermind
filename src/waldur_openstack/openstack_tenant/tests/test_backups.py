@@ -59,7 +59,7 @@ class BackupListPermissionsTest(helpers.ListPermissionsTest):
 
 class BackupPermissionsTest(helpers.PermissionsTest):
     def setUp(self):
-        super(BackupPermissionsTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.OpenStackTenantFixture()
         self.instance = self.fixture.instance
         self.backup = factories.BackupFactory(
@@ -91,7 +91,7 @@ class BackupPermissionsTest(helpers.PermissionsTest):
         with patch(
             'waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute'
         ):
-            super(BackupPermissionsTest, self).test_permissions()
+            super().test_permissions()
 
 
 class BackupSourceFilterTest(test.APITransactionTestCase):

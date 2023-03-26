@@ -29,7 +29,7 @@ def generate_username(username):
     # Prepend username suffix
     prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
     if prefix:
-        username = '%s%s' % (prefix, username)
+        username = f'{prefix}{username}'
     return username.lower()
 
 

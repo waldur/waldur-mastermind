@@ -47,7 +47,7 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.resource.offering.save()
 
     def tearDown(self):
-        super(SyncRemoteProjectPermissionsTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_project_is_not_created_if_there_are_no_users_in_project(self):
@@ -377,7 +377,7 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         create_system_robot()
 
     def tearDown(self):
-        super(ResourceOrderItemImportTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_when_there_are_no_order_items(self):
@@ -487,7 +487,7 @@ class NotificationAboutPendingProjectUpdatesTest(test.APITransactionTestCase):
         NotificationFactory(key=f"marketplace_remote.{event_type}")
         tasks.notify_about_pending_project_update_requests()
         self.assertEqual(len(mail.outbox), 1)
-        subject_template_name = '%s/%s_subject.txt' % (
+        subject_template_name = '{}/{}_subject.txt'.format(
             'marketplace_remote',
             'notification_about_pending_project_updates',
         )

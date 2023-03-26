@@ -13,7 +13,7 @@ class BaseSubNetTest(test.APITransactionTestCase):
 @mock.patch('waldur_openstack.openstack.executors.SubNetDeleteExecutor.execute')
 class SubNetDeleteActionTest(BaseSubNetTest):
     def setUp(self):
-        super(SubNetDeleteActionTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(user=self.fixture.admin)
         self.url = factories.SubNetFactory.get_url(self.fixture.subnet)
 
@@ -30,7 +30,7 @@ class SubNetDeleteActionTest(BaseSubNetTest):
 
 class SubNetUpdateActionTest(BaseSubNetTest):
     def setUp(self):
-        super(SubNetUpdateActionTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(user=self.fixture.admin)
         self.url = factories.SubNetFactory.get_url(self.fixture.subnet)
         self.request_data = {'name': 'test_name'}

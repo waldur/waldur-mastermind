@@ -23,7 +23,7 @@ def get_response(ip_address):
     try:
         response = requests.get(url)
     except requests.exceptions.RequestException as e:
-        raise exceptions.GeoIpException("Request to geoip API %s failed: %s" % (url, e))
+        raise exceptions.GeoIpException(f"Request to geoip API {url} failed: {e}")
 
     if response.ok:
         return response.json()

@@ -1,6 +1,6 @@
 import re
+from unittest import mock
 
-import mock
 from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test

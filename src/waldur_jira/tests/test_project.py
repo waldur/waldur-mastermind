@@ -93,7 +93,7 @@ class BaseProjectImportTest(test.APITransactionTestCase):
 @unittest.skip('Move import to marketplace')
 class ProjectImportableResourcesTest(BaseProjectImportTest):
     def setUp(self):
-        super(ProjectImportableResourcesTest, self).setUp()
+        super().setUp()
         self.url = factories.ProjectFactory.get_list_url('importable_resources')
         self.fixture = fixtures.JiraFixture()
         self.client.force_authenticate(self.fixture.owner)
@@ -105,7 +105,7 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEquals(len(response.data), len(backend_projects))
+        self.assertEqual(len(response.data), len(backend_projects))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_projects]
         self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
@@ -115,7 +115,7 @@ class ProjectImportableResourcesTest(BaseProjectImportTest):
 @unittest.skip('Move import to marketplace')
 class ProjectImportResourceTest(BaseProjectImportTest):
     def setUp(self):
-        super(ProjectImportResourceTest, self).setUp()
+        super().setUp()
         self.url = factories.ProjectFactory.get_list_url('import_resource')
         self.fixture = fixtures.JiraFixture()
         self.client.force_authenticate(self.fixture.owner)
@@ -168,7 +168,7 @@ class ProjectImportResourceTest(BaseProjectImportTest):
 
 class TasksTest(BaseProjectImportTest):
     def setUp(self):
-        super(TasksTest, self).setUp()
+        super().setUp()
 
         self.url = factories.ProjectFactory.get_list_url('import_resource')
         self.fixture = fixtures.JiraFixture()

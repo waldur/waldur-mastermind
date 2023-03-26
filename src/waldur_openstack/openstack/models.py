@@ -32,7 +32,7 @@ class Flavor(StateMixin, LoggableMixin, structure_models.ServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        readonly_fields = super(Flavor, cls).get_backend_fields()
+        readonly_fields = super().get_backend_fields()
         return readonly_fields + ('cores', 'ram', 'disk')
 
     def get_backend(self):
@@ -67,7 +67,7 @@ class ServerGroup(openstack_base_models.BaseServerGroup, structure_models.SubRes
 
     @classmethod
     def get_backend_fields(cls):
-        return super(ServerGroup, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'policy',
         )
@@ -111,7 +111,7 @@ class SecurityGroup(structure_models.SubResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(SecurityGroup, cls).get_backend_fields() + ('name', 'description')
+        return super().get_backend_fields() + ('name', 'description')
 
 
 class SecurityGroupRule(
@@ -173,7 +173,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
         return 'openstack-fip'
 
     def __str__(self):
-        return '%s:%s (%s)' % (
+        return '{}:{} ({})'.format(
             self.address,
             self.runtime_state,
             self.service_settings,
@@ -181,7 +181,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(FloatingIP, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'description',
             'address',
@@ -256,7 +256,7 @@ class Tenant(structure_models.PrivateCloud):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Tenant, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'description',
             'error_message',
@@ -271,7 +271,7 @@ class Tenant(structure_models.PrivateCloud):
 
         if settings.backend_url:
             parsed = urlparse(settings.backend_url)
-            return '%s://%s/dashboard' % (parsed.scheme, parsed.hostname)
+            return f'{parsed.scheme}://{parsed.hostname}/dashboard'
 
     def format_quota(self, name, limit):
         if name == self.Quotas.vcpu.name:
@@ -284,7 +284,7 @@ class Tenant(structure_models.PrivateCloud):
     @classmethod
     def get_quotas_names(cls):
         volume_type_names = VolumeType.objects.values_list('name', flat=True).distinct()
-        return super(Tenant, cls).get_quotas_names() + [
+        return super().get_quotas_names() + [
             f'gigabytes_{name}' for name in volume_type_names
         ]
 
@@ -341,7 +341,7 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Network, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'description',
             'is_external',
@@ -383,7 +383,7 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(SubNet, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'description',
             'allocation_pools',
@@ -397,7 +397,7 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
         )
 
     def get_log_fields(self):
-        return super(SubNet, self).get_log_fields() + ('network',)
+        return super().get_log_fields() + ('network',)
 
 
 class Port(structure_models.SubResource, openstack_base_models.Port):

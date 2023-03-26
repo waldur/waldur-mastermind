@@ -13,7 +13,7 @@ from . import factories
 
 class RancherFixture(ProjectFixture):
     def __init__(self):
-        super(RancherFixture, self).__init__()
+        super().__init__()
         self.node
 
     @cached_property

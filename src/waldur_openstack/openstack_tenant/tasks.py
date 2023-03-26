@@ -23,10 +23,10 @@ class SetInstanceOKTask(core_tasks.StateTransitionTask):
         self.kwargs['state_transition'] = 'set_ok'
         self.kwargs['action'] = ''
         self.kwargs['action_details'] = {}
-        super(SetInstanceOKTask, self).pre_execute(instance)
+        super().pre_execute(instance)
 
     def execute(self, instance, *args, **kwargs):
-        super(SetInstanceOKTask, self).execute(instance)
+        super().execute(instance)
         instance.floating_ips.update(is_booked=False)
 
 
@@ -34,7 +34,7 @@ class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
     """Mark instance as erred and delete resources that were not created."""
 
     def execute(self, instance):
-        super(SetInstanceErredTask, self).execute(instance)
+        super().execute(instance)
 
         # delete volumes if they were not created on backend,
         # mark as erred if creation was started, but not ended,
@@ -57,7 +57,7 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
     """Mark DR backup and all related resources that are not in state OK as Erred"""
 
     def execute(self, backup):
-        super(SetBackupErredTask, self).execute(backup)
+        super().execute(backup)
         for snapshot in backup.snapshots.all():
             # If snapshot creation was not started - delete it from waldur DB.
             if snapshot.state == models.Snapshot.States.CREATION_SCHEDULED:
@@ -92,16 +92,16 @@ class DeleteIncompleteInstanceTask(core_tasks.Task):
 class ForceDeleteBackupTask(core_tasks.DeletionTask):
     def execute(self, backup):
         backup.snapshots.all().delete()
-        super(ForceDeleteBackupTask, self).execute(backup)
+        super().execute(backup)
 
 
 class VolumeExtendErredTask(core_tasks.ErrorStateTransitionTask):
     """Mark volume and its instance as erred on fail"""
 
     def execute(self, volume):
-        super(VolumeExtendErredTask, self).execute(volume)
+        super().execute(volume)
         if volume.instance is not None:
-            super(VolumeExtendErredTask, self).execute(volume.instance)
+            super().execute(volume.instance)
 
 
 class BaseScheduleTask(core_tasks.BackgroundTask):
@@ -192,7 +192,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 schedule.save()
                 resource = self._create_resource(schedule, kept_until=kept_until)
             except quotas_exceptions.QuotaValidationError as e:
-                message = 'Failed to schedule "%s" creation. Error: %s' % (
+                message = 'Failed to schedule "{}" creation. Error: {}'.format(
                     self.model.__name__,
                     e,
                 )
@@ -260,7 +260,7 @@ class ScheduleBackups(BaseScheduleTask):
     @transaction.atomic()
     def _create_resource(self, schedule, kept_until):
         backup = models.Backup.objects.create(
-            name='Backup#%s of %s' % (schedule.call_count, schedule.instance.name),
+            name=f'Backup#{schedule.call_count} of {schedule.instance.name}',
             description='Scheduled backup of instance "%s"' % schedule.instance,
             service_settings=schedule.instance.service_settings,
             project=schedule.instance.project,
@@ -388,9 +388,7 @@ class LimitedPerTypeThrottleMixin:
         nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})
         limit_per_type = nc_settings.get('MAX_CONCURRENT_PROVISION', {})
         model_name = get_resource_type(resource)
-        return limit_per_type.get(
-            model_name, super(LimitedPerTypeThrottleMixin, self).get_limit(resource)
-        )
+        return limit_per_type.get(model_name, super().get_limit(resource))
 
 
 class ThrottleProvisionTask(

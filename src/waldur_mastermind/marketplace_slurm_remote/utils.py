@@ -44,14 +44,14 @@ def create_anonymized_username(offering):
     else:
         number = '0'.zfill(USERNAME_ANONYMIZED_POSTFIX_LENGTH)
 
-    return "%s%s" % (prefix, number)
+    return f"{prefix}{number}"
 
 
 def create_username_from_full_name(user, offering):
     first_name = sanitize_name(user.first_name)
     last_name = sanitize_name(user.last_name)
 
-    username_raw = "%s.%s" % (first_name, last_name)
+    username_raw = f"{first_name}.{last_name}"
     previous_users = marketplace_models.OfferingUser.objects.filter(
         offering=offering, username__istartswith=username_raw
     ).order_by('username')
@@ -63,7 +63,7 @@ def create_username_from_full_name(user, offering):
     else:
         number = '0'.zfill(USERNAME_POSTFIX_LENGTH)
 
-    return "%s.%s" % (username_raw, number)
+    return f"{username_raw}.{number}"
 
 
 def create_username_from_freeipa_profile(user):

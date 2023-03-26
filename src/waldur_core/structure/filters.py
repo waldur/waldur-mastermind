@@ -564,7 +564,7 @@ class SshKeyFilter(NameFilterSet):
 class ServiceTypeFilter(django_filters.Filter):
     def filter(self, qs, value):
         value = SupportedServices.get_filter_mapping().get(value)
-        return super(ServiceTypeFilter, self).filter(qs, value)
+        return super().filter(qs, value)
 
 
 class ServiceSettingsFilter(NameFilterSet):
@@ -594,7 +594,7 @@ class ServiceSettingsScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
 class BaseResourceFilter(NameFilterSet):
     def __init__(self, *args, **kwargs):
-        super(BaseResourceFilter, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.filters['o'] = django_filters.OrderingFilter(fields=self.ORDERING_FIELDS)
 
     # customer

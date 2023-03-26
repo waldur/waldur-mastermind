@@ -1,10 +1,10 @@
 from datetime import timedelta
+from unittest import mock
+from unittest.mock import patch
 
-import mock
 from ddt import data, ddt
 from django.conf import settings
 from django.utils import timezone
-from mock import patch
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils

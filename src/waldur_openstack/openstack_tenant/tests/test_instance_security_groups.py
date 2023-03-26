@@ -75,7 +75,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
         reread_security_groups = list(reread_instance.security_groups.all())
-        self.assertEquals(reread_security_groups, self.security_groups)
+        self.assertEqual(reread_security_groups, self.security_groups)
 
     @patch(
         'waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute'
@@ -103,7 +103,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
         reread_security_groups = list(reread_instance.security_groups.all())
 
-        self.assertEquals(
+        self.assertEqual(
             reread_security_groups,
             [new_security_group],
             'Security groups should have changed',
@@ -133,7 +133,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
         reread_security_groups = list(reread_instance.security_groups.all())
 
-        self.assertEquals(reread_security_groups, [security_group])
+        self.assertEqual(reread_security_groups, [security_group])
         mocked_execute_method.assert_called_once()
 
     def test_security_groups_is_not_required(self):

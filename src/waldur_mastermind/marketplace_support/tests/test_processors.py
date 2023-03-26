@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 
-import mock
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
@@ -171,7 +171,6 @@ class RequestCreateTest(BaseTest):
         )
 
     def test_create_confirmation_comment_if_offering_template_is_defined(self):
-        mock.patch.stopall()
         fixture = fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
@@ -222,7 +221,7 @@ class RequestCreateTest(BaseTest):
 @freeze_time('2019-01-01')
 class RequestActionBaseTest(BaseTest):
     def setUp(self):
-        super(RequestActionBaseTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
 
@@ -341,7 +340,7 @@ class RequestDeleteTest(RequestActionBaseTest):
 @ddt
 class RequestSwitchPlanTest(RequestActionBaseTest):
     def setUp(self):
-        super(RequestSwitchPlanTest, self).setUp()
+        super().setUp()
         self.plan = marketplace_factories.PlanFactory(
             offering=self.offering, unit_price=50
         )
@@ -480,7 +479,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
 @ddt
 class UpdateLimitsTest(BaseTest):
     def setUp(self):
-        super(UpdateLimitsTest, self).setUp()
+        super().setUp()
         self.old_limits = {'cpu': 10}
         self.new_limits = {'cpu': 20}
 

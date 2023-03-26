@@ -15,7 +15,7 @@ from waldur_rancher.tests import factories, fixtures, test_cluster, utils
 
 class NodeGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(NodeGetTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.fixture_2 = fixtures.RancherFixture()
         self.url = factories.NodeFactory.get_list_url()
@@ -35,7 +35,7 @@ class NodeGetTest(test.APITransactionTestCase):
 
 class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def setUp(self):
-        super(NodeCreateTest, self).setUp()
+        super().setUp()
         self.node_url = factories.NodeFactory.get_list_url()
         self.payload = {
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -321,7 +321,7 @@ class NodePullTest(test.APITransactionTestCase):
 
 class NodeDeleteTest(test.APITransactionTestCase):
     def setUp(self):
-        super(NodeDeleteTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.cluster_name = self.fixture.cluster.name
         self.url = factories.NodeFactory.get_url(self.fixture.node)
@@ -510,7 +510,7 @@ class NodeActionsTest(test.APITransactionTestCase):
         mock_instance_view_set.console_log_permissions = [self.mock_check_permissions]
 
     def tearDown(self):
-        super(NodeActionsTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
 

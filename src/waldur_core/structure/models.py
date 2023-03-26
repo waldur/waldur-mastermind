@@ -77,7 +77,7 @@ class StructureModel(models.Model):
                     return reduce(getattr, path.split('__'), self)
 
         raise AttributeError(
-            "'%s' object has no attribute '%s'" % (self._meta.object_name, name)
+            f"'{self._meta.object_name}' object has no attribute '{name}'"
         )
 
 
@@ -305,7 +305,7 @@ class CustomerRole(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs['max_length'] = 30
         kwargs['choices'] = self.CHOICES
-        super(CustomerRole, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class CustomerPermission(BasePermission):
@@ -332,7 +332,7 @@ class CustomerPermission(BasePermission):
         self.customer.remove_user(self.user, self.role)
 
     def __str__(self):
-        return '%s | %s' % (self.customer.name, self.get_role_display())
+        return f'{self.customer.name} | {self.get_role_display()}'
 
 
 class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
@@ -564,7 +564,7 @@ class Customer(
         if self.abbreviation:
             return self.abbreviation
         if self.domain:
-            return '{name} ({domain})'.format(name=self.name, domain=self.domain)
+            return f'{self.name} ({self.domain})'
         return self.name
 
     def delete(self, *args, **kwargs):
@@ -573,14 +573,14 @@ class Customer(
             for project in Project.objects.filter(customer=self):
                 project.delete(soft=False)
 
-        return super(Customer, self).delete(*args, **kwargs)
+        return super().delete(*args, **kwargs)
 
     def __str__(self):
         if self.abbreviation:
-            return '%(name)s (%(abbreviation)s)' % {
-                'name': self.name,
-                'abbreviation': self.abbreviation,
-            }
+            return '{name} ({abbreviation})'.format(
+                name=self.name,
+                abbreviation=self.abbreviation,
+            )
         else:
             return self.name
 
@@ -599,7 +599,7 @@ class ProjectRole(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs['max_length'] = 30
         kwargs['choices'] = self.CHOICES
-        super(ProjectRole, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class ProjectPermission(core_models.UuidMixin, BasePermission):
@@ -625,7 +625,7 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         self.project.remove_user(self.user, self.role)
 
     def __str__(self):
-        return '%s | %s' % (self.project.name, self.get_role_display())
+        return f'{self.project.name} | {self.get_role_display()}'
 
 
 class ProjectType(
@@ -815,10 +815,10 @@ class Project(
             return super(SoftDeletableModel, self).delete(using=using, *args, **kwargs)
 
     def __str__(self):
-        return '%(name)s | %(customer)s' % {
-            'name': self.name,
-            'customer': self.customer.name,
-        }
+        return '{name} | {customer}'.format(
+            name=self.name,
+            customer=self.customer.name,
+        )
 
     def can_user_update_quotas(self, user):
         return user.is_staff or self.customer.has_user(user, CustomerRole.OWNER)
@@ -950,13 +950,13 @@ class ServiceSettings(
             return defaults.get(name)
 
     def __str__(self):
-        return '%s (%s)' % (self.name, self.type)
+        return f'{self.name} ({self.type})'
 
     def get_log_fields(self):
         return ('uuid', 'name', 'customer')
 
     def _get_log_context(self, entity_name):
-        context = super(ServiceSettings, self)._get_log_context(entity_name)
+        context = super()._get_log_context(entity_name)
         context['service_settings_type'] = self.type
         return context
 
@@ -1000,11 +1000,11 @@ class BaseServiceProperty(
     @classmethod
     def get_url_name(cls):
         """This name will be used by generic relationships to membership model for URL creation"""
-        return '{}-{}'.format(cls._meta.app_label, cls.__name__.lower())
+        return f'{cls._meta.app_label}-{cls.__name__.lower()}'
 
     @classmethod
     def get_backend_fields(cls):
-        return super(BaseServiceProperty, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'backend_id',
             'name',
         )
@@ -1021,7 +1021,7 @@ class ServiceProperty(BaseServiceProperty):
     backend_id = models.CharField(max_length=255, db_index=True)
 
     def __str__(self):
-        return '{0} | {1}'.format(self.name, self.settings)
+        return f'{self.name} | {self.settings}'
 
 
 class GeneralServiceProperty(BaseServiceProperty):
@@ -1070,7 +1070,7 @@ class BaseResource(
 
     @classmethod
     def get_backend_fields(cls):
-        return super(BaseResource, cls).get_backend_fields() + ('backend_id',)
+        return super().get_backend_fields() + ('backend_id',)
 
     def get_backend(self, **kwargs):
         return self.service_settings.get_backend(**kwargs)
@@ -1087,20 +1087,20 @@ class BaseResource(
     @classmethod
     def get_url_name(cls):
         """This name will be used by generic relationships to membership model for URL creation"""
-        return '{}-{}'.format(cls._meta.app_label, cls.__name__.lower())
+        return f'{cls._meta.app_label}-{cls.__name__.lower()}'
 
     def get_log_fields(self):
         return ('uuid', 'name', 'service_settings', 'project', 'full_name')
 
     @property
     def full_name(self):
-        return '%s %s' % (
+        return '{} {}'.format(
             get_resource_type(self).replace('.', ' '),
             self.name,
         )
 
     def _get_log_context(self, entity_name):
-        context = super(BaseResource, self)._get_log_context(entity_name)
+        context = super()._get_log_context(entity_name)
         # XXX: Add resource_full_name here, because event context does not support properties as fields
         context['resource_full_name'] = self.full_name
         context['resource_type'] = get_resource_type(self)
@@ -1133,7 +1133,7 @@ class BaseResource(
 class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseResource):
     def __init__(self, *args, **kwargs):
         AbstractFieldTracker().finalize_class(self.__class__, 'tracker')
-        super(VirtualMachine, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     cores = models.PositiveSmallIntegerField(
         default=0, help_text=_('Number of cores in a VM')

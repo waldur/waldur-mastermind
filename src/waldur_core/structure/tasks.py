@@ -81,7 +81,7 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
             instance.save(update_fields=['state', 'error_message'])
 
     def log_error_message(self, instance, error_message):
-        logger_message = 'Failed to pull %s %s (PK: %s). Error: %s' % (
+        logger_message = 'Failed to pull {} {} (PK: {}). Error: {}'.format(
             instance.__class__.__name__,
             instance.name,
             instance.pk,
@@ -173,7 +173,7 @@ class RetryUntilAvailableTask(core_tasks.Task):
     def pre_execute(self, instance):
         if not self.is_available(instance):
             self.retry()
-        super(RetryUntilAvailableTask, self).pre_execute(instance)
+        super().pre_execute(instance)
 
     def is_available(self, instance):
         return True

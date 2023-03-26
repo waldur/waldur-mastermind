@@ -33,11 +33,11 @@ def get_unique_node_name(name, tenant_settings, rancher_settings, existing_names
     names = list(names_instances) + list(names_nodes) + existing_names
 
     i = 1
-    new_name = '%s-%s' % (name, i)
+    new_name = f'{name}-{i}'
 
     while new_name in names:
         i += 1
-        new_name = '%s-%s' % (name, i)
+        new_name = f'{name}-{i}'
 
     return new_name
 
@@ -352,7 +352,7 @@ class SyncUser:
                             backend.activate_user(rancher_user)
                             count_activated += 1
                 except exceptions.RancherException as e:
-                    logger.error('Error creating or activating user %s. %s' % (user, e))
+                    logger.error(f'Error creating or activating user {user}. {e}')
 
         return count_created, count_activated
 
@@ -367,7 +367,7 @@ class SyncUser:
                     backend.block_user(user)
                     count += 1
             except exceptions.RancherException as e:
-                logger.error('Error blocking user %s. %s' % (user, e))
+                logger.error(f'Error blocking user {user}. {e}')
         return count
 
     @staticmethod

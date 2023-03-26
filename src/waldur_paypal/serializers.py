@@ -63,7 +63,7 @@ class PaymentSerializer(
             )
         validated_data['tax'] = Decimal(rate) / Decimal(100) * amount
 
-        return super(PaymentSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class PaymentApproveSerializer(serializers.Serializer):

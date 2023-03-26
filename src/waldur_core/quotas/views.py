@@ -20,7 +20,7 @@ class QuotaViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
 
         To get all quotas visible to the user issue a **GET** request against */api/quotas/*
         """
-        return super(QuotaViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         """
@@ -58,7 +58,7 @@ class QuotaViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
             }
 
         """
-        return super(QuotaViewSet, self).retrieve(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
 
     def perform_update(self, serializer):
         if not serializer.instance.scope.can_user_update_quotas(self.request.user):

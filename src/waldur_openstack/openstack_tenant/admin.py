@@ -59,9 +59,7 @@ class ServerGroupAdmin(structure_admin.BackendModelAdmin):
 
 class MetadataMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
-        return super(MetadataMixin, self).get_readonly_fields(request, obj) + (
-            'format_metadata',
-        )
+        return super().get_readonly_fields(request, obj) + ('format_metadata',)
 
     def format_metadata(self, obj):
         return format_json_field(obj.metadata)
@@ -72,9 +70,7 @@ class MetadataMixin(admin.ModelAdmin):
 
 class ImageMetadataMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
-        return super(ImageMetadataMixin, self).get_readonly_fields(request, obj) + (
-            'format_image_metadata',
-        )
+        return super().get_readonly_fields(request, obj) + ('format_image_metadata',)
 
     def format_image_metadata(self, obj):
         return format_json_field(obj.image_metadata)
@@ -85,9 +81,7 @@ class ImageMetadataMixin(admin.ModelAdmin):
 
 class ActionDetailsMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
-        return super(ActionDetailsMixin, self).get_readonly_fields(request, obj) + (
-            'format_action_details',
-        )
+        return super().get_readonly_fields(request, obj) + ('format_action_details',)
 
     def format_action_details(self, obj):
         return format_json_field(obj.action_details)

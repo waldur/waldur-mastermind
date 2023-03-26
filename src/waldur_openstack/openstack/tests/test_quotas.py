@@ -5,7 +5,7 @@ from waldur_openstack.openstack.tests import fixtures
 
 class TenantQuotasTest(test.APITransactionTestCase):
     def setUp(self):
-        super(TenantQuotasTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.project = self.fixture.project

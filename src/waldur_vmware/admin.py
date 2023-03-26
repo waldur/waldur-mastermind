@@ -49,7 +49,7 @@ class CustomerInlineFormset(BaseInlineFormSet):
         (network, cluster and folder) defined per customer
         per shared service setting.
         """
-        super(CustomerInlineFormset, self).clean()
+        super().clean()
         if is_basic_mode():
             enabled_settings = {}
             for form in self.forms:

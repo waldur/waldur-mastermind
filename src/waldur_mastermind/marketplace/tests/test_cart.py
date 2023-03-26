@@ -441,7 +441,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
         class NewInstanceSerializer(structure_test_serializers.NewInstanceSerializer):
             def __init__(self, *args, **kwargs):
                 init_args.extend([self, args, kwargs])
-                super(NewInstanceSerializer, self).__init__(*args, **kwargs)
+                super().__init__(*args, **kwargs)
 
             class Meta(structure_test_serializers.NewInstanceSerializer.Meta):
                 fields = (

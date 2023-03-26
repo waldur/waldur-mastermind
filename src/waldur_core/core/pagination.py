@@ -20,7 +20,7 @@ class LinkHeaderPagination(pagination.PageNumberPagination):
         )
 
         link = ', '.join(
-            '<%s>; rel="%s"' % (get_link(), rel)
+            f'<{get_link()}>; rel="{rel}"'
             for rel, get_link in link_candidates.items()
             if get_link()
         )

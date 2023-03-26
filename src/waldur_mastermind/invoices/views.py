@@ -532,7 +532,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
     unlink_from_invoice_validators = [_link_to_invoice_does_not_exist]
 
     def perform_create(self, serializer):
-        super(PaymentViewSet, self).perform_create(serializer)
+        super().perform_create(serializer)
         payment = serializer.instance
         log.event_logger.payment.info(
             'Payment for {customer_name} in the amount of {amount} has been added.',
@@ -546,7 +546,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
     def perform_destroy(self, instance):
         customer = instance.profile.organization
         amount = instance.sum
-        super(PaymentViewSet, self).perform_destroy(instance)
+        super().perform_destroy(instance)
 
         log.event_logger.payment.info(
             'Payment for {customer_name} in the amount of {amount} has been removed.',

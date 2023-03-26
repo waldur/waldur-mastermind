@@ -488,7 +488,7 @@ class InstanceUpdateTest(test.APITransactionTestCase):
 
 class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def setUp(self):
-        super(InstanceDeleteTest, self).setUp()
+        super().setUp()
         self.instance = factories.InstanceFactory(
             state=models.Instance.States.OK,
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
@@ -499,7 +499,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         views.MarketplaceInstanceViewSet.async_executor = False
 
     def tearDown(self):
-        super(InstanceDeleteTest, self).tearDown()
+        super().tearDown()
         views.MarketplaceInstanceViewSet.async_executor = True
 
     def mock_volumes(self, delete_data_volume=True):
@@ -1074,7 +1074,7 @@ class InstanceActionsTest(test.APITransactionTestCase):
         self.mock_console.return_value = self.backend_return_value
 
     def tearDown(self):
-        super(InstanceActionsTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
 

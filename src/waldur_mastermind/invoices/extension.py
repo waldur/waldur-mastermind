@@ -28,7 +28,7 @@ class InvoicesExtension(WaldurExtension):
                 'ENABLE': False,
                 'EMAIL': 'accounting@waldur.example.com',
                 'CSV_PARAMS': {
-                    'delimiter': str(';'),
+                    'delimiter': ';',
                 },
                 'USE_SAF': False,
                 'SERIALIZER_EXTRA_KWARGS': {

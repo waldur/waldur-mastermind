@@ -14,7 +14,7 @@ class BaseBackupScheduleTest(test.APITransactionTestCase):
 @ddt
 class BackupScheduleRetrieveTest(BaseBackupScheduleTest):
     def setUp(self):
-        super(BackupScheduleRetrieveTest, self).setUp()
+        super().setUp()
         self.backup_schedule = self.fixture.backup_schedule
         self.url = factories.BackupScheduleFactory.get_list_url()
 
@@ -41,7 +41,7 @@ class BackupScheduleRetrieveTest(BaseBackupScheduleTest):
 @ddt
 class BackupScheduleDeleteTest(BaseBackupScheduleTest):
     def setUp(self):
-        super(BackupScheduleDeleteTest, self).setUp()
+        super().setUp()
         self.schedule = factories.BackupScheduleFactory(instance=self.fixture.instance)
         self.url = factories.BackupScheduleFactory.get_url(self.schedule)
 
@@ -68,7 +68,7 @@ class BackupScheduleDeleteTest(BaseBackupScheduleTest):
 @ddt
 class BackupScheduleActivateTest(BaseBackupScheduleTest):
     def setUp(self):
-        super(BackupScheduleActivateTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(self.fixture.owner)
         self.schedule = self.fixture.backup_schedule
 
@@ -103,7 +103,7 @@ class BackupScheduleActivateTest(BaseBackupScheduleTest):
 @ddt
 class BackupScheduleDeactivateTest(BaseBackupScheduleTest):
     def setUp(self):
-        super(BackupScheduleDeactivateTest, self).setUp()
+        super().setUp()
         self.schedule = self.fixture.backup_schedule
 
     def test_backup_schedule_do_not_start_deactivation_of_not_active_schedule(self):

@@ -55,7 +55,7 @@ class GroupSynchronizer:
         self.freeipa_names = dict()
 
     def group_name(self, key):
-        return '%s%s' % (self.group_prefix, key)
+        return f'{self.group_prefix}{key}'
 
     def project_group_name(self, project):
         return self.group_name('project_%s' % project.uuid)

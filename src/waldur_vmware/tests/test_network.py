@@ -10,7 +10,7 @@ from . import factories
 
 class NetworkGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(NetworkGetTest, self).setUp()
+        super().setUp()
         self.fixture = ProjectFixture()
         self.fixture_2 = ProjectFixture()
         network_1 = factories.NetworkFactory()
@@ -53,14 +53,14 @@ class NetworkGetTest(test.APITransactionTestCase):
 
 class NetworkPullTest(test.APITransactionTestCase):
     def setUp(self):
-        super(NetworkPullTest, self).setUp()
+        super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
         self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
         self.mock_client = self.patcher.start()
 
     def tearDown(self):
-        super(NetworkPullTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_delete_old_networks(self):

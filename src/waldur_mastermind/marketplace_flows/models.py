@@ -99,7 +99,7 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
 
     @transaction.atomic
     def submit(self):
-        super(FlowTracker, self).submit()
+        super().submit()
         if self.customer_create_request:
             self.customer_create_request.submit()
         self.project_create_request.submit()
@@ -107,7 +107,7 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
 
     @transaction.atomic
     def cancel(self):
-        super(FlowTracker, self).cancel()
+        super().cancel()
         if self.customer_create_request:
             self.customer_create_request.cancel()
         self.project_create_request.cancel()

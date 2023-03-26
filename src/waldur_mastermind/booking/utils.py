@@ -16,7 +16,7 @@ try:
     from collections.abc import Sequence
 except ImportError:
     # using Python 3.10-
-    from collections import Sequence
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def get_offering_bookings(offering):
     bookings = []
 
     if offering.latitude and offering.longitude:
-        location = '{%s}, {%s}' % (
+        location = '{{{}}}, {{{}}}'.format(
             offering.latitude,
             offering.longitude,
         )

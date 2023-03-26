@@ -110,7 +110,7 @@ class BaseBatchClient(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     def execute_command(self, command):
-        server = '%s@%s' % (self.username, self.hostname)
+        server = f'{self.username}@{self.hostname}'
         port = str(self.port)
         if self.use_sudo:
             account_command = ['sudo']

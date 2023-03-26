@@ -198,7 +198,7 @@ class IssueSerializer(
         )
 
     def get_fields(self):
-        fields = super(IssueSerializer, self).get_fields()
+        fields = super().get_fields()
 
         if (
             'view' not in self.context
@@ -335,7 +335,7 @@ class IssueSerializer(
             'description', validated_data
         )
         validated_data['summary'] = render_issue_template('summary', validated_data)
-        return super(IssueSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
     def _render_template(self, config_name, issue):
         raw = self.issue_settings[config_name]
@@ -417,7 +417,7 @@ class CommentSerializer(
             _,
         ) = models.SupportUser.objects.get_or_create_from_user(author_user)
         validated_data['issue'] = self.context['view'].get_object()
-        return super(CommentSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class SupportUserSerializer(
@@ -560,7 +560,7 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
         )
 
     def get_fields(self):
-        fields = super(TemplateSerializer, self).get_fields()
+        fields = super().get_fields()
         if not settings.WALDUR_CORE['NATIVE_NAME_ENABLED']:
             del fields['native_name']
             del fields['native_description']

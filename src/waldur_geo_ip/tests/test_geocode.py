@@ -14,14 +14,14 @@ class OfferingGeoCodeTest(test.APITransactionTestCase):
         mock_patch = mock.patch('waldur_core.core.utils.Nominatim')
         mock_nominatim = mock_patch.start()
 
-        class Location(object):
+        class Location:
             latitude = 10.0
             longitude = 10.0
 
         mock_nominatim().geocode.return_value = Location()
 
     def tearDown(self):
-        super(OfferingGeoCodeTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_get_lat_lon_from_address(self):

@@ -115,9 +115,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         for k, v in value.items():
             if isinstance(v, list):
                 # If a filter value is a list, use multiple choice.
-                queryset = queryset.filter(
-                    **{'attributes__{key}__has_any_keys'.format(key=k): v}
-                )
+                queryset = queryset.filter(**{f'attributes__{k}__has_any_keys': v})
             else:
                 queryset = queryset.filter(attributes__contains={k: v})
         return queryset

@@ -15,7 +15,7 @@ class BaseSecurityGroupTest(test.APITransactionTestCase):
 @ddt
 class SecurityGroupCreateTest(BaseSecurityGroupTest):
     def setUp(self):
-        super(SecurityGroupCreateTest, self).setUp()
+        super().setUp()
         self.valid_data = {
             'name': 'https',
             'rules': [
@@ -261,7 +261,7 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
 @ddt
 class SecurityGroupUpdateTest(BaseSecurityGroupTest):
     def setUp(self):
-        super(SecurityGroupUpdateTest, self).setUp()
+        super().setUp()
         self.security_group = factories.SecurityGroupFactory(
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,
@@ -336,7 +336,7 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
 
 class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
     def setUp(self):
-        super(SecurityGroupSetRulesTest, self).setUp()
+        super().setUp()
         self.security_group = factories.SecurityGroupFactory(
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,
@@ -500,7 +500,7 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
 @ddt
 class SecurityGroupDeleteTest(BaseSecurityGroupTest):
     def setUp(self):
-        super(SecurityGroupDeleteTest, self).setUp()
+        super().setUp()
         self.security_group = factories.SecurityGroupFactory(
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,
@@ -544,7 +544,7 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
 @ddt
 class SecurityGroupRetrieveTest(BaseSecurityGroupTest):
     def setUp(self):
-        super(SecurityGroupRetrieveTest, self).setUp()
+        super().setUp()
         self.security_group = factories.SecurityGroupFactory(
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,

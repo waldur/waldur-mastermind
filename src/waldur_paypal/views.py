@@ -24,7 +24,7 @@ class CheckExtensionMixin:
     def initial(self, request, *args, **kwargs):
         if not settings.WALDUR_PAYPAL['ENABLED']:
             raise ExtensionDisabled()
-        return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
+        return super().initial(request, *args, **kwargs)
 
 
 class CreateByStaffOrOwnerMixin:
@@ -35,7 +35,7 @@ class CreateByStaffOrOwnerMixin:
         if not structure_permissions._has_owner_access(request.user, customer):
             raise exceptions.PermissionDenied()
 
-        return super(CreateByStaffOrOwnerMixin, self).create(request)
+        return super().create(request)
 
 
 class PaymentView(

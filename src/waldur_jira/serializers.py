@@ -118,7 +118,7 @@ class ProjectSerializer(structure_serializers.BaseResourceSerializer):
 
     def create(self, validated_data):
         validated_data['backend_id'] = validated_data['key']
-        return super(ProjectSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class JiraPropertySerializer(
@@ -151,7 +151,7 @@ class JiraPropertySerializer(
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        return super(JiraPropertySerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class CommentSerializer(JiraPropertySerializer):
@@ -369,7 +369,7 @@ class IssueSerializer(JiraPropertySerializer):
                     }
                 )
 
-        return super(IssueSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 #

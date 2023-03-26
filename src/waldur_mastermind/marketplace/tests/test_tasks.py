@@ -69,7 +69,7 @@ class NotificationTest(test.APITransactionTestCase):
             resource.uuid,
         )
         self.assertEqual(len(mail.outbox), 1)
-        subject_template_name = '%s/%s_subject.txt' % (
+        subject_template_name = '{}/{}_subject.txt'.format(
             'marketplace',
             'marketplace_resource_create_succeeded',
         )
@@ -253,7 +253,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 1)
-        subject_template_name = '%s/%s_subject.txt' % (
+        subject_template_name = '{}/{}_subject.txt'.format(
             'marketplace',
             'notification_about_stale_resources',
         )

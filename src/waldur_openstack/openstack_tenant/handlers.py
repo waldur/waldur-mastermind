@@ -66,7 +66,7 @@ def _get_action_message(action, action_details):
 
 
 def _get_action_event_type(action, event_state):
-    return 'resource_%s_%s' % (action.replace(' ', '_').lower(), event_state)
+    return 'resource_{}_{}'.format(action.replace(' ', '_').lower(), event_state)
 
 
 def log_action(sender, instance, created=False, **kwargs):
@@ -391,9 +391,7 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
                     rule_property.save(update_fields=['remote_group'])
 
     def create_service_property(self, resource, settings):
-        service_property, _ = super(SecurityGroupHandler, self).create_service_property(
-            resource, settings
-        )
+        service_property, _ = super().create_service_property(resource, settings)
         if resource.rules.count() > 0:
             group_rules = self.map_rules(service_property, resource)
             service_property.rules.bulk_create(group_rules)
@@ -401,9 +399,7 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
         return service_property
 
     def update_service_property(self, resource, settings):
-        service_property = super(SecurityGroupHandler, self).update_service_property(
-            resource, settings
-        )
+        service_property = super().update_service_property(resource, settings)
         if not service_property:
             return
 
@@ -432,7 +428,7 @@ class SubNetHandler(BaseSynchronizationHandler):
         return resource.network.tenant
 
     def map_resource_to_dict(self, resource):
-        params = super(SubNetHandler, self).map_resource_to_dict(resource)
+        params = super().map_resource_to_dict(resource)
         params['network'] = models.Network.objects.get(
             backend_id=resource.network.backend_id
         )

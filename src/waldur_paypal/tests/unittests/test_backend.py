@@ -17,7 +17,7 @@ class BaseBackendTest(TestCase):
 
 class CreateInvoiceTest(BaseBackendTest):
     def setUp(self):
-        super(CreateInvoiceTest, self).setUp()
+        super().setUp()
         self.invoice.backend_id = ''
         self.invoice.save()
 
@@ -57,7 +57,7 @@ class CreateInvoiceTest(BaseBackendTest):
 
 class DownloadInvoicePDFTest(BaseBackendTest):
     def setUp(self):
-        super(DownloadInvoicePDFTest, self).setUp()
+        super().setUp()
 
     def test_pdf_is_not_downloaded_if_backend_id_is_missing(self):
         self.invoice.backend_id = ''

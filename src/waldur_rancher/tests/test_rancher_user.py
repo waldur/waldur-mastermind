@@ -5,7 +5,7 @@ from waldur_rancher.tests import factories, fixtures
 
 class RancherUserGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(RancherUserGetTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.fixture_2 = fixtures.RancherFixture()
         self.url = factories.RancherUserFactory.get_list_url()

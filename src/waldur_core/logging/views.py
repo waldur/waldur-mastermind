@@ -111,7 +111,7 @@ class WebHookViewSet(BaseHookViewSet):
 
         Note that context depends on event type.
         """
-        return super(WebHookViewSet, self).create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
 
 
 class EmailHookViewSet(BaseHookViewSet):
@@ -148,7 +148,7 @@ class EmailHookViewSet(BaseHookViewSet):
                 "is_active": "false"
             }
         """
-        return super(EmailHookViewSet, self).create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
 
 
 class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):

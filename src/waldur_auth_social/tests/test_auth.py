@@ -111,7 +111,7 @@ class DisabledAuthenticationTest(BaseAuthTest):
 @responses.activate
 class EduteamsAuthenticationTest(test.APITransactionTestCase):
     def setUp(self):
-        super(EduteamsAuthenticationTest, self).setUp()
+        super().setUp()
         self.valid_data = {
             'clientId': '4242324',
             'redirectUri': 'http://example.com/redirect/',
@@ -195,7 +195,7 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
 )
 class RemoteEduteamsTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        super(RemoteEduteamsTest, self).setUp()
+        super().setUp()
         self.url = reverse('auth_remote_eduteams')
         self.valid_cuid = (
             '87b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org'

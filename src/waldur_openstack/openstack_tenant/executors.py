@@ -87,7 +87,7 @@ class VolumeExtendExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def pre_apply(cls, volume, **kwargs):
-        super(VolumeExtendExecutor, cls).pre_apply(volume, **kwargs)
+        super().pre_apply(volume, **kwargs)
         if volume.instance is not None:
             volume.instance.action = 'Extend volume'
             volume.instance.schedule_updating()
@@ -153,19 +153,13 @@ class VolumeExtendExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_success_signature(cls, volume, serialized_volume, **kwargs):
         if volume.instance is None:
-            return super(VolumeExtendExecutor, cls).get_success_signature(
-                volume, serialized_volume, **kwargs
-            )
+            return super().get_success_signature(volume, serialized_volume, **kwargs)
         else:
             instance = volume.instance
             serialized_instance = core_utils.serialize_instance(instance)
             return chain(
-                super(VolumeExtendExecutor, cls).get_success_signature(
-                    volume, serialized_volume, **kwargs
-                ),
-                super(VolumeExtendExecutor, cls).get_success_signature(
-                    instance, serialized_instance, **kwargs
-                ),
+                super().get_success_signature(volume, serialized_volume, **kwargs),
+                super().get_success_signature(instance, serialized_instance, **kwargs),
             )
 
     @classmethod

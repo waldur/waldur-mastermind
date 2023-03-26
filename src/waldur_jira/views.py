@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class JiraPermissionMixin:
     def get_queryset(self):
         user = self.request.user
-        queryset = super(JiraPermissionMixin, self).get_queryset()
+        queryset = super().get_queryset()
         if user.is_staff:
             return queryset
         else:
@@ -103,7 +103,7 @@ class WebHookReceiverViewSet(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         try:
-            return super(WebHookReceiverViewSet, self).create(request, *args, **kwargs)
+            return super().create(request, *args, **kwargs)
         except Exception as e:
             # Throw validation errors to the logs
             logger.error("Can't parse JIRA WebHook request: %s" % e)

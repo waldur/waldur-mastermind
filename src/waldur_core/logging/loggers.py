@@ -191,7 +191,7 @@ class EventLogger(BaseLogger):
     """
 
     def __init__(self, logger_name=__name__):
-        super(EventLogger, self).__init__(logger_name)
+        super().__init__(logger_name)
         self.logger = EventLoggerAdapter(logging.getLogger(logger_name))
 
     def get_supported_types(self):
@@ -265,7 +265,7 @@ class LoggableMixin:
                 continue
 
             if entity_name:
-                name = "{}_{}".format(entity_name, field)
+                name = f"{entity_name}_{field}"
             else:
                 name = field
             if isinstance(value, uuid.UUID):

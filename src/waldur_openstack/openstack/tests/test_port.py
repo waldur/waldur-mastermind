@@ -13,7 +13,7 @@ class BasePortTest(test.APITransactionTestCase):
 
 class PortCreateActionTest(BasePortTest):
     def setUp(self):
-        super(PortCreateActionTest, self).setUp()
+        super().setUp()
         self.url = factories.PortFactory.get_list_url()
 
     def test_port_create_action_is_not_allowed(self):
@@ -23,7 +23,7 @@ class PortCreateActionTest(BasePortTest):
 
 class PortDeleteTest(BasePortTest):
     def setUp(self) -> None:
-        super(PortDeleteTest, self).setUp()
+        super().setUp()
         self.port = self.fixture.port
         self.url = factories.PortFactory.get_url(self.port)
 

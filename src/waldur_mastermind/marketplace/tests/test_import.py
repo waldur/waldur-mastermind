@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -74,7 +75,7 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
         self.mock_backend().get_importable_virtual_machines.return_value = []
 
     def tearDown(self):
-        super(ImportableResourcesListTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def list_resources(self, shared, user, project=None):

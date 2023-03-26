@@ -94,7 +94,7 @@ class ServiceProvider(
     def save(self, *args, **kwargs):
         if not self.pk:
             self.generate_api_secret_code()
-        super(ServiceProvider, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class Category(
@@ -288,7 +288,7 @@ class CategoryComponent(BaseComponent):
     )
 
     def __str__(self):
-        return '%s, category: %s' % (self.name, self.category.title)
+        return f'{self.name}, category: {self.category.title}'
 
 
 class CategoryComponentUsage(core_mixins.ScopeMixin):
@@ -299,7 +299,7 @@ class CategoryComponentUsage(core_mixins.ScopeMixin):
     objects = managers.MixinManager('scope')
 
     def __str__(self):
-        return 'component: %s, date: %s' % (str(self.component.name), self.date)
+        return f'component: {str(self.component.name)}, date: {self.date}'
 
 
 def offering_has_plans(offering):
@@ -779,7 +779,7 @@ class PlanComponent(models.Model):
     def __str__(self):
         name = self.component and self.component.name
         if name:
-            return '%s, plan: %s' % (name, self.plan.name)
+            return f'{name}, plan: {self.plan.name}'
         return 'for plan: %s' % self.plan.name
 
 
@@ -842,7 +842,7 @@ class RequestTypeMixin(CostEstimateMixin):
         abstract = True
 
     def init_cost(self):
-        super(RequestTypeMixin, self).init_cost()
+        super().init_cost()
         if self.plan:
             if self.type == RequestTypeMixin.Types.CREATE:
                 self.cost += self.plan.init_price
@@ -882,7 +882,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
         ordering = ('created',)
 
     def __str__(self):
-        return 'user: %s, offering: %s' % (self.user.username, self.offering.name)
+        return f'user: {self.user.username}, offering: {self.offering.name}'
 
 
 class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
@@ -989,7 +989,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             return self.items.first().get_type_display()
 
     def _get_log_context(self, entity_name):
-        context = super(Order, self)._get_log_context(entity_name)
+        context = super()._get_log_context(entity_name)
         context['order_items'] = [
             item._get_log_context('') for item in self.items.all()
         ]
@@ -997,7 +997,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
 
     def __str__(self):
         try:
-            return 'project: %s, created by: %s' % (
+            return 'project: {}, created by: {}'.format(
                 self.project.name,
                 self.created_by.username,
             )
@@ -1329,7 +1329,7 @@ class OrderItem(
         }
 
     def __str__(self):
-        return 'type: %s, offering: %s, created_by: %s' % (
+        return 'type: {}, offering: {}, created_by: {}'.format(
             self.get_type_display(),
             self.offering,
             self.order.created_by,
@@ -1351,7 +1351,7 @@ class ComponentQuota(TimeStampedModel):
         unique_together = ('resource', 'component')
 
     def __str__(self):
-        return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
+        return f'resource: {self.resource.name}, component: {self.component.name}'
 
 
 class ComponentUsage(
@@ -1390,7 +1390,7 @@ class ComponentUsage(
         unique_together = ('resource', 'component', 'plan_period', 'billing_period')
 
     def __str__(self):
-        return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
+        return f'resource: {self.resource.name}, component: {self.component.name}'
 
     def get_log_fields(self):
         return ('uuid', 'description', 'usage', 'date', 'resource', 'component')
@@ -1474,7 +1474,7 @@ class OfferingUser(TimeStampedModel):
         self.propagation_date = now
 
     def __str__(self) -> str:
-        return "%s: %s" % (self.offering.name, self.username)
+        return f"{self.offering.name}: {self.username}"
 
 
 class CategoryHelpArticle(models.Model):

@@ -142,7 +142,7 @@ class ConnectedResourceMixin:
     protected_fields = ()
 
     def get_readonly_fields(self, request, obj=None):
-        fields = super(ConnectedResourceMixin, self).get_readonly_fields(request, obj)
+        fields = super().get_readonly_fields(request, obj)
         if obj and obj.has_connected_resources:
             return fields + self.protected_fields
         else:
@@ -189,7 +189,7 @@ class PlanComponentInline(
         if plan and plan.has_connected_resources:
             return 0
         else:
-            return super(PlanComponentInline, self).get_extra(request, obj, **kwargs)
+            return super().get_extra(request, obj, **kwargs)
 
 
 class PlanDivisionsInline(admin.StackedInline):
@@ -255,7 +255,7 @@ def get_admin_url_for_scope(scope):
     else:
         model = scope
     return reverse(
-        'admin:%s_%s_change' % (scope._meta.app_label, model._meta.model_name),
+        f'admin:{scope._meta.app_label}_{model._meta.model_name}_change',
         args=[scope.id],
     )
 
@@ -514,7 +514,7 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
 class ResourceForm(ModelForm):
     def __init__(self, *args, **kwargs):
-        super(ResourceForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         if self.instance and hasattr(self.instance, 'offering'):
             # Filter marketplace resource plans by offering
             self.fields['plan'].queryset = self.fields['plan'].queryset.filter(

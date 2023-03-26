@@ -1,6 +1,6 @@
 from datetime import timedelta
+from unittest import mock
 
-import mock
 from ddt import data, ddt
 from django.core import mail, signing
 from django.test import override_settings
@@ -73,7 +73,7 @@ class FeedbackCreateTest(base.BaseTest):
 
 class FeedbackNotificationTest(base.BaseTest):
     def setUp(self):
-        super(FeedbackNotificationTest, self).setUp()
+        super().setUp()
         factories.IssueStatusFactory(
             name='resolved', type=models.IssueStatus.Types.RESOLVED
         )
@@ -114,7 +114,7 @@ class FeedbackNotificationTest(base.BaseTest):
 @ddt
 class FeedbackReportTest(base.BaseTest):
     def setUp(self):
-        super(FeedbackReportTest, self).setUp()
+        super().setUp()
         factories.FeedbackFactory(evaluation=10)
         factories.FeedbackFactory(evaluation=6)
         self.avg = round(

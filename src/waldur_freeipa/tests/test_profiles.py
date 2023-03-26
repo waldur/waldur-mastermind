@@ -56,7 +56,7 @@ class ProfileValidateTest(BaseProfileTest):
 @mock.patch('python_freeipa.Client')
 class ProfileCreateTest(BaseProfileTest):
     def setUp(self):
-        super(ProfileCreateTest, self).setUp()
+        super().setUp()
         self.valid_data = {'username': 'alice'}
 
     def test_profile_creation_fails_if_username_is_not_available(self, mock_client):

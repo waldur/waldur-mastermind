@@ -62,7 +62,7 @@ class HookCreationViewTest(BaseHookApiTest):
 @ddt
 class HookUpdateTest(BaseHookApiTest):
     def setUp(self):
-        super(HookUpdateTest, self).setUp()
+        super().setUp()
         self.hooks = {
             'web': WebHookFactory.get_url(WebHookFactory(user=self.author)),
         }
@@ -109,7 +109,7 @@ class HookUpdateTest(BaseHookApiTest):
 
 class HookPermissionsViewTest(BaseHookApiTest):
     def setUp(self):
-        super(HookPermissionsViewTest, self).setUp()
+        super().setUp()
         self.url = WebHookFactory.get_url(WebHookFactory(user=self.author))
 
     def test_hook_visible_to_author(self):

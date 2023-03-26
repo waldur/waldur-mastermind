@@ -10,7 +10,7 @@ from . import factories
 
 class DatastoreGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(DatastoreGetTest, self).setUp()
+        super().setUp()
         self.fixture = ProjectFixture()
         self.fixture_2 = ProjectFixture()
         datastore_1 = factories.DatastoreFactory()
@@ -53,14 +53,14 @@ class DatastoreGetTest(test.APITransactionTestCase):
 
 class DatastorePullTest(test.APITransactionTestCase):
     def setUp(self):
-        super(DatastorePullTest, self).setUp()
+        super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
         self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
         self.mock_client = self.patcher.start()
 
     def tearDown(self):
-        super(DatastorePullTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_delete_old_datastores(self):

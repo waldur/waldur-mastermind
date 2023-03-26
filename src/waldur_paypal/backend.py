@@ -42,13 +42,13 @@ class PaypalBackend:
         self.server = self.BACKEND_SERVERS_MAP[mode]
 
     def get_payment_view_url(self, backend_invoice_id, params=None):
-        invoice_url = '%s/invoice/payerView/details/%s' % (
+        invoice_url = '{}/invoice/payerView/details/{}'.format(
             self.server,
             backend_invoice_id,
         )
         if params:
             query_params = urlencode(params)
-            invoice_url = '%s?%s' % (invoice_url, query_params)
+            invoice_url = f'{invoice_url}?{query_params}'
 
         return invoice_url
 
@@ -269,7 +269,7 @@ class PaypalBackend:
                 'type': 'INFINITE',
                 'payment_definitions': [
                     {
-                        'name': 'Monthly payment for {}'.format(name),
+                        'name': f'Monthly payment for {name}',
                         'type': 'REGULAR',
                         'frequency_interval': 1,
                         'frequency': 'MONTH',
@@ -331,7 +331,7 @@ class PaypalBackend:
         agreement = paypal.BillingAgreement(
             {
                 'name': name,
-                'description': 'Agreement for {}'.format(name),
+                'description': f'Agreement for {name}',
                 'start_date': formatted_date,
                 'payer': {'payment_method': 'paypal'},
                 'plan': {'id': plan_id},

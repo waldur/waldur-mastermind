@@ -65,13 +65,13 @@ def create_offering_users_for_existing_users(apps, schema_editor):
         else:
             number = '0'.zfill(USERNAME_ANONYMIZED_POSTFIX_LENGTH)
 
-        return "%s%s" % (prefix, number)
+        return f"{prefix}{number}"
 
     def create_username_from_full_name(user, offering):
         first_name = sanitize_name(user.first_name)
         last_name = sanitize_name(user.last_name)
 
-        username_raw = "%s.%s" % (first_name, last_name)
+        username_raw = f"{first_name}.{last_name}"
         previous_users = OfferingUser.objects.filter(
             offering=offering, username__istartswith=username_raw
         ).order_by('username')
@@ -83,7 +83,7 @@ def create_offering_users_for_existing_users(apps, schema_editor):
         else:
             number = '0'.zfill(USERNAME_POSTFIX_LENGTH)
 
-        return "%s.%s" % (username_raw, number)
+        return f"{username_raw}.{number}"
 
     def create_username_from_freeipa_profile(user):
         profiles = Profile.objects.filter(user=user)

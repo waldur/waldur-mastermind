@@ -95,7 +95,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         )
 
     def validate(self, attrs):
-        attrs = super(InstanceSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
 
         region = attrs['region']
         image = attrs['image']
@@ -127,7 +127,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             validated_data['key_name'] = ssh_key.name
             validated_data['key_fingerprint'] = ssh_key.fingerprint
 
-        instance = super(InstanceSerializer, self).create(validated_data)
+        instance = super().create(validated_data)
         volume = {
             'name': ('temp-%s' % instance.name)[:150],
             'state': models.Volume.States.CREATION_SCHEDULED,

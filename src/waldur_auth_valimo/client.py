@@ -23,7 +23,7 @@ class ResponseStatusError(ClientError):
 
 class RequestError(ClientError):
     def __init__(self, message, response=None):
-        super(RequestError, self).__init__(message)
+        super().__init__(message)
         self.response = response
 
 
@@ -161,10 +161,10 @@ class SignatureRequest(Request):
             'MessagingMode': 'asynchClientServer',
             'AP_TransID': cls._format_transaction_id(transaction_id),
             'MSISDN': phone,
-            'DataToBeSigned': '%s %s' % (cls.settings['message_prefix'], message),
+            'DataToBeSigned': '{} {}'.format(cls.settings['message_prefix'], message),
             'SignatureProfile': cls.settings['SignatureProfile'],
         }
-        return super(SignatureRequest, cls).execute(**kwargs)
+        return super().execute(**kwargs)
 
 
 class Statuses:
@@ -261,7 +261,7 @@ class StatusRequest(Request):
             'MSSP_TransID': backend_transaction_id,
         }
         try:
-            return super(StatusRequest, cls).execute(**kwargs)
+            return super().execute(**kwargs)
         except RequestError as e:
             # If request was timed out or user canceled login - Valimo would return response with status 500
             return ErredStatusResponse(e.response.content)

@@ -43,7 +43,7 @@ class StatsBaseTest(test.APITransactionTestCase):
 @freeze_time('2019-01-22')
 class StatsTest(StatsBaseTest):
     def setUp(self):
-        super(StatsTest, self).setUp()
+        super().setUp()
 
         self.date = parse_date('2019-01-01')
 
@@ -161,7 +161,7 @@ class StatsTest(StatsBaseTest):
 @freeze_time('2020-01-01')
 class CostsStatsTest(StatsBaseTest):
     def setUp(self):
-        super(CostsStatsTest, self).setUp()
+        super().setUp()
         self.url = factories.OfferingFactory.get_url(self.offering, action='costs')
 
         self.plan = factories.PlanFactory(
@@ -227,7 +227,7 @@ class CostsStatsTest(StatsBaseTest):
 @freeze_time('2020-03-01')
 class ComponentStatsTest(StatsBaseTest):
     def setUp(self):
-        super(ComponentStatsTest, self).setUp()
+        super().setUp()
         self.url = factories.OfferingFactory.get_url(
             self.offering, action='component_stats'
         )

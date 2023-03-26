@@ -1,4 +1,3 @@
-# encoding: utf-8
 import django.contrib.auth
 import factory.fuzzy
 from rest_framework.reverse import reverse

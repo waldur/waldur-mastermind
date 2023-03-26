@@ -267,7 +267,7 @@ class PullFloatingIPTest(BaseBackendTest):
 
 class PullSecurityGroupsTest(BaseBackendTest):
     def setUp(self):
-        super(PullSecurityGroupsTest, self).setUp()
+        super().setUp()
         self.backend_security_groups = {
             'security_groups': [
                 {
@@ -346,7 +346,7 @@ class PullSecurityGroupsTest(BaseBackendTest):
 
 class PullNetworksTest(BaseBackendTest):
     def setUp(self):
-        super(PullNetworksTest, self).setUp()
+        super().setUp()
         self.backend_networks = {
             'networks': [
                 {
@@ -388,7 +388,7 @@ class PullNetworksTest(BaseBackendTest):
 
 class PullSubnetsTest(BaseBackendTest):
     def setUp(self):
-        super(PullSubnetsTest, self).setUp()
+        super().setUp()
         self.network = factories.NetworkFactory(
             settings=self.settings, backend_id='network_id'
         )
@@ -487,7 +487,7 @@ class GetVolumesTest(VolumesBaseTest):
 
 class CreateVolumesTest(VolumesBaseTest):
     def setUp(self):
-        super(CreateVolumesTest, self).setUp()
+        super().setUp()
         self.patcher = mock.patch(
             'waldur_openstack.openstack_base.backend.OpenStackClient'
         )
@@ -497,7 +497,7 @@ class CreateVolumesTest(VolumesBaseTest):
         mock_client().cinder = cinder
 
     def tearDown(self):
-        super(CreateVolumesTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_use_default_volume_type_if_type_not_populated(self):
@@ -574,7 +574,7 @@ class CreateVolumesTest(VolumesBaseTest):
 
 class ImportVolumeTest(BaseBackendTest):
     def setUp(self):
-        super(ImportVolumeTest, self).setUp()
+        super().setUp()
         self.backend_volume_id = 'backend_id'
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
@@ -618,7 +618,7 @@ class ImportVolumeTest(BaseBackendTest):
 
 class PullVolumeTest(BaseBackendTest):
     def setUp(self):
-        super(PullVolumeTest, self).setUp()
+        super().setUp()
         self.backend_volume_id = 'backend_id'
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
@@ -710,7 +710,7 @@ class PullInstanceAvailabilityZonesTest(BaseBackendTest):
 
 class PullVolumeAvailabilityZonesTest(BaseBackendTest):
     def setUp(self):
-        super(PullVolumeAvailabilityZonesTest, self).setUp()
+        super().setUp()
         self.tenant_backend.is_volume_availability_zone_supported = lambda: True
 
     def test_default_zone_is_not_pulled(self):
@@ -754,7 +754,7 @@ class PullVolumeAvailabilityZonesTest(BaseBackendTest):
 
 class PullInstanceTest(BaseBackendTest):
     def setUp(self):
-        super(PullInstanceTest, self).setUp()
+        super().setUp()
 
         class MockFlavor:
             name = 'flavor_name'
@@ -1164,7 +1164,7 @@ class PullInternalIpsTest(BaseBackendTest):
 
 class GetInstancesTest(BaseBackendTest):
     def setUp(self):
-        super(GetInstancesTest, self).setUp()
+        super().setUp()
 
     def _generate_instances(self, backend=False, count=1):
         instances = []
@@ -1197,7 +1197,7 @@ class GetInstancesTest(BaseBackendTest):
 
 class ImportInstanceTest(BaseBackendTest):
     def setUp(self):
-        super(ImportInstanceTest, self).setUp()
+        super().setUp()
         self.backend_id = 'instance_id'
         self.backend_instance = self._get_valid_instance(self.backend_id)
         self.nova_client_mock.servers.get.return_value = self.backend_instance
@@ -1215,15 +1215,15 @@ class ImportInstanceTest(BaseBackendTest):
             self.fixture.project,
         )
 
-        self.assertEquals(instance.backend_id, self.backend_id)
+        self.assertEqual(instance.backend_id, self.backend_id)
         self.assertTrue(
             models.Instance.objects.filter(backend_id=self.backend_id).exists()
         )
-        self.assertEquals(
+        self.assertEqual(
             str(models.Instance.objects.get(backend_id=self.backend_id).uuid),
             str(instance.uuid),
         )
-        self.assertEquals(instance.name, self.backend_instance.name)
+        self.assertEqual(instance.name, self.backend_instance.name)
 
     def test_volume_is_attached_to_imported_instance_if_they_are_registered(self):
         expected_volume = factories.VolumeFactory(
@@ -1240,9 +1240,9 @@ class ImportInstanceTest(BaseBackendTest):
             self.fixture.project,
         )
 
-        self.assertEquals(instance.backend_id, self.backend_id)
-        self.assertEquals(models.Volume.objects.count(), 1)
-        self.assertEquals(instance.volumes.count(), 1)
+        self.assertEqual(instance.backend_id, self.backend_id)
+        self.assertEqual(models.Volume.objects.count(), 1)
+        self.assertEqual(instance.volumes.count(), 1)
         actual_backend_ids = [v.backend_id for v in instance.volumes.all()]
         self.assertEqual([backend_volume.id], actual_backend_ids)
 
@@ -1258,9 +1258,9 @@ class ImportInstanceTest(BaseBackendTest):
             self.fixture.project,
         )
 
-        self.assertEquals(instance.backend_id, self.backend_id)
-        self.assertEquals(models.Volume.objects.count(), 1)
-        self.assertEquals(instance.volumes.count(), 1)
+        self.assertEqual(instance.backend_id, self.backend_id)
+        self.assertEqual(models.Volume.objects.count(), 1)
+        self.assertEqual(instance.volumes.count(), 1)
         actual_backend_ids = [v.backend_id for v in instance.volumes.all()]
         self.assertEqual([backend_volume.id], actual_backend_ids)
 
@@ -1274,8 +1274,8 @@ class ImportInstanceTest(BaseBackendTest):
             self.fixture.project,
         )
 
-        self.assertEquals(instance.backend_id, self.backend_id)
-        self.assertEquals(instance.error_message, expected_error_message)
+        self.assertEqual(instance.backend_id, self.backend_id)
+        self.assertEqual(instance.error_message, expected_error_message)
 
 
 class PullInstanceFloatingIpsTest(BaseBackendTest):
@@ -1324,7 +1324,7 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 
 class CreateInstanceTest(VolumesBaseTest):
     def setUp(self):
-        super(CreateInstanceTest, self).setUp()
+        super().setUp()
         self.flavor_id = 'small_flavor'
         backend_flavor = self._get_valid_flavor(self.flavor_id)
         self.nova_client_mock.flavors.get.return_value = backend_flavor

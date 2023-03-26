@@ -39,7 +39,7 @@ class OrderItemPullTest(test.APITransactionTestCase):
         )
 
     def tearDown(self):
-        super(OrderItemPullTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_when_order_item_succeeds_resource_is_updated(self):

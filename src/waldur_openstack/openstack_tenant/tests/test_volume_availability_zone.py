@@ -16,7 +16,7 @@ class VolumeAvailabilityZoneTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEquals(len(response.data), 1)
+        self.assertEqual(len(response.data), 1)
 
     def test_unauthorized_users_cannot_get_volume_availability_zone_list(self):
         response = self.client.get(self.url)

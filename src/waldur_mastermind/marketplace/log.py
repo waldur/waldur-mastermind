@@ -33,9 +33,7 @@ class MarketplaceResourceLogger(EventLogger):
     def process(
         self, level, message_template, event_type='undefined', event_context=None
     ):
-        super(MarketplaceResourceLogger, self).process(
-            level, message_template, event_type, event_context
-        )
+        super().process(level, message_template, event_type, event_context)
 
         if not event_context:
             event_context = {}

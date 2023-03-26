@@ -20,7 +20,7 @@ class Command(BaseCommand):
                 )
                 return
 
-            with open(filepath, 'r') as agreement_file:
+            with open(filepath) as agreement_file:
                 content = agreement_file.read()
 
             UserAgreement.objects.update_or_create(

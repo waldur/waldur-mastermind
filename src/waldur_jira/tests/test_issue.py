@@ -117,7 +117,7 @@ class IssueGetTest(BaseTest):
 
 class IssueCreateBaseTest(BaseTest):
     def setUp(self):
-        super(IssueCreateBaseTest, self).setUp()
+        super().setUp()
         self.fixture.jira_project.issue_types.add(self.fixture.issue_type)
 
         self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
@@ -166,7 +166,7 @@ class IssueCreateBaseTest(BaseTest):
         ]
 
     def tearDown(self):
-        super(IssueCreateBaseTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def _get_issue_payload(self, **kwargs):
@@ -183,7 +183,7 @@ class IssueCreateBaseTest(BaseTest):
 
 class IssueCreateResourceTest(IssueCreateBaseTest):
     def setUp(self):
-        super(IssueCreateResourceTest, self).setUp()
+        super().setUp()
         self.resource = structure_factories.TestNewInstanceFactory()
 
     def test_create_issue_with_resource(self):
@@ -246,12 +246,12 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
             'scope': structure_factories.TestNewInstanceFactory.get_url(self.resource),
         }
         payload.update(kwargs)
-        return super(IssueCreateResourceTest, self)._get_issue_payload(**payload)
+        return super()._get_issue_payload(**payload)
 
 
 class IssueCreateSubtaskTest(IssueCreateBaseTest):
     def setUp(self):
-        super(IssueCreateSubtaskTest, self).setUp()
+        super().setUp()
         self.subtask_type = factories.IssueTypeFactory(
             subtask=True, name='Sub-task', settings=self.fixture.service_settings
         )
@@ -332,7 +332,7 @@ class IssueDeleteTest(BaseTest):
 
 class IssueFilterTest(BaseTest):
     def setUp(self):
-        super(IssueFilterTest, self).setUp()
+        super().setUp()
         self.issue_breached = factories.IssueFactory(
             project=self.fixture.jira_project,
             state=models.Issue.States.OK,

@@ -207,7 +207,7 @@ class AWSBackend(ServiceBackend):
     )
 
     def __init__(self, settings):
-        super(AWSBackend, self).__init__(settings)
+        super().__init__(settings)
         self.settings = settings
 
     def _get_api(self, region='us-east-1'):

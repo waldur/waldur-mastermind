@@ -9,7 +9,7 @@ class QuotaFilter(django_filters.NumberFilter):
     """
 
     def __init__(self, quota_name, quota_field, **kwargs):
-        super(QuotaFilter, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.quota_name = quota_name
         self.quota_field = quota_field
 
@@ -17,7 +17,7 @@ class QuotaFilter(django_filters.NumberFilter):
         return qs.filter(
             **{
                 'quotas__name': self.quota_name,
-                'quotas__{}'.format(self.quota_field): value,
+                f'quotas__{self.quota_field}': value,
             }
         )
 

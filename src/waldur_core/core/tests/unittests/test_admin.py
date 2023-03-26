@@ -13,13 +13,13 @@ class TestAdminEndpoints(TestCase):
         self.admin_site_name = admin.site.name
 
     def _reverse_url(self, path):
-        return reverse('%s:%s' % (self.admin_site_name, path))
+        return reverse(f'{self.admin_site_name}:{path}')
 
     def test_app_list_urls_can_be_queried(self):
         app_list_urls = dict()
         for model in admin.site._registry:
             app_list_url = reverse(
-                '%s:%s' % (self.admin_site_name, 'app_list'),
+                '{}:{}'.format(self.admin_site_name, 'app_list'),
                 args=(model._meta.app_label,),
             )
             app_list_urls.update({model._meta.app_label: app_list_url})
@@ -49,7 +49,7 @@ class TestAdminEndpoints(TestCase):
                 continue
 
             url = self._reverse_url(
-                '%s_%s_changelist' % (model._meta.app_label, model._meta.model_name)
+                f'{model._meta.app_label}_{model._meta.model_name}_changelist'
             )
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
@@ -59,7 +59,7 @@ class TestAdminEndpoints(TestCase):
             # skip test for utility app sites that we do not expose in admin
             if model._meta.app_label == 'sites':
                 continue
-            model_fullname = '%s_%s' % (model._meta.app_label, model._meta.model_name)
+            model_fullname = f'{model._meta.app_label}_{model._meta.model_name}'
             url = self._reverse_url('%s_add' % model_fullname)
             response = self.client.get(url)
             self.assertIn(response.status_code, [200, 403])

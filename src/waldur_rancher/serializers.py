@@ -124,7 +124,7 @@ class DataVolumeSerializer(
     )
 
     def get_fields(self):
-        fields = super(DataVolumeSerializer, self).get_fields()
+        fields = super().get_fields()
         fields['mount_point'] = serializers.ChoiceField(
             choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES'],
             required=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICE_IS_MANDATORY'],
@@ -190,7 +190,7 @@ class BaseNodeSerializer(
     cpu = serializers.IntegerField(write_only=True, required=False)
     roles = serializers.MultipleChoiceField(choices=ROLE_CHOICES, write_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Node
         read_only_fields = (
             'error_message',
@@ -215,7 +215,7 @@ class BaseNodeSerializer(
         return ('subnet', 'flavor', 'system_volume_type')
 
     def get_fields(self):
-        fields = super(BaseNodeSerializer, self).get_fields()
+        fields = super().get_fields()
         if (
             settings.WALDUR_RANCHER['DISABLE_DATA_VOLUME_CREATION']
             and 'data_volumes' in fields
@@ -318,7 +318,7 @@ class ClusterSerializer(
         )
 
     def get_fields(self):
-        fields = super(ClusterSerializer, self).get_fields()
+        fields = super().get_fields()
         if (
             settings.WALDUR_RANCHER['DISABLE_SSH_KEY_INJECTION']
             and 'ssh_public_key' in fields
@@ -331,7 +331,7 @@ class ClusterSerializer(
         if self.instance:
             return attrs
 
-        attrs = super(ClusterSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
         nodes = attrs['node_set']
         name = attrs['name']
         service_settings = attrs['service_settings']
@@ -463,7 +463,7 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 
         attrs['name'] = instance.name
 
-        return super(NodeSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
     def get_resource_type(self, obj):
         return 'Rancher.Node'
@@ -491,7 +491,7 @@ class CreateNodeSerializer(
         }
 
     def validate(self, attrs):
-        attrs = super(CreateNodeSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
         cluster = attrs['cluster']
         ssh_public_key = attrs.pop('ssh_public_key', None)
         node = attrs
@@ -681,7 +681,7 @@ class ApplicationSerializer(structure_serializers.BaseResourceSerializer):
         }
 
     def validate(self, attrs):
-        attrs = super(ApplicationSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
         if (not attrs.get('namespace') and not attrs.get('namespace_name')) or (
             attrs.get('namespace') and attrs.get('namespace_name')
         ):
@@ -726,7 +726,7 @@ class ApplicationSerializer(structure_serializers.BaseResourceSerializer):
         rancher_project = validated_data['rancher_project']
         validated_data['settings'] = rancher_project.settings
         validated_data['cluster'] = rancher_project.cluster
-        return super(ApplicationSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
@@ -835,7 +835,7 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
         validated_data['cluster'] = workload.cluster
         validated_data['project'] = workload.project
         validated_data['namespace'] = workload.namespace
-        return super(HPASerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class ConsoleLogSerializer(serializers.Serializer):
@@ -985,7 +985,7 @@ class IngressSerializer(structure_serializers.BaseResourceSerializer):
         }
 
     def validate(self, attrs):
-        attrs = super(IngressSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
         rancher_project = attrs['rancher_project']
         namespace = attrs['namespace']
 
@@ -1000,7 +1000,7 @@ class IngressSerializer(structure_serializers.BaseResourceSerializer):
         rancher_project = validated_data['rancher_project']
         validated_data['settings'] = rancher_project.settings
         validated_data['cluster'] = rancher_project.cluster
-        return super(IngressSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class NestedWorkloadSerializer(
@@ -1044,7 +1044,7 @@ class ServiceSerializer(structure_serializers.BaseResourceSerializer):
     def create(self, validated_data):
         namespace = validated_data['namespace']
         validated_data['settings'] = namespace.settings
-        return super(ServiceSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class ImportYamlSerializer(serializers.Serializer):

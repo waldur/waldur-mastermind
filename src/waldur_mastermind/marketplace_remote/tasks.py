@@ -338,7 +338,7 @@ class OrderItemPullTask(BackgroundPullTask):
 
 class OrderItemStatePullTask(OrderItemPullTask):
     def pull(self, local_order_item):
-        super(OrderItemStatePullTask, self).pull(local_order_item)
+        super().pull(local_order_item)
         local_order_item.refresh_from_db()
         if local_order_item.state not in models.OrderItem.States.TERMINAL_STATES:
             self.retry()

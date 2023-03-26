@@ -15,7 +15,7 @@ class BaseServerGroupTest(test.APITransactionTestCase):
 @ddt
 class ServerGroupCreateTest(BaseServerGroupTest):
     def setUp(self):
-        super(ServerGroupCreateTest, self).setUp()
+        super().setUp()
         self.valid_data = {'name': 'Server group name', "policy": "affinity"}
         self.url = factories.TenantFactory.get_url(
             self.fixture.tenant, 'create_server_group'
@@ -56,7 +56,7 @@ class ServerGroupCreateTest(BaseServerGroupTest):
 @ddt
 class ServerGroupDeleteTest(BaseServerGroupTest):
     def setUp(self):
-        super(ServerGroupDeleteTest, self).setUp()
+        super().setUp()
         self.server_group = factories.ServerGroupFactory(
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,

@@ -138,7 +138,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         Status *DOWN* means that floating IP is not linked to a VM, status *ACTIVE* means that it is in use.
         """
 
-        return super(FloatingIPViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     @decorators.action(detail=True, methods=['post'])
     def attach_to_port(self, request, uuid=None):

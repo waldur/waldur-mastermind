@@ -87,7 +87,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         /api/customers/?accounting_is_running=False # exists accounting_start_date
 
         """
-        return super(CustomerViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         """
@@ -101,7 +101,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
                 "name": "Ministry of Bells"
             }
         """
-        return super(CustomerViewSet, self).retrieve(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         """
@@ -129,7 +129,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
                 "contact_details": "Luhamaa 28, 10128 Tallinn",
             }
         """
-        return super(CustomerViewSet, self).create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -144,15 +144,15 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
             Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
             Host: example.com
         """
-        return super(CustomerViewSet, self).destroy(request, *args, **kwargs)
+        return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
         if self.action == 'users':
             return serializers.CustomerUserSerializer
-        return super(CustomerViewSet, self).get_serializer_class()
+        return super().get_serializer_class()
 
     def get_serializer_context(self):
-        context = super(CustomerViewSet, self).get_serializer_context()
+        context = super().get_serializer_context()
         if self.action == 'users':
             context['customer'] = self.get_object()
         return context
@@ -191,7 +191,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         self.check_customer_permissions(serializer.instance)
         utils.check_customer_blocked_or_archived(serializer.instance)
-        return super(CustomerViewSet, self).perform_update(serializer)
+        return super().perform_update(serializer)
 
     def perform_destroy(self, instance):
         self.check_customer_permissions(instance)
@@ -201,7 +201,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
             sender=models.Customer, instance=instance, user=self.request.user
         )
 
-        return super(CustomerViewSet, self).perform_destroy(instance)
+        return super().perform_destroy(instance)
 
     @action(
         detail=True,
@@ -256,7 +256,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     ]
 
     def get_serializer_context(self):
-        context = super(ProjectViewSet, self).get_serializer_context()
+        context = super().get_serializer_context()
         if self.action == 'users':
             context['project'] = self.get_object()
         return context
@@ -276,7 +276,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         - ?can_manage - return a list of projects where current user is manager or a customer owner;
         - ?can_admin - return a list of projects where current user is admin;
         """
-        return super(ProjectViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         """
@@ -290,7 +290,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
                 "name": "Default"
             }
         """
-        return super(ProjectViewSet, self).retrieve(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         """
@@ -310,7 +310,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
                 "customer": "http://example.com/api/customers/6c9b01c251c24174a6691a1f894fae31/",
             }
         """
-        return super(ProjectViewSet, self).create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -325,7 +325,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
             Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
             Host: example.com
         """
-        return super(ProjectViewSet, self).destroy(request, *args, **kwargs)
+        return super().destroy(request, *args, **kwargs)
 
     def can_create_project_with(self, customer):
         user = self.request.user
@@ -340,7 +340,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super(ProjectViewSet, self).get_queryset()
+        queryset = super().get_queryset()
 
         can_manage = self.request.query_params.get('can_manage', None)
         if can_manage is not None:
@@ -376,7 +376,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         utils.check_customer_blocked_or_archived(customer)
 
-        super(ProjectViewSet, self).perform_create(serializer)
+        super().perform_create(serializer)
 
     @action(detail=True, filter_backends=[filters.GenericRoleFilter])
     def users(self, request, uuid=None):
@@ -485,7 +485,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 _('Identity manager is not allowed to list users.'),
                 status=status.HTTP_403_FORBIDDEN,
             )
-        return super(UserViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def change_email(self, request, uuid=None):
@@ -562,7 +562,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def check_permissions(self, request):
         if self.action == 'confirm_email':
             return
-        super(UserViewSet, self).check_permissions(request)
+        super().check_permissions(request)
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -614,7 +614,7 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
 
         utils.check_customer_blocked_or_archived(scope)
 
-        super(BasePermissionViewSet, self).perform_create(serializer)
+        super().perform_create(serializer)
 
     def perform_update(self, serializer):
         permission = serializer.instance
@@ -707,7 +707,7 @@ class ProjectPermissionViewSet(BasePermissionViewSet):
                 "user": "http://example.com/api/users/82cec6c8e0484e0ab1429412fe4194b7/"
             }
         """
-        return super(ProjectPermissionViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -720,7 +720,7 @@ class ProjectPermissionViewSet(BasePermissionViewSet):
             Authorization: Token 95a688962bf68678fd4c8cec4d138ddd9493c93b
             Host: example.com
         """
-        return super(ProjectPermissionViewSet, self).destroy(request, *args, **kwargs)
+        return super().destroy(request, *args, **kwargs)
 
 
 class ProjectPermissionLogViewSet(
@@ -753,7 +753,7 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
     scope_field = 'customer'
 
     def get_queryset(self):
-        queryset = super(CustomerPermissionViewSet, self).get_queryset()
+        queryset = super().get_queryset()
 
         if not (self.request.user.is_staff or self.request.user.is_support):
             queryset = queryset.filter(
@@ -790,7 +790,7 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
                 "user": "http://example.com/api/users/82cec6c8e0484e0ab1429412fe4194b7/"
             }
         """
-        return super(CustomerPermissionViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
         """
@@ -803,7 +803,7 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
             Authorization: Token 95a688962bf68678fd4c8cec4d138ddd9493c93b
             Host: example.com
         """
-        return super(CustomerPermissionViewSet, self).retrieve(request, *args, **kwargs)
+        return super().retrieve(request, *args, **kwargs)
 
 
 class CustomerPermissionLogViewSet(
@@ -862,7 +862,7 @@ class SshKeyViewSet(
     filterset_class = filters.SshKeyFilter
 
     def get_queryset(self):
-        queryset = super(SshKeyViewSet, self).get_queryset()
+        queryset = super().get_queryset()
         if self.request.user.is_staff or self.request.user.is_support:
             return queryset
 
@@ -899,7 +899,7 @@ class SshKeyViewSet(
                                vEAFdOJcqjyyH4FOGYa8usP1 jhon@example.com",
             }
         """
-        return super(SshKeyViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -949,7 +949,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
         - ?state=<state> - choices: New, Creation Scheduled, Creating, Sync Scheduled, Syncing, In Sync, Erred
         - ?shared=<bool> - allows to filter shared service settings
         """
-        return super(ServiceSettingsViewSet, self).list(request, *args, **kwargs)
+        return super().list(request, *args, **kwargs)
 
     def can_user_update_settings(request, view, obj=None):
         """Only staff can update shared settings, otherwise user has to be an owner of the settings."""
@@ -982,7 +982,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewS
                 "password": "new_secret"
             }
         """
-        return super(ServiceSettingsViewSet, self).update(request, *args, **kwargs)
+        return super().update(request, *args, **kwargs)
 
     update_permissions = partial_update_permissions = [
         can_user_update_settings,

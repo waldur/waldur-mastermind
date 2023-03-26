@@ -48,7 +48,7 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
         abstract = True
 
     def __str__(self):
-        return '%s (%s): %s (%s -> %s)' % (
+        return '{} ({}): {} ({} -> {})'.format(
             self.security_group,
             self.protocol,
             self.cidr,
@@ -90,7 +90,7 @@ class Port(core_models.BackendModelMixin, models.Model):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Port, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'fixed_ips',
             'mac_address',
             'allowed_address_pairs',
@@ -112,7 +112,7 @@ class BaseImage(structure_models.ServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(BaseImage, cls).get_backend_fields() + ('min_disk', 'min_ram')
+        return super().get_backend_fields() + ('min_disk', 'min_ram')
 
 
 class BaseVolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):

@@ -52,7 +52,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         self.client_mock = client_mock
 
     def tearDown(self):
-        super(RemoteProjectPermissionsTestCase, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def create_permission(self, role, expiration_time=None):

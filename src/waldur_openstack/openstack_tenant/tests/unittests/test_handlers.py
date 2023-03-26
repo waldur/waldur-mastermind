@@ -18,7 +18,7 @@ class BaseServicePropertyTest(TestCase):
 
 class SecurityGroupHandlerTest(BaseServicePropertyTest):
     def setUp(self):
-        super(SecurityGroupHandlerTest, self).setUp()
+        super().setUp()
 
     def test_security_group_create(self):
         openstack_security_group = openstack_factories.SecurityGroupFactory(
@@ -259,7 +259,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
 
 class FloatingIPHandlerTest(BaseServicePropertyTest):
     def setUp(self):
-        super(FloatingIPHandlerTest, self).setUp()
+        super().setUp()
 
     def test_floating_ip_create(self):
         openstack_floating_ip = openstack_factories.FloatingIPFactory(
@@ -445,7 +445,7 @@ class NetworkHandlerTest(BaseServicePropertyTest):
 
 class SubNetHandlerTest(BaseServicePropertyTest):
     def setUp(self):
-        super(SubNetHandlerTest, self).setUp()
+        super().setUp()
 
         self.openstack_network = openstack_factories.NetworkFactory(tenant=self.tenant)
         self.network = models.Network.objects.get(
@@ -510,20 +510,18 @@ class CreateServiceFromTenantTest(TestCase):
             scope=tenant,
             type=apps.OpenStackTenantConfig.service_name,
         )
-        self.assertEquals(service_settings.name, tenant.name)
-        self.assertEquals(service_settings.customer, tenant.project.customer)
-        self.assertEquals(service_settings.username, tenant.user_username)
-        self.assertEquals(service_settings.password, tenant.user_password)
-        self.assertEquals(service_settings.domain, tenant.service_settings.domain)
-        self.assertEquals(
+        self.assertEqual(service_settings.name, tenant.name)
+        self.assertEqual(service_settings.customer, tenant.project.customer)
+        self.assertEqual(service_settings.username, tenant.user_username)
+        self.assertEqual(service_settings.password, tenant.user_password)
+        self.assertEqual(service_settings.domain, tenant.service_settings.domain)
+        self.assertEqual(
             service_settings.backend_url,
             tenant.service_settings.backend_url,
         )
-        self.assertEquals(
-            service_settings.type, apps.OpenStackTenantConfig.service_name
-        )
-        self.assertEquals(service_settings.options['tenant_id'], tenant.backend_id)
-        self.assertEquals(
+        self.assertEqual(service_settings.type, apps.OpenStackTenantConfig.service_name)
+        self.assertEqual(service_settings.options['tenant_id'], tenant.backend_id)
+        self.assertEqual(
             service_settings.options['availability_zone'], tenant.availability_zone
         )
         self.assertFalse('console_type' in service_settings.options)
@@ -538,7 +536,7 @@ class CreateServiceFromTenantTest(TestCase):
             type=apps.OpenStackTenantConfig.service_name,
         )
         self.assertTrue('console_type' in private_settings.options)
-        self.assertEquals(
+        self.assertEqual(
             shared_settings.options['console_type'],
             private_settings.options['console_type'],
         )

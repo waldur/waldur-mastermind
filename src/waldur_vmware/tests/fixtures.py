@@ -7,7 +7,7 @@ from . import factories
 
 class VMwareFixture(ProjectFixture):
     def __init__(self):
-        super(VMwareFixture, self).__init__()
+        super().__init__()
         self.customer_cluster
         self.customer_network
         self.customer_datastore

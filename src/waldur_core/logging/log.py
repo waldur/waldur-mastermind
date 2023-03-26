@@ -45,7 +45,7 @@ class EventFormatter(logging.Formatter):
 
 class EventLoggerAdapter(logging.LoggerAdapter):
     def __init__(self, logger):
-        super(EventLoggerAdapter, self).__init__(logger, {})
+        super().__init__(logger, {})
 
     def process(self, msg, kwargs):
         if 'extra' in kwargs:
@@ -84,7 +84,7 @@ class RequireNotBackgroundTask(logging.Filter):
 
 class TCPEventHandler(logging.handlers.SocketHandler):
     def __init__(self, host='localhost', port=5959):
-        super(TCPEventHandler, self).__init__(host, int(port))
+        super().__init__(host, int(port))
         self.formatter = EventFormatter()
 
     def makePickle(self, record):

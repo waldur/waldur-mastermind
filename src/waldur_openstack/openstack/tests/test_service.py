@@ -10,7 +10,7 @@ from waldur_core.structure.tests import factories, fixtures
 @patch('waldur_core.structure.models.ServiceSettings.get_backend')
 class OpenStackServiceCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(OpenStackServiceCreateTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.CustomerFixture()
         self.url = factories.ServiceSettingsFactory.get_list_url()
 

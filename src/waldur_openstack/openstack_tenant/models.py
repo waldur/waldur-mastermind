@@ -41,7 +41,7 @@ class Flavor(core_models.StateMixin, LoggableMixin, structure_models.ServiceProp
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Flavor, cls).get_backend_fields() + ('cores', 'ram', 'disk')
+        return super().get_backend_fields() + ('cores', 'ram', 'disk')
 
     def get_backend(self):
         return self.settings.get_backend()
@@ -121,7 +121,7 @@ class FloatingIP(core_models.LoggableMixin, structure_models.ServiceProperty):
         verbose_name_plural = _('Floating IPs')
 
     def __str__(self):
-        return '%s:%s | %s' % (self.address, self.runtime_state, self.settings)
+        return f'{self.address}:{self.runtime_state} | {self.settings}'
 
     @classmethod
     def get_url_name(cls):
@@ -140,7 +140,7 @@ class FloatingIP(core_models.LoggableMixin, structure_models.ServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(FloatingIP, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'address',
             'runtime_state',
             'backend_network_id',
@@ -216,7 +216,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Volume, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'description',
             'size',
@@ -277,7 +277,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Snapshot, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'description',
             'size',
@@ -434,7 +434,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Instance, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'flavor_name',
             'flavor_disk',
             'ram',
@@ -523,7 +523,7 @@ class BackupSchedule(BaseSchedule):
     tracker = FieldTracker()
 
     def __str__(self):
-        return 'BackupSchedule of %s. Active: %s' % (self.instance, self.is_active)
+        return f'BackupSchedule of {self.instance}. Active: {self.is_active}'
 
     @classmethod
     def get_url_name(cls):
@@ -538,7 +538,7 @@ class SnapshotSchedule(BaseSchedule):
     tracker = FieldTracker()
 
     def __str__(self):
-        return 'SnapshotSchedule of %s. Active: %s' % (
+        return 'SnapshotSchedule of {}. Active: {}'.format(
             self.source_volume,
             self.is_active,
         )
@@ -579,7 +579,7 @@ class SubNet(
         unique_together = ('settings', 'backend_id')
 
     def __str__(self):
-        return '%s (%s)' % (self.name, self.cidr)
+        return f'{self.name} ({self.cidr})'
 
     @classmethod
     def get_url_name(cls):

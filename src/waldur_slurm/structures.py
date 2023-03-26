@@ -18,7 +18,7 @@ class Quotas:
         )
 
     def __str__(self):
-        return "Quotas: CPU=%s, GPU=%s, RAM=%s" % (
+        return "Quotas: CPU={}, GPU={}, RAM={}".format(
             self.cpu,
             self.gpu,
             self.ram,

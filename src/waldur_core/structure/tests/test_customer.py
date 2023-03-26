@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 from ddt import data, ddt
 from django.urls import reverse
 from django.utils import timezone

@@ -1,8 +1,8 @@
 import json
 import unittest
 from datetime import datetime
+from unittest import mock
 
-import mock
 from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 from rest_framework import serializers as rf_serializers
@@ -100,7 +100,7 @@ class ServiceSettingAdminTest(TestCase):
 
 class ProjectAdminTest(TestCase):
     def setUp(self):
-        super(ProjectAdminTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.created_by = factories.UserFactory()
@@ -161,7 +161,7 @@ class ProjectAdminTest(TestCase):
 
 class CustomerAdminTest(TestCase):
     def setUp(self):
-        super(CustomerAdminTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.CustomerFixture()
         self.customer = self.fixture.customer
         self.created_by = factories.UserFactory()

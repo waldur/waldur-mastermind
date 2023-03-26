@@ -9,7 +9,7 @@ from waldur_zammad.backend import Issue
 
 class IssueCreateTest(zammad_base.BaseTest):
     def setUp(self):
-        super(IssueCreateTest, self).setUp()
+        super().setUp()
         self.url = factories.IssueFactory.get_list_url()
         self.caller = structure_factories.UserFactory()
         factories.SupportCustomerFactory(user=self.caller)
@@ -52,7 +52,7 @@ class IssueCreateTest(zammad_base.BaseTest):
 
 class IssueWebHookTest(zammad_base.BaseTest):
     def setUp(self):
-        super(IssueWebHookTest, self).setUp()
+        super().setUp()
         self.issue = factories.IssueFactory(backend_id=1)
         self.url = '/api/support-zammad-webhook/'
         self.zammad_issue = Issue(1, 'open', 'test_issue')

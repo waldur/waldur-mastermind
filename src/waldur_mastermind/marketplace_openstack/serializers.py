@@ -18,7 +18,7 @@ class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
     @transaction.atomic
     def create(self, validated_data):
         quotas = validated_data.pop('quotas')
-        tenant = super(MarketplaceTenantCreateSerializer, self).create(validated_data)
+        tenant = super().create(validated_data)
         if quotas:
             _apply_quotas(tenant, quotas)
         return tenant

@@ -33,7 +33,7 @@ class AuthTokenSerializer(serializers.Serializer):
 
 class Base64Field(serializers.CharField):
     def to_internal_value(self, data):
-        value = super(Base64Field, self).to_internal_value(data)
+        value = super().to_internal_value(data)
         try:
             base64.b64decode(value)
             return value
@@ -43,7 +43,7 @@ class Base64Field(serializers.CharField):
             )
 
     def to_representation(self, value):
-        value = super(Base64Field, self).to_representation(value)
+        value = super().to_representation(value)
         if isinstance(value, str):
             value = value.encode('utf-8')
         return base64.b64encode(value)
@@ -64,7 +64,7 @@ class UnboundSerializerMethodField(ReadOnlyField):
 
     def __init__(self, filter_function, *args, **kwargs):
         self.filter_function = filter_function
-        super(UnboundSerializerMethodField, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def to_representation(self, value):
         request = self.context.get('request')
@@ -81,7 +81,7 @@ class GenericRelatedField(Field):
     lookup_fields = ['uuid', 'pk']
 
     def __init__(self, related_models=(), **kwargs):
-        super(GenericRelatedField, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._related_models = related_models
 
     @property
@@ -239,7 +239,7 @@ class AugmentedSerializerMixin:
     """
 
     def get_fields(self):
-        fields = super(AugmentedSerializerMixin, self).get_fields()
+        fields = super().get_fields()
         pre_serializer_fields.send(
             sender=self.__class__, fields=fields, serializer=self
         )
@@ -280,7 +280,7 @@ class AugmentedSerializerMixin:
         related_paths = self._get_related_paths()
 
         related_field_source_map = {
-            '{0}_{1}'.format(path.split('.')[-1], attribute): '{0}.{1}'.format(
+            '{}_{}'.format(path.split('.')[-1], attribute): '{}.{}'.format(
                 path, attribute
             )
             for path, attributes in related_paths.items()
@@ -293,12 +293,10 @@ class AugmentedSerializerMixin:
                 {'source': related_field_source_map[field_name]},
             )
         except KeyError:
-            return super(AugmentedSerializerMixin, self).build_unknown_field(
-                field_name, model_class
-            )
+            return super().build_unknown_field(field_name, model_class)
 
     def get_extra_kwargs(self):
-        extra_kwargs = super(AugmentedSerializerMixin, self).get_extra_kwargs()
+        extra_kwargs = super().get_extra_kwargs()
 
         if hasattr(self.Meta, 'view_name'):
             view_name = self.Meta.view_name
@@ -322,7 +320,7 @@ class RestrictedSerializerMixin:
     FIELDS_PARAM_NAME = 'field'
 
     def get_fields(self):
-        fields = super(RestrictedSerializerMixin, self).get_fields()
+        fields = super().get_fields()
         if 'request' not in self.context:
             return fields
         query_params = self.context['request'].query_params
@@ -357,7 +355,7 @@ class HyperlinkedRelatedModelSerializer(serializers.HyperlinkedModelSerializer):
             'Relational fields should not provide a `queryset` argument, '
             'when setting read_only=`True`.'
         )
-        super(HyperlinkedRelatedModelSerializer, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def to_internal_value(self, data):
         if 'url' not in data:
@@ -386,7 +384,7 @@ class UnicodeIntegerField(serializers.IntegerField):
     def to_internal_value(self, data):
         if isinstance(data, str):
             data = core_utils.normalize_unicode(data)
-        return super(UnicodeIntegerField, self).to_internal_value(data)
+        return super().to_internal_value(data)
 
 
 class DateRangeFilterSerializer(serializers.Serializer):

@@ -38,7 +38,7 @@ class CustomerCreateRequestViewSet(ReviewViewSet):
     serializer_class = serializers.CustomerCreateRequestSerializer
 
     def get_queryset(self):
-        qs = super(CustomerCreateRequestViewSet, self).get_queryset()
+        qs = super().get_queryset()
         if self.request.user.is_staff:
             return qs
         # Allow to see user's own requests only
@@ -53,7 +53,7 @@ class ProjectCreateRequestViewSet(ReviewViewSet):
     serializer_class = serializers.ProjectCreateRequestSerializer
 
     def get_queryset(self):
-        qs = super(ProjectCreateRequestViewSet, self).get_queryset()
+        qs = super().get_queryset()
         if self.request.user.is_staff:
             return qs
         return qs.filter(
@@ -75,7 +75,7 @@ class ResourceCreateRequestViewSet(ConnectedOfferingDetailsMixin, ReviewViewSet)
     serializer_class = serializers.ResourceCreateRequestSerializer
 
     def get_queryset(self):
-        qs = super(ResourceCreateRequestViewSet, self).get_queryset()
+        qs = super().get_queryset()
         if self.request.user.is_staff:
             return qs
         return qs.filter(
@@ -113,7 +113,7 @@ class FlowViewSet(ActionsViewSet):
         return Response(status=status.HTTP_200_OK)
 
     def get_queryset(self):
-        qs = super(FlowViewSet, self).get_queryset()
+        qs = super().get_queryset()
         if self.request.user.is_staff:
             return qs
         # Allow to see user's own requests only
@@ -128,7 +128,7 @@ class OfferingActivateRequestViewSet(ReviewViewSet):
     disabled_actions = ['destroy', 'update', 'partial_update']
 
     def get_queryset(self):
-        qs = super(OfferingActivateRequestViewSet, self).get_queryset()
+        qs = super().get_queryset()
         if self.request.user.is_staff:
             return qs
         # Allow to see user's own requests only

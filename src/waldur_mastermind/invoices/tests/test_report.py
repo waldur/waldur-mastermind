@@ -51,7 +51,7 @@ INVOICE_REPORTING = {
         'ARTPROJEKT': 'PROJEKT',
     },
     'CSV_PARAMS': {
-        'delimiter': str(';'),
+        'delimiter': ';',
     },
     'EMAIL': 'test@example.com',
 }
@@ -113,7 +113,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
 class InvoiceReportTaskTest(BaseReportFormatterTest):
     def setUp(self):
-        super(InvoiceReportTaskTest, self).setUp()
+        super().setUp()
         self.invoice.year = 2017
         self.invoice.month = 10
         self.invoice.save()

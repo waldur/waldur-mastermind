@@ -49,7 +49,7 @@ def get_invitation_context(invitation, sender):
 
 def get_invitation_token(invitation, user):
     signer = TimestampSigner()
-    payload = '%s.%s' % (user.uuid.hex, invitation.uuid.hex)
+    payload = f'{user.uuid.hex}.{invitation.uuid.hex}'
     return signer.sign(payload)
 
 
@@ -138,7 +138,7 @@ def get_or_create_user(invitation):
         username=username,
         email=invitation.email,
         registration_method='FREEIPA',
-        **payload
+        **payload,
     )
     user.set_unusable_password()
     user.save()

@@ -14,7 +14,7 @@ from waldur_mastermind.support.tests.base import override_support_settings
 @ddt
 class SupportUserRetrieveTest(base.BaseTest):
     def setUp(self):
-        super(SupportUserRetrieveTest, self).setUp()
+        super().setUp()
         self.support_user = factories.SupportUserFactory()
 
     @data('staff', 'global_support')

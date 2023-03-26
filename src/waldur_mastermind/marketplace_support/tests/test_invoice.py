@@ -30,7 +30,7 @@ from . import fixtures
 )
 class InvoicesBaseTest(test.APITransactionTestCase):
     def setUp(self):
-        super(InvoicesBaseTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.SupportFixture()
         self.order_item = self.fixture.order_item
         support_factories.IssueStatusFactory(
@@ -167,7 +167,7 @@ class InvoicesTest(InvoicesBaseTest):
 @ddt
 class UsagesTest(InvoicesBaseTest):
     def setUp(self):
-        super(UsagesTest, self).setUp()
+        super().setUp()
         self.fixture.offering_component_cpu.billing_type = (
             marketplace_models.OfferingComponent.BillingTypes.USAGE
         )
@@ -329,7 +329,7 @@ class UsagesTest(InvoicesBaseTest):
 
 class OneTimeTest(InvoicesBaseTest):
     def setUp(self):
-        super(OneTimeTest, self).setUp()
+        super().setUp()
         self.fixture.offering_component_cpu.billing_type = (
             marketplace_models.OfferingComponent.BillingTypes.ONE_TIME
         )
@@ -366,7 +366,7 @@ class OneTimeTest(InvoicesBaseTest):
 
 class OnPlanSwitchTest(InvoicesBaseTest):
     def setUp(self):
-        super(OnPlanSwitchTest, self).setUp()
+        super().setUp()
         self.fixture.offering_component_cpu.billing_type = (
             marketplace_models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
         )
@@ -418,7 +418,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
 
 class LimitInvoiceTest(InvoicesBaseTest):
     def setUp(self):
-        super(LimitInvoiceTest, self).setUp()
+        super().setUp()
         self.fixture.offering_component_cpu.billing_type = (
             marketplace_models.OfferingComponent.BillingTypes.LIMIT
         )

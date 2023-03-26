@@ -19,12 +19,12 @@ User = get_user_model()
 
 class UserChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, user):
-        return '{} - {}'.format(user.full_name, user.username)
+        return f'{user.full_name} - {user.username}'
 
 
 class SupportUserAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
-        super(SupportUserAdminForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.fields['user'] = UserChoiceField(
             queryset=User.objects.all().order_by('first_name', 'last_name')
         )
@@ -159,7 +159,7 @@ class CommentAdmin(structure_admin.BackendModelAdmin):
     search_fields = ('description',)
 
     def get_issue_key(self, obj):
-        return "%s: %s" % (obj.issue.key, obj.issue.summary)
+        return f"{obj.issue.key}: {obj.issue.summary}"
 
     get_issue_key.short_description = 'Issue'
 

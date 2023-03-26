@@ -90,7 +90,7 @@ class PermissionFieldFilteringMixin:
     """
 
     def get_fields(self):
-        fields = super(PermissionFieldFilteringMixin, self).get_fields()
+        fields = super().get_fields()
 
         try:
             request = self.context['request']
@@ -170,7 +170,7 @@ class PermissionListSerializer(serializers.ListSerializer):
             if isinstance(data, (django_models.Manager, django_models.query.QuerySet)):
                 data = filter_queryset_for_user(data.all(), user)
 
-        return super(PermissionListSerializer, self).to_representation(data)
+        return super().to_representation(data)
 
 
 class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
@@ -425,7 +425,7 @@ class CustomerSerializer(
         }
 
     def get_fields(self):
-        fields = super(CustomerSerializer, self).get_fields()
+        fields = super().get_fields()
 
         try:
             request = self.context['view'].request
@@ -446,7 +446,7 @@ class CustomerSerializer(
         if 'domain' not in validated_data:
             # Staff can specify domain name on organization creation
             validated_data['domain'] = user.organization
-        return super(CustomerSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
     @staticmethod
     def eager_load(queryset, request=None):
@@ -608,7 +608,7 @@ class CustomerUserSerializer(serializers.ModelSerializer):
         setattr(user, 'role', permission and permission.role)
         setattr(user, 'projects', projects)
         setattr(user, 'is_service_manager', is_service_manager)
-        return super(CustomerUserSerializer, self).to_representation(user)
+        return super().to_representation(user)
 
 
 class ProjectUserSerializer(serializers.ModelSerializer):
@@ -643,7 +643,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         ).first()
         setattr(user, 'perm', permission)
         setattr(user, 'role', permission and permission.role)
-        return super(ProjectUserSerializer, self).to_representation(user)
+        return super().to_representation(user)
 
 
 class BasePermissionSerializer(
@@ -1101,7 +1101,7 @@ class UserSerializer(
         protected_fields = ('email',)
 
     def get_fields(self):
-        fields = super(UserSerializer, self).get_fields()
+        fields = super().get_fields()
 
         try:
             request = self.context['view'].request
@@ -1320,7 +1320,7 @@ class ServiceSettingsSerializer(
         return queryset.select_related('customer')
 
     def get_fields(self):
-        fields = super(ServiceSettingsSerializer, self).get_fields()
+        fields = super().get_fields()
         method = self.context['view'].request.method
         if method == 'GET' and 'options' in fields:
             fields['options'] = serializers.SerializerMethodField('get_options')
@@ -1493,7 +1493,7 @@ class BaseResourceSerializer(
         return obj.get_access_url()
 
     def get_fields(self):
-        fields = super(BaseResourceSerializer, self).get_fields()
+        fields = super().get_fields()
         # skip validation on object update
         if not self.instance:
             service_type = get_service_type(self.Meta.model)
@@ -1513,7 +1513,7 @@ class BaseResourceSerializer(
         # Remove `virtual` properties which ain't actually belong to the model
         data = {key: value for key, value in data.items() if key in fields}
 
-        resource = super(BaseResourceSerializer, self).create(data)
+        resource = super().create(data)
         resource.increase_backend_quotas_usage()
         return resource
 
@@ -1551,7 +1551,7 @@ class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
     )
 
     def get_fields(self):
-        fields = super(SshPublicKeySerializerMixin, self).get_fields()
+        fields = super().get_fields()
         if 'request' in self.context:
             user = self.context['request'].user
             ssh_public_key = fields.get('ssh_public_key')
@@ -1614,7 +1614,7 @@ class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializ
     def create(self, validated_data):
         if 'image' in validated_data:
             validated_data['image_name'] = validated_data['image'].name
-        return super(VirtualMachineSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class BasePropertySerializer(

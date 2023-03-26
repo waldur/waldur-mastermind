@@ -11,7 +11,7 @@ def hash_string(value, length=16):
 
 
 def generate_username():
-    return 'user{}'.format(core_utils.pwgen(4))
+    return f'user{core_utils.pwgen(4)}'
 
 
 def generate_password():

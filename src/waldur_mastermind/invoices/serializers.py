@@ -315,12 +315,10 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
                 field_kwargs.update(default_kwargs)
             return field_class, field_kwargs
 
-        return super(InvoiceItemReportSerializer, self).build_field(
-            field_name, info, model_class, nested_depth
-        )
+        return super().build_field(field_name, info, model_class, nested_depth)
 
     def get_extra_kwargs(self):
-        extra_kwargs = super(InvoiceItemReportSerializer, self).get_extra_kwargs()
+        extra_kwargs = super().get_extra_kwargs()
         extra_kwargs.update(
             settings.WALDUR_INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS']
         )
@@ -623,7 +621,7 @@ class SAFReportSerializer(serializers.Serializer):
     def get_covered_period(self, invoice_item):
         first_day = self.get_first_day(invoice_item)
         last_day = core_utils.month_end(first_day)
-        return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))
+        return f'{self.format_date(first_day)}-{self.format_date(last_day)}'
 
 
 class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):

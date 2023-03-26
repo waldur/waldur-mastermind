@@ -63,7 +63,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', 1)
 
     def pull_service_properties(self):
-        super(ServiceDeskBackend, self).pull_service_properties()
+        super().pull_service_properties()
         self.pull_request_types()
         if self.pull_priorities_automatically:
             self.pull_priorities()
@@ -86,7 +86,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             ],
         }
 
-        url = self.manager._get_url('issue/{0}/comment'.format(issue))
+        url = self.manager._get_url(f'issue/{issue}/comment')
         response = self.manager._session.post(url, data=json.dumps(data))
 
         comment = Comment(

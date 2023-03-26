@@ -168,7 +168,7 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
         ] = models.ResourceCreateRequest.objects.create(**resource_create_request_data)
 
         validated_data['requested_by'] = request.user
-        return super(FlowSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
     def update(self, instance, validated_data):
         for field in (
@@ -229,7 +229,7 @@ class OfferingActivateRequestSerializer(serializers.HyperlinkedModelSerializer):
     def create(self, validated_data):
         request = self.context['request']
         validated_data['requested_by'] = request.user
-        return super(OfferingActivateRequestSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
     def validate_offering(self, offering):
         if offering.state != marketplace_models.Offering.States.DRAFT:

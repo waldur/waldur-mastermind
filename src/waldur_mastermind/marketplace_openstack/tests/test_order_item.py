@@ -74,7 +74,7 @@ class TenantGetTest(test.APITransactionTestCase):
 @ddt
 class TenantCreateTest(BaseOpenStackTest):
     def setUp(self):
-        super(TenantCreateTest, self).setUp()
+        super().setUp()
         self.fixture = package_fixtures.MarketplaceOpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.fixture.openstack_service_settings,
@@ -293,7 +293,7 @@ class TenantCreateTest(BaseOpenStackTest):
 
 class TenantMutateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(TenantMutateTest, self).setUp()
+        super().setUp()
         self.fixture = package_fixtures.MarketplaceOpenStackFixture()
         self.tenant = self.fixture.openstack_tenant
         self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
@@ -312,7 +312,7 @@ class TenantMutateTest(test.APITransactionTestCase):
 
 class TenantDeleteTest(TenantMutateTest):
     def setUp(self):
-        super(TenantDeleteTest, self).setUp()
+        super().setUp()
         self.order_item = marketplace_factories.OrderItemFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
@@ -787,7 +787,7 @@ class TenantUpdateLimitTestBase(test.APITransactionTestCase):
 
 class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
     def setUp(self):
-        super(TenantUpdateLimitTest, self).setUp()
+        super().setUp()
         self.order_item = marketplace_factories.OrderItemFactory(
             type=marketplace_models.OrderItem.Types.UPDATE,
             resource=self.resource,
@@ -833,7 +833,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
 
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
     def setUp(self):
-        super(TenantUpdateLimitValidationTest, self).setUp()
+        super().setUp()
         create_offering_components(self.offering)
         self.offering.components.filter(type='cores').update(
             max_value=20,

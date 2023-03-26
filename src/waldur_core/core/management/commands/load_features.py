@@ -9,7 +9,7 @@ class Command(DryRunCommand):
     help = "Import features in JSON format"
 
     def add_arguments(self, parser):
-        super(Command, self).add_arguments(parser)
+        super().add_arguments(parser)
         parser.add_argument(
             'features_file',
             help='Specifies location of features file.',
@@ -21,7 +21,7 @@ class Command(DryRunCommand):
             for section in FEATURES
             for feature in section['items']
         }
-        with open(options['features_file'], 'r') as features_file:
+        with open(options['features_file']) as features_file:
             features = json.load(features_file)
 
             invalid_features = set(features.keys()) - valid_features
