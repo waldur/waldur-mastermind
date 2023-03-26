@@ -77,7 +77,7 @@ def create_or_update_eduteams_user(backend_user):
                 username,
             )
             continue
-        name = 'eduteams_key_{}'.format(uuid.uuid4().hex[:10])
+        name = f'eduteams_key_{uuid.uuid4().hex[:10]}'
         new_key = SshPublicKey(user=user, name=name, public_key=key)
         new_key.save()
 

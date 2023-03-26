@@ -90,7 +90,7 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
 def user_capturing_auth(auth):
     class CapturingAuthentication(auth):
         def authenticate(self, request):
-            result = super(CapturingAuthentication, self).authenticate(request)
+            result = super().authenticate(request)
             if result is not None:
                 user, _ = result
                 waldur_core.logging.middleware.set_current_user(user)

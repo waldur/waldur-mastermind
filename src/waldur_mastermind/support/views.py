@@ -172,7 +172,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     destroy_validators = [_destroy_is_available_validator]
 
     def get_queryset(self):
-        queryset = super(CommentViewSet, self).get_queryset()
+        queryset = super().get_queryset()
 
         if not self.request.user.is_staff:
             subquery = Q(is_public=True) | Q(author__user=self.request.user)
@@ -224,7 +224,7 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         backend.get_active_backend().create_attachment(attachment)
 
     def get_queryset(self):
-        queryset = super(AttachmentViewSet, self).get_queryset()
+        queryset = super().get_queryset()
         return queryset.filter_for_user(self.request.user)
 
 

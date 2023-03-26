@@ -101,13 +101,13 @@ class BackendModelAdmin(admin.ModelAdmin):
     def lookup_allowed(self, lookup, value):
         if lookup == 'settings__shared__exact':
             return True
-        return super(BackendModelAdmin, self).lookup_allowed(lookup, value)
+        return super().lookup_allowed(lookup, value)
 
     def has_add_permission(self, request):
         return False
 
     def get_readonly_fields(self, request, obj=None):
-        fields = super(BackendModelAdmin, self).get_readonly_fields(request, obj)
+        fields = super().get_readonly_fields(request, obj)
 
         if not obj:
             return fields
@@ -129,7 +129,7 @@ class FormRequestAdminMixin:
     """
 
     def get_form(self, request, obj=None, **kwargs):
-        form = super(FormRequestAdminMixin, self).get_form(request, obj=obj, **kwargs)
+        form = super().get_form(request, obj=obj, **kwargs)
         form.request = request
         return form
 
@@ -139,7 +139,7 @@ class ChangeReadonlyMixin:
     change_readonly_fields = ()
 
     def get_readonly_fields(self, request, obj=None):
-        fields = super(ChangeReadonlyMixin, self).get_readonly_fields(request, obj)
+        fields = super().get_readonly_fields(request, obj)
         if hasattr(request, '_is_admin_add_view') and request._is_admin_add_view:
             return tuple(set(fields) | set(self.add_readonly_fields))
         else:
@@ -147,15 +147,13 @@ class ChangeReadonlyMixin:
 
     def add_view(self, request, *args, **kwargs):
         request._is_admin_add_view = True
-        return super(ChangeReadonlyMixin, self).add_view(request, *args, **kwargs)
+        return super().add_view(request, *args, **kwargs)
 
 
 class ProtectedModelMixin:
     def delete_view(self, request, *args, **kwargs):
         try:
-            response = super(ProtectedModelMixin, self).delete_view(
-                request, *args, **kwargs
-            )
+            response = super().delete_view(request, *args, **kwargs)
         except django_models.ProtectedError as e:
             self.message_user(request, e, messages.ERROR)
             return HttpResponseRedirect('.')
@@ -181,7 +179,7 @@ class CustomerAdminForm(ModelForm):
     )
 
     def __init__(self, *args, **kwargs):
-        super(CustomerAdminForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self.owners = self.instance.get_owners()
             self.support_users = self.instance.get_support_users()
@@ -199,7 +197,7 @@ class CustomerAdminForm(ModelForm):
         self.fields['access_subnets'].widget.attrs = textarea_attrs
 
     def save(self, commit=True):
-        customer = super(CustomerAdminForm, self).save(commit=False)
+        customer = super().save(commit=False)
 
         if not customer.pk:
             customer.save()
@@ -228,7 +226,7 @@ class CustomerAdminForm(ModelForm):
         self.save_m2m()
 
     def clean(self):
-        cleaned_data = super(CustomerAdminForm, self).clean()
+        cleaned_data = super().clean()
         owners = self.cleaned_data['owners']
         support_users = self.cleaned_data['support_users']
         invalid_users = set(owners) & set(support_users)
@@ -314,7 +312,7 @@ class CustomerAdmin(
     inlines = []
 
     def get_readonly_fields(self, request, obj=None):
-        fields = super(CustomerAdmin, self).get_readonly_fields(request, obj)
+        fields = super().get_readonly_fields(request, obj)
         if obj and obj.is_billable():
             return fields + ('accounting_start_date',)
         return fields
@@ -343,7 +341,7 @@ class ProjectAdminForm(ModelForm):
     )
 
     def __init__(self, *args, **kwargs):
-        super(ProjectAdminForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self.admins = self.instance.get_users(models.ProjectRole.ADMINISTRATOR)
             self.managers = self.instance.get_users(models.ProjectRole.MANAGER)
@@ -356,7 +354,7 @@ class ProjectAdminForm(ModelForm):
                 setattr(self, field_name, User.objects.none())
 
     def clean(self):
-        cleaned_data = super(ProjectAdminForm, self).clean()
+        cleaned_data = super().clean()
         admins = self.cleaned_data['admins']
         managers = self.cleaned_data['managers']
         members = self.cleaned_data['members']
@@ -376,7 +374,7 @@ class ProjectAdminForm(ModelForm):
         return cleaned_data
 
     def save(self, commit=True):
-        project = super(ProjectAdminForm, self).save(commit=False)
+        project = super().save(commit=False)
 
         if not project.pk:
             project.save()
@@ -490,7 +488,7 @@ class ServiceSettingsAdminForm(ModelForm):
     )
 
     def clean(self):
-        cleaned_data = super(ServiceSettingsAdminForm, self).clean()
+        cleaned_data = super().clean()
         service_type = cleaned_data.get('type')
         if not service_type:
             return
@@ -559,7 +557,7 @@ class ServiceSettingsAdminForm(ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        super(ServiceSettingsAdminForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.fields['type'] = ChoiceField(choices=SupportedServices.get_choices())
 
 
@@ -633,7 +631,7 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
 
     def add_view(self, *args, **kwargs):
         self.exclude = getattr(self, 'add_exclude', ())
-        return super(PrivateServiceSettingsAdmin, self).add_view(*args, **kwargs)
+        return super().add_view(*args, **kwargs)
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         extra_context = extra_context or {}
@@ -646,14 +644,10 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
 
         extra_context['service_fields'] = json.dumps(service_field_names)
         extra_context['service_fields_required'] = json.dumps(service_fields_required)
-        return super(PrivateServiceSettingsAdmin, self).changeform_view(
-            request, object_id, form_url, extra_context
-        )
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
     def get_readonly_fields(self, request, obj=None):
-        fields = super(PrivateServiceSettingsAdmin, self).get_readonly_fields(
-            request, obj
-        )
+        fields = super().get_readonly_fields(request, obj)
         if not obj:
             return fields + ('state',)
         elif obj.scope:
@@ -681,15 +675,15 @@ class SharedServiceSettingsAdmin(PrivateServiceSettingsAdmin):
     actions = ['pull', 'connect_shared']
 
     def get_fields(self, request, obj=None):
-        fields = super(SharedServiceSettingsAdmin, self).get_fields(request, obj)
+        fields = super().get_fields(request, obj)
         return [field for field in fields if field != 'customer']
 
     def get_list_display(self, request):
-        fields = super(SharedServiceSettingsAdmin, self).get_list_display(request)
+        fields = super().get_list_display(request)
         return [field for field in fields if field != 'customer']
 
     def save_form(self, request, form, change):
-        obj = super(SharedServiceSettingsAdmin, self).save_form(request, form, change)
+        obj = super().save_form(request, form, change)
 
         """If required field is not filled, but it has got a default value, we set a default value."""
         field_info = get_all_services_field_info()

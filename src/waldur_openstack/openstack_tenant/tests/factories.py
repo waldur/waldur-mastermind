@@ -181,22 +181,22 @@ class InstanceFactory(factory.DjangoModelFactory):
             return
 
         self.volumes.create(
-            backend_id='{0}-system'.format(self.name),
+            backend_id=f'{self.name}-system',
             service_settings=self.service_settings,
             project=self.project,
             bootable=True,
             size=10 * 1024,
-            name='{0}-system'.format(self.name),
-            image_name='{0}-image-name'.format(self.name)
+            name=f'{self.name}-system',
+            image_name=f'{self.name}-image-name'
             if not kwargs
             else kwargs['image_name'],
         )
         self.volumes.create(
-            backend_id='{0}-data'.format(self.name),
+            backend_id=f'{self.name}-data',
             service_settings=self.service_settings,
             project=self.project,
             size=20 * 1024,
-            name='{0}-data'.format(self.name),
+            name=f'{self.name}-data',
             state=models.Volume.States.OK,
         )
 

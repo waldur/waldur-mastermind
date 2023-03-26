@@ -31,13 +31,13 @@ from waldur_core.core.authentication import can_access_admin_site
 
 def get_admin_url(obj):
     return reverse(
-        'admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name),
+        f'admin:{obj._meta.app_label}_{obj._meta.model_name}_change',
         args=[obj.id],
     )
 
 
 def render_to_readonly(value):
-    return "<p>{0}</p>".format(value)
+    return f"<p>{value}</p>"
 
 
 class ReadonlyTextWidget(forms.TextInput):
@@ -57,7 +57,7 @@ class ReadOnlyAdminMixin:
     change_form_template = 'admin/core/readonly_change_form.html'
 
     def get_actions(self, request):
-        actions = super(ReadOnlyAdminMixin, self).get_actions(request)
+        actions = super().get_actions(request)
         if 'delete_selected' in actions:
             del actions['delete_selected']
         return actions
@@ -90,7 +90,7 @@ class CopyButtonMixin:
             'class': 'button copy-button',
             'data-target-id': attrs['id'],
         }
-        result += "<a %(attrs)s>Copy</a>" % {'attrs': flatatt(button_attrs)}
+        result += f"<a {flatatt(button_attrs)}>Copy</a>"
         return mark_safe(result)  # noqa: S308, S703
 
 
@@ -98,7 +98,7 @@ class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
     template_name = 'admin/core/widgets/password-widget.html'
 
     def __init__(self, attrs=None):
-        super(PasswordWidget, self).__init__(attrs, render_value=True)
+        super().__init__(attrs, render_value=True)
 
 
 class JsonWidget(CopyButtonMixin, JSONEditor):
@@ -116,7 +116,7 @@ class OptionalChoiceField(forms.ChoiceField):
     def __init__(self, choices=(), *args, **kwargs):
         empty = [('', '---------')]
         choices = empty + sorted(choices, key=lambda pair: pair[1])
-        super(OptionalChoiceField, self).__init__(choices=choices, *args, **kwargs)
+        super().__init__(choices=choices, *args, **kwargs)
 
 
 class UserCreationForm(auth_forms.UserCreationForm):
@@ -145,7 +145,7 @@ class UserChangeForm(auth_forms.UserChangeForm):
         exclude = ('details',)
 
     def __init__(self, *args, **kwargs):
-        super(UserChangeForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         competences = [
             (key, key) for key in settings.WALDUR_CORE.get('USER_COMPETENCE_LIST', [])
         ]
@@ -184,15 +184,15 @@ class ExcludedFieldsAdminMixin(admin.ModelAdmin):
         return (name, options)
 
     def get_fields(self, request, obj=None):
-        fields = super(ExcludedFieldsAdminMixin, self).get_fields(request, obj)
+        fields = super().get_fields(request, obj)
         return self.filter_excluded_fields(fields)
 
     def get_list_display(self, request):
-        fields = super(ExcludedFieldsAdminMixin, self).get_list_display(request)
+        fields = super().get_list_display(request)
         return self.filter_excluded_fields(fields)
 
     def get_search_fields(self, request):
-        fields = super(ExcludedFieldsAdminMixin, self).get_search_fields(request)
+        fields = super().get_search_fields(request)
         return self.filter_excluded_fields(fields)
 
     def get_fieldsets(self, request, obj=None):
@@ -382,9 +382,7 @@ class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
 
     def confirm_login_allowed(self, user):
         if not can_access_admin_site(user):
-            return super(CustomAdminAuthenticationForm, self).confirm_login_allowed(
-                user
-            )
+            return super().confirm_login_allowed(user)
 
 
 class CustomAdminSite(admin.AdminSite):
@@ -554,11 +552,11 @@ class ExtraActionsMixin:
         urls = []
 
         for action in self.get_extra_actions():
-            regex = r'^{}/$'.format(self._get_action_href(action))
+            regex = fr'^{self._get_action_href(action)}/$'
             view = self.admin_site.admin_view(action)
             urls.append(re_path(regex, view))
 
-        return urls + super(ExtraActionsMixin, self).get_urls()
+        return urls + super().get_urls()
 
     def changelist_view(self, request, extra_context=None):
         """
@@ -577,7 +575,7 @@ class ExtraActionsMixin:
         extra_context = extra_context or {}
         extra_context['extra_links'] = links
 
-        return super(ExtraActionsMixin, self).changelist_view(
+        return super().changelist_view(
             request,
             extra_context=extra_context,
         )
@@ -608,11 +606,11 @@ class ExtraActionsObjectMixin:
         urls = []
 
         for action in self.get_extra_object_actions():
-            regex = r'^(.+)/change/{}/$'.format(self._get_action_href(action))
+            regex = fr'^(.+)/change/{self._get_action_href(action)}/$'
             view = self.admin_site.admin_view(action)
             urls.append(re_path(regex, view))
 
-        return urls + super(ExtraActionsObjectMixin, self).get_urls()
+        return urls + super().get_urls()
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         """
@@ -634,7 +632,7 @@ class ExtraActionsObjectMixin:
         extra_context = extra_context or {}
         extra_context['extra_object_links'] = links
 
-        return super(ExtraActionsObjectMixin, self).change_view(
+        return super().change_view(
             request,
             object_id,
             form_url,

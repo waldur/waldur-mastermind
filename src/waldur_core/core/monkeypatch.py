@@ -31,7 +31,7 @@ def patch_fsm_field_mixin(cls):
 
         if not meta.has_transition(current_state):
             raise TransitionNotAllowed(
-                "Can't switch from state '{0}' using method '{1}'".format(
+                "Can't switch from state '{}' using method '{}'".format(
                     current_state_name, method_name
                 ),
                 object=instance,
@@ -39,7 +39,7 @@ def patch_fsm_field_mixin(cls):
             )
         if not meta.conditions_met(instance, current_state):
             raise TransitionNotAllowed(
-                "Transition conditions have not been met for method '{0}'".format(
+                "Transition conditions have not been met for method '{}'".format(
                     method_name
                 ),
                 object=instance,

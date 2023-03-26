@@ -7,7 +7,7 @@ from waldur_core.core import views
 
 class TestPublicSettings(TestCase):
     def setUp(self):
-        super(TestPublicSettings, self).setUp()
+        super().setUp()
 
         class MockExtension:
             def __init__(self, name):
@@ -56,7 +56,7 @@ class TestPublicSettings(TestCase):
         ]
 
     def tearDown(self):
-        super(TestPublicSettings, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_if_extension_not_have_field_enabled_or_it_equally_true_this_extension_must_by_in_response(

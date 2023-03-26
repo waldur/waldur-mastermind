@@ -43,7 +43,7 @@ class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, models.Model):
     tracker = FieldTracker()
 
     def __str__(self):
-        return '%s quota for %s' % (self.name, self.scope)
+        return f'{self.name} quota for {self.scope}'
 
     def is_exceeded(self, delta=None, threshold=None):
         """

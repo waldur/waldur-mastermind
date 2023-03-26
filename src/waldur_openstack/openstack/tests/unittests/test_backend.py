@@ -49,7 +49,7 @@ class BaseBackendTestCase(test.APITransactionTestCase):
         )
 
     def tearDown(self):
-        super(BaseBackendTestCase, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
 
@@ -330,7 +330,7 @@ class PushSecurityGroupTest(BaseBackendTestCase):
 
 class PullNetworksTest(BaseBackendTestCase):
     def setUp(self):
-        super(PullNetworksTest, self).setUp()
+        super().setUp()
         self.backend_networks = {
             'networks': [
                 {
@@ -375,7 +375,7 @@ class PullNetworksTest(BaseBackendTestCase):
 
 class PullSubnetsTest(BaseBackendTestCase):
     def setUp(self):
-        super(PullSubnetsTest, self).setUp()
+        super().setUp()
         self.network = factories.NetworkFactory(
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,
@@ -538,7 +538,7 @@ class ImportTenantNetworksTest(BaseBackendTestCase):
 
 class ImportTenantSubnets(BaseBackendTestCase):
     def setUp(self):
-        super(ImportTenantSubnets, self).setUp()
+        super().setUp()
         self.network = self.fixture.network
 
     def _generate_backend_subnet(self, count=1):
@@ -628,7 +628,7 @@ class CreateTenantTest(BaseBackendTestCase):
 
 class PullImagesTest(BaseBackendTestCase):
     def setUp(self):
-        super(PullImagesTest, self).setUp()
+        super().setUp()
         self.mocked_glance().images.list.return_value = [
             {
                 'status': 'active',
@@ -689,7 +689,7 @@ class PullImagesTest(BaseBackendTestCase):
 
 class PullPortsTest(BaseBackendTestCase):
     def setUp(self):
-        super(PullPortsTest, self).setUp()
+        super().setUp()
         self.subnet = self.fixture.subnet
         self.subnet.backend_id = f'{self.subnet.name}_backend_id'
         self.subnet.save()

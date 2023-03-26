@@ -25,7 +25,7 @@ def getdoc(obj, warning=True):
     doc = inspect.getdoc(obj) or ''
     if not doc and warning:
         if inspect.isclass(obj):
-            name = '{}.{}'.format(obj.__module__, obj.__name__)
+            name = f'{obj.__module__}.{obj.__name__}'
         elif inspect.ismethod(obj):
             cls = obj.im_class
             name = '{}.{}.{}'.format(
@@ -365,7 +365,7 @@ class ApiEndpoint:
                 for f in self.get_serializer_fields(field)
                 if not f['readonly']
             }
-            return '{%s}' % ', '.join(['%s: %s' % (k, v) for k, v in fields.items()])
+            return '{%s}' % ', '.join([f'{k}: {v}' for k, v in fields.items()])
         if isinstance(field, ModelMultipleChoiceFilter):
             return self._get_field_type(field.field)
         if isinstance(field, ListSerializer):
@@ -378,4 +378,4 @@ class ApiEndpoint:
         return self.FIELDS.get(name, name)
 
     def __repr__(self):
-        return "%s -- %s" % (self.path, ', '.join(self.methods))
+        return "{} -- {}".format(self.path, ', '.join(self.methods))

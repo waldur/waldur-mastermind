@@ -97,7 +97,7 @@ class VirtualMachine(
 
     @classmethod
     def get_backend_fields(cls):
-        return super(VirtualMachine, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'runtime_state',
             'cores',
             'cores_per_socket',
@@ -128,7 +128,7 @@ class Port(core_models.RuntimeStateMixin, structure_models.BaseResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Port, cls).get_backend_fields() + ('name', 'mac_address')
+        return super().get_backend_fields() + ('name', 'mac_address')
 
     @classmethod
     def get_url_name(cls):
@@ -153,7 +153,7 @@ class Disk(structure_models.BaseResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Disk, cls).get_backend_fields() + ('name', 'size')
+        return super().get_backend_fields() + ('name', 'size')
 
 
 class Template(
@@ -176,7 +176,7 @@ class Cluster(structure_models.ServiceProperty):
         return 'vmware-cluster'
 
     def __str__(self):
-        return '%s / %s' % (self.settings, self.name)
+        return f'{self.settings} / {self.name}'
 
 
 class CustomerCluster(models.Model):
@@ -184,7 +184,7 @@ class CustomerCluster(models.Model):
     cluster = models.ForeignKey('Cluster', on_delete=models.CASCADE)
 
     def __str__(self):
-        return '%s / %s' % (self.customer, self.cluster)
+        return f'{self.customer} / {self.cluster}'
 
     class Meta:
         unique_together = ('customer', 'cluster')
@@ -198,7 +198,7 @@ class Network(structure_models.ServiceProperty):
         return 'vmware-network'
 
     def __str__(self):
-        return '%s / %s' % (self.settings, self.name)
+        return f'{self.settings} / {self.name}'
 
 
 class CustomerNetwork(models.Model):
@@ -207,7 +207,7 @@ class CustomerNetwork(models.Model):
     network = models.ForeignKey('Network', on_delete=models.CASCADE)
 
     def __str__(self):
-        return '%s / %s' % (self.customer, self.network)
+        return f'{self.customer} / {self.network}'
 
     class Meta:
         unique_together = ('customer', 'network')
@@ -219,7 +219,7 @@ class CustomerNetworkPair(models.Model):
     network = models.ForeignKey('Network', on_delete=models.CASCADE)
 
     def __str__(self):
-        return '%s / %s' % (self.customer, self.network)
+        return f'{self.customer} / {self.network}'
 
     class Meta:
         unique_together = ('customer', 'network')
@@ -239,7 +239,7 @@ class Datastore(structure_models.ServiceProperty):
         return 'vmware-datastore'
 
     def __str__(self):
-        return '%s / %s' % (self.settings, self.name)
+        return f'{self.settings} / {self.name}'
 
 
 class CustomerDatastore(models.Model):
@@ -247,7 +247,7 @@ class CustomerDatastore(models.Model):
     datastore = models.ForeignKey('Datastore', on_delete=models.CASCADE)
 
     def __str__(self):
-        return '%s / %s' % (self.customer, self.datastore)
+        return f'{self.customer} / {self.datastore}'
 
     class Meta:
         unique_together = ('customer', 'datastore')
@@ -255,7 +255,7 @@ class CustomerDatastore(models.Model):
 
 class Folder(structure_models.ServiceProperty):
     def __str__(self):
-        return '%s / %s' % (self.settings, self.name)
+        return f'{self.settings} / {self.name}'
 
     @classmethod
     def get_url_name(cls):
@@ -267,7 +267,7 @@ class CustomerFolder(models.Model):
     folder = models.ForeignKey('Folder', on_delete=models.CASCADE)
 
     def __str__(self):
-        return '%s / %s' % (self.customer, self.folder)
+        return f'{self.customer} / {self.folder}'
 
     class Meta:
         unique_together = ('customer', 'folder')

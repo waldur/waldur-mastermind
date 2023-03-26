@@ -7,7 +7,7 @@ class SetInstanceErredTask(ErrorStateTransitionTask):
     """Mark instance as erred and delete resources that were not created."""
 
     def execute(self, instance):
-        super(SetInstanceErredTask, self).execute(instance)
+        super().execute(instance)
 
         # delete volume if it were not created on backend,
         # mark as erred if creation was started, but not ended,

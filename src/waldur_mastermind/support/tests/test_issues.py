@@ -111,7 +111,7 @@ class IssueRetrieveTest(base.BaseTest):
 
 class IssueCreateBaseTest(base.BaseTest):
     def setUp(self):
-        super(IssueCreateBaseTest, self).setUp()
+        super().setUp()
         self.url = factories.IssueFactory.get_list_url()
         self.caller = structure_factories.UserFactory()
 
@@ -171,7 +171,7 @@ class IssueCreateBaseTest(base.BaseTest):
 @ddt
 class IssueCreateTest(IssueCreateBaseTest):
     def setUp(self):
-        super(IssueCreateTest, self).setUp()
+        super().setUp()
         factories.SupportCustomerFactory(user=self.caller)
 
     @data('staff', 'global_support')
@@ -501,7 +501,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 @override_support_settings(USE_OLD_API=True)
 class IssueCreateOldAPITest(IssueCreateBaseTest):
     def setUp(self):
-        super(IssueCreateOldAPITest, self).setUp()
+        super().setUp()
         self._mock_jira(old_jira=True, user=self.fixture.staff)
 
     def test_identification_from_email_if_caller_does_not_exist(self):
@@ -517,7 +517,7 @@ class IssueCreateOldAPITest(IssueCreateBaseTest):
 @ddt
 class IssueUpdateTest(base.BaseTest):
     def setUp(self):
-        super(IssueUpdateTest, self).setUp()
+        super().setUp()
         self.issue = factories.IssueFactory(
             customer=self.fixture.customer, project=self.fixture.project
         )
@@ -561,7 +561,7 @@ class IssueUpdateTest(base.BaseTest):
 @ddt
 class IssueDeleteTest(base.BaseTest):
     def setUp(self):
-        super(IssueDeleteTest, self).setUp()
+        super().setUp()
         self.issue = factories.IssueFactory(
             customer=self.fixture.customer, project=self.fixture.project
         )

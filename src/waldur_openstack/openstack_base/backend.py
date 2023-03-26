@@ -187,7 +187,7 @@ def get_cached_session_key(settings, admin=False, tenant_id=None):
         str(settings.backend_url) + str(settings.password) + str(settings.username)
     )
     hashed_settings_key = hashlib.sha256(settings_key.encode('utf-8')).hexdigest()
-    return '%s_%s_%s' % (settings.uuid.hex, hashed_settings_key, key)
+    return f'{settings.uuid.hex}_{hashed_settings_key}_{key}'
 
 
 def get_certificate_filename(data):
@@ -256,14 +256,14 @@ class BaseOpenStackBackend(ServiceBackend):
     def __getattr__(self, name):
         clients = 'keystone', 'nova', 'neutron', 'cinder', 'glance'
         for client in clients:
-            if name == '{}_client'.format(client):
+            if name == f'{client}_client':
                 return self.get_client(client, admin=False)
 
-            if name == '{}_admin_client'.format(client):
+            if name == f'{client}_admin_client':
                 return self.get_client(client, admin=True)
 
         raise AttributeError(
-            "'%s' object has no attribute '%s'" % (self.__class__.__name__, name)
+            f"'{self.__class__.__name__}' object has no attribute '{name}'"
         )
 
     def ping(self, raise_exception=False):

@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 from django.conf import settings
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -24,7 +25,7 @@ from . import factories
 
 class CreateResourceFlowTest(test.APITransactionTestCase):
     def setUp(self):
-        super(CreateResourceFlowTest, self).setUp()
+        super().setUp()
         self.list_url = reverse('marketplace-resource-creation-flow-list')
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
@@ -90,7 +91,7 @@ class CreateResourceFlowTest(test.APITransactionTestCase):
 
 class FlowOperationsTest(test.APITransactionTestCase):
     def setUp(self):
-        super(FlowOperationsTest, self).setUp()
+        super().setUp()
         self.fixture = SupportFixture()
         self.flow = FlowTracker.objects.create(
             requested_by=self.fixture.manager,
@@ -108,7 +109,7 @@ class FlowOperationsTest(test.APITransactionTestCase):
 
 class ListResourceFlowTest(FlowOperationsTest):
     def setUp(self):
-        super(ListResourceFlowTest, self).setUp()
+        super().setUp()
         self.list_url = reverse('marketplace-resource-creation-flow-list')
 
     def test_user_can_see_his_own_flow(self):
@@ -129,7 +130,7 @@ class ListResourceFlowTest(FlowOperationsTest):
 
 class FlowSubmitTest(FlowOperationsTest):
     def setUp(self):
-        super(FlowSubmitTest, self).setUp()
+        super().setUp()
         self.detail_url = (
             reverse(
                 'marketplace-resource-creation-flow-detail',
@@ -157,7 +158,7 @@ class FlowSubmitTest(FlowOperationsTest):
 
 class FlowCancelTest(FlowOperationsTest):
     def setUp(self):
-        super(FlowCancelTest, self).setUp()
+        super().setUp()
         self.detail_url = (
             reverse(
                 'marketplace-resource-creation-flow-detail',
@@ -185,7 +186,7 @@ class FlowCancelTest(FlowOperationsTest):
 
 class CustomerCreationApproveTest(FlowOperationsTest):
     def setUp(self):
-        super(CustomerCreationApproveTest, self).setUp()
+        super().setUp()
         self.flow.customer_create_request = CustomerCreateRequest.objects.create(
             name='XYZ corp'
         )
@@ -236,7 +237,7 @@ class CustomerCreationApproveTest(FlowOperationsTest):
 
 class CustomerCreationRejectTest(FlowOperationsTest):
     def setUp(self):
-        super(CustomerCreationRejectTest, self).setUp()
+        super().setUp()
         self.flow.customer_create_request = CustomerCreateRequest.objects.create(
             name='XYZ corp'
         )
@@ -278,7 +279,7 @@ class CustomerCreationRejectTest(FlowOperationsTest):
 
 class ProjectCreationApproveTest(FlowOperationsTest):
     def setUp(self):
-        super(ProjectCreationApproveTest, self).setUp()
+        super().setUp()
         self.detail_url = (
             reverse(
                 'marketplace-project-creation-request-detail',
@@ -322,7 +323,7 @@ class ProjectCreationApproveTest(FlowOperationsTest):
 
 class ProjectCreationRejectTest(FlowOperationsTest):
     def setUp(self):
-        super(ProjectCreationRejectTest, self).setUp()
+        super().setUp()
         self.detail_url = (
             reverse(
                 'marketplace-project-creation-request-detail',
@@ -351,7 +352,7 @@ class ProjectCreationRejectTest(FlowOperationsTest):
 
 class ResourceCreationApproveTest(FlowOperationsTest):
     def setUp(self):
-        super(ResourceCreationApproveTest, self).setUp()
+        super().setUp()
         self.detail_url = (
             reverse(
                 'marketplace-resource-creation-request-detail',

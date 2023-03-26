@@ -105,7 +105,7 @@ class DropletSerializer(structure_serializers.VirtualMachineSerializer):
         )
 
     def validate(self, attrs):
-        attrs = super(DropletSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
 
         if not self.instance:
             region = attrs['region']
@@ -151,7 +151,7 @@ class DropletSerializer(structure_serializers.VirtualMachineSerializer):
     def create(self, validated_data):
         validated_data['region_name'] = validated_data['region'].name
         validated_data['size_name'] = validated_data['size'].name
-        return super(DropletSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class DropletResizeSerializer(serializers.Serializer):

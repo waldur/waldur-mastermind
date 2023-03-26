@@ -24,7 +24,7 @@ class GenericKeyMixin:
         available_models=(),
         **kwargs
     ):
-        super(GenericKeyMixin, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.generic_key_field = generic_key_field
         self.object_id_field = object_id_field
         self.content_type_field = content_type_field
@@ -87,15 +87,15 @@ class GenericKeyMixin:
 
     def filter(self, *args, **kwargs):
         kwargs = self._preprocess_kwargs(kwargs)
-        return super(GenericKeyMixin, self).filter(*args, **kwargs)
+        return super().filter(*args, **kwargs)
 
     def get(self, *args, **kwargs):
         kwargs = self._preprocess_kwargs(kwargs)
-        return super(GenericKeyMixin, self).get(*args, **kwargs)
+        return super().get(*args, **kwargs)
 
     def get_or_create(self, *args, **kwargs):
         kwargs = self._preprocess_kwargs(kwargs)
-        return super(GenericKeyMixin, self).get_or_create(*args, **kwargs)
+        return super().get_or_create(*args, **kwargs)
 
 
 class SummaryQuerySet:

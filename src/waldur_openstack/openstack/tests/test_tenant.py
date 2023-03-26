@@ -17,14 +17,14 @@ from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
 class BaseTenantActionsTest(test.APITransactionTestCase):
     def setUp(self):
-        super(BaseTenantActionsTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
 
 
 class TenantGetTest(BaseTenantActionsTest):
     def setUp(self):
-        super(TenantGetTest, self).setUp()
+        super().setUp()
         self.fixture.openstack_service_settings.backend_url = 'https://waldur.com/'
         self.fixture.openstack_service_settings.save()
 
@@ -63,7 +63,7 @@ class TenantGetTest(BaseTenantActionsTest):
 @ddt
 class TenantCreateTest(BaseTenantActionsTest):
     def setUp(self):
-        super(TenantCreateTest, self).setUp()
+        super().setUp()
         self.valid_data = {
             'name': 'Test tenant',
             'service_settings': factories.OpenStackServiceSettingsFactory.get_url(
@@ -622,7 +622,7 @@ class TenantDeleteTest(BaseTenantActionsTest):
 @patch('waldur_openstack.openstack.executors.FloatingIPCreateExecutor.execute')
 class TenantCreateFloatingIPTest(BaseTenantActionsTest):
     def setUp(self):
-        super(TenantCreateFloatingIPTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(self.fixture.owner)
         self.url = factories.TenantFactory.get_url(self.tenant, 'create_floating_ip')
 
@@ -664,7 +664,7 @@ class TenantCreateNetworkTest(BaseTenantActionsTest):
     quota_name = 'network_count'
 
     def setUp(self):
-        super(TenantCreateNetworkTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(self.fixture.owner)
         self.url = factories.TenantFactory.get_url(self.tenant, 'create_network')
         self.request_data = {'name': 'test_network_name'}
@@ -692,7 +692,7 @@ class TenantCreateNetworkTest(BaseTenantActionsTest):
 @ddt
 class TenantChangePasswordTest(BaseTenantActionsTest):
     def setUp(self):
-        super(TenantChangePasswordTest, self).setUp()
+        super().setUp()
         self.tenant = self.fixture.tenant
         self.url = factories.TenantFactory.get_url(
             self.tenant, action='change_password'

@@ -71,7 +71,7 @@ class SupportFixture:
 
 class IssueStatusHandlerTest(BaseTest):
     def setUp(self):
-        super(IssueStatusHandlerTest, self).setUp()
+        super().setUp()
         self.fixture = SupportFixture()
 
     def test_order_item_is_done_when_resource_creation_issue_is_resolved(self):

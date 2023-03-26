@@ -19,7 +19,7 @@ class BillingConfig(AppConfig):
                 handlers.create_price_estimate,
                 sender=model,
                 dispatch_uid='waldur_mastermind.billing.'
-                'create_price_estimate_%s_%s' % (index, model.__class__),
+                'create_price_estimate_{}_{}'.format(index, model.__class__),
             )
 
         for index, model in enumerate(models.PriceEstimate.get_estimated_models()):
@@ -27,7 +27,7 @@ class BillingConfig(AppConfig):
                 handlers.delete_stale_price_estimate,
                 sender=model,
                 dispatch_uid='waldur_mastermind.billing.'
-                'delete_stale_price_estimate_%s_%s' % (index, model.__class__),
+                'delete_stale_price_estimate_{}_{}'.format(index, model.__class__),
             )
 
         signals.post_save.connect(

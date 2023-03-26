@@ -147,7 +147,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
 class StorageModeInvoiceTest(BaseTenantInvoiceTest):
     def setUp(self):
         # Arrange
-        super(StorageModeInvoiceTest, self).setUp()
+        super().setUp()
         fixture = OpenStackFixture()
         tenant = fixture.openstack_tenant
         offering_component = marketplace_models.OfferingComponent.objects.create(

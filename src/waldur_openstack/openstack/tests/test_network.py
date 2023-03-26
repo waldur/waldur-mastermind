@@ -27,7 +27,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
     quota_name = 'subnet_count'
 
     def setUp(self):
-        super(NetworkCreateSubnetActionTest, self).setUp()
+        super().setUp()
         self.user = self.fixture.owner
         self.client.force_authenticate(self.user)
         self.url = factories.NetworkFactory.get_url(
@@ -104,7 +104,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
 
 class NetworkUpdateActionTest(BaseNetworkTest):
     def setUp(self):
-        super(NetworkUpdateActionTest, self).setUp()
+        super().setUp()
         self.user = self.fixture.owner
         self.client.force_authenticate(self.user)
         self.request_data = {
@@ -123,7 +123,7 @@ class NetworkUpdateActionTest(BaseNetworkTest):
 @mock.patch('waldur_openstack.openstack.executors.NetworkDeleteExecutor.execute')
 class NetworkDeleteActionTest(BaseNetworkTest):
     def setUp(self):
-        super(NetworkDeleteActionTest, self).setUp()
+        super().setUp()
         self.user = self.fixture.owner
         self.client.force_authenticate(self.user)
         self.request_data = {
@@ -149,7 +149,7 @@ class NetworkDeleteActionTest(BaseNetworkTest):
 
 class NetworkCreatePortActionTest(BaseNetworkTest):
     def setUp(self):
-        super(NetworkCreatePortActionTest, self).setUp()
+        super().setUp()
         self.client.force_authenticate(user=self.fixture.admin)
         self.network = self.fixture.network
         self.url = factories.NetworkFactory.get_url(self.network, action='create_port')

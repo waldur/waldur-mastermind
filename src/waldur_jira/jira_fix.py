@@ -70,9 +70,7 @@ def _upload_file(manager, issue, upload_file, filename):
     attachment = Attachment(manager._options, manager._session, js[0])
 
     if attachment.size == 0:
-        raise JIRAError(
-            "Added empty attachment?!: r: %s\nattachment: %s" % (r, attachment)
-        )
+        raise JIRAError(f"Added empty attachment?!: r: {r}\nattachment: {attachment}")
 
     return attachment
 
@@ -124,7 +122,7 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
 
         url = manager._options[
             'server'
-        ] + '/rest/servicedesk/%s/servicedesk/%s/groups/%s/request-types' % (
+        ] + '/rest/servicedesk/{}/servicedesk/{}/groups/{}/request-types'.format(
             strange_setting,
             project_key.lower(),
             service_desk,
@@ -143,7 +141,7 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
 def request_type_fields(manager, service_desk, request_type_id):
     url = manager._options[
         'server'
-    ] + '/rest/servicedeskapi/servicedesk/%s/requesttype/%s/field' % (
+    ] + '/rest/servicedeskapi/servicedesk/{}/requesttype/{}/field'.format(
         service_desk.id,
         request_type_id,
     )

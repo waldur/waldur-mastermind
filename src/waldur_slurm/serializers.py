@@ -105,7 +105,7 @@ class AllocationSerializer(
         )
 
     def validate(self, attrs):
-        attrs = super(AllocationSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
         # Skip validation on update
         if self.instance:
             return attrs

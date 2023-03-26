@@ -112,7 +112,7 @@ class ServiceProviderSerializer(
     division = serializers.CharField(source='customer.division', read_only=True)
 
     def get_fields(self):
-        fields = super(ServiceProviderSerializer, self).get_fields()
+        fields = super().get_fields()
         if self.context['request'].user.is_anonymous:
             del fields['enable_notifications']
         if settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
@@ -634,7 +634,7 @@ class ExportImportPlanSerializer(serializers.ModelSerializer):
     def save(self, **kwargs):
         validated_data = self.validated_data
         components = validated_data.pop('components', [])
-        plan = super(ExportImportPlanSerializer, self).save(**kwargs)
+        plan = super().save(**kwargs)
 
         offering_components = []
 
@@ -721,7 +721,7 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
         validated_data = self.validated_data
         components = validated_data.pop('components', [])
         plans = validated_data.pop('plans', [])
-        offering = super(ExportImportOfferingSerializer, self).save(**kwargs)
+        offering = super().save(**kwargs)
 
         component_types = []
 
@@ -1263,7 +1263,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
 
         validated_data = self._create_service(validated_data)
 
-        offering = super(OfferingCreateSerializer, self).create(validated_data)
+        offering = super().create(validated_data)
         utils.create_offering_components(offering, custom_components)
         if limits:
             self._update_limits(offering, limits)
@@ -1506,9 +1506,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         limits = validated_data.pop('limits', {})
         if limits:
             self._update_limits(instance, limits)
-        offering = super(OfferingUpdateSerializer, self).update(
-            instance, validated_data
-        )
+        offering = super().update(instance, validated_data)
         return offering
 
 
@@ -1833,7 +1831,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
     )
 
     def get_fields(self):
-        fields = super(NestedOrderItemSerializer, self).get_fields()
+        fields = super().get_fields()
         method = self.context['view'].request.method
 
         user = self.context['view'].request.user
@@ -1973,7 +1971,7 @@ class CartItemSerializer(BaseRequestSerializer):
         protected_fields = BaseRequestSerializer.Meta.protected_fields + ('project',)
 
     def get_fields(self):
-        fields = super(CartItemSerializer, self).get_fields()
+        fields = super().get_fields()
         if 'project' in fields:
             fields['project'].queryset = filter_queryset_for_user(
                 fields['project'].queryset, self.context['request'].user
@@ -2010,7 +2008,7 @@ class CartItemSerializer(BaseRequestSerializer):
     @transaction.atomic
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        item = super(CartItemSerializer, self).create(validated_data)
+        item = super().create(validated_data)
         item.init_cost()
         item.save(update_fields=['cost'])
         self.quotas_validate(item, validated_data['project'])
@@ -2018,7 +2016,7 @@ class CartItemSerializer(BaseRequestSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        instance = super(CartItemSerializer, self).update(instance, validated_data)
+        instance = super().update(instance, validated_data)
         instance.init_cost()
         instance.save(update_fields=['cost'])
         return instance
@@ -2060,7 +2058,7 @@ class CartSubmitSerializer(serializers.Serializer):
     )
 
     def get_fields(self):
-        fields = super(CartSubmitSerializer, self).get_fields()
+        fields = super().get_fields()
         project_field = fields['project']
         project_field.queryset = filter_queryset_for_user(
             project_field.queryset, self.context['request'].user
@@ -2456,7 +2454,7 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         return end_date
 
     def save(self, **kwargs):
-        resource = super(ResourceUpdateSerializer, self).save(**kwargs)
+        resource = super().save(**kwargs)
         user = self.context['request'].user
 
         if 'end_date' in self.validated_data:
@@ -2647,7 +2645,7 @@ class ImportResourceSerializer(serializers.Serializer):
     )
 
     def get_fields(self):
-        fields = super(ImportResourceSerializer, self).get_fields()
+        fields = super().get_fields()
 
         request = self.context['request']
         user = request.user
@@ -2708,7 +2706,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         return {component.type: component for component in components}
 
     def validate(self, attrs):
-        attrs = super(ComponentUsageCreateSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
         plan_period = attrs['plan_period']
         resource = plan_period.resource
         offering = resource.plan.offering
@@ -2769,17 +2767,21 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 },
             )
             if created:
-                message = 'Usage has been created for %s, component: %s, value: %s' % (
-                    resource,
-                    component.type,
-                    amount,
+                message = (
+                    'Usage has been created for {}, component: {}, value: {}'.format(
+                        resource,
+                        component.type,
+                        amount,
+                    )
                 )
                 logger.info(message)
             else:
-                message = 'Usage has been updated for %s, component: %s, value: %s' % (
-                    resource,
-                    component.type,
-                    amount,
+                message = (
+                    'Usage has been updated for {}, component: {}, value: {}'.format(
+                        resource,
+                        component.type,
+                        amount,
+                    )
                 )
                 logger.info(message)
         resource.current_usages = {
@@ -2892,7 +2894,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
                 _('It is not allowed to create users for current offering.')
             )
 
-        return super(OfferingUserSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 def validate_plan(plan):
@@ -3210,7 +3212,7 @@ class DetailedProviderUserSerializer(serializers.ModelSerializer):
         ).count()
 
     def get_fields(self):
-        fields = super(DetailedProviderUserSerializer, self).get_fields()
+        fields = super().get_fields()
 
         try:
             request = self.context['view'].request

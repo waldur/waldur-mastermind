@@ -10,7 +10,7 @@ from . import factories
 
 class ClusterGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ClusterGetTest, self).setUp()
+        super().setUp()
         self.fixture = ProjectFixture()
         self.fixture_2 = ProjectFixture()
         cluster_1 = factories.ClusterFactory()
@@ -53,14 +53,14 @@ class ClusterGetTest(test.APITransactionTestCase):
 
 class ClusterPullTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ClusterPullTest, self).setUp()
+        super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
         self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
         self.mock_client = self.patcher.start()
 
     def tearDown(self):
-        super(ClusterPullTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_delete_old_clusters(self):

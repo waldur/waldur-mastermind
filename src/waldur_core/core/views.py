@@ -157,14 +157,14 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         username = serializer.validated_data['username']
 
         source_ip = request.META.get('REMOTE_ADDR')
-        auth_failure_key = 'LOGIN_FAILURES_OF_%s_AT_%s' % (username, source_ip)
+        auth_failure_key = f'LOGIN_FAILURES_OF_{username}_AT_{source_ip}'
         auth_failures = cache.get(auth_failure_key) or 0
         lockout_time_in_mins = 10
 
         if auth_failures >= 4:
             logger.debug(
                 'Not returning auth token: '
-                'username %s from %s is locked out' % (username, source_ip)
+                'username {} from {} is locked out'.format(username, source_ip)
             )
             return Response(
                 data={
@@ -309,10 +309,10 @@ class ActionsViewSet(viewsets.ModelViewSet):
 
     @ensure_atomic_transaction
     def dispatch(self, request, *args, **kwargs):
-        return super(ActionsViewSet, self).dispatch(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)
 
     def get_serializer_class(self):
-        default_serializer_class = super(ActionsViewSet, self).get_serializer_class()
+        default_serializer_class = super().get_serializer_class()
         if self.action is None:
             return default_serializer_class
         return getattr(
@@ -320,7 +320,7 @@ class ActionsViewSet(viewsets.ModelViewSet):
         )
 
     def initial(self, request, *args, **kwargs):
-        super(ActionsViewSet, self).initial(request, *args, **kwargs)
+        super().initial(request, *args, **kwargs)
         if (
             self.action is None
         ):  # disable all checks if user tries to reach unsupported action
@@ -467,7 +467,7 @@ def feature_values(request):
 
 def redirect_with(url_template, **kwargs):
     params = urlencode(kwargs)
-    url = '%s?%s' % (url_template, params)
+    url = f'{url_template}?{params}'
     return HttpResponseRedirect(url)
 
 
@@ -501,16 +501,14 @@ class CheckExtensionMixin:
         conf = getattr(settings, self.extension_name, None)
         if not conf or not conf['ENABLED']:
             raise ExtensionDisabled()
-        return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
+        return super().initial(request, *args, **kwargs)
 
 
 class ExtraContextTemplateView(TemplateView):
     extra_context = None
 
     def get_context_data(self, *args, **kwargs):
-        context = super(ExtraContextTemplateView, self).get_context_data(
-            *args, **kwargs
-        )
+        context = super().get_context_data(*args, **kwargs)
         if self.extra_context:
             context.update(self.extra_context)
         return context
@@ -519,7 +517,7 @@ class ExtraContextTemplateView(TemplateView):
 class CreateReversionMixin:
     def perform_create(self, serializer):
         with reversion.create_revision():
-            super(CreateReversionMixin, self).perform_update(serializer)
+            super().perform_update(serializer)
             reversion.set_user(self.request.user)
             reversion.set_comment('Created via REST API')
 
@@ -527,7 +525,7 @@ class CreateReversionMixin:
 class UpdateReversionMixin:
     def perform_update(self, serializer):
         with reversion.create_revision():
-            super(UpdateReversionMixin, self).perform_update(serializer)
+            super().perform_update(serializer)
             reversion.set_user(self.request.user)
             reversion.set_comment('Updated via REST API')
 

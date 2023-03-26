@@ -138,7 +138,7 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
-        super(VirtualMachineResetExecutor, cls).pre_apply(instance, **kwargs)
+        super().pre_apply(instance, **kwargs)
         instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         instance.save(update_fields=['tools_state'])
 
@@ -194,7 +194,7 @@ class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
-        super(VirtualMachineShutdownGuestExecutor, cls).pre_apply(instance, **kwargs)
+        super().pre_apply(instance, **kwargs)
         instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         instance.save(update_fields=['tools_state'])
 
@@ -219,7 +219,7 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
-        super(VirtualMachineRebootGuestExecutor, cls).pre_apply(instance, **kwargs)
+        super().pre_apply(instance, **kwargs)
         instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         instance.save(update_fields=['tools_state'])
 

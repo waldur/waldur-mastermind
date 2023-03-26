@@ -68,7 +68,7 @@ class InstanceServerGroupTest(test.APITransactionTestCase):
 
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
         reread_server_group = reread_instance.server_group
-        self.assertEquals(reread_server_group, self.server_group)
+        self.assertEqual(reread_server_group, self.server_group)
 
     def test_server_group_is_not_required(self):
         data = _instance_data(self.admin, self.instance)

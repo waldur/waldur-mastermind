@@ -731,7 +731,7 @@ class JiraBackend(ServiceBackend):
 
     def _get_property(self, object_name, object_id, property_name):
         url = self.manager._get_url(
-            '{0}/{1}/properties/{2}'.format(object_name, object_id, property_name)
+            f'{object_name}/{object_id}/properties/{property_name}'
         )
         response = self.manager._session.get(url)
         return response.json()

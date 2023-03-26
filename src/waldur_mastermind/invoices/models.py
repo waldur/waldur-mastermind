@@ -116,7 +116,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     @property
     def price(self):
         return quantize_price(
-            decimal.Decimal(sum((item.price for item in self.items.all())))
+            decimal.Decimal(sum(item.price for item in self.items.all()))
         )
 
     @property
@@ -129,7 +129,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
 
     @property
     def price_current(self):
-        return sum((item.price_current for item in self.items.all()))
+        return sum(item.price_current for item in self.items.all())
 
     @property
     def due_date(self):
@@ -160,7 +160,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         self.save(update_fields=['state', 'invoice_date'])
 
     def __str__(self):
-        return '%s | %s-%s' % (self.customer, self.year, self.month)
+        return f'{self.customer} | {self.year}-{self.month}'
 
 
 def get_quantity(unit, start, end):
@@ -416,7 +416,7 @@ class PaymentType(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs['max_length'] = 30
         kwargs['choices'] = self.CHOICES
-        super(PaymentType, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model):
@@ -428,7 +428,7 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
     tracker = FieldTracker()
 
     def __str__(self):
-        return '%s (%s)' % (self.organization.name, self.payment_type)
+        return f'{self.organization.name} ({self.payment_type})'
 
     class Permissions:
         customer_path = 'organization'
@@ -446,7 +446,7 @@ class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model)
                 pk=self.pk
             ).update(is_active=None)
 
-        return super(PaymentProfile, self).save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
     class Meta:
         unique_together = ('organization', 'is_active')

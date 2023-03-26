@@ -94,7 +94,7 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
         project = validated_data.get('project')
         if project:
             validated_data['customer'] = project.customer
-        return super(GroupInvitationSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class InvitationSerializer(GroupInvitationSerializer):

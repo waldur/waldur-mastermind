@@ -28,7 +28,7 @@ class Image(structure_models.GeneralServiceProperty):
         return self.distribution in MANDATORY
 
     def __str__(self):
-        return '{} {} ({})'.format(self.name, self.distribution, self.type)
+        return f'{self.name} {self.distribution} ({self.type})'
 
     @classmethod
     def get_url_name(cls):
@@ -36,7 +36,7 @@ class Image(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Image, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'type',
             'distribution',
             'is_official',
@@ -64,7 +64,7 @@ class Size(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Size, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'cores',
             'ram',
             'disk',
@@ -95,7 +95,7 @@ class Droplet(structure_models.VirtualMachine):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Droplet, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'state',
             'runtime_state',
             'image_name',

@@ -35,7 +35,7 @@ class AuthResultViewSet(
                 "phone": "1234567890",
             }
         """
-        return super(AuthResultViewSet, self).create(request, *args, **kwargs)
+        return super().create(request, *args, **kwargs)
 
     @validate_valimo
     @decorators.action(detail=False, methods=['POST'])

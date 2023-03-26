@@ -198,9 +198,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     }
 
     def __init__(self, settings):
-        super(OpenStackTenantBackend, self).__init__(
-            settings, settings.options['tenant_id']
-        )
+        super().__init__(settings, settings.options['tenant_id'])
 
     @property
     def external_network_id(self):
@@ -546,8 +544,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 )
             except models.ServerGroup.DoesNotExist:
                 logger.exception(
-                    'Server group with id %s does not exist in database. '
-                    'Settings ID: %s' % (server_group_backend_id, self.settings.id)
+                    'Server group with id {} does not exist in database. '
+                    'Settings ID: {}'.format(server_group_backend_id, self.settings.id)
                 )
             else:
                 instance.server_group = server_group
@@ -1969,8 +1967,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 )
             except models.SecurityGroup.DoesNotExist:
                 logger.exception(
-                    'Security group with id %s does not exist in database. '
-                    'Settings ID: %s' % (group_id, self.settings.id)
+                    'Security group with id {} does not exist in database. '
+                    'Settings ID: {}'.format(group_id, self.settings.id)
                 )
             else:
                 instance.security_groups.add(security_group)

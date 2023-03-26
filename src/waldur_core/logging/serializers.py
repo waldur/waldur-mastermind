@@ -43,7 +43,7 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         even before all apps are initialized. As a result, some event types are missing.
         When dynamic declaration is used, all valid event types are available as choices.
         """
-        fields = super(BaseHookSerializer, self).get_fields()
+        fields = super().get_fields()
         fields['event_types'] = serializers.MultipleChoiceField(
             choices=loggers.get_valid_events(), required=False
         )
@@ -54,7 +54,7 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        return super(BaseHookSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
     def validate(self, attrs):
         if (

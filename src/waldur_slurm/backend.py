@@ -338,7 +338,7 @@ class SlurmBackend(ServiceBackend):
         prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
         name = allocation.name
         hexpart = allocation.uuid.hex[:5]
-        raw_name = "%s%s_%s" % (prefix, hexpart, name)
+        raw_name = f"{prefix}{hexpart}_{name}"
         result_name = sanitize_allocation_name(raw_name)[
             : models.SLURM_ALLOCATION_NAME_MAX_LEN
         ]
@@ -350,7 +350,7 @@ class SlurmBackend(ServiceBackend):
             and object_or_uuid
             or object_or_uuid.uuid.hex
         )
-        return '%s%s' % (prefix, key)
+        return f'{prefix}{key}'
 
     def _update_allocation_associations(self, allocation):
         backend_usernames = self.client.list_account_users(allocation.backend_id)

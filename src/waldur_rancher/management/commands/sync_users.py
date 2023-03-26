@@ -14,11 +14,11 @@ class Command(BaseCommand):
         def print_message(count, action, name='user'):
             if count == 1:
                 self.stdout.write(
-                    self.style.SUCCESS('%s %s has been %s.' % (count, name, action))
+                    self.style.SUCCESS(f'{count} {name} has been {action}.')
                 )
             else:
                 self.stdout.write(
-                    self.style.SUCCESS('%s %ss have been %s.' % (count, name, action))
+                    self.style.SUCCESS(f'{count} {name}s have been {action}.')
                 )
 
         result = SyncUser.run()

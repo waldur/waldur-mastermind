@@ -24,7 +24,7 @@ class ProjectTemplate(
 
     @classmethod
     def get_backend_fields(cls):
-        return super(ProjectTemplate, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'icon_url',
             'description',
         )
@@ -41,7 +41,7 @@ class Project(structure_models.BaseResource, core_models.RuntimeStateMixin):
     action_details = JSONField(default=dict)
 
     def get_backend(self):
-        return super(Project, self).get_backend(project=self.backend_id)
+        return super().get_backend(project=self.backend_id)
 
     def get_access_url(self):
         base_url = self.service_settings.backend_url
@@ -92,7 +92,7 @@ class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty
 
     @classmethod
     def get_backend_fields(cls):
-        return super(IssueType, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'icon_url',
             'description',
             'subtask',
@@ -114,7 +114,7 @@ class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty)
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Priority, cls).get_backend_fields() + ('icon_url', 'description')
+        return super().get_backend_fields() + ('icon_url', 'description')
 
 
 class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):

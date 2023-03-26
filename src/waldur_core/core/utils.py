@@ -114,7 +114,7 @@ def pwgen(pw_len=16):
 def serialize_instance(instance):
     """Serialize Django model instance"""
     model_name = force_str(instance._meta)
-    return '{}:{}'.format(model_name, instance.pk)
+    return f'{model_name}:{instance.pk}'
 
 
 def deserialize_instance(serialized_instance):
@@ -126,7 +126,7 @@ def deserialize_instance(serialized_instance):
 
 def serialize_class(cls):
     """Serialize Python class"""
-    return '{}:{}'.format(cls.__module__, cls.__name__)
+    return f'{cls.__module__}:{cls.__name__}'
 
 
 def deserialize_class(serilalized_cls):
@@ -428,7 +428,7 @@ def decode_jwt_token(encoded_data, api_secret_code=None):
 
 
 def normalize_unicode(data):
-    return unicodedata.normalize(u'NFKD', data).encode('ascii', 'ignore').decode('utf8')
+    return unicodedata.normalize('NFKD', data).encode('ascii', 'ignore').decode('utf8')
 
 
 UNIT_PATTERN = re.compile(r'(\d+)([KMGTP]?)')
@@ -470,9 +470,9 @@ class QuietSession(requests.Session):
                 ):  # urllib3 1.10 and lower does not have this warning
                     warnings.simplefilter('ignore', exceptions.InsecurePlatformWarning)
                 warnings.simplefilter('ignore', exceptions.InsecureRequestWarning)
-                return super(QuietSession, self).request(*args, **kwargs)
+                return super().request(*args, **kwargs)
         else:
-            return super(QuietSession, self).request(*args, **kwargs)
+            return super().request(*args, **kwargs)
 
 
 def get_lat_lon_from_address(address):

@@ -10,14 +10,14 @@ class Command(BaseCommand):
     help = "Import notifications to DB"
 
     def add_arguments(self, parser):
-        super(Command, self).add_arguments(parser)
+        super().add_arguments(parser)
         parser.add_argument(
             'notifications_file',
             help='Specifies location of notifications file.',
         )
 
     def handle(self, *args, **options):
-        with open(options['notifications_file'], 'r') as notifications_file:
+        with open(options['notifications_file']) as notifications_file:
             notifications = json.load(notifications_file)
 
         valid_notifications_data = []

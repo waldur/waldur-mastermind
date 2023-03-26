@@ -134,7 +134,7 @@ class Issue(
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Issue, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'backend_id',
             'key',
             'type',
@@ -291,7 +291,7 @@ class Comment(
             prefix = user.full_name or user.username
             if user.civil_number:
                 prefix += ' ' + user.civil_number
-        return '[%s]: %s' % (prefix, self.description)
+        return f'[{prefix}]: {self.description}'
 
     def update_message(self, message):
         self.description = self.clean_message(message)
@@ -302,7 +302,7 @@ class Comment(
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Comment, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'issue',
             'author',
             'description',
@@ -529,7 +529,7 @@ class Feedback(
     comment = models.TextField(blank=True)
 
     def __str__(self):
-        return '%s | %s' % (self.issue, self.evaluation)
+        return f'{self.issue} | {self.evaluation}'
 
     @classmethod
     def get_url_name(cls):

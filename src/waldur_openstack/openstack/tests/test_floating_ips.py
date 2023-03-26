@@ -112,7 +112,7 @@ class FloatingIPRetrieveTest(BaseFloatingIPTest):
 
 class FloatingIPAttachTest(BaseFloatingIPTest):
     def setUp(self) -> None:
-        super(FloatingIPAttachTest, self).setUp()
+        super().setUp()
         self.request_data = {'port': factories.PortFactory.get_url(self.port)}
         self.url = factories.FloatingIPFactory.get_url(self.ip, action='attach_to_port')
 
@@ -151,7 +151,7 @@ class FloatingIPAttachTest(BaseFloatingIPTest):
 
 class FloatingIPDetachTest(BaseFloatingIPTest):
     def setUp(self) -> None:
-        super(FloatingIPDetachTest, self).setUp()
+        super().setUp()
         self.url = factories.FloatingIPFactory.get_url(
             self.ip, action='detach_from_port'
         )

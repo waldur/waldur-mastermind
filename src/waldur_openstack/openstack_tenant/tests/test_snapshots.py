@@ -168,7 +168,7 @@ class SnapshotRetrieveTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['uuid'], snapshot_restoration.snapshot.uuid.hex)
         self.assertIn('restorations', response.data)
-        self.assertEquals(len(response.data['restorations']), 1)
+        self.assertEqual(len(response.data['restorations']), 1)
 
     @data('user')
     def test_user_cannot_see_snapshot_restoration_if_has_no_project_level_permissions(

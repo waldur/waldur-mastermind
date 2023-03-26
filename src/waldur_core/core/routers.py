@@ -56,11 +56,11 @@ class SortedDefaultRouter(DefaultRouter):
             if get_url_name is not None:
                 return get_url_name()
 
-        return super(SortedDefaultRouter, self).get_default_basename(viewset)
+        return super().get_default_basename(viewset)
 
     def get_method_map(self, viewset, method_map):
         # head method is not included by default
-        mappings = super(SortedDefaultRouter, self).get_method_map(viewset, method_map)
+        mappings = super().get_method_map(viewset, method_map)
         if 'get' in mappings:
             mappings['head'] = mappings['get']
 

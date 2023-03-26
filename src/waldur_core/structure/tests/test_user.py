@@ -441,17 +441,17 @@ class UserFilterTest(test.APITransactionTestCase):
 
         response = self.client.get(user_url)
         user = response.data
-        self.assertEquals(
+        self.assertEqual(
             settings.WALDUR_CORE['LOCAL_IDP_NAME'], user['identity_provider_name']
         )
-        self.assertEquals(
+        self.assertEqual(
             settings.WALDUR_CORE['LOCAL_IDP_LABEL'], user['identity_provider_label']
         )
-        self.assertEquals(
+        self.assertEqual(
             settings.WALDUR_CORE['LOCAL_IDP_MANAGEMENT_URL'],
             user['identity_provider_management_url'],
         )
-        self.assertEquals(
+        self.assertEqual(
             settings.WALDUR_CORE['LOCAL_IDP_PROTECTED_FIELDS'],
             user['identity_provider_fields'],
         )
@@ -477,19 +477,19 @@ class CustomUsersFilterTest(test.APITransactionTestCase):
 
     def test_filter_user_by_customer(self):
         response = self.client.get(self.url, {'customer_uuid': self.customer1.uuid.hex})
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         actual = [user['uuid'] for user in response.data]
         expected = [self.owner1.uuid.hex, self.manager1.uuid.hex]
-        self.assertEquals(actual, expected)
+        self.assertEqual(actual, expected)
 
     def test_filter_user_by_project(self):
         response = self.client.get(self.url, {'project_uuid': self.project1.uuid.hex})
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         actual = [user['uuid'] for user in response.data]
         expected = [self.manager1.uuid.hex]
-        self.assertEquals(actual, expected)
+        self.assertEqual(actual, expected)
 
 
 @ddt
@@ -507,8 +507,8 @@ class UserUpdateTest(test.APITransactionTestCase):
 
     def test_if_user_did_not_accept_policy_he_can_not_update_his_profile(self):
         response = self.client.put(self.url, self.invalid_payload)
-        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEquals(
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
             response.data['agree_with_policy'], ['User must agree with the policy.']
         )
 
@@ -517,18 +517,18 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.user.save()
 
         response = self.client.put(self.url, self.invalid_payload)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_if_user_accepts_policy_he_can_update_his_profile(self):
         response = self.client.put(self.url, self.valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
-        self.assertEquals(self.user.phone_number, self.valid_payload['phone_number'])
+        self.assertEqual(self.user.phone_number, self.valid_payload['phone_number'])
 
     def test_if_user_accepts_policy_agreement_data_is_updated(self):
         response = self.client.put(self.url, self.valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
         self.assertAlmostEqual(self.user.agreement_date, timezone.now())
@@ -537,7 +537,7 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.valid_payload['token_lifetime'] = 59
 
         response = self.client.put(self.url, self.valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('token_lifetime', response.data)
 
     @override_waldur_core_settings(
@@ -563,9 +563,9 @@ class UserUpdateTest(test.APITransactionTestCase):
 
         self.client.force_authenticate(self.staff)
         response = self.client.patch(self.url, {'is_active': False})
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
-        self.assertEquals(self.user.is_active, False)
+        self.assertEqual(self.user.is_active, False)
 
     def test_deactivation_of_user_if_policy_has_been_accepted(self):
         self.user.agreement_date = timezone.now()
@@ -574,9 +574,9 @@ class UserUpdateTest(test.APITransactionTestCase):
 
         self.client.force_authenticate(self.staff)
         response = self.client.patch(self.url, {'is_active': False})
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
-        self.assertEquals(self.user.is_active, False)
+        self.assertEqual(self.user.is_active, False)
 
     @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=['full_name'])
     def test_user_can_update_only_allowed_fields(self):
@@ -587,7 +587,7 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.user.agreement_date = datetime.now()
         self.user.save()
         response = self.client.patch(self.url, payload)
-        self.assertEquals(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.user.refresh_from_db()
         self.assertEqual(old_name, self.user.full_name)
 
@@ -599,7 +599,7 @@ class UserUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(
             self.url, {'image': dummy_image()}, format='multipart'
         )
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.image)
 
@@ -611,7 +611,7 @@ class UserUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(
             self.url, {'image': dummy_image()}, format='multipart'
         )
-        self.assertEquals(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class UserConfirmEmailTest(test.APITransactionTestCase):
@@ -628,7 +628,7 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
     def test_change_email_request_is_created_if_it_does_not_exist_yet(self):
         self.assertFalse(getattr(self.user, 'changeemailrequest', False))
         response = self.client.post(self.url, self.valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
         self.assertNotEqual(self.user.email, self.valid_payload['email'])
@@ -640,14 +640,14 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
             'email': other_user.email,
         }
         response = self.client.post(self.url, valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_change_email_request_is_not_created_if_email_is_invalid(self):
         self.valid_payload['email'] = 'invalid_email'
         response = self.client.post(self.url, self.valid_payload)
         self.assertFalse(hasattr(self.user, 'changeemailrequest'))
-        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEquals(response.data['email'], ['Enter a valid email address.'])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['email'], ['Enter a valid email address.'])
 
     def test_when_change_email_request_is_confirmed_user_email_is_updated(self):
         self.client.post(self.url, self.valid_payload)
@@ -655,10 +655,10 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         response = self.client.post(
             url, {'code': self.user.changeemailrequest.uuid.hex}
         )
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
-        self.assertEquals(self.user.email, 'updatedmail@example.com')
+        self.assertEqual(self.user.email, 'updatedmail@example.com')
 
     def test_when_two_users_created_requests_with_equal_emails_then_first_confirmed_request_will_be_executed_second_will_be_deleted(
         self,
@@ -681,14 +681,14 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         response = self.client.post(
             confirm_url, {'code': self.user.changeemailrequest.uuid.hex}
         )
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.client.force_authenticate(other_user)
         other_confirm_url = factories.UserFactory.get_url(other_user, 'confirm_email')
         response = self.client.post(
             other_confirm_url, {'code': other_user.changeemailrequest.uuid.hex}
         )
-        self.assertEquals(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @freeze_time('2017-01-19')
     def test_validate_email_change_max_age(self):
@@ -702,8 +702,8 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
             response = self.client.post(
                 url, {'code': self.user.changeemailrequest.uuid.hex}
             )
-            self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-            self.assertEquals(response.data[0], 'Request has expired.')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response.data[0], 'Request has expired.')
 
     def test_anonymous_user_can_confirm_email(self):
         self.client.post(self.url, self.valid_payload)
@@ -715,12 +715,12 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         response = self.client.post(
             url, {'code': self.user.changeemailrequest.uuid.hex}
         )
-        self.assertEquals(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     @mock.patch('waldur_core.structure.handlers.tasks')
     def test_send_mail_notification(self, mock_tasks):
         response = self.client.post(self.url, self.valid_payload)
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(mock_tasks.send_change_email_notification.delay.call_count, 1)
         self.assertEqual(
             mock_tasks.send_change_email_notification.delay.call_args[0][0],

@@ -34,7 +34,7 @@ class Command(BaseCommand):
                         _, extension = os.path.splitext(fname)
                         print(f'### {fname} ({app})', end=BLANK_LINE)
                         print(f'``` {extension[1:]}')
-                        with open(full_path, 'r') as template_file:
+                        with open(full_path) as template_file:
                             for line in template_file.readlines():
                                 print(line, end='')
                         print('```', end=BLANK_LINE)

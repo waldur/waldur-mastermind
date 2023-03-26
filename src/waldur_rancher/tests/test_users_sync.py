@@ -12,7 +12,7 @@ from waldur_rancher.tests.base import override_rancher_settings
 
 class UserSyncTest(test.APITransactionTestCase):
     def setUp(self):
-        super(UserSyncTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.fixture.admin
         self.fixture.manager

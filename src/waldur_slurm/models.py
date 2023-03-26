@@ -40,7 +40,7 @@ class Allocation(UsageMixin, structure_models.BaseResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Allocation, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'cpu_usage',
             'gpu_usage',
             'ram_usage',
@@ -63,7 +63,7 @@ class Association(core_models.UuidMixin):
     )
 
     def __str__(self):
-        return '%s <-> %s' % (self.allocation.name, self.username)
+        return f'{self.allocation.name} <-> {self.username}'
 
 
 class AllocationUserUsage(UsageMixin):
@@ -84,7 +84,7 @@ class AllocationUserUsage(UsageMixin):
     username = models.CharField(max_length=32)
 
     def __str__(self):
-        return "%s: %s" % (self.username, self.allocation.name)
+        return f"{self.username}: {self.allocation.name}"
 
     def __repr__(self) -> str:
         return self.__str__()

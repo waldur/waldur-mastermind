@@ -35,7 +35,7 @@ class TaskType(type):
     _creation_count = {}  # used by old non-abstract task classes
 
     def __new__(cls, name, bases, attrs):
-        new = super(TaskType, cls).__new__
+        new = super().__new__
         task_module = attrs.get('__module__') or '__main__'
 
         # - Abstract class: abstract attribute shouldn't be inherited.
@@ -140,7 +140,7 @@ class StateTransitionTask(Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         transition_method = kwargs.get('state_transition')
-        return 'Change state of object "%s" using method "%s".' % (
+        return 'Change state of object "{}" using method "{}".'.format(
             instance,
             transition_method,
         )
@@ -148,7 +148,7 @@ class StateTransitionTask(Task):
     def state_transition(
         self, instance, transition_method, action=None, action_details=None
     ):
-        instance_description = '%s instance `%s` (PK: %s)' % (
+        instance_description = '{} instance `{}` (PK: {})'.format(
             instance.__class__.__name__,
             instance,
             instance.pk,
@@ -192,7 +192,7 @@ class StateTransitionTask(Task):
         action_details = self.kwargs.pop('action_details', None)
         if state_transition is not None:
             self.state_transition(instance, state_transition, action, action_details)
-        super(StateTransitionTask, self).pre_execute(instance)
+        super().pre_execute(instance)
 
     # Empty execute method allows to use StateTransitionTask as standalone task
     def execute(self, instance, *args, **kwargs):
@@ -210,7 +210,7 @@ class RuntimeStateChangeTask(Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         runtime_state = kwargs.get('runtime_state')
-        return 'Change runtime state of object "%s" to "%s".' % (
+        return 'Change runtime state of object "{}" to "{}".'.format(
             instance,
             runtime_state,
         )
@@ -225,12 +225,12 @@ class RuntimeStateChangeTask(Task):
 
         if self.runtime_state is not None:
             self.update_runtime_state(instance, self.runtime_state)
-        super(RuntimeStateChangeTask, self).pre_execute(instance)
+        super().pre_execute(instance)
 
     def post_execute(self, instance, *args, **kwargs):
         if self.success_runtime_state is not None:
             self.update_runtime_state(instance, self.success_runtime_state)
-        super(RuntimeStateChangeTask, self).post_execute(instance)
+        super().post_execute(instance)
 
     # Empty execute method allows to use RuntimeStateChangeTask as standalone task
     def execute(self, instance, *args, **kwargs):
@@ -242,9 +242,7 @@ class BackendMethodTask(RuntimeStateChangeTask, StateTransitionTask):
 
     @classmethod
     def get_description(cls, instance, backend_method, *args, **kwargs):
-        actions = [
-            'Run backend method "%s" for instance "%s".' % (backend_method, instance)
-        ]
+        actions = [f'Run backend method "{backend_method}" for instance "{instance}".']
         if 'state_transition' in kwargs:
             actions.append(
                 StateTransitionTask.get_description(
@@ -284,7 +282,7 @@ class DeletionTask(Task):
         return 'Delete instance "%s".' % instance
 
     def execute(self, instance):
-        instance_description = '%s instance `%s` (PK: %s)' % (
+        instance_description = '{} instance `{}` (PK: {})'.format(
             instance.__class__.__name__,
             instance,
             instance.pk,
@@ -306,7 +304,7 @@ class ErrorMessageTask(Task):
 
     def run(self, result_id, serialized_instance, *args, **kwargs):
         self.result = self.AsyncResult(result_id)
-        return super(ErrorMessageTask, self).run(serialized_instance, *args, **kwargs)
+        return super().run(serialized_instance, *args, **kwargs)
 
     def save_error_message(self, instance):
         if isinstance(instance, models.ErrorMessageMixin):
@@ -367,13 +365,11 @@ class PreApplyExecutorTask(Task):
 
     @classmethod
     def get_description(cls, executor, instance, *args, **kwargs):
-        return 'Run executor "%s" for instance "%s".' % (executor, instance)
+        return f'Run executor "{executor}" for instance "{instance}".'
 
     def run(self, serialized_executor, serialized_instance, *args, **kwargs):
         self.executor = utils.deserialize_class(serialized_executor)
-        return super(PreApplyExecutorTask, self).run(
-            serialized_instance, *args, **kwargs
-        )
+        return super().run(serialized_instance, *args, **kwargs)
 
     def execute(self, instance, **kwargs):
         self.executor.pre_apply(instance, **kwargs)
@@ -428,9 +424,7 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
             logger.info(message)
             # It is expected by Celery that apply_async return AsyncResult, otherwise celerybeat dies
             return self.AsyncResult(options.get('task_id') or str(uuid4()))
-        return super(BackgroundTask, self).apply_async(
-            args=args, kwargs=kwargs, **options
-        )
+        return super().apply_async(args=args, kwargs=kwargs, **options)
 
 
 def log_celery_task(request):
@@ -452,9 +446,9 @@ def log_celery_task(request):
 
     return '{0.name}[{0.id}]{1}{2}{3}'.format(
         request,
-        ' {0}'.format(description) if description else '',
-        ' eta:[{0}]'.format(request.eta) if request.eta else '',
-        ' expires:[{0}]'.format(request.expires) if request.expires else '',
+        f' {description}' if description else '',
+        f' eta:[{request.eta}]' if request.eta else '',
+        f' expires:[{request.expires}]' if request.expires else '',
     )
 
 
@@ -468,7 +462,7 @@ class PollRuntimeStateTask(Task):
 
     @classmethod
     def get_description(cls, instance, backend_pull_method, *args, **kwargs):
-        return 'Poll instance "%s" with method "%s"' % (instance, backend_pull_method)
+        return f'Poll instance "{instance}" with method "{backend_pull_method}"'
 
     def get_backend(self, instance):
         return instance.get_backend()
@@ -512,7 +506,7 @@ class PollBackendCheckTask(Task):
 
     @classmethod
     def get_description(cls, instance, backend_check_method, *args, **kwargs):
-        return 'Check instance "%s" with method "%s"' % (instance, backend_check_method)
+        return f'Check instance "{instance}" with method "{backend_check_method}"'
 
     def get_backend(self, instance):
         return instance.get_backend()
@@ -542,6 +536,4 @@ class ExtensionTaskMixin(CeleryTask, metaclass=TaskType):
             )
             logger.info(message)
             return self.AsyncResult(options.get('task_id') or str(uuid4()))
-        return super(ExtensionTaskMixin, self).apply_async(
-            args=args, kwargs=kwargs, **options
-        )
+        return super().apply_async(args=args, kwargs=kwargs, **options)

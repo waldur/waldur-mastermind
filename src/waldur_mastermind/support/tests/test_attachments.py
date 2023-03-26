@@ -8,7 +8,7 @@ from waldur_mastermind.support.tests import base, factories
 
 class AttachmentTest(base.BaseTest):
     def setUp(self):
-        super(AttachmentTest, self).setUp()
+        super().setUp()
         self.issue = self.fixture.issue
         self.fixture.caller = self.fixture.issue.caller
         self.attachment = factories.AttachmentFactory(issue=self.issue)
@@ -34,7 +34,7 @@ class AttachmentGetTest(AttachmentTest):
 @ddt
 class AttachmentCreateTest(AttachmentTest):
     def setUp(self):
-        super(AttachmentCreateTest, self).setUp()
+        super().setUp()
         self.url = factories.AttachmentFactory.get_list_url()
         self.file = dummy_image()
 

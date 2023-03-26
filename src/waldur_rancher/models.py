@@ -201,7 +201,7 @@ class ClusterRole(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs['max_length'] = 30
         kwargs['choices'] = self.CHOICES
-        super(ClusterRole, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class RancherUserClusterLink(BackendMixin):

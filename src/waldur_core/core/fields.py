@@ -21,7 +21,7 @@ class CronScheduleField(models.CharField):
     def __init__(self, *args, **kwargs):
         kwargs['validators'] = [validate_cron_schedule] + kwargs.get('validators', [])
         kwargs['max_length'] = kwargs.get('max_length', 15)
-        super(CronScheduleField, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class MappedChoiceField(serializers.ChoiceField):
@@ -75,7 +75,7 @@ class MappedChoiceField(serializers.ChoiceField):
     """
 
     def __init__(self, choice_mappings, **kwargs):
-        super(MappedChoiceField, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         assert set(self.choices.keys()) == set(
             choice_mappings.keys()
@@ -91,7 +91,7 @@ class MappedChoiceField(serializers.ChoiceField):
         if data == '' and self.allow_blank:
             return ''
 
-        data = super(MappedChoiceField, self).to_internal_value(data)
+        data = super().to_internal_value(data)
 
         try:
             return self.mapped_to_model[str(data)]
@@ -104,12 +104,12 @@ class MappedChoiceField(serializers.ChoiceField):
 
         value = self.model_to_mapped[value]
 
-        return super(MappedChoiceField, self).to_representation(value)
+        return super().to_representation(value)
 
 
 class NaturalChoiceField(MappedChoiceField):
     def __init__(self, choices=None, **kwargs):
-        super(NaturalChoiceField, self).__init__(
+        super().__init__(
             choices=[(v, v) for k, v in choices],
             choice_mappings={v: k for k, v in choices},
             **kwargs
@@ -163,10 +163,10 @@ class UUIDField(models.UUIDField):
         kwargs['default'] = lambda: StringUUID(uuid.uuid4().hex)
         kwargs['editable'] = False
         kwargs['unique'] = True
-        super(UUIDField, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def deconstruct(self):
-        name, path, args, kwargs = super(UUIDField, self).deconstruct()
+        name, path, args, kwargs = super().deconstruct()
         del kwargs['default']
         del kwargs['editable']
         del kwargs['unique']
@@ -198,7 +198,7 @@ class JSONField(models.TextField):
         )
         self.load_kwargs = kwargs.pop('load_kwargs', {})
 
-        super(JSONField, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def from_db_value(self, value, expression, connection):
         return self.to_python(value)
@@ -232,7 +232,7 @@ class JSONField(models.TextField):
                 return self.default()
             return copy.deepcopy(self.default)
         # If the field doesn't have a default, then we punt to models.Field.
-        return super(JSONField, self).get_default()
+        return super().get_default()
 
 
 class YearMonthField(serializers.CharField):
@@ -240,7 +240,7 @@ class YearMonthField(serializers.CharField):
 
     def to_internal_value(self, value):
         try:
-            year, month = [int(el) for el in value.split('-')]
+            year, month = (int(el) for el in value.split('-'))
         except ValueError:
             raise serializers.ValidationError(
                 _('Value "%s" should be in valid format YYYY-MM') % value

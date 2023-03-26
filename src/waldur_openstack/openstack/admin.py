@@ -13,15 +13,13 @@ from . import executors, models
 
 def _get_obj_admin_url(obj):
     return reverse(
-        'admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name),
+        f'admin:{obj._meta.app_label}_{obj._meta.model_name}_change',
         args=[obj.id],
     )
 
 
 def _get_list_admin_url(model):
-    return reverse(
-        'admin:%s_%s_changelist' % (model._meta.app_label, model._meta.model_name)
-    )
+    return reverse(f'admin:{model._meta.app_label}_{model._meta.model_name}_changelist')
 
 
 class TenantAdminForm(ModelForm):
@@ -138,7 +136,7 @@ class TenantResourceAdmin(structure_admin.ResourceAdmin):
 
     def get_tenant(self, obj):
         tenant = obj.tenant
-        return '<a href="%s">%s</a>' % (_get_obj_admin_url(tenant), tenant.name)
+        return f'<a href="{_get_obj_admin_url(tenant)}">{tenant.name}</a>'
 
     get_tenant.short_description = _('Tenant')
     get_tenant.allow_tags = True

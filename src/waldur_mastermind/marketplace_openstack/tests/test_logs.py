@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils

@@ -58,7 +58,7 @@ class UpdateExecutorMixin(AsyncExecutor):
         before_update_fields = {
             f: getattr(instance, f.attname) for f in instance._meta.fields
         }
-        super(UpdateExecutorMixin, self).perform_update(serializer)
+        super().perform_update(serializer)
         instance.refresh_from_db()
         updated_fields = {
             f.name
@@ -106,7 +106,7 @@ class EagerLoadMixin:
     """
 
     def get_queryset(self):
-        queryset = super(EagerLoadMixin, self).get_queryset()
+        queryset = super().get_queryset()
         serializer_class = self.get_serializer_class()
         if self.action in ('list', 'retrieve') and hasattr(
             serializer_class, 'eager_load'

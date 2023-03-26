@@ -89,7 +89,7 @@ class PublicViewsetMixin:
         ] and self.action in ['list', 'retrieve']:
             return [rf_permissions.AllowAny()]
         else:
-            return super(PublicViewsetMixin, self).get_permissions()
+            return super().get_permissions()
 
 
 class ConnectedOfferingDetailsMixin:
@@ -1066,7 +1066,7 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
     lookup_field = 'uuid'
 
     def get_queryset(self):
-        queryset = super(PlanComponentViewSet, self).get_queryset()
+        queryset = super().get_queryset()
         user = self.request.user
 
         if user.is_anonymous:
@@ -1169,7 +1169,7 @@ class OrderViewSet(BaseMarketplaceView):
         structure_utils.check_customer_blocked_or_archived(project)
         structure_utils.check_project_end_date(project)
 
-        super(OrderViewSet, self).perform_create(serializer)
+        super().perform_create(serializer)
 
 
 class PluginViewSet(views.APIView):
@@ -1915,7 +1915,7 @@ class OfferingUsersViewSet(
     filterset_class = filters.OfferingUserFilter
 
     def get_queryset(self):
-        queryset = super(OfferingUsersViewSet, self).get_queryset()
+        queryset = super().get_queryset()
         current_user = self.request.user
         if current_user.is_staff or current_user.is_support:
             return queryset
@@ -2408,7 +2408,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 if c[0] == code
             ]
             if name:
-                results['%s %s' % (code, str(name[0]))] = value
+                results[f'{code} {str(name[0])}'] = value
             else:
                 results[code] = value
 
@@ -2571,7 +2571,7 @@ for view in (structure_views.ProjectCountersView, structure_views.CustomerCounte
             'count', 'category'
         )
         return {
-            'marketplace_category_{}'.format(counter.category.uuid): counter.count
+            f'marketplace_category_{counter.category.uuid}': counter.count
             for counter in counters
         }
 

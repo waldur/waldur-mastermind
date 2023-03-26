@@ -935,7 +935,7 @@ class BaseScheduleViewSet(structure_views.ResourceViewSet):
         A schedule can be it two states: active or not. Non-active states are not used for scheduling the new tasks.
         Only users with write access to schedule resource can activate or deactivate a schedule.
         """
-        return super(BaseScheduleViewSet, self).list(self, request, *args, **kwargs)
+        return super().list(self, request, *args, **kwargs)
 
     def _is_schedule_active(resource_schedule):
         if resource_schedule.is_active:

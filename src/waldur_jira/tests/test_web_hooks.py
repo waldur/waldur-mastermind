@@ -45,7 +45,7 @@ class CommentCreateTest(BaseTest):
     JIRA_COMMENT_CREATE_REQUEST_FILE_NAME = "jira_comment_create_query.json"
 
     def setUp(self):
-        super(CommentCreateTest, self).setUp()
+        super().setUp()
         self._create_request_data(self.JIRA_COMMENT_CREATE_REQUEST_FILE_NAME)
 
     def test_comment_create(self):
@@ -67,7 +67,7 @@ class CommentUpdateTest(BaseTest):
     JIRA_COMMENT_UPDATE_REQUEST_FILE_NAME = "jira_comment_update_query.json"
 
     def setUp(self):
-        super(CommentUpdateTest, self).setUp()
+        super().setUp()
         self.comment = factories.CommentFactory(issue=self.issue)
         self._create_request_data(self.JIRA_COMMENT_UPDATE_REQUEST_FILE_NAME)
         self.request_data['comment']['id'] = self.comment.backend_id
@@ -89,7 +89,7 @@ class CommentDeleteTest(BaseTest):
     JIRA_COMMENT_DELETE_REQUEST_FILE_NAME = "jira_comment_delete_query.json"
 
     def setUp(self):
-        super(CommentDeleteTest, self).setUp()
+        super().setUp()
         self.comment = factories.CommentFactory(issue=self.issue)
         self._create_request_data(self.JIRA_COMMENT_DELETE_REQUEST_FILE_NAME)
         self.request_data['comment']['id'] = self.comment.backend_id

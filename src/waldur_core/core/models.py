@@ -136,7 +136,7 @@ class ScheduleMixin(models.Model):
         ):
             self.update_next_trigger_at()
 
-        super(ScheduleMixin, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class UserDetailsMixin(models.Model):
@@ -293,7 +293,7 @@ class User(
 
     @property
     def full_name(self):
-        return ('%s %s' % (self.first_name, self.last_name)).strip()
+        return (f'{self.first_name} {self.last_name}').strip()
 
     @full_name.setter
     def full_name(self, value):
@@ -379,7 +379,7 @@ class User(
 
     def __str__(self):
         if self.full_name:
-            return '%s (%s)' % (self.get_username(), self.full_name)
+            return f'{self.get_username()} ({self.full_name})'
 
         return self.get_username()
 
@@ -454,10 +454,10 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
         ):
             update_fields.append('fingerprint')
 
-        super(SshPublicKey, self).save(force_insert, force_update, using, update_fields)
+        super().save(force_insert, force_update, using, update_fields)
 
     def __str__(self):
-        return '%s - %s, user: %s, %s' % (
+        return '{} - {}, user: {}, {}'.format(
             self.name,
             self.fingerprint,
             self.user.username,
@@ -609,7 +609,7 @@ class AbstractFieldTracker(FieldTracker):
         self.name = name
         self.attname = '_%s' % name
         if not hasattr(sender, name):
-            super(AbstractFieldTracker, self).finalize_class(sender, **kwargs)
+            super().finalize_class(sender, **kwargs)
 
 
 class BackendModelMixin:

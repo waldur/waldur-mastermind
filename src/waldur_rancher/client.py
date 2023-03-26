@@ -26,14 +26,14 @@ class RancherClient:
         :type verify_ssl: bool
         """
         self._host = host
-        self._base_url = '{0}/v3'.format(self._host)
+        self._base_url = f'{self._host}/v3'
         self._session = requests.Session()
         if not verify_ssl:
             self._session = QuietSession()
         self._session.verify = verify_ssl
 
     def _request(self, method, endpoint, json=None, **kwargs):
-        url = '%s/%s' % (self._base_url, endpoint)
+        url = f'{self._base_url}/{endpoint}'
 
         try:
             response = self._session.request(method, url, json=json, **kwargs)
@@ -101,13 +101,13 @@ class RancherClient:
         """
         self._post('', auth=(access_key, secret_key))
         self._session.auth = (access_key, secret_key)
-        logger.debug('Successfully logged in as {0}'.format(access_key))
+        logger.debug(f'Successfully logged in as {access_key}')
 
     def list_clusters(self):
         return self._get('clusters')['data']
 
     def get_cluster(self, cluster_id):
-        return self._get('clusters/{0}'.format(cluster_id))
+        return self._get(f'clusters/{cluster_id}')
 
     def create_cluster(self, cluster_name, mtu=None, private_registry=None):
         rancher_config = {}
@@ -133,13 +133,13 @@ class RancherClient:
         )
 
     def get_cluster_nodes(self, cluster_id):
-        return self._get('clusters/{0}/nodes'.format(cluster_id))['data']
+        return self._get(f'clusters/{cluster_id}/nodes')['data']
 
     def delete_cluster(self, cluster_id):
-        return self._delete('clusters/{0}'.format(cluster_id))
+        return self._delete(f'clusters/{cluster_id}')
 
     def delete_node(self, node_id):
-        return self._delete('nodes/{0}'.format(node_id))
+        return self._delete(f'nodes/{node_id}')
 
     def list_cluster_registration_tokens(self):
         return self._get('clusterregistrationtokens', params={'limit': -1})['data']
@@ -158,14 +158,14 @@ class RancherClient:
             return node_command
 
     def update_cluster(self, cluster_id, new_params):
-        return self._put('clusters/{0}'.format(cluster_id), json=new_params)
+        return self._put(f'clusters/{cluster_id}', json=new_params)
 
     def get_node(self, node_id):
-        return self._get('nodes/{0}'.format(node_id))
+        return self._get(f'nodes/{node_id}')
 
     def get_kubeconfig_file(self, cluster_id):
         data = self._post(
-            'clusters/{0}'.format(cluster_id), params={'action': 'generateKubeconfig'}
+            f'clusters/{cluster_id}', params={'action': 'generateKubeconfig'}
         )
         return data['config']
 
@@ -187,7 +187,7 @@ class RancherClient:
 
     def enable_user(self, user_id):
         return self._put(
-            'users/{0}'.format(user_id),
+            f'users/{user_id}',
             json={
                 'enabled': True,
             },
@@ -195,7 +195,7 @@ class RancherClient:
 
     def disable_user(self, user_id):
         return self._put(
-            'users/{0}'.format(user_id),
+            f'users/{user_id}',
             json={
                 'enabled': False,
             },
@@ -211,7 +211,7 @@ class RancherClient:
         )
 
     def delete_global_role(self, role_id):
-        return self._delete('globalrolebindings/{0}'.format(role_id))
+        return self._delete(f'globalrolebindings/{role_id}')
 
     def create_cluster_user_role(self, user_id, cluster_id, role):
         return self._post(
@@ -276,10 +276,10 @@ class RancherClient:
         )['data']
 
     def delete_user(self, user_id):
-        return self._delete('users/{0}'.format(user_id))
+        return self._delete(f'users/{user_id}')
 
     def delete_cluster_role(self, cluster_role_id):
-        return self._delete('clusterroletemplatebindings/{0}'.format(cluster_role_id))
+        return self._delete(f'clusterroletemplatebindings/{cluster_role_id}')
 
     def list_global_catalogs(self):
         return self._get('catalogs', params={'limit': -1})['data']
@@ -297,28 +297,22 @@ class RancherClient:
         return self._get('projectcatalogs', params=params)['data']
 
     def refresh_global_catalog(self, catalog_id):
-        return self._post(
-            'catalogs/{0}'.format(catalog_id), params={'action': 'refresh'}
-        )
+        return self._post(f'catalogs/{catalog_id}', params={'action': 'refresh'})
 
     def refresh_cluster_catalog(self, catalog_id):
-        return self._post(
-            'clustercatalogs/{0}'.format(catalog_id), params={'action': 'refresh'}
-        )
+        return self._post(f'clustercatalogs/{catalog_id}', params={'action': 'refresh'})
 
     def refresh_project_catalog(self, catalog_id):
-        return self._post(
-            'projectcatalogs/{0}'.format(catalog_id), params={'action': 'refresh'}
-        )
+        return self._post(f'projectcatalogs/{catalog_id}', params={'action': 'refresh'})
 
     def delete_global_catalog(self, catalog_id):
-        return self._delete('catalogs/{0}'.format(catalog_id))
+        return self._delete(f'catalogs/{catalog_id}')
 
     def delete_cluster_catalog(self, catalog_id):
-        return self._delete('clustercatalogs/{0}'.format(catalog_id))
+        return self._delete(f'clustercatalogs/{catalog_id}')
 
     def delete_project_catalog(self, catalog_id):
-        return self._delete('projectcatalogs/{0}'.format(catalog_id))
+        return self._delete(f'projectcatalogs/{catalog_id}')
 
     def create_global_catalog(self, spec):
         return self._post('catalogs', json=spec)
@@ -330,13 +324,13 @@ class RancherClient:
         return self._post('projectcatalogs', json=spec)
 
     def update_global_catalog(self, catalog_id, spec):
-        return self._put('catalogs/{0}'.format(catalog_id), json=spec)
+        return self._put(f'catalogs/{catalog_id}', json=spec)
 
     def update_cluster_catalog(self, catalog_id, spec):
-        return self._put('clustercatalogs/{0}'.format(catalog_id), json=spec)
+        return self._put(f'clustercatalogs/{catalog_id}', json=spec)
 
     def update_project_catalog(self, catalog_id, spec):
-        return self._put('projectcatalogs/{0}'.format(catalog_id), json=spec)
+        return self._put(f'projectcatalogs/{catalog_id}', json=spec)
 
     def list_projects(self, cluster_id=None):
         params = {'limit': -1}

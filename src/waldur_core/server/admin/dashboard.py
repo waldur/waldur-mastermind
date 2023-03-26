@@ -53,7 +53,7 @@ class CustomIndexDashboard(FluentIndexDashboard):
             'resources': result['title'],
         }
         if 'url' in result:
-            result['url'] = '%s?shared__exact=1&state__exact=%s' % (
+            result['url'] = '{}?shared__exact=1&state__exact={}'.format(
                 result['url'],
                 erred_state,
             )
@@ -104,7 +104,7 @@ class CustomIndexDashboard(FluentIndexDashboard):
         settings_in_erred_state = queryset.filter(state=erred_state).count()
 
         if settings_in_erred_state:
-            result_module.title = '%s (%s)' % (
+            result_module.title = '{} ({})'.format(
                 result_module.title,
                 settings_in_erred_state,
             )
@@ -141,7 +141,7 @@ class CustomIndexDashboard(FluentIndexDashboard):
                     children.append(link)
 
         if resources_in_erred_state_overall:
-            result_module.title = '%s (%s)' % (
+            result_module.title = '{} ({})'.format(
                 result_module.title,
                 resources_in_erred_state_overall,
             )
@@ -164,7 +164,7 @@ class CustomIndexDashboard(FluentIndexDashboard):
 
 class CustomAppIndexDashboard(FluentAppIndexDashboard):
     def __init__(self, app_title, models, **kwargs):
-        super(CustomAppIndexDashboard, self).__init__(app_title, models, **kwargs)
+        super().__init__(app_title, models, **kwargs)
         path = self._get_app_models_path()
         self.children = [modules.ModelList(title=app_title, models=[path])]
 

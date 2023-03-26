@@ -66,7 +66,7 @@ def get_entity_description(entity):
         entity_docstring = formatting.dedent(smart_str(entity.__doc__)).replace(
             '\n', '\n\t'
         )
-        return '%s\n * %s' % (label, entity_docstring)
+        return f'{label}\n * {entity_docstring}'
 
     return label
 
@@ -185,7 +185,7 @@ def get_validation_description(view, method):
             docstring = formatting.dedent(smart_str(field_validation.__doc__)).replace(
                 '\n', '\n\t'
             )
-            field_description = '* %s\n * %s' % (field.field_name, docstring)
+            field_description = f'* {field.field_name}\n * {docstring}'
             description += (
                 '\n' + field_description if description else field_description
             )
@@ -288,9 +288,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         urlconf=None,
         group=None,
     ):
-        super(WaldurSchemaGenerator, self).__init__(
-            title, url, description, patterns, urlconf
-        )
+        super().__init__(title, url, description, patterns, urlconf)
         self.group = group
 
     def _get_paths_and_endpoints(self, request):
@@ -328,9 +326,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         This will be based on the method docstring if one exists,
         or else the class docstring.
         """
-        description = super(WaldurSchemaGenerator, self).get_description(
-            path, method, view
-        )
+        description = super().get_description(path, method, view)
 
         permissions_description = get_permissions_description(view, method)
         if permissions_description:

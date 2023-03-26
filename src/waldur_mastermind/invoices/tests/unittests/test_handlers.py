@@ -32,7 +32,7 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
 
 class UpdateInvoiceTotalCostTest(TransactionTestCase):
     def setUp(self):
-        super(UpdateInvoiceTotalCostTest, self).setUp()
+        super().setUp()
         self.project = structure_factories.ProjectFactory()
         self.invoice = factories.InvoiceFactory(customer=self.project.customer)
 

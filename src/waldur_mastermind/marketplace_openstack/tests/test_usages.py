@@ -15,7 +15,7 @@ TenantQuotas = openstack_models.Tenant.Quotas
 @freeze_time('2019-01-01')
 class UsagesSynchronizationTest(test.APITransactionTestCase):
     def setUp(self):
-        super(UsagesSynchronizationTest, self).setUp()
+        super().setUp()
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.resource = marketplace_factories.ResourceFactory(

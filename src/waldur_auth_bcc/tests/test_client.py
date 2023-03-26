@@ -1,4 +1,3 @@
-# coding: utf-8
 import responses
 from django.test import TestCase, override_settings
 from rest_framework import status

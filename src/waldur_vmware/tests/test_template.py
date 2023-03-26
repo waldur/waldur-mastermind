@@ -10,7 +10,7 @@ from . import factories
 
 class TemplatePullTest(test.APITransactionTestCase):
     def setUp(self):
-        super(TemplatePullTest, self).setUp()
+        super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
         self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
@@ -63,7 +63,7 @@ class TemplatePullTest(test.APITransactionTestCase):
         ]
 
     def tearDown(self):
-        super(TemplatePullTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_delete_old_templates(self):

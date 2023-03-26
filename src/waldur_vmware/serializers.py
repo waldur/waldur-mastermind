@@ -257,7 +257,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         When basic mode is activated, user is not allowed
         to select placement attributes for the new virtual machine.
         """
-        fields = super(VirtualMachineSerializer, self).get_fields()
+        fields = super().get_fields()
 
         if 'ram' in fields:
             fields['ram'].factor = 1024
@@ -616,7 +616,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     ]
 
     def validate(self, attrs):
-        attrs = super(VirtualMachineSerializer, self).validate(attrs)
+        attrs = super().validate(attrs)
 
         if self.instance:
             self._validate_limits(attrs)
@@ -628,7 +628,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     def create(self, validated_data):
         networks = validated_data.pop('networks', [])
-        vm = super(VirtualMachineSerializer, self).create(validated_data)
+        vm = super().create(validated_data)
         vm.networks.add(*networks)
         return vm
 
@@ -704,12 +704,12 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
                 'This network is not available for this customer.'
             )
 
-        return super(PortSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
     def create(self, validated_data):
         # Virtual Adapter is updated with actual name when pulling is performed
         validated_data['name'] = 'New virtual Adapter'
-        return super(PortSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
@@ -758,7 +758,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         )
 
     def get_fields(self):
-        fields = super(DiskSerializer, self).get_fields()
+        fields = super().get_fields()
         fields['size'].factor = 1024
         fields['size'].units = 'GB'
         fields['size'].min_value = 1024
@@ -803,7 +803,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
     def create(self, validated_data):
         # Virtual disk is updated with actual name when pulling is performed
         validated_data['name'] = 'New disk'
-        return super(DiskSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
     def validate(self, attrs):
         # Skip validation on update
@@ -815,7 +815,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         attrs['vm'] = vm
         attrs['service_settings'] = vm.service_settings
         attrs['project'] = vm.project
-        return super(DiskSerializer, self).validate(attrs)
+        return super().validate(attrs)
 
 
 class DiskExtendSerializer(serializers.ModelSerializer):
@@ -824,7 +824,7 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         fields = ('size',)
 
     def get_fields(self):
-        fields = super(DiskExtendSerializer, self).get_fields()
+        fields = super().get_fields()
         fields['size'].factor = 1024
         fields['size'].units = 'GB'
 

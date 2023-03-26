@@ -70,7 +70,7 @@ def send_invoice_notification(invoice_uuid):
 
     emails = invoice.customer.get_owner_mails()
 
-    filename = '%s_%s_%s.html' % (
+    filename = '{}_{}_{}.html'.format(
         config.SITE_NAME.replace(' ', '_'),
         invoice.year,
         invoice.month,
@@ -129,7 +129,7 @@ def send_invoice_report():
 
     # Please note that email body could be empty if there are no valid invoices
     emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
-    logger.info('About to send accounting report to {emails}'.format(emails=emails))
+    logger.info(f'About to send accounting report to {emails}')
     core_utils.send_mail(
         subject=subject,
         body=body,
@@ -245,9 +245,7 @@ def send_monthly_invoicing_reports_about_customers():
             today.year,
         )
         emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
-        logger.info(
-            'About to send monthly invoicing report to {emails}'.format(emails=emails)
-        )
+        logger.info(f'About to send monthly invoicing report to {emails}')
         core_utils.send_mail(
             subject=subject,
             body=body,

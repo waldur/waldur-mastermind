@@ -15,7 +15,7 @@ class QuotaLimitField(models.IntegerField):
     concrete = False
 
     def __init__(self, quota_field=None, *args, **kwargs):
-        super(QuotaLimitField, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._quota_field = quota_field
 
     def db_type(self, connection):
@@ -193,7 +193,7 @@ class CounterQuotaField(QuotaField):
         self._raw_get_current_usage = get_current_usage
         self._raw_get_delta = get_delta
         self.path_to_scope = path_to_scope
-        super(CounterQuotaField, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def get_delta(self, target_instance):
         if not self._raw_get_delta:
@@ -256,7 +256,7 @@ class TotalQuotaField(CounterQuotaField):
 
     def __init__(self, target_models, path_to_scope, target_field):
         self.target_field = target_field
-        super(TotalQuotaField, self).__init__(target_models, path_to_scope)
+        super().__init__(target_models, path_to_scope)
 
     def get_current_usage(self, models, scope):
         total_usage = 0
@@ -292,7 +292,7 @@ class AggregatorQuotaField(QuotaField):
     def __init__(self, get_children, child_quota_name=None, **kwargs):
         self.get_children = get_children
         self._child_quota_name = child_quota_name
-        super(AggregatorQuotaField, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def get_child_quota_name(self):
         return (

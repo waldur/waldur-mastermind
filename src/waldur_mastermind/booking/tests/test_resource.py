@@ -42,7 +42,7 @@ class MarketplaceFixture(fixtures.BookingFixture):
 
 class OrderItemGetTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        super(OrderItemGetTest, self).setUp()
+        super().setUp()
         self.fixture = MarketplaceFixture()
 
     def test_get_resource_list(self):
@@ -83,14 +83,14 @@ class OrderItemGetTest(test.APITransactionTestCase):
 @ddt
 class OrderItemAcceptTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        super(OrderItemAcceptTest, self).setUp()
+        super().setUp()
         self.fixture = MarketplaceFixture()
         self.fixture.order_item
 
     def accept(self, resource, user=None):
         user = user or self.fixture.owner
         self.client.force_authenticate(user)
-        url = '%s%s/accept/' % (
+        url = '{}{}/accept/'.format(
             reverse('booking-resource-list'),
             resource.uuid.hex,
         )
@@ -132,14 +132,14 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
 
 class OrderItemRejectTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        super(OrderItemRejectTest, self).setUp()
+        super().setUp()
         self.fixture = MarketplaceFixture()
         self.fixture.order_item
 
     def reject(self, resource, user=None):
         user = user or self.fixture.owner
         self.client.force_authenticate(user)
-        url = '%s%s/reject/' % (
+        url = '{}{}/reject/'.format(
             reverse('booking-resource-list'),
             resource.uuid.hex,
         )
@@ -185,7 +185,7 @@ class OrderItemRejectTest(test.APITransactionTestCase):
 @ddt
 class ResourceGetTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ResourceGetTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.BookingFixture()
         self.resource_1 = self.fixture.resource
         self.fixture_2 = fixtures.BookingFixture()

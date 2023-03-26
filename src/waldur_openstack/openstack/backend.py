@@ -1004,10 +1004,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         # character alphanumeric string to the tenant name until the generated name doesn't exist.
         # Truncate original name if required, so the new name does not exceed the max_length.
         while new_name in names:
-            new_name = "%s_%s" % (name, get_random_string(3))
+            new_name = f"{name}_{get_random_string(3)}"
             truncation = len(new_name) - max_length
             if truncation > 0:
-                new_name = "%s_%s" % (name[:-truncation], get_random_string(3))
+                new_name = f"{name[:-truncation]}_{get_random_string(3)}"
         return new_name
 
     def _import_tenant(
@@ -2329,7 +2329,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self, network_name, subnet_id, external=False, network_id=None, tenant_id=None
     ):
         tenant_id = tenant_id or self.tenant_id
-        router_name = '{0}-router'.format(network_name)
+        router_name = f'{network_name}-router'
         router = self._get_router(tenant_id) or self._create_router(
             router_name, tenant_id
         )
@@ -2429,7 +2429,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
         else:
             event_logger.openstack_port.info(
-                'Port [%s] has been deleted from network [%s].' % (port, port.network),
+                f'Port [{port}] has been deleted from network [{port.network}].',
                 event_type='openstack_port_deleted',
                 event_context={'port': port},
             )
@@ -2485,7 +2485,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             floating_ip.save(update_fields=['address', 'runtime_state', 'port'])
 
             event_logger.openstack_floating_ip.info(
-                'Floating IP %s has been detached from port %s.' % (floating_ip, port),
+                f'Floating IP {floating_ip} has been detached from port {port}.',
                 event_type='openstack_floating_ip_detached',
                 event_context={
                     'floating_ip': floating_ip,

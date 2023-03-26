@@ -8,7 +8,7 @@ from waldur_openstack.openstack_tenant.tests import (
 
 class VolumeMetadataTest(BaseOpenStackTest):
     def setUp(self):
-        super(VolumeMetadataTest, self).setUp()
+        super().setUp()
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
 
         self.volume = self.fixture.volume
@@ -92,7 +92,7 @@ class VolumeMetadataTest(BaseOpenStackTest):
 
 class NetworkMetadataTest(BaseOpenStackTest):
     def setUp(self):
-        super(NetworkMetadataTest, self).setUp()
+        super().setUp()
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.instance = self.fixture.instance
         self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
@@ -159,7 +159,7 @@ class NetworkMetadataTest(BaseOpenStackTest):
 
 class HypervisorHostnameMetadataTest(BaseOpenStackTest):
     def setUp(self):
-        super(HypervisorHostnameMetadataTest, self).setUp()
+        super().setUp()
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.instance = self.fixture.instance
         self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
@@ -177,7 +177,7 @@ class HypervisorHostnameMetadataTest(BaseOpenStackTest):
 
 class RouterMetadataTest(BaseOpenStackTest):
     def setUp(self):
-        super(RouterMetadataTest, self).setUp()
+        super().setUp()
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.tenant = self.fixture.tenant
         self.resource = marketplace_factories.ResourceFactory(scope=self.tenant)

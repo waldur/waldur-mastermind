@@ -1,6 +1,6 @@
 from datetime import date
+from unittest import mock
 
-import mock
 from django.test import override_settings
 from django.urls import reverse
 from freezegun import freeze_time
@@ -38,7 +38,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.client_mock = self.patcher.start()
 
     def tearDown(self):
-        super(ProjectUpdateRequestCreateTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def test_when_project_is_updated_request_is_created_for_each_offering(self):

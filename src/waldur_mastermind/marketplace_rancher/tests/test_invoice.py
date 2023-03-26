@@ -75,7 +75,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self.plan_period = None
 
     def tearDown(self):
-        super(InvoiceTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def _create_usage(self, mock_executors):

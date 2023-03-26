@@ -260,7 +260,7 @@ def terminate_resource(sender, instance, **kwargs):
 
 def connect_resource_handlers(*resources):
     for index, model in enumerate(resources):
-        suffix = '%s_%s' % (index, model.__class__)
+        suffix = f'{index}_{model.__class__}'
 
         signals.post_save.connect(
             change_order_item_state,
@@ -308,7 +308,7 @@ def connect_resource_metadata_handlers(*resources):
             synchronize_resource_metadata,
             sender=model,
             dispatch_uid='waldur_mastermind.marketplace.'
-            'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
+            'synchronize_resource_metadata_{}_{}'.format(index, model.__class__),
         )
 
 

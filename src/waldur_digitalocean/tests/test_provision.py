@@ -14,7 +14,7 @@ from waldur_digitalocean.views import DropletViewSet
 
 class DigitalOceanBackendTest(test.APITransactionTestCase):
     def setUp(self):
-        super(DigitalOceanBackendTest, self).setUp()
+        super().setUp()
 
         self.manager_patcher = mock.patch('digitalocean.Manager')
         self.manager_api = self.manager_patcher.start()
@@ -26,7 +26,7 @@ class DigitalOceanBackendTest(test.APITransactionTestCase):
         self.ssh_api = self.ssh_patcher.start()
 
     def tearDown(self):
-        super(DigitalOceanBackendTest, self).tearDown()
+        super().tearDown()
 
         self.manager_patcher.stop()
         self.droplet_patcher.stop()
@@ -35,7 +35,7 @@ class DigitalOceanBackendTest(test.APITransactionTestCase):
 
 class BaseDropletProvisionTest(DigitalOceanBackendTest):
     def setUp(self):
-        super(BaseDropletProvisionTest, self).setUp()
+        super().setUp()
         self.customer = structure_factories.CustomerFactory()
 
         self.settings = structure_factories.ServiceSettingsFactory(
@@ -69,7 +69,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         DropletViewSet.async_executor = False
 
     def tearDown(self):
-        super(BaseDropletProvisionTest, self).tearDown()
+        super().tearDown()
         DropletViewSet.async_executor = True
 
     def mock_backend(self):

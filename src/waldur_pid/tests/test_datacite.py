@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import requests
 from rest_framework import test
 
@@ -8,7 +9,7 @@ from waldur_pid.tests import factories
 
 class DataciteTest(test.APITransactionTestCase):
     def setUp(self):
-        super(DataciteTest, self).setUp()
+        super().setUp()
         self.offering = factories.OfferingFactory()
         self.backend = backend.DataciteBackend()
         self.requests_patcher = mock.patch('waldur_pid.backend.requests')

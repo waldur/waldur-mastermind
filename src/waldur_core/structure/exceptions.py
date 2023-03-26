@@ -10,7 +10,7 @@ class ServiceBackendError(Exception):
 class SerializableBackendError(ServiceBackendError):
     def __init__(self, *args, **kwargs):
         if not args:
-            super(SerializableBackendError, self).__init__(*args, **kwargs)
+            super().__init__(*args, **kwargs)
 
         # Some client exceptions, such as cinder_exceptions.ClientException
         # are not serializable by Celery, because they use custom arguments *args
@@ -29,7 +29,7 @@ class SerializableBackendError(ServiceBackendError):
             except (pickle.PickleError, TypeError):
                 args[i] = str(arg)
 
-        super(SerializableBackendError, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class ServiceBackendNotImplemented(NotImplementedError):

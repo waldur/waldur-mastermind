@@ -85,8 +85,7 @@ class WaldurExtension:
                     yield extension_module
                 else:
                     assemblies.append(extension_module)
-        for assembly in assemblies:
-            yield assembly
+        yield from assemblies
 
     @classmethod
     def is_installed(cls, extension):

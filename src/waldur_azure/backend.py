@@ -618,7 +618,7 @@ class AzureBackend(ServiceBackend):
         self.client.create_sql_firewall_rule(
             resource_group_name=server.resource_group.name,
             server_name=server.name,
-            firewall_rule_name='firewall{}'.format(server.name),
+            firewall_rule_name=f'firewall{server.name}',
             start_ip_address='0.0.0.0',  # noqa: S104
             end_ip_address='255.255.255.255',
         )

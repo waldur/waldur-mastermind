@@ -20,7 +20,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     lookup_field = 'uuid'
 
     def get_queryset(self):
-        qs = super(ProfileViewSet, self).get_queryset()
+        qs = super().get_queryset()
         if self.request.user.is_staff:
             return qs
         return qs.filter(user=self.request.user)

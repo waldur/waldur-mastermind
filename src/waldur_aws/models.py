@@ -24,7 +24,7 @@ class Image(structure_models.GeneralServiceProperty):
     region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
 
     def __str__(self):
-        return '{0} | {1}'.format(self.name, self.region.name)
+        return f'{self.name} | {self.region.name}'
 
     @classmethod
     def get_url_name(cls):
@@ -32,7 +32,7 @@ class Image(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Image, cls).get_backend_fields() + ('region',)
+        return super().get_backend_fields() + ('region',)
 
 
 class Size(structure_models.GeneralServiceProperty):
@@ -53,7 +53,7 @@ class Size(structure_models.GeneralServiceProperty):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Size, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'cores',
             'ram',
             'disk',
@@ -93,7 +93,7 @@ class Instance(structure_models.VirtualMachine):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Instance, cls).get_backend_fields() + ('runtime_state',)
+        return super().get_backend_fields() + ('runtime_state',)
 
     @classmethod
     def get_online_state(cls):
@@ -124,7 +124,7 @@ class Volume(RuntimeStateMixin, structure_models.BaseResource):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Volume, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'name',
             'device',
             'size',

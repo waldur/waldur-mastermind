@@ -91,13 +91,13 @@ class StructureQueryset(models.QuerySet):
     """
 
     def exclude(self, *args, **kwargs):
-        return super(StructureQueryset, self).exclude(
+        return super().exclude(
             *[self._patch_query_argument(a) for a in args],
             **self._filter_by_custom_fields(**kwargs)
         )
 
     def filter(self, *args, **kwargs):
-        return super(StructureQueryset, self).filter(
+        return super().filter(
             *[self._patch_query_argument(a) for a in args],
             **self._filter_by_custom_fields(**kwargs)
         )
@@ -168,15 +168,9 @@ class ServiceSettingsManager(GenericKeyMixin, models.Manager):
 
 class SharedServiceSettingsManager(ServiceSettingsManager):
     def get_queryset(self):
-        return (
-            super(SharedServiceSettingsManager, self).get_queryset().filter(shared=True)
-        )
+        return super().get_queryset().filter(shared=True)
 
 
 class PrivateServiceSettingsManager(ServiceSettingsManager):
     def get_queryset(self):
-        return (
-            super(PrivateServiceSettingsManager, self)
-            .get_queryset()
-            .filter(shared=False)
-        )
+        return super().get_queryset().filter(shared=False)

@@ -23,7 +23,7 @@ from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
 
 class InvoiceItemPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        super(InvoiceItemPullTest, self).setUp()
+        super().setUp()
         patcher = mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
         self.client_mock = patcher.start()
         self.fixture = ProjectFixture()
@@ -41,7 +41,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         self.resource.save()
 
     def tearDown(self):
-        super(InvoiceItemPullTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
     def get_common_data(self, start=None, end=None, quantity=100):

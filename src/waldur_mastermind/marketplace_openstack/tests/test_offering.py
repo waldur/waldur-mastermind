@@ -31,7 +31,7 @@ from .utils import BaseOpenStackTest, override_plugin_settings
 
 class VpcExternalFilterTest(BaseOpenStackTest):
     def setUp(self):
-        super(VpcExternalFilterTest, self).setUp()
+        super().setUp()
         self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             category=self.tenant_category,
@@ -68,7 +68,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
     quotas = prices
 
     def setUp(self):
-        super(PlanComponentsTest, self).setUp()
+        super().setUp()
         self.category = load_category('vpc')
 
     def test_plan_components_are_validated(self):

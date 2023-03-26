@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -17,7 +17,7 @@ from .utils import BaseOpenStackTest
 
 class TaskTest(BaseOpenStackTest):
     def setUp(self):
-        super(TaskTest, self).setUp()
+        super().setUp()
         self.fixture = OpenStackTenantFixture()
         self.offering = marketplace_factories.OfferingFactory()
         self.offering.scope = self.fixture.instance.service_settings

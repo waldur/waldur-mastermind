@@ -211,12 +211,12 @@ class VirtualMachineSerializer(
         location = validated_data.pop('location')
 
         resource_group_name = f'group-{uuid.uuid4().hex[:4]}-{vm_name}'
-        network_name = 'net{}'.format(vm_name)
-        subnet_name = 'subnet{}'.format(vm_name)
-        nic_name = 'nic{}'.format(vm_name)
-        config_name = 'ipconf{}'.format(vm_name)
-        public_ip_name = 'pubip{}'.format(vm_name)
-        security_group_name = 'NSG{}'.format(vm_name)
+        network_name = f'net{vm_name}'
+        subnet_name = f'subnet{vm_name}'
+        nic_name = f'nic{vm_name}'
+        config_name = f'ipconf{vm_name}'
+        public_ip_name = f'pubip{vm_name}'
+        security_group_name = f'NSG{vm_name}'
 
         resource_group = models.ResourceGroup.objects.create(
             service_settings=service_settings,
@@ -277,7 +277,7 @@ class VirtualMachineSerializer(
         validated_data['username'] = generate_username()
         validated_data['password'] = generate_password()
 
-        return super(VirtualMachineSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class PublicIPSerializer(BaseResourceSerializer):
@@ -330,7 +330,7 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
         project = validated_data['project']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
+        resource_group_name = f'group{uuid.uuid4().hex}'
 
         resource_group = models.ResourceGroup.objects.create(
             service_settings=service_settings,
@@ -342,7 +342,7 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
         validated_data['username'] = generate_username()
         validated_data['password'] = generate_password()
 
-        return super(SQLServerSerializer, self).create(validated_data)
+        return super().create(validated_data)
 
 
 class SQLDatabaseSerializer(BaseResourceSerializer):
@@ -383,4 +383,4 @@ class SQLDatabaseCreateSerializer(serializers.ModelSerializer):
         validated_data['server'] = server
         validated_data['service_settings'] = server.service_settings
         validated_data['project'] = server.project
-        return super(SQLDatabaseCreateSerializer, self).create(validated_data)
+        return super().create(validated_data)

@@ -50,7 +50,7 @@ def format_create_description(order_item):
 
         label = order_item.offering.options['options'].get(key, {})
         label_value = label.get('label', key)
-        result.append('%s: \'%s\'' % (label_value, order_item.attributes[key]))
+        result.append(f'{label_value}: \'{order_item.attributes[key]}\'')
 
     if 'description' in order_item.attributes:
         result.append('\n %s' % order_item.attributes['description'])

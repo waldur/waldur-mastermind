@@ -15,7 +15,7 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
     def get_post_data(self):
-        payload = super(VirtualMachineCreateProcessor, self).get_post_data()
+        payload = super().get_post_data()
 
         limits = self.order_item.limits
         if limits:

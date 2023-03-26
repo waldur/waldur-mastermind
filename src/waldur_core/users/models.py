@@ -56,9 +56,9 @@ class GroupInvitation(BaseInvitation):
 
     def __str__(self):
         if self.customer_role:
-            return '%s %s' % (self.customer, self.customer_role)
+            return f'{self.customer} {self.customer_role}'
 
-        return '%s %s' % (self.project, self.project_role)
+        return f'{self.project} {self.project_role}'
 
 
 class Invitation(

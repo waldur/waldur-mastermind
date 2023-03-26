@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace_support.tests.fixtures import (
 
 class RequestCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(RequestCreateTest, self).setUp()
+        super().setUp()
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
         self.offering.state = marketplace_models.Offering.States.ACTIVE
@@ -47,7 +47,7 @@ class RequestCreateTest(test.APITransactionTestCase):
 
 class RequestUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(RequestUpdateTest, self).setUp()
+        super().setUp()
         self.fixture = MarketplaceSupportApprovedFixture()
         self.resource = self.fixture.resource
         self.resource.state = marketplace_models.Resource.States.OK

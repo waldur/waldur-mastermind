@@ -12,7 +12,7 @@ from waldur_mastermind.support.tests import base, factories
 @ddt
 class CommentUpdateTest(base.BaseTest):
     def setUp(self):
-        super(CommentUpdateTest, self).setUp()
+        super().setUp()
         self.comment = factories.CommentFactory(issue=self.fixture.issue)
         self.url = factories.CommentFactory.get_url(self.comment)
 
@@ -53,7 +53,7 @@ class CommentUpdateTest(base.BaseTest):
 @ddt
 class CommentDeleteTest(base.BaseTest):
     def setUp(self):
-        super(CommentDeleteTest, self).setUp()
+        super().setUp()
         self.comment = factories.CommentFactory(issue=self.fixture.issue)
         self.url = factories.CommentFactory.get_url(self.comment)
 
@@ -112,7 +112,7 @@ class CommentDeleteTest(base.BaseTest):
 @ddt
 class CommentRetrieveTest(base.BaseTest):
     def setUp(self):
-        super(CommentRetrieveTest, self).setUp()
+        super().setUp()
         self.comment = self.fixture.comment
         self.comment.is_public = True
         self.comment.save()

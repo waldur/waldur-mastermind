@@ -70,7 +70,7 @@ class GenericKeyFilterBackend(BaseFilterBackend):
 
 class MappedFilterMixin:
     def __init__(self, choice_mappings, **kwargs):
-        super(MappedFilterMixin, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         # TODO: enable this assert then filtering by numbers will be disabled
         # assert set(k for k, _ in self.field.choices) == set(choice_mappings.keys()), 'Choices do not match mappings'
@@ -92,7 +92,7 @@ class MappedChoiceFilter(MappedFilterMixin, django_filters.ChoiceFilter):
     def filter(self, qs, value):
         if value in self.mapped_to_model:
             value = self.mapped_to_model[value]
-        return super(MappedChoiceFilter, self).filter(qs, value)
+        return super().filter(qs, value)
 
 
 class MappedMultipleChoiceFilter(
@@ -106,7 +106,7 @@ class MappedMultipleChoiceFilter(
 
     def filter(self, qs, value):
         value = [self.mapped_to_model[v] for v in value if v in self.mapped_to_model]
-        return super(MappedMultipleChoiceFilter, self).filter(qs, value)
+        return super().filter(qs, value)
 
 
 class LooseMultipleChoiceField(MultipleChoiceField):
@@ -150,16 +150,14 @@ class StateFilter(MappedMultipleChoiceFilter):
     def __init__(self, choices=DEFAULT_CHOICES, choice_mappings=None, **kwargs):
         if choice_mappings is None:
             choice_mappings = self.DEFAULT_CHOICE_MAPPING
-        super(StateFilter, self).__init__(
-            choices=choices, choice_mappings=choice_mappings, **kwargs
-        )
+        super().__init__(choices=choices, choice_mappings=choice_mappings, **kwargs)
 
 
 class URLFilter(django_filters.CharFilter):
     """Filter by hyperlinks. ViewSet name must be supplied in order to validate URL."""
 
     def __init__(self, view_name, lookup_field='uuid', **kwargs):
-        super(URLFilter, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.view_name = view_name
         self.lookup_field = lookup_field
 
@@ -181,7 +179,7 @@ class URLFilter(django_filters.CharFilter):
             uuid.UUID(uuid_value)
         except ValueError:
             return qs.none()
-        return super(URLFilter, self).filter(qs, uuid_value)
+        return super().filter(qs, uuid_value)
 
 
 class TimestampFilter(django_filters.NumberFilter):
@@ -195,7 +193,7 @@ class TimestampFilter(django_filters.NumberFilter):
 
         field = core_fields.TimestampField()
         datetime_value = field.to_internal_value(value)
-        return super(TimestampFilter, self).filter(qs, datetime_value)
+        return super().filter(qs, datetime_value)
 
 
 class CategoryFilter(django_filters.CharFilter):
@@ -207,14 +205,14 @@ class CategoryFilter(django_filters.CharFilter):
     """
 
     def __init__(self, categories, **kwargs):
-        super(CategoryFilter, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.categories = categories
 
     def filter(self, qs, value):
         if value in self.categories.keys():
             return qs.filter(**{'%s__in' % self.name: self.categories[value]})
 
-        return super(CategoryFilter, self).filter(qs, value)
+        return super().filter(qs, value)
 
 
 class StaffOrUserFilter(BaseFilterBackend):
@@ -232,7 +230,7 @@ class ContentTypeFilter(django_filters.CharFilter):
         try:
             app_label, model = value.split('.')
             ct = ContentType.objects.get(app_label=app_label, model=model)
-            return super(ContentTypeFilter, self).filter(qs, ct)
+            return super().filter(qs, ct)
         except (ContentType.DoesNotExist, ValueError):
             return qs.none()
 

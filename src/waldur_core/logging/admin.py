@@ -53,7 +53,7 @@ class SystemNotificationForm(BaseHookForm):
         exclude = ('uuid',)
 
     def __init__(self, *args, **kwargs):
-        super(SystemNotificationForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.fields[
             'hook_content_type'
         ].queryset = models.BaseHook.get_all_content_types()

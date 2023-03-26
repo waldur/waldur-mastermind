@@ -164,3 +164,11 @@ build-backend = "poetry.masonry.api"
 [tool.ruff]
 # Never enforce `E501` (line length violations).
 ignore = ["E501"]
+
+select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes
+  "UP",  # pyupgrade
+]
+
+target-version = "py38"

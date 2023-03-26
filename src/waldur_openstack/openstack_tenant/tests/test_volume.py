@@ -471,7 +471,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
 
 class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def setUp(self):
-        super(VolumeTypeCreateTest, self).setUp()
+        super().setUp()
         self.type = factories.VolumeTypeFactory(
             settings=self.settings, backend_id='ssd', name='ssd'
         )

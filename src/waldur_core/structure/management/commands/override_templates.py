@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = "Override templates"
 
     def add_arguments(self, parser):
-        super(Command, self).add_arguments(parser)
+        super().add_arguments(parser)
         parser.add_argument(
             'templates_file',
             help='Specifies location of templates file.',
@@ -21,7 +21,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        with open(options['templates_file'], 'r') as templates_file:
+        with open(options['templates_file']) as templates_file:
             templates = yaml.safe_load(templates_file)
 
         if templates is None:

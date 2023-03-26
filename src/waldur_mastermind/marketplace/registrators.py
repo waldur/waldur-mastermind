@@ -176,13 +176,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
     def get_name(self, resource):
         if resource.plan:
-            return '%s (%s / %s)' % (
+            return '{} ({} / {})'.format(
                 resource.name,
                 resource.offering.name,
                 resource.plan.name,
             )
         else:
-            return '%s (%s)' % (resource.name, resource.offering.name)
+            return f'{resource.name} ({resource.offering.name})'
 
     @classmethod
     def get_total_quantity(cls, unit, value, start, end):

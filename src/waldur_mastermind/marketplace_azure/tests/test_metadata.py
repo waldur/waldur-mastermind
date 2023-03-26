@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 
 class NetworkMetadataTest(test.APITransactionTestCase):
     def setUp(self):
-        super(NetworkMetadataTest, self).setUp()
+        super().setUp()
         self.fixture = fixtures.AzureFixture()
         self.vm = self.fixture.virtual_machine
         self.nic = self.fixture.network_interface

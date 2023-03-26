@@ -53,7 +53,7 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
     approval_url = models.URLField()
 
     def __str__(self):
-        return "%s %.2f %s" % (self.modified, self.amount, self.customer.name)
+        return f"{self.modified} {self.amount:.2f} {self.customer.name}"
 
     def get_backend(self):
         return backend.PaypalBackend()
@@ -149,7 +149,7 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Invoice, cls).get_backend_fields() + (
+        return super().get_backend_fields() + (
             'state',
             'issuer_details',
             'number',

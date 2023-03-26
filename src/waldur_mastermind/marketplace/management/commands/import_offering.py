@@ -84,7 +84,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('File path does not exist.'))
             return
         else:
-            with open(path, 'r') as f:
+            with open(path) as f:
                 data = json.load(f)
 
         if not offering_uuid and not customer_uuid:
@@ -124,7 +124,7 @@ class Command(BaseCommand):
                 except model.DoesNotExist:
                     self.stdout.write(
                         self.style.ERROR(
-                            '%s with UUID: %s is not found.' % (model_name, uuid)
+                            f'{model_name} with UUID: {uuid} is not found.'
                         )
                     )
 

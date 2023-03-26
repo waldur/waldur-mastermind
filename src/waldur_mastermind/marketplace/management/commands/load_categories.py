@@ -430,7 +430,7 @@ enums = {
 
 def populate_category(category_code, category, sections):
     for section_key in sections.keys():
-        section_prefix = '%s_%s' % (category_code, section_key)
+        section_prefix = f'{category_code}_{section_key}'
         sec, _ = Section.objects.get_or_create(
             key=section_prefix, title=humanize(section_key), category=category
         )
@@ -439,7 +439,7 @@ def populate_category(category_code, category, sections):
         for attribute in sections[section_key]:
             key, title, attribute_type = attribute
             attr, _ = Attribute.objects.get_or_create(
-                key='%s_%s' % (section_prefix, key),
+                key=f'{section_prefix}_{key}',
                 title=title,
                 type=attribute_type,
                 section=sec,
@@ -449,7 +449,7 @@ def populate_category(category_code, category, sections):
                 for val_key, val_label in values:
                     AttributeOption.objects.get_or_create(
                         attribute=attr,
-                        key='%s_%s_%s' % (section_prefix, key, val_key),
+                        key=f'{section_prefix}_{key}_{val_key}',
                         title=val_label,
                     )
 
@@ -531,6 +531,6 @@ class Command(BaseCommand):
             new_category = load_category(category_short)
             self.stdout.write(
                 self.style.SUCCESS(
-                    'Loaded category %s, %s ' % (category_short, new_category.uuid)
+                    f'Loaded category {category_short}, {new_category.uuid} '
                 )
             )

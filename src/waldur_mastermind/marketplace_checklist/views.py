@@ -69,7 +69,7 @@ class ChecklistListView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.ChecklistSerializer
 
     def get_queryset(self):
-        qs = super(ChecklistListView, self).get_queryset()
+        qs = super().get_queryset()
         return filter_checklists_by_roles(qs, self.request.user)
 
 

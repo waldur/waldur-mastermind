@@ -87,7 +87,7 @@ class ExceptionTest(TestCase):
         backend = Backend()
         service_settings.get_backend = lambda: backend
         task = tasks.ServiceResourcesPullTask()
-        error_message = '\'test error\', Service settings: %s, %s' % (
+        error_message = '\'test error\', Service settings: {}, {}'.format(
             service_settings.name,
             service_settings.type,
         )

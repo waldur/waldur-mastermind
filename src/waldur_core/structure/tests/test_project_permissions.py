@@ -157,15 +157,13 @@ class ProjectPermissionListTest(ProjectPermissionBaseTest):
                 self.assertIn(
                     role_url,
                     actual_urls,
-                    '{0} user does not see privilege '
-                    'he is supposed to see: {1}'.format(user, role),
+                    f'{user} user does not see privilege he is supposed to see: {role}',
                 )
             else:
                 self.assertNotIn(
                     role_url,
                     actual_urls,
-                    '{0} user sees privilege '
-                    'he is not supposed to see: {1}'.format(user, role),
+                    f'{user} user sees privilege he is not supposed to see: {role}',
                 )
 
 

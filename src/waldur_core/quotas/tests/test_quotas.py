@@ -9,7 +9,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 @ddt
 class QuotaUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(QuotaUpdateTest, self).setUp()
+        super().setUp()
         self.fixture = structure_fixtures.ServiceFixture()
         self.quota_name = structure_models.Customer.Quotas.nc_project_count
         self.quota = self.fixture.customer.quotas.get(name=self.quota_name)

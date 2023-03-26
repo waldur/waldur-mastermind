@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 from ddt import data, ddt
 from rest_framework import test
 

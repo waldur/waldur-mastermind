@@ -181,7 +181,7 @@ class UpdateExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
             raise ExecutorException(
                 'updated_fields keyword argument should be defined for UpdateExecutor.'
             )
-        super(UpdateExecutor, cls).execute(instance, is_async=is_async, **kwargs)
+        super().execute(instance, is_async=is_async, **kwargs)
 
 
 class DeleteExecutor(DeleteExecutorMixin, BaseExecutor):

@@ -15,7 +15,7 @@ from waldur_mastermind.support.tests.base import load_resource
 
 class BaseBackendTest(TestCase):
     def setUp(self):
-        super(BaseBackendTest, self).setUp()
+        super().setUp()
 
         self.fixture = fixtures.SupportFixture()
         self.backend = ServiceDeskBackend()
@@ -33,13 +33,13 @@ class BaseBackendTest(TestCase):
         self.mocked_jira.waldur_search_users.return_value = mock_backend_users
 
     def tearDown(self):
-        super(BaseBackendTest, self).tearDown()
+        super().tearDown()
         mock.patch.stopall()
 
 
 class IssueCreateTest(BaseBackendTest):
     def setUp(self):
-        super(IssueCreateTest, self).setUp()
+        super().setUp()
         issue = self.fixture.issue
         issue.type = 'Task'
         issue.priority = 'Major'
@@ -105,7 +105,7 @@ class IssueCreateTest(BaseBackendTest):
 
 class IssueUpdateTest(BaseBackendTest):
     def setUp(self):
-        super(IssueUpdateTest, self).setUp()
+        super().setUp()
         self.mocked_jira.issue.return_value = mock.Mock(
             **{
                 'key': 'TST-101',
@@ -179,7 +179,7 @@ class IssueUpdateTest(BaseBackendTest):
 
 class CommentCreateTest(BaseBackendTest):
     def setUp(self):
-        super(CommentCreateTest, self).setUp()
+        super().setUp()
         self.comment = self.fixture.comment
 
         class Response:
@@ -235,7 +235,7 @@ class CommentCreateTest(BaseBackendTest):
 
 class CommentUpdateTest(BaseBackendTest):
     def setUp(self):
-        super(CommentUpdateTest, self).setUp()
+        super().setUp()
         self.mocked_jira.comment.return_value = mock.Mock(
             **{
                 'body': '[Alice Lebowski]: New comment description',
