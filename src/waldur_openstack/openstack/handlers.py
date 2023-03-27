@@ -22,15 +22,18 @@ def get_affected_cache_keys(service_settings):
     keys.append(get_cached_session_key(service_settings, admin=True))
     for tenant_id in (
         Tenant.objects.filter(service_settings=service_settings)
-        .exclude(backend_id='')
         .values_list('backend_id', flat=True)
+        .distinct()
     ):
-        keys.append(get_cached_session_key(service_settings, tenant_id=tenant_id))
+        if tenant_id:
+            keys.append(get_cached_session_key(service_settings, tenant_id=tenant_id))
     return keys
 
 
 def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
     if instance.type != apps.OpenStackConfig.service_name:
+        return
+    if set(instance.tracker.changed()) == {'is_active'}:
         return
     cache.delete_many(get_affected_cache_keys(instance))
 
