@@ -32,9 +32,9 @@ def sanitize_name(name):
 
 
 def create_anonymized_username(offering):
-    prefix = offering.plugin_options.get('username_anonymized_prefix')
+    prefix = offering.plugin_options.get('username_anonymized_prefix', 'walduruser_')
     previous_users = marketplace_models.OfferingUser.objects.filter(
-        offering=offering
+        offering=offering, username__istartswith=prefix
     ).order_by('username')
 
     if previous_users.exists():
@@ -51,7 +51,7 @@ def create_username_from_full_name(user, offering):
     first_name = sanitize_name(user.first_name)
     last_name = sanitize_name(user.last_name)
 
-    username_raw = f"{first_name}.{last_name}"
+    username_raw = f"{first_name}_{last_name}"
     previous_users = marketplace_models.OfferingUser.objects.filter(
         offering=offering, username__istartswith=username_raw
     ).order_by('username')
@@ -63,7 +63,7 @@ def create_username_from_full_name(user, offering):
     else:
         number = '0'.zfill(USERNAME_POSTFIX_LENGTH)
 
-    return f"{username_raw}.{number}"
+    return f"{username_raw}_{number}"
 
 
 def create_username_from_freeipa_profile(user):
@@ -77,7 +77,7 @@ def create_username_from_freeipa_profile(user):
 
 def generate_username(user, offering):
     username_generation_policy = offering.plugin_options.get(
-        'username_generation_policy'
+        'username_generation_policy', UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
 
     if username_generation_policy == UsernameGenerationPolicy.SERVICE_PROVIDER.value:

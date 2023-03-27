@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 
@@ -103,13 +104,35 @@ def create_offering_users_when_project_role_granted(sender, structure, user, **k
             )
             continue
 
+        if marketplace_models.OfferingUser.objects.filter(
+            offering=offering,
+            user=user,
+        ).exists():
+            logger.info('An offering user for %s in %s already exists', user, offering)
+            continue
+
         username = utils.generate_username(user, offering)
 
-        marketplace_models.OfferingUser.objects.create(
+        offering_user = marketplace_models.OfferingUser.objects.create(
             offering=offering,
             user=user,
             username=username,
         )
+
+        (
+            uidnumber,
+            primarygroup,
+        ) = marketplace_utils.generate_uidnumber_and_primary_group(offering)
+        offering_user.backend_metadata.update(
+            {
+                'uidnumber': uidnumber,
+                'primarygroup': primarygroup,
+                'loginShell': "/bin/sh",
+                'homeDir': f"/home/{offering_user.username}",
+            }
+        )
+
+        offering_user.save(update_fields=['backend_metadata'])
 
 
 def create_offering_user_for_new_resource(sender, instance, **kwargs):
@@ -140,6 +163,20 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
         )
 
         offering_user.set_propagation_date()
-        offering_user.save()
+
+        (
+            uidnumber,
+            primarygroup,
+        ) = marketplace_utils.generate_uidnumber_and_primary_group(offering)
+        offering_user.backend_metadata.update(
+            {
+                'uidnumber': uidnumber,
+                'primarygroup': primarygroup,
+                'loginShell': "/bin/sh",
+                'homeDir': f"/home/{offering_user.username}",
+            }
+        )
+
+        offering_user.save(update_fields=['propagation_date', 'backend_metadata'])
 
         logger.info('The offering user %s has been created', offering_user)
