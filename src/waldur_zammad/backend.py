@@ -57,7 +57,7 @@ class ZammadBackend:
 
     def _zammad_response_to_user(self, response):
         if response['firstname'] and response['lastname']:
-            name = '%s %s' % (response['firstname'], response['lastname'])
+            name = '{} {}'.format(response['firstname'], response['lastname'])
         else:
             name = response['login']
 
