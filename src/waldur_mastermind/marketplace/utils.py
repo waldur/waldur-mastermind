@@ -880,3 +880,28 @@ def get_resource_users(resource):
     return core_models.User.objects.filter(
         Q(id__in=project_user_ids) | Q(id__in=customer_user_ids)
     )
+
+
+def generate_uidnumber_and_primary_group(offering):
+    initial_uidnumber = offering.plugin_options.get('initial_uidnumber', 100000)
+    initial_primarygroup_number = offering.plugin_options.get(
+        'initial_primarygroup_number', 100000
+    )
+
+    offering_user_with_last_uidnumber = (
+        models.OfferingUser.objects.exclude(backend_metadata=None)
+        .filter(backend_metadata__has_key='uidnumber')
+        .order_by('backend_metadata__uidnumber')
+        .last()
+    )
+
+    if offering_user_with_last_uidnumber:
+        last_uidnumber = offering_user_with_last_uidnumber.backend_metadata['uidnumber']
+        offset = last_uidnumber - initial_uidnumber + 1
+    else:
+        offset = 1
+
+    uidnumber = initial_uidnumber + offset
+    primarygroup = initial_primarygroup_number + offset
+
+    return uidnumber, primarygroup

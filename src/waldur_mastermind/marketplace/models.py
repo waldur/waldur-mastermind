@@ -1461,6 +1461,11 @@ class OfferingUser(TimeStampedModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
     propagation_date = models.DateTimeField(blank=True, null=True)
+    backend_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Backend attributes of the user",
+    )
 
     class Meta:
         unique_together = ('offering', 'user')

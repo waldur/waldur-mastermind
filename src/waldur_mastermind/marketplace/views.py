@@ -1,6 +1,7 @@
 import copy
 import datetime
 import logging
+import textwrap
 
 import reversion
 from django.conf import settings
@@ -44,6 +45,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
+from waldur_core.core.renderers import PlainTextRenderer
 from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -868,6 +870,87 @@ class ProviderOfferingViewSet(
                 for customer_id in customer_ids
             ]
         )
+
+    @action(detail=True, methods=['GET'], renderer_classes=[PlainTextRenderer])
+    def glauth_users_config(self, request, uuid=None):
+        """
+        This endpoint provides a config file for GLauth
+        Example: https://github.com/glauth/glauth/blob/master/v2/sample-simple.cfg
+        It is assumed that the config is used by an external agent,
+        which synchronizes data from Waldur to GLauth
+        """
+        offering = self.get_object()
+        offering_users = models.OfferingUser.objects.filter(offering=offering).exclude(
+            username=''
+        )
+        user_records = []
+
+        for offering_user in offering_users:
+            user = offering_user.user
+            uidnumber = offering_user.backend_metadata.get('uidnumber')
+            primarygroup = offering_user.backend_metadata.get('primarygroup')
+
+            if not uidnumber or not primarygroup:
+                uidnumber, primarygroup = utils.generate_uidnumber_and_primary_group(
+                    offering
+                )
+
+                if not uidnumber:
+                    offering_user.backend_metadata['uidnumber'] = uidnumber
+                if not primarygroup:
+                    offering_user.backend_metadata['primarygroup'] = primarygroup
+
+                offering_user.save(update_fields=['backend_metadata'])
+
+            login_shell = offering_user.backend_metadata.get('loginShell')
+            if not login_shell:
+                offering_user.backend_metadata['loginShell'] = "/bin/sh"
+                offering_user.save(update_fields=['backend_metadata'])
+
+            home_dir = offering_user.backend_metadata.get('homeDir')
+            if not home_dir:
+                offering_user.backend_metadata[
+                    'homeDir'
+                ] = f"/home/{offering_user.username}"
+                offering_user.save(update_fields=['backend_metadata'])
+
+            ssh_keys = [
+                f'"{ssh_key.public_key}"'
+                for ssh_key in core_models.SshPublicKey.objects.filter(user=user)
+            ]
+            ssh_keys_line = ',\n    '.join(ssh_keys)
+
+            record = textwrap.dedent(
+                f"""
+            [[users]]
+              name = "{offering_user.username}"
+              givenname="{user.first_name}"
+              sn="{user.last_name}"
+              mail = "{user.email}"
+              uidnumber = {uidnumber}
+              primarygroup = {primarygroup}
+              sshkeys = [{ssh_keys_line}]
+              loginShell = "{login_shell}"
+              homeDir = "{home_dir}"
+            """
+            )
+
+            record += textwrap.dedent(
+                f"""
+            [[groups]]
+              name = "{offering_user.username}"
+              gidnumber = {primarygroup}
+            """
+            )
+            user_records.append(record)
+
+        response_text = '\n'.join(user_records)
+
+        return Response(response_text)
+        #     data=smart_text(),
+        #     status=status.HTTP_200_OK,
+        #     content_type='text/plain',
+        # )
 
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):

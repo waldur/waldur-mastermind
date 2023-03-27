@@ -56,11 +56,11 @@ class UsernameGenerationTest(TestCase):
             username=username0,
         )
 
-        self.assertEqual(username0, 'john_karlos.doe_jr.00')
+        self.assertEqual(username0, 'john_karlos_doe_jr_00')
 
         username1 = utils.generate_username(self.user, self.offering)
 
-        self.assertEqual(username1, 'john_karlos.doe_jr.01')
+        self.assertEqual(username1, 'john_karlos_doe_jr_01')
 
     def test_username_generation_for_waldur_username(self):
         self.offering.plugin_options = {
