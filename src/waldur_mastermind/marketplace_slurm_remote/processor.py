@@ -20,6 +20,7 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
                 state=ServiceSettings.States.OK,
                 shared=True,
                 defaults={'name': 'SLURM remote service settings'},
+                is_active=False,
             )
 
             allocation = slurm_models.Allocation.objects.create(
