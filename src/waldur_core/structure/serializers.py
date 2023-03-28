@@ -263,16 +263,22 @@ class ProjectSerializer(
             'type_uuid',
             'backend_id',
             'end_date',
+            'end_date_requested_by',
             'oecd_fos_2007_code',
             'is_industry',
             'image',
             'resources_count',
             'role',
         )
+        protected_fields = ('end_date_requested_by',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
             'type': {'lookup_field': 'uuid', 'view_name': 'project_type-detail'},
+            'end_date_requested_by': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
         }
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation'),
@@ -305,6 +311,7 @@ class ProjectSerializer(
 
         if end_date:
             structure_permissions.is_owner(self.context['request'], None, customer)
+            attrs['end_date_requested_by'] = self.context['request'].user
 
         if image and self.instance:
             structure_permissions.is_manager(

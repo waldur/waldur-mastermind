@@ -2258,6 +2258,7 @@ class ResourceSerializer(BaseItemSerializer):
             'project_name',
             'project_description',
             'project_end_date',
+            'project_end_date_requested_by',
             'customer_uuid',
             'customer_name',
             'offering_uuid',
@@ -2272,6 +2273,7 @@ class ResourceSerializer(BaseItemSerializer):
             'can_terminate',
             'report',
             'end_date',
+            'end_date_requested_by',
             'username',
             'limit_usage',
         )
@@ -2285,10 +2287,17 @@ class ResourceSerializer(BaseItemSerializer):
             'report',
             'description',
             'limit_usage',
+            'end_date_requested_by',
         )
         view_name = 'marketplace-resource-detail'
         extra_kwargs = dict(
-            **BaseItemSerializer.Meta.extra_kwargs, url={'lookup_field': 'uuid'}
+            **BaseItemSerializer.Meta.extra_kwargs,
+            url={'lookup_field': 'uuid'},
+            end_date_requested_by={'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            project_end_date_requested_by={
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
         )
 
     state = serializers.ReadOnlyField(source='get_state_display')
@@ -2304,6 +2313,9 @@ class ResourceSerializer(BaseItemSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
     project_end_date = serializers.ReadOnlyField(source='project.end_date')
+    project_end_date_requested_by = serializers.ReadOnlyField(
+        source='project.end_date_requested_by'
+    )
     project_description = serializers.ReadOnlyField(source='project.description')
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
@@ -2458,6 +2470,8 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
 
         if 'end_date' in self.validated_data:
+            resource.end_date_requested_by = user
+            resource.save()
             log.log_marketplace_resource_end_date_has_been_updated(resource, user)
 
 
@@ -2489,6 +2503,12 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
                 _('Please set at least 7 days in advance.')
             )
         return end_date
+
+    def save(self, **kwargs):
+        resource = super().save(**kwargs)
+        user = self.context['request'].user
+        resource.end_date_requested_by = user
+        resource.save()
 
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):

@@ -178,6 +178,9 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.fixture.project.refresh_from_db()
             self.assertTrue(self.fixture.project.end_date)
+            self.assertEqual(
+                self.fixture.project.end_date_requested_by, getattr(self.fixture, user)
+            )
 
     @data('manager', 'admin')
     def test_user_cannot_update_end_date(self, user):
@@ -297,6 +300,11 @@ class ProjectCreateTest(test.APITransactionTestCase):
                     end_date=datetime.datetime(year=2021, month=6, day=1).date(),
                 ).exists()
             )
+            project = Project.objects.get(
+                name=payload['name'],
+                end_date=datetime.datetime(year=2021, month=6, day=1).date(),
+            )
+            self.assertEqual(project.end_date_requested_by, getattr(self.fixture, user))
 
     @data('manager', 'admin')
     def test_user_cannot_set_end_date(self, user):
