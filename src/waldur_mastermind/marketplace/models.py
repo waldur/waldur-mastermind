@@ -1022,6 +1022,13 @@ class ResourceDetailsMixin(
             'The date is inclusive. Once reached, a resource will be scheduled for termination.'
         ),
     )
+    end_date_requested_by = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=core_models.User,
+        blank=True,
+        null=True,
+        related_name='+',
+    )
 
 
 class Resource(

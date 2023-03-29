@@ -681,6 +681,7 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
             self.assertTrue(self.resource.end_date)
+            self.assertEqual(self.resource.end_date_requested_by, self.fixture.staff)
 
     @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
@@ -798,6 +799,10 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
                 getattr(self.fixture, user), {'end_date': '2020-05-08'}
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.resource.refresh_from_db()
+            self.assertEqual(
+                self.resource.end_date_requested_by, getattr(self.fixture, user)
+            )
 
     @data('admin', 'manager', 'member', 'owner', 'customer_support')
     @freeze_time('2020-01-01')
@@ -850,6 +855,10 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
                     message__contains='End date of marketplace resource %s has been updated by staff.'
                     % self.resource.name
                 ).exists()
+            )
+            self.resource.refresh_from_db()
+            self.assertEqual(
+                self.resource.end_date_requested_by, getattr(self.fixture, user)
             )
 
     @freeze_time('2020-01-01')

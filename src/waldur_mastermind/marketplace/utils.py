@@ -711,16 +711,21 @@ def schedule_resources_termination(resources):
         return
 
     view = views.ResourceViewSet.as_view({'post': 'terminate'})
-    user = core_utils.get_system_robot()
-
-    if not user:
-        logger.error(
-            'Staff user with username system_robot for terminating resources '
-            'of project with due date does not exist.'
-        )
-        return
 
     for resource in resources:
+        user = (
+            resource.end_date_requested_by
+            or resource.project.end_date_requested_by
+            or core_utils.get_system_robot()
+        )
+
+        if not user:
+            logger.error(
+                'User for terminating resources '
+                'of project with due date does not exist.'
+            )
+            return
+
         # Terminate pending order items if they exist
         for order_item in models.OrderItem.objects.filter(
             resource=resource, state=models.OrderItem.States.PENDING

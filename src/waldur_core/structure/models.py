@@ -726,6 +726,13 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
             'The date is inclusive. Once reached, all project resource will be scheduled for termination.'
         ),
     )
+    end_date_requested_by = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=core_models.User,
+        blank=True,
+        null=True,
+        related_name='+',
+    )
     type = models.ForeignKey(
         ProjectType,
         verbose_name=_('project type'),

@@ -299,7 +299,7 @@ class ResourceEndDate(test.APITransactionTestCase):
     def setUp(self):
         # We need create a system robot account because
         # account created in a migration does not exist when test is running
-        structure_factories.UserFactory(
+        self.system_robot = structure_factories.UserFactory(
             first_name='System',
             last_name='Robot',
             username='system_robot',
@@ -330,3 +330,26 @@ class ResourceEndDate(test.APITransactionTestCase):
                 resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
             )
             self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
+            self.assertEqual(order_item.order.created_by, self.system_robot)
+
+    def test_terminate_resource_if_end_date_requested_by_is_passed(self):
+        with freeze_time('2020-01-01'):
+            user = structure_factories.UserFactory(is_staff=True)
+            self.resource.end_date_requested_by = user
+            self.resource.save()
+
+            self.assertTrue(self.resource.is_expired)
+            tasks.terminate_expired_resources()
+            self.resource.refresh_from_db()
+
+            self.assertTrue(
+                models.OrderItem.objects.filter(
+                    resource=self.fixtures.resource,
+                    type=models.OrderItem.Types.TERMINATE,
+                ).count()
+            )
+            order_item = models.OrderItem.objects.get(
+                resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
+            )
+            self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
+            self.assertEqual(order_item.order.created_by, user)
