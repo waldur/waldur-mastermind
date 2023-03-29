@@ -31,8 +31,11 @@ class BaseInvitationTest(test.APITransactionTestCase):
         self.customer.add_user(self.customer_owner, structure_models.CustomerRole.OWNER)
 
         self.customer_role = structure_models.CustomerRole.OWNER
+        self.extra_invitation_text = 'invitation text'
         self.customer_invitation = factories.CustomerInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer,
+            customer_role=self.customer_role,
+            extra_invitation_text=self.extra_invitation_text,
         )
 
         self.project = structure_factories.ProjectFactory(customer=self.customer)
@@ -416,6 +419,19 @@ class InvitationCreateTest(BaseInvitationTest):
         invitation = models.Invitation.objects.get(uuid=response.data['uuid'])
         self.assertEqual(invitation.state, models.Invitation.State.REQUESTED)
 
+    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
+    def test_user_can_pass_extra_invitation_text(self):
+        self.client.force_authenticate(user=self.staff)
+        payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
+        payload['extra_invitation_text'] = self.extra_invitation_text
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data['extra_invitation_text'], self.extra_invitation_text
+        )
+
     # Helper methods
     def _get_valid_project_invitation_payload(self, invitation=None, project_role=None):
         invitation = invitation or factories.ProjectInvitationFactory.build()
@@ -533,6 +549,7 @@ class InvitationSendTest(BaseInvitationTest):
         self.assertEqual(self.customer_invitation.email, mail.outbox[0].to[0])
         link = get_invitation_link(self.customer_invitation.uuid.hex)
         self.assertTrue(link in mail.outbox[0].body)
+        self.assertTrue(self.extra_invitation_text in mail.outbox[0].body)
 
     @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
     def test_owner_can_not_send_customer_invitation_if_settings_are_tweaked(self):

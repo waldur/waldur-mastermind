@@ -19,27 +19,33 @@ from waldur_freeipa.utils import generate_username
 
 
 def get_invitation_context(invitation, sender):
+    context = {'extra_invitation_text': invitation.extra_invitation_text}
+
     if invitation.project_role is not None:
         role_display = {
             ProjectRole.MANAGER: 'project manager',
             ProjectRole.MEMBER: 'project member',
             ProjectRole.ADMINISTRATOR: 'system administrator',
         }.get(invitation.project_role, invitation.get_project_role_display())
-        context = dict(
-            type=_('project'),
-            name=invitation.project.name,
-            role=_(get_domain_message(role_display)),
-            org_name=invitation.customer.name,
+        context.update(
+            dict(
+                type=_('project'),
+                name=invitation.project.name,
+                role=_(get_domain_message(role_display)),
+                org_name=invitation.customer.name,
+            )
         )
     else:
         role_display = {
             CustomerRole.OWNER: 'organization owner',
         }.get(invitation.customer_role, invitation.get_customer_role_display())
-        context = dict(
-            type=_('organization'),
-            name=invitation.customer.name,
-            role=_(get_domain_message(role_display)),
-            org_name=invitation.customer.name,
+        context.update(
+            dict(
+                type=_('organization'),
+                name=invitation.customer.name,
+                role=_(get_domain_message(role_display)),
+                org_name=invitation.customer.name,
+            )
         )
 
     context['sender'] = sender

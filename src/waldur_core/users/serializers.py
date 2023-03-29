@@ -125,6 +125,7 @@ class InvitationSerializer(GroupInvitationSerializer):
             'expires',
             'created_by_full_name',
             'created_by_username',
+            'extra_invitation_text',
         ) + detail_fields
         read_only_fields = (
             'url',
