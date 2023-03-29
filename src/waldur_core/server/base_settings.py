@@ -272,6 +272,7 @@ globals().update(WaldurConfiguration().dict())
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
 CONSTANCE_DBS = "default"
 CONSTANCE_SUPERUSER_ONLY = False
+CONSTANCE_IGNORE_ADMIN_VERSION_CHECK = True
 CONSTANCE_ADDITIONAL_FIELDS = {
     'image_field': ['django.forms.ImageField', {'required': False}]
 }
