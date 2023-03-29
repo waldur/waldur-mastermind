@@ -166,7 +166,7 @@ class TestOfferingUser(test.APITransactionTestCase):
         expected_config_file = textwrap.dedent(
             f"""
         [[users]]
-          name = "{self.offering_user.username}"
+          name = "{self.manager.get_username()}"
           givenname="{self.manager.first_name}"
           sn="{self.manager.last_name}"
           mail = "{self.manager.email}"
@@ -175,6 +175,9 @@ class TestOfferingUser(test.APITransactionTestCase):
           sshkeys = ["{ssh_key.public_key}"]
           loginShell = "/bin/sh"
           homeDir = "/home/{self.offering_user.username}"
+          passsha256 = ""
+            [[users.customattributes]]
+            preferredUsername = "[{self.offering_user.username}]"
 
         [[groups]]
           name = "{self.offering_user.username}"

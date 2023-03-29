@@ -1,5 +1,6 @@
 import copy
 import datetime
+import hashlib
 import logging
 import textwrap
 
@@ -920,10 +921,18 @@ class ProviderOfferingViewSet(
             ]
             ssh_keys_line = ',\n    '.join(ssh_keys)
 
+            password = offering.secret_options.get('shared_user_password')
+            if password:
+                hash = hashlib.sha256()
+                hash.update(password.encode('utf-8'))
+                password_sha256 = hash.hexdigest()
+            else:
+                password_sha256 = ''
+
             record = textwrap.dedent(
                 f"""
             [[users]]
-              name = "{offering_user.username}"
+              name = "{user.get_username()}"
               givenname="{user.first_name}"
               sn="{user.last_name}"
               mail = "{user.email}"
@@ -932,6 +941,9 @@ class ProviderOfferingViewSet(
               sshkeys = [{ssh_keys_line}]
               loginShell = "{login_shell}"
               homeDir = "{home_dir}"
+              passsha256 = "{password_sha256}"
+                [[users.customattributes]]
+                preferredUsername = "[{offering_user.username}]"
             """
             )
 
@@ -947,10 +959,6 @@ class ProviderOfferingViewSet(
         response_text = '\n'.join(user_records)
 
         return Response(response_text)
-        #     data=smart_text(),
-        #     status=status.HTTP_200_OK,
-        #     content_type='text/plain',
-        # )
 
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
