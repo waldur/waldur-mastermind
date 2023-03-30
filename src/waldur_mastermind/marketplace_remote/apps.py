@@ -79,6 +79,12 @@ class MarketplaceRemoteConfig(AppConfig):
             dispatch_uid='marketplace_remote.log_request_events',
         )
 
+        signals.post_save.connect(
+            handlers.notify_about_project_details_update,
+            sender=ProjectUpdateRequest,
+            dispatch_uid='marketplace_remote.notify_about_project_details_update',
+        )
+
         signals.post_delete.connect(
             handlers.delete_remote_project,
             sender=Project,

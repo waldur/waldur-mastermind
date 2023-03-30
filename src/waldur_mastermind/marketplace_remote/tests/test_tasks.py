@@ -509,3 +509,33 @@ class NotificationAboutPendingProjectUpdatesTest(test.APITransactionTestCase):
         NotificationFactory(key=f"marketplace_remote.{event_type}")
         tasks.notify_about_pending_project_update_requests()
         self.assertEqual(len(mail.outbox), 0)
+
+
+class NotificationAboutProjectUpdatesTest(test.APITransactionTestCase):
+    def setUp(self):
+        project_fixture = ProjectFixture()
+        fixture = fixtures.MarketplaceFixture()
+        self.owner = project_fixture.owner
+        self.project = project_fixture.project
+        self.offering = fixture.offering
+
+    def test_send_notify_if_project_details_updated(self):
+        project_update = ProjectUpdateRequest.objects.create(
+            project=self.project,
+            offering=self.offering,
+            old_name='old name',
+            new_name='new_name',
+            state=ProjectUpdateRequest.States.PENDING,
+            created_by=self.owner,
+            reviewed_by=self.owner,
+        )
+
+        project_update.state = ProjectUpdateRequest.States.APPROVED
+        project_update.save()
+
+        serialized_project = serialize_instance(project_update)
+
+        event_type = 'notification_about_project_details_update'
+        NotificationFactory(key=f"marketplace_remote.{event_type}")
+        tasks.notify_about_project_details_update(serialized_project)
+        self.assertEqual(len(mail.outbox), 2)

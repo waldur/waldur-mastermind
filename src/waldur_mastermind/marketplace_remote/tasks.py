@@ -12,7 +12,13 @@ from rest_framework import exceptions as rf_exceptions
 from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core.mixins import ReviewStateMixin
-from waldur_core.core.utils import deserialize_instance, month_start, serialize_instance
+from waldur_core.core.utils import (
+    broadcast_mail,
+    deserialize_instance,
+    format_homeport_link,
+    month_start,
+    serialize_instance,
+)
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.invoices import models as invoice_models
@@ -831,8 +837,6 @@ def trigger_order_item_callback(serialized_order_item):
     name='waldur_mastermind.marketplace_remote.notify_about_pending_project_update_requests'
 )
 def notify_about_pending_project_update_requests():
-    from waldur_core.core import utils as core_utils
-
     week_ago = datetime.now() - timedelta(weeks=1)
     pending_project_update_requests = (
         remote_models.ProjectUpdateRequest.objects.filter(
@@ -845,7 +849,7 @@ def notify_about_pending_project_update_requests():
 
     for pending_project_update_request in pending_project_update_requests:
         mails = pending_project_update_request.project.customer.get_owner_mails()
-        project_url = core_utils.format_homeport_link(
+        project_url = format_homeport_link(
             'projects/{project_uuid}/marketplace-project-update-requests/',
             project_uuid=pending_project_update_request.project.uuid.hex,
         )
@@ -853,9 +857,50 @@ def notify_about_pending_project_update_requests():
             'project_update_request': pending_project_update_request,
             'project_url': project_url,
         }
-        core_utils.broadcast_mail(
+        broadcast_mail(
             'marketplace_remote',
             'notification_about_pending_project_updates',
             context,
             mails,
         )
+
+
+@shared_task(
+    name='waldur_mastermind.marketplace_remote.notify_about_project_details_update'
+)
+def notify_about_project_details_update(serialized_project_update):
+    review_request = deserialize_instance(serialized_project_update)
+
+    context = {}
+    if review_request.new_description:
+        context['new_description'] = review_request.new_description
+        context['old_description'] = review_request.old_description
+    if review_request.new_name:
+        context['new_name'] = review_request.new_name
+        context['old_name'] = review_request.old_name
+    if review_request.new_end_date:
+        context['new_end_date'] = review_request.new_end_date
+        context['old_end_date'] = review_request.old_end_date
+    if review_request.new_oecd_fos_2007_code:
+        context['new_oecd_fos_2007_code'] = review_request.new_oecd_fos_2007_code
+        context['old_oecd_fos_2007_code'] = review_request.old_oecd_fos_2007_code
+    if review_request.new_is_industry:
+        context['new_is_industry'] = review_request.new_is_industry
+        context['old_is_industry'] = review_request.new_is_industry
+
+    context['reviewed_by'] = review_request.reviewed_by
+    context['project_url'] = format_homeport_link(
+        'projects/{project_uuid}/',
+        project_uuid=review_request.project.uuid.hex,
+    )
+    mails = [
+        review_request.reviewed_by,
+        review_request.created_by,
+    ]
+
+    broadcast_mail(
+        'marketplace_remote',
+        'notification_about_project_details_update',
+        context,
+        mails,
+    )
