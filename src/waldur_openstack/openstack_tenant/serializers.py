@@ -256,13 +256,13 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             'action_details',
             'instance',
             'instance_name',
+            'bootable',
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
                 'image_metadata',
                 'image_name',
-                'bootable',
                 'source_snapshot',
                 'runtime_state',
                 'device',

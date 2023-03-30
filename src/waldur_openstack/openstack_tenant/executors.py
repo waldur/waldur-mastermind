@@ -37,6 +37,12 @@ class VolumeUpdateExecutor(core_executors.UpdateExecutor):
             return core_tasks.BackendMethodTask().si(
                 serialized_volume, 'update_volume', state_transition='begin_updating'
             )
+        if 'bootable' in updated_fields:
+            return core_tasks.BackendMethodTask().si(
+                serialized_volume,
+                'toggle_bootable_flag',
+                state_transition='begin_updating',
+            )
         else:
             return core_tasks.StateTransitionTask().si(
                 serialized_volume, state_transition='begin_updating'
