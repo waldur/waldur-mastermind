@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from model_utils import FieldTracker
 
@@ -24,6 +25,13 @@ class ProjectUpdateRequest(UuidMixin, ReviewMixin):
     new_oecd_fos_2007_code = models.CharField(null=True, blank=True, max_length=5)
     old_is_industry = models.BooleanField(null=True, blank=True)
     new_is_industry = models.BooleanField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=settings.AUTH_USER_MODEL,
+        related_name='+',
+        blank=True,
+        null=True,
+    )
 
     class Permissions:
         customer_path = 'offering__customer'

@@ -128,7 +128,7 @@ class OfferingCreateView(RemoteView):
             customer=local_customer,
             category=local_category,
             secret_options=secret_options,
-            **{key: remote_offering[key] for key in OFFERING_FIELDS}
+            **{key: remote_offering[key] for key in OFFERING_FIELDS},
         )
         utils.import_offering_thumbnail(local_offering, remote_offering)
         local_components_map = utils.import_offering_components(

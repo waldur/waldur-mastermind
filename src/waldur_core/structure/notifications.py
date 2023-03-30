@@ -220,3 +220,8 @@ class MarketplaceRemoteSection(NotificationSection):
         'notification_about_pending_project_updates',
         'A notification about pending project updates',
     )
+
+    notification_about_project_details_update = Notification(
+        'notification_about_project_details_update',
+        'A notification about project details update',
+    )

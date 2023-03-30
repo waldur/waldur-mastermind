@@ -105,6 +105,7 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
     for key in structure_models.PROJECT_DETAILS_FIELDS:
         payload[f'old_{key}'] = instance.tracker.previous(key)
         payload[f'new_{key}'] = getattr(instance, key)
+        payload['created_by'] = user
     offering_ids = (
         Resource.objects.filter(project=instance, offering__type=PLUGIN_NAME)
         .exclude(state__in=INVALID_RESOURCE_STATES)
@@ -208,4 +209,21 @@ def trigger_order_item_callback(sender, instance, created=False, **kwargs):
 
     transaction.on_commit(
         lambda: tasks.trigger_order_item_callback.delay(serialize_instance(instance))
+    )
+
+
+def notify_about_project_details_update(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if (
+        not instance.tracker.has_changed('state')
+        or instance.state != models.ProjectUpdateRequest.States.APPROVED
+    ):
+        return
+
+    transaction.on_commit(
+        lambda: tasks.notify_about_project_details_update.delay(
+            serialize_instance(instance)
+        )
     )

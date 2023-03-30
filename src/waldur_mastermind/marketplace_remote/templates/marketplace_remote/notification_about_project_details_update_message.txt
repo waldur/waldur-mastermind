@@ -1,0 +1,36 @@
+Hello!
+
+We would like to notify you about recent updates in project details.
+Perhaps you would like to have a look at them?
+
+The project is:
+    {{ new_name }} {{ project_url }}
+
+    Details after the update are below:
+        {% if new_description %}
+            Old description: {{ old_description }}
+            New description: {{ new_description }}
+        {% endif %}
+
+        {% if new_name %}
+            Old name: {{ old_name }}
+            New name: {{ new_name }}
+        {% endif %}
+
+        {% if new_end_date %}
+           Old end date: {{ old_end_date }}
+           New end date: {{ new_end_date }}
+        {% endif %}
+
+        {% if new_oecd_fos_2007_code %}
+           Old OECD FOS 2007 code: {{ old_oecd_fos_2007_code }}
+           New OECD FOS 2007 code: {{ new_oecd_fos_2007_code }}
+        {% endif %}
+
+        {% if new_is_industry %}
+           Old is_industry: {{ old_is_industry }}
+           New is_industry: {{ new_is_industry }}
+        {% endif %}
+
+    Reviewed by: {{ reviewed_by }}
+Thank you!
