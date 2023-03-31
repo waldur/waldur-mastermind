@@ -1,4 +1,5 @@
 import django_filters
+from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
@@ -11,9 +12,16 @@ class SecurityGroupFilter(structure_filters.BaseResourceFilter):
     tenant = core_filters.URLFilter(
         view_name='openstack-tenant-detail', field_name='tenant__uuid'
     )
+    query = django_filters.CharFilter(method='filter_query')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SecurityGroup
+
+    def filter_query(self, queryset, name, value):
+        query = queryset.filter(
+            Q(name__icontains=value) | Q(description__icontains=value)
+        )
+        return query
 
 
 class ServerGroupFilter(structure_filters.BaseResourceFilter):
