@@ -2296,10 +2296,6 @@ class ResourceSerializer(BaseItemSerializer):
             **BaseItemSerializer.Meta.extra_kwargs,
             url={'lookup_field': 'uuid'},
             end_date_requested_by={'lookup_field': 'uuid', 'view_name': 'user-detail'},
-            project_end_date_requested_by={
-                'lookup_field': 'uuid',
-                'view_name': 'user-detail',
-            },
         )
 
     state = serializers.ReadOnlyField(source='get_state_display')
@@ -2315,8 +2311,11 @@ class ResourceSerializer(BaseItemSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
     project_end_date = serializers.ReadOnlyField(source='project.end_date')
-    project_end_date_requested_by = serializers.ReadOnlyField(
-        source='project.end_date_requested_by'
+    project_end_date_requested_by = serializers.HyperlinkedRelatedField(
+        source='project.end_date_requested_by',
+        lookup_field='uuid',
+        view_name='user-detail',
+        read_only=True,
     )
     project_description = serializers.ReadOnlyField(source='project.description')
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
