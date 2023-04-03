@@ -19,8 +19,10 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
                 type=MarketplaceSlurmConfig.service_name,
                 state=ServiceSettings.States.OK,
                 shared=True,
-                defaults={'name': 'SLURM remote service settings'},
-                is_active=False,
+                defaults={
+                    'name': 'SLURM remote service settings',
+                    'is_active': False,
+                },
             )
 
             allocation = slurm_models.Allocation.objects.create(
