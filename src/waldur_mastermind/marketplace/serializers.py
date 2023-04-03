@@ -875,6 +875,7 @@ class OfferingDetailsSerializer(
             'total_cost_estimated',
             'parent_description',
             'parent_uuid',
+            'parent_name',
         )
         related_paths = {
             'customer': ('uuid', 'name'),
@@ -882,6 +883,7 @@ class OfferingDetailsSerializer(
             'parent': (
                 'uuid',
                 'description',
+                'name',
             ),
         }
         protected_fields = ('customer', 'type')
