@@ -629,6 +629,7 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     propagated_before = django_filters.DateTimeFilter(
         field_name='propagation_date', lookup_expr='lte'
     )
+    provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
     o = django_filters.OrderingFilter(fields=('created',))
 
     class Meta:
