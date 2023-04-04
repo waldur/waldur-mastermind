@@ -180,3 +180,34 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
         offering_user.save(update_fields=['propagation_date', 'backend_metadata'])
 
         logger.info('The offering user %s has been created', offering_user)
+
+
+def update_offering_user_username_after_offering_settings_change(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    offering = instance
+
+    if offering.type != PLUGIN_NAME or not offering.tracker.has_changed(
+        'plugin_options'
+    ):
+        return
+
+    if (
+        offering.plugin_options.get(
+            'username_generation_policy',
+            utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value,
+        )
+        == utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+    ):
+        return
+
+    offering_users = marketplace_models.OfferingUser.objects.filter(offering=offering)
+
+    for offering_user in offering_users:
+        new_username = utils.generate_username(offering_user.user, offering)
+        logger.info('New username for %s is %s', offering_user, new_username)
+        offering_user.username = new_username
+        offering_user.save(update_fields=['username'])
