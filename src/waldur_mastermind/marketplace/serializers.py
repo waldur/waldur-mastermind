@@ -2876,6 +2876,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
     offering_name = serializers.ReadOnlyField(source='offering.name')
     user_uuid = serializers.ReadOnlyField(source='user.uuid')
     user_username = serializers.ReadOnlyField(source='user.username')
+    user_full_name = serializers.ReadOnlyField(source='user.full_name')
 
     class Meta:
         model = models.OfferingUser
@@ -2887,6 +2888,7 @@ class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
             'offering_name',
             'user_uuid',
             'user_username',
+            'user_full_name',
             'created',
             'modified',
             'propagation_date',
