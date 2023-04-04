@@ -121,6 +121,44 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         )
 
 
+class OfferingUserUpdateTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        fixture = marketplace_fixtures.MarketplaceFixture()
+
+        self.resource = fixture.resource
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        self.offering = self.resource.offering
+        self.offering.type = PLUGIN_NAME
+        self.offering.secret_options = {
+            'service_provider_can_create_offering_user': True
+        }
+        self.offering.plugin_options = {
+            'username_generation_policy': 'waldur_username',
+        }
+        self.offering.save()
+
+        self.admin = fixture.admin
+        self.offering_user = marketplace_models.OfferingUser.objects.get(
+            user=self.admin,
+            offering=self.offering,
+        )
+
+    def test_username_updated_when_generation_policy_changed(self):
+        self.assertEqual(self.admin.username, self.offering_user.username)
+
+        self.offering.plugin_options['username_generation_policy'] = 'anonymized'
+        self.offering.save(update_fields=['plugin_options'])
+
+        self.offering_user.refresh_from_db()
+
+        self.assertEqual(
+            self.offering_user.username,
+            'walduruser_00000',
+        )
+
+
 class TestOfferingUser(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()

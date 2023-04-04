@@ -59,3 +59,9 @@ class MarketplaceSlurmConfig(AppConfig):
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace_slurm_remote.create_offering_user_for_new_resource',
         )
+
+        signals.post_save.connect(
+            handlers.update_offering_user_username_after_offering_settings_change,
+            sender=marketplace_models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace_slurm_remote.update_offering_user_username_after_offering_settings_change',
+        )

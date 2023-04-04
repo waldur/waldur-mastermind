@@ -16,9 +16,9 @@ class UsernameGenerationPolicy(Enum):
     SERVICE_PROVIDER = (
         'service_provider'  # SP should manually submit username for the offering users
     )
-    ANONYMIZED = 'anonymized'  # Usernames are generated with <prefix>_<number>, e.g. "anonym_0001".
+    ANONYMIZED = 'anonymized'  # Usernames are generated with <prefix>_<number>, e.g. "anonym_00001".
     # The prefix must be specified in offering.plugin_options as "username_anonymized_prefix"
-    FULL_NAME = 'full_name'  # Usernames are constructed using first and last name of users, e.g. "john.doe"
+    FULL_NAME = 'full_name'  # Usernames are constructed using first and last name of users with numerical suffix, e.g. "john_doe_01"
     WALDUR_USERNAME = 'waldur_username'  # Using username field of User model
     FREEIPA = 'freeipa'  # Using username field of waldur_freeipa.Profile model
 
