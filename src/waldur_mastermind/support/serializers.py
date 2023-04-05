@@ -477,6 +477,7 @@ class AttachmentSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     file_name = serializers.SerializerMethodField()
+    destroy_is_available = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Attachment
@@ -492,6 +493,7 @@ class AttachmentSerializer(
             'file_name',
             'thumbnail',
             'backend_id',
+            'destroy_is_available',
         )
         read_only_fields = (
             'mime_type',
@@ -511,6 +513,9 @@ class AttachmentSerializer(
     def get_file_name(self, attachment):
         _, file_name = os.path.split(attachment.file.name)
         return file_name
+
+    def get_destroy_is_available(self, obj):
+        return backend.get_active_backend().attachment_destroy_is_available(obj)
 
     def validate(self, attrs):
         filename, file_extension = os.path.splitext(attrs['file'].name)

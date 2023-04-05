@@ -31,6 +31,9 @@ class BaseTest(test.APITransactionTestCase):
         self.mock_get_active_backend().destroy_is_available.return_value = True
         self.mock_get_active_backend().comment_update_is_available.return_value = True
         self.mock_get_active_backend().comment_destroy_is_available.return_value = True
+        self.mock_get_active_backend().attachment_destroy_is_available.return_value = (
+            True
+        )
         self.mock_get_active_backend().backend_name = None
         self.mock_get_active_backend().pull_support_users = (
             atlassian.ServiceDeskBackend.pull_support_users

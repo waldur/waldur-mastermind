@@ -1,5 +1,5 @@
 import functools
-from collections import namedtuple
+from dataclasses import dataclass
 
 from django.conf import settings
 from requests import exceptions as requests_exceptions
@@ -32,11 +32,45 @@ def reraise_exceptions(msg=None):
     return wrap
 
 
-Comment = namedtuple(
-    'Comment', 'id creator created content is_public user_id is_waldur_comment'
-)
-Issue = namedtuple('Issue', 'id status summary')
-User = namedtuple('User', 'id email login firstname lastname name is_active')
+@dataclass
+class Issue:
+    id: str
+    status: str
+    summary: str
+
+
+@dataclass
+class Comment:
+    id: str
+    creator: str
+    created: str
+    content: str
+    is_public: bool
+    user_id: str
+    is_waldur_comment: bool
+    ticket_id: str
+    attachments: list = None
+
+
+@dataclass
+class Attachment:
+    id: str
+    filename: str
+    size: str
+    content_type: str
+    article_id: str
+    ticket_id: str
+
+
+@dataclass
+class User:
+    id: str
+    email: str
+    login: str
+    firstname: str
+    lastname: str
+    name: str
+    is_active: bool
 
 
 class ZammadBackend:
@@ -50,9 +84,9 @@ class ZammadBackend:
 
     def _zammad_response_to_issue(self, response):
         return Issue(
-            response['id'],
-            response['state'],
-            response['title'],
+            id=str(response['id']),
+            status=response['state'],
+            summary=response['title'],
         )
 
     def _zammad_response_to_user(self, response):
@@ -62,30 +96,52 @@ class ZammadBackend:
             name = response['login']
 
         return User(
-            response['id'],
-            response['email'],
-            response['login'],
-            response['firstname'],
-            response['lastname'],
-            name,
-            response['active'],
+            id=response['id'],
+            email=response['email'],
+            login=response['login'],
+            firstname=response['firstname'],
+            lastname=response['lastname'],
+            name=name,
+            is_active=response['active'],
         )
 
     def _zammad_response_to_comment(self, response):
+        article_id = str(response.get('id'))
+        ticket_id = str(response.get('ticket_id'))
         return Comment(
-            response.get('id', ''),
-            response.get('created_by'),
-            response.get('created_at'),
-            clean_html(response.get('body', '')),
-            not response.get('internal', False),
-            response.get('sender_id'),
-            response.get('type') == ZAMMAD_ARTICLE_TYPE,
+            id=article_id,
+            creator=response.get('created_by'),
+            created=response.get('created_at'),
+            content=clean_html(response.get('body', '')),
+            is_public=not response.get('internal', False),
+            user_id=response.get('sender_id'),
+            is_waldur_comment=response.get('type') == ZAMMAD_ARTICLE_TYPE,
+            attachments=[
+                self._zammad_response_to_attachment(a, article_id, ticket_id)
+                for a in response.get('attachments', [])
+            ],
+            ticket_id=ticket_id,
+        )
+
+    def _zammad_response_to_attachment(self, response, article_id, ticket_id):
+        return Attachment(
+            id=str(response.get('id')),
+            filename=response.get('filename'),
+            size=response.get('size'),
+            content_type=response.get('preferences', {}).get('Content-Type'),
+            article_id=article_id,
+            ticket_id=ticket_id,
         )
 
     @reraise_exceptions('An issue is not found.')
     def get_issue(self, issue_id):
         response = self.manager.ticket.find(issue_id)
         return self._zammad_response_to_issue(response)
+
+    @reraise_exceptions('A comment is not found.')
+    def get_comment(self, comment_id):
+        response = self.manager.ticket_article.find(comment_id)
+        return self._zammad_response_to_comment(response)
 
     def get_groups(self):
         return list(self.manager.group.all())
@@ -132,14 +188,50 @@ class ZammadBackend:
         return self._zammad_response_to_user(response)
 
     @reraise_exceptions('Creating a comment has been failed.')
-    def add_comment(self, ticket_id, content):
+    def add_comment(self, ticket_id, content, is_public=False):
         params = {
             'ticket_id': ticket_id,
             'body': content,
             'type': ZAMMAD_ARTICLE_TYPE,
+            'internal': not is_public,  # if internal equals False so deleting of comment will be impossible
         }
         response = self.manager.ticket_article.create(params)
         return self._zammad_response_to_comment(response)
+
+    def get_ticket_attachments(self, ticket_id):
+        attachments = []
+
+        for comment in self.get_comments(ticket_id):
+            attachments.extend(comment.attachments)
+
+        return attachments
+
+    @reraise_exceptions('Creating an attachment has been failed.')
+    def add_attachment(
+        self, ticket_id, filename, data_base64_encoded, mime_type, author_name=''
+    ):
+        body = filename
+
+        if author_name:
+            body = f'User {author_name} added file {filename}.'
+
+        params = {
+            'ticket_id': ticket_id,
+            'body': body,
+            'type': ZAMMAD_ARTICLE_TYPE,
+            'internal': True,  # if internal equals False so deleting of comment will be impossible
+            'attachments': [
+                {
+                    'filename': filename,
+                    'data': data_base64_encoded,
+                    'mime-type': mime_type,
+                }
+            ],
+        }
+
+        response = self.manager.ticket_article.create(params)
+        zammad_comment = self._zammad_response_to_comment(response)
+        return zammad_comment.attachments[0]
 
     @reraise_exceptions('Deleting a comment has failed.')
     def del_comment(self, comment_id):
@@ -176,3 +268,10 @@ class ZammadBackend:
             comments.append(comment)
 
         return comments
+
+    def attachment_download(self, attachment):
+        return self.manager.ticket_article_attachment.download(
+            attachment.id,
+            attachment.article_id,
+            attachment.ticket_id,
+        )

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import base64
 import datetime
 import logging
+import mimetypes
+import os
 
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.utils.timezone import now
 
 from waldur_core.core.models import User as WaldurUser
@@ -23,7 +27,19 @@ class ZammadServiceBackend(SupportBackend):
     backend_name = 'zammad'
 
     def comment_destroy_is_available(self, comment):
+        if not comment.backend_id:
+            return True
+
         if now() - comment.created < datetime.timedelta(
+            minutes=settings.WALDUR_ZAMMAD['COMMENT_COOLDOWN_DURATION']
+        ):
+            return True
+
+    def attachment_destroy_is_available(self, attachment):
+        if not attachment.backend_id:
+            return True
+
+        if now() - attachment.created < datetime.timedelta(
             minutes=settings.WALDUR_ZAMMAD['COMMENT_COOLDOWN_DURATION']
         ):
             return True
@@ -48,6 +64,7 @@ class ZammadServiceBackend(SupportBackend):
                 issue.summary, issue.description, support_user.backend_id
             )
             issue.backend_id = zammad_issue.id
+            issue.key = zammad_issue.id
             issue.backend_name = self.backend_name
             issue.status = zammad_issue.status
             issue.set_ok()
@@ -73,6 +90,8 @@ class ZammadServiceBackend(SupportBackend):
             comment.delete()
             logger.info('Comment %s has been deleted.', comment.id)
 
+        self.del_waldur_attachments_from_zammad(issue)
+
         for comment in zammad_comments:
             if str(comment.id) in issue.comments.filter(
                 backend_name=self.backend_name
@@ -86,7 +105,7 @@ class ZammadServiceBackend(SupportBackend):
                 comment.user_id
             )
 
-            models.Comment.objects.create(
+            new_comment = models.Comment.objects.create(
                 issue=issue,
                 created=comment.created,
                 backend_id=comment.id,
@@ -96,6 +115,40 @@ class ZammadServiceBackend(SupportBackend):
                 backend_name=self.backend_name,
             )
             logger.info('Comment %s has been created.', comment.id)
+            self.add_waldur_attachments_from_zammad(new_comment)
+
+    def add_waldur_attachments_from_zammad(self, comment):
+        zammad_comment = self.manager.get_comment(comment.backend_id)
+
+        for zammad_attachment in zammad_comment.attachments:
+            waldur_attachment = models.Attachment.objects.create(
+                issue=comment.issue,
+                mime_type=zammad_attachment.content_type,
+                file_size=zammad_attachment.size,
+                author=comment.author,
+                backend_id=zammad_attachment.id,
+                backend_name=self.backend_name,
+            )
+
+            waldur_attachment.file.save(
+                zammad_attachment.filename,
+                ContentFile(self.manager.attachment_download(zammad_attachment)),
+            )
+            logger.info(
+                'Attachment ID: %s, file: %s, size: %s has been created.',
+                zammad_attachment.id,
+                zammad_attachment.filename,
+                zammad_attachment.size,
+            )
+
+    def del_waldur_attachments_from_zammad(self, issue):
+        zammad_attachments = self.manager.get_ticket_attachments(issue.backend_id)
+
+        for attachment in issue.attachments.filter(
+            backend_name=self.backend_name
+        ).exclude(backend_id__in=[a.id for a in zammad_attachments]):
+            attachment.delete()
+            logger.info('Attachment %s has been deleted.', attachment.id)
 
     def create_confirmation_comment(self, issue):
         pass
@@ -109,7 +162,10 @@ class ZammadServiceBackend(SupportBackend):
             # The comment will be created from an authorized user.
             # It is not possible to create a comment from another.
             zammad_comment = self.manager.add_comment(
-                comment.issue.backend_id, comment.description
+                comment.issue.backend_id,
+                comment.description,
+                #  we not pass comment.is_public because of is_public will be True,
+                #  so deleting will be impossible
             )
             comment.backend_id = zammad_comment.id
             comment.backend_name = self.backend_name
@@ -238,3 +294,48 @@ class ZammadServiceBackend(SupportBackend):
         models.SupportUser.objects.filter(backend_name=self.backend_name).exclude(
             backend_id__in=[u.id for u in backend_users]
         ).update(is_active=False)
+
+    def create_attachment(self, attachment):
+        filename = os.path.basename(attachment.file.name)
+        mime_type = attachment.mime_type
+
+        if not mime_type:
+            mime_type, _ = mimetypes.guess_type(filename)
+
+        author_name = None
+
+        if attachment.author and attachment.author.name:
+            author_name = attachment.author.name
+
+        zammad_attachment = self.manager.add_attachment(
+            ticket_id=attachment.issue.backend_id,
+            filename=filename,
+            data_base64_encoded=base64.b64encode(attachment.file.read()),
+            mime_type=mime_type,
+            author_name=author_name,
+        )
+        attachment.backend_id = zammad_attachment.id
+        attachment.backend_name = self.backend_name
+        attachment.save()
+
+    def delete_attachment(self, attachment):
+        if (
+            not attachment.backend_id
+            or not attachment.issue.backend_id
+            or attachment.backend_name != self.backend_name
+        ):
+            return
+
+        zammad_attachments = [
+            za
+            for za in self.manager.get_ticket_attachments(attachment.issue.backend_id)
+            if za.id == attachment.backend_id
+        ]
+
+        if zammad_attachments:
+            zammad_attachment = zammad_attachments[0]
+        else:
+            return
+
+        self.manager.del_comment(zammad_attachment.article_id)
+        logger.info('Comment %s has been deleted.', zammad_attachment.comment.id)
