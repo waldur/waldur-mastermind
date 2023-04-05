@@ -888,9 +888,9 @@ def get_resource_users(resource):
 
 
 def generate_uidnumber_and_primary_group(offering):
-    initial_uidnumber = offering.plugin_options.get('initial_uidnumber', 100000)
-    initial_primarygroup_number = offering.plugin_options.get(
-        'initial_primarygroup_number', 100000
+    initial_uidnumber = int(offering.plugin_options.get('initial_uidnumber', 100000))
+    initial_primarygroup_number = int(
+        offering.plugin_options.get('initial_primarygroup_number', 100000)
     )
 
     offering_user_with_last_uidnumber = (
