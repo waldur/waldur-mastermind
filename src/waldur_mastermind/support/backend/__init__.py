@@ -68,5 +68,8 @@ class SupportBackend:
     def comment_destroy_is_available(self, comment=None):
         return True
 
+    def attachment_destroy_is_available(self, attachment=None):
+        return False
+
     def pull_support_users(self):
         raise NotImplementedError

@@ -218,6 +218,12 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         backend.get_active_backend().delete_attachment(attachment)
         attachment.delete()
 
+    def _destroy_is_available_validator(attachment):
+        if not backend.get_active_backend().attachment_destroy_is_available(attachment):
+            raise ValidationError('Destroying is not available.')
+
+    destroy_validators = [_destroy_is_available_validator]
+
     @transaction.atomic()
     def perform_create(self, serializer):
         attachment = serializer.save()
