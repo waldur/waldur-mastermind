@@ -916,7 +916,7 @@ class WaldurOpenstackTenant(BaseModel):
 class WaldurZammad(BaseModel):
     ZAMMAD_API_URL = Field(
         '',
-        description='Address of Zammad server. For example http://localhost:8080',
+        description='Address of Zammad server. For example <http://localhost:8080/>',
     )
     ZAMMAD_TOKEN = Field(
         '',
@@ -929,16 +929,16 @@ class WaldurZammad(BaseModel):
     )
     ZAMMAD_ARTICLE_TYPE = Field(
         'fax',
-        description='Type of a comment.'
-        'Default is fax because it allows to separate Waldur comments from other comments'
-        'https://docs.zammad.org/en/latest/api/ticket/articles.html#articles',
+        description='Type of a comment. '
+        'Default is fax because it allows to separate Waldur comments from other comments '
+        '<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>',
     )
     COMMENT_COOLDOWN_DURATION = Field(
         5,
-        description='Time in minutes.'
-        'Time in minutes while comment deletion is available'
-        'https://github.com/zammad/zammad/issues/2687, '
-        'https://github.com/zammad/zammad/issues/3086',
+        description='Time in minutes. '
+        'Time in minutes while comment deletion is available '
+        '<https://github.com/zammad/zammad/issues/2687/>, '
+        '<https://github.com/zammad/zammad/issues/3086/>',
     )
 
 
