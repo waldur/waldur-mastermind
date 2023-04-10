@@ -417,6 +417,7 @@ class UserFilter(BaseUserFilter):
     is_staff = django_filters.BooleanFilter(widget=BooleanWidget)
     is_support = django_filters.BooleanFilter(widget=BooleanWidget)
     username = django_filters.CharFilter(field_name='username', lookup_expr='exact')
+    query = django_filters.CharFilter(method='filter_query')
 
     o = core_filters.ExtendedOrderingFilter(
         fields=(
@@ -434,6 +435,16 @@ class UserFilter(BaseUserFilter):
             'is_support',
         )
     )
+
+    def filter_query(self, queryset, name, value):
+        query = queryset.filter(
+            Q(first_name__icontains=value)
+            | Q(last_name__icontains=value)
+            | Q(civil_number__icontains=value)
+            | Q(username__icontains=value)
+            | Q(email__icontains=value)
+        )
+        return query
 
 
 class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
