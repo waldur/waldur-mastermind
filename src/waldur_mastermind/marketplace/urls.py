@@ -122,6 +122,10 @@ urlpatterns = [
         views.ResourceOfferingsViewSet.as_view(),
     ),
     re_path(
+        r'^api/marketplace-runtime-states/(?P<project_uuid>[a-f0-9]+)/$',
+        views.RuntimeStatesViewSet.as_view(),
+    ),
+    re_path(
         r'^api/marketplace-related-customers/(?P<customer_uuid>[a-f0-9]+)/$',
         views.RelatedCustomersViewSet.as_view(),
     ),

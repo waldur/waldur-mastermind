@@ -1864,6 +1864,28 @@ class ResourceOfferingsViewSet(ProjectChoicesViewSet):
         return models.Offering.objects.filter(pk__in=offerings)
 
 
+class RuntimeStatesViewSet(views.APIView):
+    def get(self, request, project_uuid):
+        projects = filter_queryset_for_user(
+            structure_models.Project.objects.all(), request.user
+        )
+        project = get_object_or_404(projects, uuid=project_uuid)
+        runtime_states = set(
+            models.Resource.objects.filter(project=project)
+            .values_list('backend_metadata__runtime_state', flat=True)
+            .distinct()
+        )
+        result = sorted(
+            [
+                {"value": state, "label": state.lower()}
+                for state in runtime_states
+                if state
+            ],
+            key=lambda option: option['value'],
+        )
+        return Response(result)
+
+
 class RelatedCustomersViewSet(ListAPIView):
     serializer_class = structure_serializers.BasicCustomerSerializer
     filter_backends = (DjangoFilterBackend,)

@@ -425,6 +425,9 @@ class ResourceFilter(
             for db_value, representation in models.Resource.States.CHOICES
         },
     )
+    runtime_state = django_filters.CharFilter(
+        field_name='backend_metadata__runtime_state'
+    )
     o = django_filters.OrderingFilter(
         fields=(
             'name',
