@@ -89,6 +89,10 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
             ],
         }
 
+    def tearDown(self) -> None:
+        responses.reset()
+        return super().tearDown()
+
     @responses.activate
     @override_settings(task_always_eager=True)
     def test_update_component(self):
