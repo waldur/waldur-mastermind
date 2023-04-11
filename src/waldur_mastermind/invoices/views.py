@@ -395,7 +395,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             .values('invoice__year', 'invoice__month')
             .annotate(price=Sum(F('unit_price') * F('quantity')))
             .values('invoice__year', 'invoice__month', 'price')
-            .order_by('invoice__year')
+            .order_by('-invoice__year', '-invoice__month')
         )
         page = self.paginate_queryset(invoices)
         if page is not None:
