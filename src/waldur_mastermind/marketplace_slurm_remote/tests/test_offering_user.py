@@ -215,7 +215,7 @@ class TestOfferingUser(test.APITransactionTestCase):
           homeDir = "/home/{self.offering_user.username}"
           passsha256 = ""
             [[users.customattributes]]
-            preferredUsername = "[{self.offering_user.username}]"
+            preferredUsername = "{self.offering_user.username}"
 
         [[groups]]
           name = "{self.offering_user.username}"

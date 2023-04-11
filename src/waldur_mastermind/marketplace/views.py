@@ -943,7 +943,7 @@ class ProviderOfferingViewSet(
               homeDir = "{home_dir}"
               passsha256 = "{password_sha256}"
                 [[users.customattributes]]
-                preferredUsername = "[{offering_user.username}]"
+                preferredUsername = "{offering_user.username}"
             """
             )
 
