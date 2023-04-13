@@ -218,3 +218,15 @@ class MarketplaceConfig(AppConfig):
             sender=models.OfferingUser,
             dispatch_uid='waldur_mastermind.marketplace.log_offering_user_deleted',
         )
+
+        signals.post_save.connect(
+            handlers.log_resource_robot_account_created_or_updated,
+            sender=models.RobotAccount,
+            dispatch_uid='waldur_core.marketplace.handlers.log_resource_robot_account_created_or_updated',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_resource_robot_account_deleted,
+            sender=models.RobotAccount,
+            dispatch_uid='waldur_core.marketplace.handlers.log_resource_robot_account_deleted',
+        )

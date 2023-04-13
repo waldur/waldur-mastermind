@@ -1498,7 +1498,7 @@ class CategoryHelpArticle(models.Model):
         return self.title
 
 
-class RobotAccount(TimeStampedModel, core_models.UuidMixin):
+class RobotAccount(TimeStampedModel, core_models.UuidMixin, LoggableMixin):
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     type = models.CharField(max_length=5)
     # empty string should be allowed because name is set by
@@ -1507,8 +1507,16 @@ class RobotAccount(TimeStampedModel, core_models.UuidMixin):
     users = models.ManyToManyField(User, blank=True)
     keys = models.JSONField(blank=True, default=list)
 
+    tracker = FieldTracker(fields=['resource', 'type', 'username', 'users', 'keys'])
+
     class Meta:
         unique_together = ('resource', 'type')
+
+    def get_log_fields(self):
+        return (
+            'type',
+            'username',
+        )
 
 
 reversion.register(Screenshot)

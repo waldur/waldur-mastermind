@@ -569,3 +569,44 @@ def log_offering_user_created(sender, instance, created=False, **kwargs):
 
 def log_offering_user_deleted(sender, instance, **kwargs):
     log.log_offering_user_deleted(instance)
+
+
+def generate_changes_string(changed_dict, instance):
+    changes_string = ""
+    if 'username' in changed_dict:
+        changes_string += f"Robot account {changed_dict['username']} has been updated. "
+    else:
+        changes_string += f"Robot account {instance.username} has been updated. "
+
+    for key in changed_dict:
+        change_string = (
+            f"{key} had changed from {changed_dict[key]} to {getattr(instance, key)}. "
+        )
+        changes_string += change_string
+    return changes_string
+
+
+def log_resource_robot_account_created_or_updated(
+    sender, instance, created=False, **kwargs
+):
+    if not created:
+        changed_string = generate_changes_string(instance.tracker.changed(), instance)
+        event_logger.marketplace_robot_account.info(
+            changed_string,
+            event_type='resource_robot_account_updated',
+            event_context={'robot_account': instance},
+        )
+        return
+    event_logger.marketplace_robot_account.info(
+        'Robot account {robot_account_username} has been created.',
+        event_type='resource_robot_account_created',
+        event_context={'robot_account': instance},
+    )
+
+
+def log_resource_robot_account_deleted(sender, instance, **kwargs):
+    event_logger.marketplace_robot_account.info(
+        'Robot account {robot_account_username} has been deleted.',
+        event_type='resource_robot_account_deleted',
+        event_context={'robot_account': instance},
+    )
