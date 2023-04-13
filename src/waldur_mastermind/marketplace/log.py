@@ -125,12 +125,32 @@ class MarketplaceOfferingUserEventLogger(EventLogger):
         }
 
 
+class RobotAccountEventLogger(EventLogger):
+    robot_account = models.RobotAccount
+
+    class Meta:
+        event_types = (
+            'resource_robot_account_created',
+            'resource_robot_account_updated',
+            'resource_robot_account_deleted',
+        )
+        event_groups = {
+            'resources': event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        robot_account = event_context['robot_account']
+        return {robot_account, robot_account.resource}
+
+
 event_logger.register('marketplace_order', MarketplaceOrderLogger)
 event_logger.register('marketplace_resource', MarketplaceResourceLogger)
 event_logger.register(
     'marketplace_offering_permission', MarketplaceOfferingPermissionEventLogger
 )
 event_logger.register('marketplace_offering_user', MarketplaceOfferingUserEventLogger)
+event_logger.register('marketplace_robot_account', RobotAccountEventLogger)
 
 
 def log_order_created(order):
