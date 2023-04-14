@@ -244,6 +244,9 @@ class ProjectSerializer(
 ):
     resources_count = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
+    oecd_fos_2007_label = serializers.ReadOnlyField(
+        source='get_oecd_fos_2007_code_display'
+    )
 
     class Meta:
         model = models.Project
@@ -265,6 +268,7 @@ class ProjectSerializer(
             'end_date',
             'end_date_requested_by',
             'oecd_fos_2007_code',
+            'oecd_fos_2007_label',
             'is_industry',
             'image',
             'resources_count',
