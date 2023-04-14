@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from smtplib import SMTPException
 from urllib.parse import urlparse
 
@@ -29,6 +30,24 @@ def cancel_expired_invitations(invitations=None):
         )
     invitations = invitations.filter(created__lte=expiration_date)
     invitations.update(state=models.Invitation.State.EXPIRED)
+
+    for invitation in invitations:
+        context = utils.get_invitation_context(invitation, invitation.created_by.email)
+
+        logger.info(
+            'About to send a notification about expired invitation to {email}. Invitation recipient was {user}'.format(
+                email=invitation.created_by.email, user=invitation.email, **context
+            )
+        )
+
+        broadcast_mail(
+            'users',
+            'invitation_expired',
+            context,
+            [
+                invitation.created_by.email,
+            ],
+        )
 
 
 @shared_task(name='waldur_core.users.send_invitation_created')
@@ -88,6 +107,38 @@ def send_invitation_rejected(invitation_uuid, sender):
     broadcast_mail(
         'users', 'invitation_rejected', context, [invitation.created_by.email]
     )
+
+
+@shared_task(name='waldur_core.users.send_reminder_for_pending_invitations')
+def send_reminder_for_pending_invitations():
+    expiration_date = (
+        timezone.now() - settings.WALDUR_CORE['INVITATION_LIFETIME'] - timedelta(days=1)
+    )
+    pending_invitations = models.Invitation.objects.filter(
+        state=models.Invitation.State.PENDING, created__lte=expiration_date
+    )
+
+    for invitation in pending_invitations:
+        context = utils.get_invitation_context(invitation, invitation.created_by.email)
+        context['link'] = utils.get_invitation_link(invitation.uuid)
+        site_link = format_homeport_link()
+        context['site_host'] = urlparse(site_link).hostname
+        context['reminder'] = True
+
+        logger.info(
+            'About to send a reminder about pending invitation to {email} to join {name} {type} as {role}'.format(
+                email=invitation.email, **context
+            )
+        )
+
+        broadcast_mail(
+            'users',
+            'invitation_created',
+            context,
+            [
+                invitation.email,
+            ],
+        )
 
 
 @shared_task(name='waldur_core.users.get_or_create_user')

@@ -506,19 +506,50 @@ class InvitationCancelTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_invitation_is_canceled_after_expiration_date(self):
+        event_type = 'invitation_expired'
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
         waldur_section = settings.WALDUR_CORE.copy()
         waldur_section['INVITATION_LIFETIME'] = timedelta(weeks=1)
 
         with self.settings(WALDUR_CORE=waldur_section):
             invitation = factories.ProjectInvitationFactory(
-                created=timezone.now() - timedelta(weeks=1)
+                created=timezone.now() - timedelta(weeks=1),
+                created_by=self.customer_owner,
             )
-            tasks.cancel_expired_invitations()
+            tasks.cancel_expired_invitations(models.Invitation.objects.all())
 
         self.assertEqual(
             models.Invitation.objects.get(uuid=invitation.uuid).state,
             models.Invitation.State.EXPIRED,
         )
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue('expired' in mail.outbox[0].subject)
+
+    @override_settings(
+        WALDUR_CORE={
+            'INVITATION_LIFETIME': timedelta(weeks=1),
+            'TRANSLATION_DOMAIN': 'TEST',
+            'HOMEPORT_URL': 'TEST',
+        }
+    )
+    def test_send_reminder_for_pending_invitations(self):
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section['INVITATION_LIFETIME'] = timedelta(weeks=1)
+        event_type = 'invitation_created'
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            factories.ProjectInvitationFactory(
+                created=timezone.now()
+                - settings.WALDUR_CORE['INVITATION_LIFETIME']
+                - timedelta(days=1),
+                created_by=self.customer_owner,
+            )
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue('REMINDER' in mail.outbox[0].subject)
 
 
 @ddt
