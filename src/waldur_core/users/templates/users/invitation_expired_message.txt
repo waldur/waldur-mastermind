@@ -1,0 +1,4 @@
+Hello!
+
+An invitation to {{ invitation.email }} has expired.
+This invitation expires at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}.

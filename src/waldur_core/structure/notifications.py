@@ -90,6 +90,10 @@ class UserSection(NotificationSection):
         'invitation_approved', 'A notification of invitation approval'
     )
 
+    invitation_expired = Notification(
+        'invitation_expired', 'A notification of expired invitation'
+    )
+
     permission_request_submitted = Notification(
         'permission_request_submitted',
         'A notification of a submitted invitation request',

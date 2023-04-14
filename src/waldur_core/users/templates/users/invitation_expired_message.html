@@ -1,0 +1,16 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invitation to {{ invitation.email }} has expired</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    An invitation to {{ invitation.email }} has expired <br>
+    An invitation to {{ invitation.email }} has expired at {{ invitation.get_expiration_time|date:'d.m.Y H:i' }}.
+
+</p>
+</body>
+</html>

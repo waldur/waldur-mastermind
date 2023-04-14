@@ -1,1 +1,5 @@
+{% if reminder %}
+REMINDER: Invitation to {{ name }} {{ type }}
+{% else %}
 Invitation to {{ name }} {{ type }}
+{% endif %}

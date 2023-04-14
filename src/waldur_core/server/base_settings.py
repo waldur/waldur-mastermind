@@ -250,6 +250,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(hours=24),
         'args': (),
     },
+    'send-reminder-for-pending-invitations': {
+        'task': 'waldur_core.users.send_reminder_for_pending_invitations',
+        'schedule': timedelta(hours=24),
+        'args': (),
+    },
     'structure-set-erred-stuck-resources': {
         'task': 'waldur_core.structure.SetErredStuckResources',
         'schedule': timedelta(hours=1),
