@@ -634,10 +634,16 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     )
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
     o = django_filters.OrderingFilter(fields=('created',))
+    query = django_filters.CharFilter(method='filter_query')
 
     class Meta:
         model = models.OfferingUser
         fields = []
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(offering__name__icontains=value) | Q(username__icontains=value)
+        )
 
 
 class CategoryFilter(django_filters.FilterSet):
