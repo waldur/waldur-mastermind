@@ -531,3 +531,43 @@ def get_last_month():
     today = datetime.date.today()
     first = today.replace(day=1)
     return first - datetime.timedelta(days=1)
+
+
+def get_deployment_type():
+    """
+    1. If environment variable KUBERNETES_SERVICE_HOST is set - Waldur is running in kubernetes
+
+    2. If file /.dockerenv is set and /etc/resolv.conf has line
+    "nameserver 127.0.0.11" - Waldur is running in docker compose
+
+    3. If file /.dockerenv is set, but /etc/resolv.conf does not have line
+    "nameserver 127.0.0.11" - Waldur is running in custom docker environment
+
+    4. If file /.dockerenv does not exist - Waldur is running in "other" installation environment
+    """
+    # docker_env_path = '/.dockerenv'
+    # resolv_path = '/etc/resolv.conf'
+
+    docker_env_path = '/tmp/dockerenv'
+    resolv_path = '/tmp/resolv.conf'
+
+    if os.environ.get("KUBERNETES_SERVICE_HOST"):
+        return 'kubernetes'
+
+    docker_env = os.path.exists(docker_env_path)
+    has_line = False
+
+    if os.path.exists(resolv_path):
+        with open(resolv_path) as file:
+            for line in file:
+                if 'nameserver 127.0.0.11' in line:
+                    has_line = True
+                    break
+
+    if docker_env and has_line:
+        return 'docker compose'
+
+    if docker_env and not has_line:
+        return 'custom docker environment'
+
+    return 'other'
