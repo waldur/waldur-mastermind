@@ -1,7 +1,9 @@
 import collections
 import datetime
+import hashlib
 import logging
 
+import requests
 from celery import shared_task
 from constance import config
 from dateutil.relativedelta import relativedelta
@@ -13,16 +15,20 @@ from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
+from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.log import event_logger
+from waldur_mastermind import __version__ as mastermind_version
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
 )
+from waldur_mastermind.support.backend import get_active_backend
 
 from . import PLUGIN_NAME, exceptions, models, utils, views
 
@@ -488,3 +494,51 @@ def notification_about_project_ending():
                 context,
                 [user.email],
             )
+
+
+@shared_task(name='waldur_mastermind.marketplace.send_metrics')
+def send_metrics():
+    if not settings.WALDUR_MARKETPLACE['TELEMETRY_ENABLED']:
+        return
+
+    site_name = settings.WALDUR_CORE['HOMEPORT_URL']
+    deployment_type = core_utils.get_deployment_type()
+    params = {
+        'deployment_id': hashlib.sha256(site_name.encode()).hexdigest(),
+        'deployment_type': deployment_type,
+        'helpdesk_backend': get_active_backend().backend_name,
+        'helpdesk_integration_status': settings.WALDUR_SUPPORT['ENABLED'],
+        'number_of_users': core_models.User.objects.filter(is_active=True).count(),
+        'number_of_offerings': marketplace_models.Offering.objects.filter(
+            state__in=(
+                marketplace_models.Offering.States.ACTIVE,
+                marketplace_models.Offering.States.PAUSED,
+            )
+        ).count(),
+        'types_of_offering': list(
+            marketplace_models.Offering.objects.filter(
+                state__in=(
+                    marketplace_models.Offering.States.ACTIVE,
+                    marketplace_models.Offering.States.PAUSED,
+                )
+            )
+            .order_by()
+            .values_list('type', flat=True)
+            .distinct()
+        ),
+        'version': mastermind_version,
+    }
+    url = (
+        settings.WALDUR_MARKETPLACE['TELEMETRY_URL']
+        + f"/v{settings.WALDUR_MARKETPLACE['TELEMETRY_VERSION']}/metrics/"
+    )
+    response = requests.post(url, json=params)
+
+    if response.status_code != 200:
+        logger.warning(
+            'An error of metrics sending, status code: %s, text: %s',
+            response.status_code,
+            response.text,
+        )
+
+    return response

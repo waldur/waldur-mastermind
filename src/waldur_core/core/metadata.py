@@ -610,6 +610,19 @@ class WaldurMarketplace(BaseModel):
         True,
         description='Allow to view and update resource end date.',
     )
+    TELEMETRY_ENABLED = Field(
+        True,
+        description='Enable telemetry.',
+    )
+    TELEMETRY_URL = Field(
+        'https://telemetry.waldur.com/',
+        description='URL for sending telemetry data.',
+    )
+
+    TELEMETRY_VERSION = Field(
+        1,
+        description='Telemetry service version.',
+    )
 
     class Meta:
         public_settings = [

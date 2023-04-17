@@ -59,4 +59,9 @@ class MarketplaceExtension(WaldurExtension):
                 'schedule': timedelta(days=1),
                 'args': (),
             },
+            'send_telemetry': {
+                'task': 'waldur_mastermind.marketplace.send_metrics',
+                'schedule': timedelta(days=1),
+                'args': (),
+            },
         }
