@@ -6,6 +6,7 @@ import textwrap
 
 import reversion
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import (
     Count,
@@ -70,6 +71,8 @@ from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
 )
+from waldur_mastermind.promotions import models as promotions_models
+from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
 
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
@@ -322,6 +325,87 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
+
+    @action(detail=True, methods=['GET'])
+    def stat(self, request, uuid=None):
+        to_day = timezone.datetime.today().date()
+        service_provider = self.get_object()
+
+        active_campaigns = promotions_models.Campaign.objects.filter(
+            service_provider=service_provider,
+            state=promotions_models.Campaign.States.ACTIVE,
+            start_date__lte=to_day,
+            end_date__gte=to_day,
+        ).count()
+
+        current_customers = (
+            models.Resource.objects.filter(
+                offering__customer=service_provider.customer,
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .order_by()
+            .values_list('project__customer', flat=True)
+            .distinct()
+            .count()
+        )
+
+        active_resources = models.Resource.objects.filter(
+            offering__customer=service_provider.customer,
+        ).exclude(state=models.Resource.States.TERMINATED)
+
+        active_and_paused_offerings = models.Offering.objects.filter(
+            customer=service_provider.customer,
+            state__in=(models.Offering.States.ACTIVE, models.Offering.States.PAUSED),
+        ).count()
+
+        content_type = ContentType.objects.get_for_model(support_models.Issue)
+        unresolved_tickets = len(
+            [
+                i
+                for i in support_models.Issue.objects.filter(
+                    resource_content_type=content_type,
+                    resource_object_id__in=(
+                        active_resources.values_list('id', flat=True)
+                    ),
+                )
+                if not i.resolved
+            ]
+        )
+
+        pended_orders = (
+            models.OrderItem.objects.filter(
+                offering__customer=service_provider.customer,
+                order__state=models.Order.States.REQUESTED_FOR_APPROVAL,
+            )
+            .order_by()
+            .values_list('order', flat=True)
+            .distinct()
+            .count()
+        )
+
+        erred_resources = models.Resource.objects.filter(
+            offering__customer=service_provider.customer,
+            state=models.Resource.States.ERRED,
+        ).count()
+
+        return Response(
+            {
+                'active_campaigns': active_campaigns,
+                'current_customers': current_customers,
+                'customers_number_change': utils.count_customers_number_change(
+                    service_provider
+                ),
+                'active_resources': active_resources.count(),
+                'resources_number_change': utils.count_resources_number_change(
+                    service_provider
+                ),
+                'active_and_paused_offerings': active_and_paused_offerings,
+                'unresolved_tickets': unresolved_tickets,
+                'pended_orders': pended_orders,
+                'erred_resources': erred_resources,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
