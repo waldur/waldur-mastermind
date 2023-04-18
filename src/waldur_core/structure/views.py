@@ -1239,7 +1239,6 @@ class NotificationViewSet(ActionsViewSet):
 class NotificationTemplateViewSet(ActionsViewSet):
     queryset = core_models.NotificationTemplate.objects.all()
     serializer_class = serializers.NotificationTemplateDetailSerializers
-    permission_classes = (rf_permissions.IsAdminUser,)
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NotificationTemplateFilter
@@ -1263,3 +1262,4 @@ class NotificationTemplateViewSet(ActionsViewSet):
         return Response({'detail': _(message)}, status=status.HTTP_200_OK)
 
     override_serializer_class = serializers.NotificationTemplateUpdateSerializers
+    override_permissions = [permissions.is_staff]

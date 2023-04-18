@@ -420,9 +420,23 @@ class InvitationCreateTest(BaseInvitationTest):
         self.assertEqual(invitation.state, models.Invitation.State.REQUESTED)
 
     @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
-    def test_user_can_pass_extra_invitation_text(self):
-        self.client.force_authenticate(user=self.staff)
+    @data('customer_owner', 'staff')
+    def test_staff_and_owner_can_pass_extra_invitation_text(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
+        payload['extra_invitation_text'] = self.extra_invitation_text
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data['extra_invitation_text'], self.extra_invitation_text
+        )
+
+    @data('project_manager')
+    def test_manager_can_pass_extra_invitation_text(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        payload = self._get_valid_project_invitation_payload(self.project_invitation)
         payload['extra_invitation_text'] = self.extra_invitation_text
         response = self.client.post(
             factories.InvitationBaseFactory.get_list_url(), data=payload

@@ -103,7 +103,7 @@ class NotificationChangeTest(test.APITransactionTestCase):
 @ddt
 class NotificationTemplateListTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.UserFixture()
+        self.fixture = fixtures.ProjectFixture()
         self.notification_template_1 = factories.NotificationTemplateFactory(
             path='marketplace/marketplace_plan_template.txt'
         )
@@ -116,10 +116,8 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         super().tearDown()
         Template.objects.all().delete()
 
-    @data(
-        'staff',
-    )
-    def test_staff_can_list_notification_templates(self, user):
+    @data('staff', 'user', 'manager', 'admin')
+    def test_everyone_can_list_notification_templates(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -132,17 +130,6 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]['path'], self.notification_template_1.path)
         self.assertEqual(response.data[0]['name'], self.notification_template_1.name)
         self.assertEqual(response.data[0]['content'], expected_template_content)
-
-    @data(
-        'user',
-    )
-    def test_other_can_not_list_notification_templates(self, user):
-        if user:
-            self.client.force_authenticate(user=getattr(self.fixture, user))
-
-        response = self.client.get(self.url)
-
-        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
     @data(
         'staff',
@@ -164,9 +151,7 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.data[0]['content'], updated_template_content)
 
-    @data(
-        'user',
-    )
+    @data('user', 'manager', 'admin', 'owner')
     def test_other_can_not_override_notification_templates(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
