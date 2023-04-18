@@ -941,9 +941,9 @@ class WaldurZammad(BaseModel):
         'If not specified, the first group will be used.',
     )
     ZAMMAD_ARTICLE_TYPE = Field(
-        'fax',
+        'email',
         description='Type of a comment. '
-        'Default is fax because it allows to separate Waldur comments from other comments '
+        'Default is email because it allows support to reply to tickets directly in Zammad'
         '<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>',
     )
     COMMENT_COOLDOWN_DURATION = Field(
