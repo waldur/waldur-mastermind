@@ -910,3 +910,86 @@ def generate_uidnumber_and_primary_group(offering):
     primarygroup = initial_primarygroup_number + offset
 
     return uidnumber, primarygroup
+
+
+def count_customers_number_change(service_provider):
+    to_day = timezone.datetime.today().date()
+    new_customers = []
+    lost_customers = []
+
+    for customer_id in (
+        models.OrderItem.objects.filter(
+            offering__customer=service_provider.customer,
+            type=models.OrderItem.Types.CREATE,
+            order__state=models.Order.States.DONE,
+            created__gte=core_utils.month_start(to_day),
+        )
+        .order_by()
+        .values_list('order__project__customer_id', flat=True)
+        .distinct()
+    ):
+        if (
+            not models.Resource.objects.filter(
+                offering__customer=service_provider.customer,
+                project__customer_id=customer_id,
+                created__lt=core_utils.month_start(to_day),
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .exists()
+        ):
+            new_customers.append(customer_id)
+
+    for customer_id in (
+        models.OrderItem.objects.filter(
+            offering__customer=service_provider.customer,
+            type=models.OrderItem.Types.TERMINATE,
+            order__state=models.Order.States.DONE,
+            created__gte=core_utils.month_start(to_day),
+        )
+        .order_by()
+        .values_list('order__project__customer_id', flat=True)
+        .distinct()
+    ):
+        if (
+            not models.Resource.objects.filter(
+                offering__customer=service_provider.customer,
+                project__customer=customer_id,
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .exists()
+        ):
+            lost_customers.append(customer_id)
+
+    return len(new_customers) - len(lost_customers)
+
+
+def count_resources_number_change(service_provider):
+    to_day = timezone.datetime.today().date()
+
+    created = (
+        models.OrderItem.objects.filter(
+            offering__customer=service_provider.customer,
+            type=models.OrderItem.Types.CREATE,
+            order__state=models.Order.States.DONE,
+            created__gte=core_utils.month_start(to_day),
+        )
+        .order_by()
+        .values_list('resource', flat=True)
+        .distinct()
+        .count()
+    )
+
+    terminated = (
+        models.OrderItem.objects.filter(
+            offering__customer=service_provider.customer,
+            type=models.OrderItem.Types.TERMINATE,
+            order__state=models.Order.States.DONE,
+            created__gte=core_utils.month_start(to_day),
+        )
+        .order_by()
+        .values_list('resource', flat=True)
+        .distinct()
+        .count()
+    )
+
+    return created - terminated

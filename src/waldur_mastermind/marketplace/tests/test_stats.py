@@ -10,7 +10,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date, parse_datetime
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
-from waldur_mastermind.marketplace import models, tasks
+from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -596,3 +596,138 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class CountCustomersTest(test.APITransactionTestCase):
+    @freeze_time('2020-01-01')
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.fixture.resource.set_state_terminated()
+        self.fixture.resource.save()
+
+    def _create_resource(self, project=None):
+        if project:
+            order = factories.OrderFactory(
+                state=models.Order.States.DONE,
+                project=project,
+            )
+        else:
+            order = factories.OrderFactory(
+                state=models.Order.States.DONE,
+            )
+        resource = factories.ResourceFactory(
+            offering=self.fixture.offering, project=order.project
+        )
+        factories.OrderItemFactory(
+            offering=self.fixture.offering,
+            order=order,
+            resource=resource,
+            type=models.OrderItem.Types.CREATE,
+        )
+        return resource
+
+    def _terminate_resource(self, resource):
+        order = factories.OrderFactory(state=models.Order.States.DONE)
+        factories.OrderItemFactory(
+            offering=self.fixture.offering,
+            order=order,
+            resource=resource,
+            type=models.OrderItem.Types.TERMINATE,
+        )
+        resource.state = models.Resource.States.TERMINATED
+        return resource.save()
+
+    def test_count_customers_number_change(self):
+        with freeze_time('2022-01-10'):
+            self.assertEqual(
+                0, utils.count_customers_number_change(self.service_provider)
+            )
+
+            new_resource = self._create_resource()
+            self.assertEqual(
+                1, utils.count_customers_number_change(self.service_provider)
+            )
+
+            self._terminate_resource(new_resource)
+            self.assertEqual(
+                0, utils.count_customers_number_change(self.service_provider)
+            )
+
+            resource_1 = self._create_resource()
+            resource_2 = self._create_resource()
+            self.assertEqual(
+                2, utils.count_customers_number_change(self.service_provider)
+            )
+
+        with freeze_time('2022-02-10'):
+            self.assertEqual(
+                0, utils.count_customers_number_change(self.service_provider)
+            )
+
+            self._terminate_resource(resource_1)
+            self.assertEqual(
+                -1, utils.count_customers_number_change(self.service_provider)
+            )
+
+            self._create_resource(project=resource_2.project)
+            self.assertEqual(
+                -1, utils.count_customers_number_change(self.service_provider)
+            )
+
+        with freeze_time('2022-03-10'):
+            self.assertEqual(
+                0, utils.count_customers_number_change(self.service_provider)
+            )
+
+            self._create_resource(project=new_resource.project)
+            self.assertEqual(
+                1, utils.count_customers_number_change(self.service_provider)
+            )
+
+    def test_count_resources_number_change(self):
+        with freeze_time('2022-01-10'):
+            self.assertEqual(
+                0, utils.count_resources_number_change(self.service_provider)
+            )
+
+            new_resource = self._create_resource()
+            self.assertEqual(
+                1, utils.count_resources_number_change(self.service_provider)
+            )
+
+            self._terminate_resource(new_resource)
+            self.assertEqual(
+                0, utils.count_resources_number_change(self.service_provider)
+            )
+
+            resource_1 = self._create_resource()
+            resource_2 = self._create_resource()
+            self.assertEqual(
+                2, utils.count_resources_number_change(self.service_provider)
+            )
+
+        with freeze_time('2022-02-10'):
+            self.assertEqual(
+                0, utils.count_resources_number_change(self.service_provider)
+            )
+
+            self._terminate_resource(resource_1)
+            self.assertEqual(
+                -1, utils.count_resources_number_change(self.service_provider)
+            )
+
+            self._create_resource(project=resource_2.project)
+            self.assertEqual(
+                0, utils.count_resources_number_change(self.service_provider)
+            )
+
+        with freeze_time('2022-03-10'):
+            self.assertEqual(
+                0, utils.count_resources_number_change(self.service_provider)
+            )
+
+            self._create_resource(project=new_resource.project)
+            self.assertEqual(
+                1, utils.count_resources_number_change(self.service_provider)
+            )
