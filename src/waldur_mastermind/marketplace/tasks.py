@@ -530,7 +530,7 @@ def send_metrics():
     }
     url = (
         settings.WALDUR_MARKETPLACE['TELEMETRY_URL']
-        + f"/v{settings.WALDUR_MARKETPLACE['TELEMETRY_VERSION']}/metrics/"
+        + f"v{settings.WALDUR_MARKETPLACE['TELEMETRY_VERSION']}/metrics/"
     )
     response = requests.post(url, json=params)
 
