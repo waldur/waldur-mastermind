@@ -1870,6 +1870,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'activation_price',
             'reviewed_by',
             'reviewed_at',
+            'termination_comment',
         )
 
     order_uuid = serializers.ReadOnlyField(source='order.uuid')
@@ -1902,6 +1903,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
     new_cost_estimate = serializers.ReadOnlyField(source='cost')
 
     can_terminate = serializers.SerializerMethodField()
+    termination_comment = serializers.ReadOnlyField()
 
     def get_can_terminate(self, order_item):
         if not plugins.manager.can_terminate_order_item(order_item.offering.type):

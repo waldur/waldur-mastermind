@@ -349,7 +349,10 @@ def terminate_resources_if_project_end_date_has_been_reached():
         terminatable_resources = project_resources.filter(
             state__in=(models.Resource.States.OK, models.Resource.States.ERRED)
         )
-        utils.schedule_resources_termination(terminatable_resources)
+        utils.schedule_resources_termination(
+            terminatable_resources,
+            termination_comment=f"Project end date has been reached on {timezone.datetime.today()}",
+        )
 
 
 @shared_task(name='waldur_mastermind.marketplace.notify_about_stale_resource')
@@ -413,7 +416,10 @@ def terminate_expired_resources():
         end_date__lte=timezone.datetime.today(),
         state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
     )
-    utils.schedule_resources_termination(expired_resources)
+    utils.schedule_resources_termination(
+        expired_resources,
+        termination_comment=f"Resource expired on {timezone.datetime.today()}",
+    )
 
 
 @shared_task

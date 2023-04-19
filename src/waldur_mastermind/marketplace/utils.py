@@ -704,7 +704,7 @@ def check_pending_order_item_exists(resource):
         )
 
 
-def schedule_resources_termination(resources):
+def schedule_resources_termination(resources, termination_comment=None):
     from waldur_mastermind.marketplace import views
 
     if not resources:
@@ -730,7 +730,7 @@ def schedule_resources_termination(resources):
         for order_item in models.OrderItem.objects.filter(
             resource=resource, state=models.OrderItem.States.PENDING
         ):
-            order_item.set_state_terminated()
+            order_item.set_state_terminated(termination_comment)
             order_item.save()
             if order_item.order.items.count() == 1:
                 order_item.order.terminate()
