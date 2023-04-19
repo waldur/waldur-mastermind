@@ -545,11 +545,8 @@ def get_deployment_type():
 
     4. If file /.dockerenv does not exist - Waldur is running in "other" installation environment
     """
-    # docker_env_path = '/.dockerenv'
-    # resolv_path = '/etc/resolv.conf'
-
-    docker_env_path = '/tmp/dockerenv'
-    resolv_path = '/tmp/resolv.conf'
+    docker_env_path = '/.dockerenv'
+    resolv_path = '/etc/resolv.conf'
 
     if os.environ.get("KUBERNETES_SERVICE_HOST"):
         return 'kubernetes'
