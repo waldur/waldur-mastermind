@@ -65,6 +65,7 @@ from waldur_core.structure.serializers import (
 )
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
@@ -404,6 +405,27 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
                 'pended_orders': pended_orders,
                 'erred_resources': erred_resources,
             },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['GET'])
+    def revenue(self, request, uuid=None):
+        to_day = timezone.datetime.today().date()
+        start = month_start(to_day - datetime.timedelta(days=365))
+        service_provider = self.get_object()
+
+        data = (
+            invoices_models.InvoiceItem.objects.filter(
+                invoice__invoice_date__gte=start,
+                resource__offering__customer=service_provider.customer,
+            )
+            .values('invoice__year', 'invoice__month')
+            .annotate(total=Sum(F('unit_price') * F('quantity')))
+            .order_by('invoice__year', 'invoice__month')
+        )
+
+        return Response(
+            serializers.ServiceProviderRevenues(data, many=True).data,
             status=status.HTTP_200_OK,
         )
 
