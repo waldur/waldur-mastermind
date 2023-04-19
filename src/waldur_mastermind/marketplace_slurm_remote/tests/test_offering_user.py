@@ -158,6 +158,19 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
             'walduruser_00000',
         )
 
+    def test_username_updated_when_generation_policy_changed_to_service_provider(self):
+        self.assertEqual(self.admin.username, self.offering_user.username)
+
+        self.offering.plugin_options['username_generation_policy'] = 'service_provider'
+        self.offering.save(update_fields=['plugin_options'])
+
+        self.offering_user.refresh_from_db()
+
+        self.assertEqual(
+            self.offering_user.username,
+            '',
+        )
+
 
 class TestOfferingUser(test.APITransactionTestCase):
     def setUp(self) -> None:

@@ -195,15 +195,6 @@ def update_offering_user_username_after_offering_settings_change(
     ):
         return
 
-    if (
-        offering.plugin_options.get(
-            'username_generation_policy',
-            utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value,
-        )
-        == utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
-    ):
-        return
-
     offering_users = marketplace_models.OfferingUser.objects.filter(offering=offering)
 
     for offering_user in offering_users:
