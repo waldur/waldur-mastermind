@@ -1459,7 +1459,7 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         elif order_item.state == models.OrderItem.States.PENDING:
             order_item.reviewed_at = timezone.now()
             order_item.reviewed_by = request.user
-            order_item.set_state_terminated()
+            order_item.set_state_terminated(termination_comment="Order item rejected")
             order_item.save()
             if (
                 order_item.order.state == models.Order.States.REQUESTED_FOR_APPROVAL

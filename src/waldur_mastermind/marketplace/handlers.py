@@ -223,7 +223,7 @@ def reject_order(sender, instance, created=False, **kwargs):
         and order.state == models.Order.States.REJECTED
     ):
         for item in order.items.all():
-            item.set_state_terminated()
+            item.set_state_terminated(termination_comment="Order rejected")
             item.save(update_fields=['state'])
 
 

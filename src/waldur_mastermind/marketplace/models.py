@@ -1245,6 +1245,7 @@ class OrderItem(
     )
     reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
     callback_url = models.URLField(null=True, blank=True)
+    termination_comment = models.CharField(blank=True, null=True, max_length=255)
 
     class Permissions:
         customer_path = 'order__project__customer'
@@ -1274,7 +1275,10 @@ class OrderItem(
         pass
 
     @transition(field=state, source='*', target=States.TERMINATED)
-    def set_state_terminated(self):
+    def set_state_terminated(self, termination_comment=None):
+        if termination_comment:
+            self.termination_comment = termination_comment
+            self.save()
         pass
 
     @transition(
