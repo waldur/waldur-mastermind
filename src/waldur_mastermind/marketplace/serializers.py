@@ -3428,3 +3428,9 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
             context=self.context,
             many=True,
         ).data
+
+
+class ServiceProviderRevenues(serializers.Serializer):
+    total = serializers.IntegerField()
+    year = serializers.CharField(source='invoice__year')
+    month = serializers.CharField(source='invoice__month')
