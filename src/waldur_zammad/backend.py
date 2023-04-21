@@ -1,5 +1,6 @@
 import functools
 from dataclasses import dataclass
+from typing import List
 
 from django.conf import settings
 from requests import exceptions as requests_exceptions
@@ -239,21 +240,27 @@ class ZammadBackend:
         return
 
     @reraise_exceptions('Creating an issue has failed.')
-    def add_issue(self, subject, description, customer_id, group=None):
+    def add_issue(
+        self, subject, description, customer_id, group=None, tags: List[str] = ''
+    ):
         group = group or ZAMMAD_GROUP or self.get_groups()[0]['name']
-        response = self.manager.ticket.create(
-            {
-                'title': subject,
-                'customer_id': customer_id,
-                'group': group,
-                "article": {
-                    "subject": "Task description",
-                    "body": description,
-                    "type": ZAMMAD_ARTICLE_TYPE,
-                    "internal": False,
-                },
-            }
-        )
+        tags = ','.join(tags)
+        params = {
+            'title': subject,
+            'customer_id': customer_id,
+            'group': group,
+            "article": {
+                "subject": "Task description",
+                "body": description,
+                "type": ZAMMAD_ARTICLE_TYPE,
+                "internal": False,
+            },
+        }
+
+        if tags:
+            params['tags'] = tags
+
+        response = self.manager.ticket.create(params)
 
         return self._zammad_response_to_issue(response)
 
