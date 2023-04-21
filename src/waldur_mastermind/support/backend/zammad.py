@@ -6,6 +6,7 @@ import logging
 import mimetypes
 import os
 
+from constance import config
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.timezone import now
@@ -61,7 +62,10 @@ class ZammadServiceBackend(SupportBackend):
                 )
 
             zammad_issue = self.manager.add_issue(
-                issue.summary, issue.description, support_user.backend_id
+                issue.summary,
+                issue.description,
+                support_user.backend_id,
+                tags=[config.SITE_NAME],
             )
             issue.backend_id = zammad_issue.id
             issue.key = zammad_issue.id
