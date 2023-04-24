@@ -44,6 +44,7 @@ class SupportExtension(WaldurExtension):
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
             'EXCLUDED_ATTACHMENT_TYPES': [],
+            'DISPLAY_REQUEST_TYPE': True,
         }
 
         SUPPRESS_NOTIFICATION_EMAILS = False
@@ -53,7 +54,7 @@ class SupportExtension(WaldurExtension):
 
     @staticmethod
     def get_public_settings():
-        return ['ENABLED']
+        return ['ENABLED', 'DISPLAY_REQUEST_TYPE']
 
     @staticmethod
     def django_app():
