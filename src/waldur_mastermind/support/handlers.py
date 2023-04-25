@@ -28,14 +28,15 @@ def log_issue_save(sender, instance, created=False, **kwargs):
     else:
         updated_fields = instance.tracker.changed()
         updated_fields.pop('modified', None)  # waldur-specific field
-        event_logger.waldur_issue.info(
-            'Issue {issue_key} has been updated. Changed fields: %s.'
-            % ", ".join(updated_fields.keys()),
-            event_type='issue_update_succeeded',
-            event_context={
-                'issue': instance,
-            },
-        )
+        if len(updated_fields.keys()) > 0:
+            event_logger.waldur_issue.info(
+                'Issue {issue_key} has been updated. Changed fields: %s.'
+                % ", ".join(updated_fields.keys()),
+                event_type='issue_update_succeeded',
+                event_context={
+                    'issue': instance,
+                },
+            )
 
 
 def log_issue_delete(sender, instance, **kwargs):
