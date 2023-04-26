@@ -942,9 +942,14 @@ class WaldurZammad(BaseModel):
     )
     ZAMMAD_ARTICLE_TYPE = Field(
         'email',
-        description='Type of a comment. '
+        description='Type of a comment.'
         'Default is email because it allows support to reply to tickets directly in Zammad'
         '<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>',
+    )
+    ZAMMAD_COMMENT_MARKER = Field(
+        'Created by Waldur',
+        description='Marker for comment.'
+        'Used for separating comments made via Waldur from natively added comments.',
     )
     COMMENT_COOLDOWN_DURATION = Field(
         5,
