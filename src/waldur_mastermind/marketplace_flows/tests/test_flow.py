@@ -592,8 +592,12 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
             raise ServiceBackendError()
 
         mock_backend.get_active_backend().create_issue = create_issue
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertRaises(
+            ServiceBackendError,
+            self.client.post,
+            self.list_url,
+            {'offering': self.offering_url},
+        )
 
 
 class IssueTest(test.APITransactionTestCase):
