@@ -13,6 +13,7 @@ ZAMMAD_API_URL = settings.WALDUR_ZAMMAD['ZAMMAD_API_URL']
 ZAMMAD_TOKEN = settings.WALDUR_ZAMMAD['ZAMMAD_TOKEN']
 ZAMMAD_ARTICLE_TYPE = settings.WALDUR_ZAMMAD['ZAMMAD_ARTICLE_TYPE']
 ZAMMAD_GROUP = settings.WALDUR_ZAMMAD['ZAMMAD_GROUP']
+ZAMMAD_COMMENT_MARKER = settings.WALDUR_ZAMMAD['ZAMMAD_COMMENT_MARKER']
 
 
 class ZammadBackendError(ServiceBackendError):
@@ -116,7 +117,8 @@ class ZammadBackend:
             content=clean_html(response.get('body', '')),
             is_public=not response.get('internal', False),
             user_id=response.get('sender_id'),
-            is_waldur_comment=response.get('type') == ZAMMAD_ARTICLE_TYPE,
+            is_waldur_comment=ZAMMAD_COMMENT_MARKER
+            in clean_html(response.get('body', '')),
             attachments=[
                 self._zammad_response_to_attachment(a, article_id, ticket_id)
                 for a in response.get('attachments', [])
@@ -192,7 +194,7 @@ class ZammadBackend:
     def add_comment(self, ticket_id, content, is_public=False):
         params = {
             'ticket_id': ticket_id,
-            'body': content,
+            'body': content + '\n\n' + ZAMMAD_COMMENT_MARKER,
             'type': ZAMMAD_ARTICLE_TYPE,
             'internal': not is_public,  # if internal equals False so deleting of comment will be impossible
         }
@@ -218,7 +220,7 @@ class ZammadBackend:
 
         params = {
             'ticket_id': ticket_id,
-            'body': body,
+            'body': body + '\n\n' + ZAMMAD_COMMENT_MARKER,
             'type': ZAMMAD_ARTICLE_TYPE,
             'internal': True,  # if internal equals False so deleting of comment will be impossible
             'attachments': [
@@ -251,7 +253,7 @@ class ZammadBackend:
             'group': group,
             "article": {
                 "subject": "Task description",
-                "body": description,
+                "body": description + '\n\n' + ZAMMAD_COMMENT_MARKER,
                 "type": ZAMMAD_ARTICLE_TYPE,
                 "internal": False,
             },
