@@ -50,34 +50,27 @@ class ZammadServiceBackend(SupportBackend):
 
     def create_issue(self, issue):
         """Create Zammad issue"""
-        try:
-            issue.begin_creating()
-            issue.save()
+        issue.begin_creating()
+        issue.save()
 
-            if issue.reporter:
-                support_user = issue.reporter
-            else:
-                support_user = self.get_or_create_support_user_by_waldur_user(
-                    issue.caller
-                )
+        if issue.reporter:
+            support_user = issue.reporter
+        else:
+            support_user = self.get_or_create_support_user_by_waldur_user(issue.caller)
 
-            zammad_issue = self.manager.add_issue(
-                issue.summary,
-                issue.description,
-                support_user.backend_id,
-                tags=[config.SITE_NAME],
-            )
-            issue.backend_id = zammad_issue.id
-            issue.key = zammad_issue.id
-            issue.backend_name = self.backend_name
-            issue.status = zammad_issue.status
-            issue.set_ok()
-            issue.save()
-            return zammad_issue
-        except ZammadBackendError as e:
-            issue.set_erred()
-            issue.error_message = e
-            issue.save()
+        zammad_issue = self.manager.add_issue(
+            issue.summary,
+            issue.description,
+            support_user.backend_id,
+            tags=[config.SITE_NAME],
+        )
+        issue.backend_id = zammad_issue.id
+        issue.key = zammad_issue.id
+        issue.backend_name = self.backend_name
+        issue.status = zammad_issue.status
+        issue.set_ok()
+        issue.save()
+        return zammad_issue
 
     def update_waldur_issue_from_zammad(self, issue):
         zammad_issue = self.manager.get_issue(issue.backend_id)
