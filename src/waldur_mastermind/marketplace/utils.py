@@ -1,9 +1,11 @@
 import datetime
+import hashlib
 import logging
 import math
 import os
 import traceback
 from io import BytesIO
+from typing import Union
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -893,19 +895,25 @@ def generate_uidnumber_and_primary_group(offering):
         offering.plugin_options.get('initial_primarygroup_number', 100000)
     )
 
-    offering_user_with_last_uidnumber = (
+    offering_user_last_uidnumber = (
         models.OfferingUser.objects.exclude(backend_metadata=None)
         .filter(backend_metadata__has_key='uidnumber')
         .order_by('backend_metadata__uidnumber')
+        .values_list('backend_metadata__uidnumber', flat=True)
         .last()
-    )
+    ) or initial_uidnumber
 
-    if offering_user_with_last_uidnumber:
-        last_uidnumber = offering_user_with_last_uidnumber.backend_metadata['uidnumber']
-        offset = last_uidnumber - initial_uidnumber + 1
-    else:
-        offset = 1
+    robot_account_last_uidnumber = (
+        models.RobotAccount.objects.exclude(backend_metadata=None)
+        .filter(backend_metadata__has_key='uidnumber')
+        .order_by('backend_metadata__uidnumber')
+        .values_list('backend_metadata__uidnumber', flat=True)
+        .last()
+    ) or initial_uidnumber
 
+    last_uidnumber = max([offering_user_last_uidnumber, robot_account_last_uidnumber])
+
+    offset = last_uidnumber - initial_uidnumber + 1
     uidnumber = initial_uidnumber + offset
     primarygroup = initial_primarygroup_number + offset
 
@@ -993,3 +1001,34 @@ def count_resources_number_change(service_provider):
     )
 
     return created - terminated
+
+
+def generate_offering_password_hash(offering):
+    password = offering.secret_options.get('shared_user_password')
+    if password:
+        password_hash = hashlib.sha256()
+        password_hash.update(password.encode('utf-8'))
+        return password_hash.hexdigest()
+    else:
+        return ''
+
+
+def setup_linux_related_data(
+    instance: Union[models.OfferingUser, models.RobotAccount], offering
+):
+    uidnumber = instance.backend_metadata.get('uidnumber')
+    primarygroup = instance.backend_metadata.get('primarygroup')
+
+    if not uidnumber or not primarygroup:
+        uidnumber, primarygroup = generate_uidnumber_and_primary_group(offering)
+
+        instance.backend_metadata['uidnumber'] = uidnumber
+        instance.backend_metadata['primarygroup'] = primarygroup
+
+    login_shell = instance.backend_metadata.get('loginShell')
+    if not login_shell:
+        instance.backend_metadata['loginShell'] = "/bin/sh"
+
+    home_dir = instance.backend_metadata.get('homeDir')
+    if not home_dir:
+        instance.backend_metadata['homeDir'] = f"/home/{instance.username}"
