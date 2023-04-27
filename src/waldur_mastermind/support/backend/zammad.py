@@ -21,6 +21,10 @@ from . import SupportBackend
 logger = logging.getLogger(__name__)
 
 
+class ZammadServiceBackendError(ZammadBackendError):
+    pass
+
+
 class ZammadServiceBackend(SupportBackend):
     def __init__(self):
         self.manager = ZammadBackend()
@@ -336,3 +340,24 @@ class ZammadServiceBackend(SupportBackend):
 
         self.manager.del_comment(zammad_attachment.article_id)
         logger.info('Comment %s has been deleted.', zammad_attachment.comment.id)
+
+    def update_issue(self, issue):
+        if issue.backend_id:
+            self.manager.update_issue(issue.backend_id, title=issue.summary)
+
+    def delete_issue(self, issue):
+        if issue.backend_id:
+            self.manager.delete_issue(issue.backend_id)
+
+    def pull_priorities(self):
+        for priority in self.manager.pull_priorities():
+            priority, created = models.Priority.objects.get_or_create(
+                backend_id=priority.id,
+                name=priority.name,
+                backend_name=self.backend_name,
+            )
+            if created:
+                logger.info('Priority %s has been created.', priority.name)
+
+    def update_comment(self, comment):
+        raise ZammadServiceBackendError('Updating comments is not supported.')
