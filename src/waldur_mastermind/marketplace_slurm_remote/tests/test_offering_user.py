@@ -172,7 +172,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
         )
 
 
-class TestOfferingUser(test.APITransactionTestCase):
+class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
 
@@ -209,10 +209,11 @@ class TestOfferingUser(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(404, response.status_code)
 
-    def test_galuth_config_file_fetching(self):
+    def test_glauth_config_file_fetching(self):
         ssh_key = structure_factories.SshPublicKeyFactory(user=self.manager)
         self.client.force_login(self.fixture.offering_owner)
         response = self.client.get(self.url)
+        self.assertEqual(200, response.status_code)
 
         expected_config_file = textwrap.dedent(
             f"""

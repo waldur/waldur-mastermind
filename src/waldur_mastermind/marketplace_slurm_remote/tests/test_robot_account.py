@@ -15,8 +15,12 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.plugin_options = {
+            'username_generation_policy': 'waldur_username',
             'initial_uidnumber': 1000,
             'initial_primarygroup_number': 2000,
+        }
+        self.offering.secret_options = {
+            'service_provider_can_create_offering_user': True
         }
         self.offering.save()
 

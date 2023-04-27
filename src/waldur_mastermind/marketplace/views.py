@@ -986,6 +986,16 @@ class ProviderOfferingViewSet(
         which synchronizes data from Waldur to GLauth
         """
         offering = self.get_object()
+
+        if not offering.secret_options.get(
+            'service_provider_can_create_offering_user', False
+        ):
+            logger.warning(
+                "Offering %s doesn't have feature service_provider_can_create_offering_user enabled, skipping GLauth config generation",
+                offering,
+            )
+            return Response(status=status.HTTP_400_BAD_REQUEST, data="")
+
         offering_users = models.OfferingUser.objects.filter(offering=offering).exclude(
             username=''
         )
