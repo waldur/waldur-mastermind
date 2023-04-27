@@ -47,3 +47,13 @@ class ProductCodeMixin(models.Model):
 
     # article code is used for encoding product category in accounting software
     article_code = models.CharField(max_length=30, blank=True)
+
+
+class BackendMetadataMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    backend_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+    )

@@ -1006,9 +1006,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
 
 
 class ResourceDetailsMixin(
-    CostEstimateMixin,
-    core_models.NameMixin,
-    core_models.DescribableMixin,
+    CostEstimateMixin, core_models.NameMixin, core_models.DescribableMixin
 ):
     class Meta:
         abstract = True
@@ -1038,6 +1036,7 @@ class Resource(
     TimeStampedModel,
     core_mixins.ScopeMixin,
     structure_models.StructureLoggableMixin,
+    common_mixins.BackendMetadataMixin,
 ):
     """
     Core resource is abstract model, marketplace resource is not abstract,
@@ -1086,7 +1085,6 @@ class Resource(
         null=True,
         blank=True,
     )
-    backend_metadata = models.JSONField(blank=True, default=dict)
     report = models.JSONField(blank=True, null=True)
     current_usages = models.JSONField(blank=True, default=dict)
     tracker = FieldTracker()
@@ -1467,16 +1465,14 @@ class OfferingPermission(core_models.UuidMixin, structure_models.BasePermission)
         self.offering.remove_user(self.user)
 
 
-class OfferingUser(TimeStampedModel):
+class OfferingUser(
+    TimeStampedModel,
+    common_mixins.BackendMetadataMixin,
+):
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
     propagation_date = models.DateTimeField(blank=True, null=True)
-    backend_metadata = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Backend attributes of the user",
-    )
 
     class Meta:
         unique_together = ('offering', 'user')
@@ -1502,7 +1498,12 @@ class CategoryHelpArticle(models.Model):
         return self.title
 
 
-class RobotAccount(TimeStampedModel, core_models.UuidMixin, LoggableMixin):
+class RobotAccount(
+    TimeStampedModel,
+    core_models.UuidMixin,
+    LoggableMixin,
+    common_mixins.BackendMetadataMixin,
+):
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     type = models.CharField(max_length=5)
     # empty string should be allowed because name is set by

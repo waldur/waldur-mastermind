@@ -1,6 +1,5 @@
 import copy
 import datetime
-import hashlib
 import logging
 import textwrap
 
@@ -993,47 +992,22 @@ class ProviderOfferingViewSet(
         user_records = []
 
         for offering_user in offering_users:
+            utils.setup_linux_related_data(offering_user, offering)
+            offering_user.save(update_fields=['backend_metadata'])
+
             user = offering_user.user
-            uidnumber = offering_user.backend_metadata.get('uidnumber')
-            primarygroup = offering_user.backend_metadata.get('primarygroup')
-
-            if not uidnumber or not primarygroup:
-                uidnumber, primarygroup = utils.generate_uidnumber_and_primary_group(
-                    offering
-                )
-
-                if not uidnumber:
-                    offering_user.backend_metadata['uidnumber'] = uidnumber
-                if not primarygroup:
-                    offering_user.backend_metadata['primarygroup'] = primarygroup
-
-                offering_user.save(update_fields=['backend_metadata'])
-
-            login_shell = offering_user.backend_metadata.get('loginShell')
-            if not login_shell:
-                offering_user.backend_metadata['loginShell'] = "/bin/sh"
-                offering_user.save(update_fields=['backend_metadata'])
-
-            home_dir = offering_user.backend_metadata.get('homeDir')
-            if not home_dir:
-                offering_user.backend_metadata[
-                    'homeDir'
-                ] = f"/home/{offering_user.username}"
-                offering_user.save(update_fields=['backend_metadata'])
+            username = offering_user.username
+            uidnumber = offering_user.backend_metadata['uidnumber']
+            primarygroup = offering_user.backend_metadata['primarygroup']
+            login_shell = offering_user.backend_metadata['loginShell']
+            home_dir = offering_user.backend_metadata['homeDir']
 
             ssh_keys = [
-                f'"{ssh_key.public_key}"'
-                for ssh_key in core_models.SshPublicKey.objects.filter(user=user)
+                f'"{ssh_key.public_key}"' for ssh_key in user.sshpublickey_set.all()
             ]
             ssh_keys_line = ',\n    '.join(ssh_keys)
 
-            password = offering.secret_options.get('shared_user_password')
-            if password:
-                hash = hashlib.sha256()
-                hash.update(password.encode('utf-8'))
-                password_sha256 = hash.hexdigest()
-            else:
-                password_sha256 = ''
+            password_sha256 = utils.generate_offering_password_hash(offering)
 
             record = textwrap.dedent(
                 f"""
@@ -1049,20 +1023,60 @@ class ProviderOfferingViewSet(
               homeDir = "{home_dir}"
               passsha256 = "{password_sha256}"
                 [[users.customattributes]]
-                preferredUsername = ["{offering_user.username}"]
+                preferredUsername = ["{username}"]
             """
             )
 
             record += textwrap.dedent(
                 f"""
             [[groups]]
-              name = "{offering_user.username}"
+              name = "{username}"
               gidnumber = {primarygroup}
             """
             )
             user_records.append(record)
 
-        response_text = '\n'.join(user_records)
+        robot_accounts = models.RobotAccount.objects.filter(resource__offering=offering)
+
+        robot_account_records = []
+        for robot_account in robot_accounts:
+            utils.setup_linux_related_data(robot_account, offering)
+            robot_account.save(update_fields=['backend_metadata'])
+
+            ssh_keys = robot_account.keys
+            ssh_keys_line = ',\n    '.join(ssh_keys)
+
+            username = robot_account.username
+            uidnumber = robot_account.backend_metadata['uidnumber']
+            primarygroup = robot_account.backend_metadata['primarygroup']
+            login_shell = robot_account.backend_metadata['loginShell']
+            home_dir = robot_account.backend_metadata['homeDir']
+            password_sha256 = utils.generate_offering_password_hash(offering)
+
+            record = textwrap.dedent(
+                f"""
+            [[users]]
+              name = "{username}"
+              uidnumber = {uidnumber}
+              primarygroup = {primarygroup}
+              sshkeys = ["{ssh_keys_line}"]
+              passsha256 = "{password_sha256}"
+                [[users.customattributes]]
+                preferredUsername = ["{username}"]
+            """
+            )
+
+            record += textwrap.dedent(
+                f"""
+            [[groups]]
+              name = "{username}"
+              gidnumber = {primarygroup}
+            """
+            )
+
+            robot_account_records.append(record)
+
+        response_text = '\n'.join(user_records + robot_account_records)
 
         return Response(response_text)
 
