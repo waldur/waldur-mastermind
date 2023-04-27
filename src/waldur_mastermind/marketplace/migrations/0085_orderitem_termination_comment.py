@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0085_backend_metadata'),
+        ('marketplace', '0084_resource_end_date_requested_by'),
     ]
 
     operations = [
