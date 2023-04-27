@@ -193,7 +193,10 @@ class Issue(
 
 
 class Priority(
-    core_models.NameMixin, core_models.UuidMixin, core_models.UiDescribableMixin
+    BackendNameMixin,
+    core_models.NameMixin,
+    core_models.UuidMixin,
+    core_models.UiDescribableMixin,
 ):
     backend_id = models.CharField(max_length=255, blank=True)
 

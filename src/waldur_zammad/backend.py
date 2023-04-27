@@ -75,6 +75,12 @@ class User:
     is_active: bool
 
 
+@dataclass
+class Priority:
+    id: str
+    name: str
+
+
 class ZammadBackend:
     def __init__(self):
         if not ZAMMAD_API_URL.endswith('/'):
@@ -134,6 +140,12 @@ class ZammadBackend:
             content_type=response.get('preferences', {}).get('Content-Type'),
             article_id=article_id,
             ticket_id=ticket_id,
+        )
+
+    def _zammad_response_to_priority(self, response):
+        return Priority(
+            id=str(response.get('id')),
+            name=response.get('name'),
         )
 
     @reraise_exceptions('An issue is not found.')
@@ -284,3 +296,15 @@ class ZammadBackend:
             attachment.article_id,
             attachment.ticket_id,
         )
+
+    def delete_issue(self, issue_id):
+        self.manager.ticket.destroy(issue_id)
+
+    def update_issue(self, issue_id, title):
+        self.manager.ticket.update(issue_id, {'title': title})
+
+    def pull_priorities(self):
+        return [
+            self._zammad_response_to_priority(p)
+            for p in self.manager.ticket_priority.all()
+        ]
