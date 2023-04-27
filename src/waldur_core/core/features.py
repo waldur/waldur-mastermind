@@ -184,6 +184,8 @@ class SupportSection(FeatureSection):
 
     next_branch = Feature('Render "Try out new version" link in toolbar.')
 
+    legacy_branch = Feature('Render "Go to old interface" link in toolbar for new UI')
+
 
 class InvitationsSection(FeatureSection):
     class Meta:
