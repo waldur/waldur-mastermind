@@ -11,7 +11,10 @@ from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_core.structure.exceptions import (
+    ServiceBackendError,
+    ServiceBackendNotImplemented,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +144,15 @@ class ServicePropertiesPullTask(BackgroundPullTask):
 class ServiceResourcesPullTask(BackgroundPullTask):
     @reraise_exceptions
     def pull(self, service_settings):
-        backend = service_settings.get_backend()
-        backend.pull_resources()
+        try:
+            backend = service_settings.get_backend()
+        except ServiceBackendNotImplemented:
+            logger.info(
+                'Service % has not backend so ServiceResourcePullTask cannot execute.',
+                service_settings,
+            )
+        else:
+            backend.pull_resources()
 
 
 class ServiceSubResourcesPullTask(BackgroundPullTask):
