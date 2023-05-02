@@ -15,7 +15,7 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
                 self.order_item, None
             )
 
-            service_settings, _ = ServiceSettings.objects.get_or_create(
+            service_settings, _ = ServiceSettings.objects.update_or_create(
                 type=MarketplaceSlurmConfig.service_name,
                 state=ServiceSettings.States.OK,
                 shared=True,
