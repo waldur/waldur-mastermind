@@ -11,6 +11,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
+from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 
 @ddt
@@ -597,15 +598,34 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
-    @data(
-        'offering_owner',
-    )
+    @data('offering_owner', 'manager', 'admin')
     def test_user_can_not_get_item_if_can_manage_as_owner_is_enabled(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'can_manage_as_owner': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
+
+    @override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
+    @data(
+        'owner',
+        'manager',
+    )
+    def test_user_can_get_item_if_manager_can_approve_order_is_true(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
+
+    @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
+    @data('owner', 'manager', 'admin')
+    def test_user_can_get_item_if_admin_can_approve_order_is_true(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 1)
 
     @data(
         'offering_owner',

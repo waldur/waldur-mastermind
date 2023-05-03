@@ -385,10 +385,29 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
                 order__project__customer__permissions__is_active=True,
                 order__project__customer__permissions__role=structure_models.CustomerRole.OWNER,
             )
-            query_pending = query_owner & Q(
+            query_manager = Q(
+                order__project__permissions__user__uuid=user.uuid.hex,
+                order__project__permissions__is_active=True,
+                order__project__permissions__role=structure_models.ProjectRole.MANAGER,
+            )
+            query_admin = Q(
+                order__project__permissions__user__uuid=user.uuid.hex,
+                order__project__permissions__is_active=True,
+                order__project__permissions__role=structure_models.ProjectRole.ADMINISTRATOR,
+            )
+
+            query_access = query_owner
+
+            if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
+                query_access = query_owner | query_manager
+
+            if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
+                query_access = query_owner | query_manager | query_admin
+
+            query_pending = query_access & Q(
                 state=models.OrderItem.States.PENDING,
             )
-            query_executing = query_owner & Q(
+            query_executing = query_access & Q(
                 state=models.OrderItem.States.EXECUTING,
                 resource__isnull=False,
             )
