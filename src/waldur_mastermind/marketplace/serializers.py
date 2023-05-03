@@ -955,7 +955,15 @@ class OfferingDetailsSerializer(
         return (
             offering
             and user
-            and structure_permissions._has_owner_access(user, offering.customer)
+            and (
+                structure_permissions._has_owner_access(user, offering.customer)
+                or (
+                    structure_permissions._has_service_manager_access(
+                        user, offering.customer
+                    )
+                    and offering.customer.has_user(user)
+                )
+            )
         )
 
     def get_order_item_count(self, offering):
@@ -3332,6 +3340,7 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
             'components',
             'plans',
             'options',
+            'secret_options',
         )
 
     category_title = serializers.ReadOnlyField(source='category.title')
@@ -3352,6 +3361,46 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
     def get_billing_price_estimate(self, offering):
         resources = self.get_resources(offering)
         return get_billing_price_estimate_for_resources(resources)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if (
+            self.instance
+            and not self.can_see_secret_options()
+            and 'secret_options' in fields
+        ):
+            del fields['secret_options']
+        return fields
+
+    def can_see_secret_options(self):
+        user = None
+        try:
+            request = self.context['request']
+            user = request.user
+            if user.is_anonymous:
+                return
+
+        except (KeyError, AttributeError):
+            pass
+
+        if isinstance(self.instance, list):
+            offering = self.instance[0]
+        else:
+            offering = self.instance
+
+        return (
+            offering
+            and user
+            and (
+                structure_permissions._has_owner_access(user, offering.customer)
+                or (
+                    structure_permissions._has_service_manager_access(
+                        user, offering.customer
+                    )
+                    and offering.customer.has_user(user)
+                )
+            )
+        )
 
 
 class RobotAccountSerializer(
