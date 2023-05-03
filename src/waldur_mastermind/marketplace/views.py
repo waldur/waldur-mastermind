@@ -2181,37 +2181,42 @@ class OfferingUsersViewSet(
         ).values_list('division_id', flat=True)
 
         queryset = queryset.filter(
+            # Exclude offerings with disabled OfferingUsers feature
+            Q(offering__secret_options__service_provider_can_create_offering_user=True)
+            &
             # user can see own remote offering user
-            Q(user=current_user)
-            | (
-                (
-                    # service provider can see all records related to managed offerings
-                    Q(
-                        offering__customer__permissions__user=current_user,
-                        offering__customer__permissions__is_active=True,
+            (
+                Q(user=current_user)
+                | (
+                    (
+                        # service provider can see all records related to managed offerings
+                        Q(
+                            offering__customer__permissions__user=current_user,
+                            offering__customer__permissions__is_active=True,
+                        )
+                        # users with project permission are visible to other users in the same project
+                        | Q(
+                            user__projectpermission__project__in=project_ids,
+                            user__projectpermission__is_active=True,
+                        )
+                        # users with customer permission are visible to other users in the same customer
+                        | Q(
+                            user__customerpermission__customer__in=customer_ids,
+                            user__customerpermission__is_active=True,
+                        )
+                        # users with project permission are visible to other users in the same customer
+                        | Q(
+                            user__projectpermission__project__customer__in=customer_ids,
+                            user__projectpermission__is_active=True,
+                        )
                     )
-                    # users with project permission are visible to other users in the same project
-                    | Q(
-                        user__projectpermission__project__in=project_ids,
-                        user__projectpermission__is_active=True,
+                    & (
+                        # only offerings managed by customer where the current user has a role
+                        Q(offering__customer__id__in=all_customer_ids)
+                        |
+                        # only offerings from divisions including the current user's customers
+                        Q(offering__divisions__in=division_ids)
                     )
-                    # users with customer permission are visible to other users in the same customer
-                    | Q(
-                        user__customerpermission__customer__in=customer_ids,
-                        user__customerpermission__is_active=True,
-                    )
-                    # users with project permission are visible to other users in the same customer
-                    | Q(
-                        user__projectpermission__project__customer__in=customer_ids,
-                        user__projectpermission__is_active=True,
-                    )
-                )
-                & (
-                    # only offerings managed by customer where the current user has a role
-                    Q(offering__customer__id__in=all_customer_ids)
-                    |
-                    # only offerings from divisions including the current user's customers
-                    Q(offering__divisions__in=division_ids)
                 )
             )
         ).distinct()
