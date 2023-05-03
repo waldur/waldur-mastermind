@@ -178,7 +178,7 @@ class ZammadBackend:
     def get_user_by_email(self, email):
         return self.get_user_by_field(email, 'email')
 
-    @reraise_exceptions('An user is not found.')
+    @reraise_exceptions('A user is not found.')
     def get_user_by_id(self, user_id):
         response = self.manager.user.find(user_id)
         return self._zammad_response_to_user(response)
