@@ -18,6 +18,10 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
+        self.offering.secret_options = {
+            'service_provider_can_create_offering_user': True
+        }
+        self.offering.save()
         user = UserFactory()
         self.fixture.project.add_user(user, structure_models.ProjectRole.ADMINISTRATOR)
         OfferingUser.objects.create(offering=self.offering, user=user, username='user')
