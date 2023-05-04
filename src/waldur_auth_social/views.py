@@ -313,7 +313,7 @@ class KeycloakView(OAuthView):
 
     def create_or_update_user(self, backend_user):
         # Preferred username is not unique. Sub in UUID.
-        username = f'keycloak_f{backend_user["sub"]}'
+        username = backend_user["sub"]
         email = backend_user.get('email')
         first_name = backend_user.get('given_name', '')
         last_name = backend_user.get('family_name', '')
