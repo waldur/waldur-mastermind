@@ -2881,7 +2881,9 @@ class OfferingReferralSerializer(
         )
 
 
-class OfferingUserSerializer(serializers.HyperlinkedModelSerializer):
+class OfferingUserSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     user_uuid = serializers.ReadOnlyField(source='user.uuid')
