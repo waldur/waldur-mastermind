@@ -123,19 +123,29 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             if offering.uuid.hex not in offerings.keys():
                 offerings[offering.uuid.hex] = {
                     'offering_name': offering.name,
-                    'aggregated_cost': item.total,
+                    'aggregated_price': item.price,
+                    'aggregated_tax': item.tax,
+                    'aggregated_total': item.total,
                     'service_category_title': service_category_title,
                     'service_provider_name': service_provider_name,
                     'service_provider_uuid': service_provider_uuid,
                 }
             else:
-                offerings[offering.uuid.hex]['aggregated_cost'] += item.total
+                offerings[offering.uuid.hex]['aggregated_price'] += item.price
+                offerings[offering.uuid.hex]['aggregated_tax'] += item.tax
+                offerings[offering.uuid.hex]['aggregated_total'] += item.total
 
         queryset = [dict(uuid=key, **details) for (key, details) in offerings.items()]
 
         for item in queryset:
-            item['aggregated_cost'] = quantize_price(
-                decimal.Decimal(item['aggregated_cost'])
+            item['aggregated_price'] = quantize_price(
+                decimal.Decimal(item['aggregated_price'])
+            )
+            item['aggregated_tax'] = quantize_price(
+                decimal.Decimal(item['aggregated_tax'])
+            )
+            item['aggregated_total'] = quantize_price(
+                decimal.Decimal(item['aggregated_total'])
             )
 
         page = self.paginate_queryset(queryset)
