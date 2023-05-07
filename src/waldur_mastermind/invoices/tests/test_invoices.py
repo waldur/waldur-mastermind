@@ -279,26 +279,37 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             },
         )
 
+        aggregated_total = sum(
+            item.total
+            for item in models.InvoiceItem.objects.filter(
+                invoice=invoice,
+                resource_id__in=[self.resource_1.id, self.resource_2.id],
+            )
+        )
+
         self.assertEqual(
             list(filter(lambda x: x['uuid'] == self.offering.uuid.hex, result.data))[0],
             {
                 'uuid': self.offering.uuid.hex,
                 'offering_name': self.offering.name,
-                'aggregated_cost': sum(
-                    [
-                        item.total
-                        for item in models.InvoiceItem.objects.filter(
-                            invoice=invoice,
-                            resource_id__in=[self.resource_1.id, self.resource_2.id],
-                        )
-                    ]
-                ),
+                'aggregated_price': aggregated_total,
+                'aggregated_tax': Decimal(0),
+                'aggregated_total': aggregated_total,
                 'service_category_title': self.offering.category.title,
                 'service_provider_name': self.offering.customer.name,
                 'service_provider_uuid': self.provider.uuid.hex,
             },
         )
 
+        aggregated_total = sum(
+            [
+                item.total
+                for item in models.InvoiceItem.objects.filter(
+                    invoice=invoice,
+                    resource_id__in=[self.resource_3.id],
+                )
+            ]
+        )
         self.assertEqual(
             list(filter(lambda x: x['uuid'] == self.offering_2.uuid.hex, result.data))[
                 0
@@ -306,20 +317,19 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             {
                 'uuid': self.offering_2.uuid.hex,
                 'offering_name': self.offering_2.name,
-                'aggregated_cost': sum(
-                    [
-                        item.total
-                        for item in models.InvoiceItem.objects.filter(
-                            invoice=invoice,
-                            resource_id__in=[self.resource_3.id],
-                        )
-                    ]
-                ),
+                'aggregated_price': aggregated_total,
+                'aggregated_tax': Decimal(0),
+                'aggregated_total': aggregated_total,
                 'service_category_title': self.offering_2.category.title,
                 'service_provider_name': self.offering_2.customer.name,
                 'service_provider_uuid': self.provider_2.uuid.hex,
             },
         )
+
+        aggregated_total = models.InvoiceItem.objects.get(
+            invoice=invoice,
+            resource_id=self.resource_4.id,
+        ).price
 
         self.assertEqual(
             list(
@@ -331,10 +341,9 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             {
                 'uuid': self.marketplace_support_offering.uuid.hex,
                 'offering_name': self.marketplace_support_offering.name,
-                'aggregated_cost': models.InvoiceItem.objects.get(
-                    invoice=invoice,
-                    resource_id=self.resource_4.id,
-                ).price,
+                'aggregated_price': aggregated_total,
+                'aggregated_tax': Decimal(0),
+                'aggregated_total': aggregated_total,
                 'service_category_title': self.marketplace_support_offering.category.title,
                 'service_provider_name': self.offering.customer.name,
                 'service_provider_uuid': self.provider.uuid.hex,
