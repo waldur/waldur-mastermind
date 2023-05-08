@@ -160,11 +160,14 @@ class ZammadServiceBackend(SupportBackend):
             comment.begin_creating()
             comment.save()
 
-            # The comment will be created from an authorized user.
-            # It is not possible to create a comment from another.
+            zammad_user = self.get_or_create_zammad_user_for_support_user(
+                comment.author
+            )
+
             zammad_comment = self.manager.add_comment(
                 comment.issue.backend_id,
                 comment.description,
+                zammad_user_id=zammad_user.id,
                 #  we not pass comment.is_public because of is_public will be True,
                 #  so deleting will be impossible
             )
@@ -268,6 +271,13 @@ class ZammadServiceBackend(SupportBackend):
             firstname=support_user.user.first_name,
             lastname=support_user.user.last_name,
         )
+
+    def get_or_create_zammad_user_for_support_user(self, support_user):
+        if not support_user.backend_name and support_user.backend_id:
+            return self.create_zammad_user_for_support_user(support_user)
+
+        if support_user.backend_name == self.backend_name and support_user.backend_id:
+            return self.get_zammad_user_by_waldur_user(support_user.user)
 
     def pull_support_users(self):
         backend_users = self.get_users()
