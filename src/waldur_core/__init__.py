@@ -33,6 +33,8 @@ def _get_version(package_name='waldur_mastermind'):
             return description
         except (OSError, subprocess.CalledProcessError):
             return 'unknown'
+    else:
+        return package_version
 
 
 __version__ = _get_version()
