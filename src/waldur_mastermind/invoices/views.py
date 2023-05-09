@@ -8,7 +8,7 @@ from django.db.models import F, Sum
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
@@ -16,6 +16,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.models import InvoiceItem
 
@@ -566,3 +567,19 @@ class PaymentViewSet(core_views.ActionsViewSet):
                 'customer': customer,
             },
         )
+
+
+@api_view(['POST'])
+@permission_classes((IsStaffOrSupportUser,))
+def send_financial_report_by_mail(request):
+    serializer = serializers.FinancialReportEmailSerializer(data=request.data)
+    if serializer.is_valid():
+        year = serializer.data['year']
+        month = serializer.data['month']
+        emails = serializer.data['emails']
+        tasks.send_invoice_report.delay(year, month, emails)
+        return Response(
+            {'status': _('The dispatch of reports has been scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

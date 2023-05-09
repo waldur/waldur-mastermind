@@ -1,3 +1,5 @@
+from django.urls import re_path
+
 from waldur_mastermind.invoices import views
 
 
@@ -14,3 +16,12 @@ def register_in(router):
         views.PaymentViewSet,
         basename='payment',
     )
+
+
+urlpatterns = [
+    re_path(
+        r'^api/invoice/send-financial-report-by-mail/',
+        views.send_financial_report_by_mail,
+        name='send-financial-report-by-mail',
+    ),
+]

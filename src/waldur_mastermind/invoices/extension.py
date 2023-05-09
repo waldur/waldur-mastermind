@@ -68,6 +68,12 @@ class InvoicesExtension(WaldurExtension):
         return register_in
 
     @staticmethod
+    def django_urls():
+        from .urls import urlpatterns
+
+        return urlpatterns
+
+    @staticmethod
     def is_assembly():
         return True
 

@@ -751,3 +751,9 @@ core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_payment_profile,
 )
+
+
+class FinancialReportEmailSerializer(serializers.Serializer):
+    emails = serializers.ListField(child=serializers.EmailField())
+    year = serializers.IntegerField()
+    month = serializers.IntegerField()
