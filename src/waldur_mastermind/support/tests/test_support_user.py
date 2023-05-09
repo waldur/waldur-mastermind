@@ -8,7 +8,6 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import exceptions, tasks
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
-from waldur_mastermind.support.tests.base import override_support_settings
 
 
 @ddt
@@ -36,14 +35,14 @@ class SupportUserRetrieveTest(base.BaseTest):
         response = self.client.get(factories.SupportUserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @override_support_settings(ENABLED=False)
+    @base.override_support_settings(ENABLED=False)
     def test_user_can_not_retrieve_support_users_if_support_extension_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(factories.SupportUserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
 
-@override_support_settings(ENABLED=True)
+@base.override_support_settings(ENABLED=True)
 class SupportUserPullTest(base.BaseTest):
     def setUp(self):
         mock_patch = mock.patch('waldur_jira.backend.JIRA')
@@ -92,7 +91,7 @@ class SupportUserPullTest(base.BaseTest):
         self.assertTrue(alice.is_active)
 
 
-@override_support_settings(ENABLED=True)
+@base.override_support_settings(ENABLED=True)
 @mock.patch('waldur_jira.backend.JIRA')
 class SupportUserValidateTest(base.BaseTest):
     def test_not_create_user_if_user_exists_but_he_inactive(self, mocked_jira):

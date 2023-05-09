@@ -19,7 +19,7 @@ class IssueCreateTest(zammad_base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
-        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
+        issue_type = settings.WALDUR_ATLASSIAN['ISSUE']['types'][0]
         factories.RequestTypeFactory(issue_type_name=issue_type)
         payload = {
             'summary': 'test_issue',

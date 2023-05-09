@@ -36,31 +36,31 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def __init__(self):
         self.settings = Settings(
-            backend_url=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('server'),
-            username=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('username'),
-            password=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('password'),
-            email=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('email'),
-            token=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('token'),
+            backend_url=settings.WALDUR_ATLASSIAN.get('SERVER'),
+            username=settings.WALDUR_ATLASSIAN.get('USERNAME'),
+            password=settings.WALDUR_ATLASSIAN.get('PASSWORD'),
+            email=settings.WALDUR_ATLASSIAN.get('EMAIL'),
+            token=settings.WALDUR_ATLASSIAN.get('TOKEN'),
         )
-        self.verify = settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('verify_ssl')
-        self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
+        self.verify = settings.WALDUR_ATLASSIAN.get('VERIFY_SSL')
+        self.project_settings = settings.WALDUR_ATLASSIAN.get('PROJECT', {})
         # allow to define reference by ID as older SD cannot properly resolve
         # TODO drop once transition to request API is complete
         self.service_desk_reference = self.project_settings.get(
             'key_id', self.project_settings['key']
         )
-        self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
-        self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
-        self.use_teenage_api = settings.WALDUR_SUPPORT.get('USE_TEENAGE_API', False)
+        self.issue_settings = settings.WALDUR_ATLASSIAN.get('ISSUE', {})
+        self.use_old_api = settings.WALDUR_ATLASSIAN.get('USE_OLD_API', False)
+        self.use_teenage_api = settings.WALDUR_ATLASSIAN.get('USE_TEENAGE_API', False)
         # In ideal world where Atlassian SD respects its spec the setting below would not be needed
-        self.use_automatic_request_mapping = settings.WALDUR_SUPPORT.get(
+        self.use_automatic_request_mapping = settings.WALDUR_ATLASSIAN.get(
             'USE_AUTOMATIC_REQUEST_MAPPING', True
         )
         # In some cases list of priorities available to customers differ from the total list returned by SDK
-        self.pull_priorities_automatically = settings.WALDUR_SUPPORT.get(
+        self.pull_priorities_automatically = settings.WALDUR_ATLASSIAN.get(
             'PULL_PRIORITIES', True
         )
-        self.strange_setting = settings.WALDUR_SUPPORT.get('STRANGE_SETTING', 1)
+        self.strange_setting = settings.WALDUR_ATLASSIAN.get('STRANGE_SETTING', 1)
 
     def pull_service_properties(self):
         super().pull_service_properties()

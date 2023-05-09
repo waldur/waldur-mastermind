@@ -23,7 +23,7 @@ def create_issue(offering_request):
             customer_name=offering_request.offering.customer.name,
             customer_uuid=offering_request.offering.customer.uuid.hex,
         ),
-        'type': settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
+        'type': settings.WALDUR_ATLASSIAN['DEFAULT_OFFERING_ISSUE_TYPE'],
     }
 
     return common_utils.create_request(

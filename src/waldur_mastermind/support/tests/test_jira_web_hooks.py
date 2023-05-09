@@ -13,6 +13,7 @@ from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
 
 from waldur_jira.backend import AttachmentSynchronizer, CommentSynchronizer
+from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories
 from waldur_mastermind.support.tests.base import load_resource
@@ -22,7 +23,7 @@ from waldur_mastermind.support.tests.utils import override_plugin_settings
 @mock.patch('waldur_mastermind.support.serializers.ServiceDeskBackend')
 @override_plugin_settings(
     ENABLED=True,
-    ACTIVE_BACKEND='waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
+    ACTIVE_BACKEND_TYPE='basic',
 )
 @override_settings(task_always_eager=True)
 class TestJiraWebHooks(APITransactionTestCase):
@@ -225,9 +226,8 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
 
 class TestUpdateCommentFromJira(APITransactionTestCase):
     def setUp(self):
-        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
         settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ATLASSIAN
         self.comment = factories.CommentFactory()
 
         backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
@@ -282,9 +282,8 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
 
 class TestUpdateAttachmentFromJira(APITransactionTestCase):
     def setUp(self):
-        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
         settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ATLASSIAN
         self.issue = factories.IssueFactory()
 
         backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
