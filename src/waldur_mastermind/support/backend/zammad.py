@@ -168,6 +168,7 @@ class ZammadServiceBackend(SupportBackend):
                 comment.issue.backend_id,
                 comment.description,
                 zammad_user_id=zammad_user.id,
+                zammad_user_email=comment.author.user.email,
                 #  we not pass comment.is_public because of is_public will be True,
                 #  so deleting will be impossible
             )

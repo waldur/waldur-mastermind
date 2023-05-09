@@ -207,7 +207,14 @@ class ZammadBackend:
         return self._zammad_response_to_user(response)
 
     @reraise_exceptions('Creating a comment has been failed.')
-    def add_comment(self, ticket_id, content, is_public=False, zammad_user_id=None):
+    def add_comment(
+        self,
+        ticket_id,
+        content,
+        is_public=False,
+        zammad_user_id=None,
+        zammad_user_email=None,
+    ):
         if zammad_user_id:
             self.manager.on_behalf_of = str(zammad_user_id)
 
@@ -217,6 +224,10 @@ class ZammadBackend:
             'type': ZAMMAD_ARTICLE_TYPE,
             'internal': not is_public,  # if internal equals False so deleting of comment will be impossible
         }
+
+        if zammad_user_email:
+            params['reply_to'] = zammad_user_email
+
         response = self.manager.ticket_article.create(params)
         return self._zammad_response_to_comment(response)
 
