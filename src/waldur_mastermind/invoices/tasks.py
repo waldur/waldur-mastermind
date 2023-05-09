@@ -1,3 +1,4 @@
+import datetime
 import logging
 from csv import DictWriter
 from io import StringIO
@@ -95,9 +96,13 @@ def send_invoice_notification(invoice_uuid):
 
 
 @shared_task(name='invoices.send_invoice_report')
-def send_invoice_report():
+def send_invoice_report(year=None, month=None, emails=None):
     """Sends aggregate accounting data as CSV"""
-    date = get_previous_month()
+    if year and month:
+        date = datetime.date(year, month, 1)
+    else:
+        date = get_previous_month()
+
     subject = render_to_string(
         'invoices/report_subject.txt',
         {
@@ -128,12 +133,14 @@ def send_invoice_report():
     text_message = format_invoice_csv(invoices)
 
     # Please note that email body could be empty if there are no valid invoices
-    emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
-    logger.info(f'About to send accounting report to {emails}')
+    recipient_emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
+    if emails:
+        recipient_emails += emails
+    logger.info(f'About to send accounting report to {recipient_emails}')
     core_utils.send_mail(
         subject=subject,
         body=body,
-        to=emails,
+        to=recipient_emails,
         attachment=text_message,
         filename=filename,
     )
