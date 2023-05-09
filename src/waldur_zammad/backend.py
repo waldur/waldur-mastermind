@@ -198,12 +198,19 @@ class ZammadBackend:
                 'email': email,
                 'firstname': firstname,
                 'lastname': lastname,
+                'roles': [
+                    'Agent',
+                    'Customer',
+                ],
             }
         )
         return self._zammad_response_to_user(response)
 
     @reraise_exceptions('Creating a comment has been failed.')
-    def add_comment(self, ticket_id, content, is_public=False):
+    def add_comment(self, ticket_id, content, is_public=False, zammad_user_id=None):
+        if zammad_user_id:
+            self.manager.on_behalf_of = str(zammad_user_id)
+
         params = {
             'ticket_id': ticket_id,
             'body': content + '\n\n' + ZAMMAD_COMMENT_MARKER,
