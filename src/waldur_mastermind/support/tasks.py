@@ -209,4 +209,9 @@ def sync_request_types():
     if not settings.WALDUR_SUPPORT['ENABLED']:
         return
 
+    active_backend = backend.get_active_backend()
+
+    if not hasattr(active_backend, 'pull_request_types'):
+        return
+
     backend.get_active_backend().pull_request_types()
