@@ -517,7 +517,7 @@ class PlanUsageTest(test.APITransactionTestCase):
 class ResourceCostEstimateTest(test.APITransactionTestCase):
     @override_support_settings(
         ENABLED=True,
-        ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend',
+        ACTIVE_BACKEND_TYPE='basic',
     )
     def test_when_order_item_is_processed_cost_estimate_is_initialized(self):
         # Arrange

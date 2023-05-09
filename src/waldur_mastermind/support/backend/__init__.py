@@ -3,8 +3,20 @@ import importlib
 from django.conf import settings
 
 
+class SupportBackendType:
+    ATLASSIAN = 'atlassian'
+    ZAMMAD = 'zammad'
+
+
 def get_active_backend():
-    path = settings.WALDUR_SUPPORT['ACTIVE_BACKEND']
+    backend_type = settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE']
+    if backend_type == SupportBackendType.ATLASSIAN:
+        path = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
+    elif backend_type == SupportBackendType.ZAMMAD:
+        path = 'waldur_mastermind.support.backend.zammad:ZammadServiceBackend'
+    else:
+        path = 'waldur_mastermind.support.backend.basic:BasicBackend'
+
     module_path, class_name = path.split(':')
     module = importlib.import_module(module_path)
     klass = getattr(module, class_name)

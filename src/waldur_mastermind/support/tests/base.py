@@ -6,24 +6,23 @@ from django.conf import settings
 from django.test import override_settings
 from rest_framework import test
 
-from waldur_mastermind.support.backend import atlassian
+from waldur_mastermind.support.backend import SupportBackendType, atlassian
 
 from . import fixtures
 
 
 class BaseTest(test.APITransactionTestCase):
     def setUp(self):
-        support_backend = (
-            'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
-        )
         settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = support_backend
-        settings.WALDUR_SUPPORT['ISSUE']['organisation_field'] = 'Reporter organization'
-        settings.WALDUR_SUPPORT['ISSUE']['project_field'] = 'Waldur project'
-        settings.WALDUR_SUPPORT['ISSUE'][
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ATLASSIAN
+        settings.WALDUR_ATLASSIAN['ISSUE'][
+            'organisation_field'
+        ] = 'Reporter organization'
+        settings.WALDUR_ATLASSIAN['ISSUE']['project_field'] = 'Waldur project'
+        settings.WALDUR_ATLASSIAN['ISSUE'][
             'affected_resource_field'
         ] = 'Affected resource'
-        settings.WALDUR_SUPPORT['ISSUE']['template_field'] = 'Waldur template'
+        settings.WALDUR_ATLASSIAN['ISSUE']['template_field'] = 'Waldur template'
         self.fixture = fixtures.SupportFixture()
         mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
         self.mock_get_active_backend = mock_patch.start()
@@ -50,8 +49,14 @@ def override_support_settings(**kwargs):
     return override_settings(WALDUR_SUPPORT=support_settings)
 
 
+def override_atlassian_settings(**kwargs):
+    atlassian_settings = copy.deepcopy(settings.WALDUR_ATLASSIAN)
+    atlassian_settings.update(kwargs)
+    return override_settings(WALDUR_ATLASSIAN=atlassian_settings)
+
+
 def override_offerings():
-    return override_support_settings(
+    return override_atlassian_settings(
         OFFERINGS={
             'custom_vpc': {
                 'label': 'Custom VPC',

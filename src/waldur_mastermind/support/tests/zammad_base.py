@@ -3,6 +3,7 @@ from unittest import mock
 from django.conf import settings
 from rest_framework import test
 
+from waldur_mastermind.support.backend import SupportBackendType
 from waldur_zammad.backend import User
 
 from . import fixtures
@@ -11,9 +12,7 @@ from . import fixtures
 class BaseTest(test.APITransactionTestCase):
     def setUp(self):
         settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT[
-            'ACTIVE_BACKEND'
-        ] = 'waldur_mastermind.support.backend.zammad:ZammadServiceBackend'
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ZAMMAD
         settings.WALDUR_ZAMMAD['ZAMMAD_API_URL'] = 'http://localhost:8080'
         settings.WALDUR_ZAMMAD['ZAMMAD_TOKEN'] = 'token'
 

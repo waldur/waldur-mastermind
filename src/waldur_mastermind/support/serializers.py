@@ -31,7 +31,7 @@ def render_issue_template(config_name, issue):
     try:
         template = get_template('support/' + config_name + '.txt').template
     except template_exceptions.TemplateDoesNotExist:
-        issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+        issue_settings = settings.WALDUR_ATLASSIAN.get('ISSUE', {})
         if not issue_settings:
             return ''
 
@@ -93,9 +93,9 @@ class IssueSerializer(
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
     type = serializers.ChoiceField(
-        choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE']['types']],
-        initial=settings.WALDUR_SUPPORT['ISSUE']['types'][0],
-        default=settings.WALDUR_SUPPORT['ISSUE']['types'][0],
+        choices=[(t, t) for t in settings.WALDUR_ATLASSIAN['ISSUE']['types']],
+        initial=settings.WALDUR_ATLASSIAN['ISSUE']['types'][0],
+        default=settings.WALDUR_ATLASSIAN['ISSUE']['types'][0],
     )
     is_reported_manually = serializers.BooleanField(
         initial=False,
@@ -244,7 +244,7 @@ class IssueSerializer(
                     {'caller': _('This field is required.')}
                 )
             # if change of reporter is supported, use it
-            if settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS']:
+            if settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS']:
                 reporter = models.SupportUser.objects.filter(
                     user=request_user,
                     is_active=True,
@@ -519,7 +519,7 @@ class AttachmentSerializer(
 
     def validate(self, attrs):
         filename, file_extension = os.path.splitext(attrs['file'].name)
-        if file_extension in settings.WALDUR_SUPPORT['EXCLUDED_ATTACHMENT_TYPES']:
+        if file_extension in settings.WALDUR_ATLASSIAN['EXCLUDED_ATTACHMENT_TYPES']:
             raise serializers.ValidationError(_('Invalid file extension'))
 
         user = self.context['request'].user

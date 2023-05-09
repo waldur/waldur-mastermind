@@ -13,6 +13,7 @@ from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import (
     load_resource,
+    override_atlassian_settings,
     override_support_settings,
 )
 from waldur_openstack.openstack_tenant.tests import (
@@ -150,7 +151,7 @@ class IssueCreateBaseTest(base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
-        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
+        issue_type = settings.WALDUR_ATLASSIAN['ISSUE']['types'][0]
         factories.RequestTypeFactory(issue_type_name=issue_type)
         payload = {
             'summary': 'test_issue',
@@ -212,7 +213,7 @@ class IssueCreateTest(IssueCreateBaseTest):
     def test_staff_or_support_cannot_create_issue_if_he_does_not_have_support_user(
         self, user
     ):
-        settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
+        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.post(self.url, data=self._get_valid_payload())
@@ -220,7 +221,7 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_create_issue_if_his_support_user_is_disabled(self):
-        settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
+        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         factories.SupportUserFactory(user=self.fixture.staff, is_active=False)
         self.client.force_authenticate(self.fixture.staff)
 
@@ -230,7 +231,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 
     @data('staff', 'global_support', 'owner')
     def test_user_with_access_to_customer_can_create_customer_issue(self, user):
-        settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
+        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
             customer=structure_factories.CustomerFactory.get_url(self.fixture.customer),
@@ -352,7 +353,7 @@ class IssueCreateTest(IssueCreateBaseTest):
 
     @override_support_settings(ENABLED=False)
     def test_user_can_not_create_issue_if_support_extension_is_disabled(self):
-        settings.WALDUR_SUPPORT['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
+        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, data=self._get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
@@ -407,7 +408,7 @@ class IssueCreateTest(IssueCreateBaseTest):
             {'server': ''}, None, raw={'name': 'Service Request', 'id': '1'}
         )
 
-        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
+        issue_type = settings.WALDUR_ATLASSIAN['ISSUE']['types'][0]
         factories.RequestTypeFactory(issue_type_name=issue_type)
         issue = factories.IssueFactory(reporter=None, backend_id=None, type=issue_type)
         factories.SupportCustomerFactory(user=issue.caller)
@@ -498,7 +499,7 @@ class IssueCreateTest(IssueCreateBaseTest):
                     _add_comment.assert_not_called()
 
 
-@override_support_settings(USE_OLD_API=True)
+@override_atlassian_settings(USE_OLD_API=True)
 class IssueCreateOldAPITest(IssueCreateBaseTest):
     def setUp(self):
         super().setUp()

@@ -25,9 +25,7 @@ from . import fixtures
 
 
 @freeze_time('2018-01-01')
-@override_support_settings(
-    ENABLED=True, ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
-)
+@override_support_settings(ENABLED=True, ACTIVE_BACKEND_TYPE='basic')
 class InvoicesBaseTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
