@@ -25,7 +25,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
-from waldur_core import __version__
 from waldur_core.core import (
     WALDUR_DISABLED_EXTENSIONS,
     WaldurExtension,
@@ -221,14 +220,6 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
 
 
 obtain_auth_token = ObtainAuthToken.as_view()
-
-
-@api_view(['GET'])
-@permission_classes((rf_permissions.AllowAny,))
-def version_detail(request):
-    """Retrieve version of the application"""
-
-    return Response({'version': __version__})
 
 
 # noinspection PyProtectedMember
