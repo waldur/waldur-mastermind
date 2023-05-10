@@ -66,6 +66,7 @@ class ZammadServiceBackend(SupportBackend):
             issue.summary,
             issue.description,
             support_user.backend_id,
+            support_user.user.email,  # support user in this case is always connected to a waldur user
             tags=[config.SITE_NAME],
         )
         issue.backend_id = zammad_issue.id

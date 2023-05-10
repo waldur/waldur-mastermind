@@ -226,7 +226,7 @@ class ZammadBackend:
         }
 
         if zammad_user_email:
-            params['reply_to'] = zammad_user_email
+            params['to'] = zammad_user_email
 
         response = self.manager.ticket_article.create(params)
         return self._zammad_response_to_comment(response)
@@ -273,7 +273,13 @@ class ZammadBackend:
 
     @reraise_exceptions('Creating an issue has failed.')
     def add_issue(
-        self, subject, description, customer_id, group=None, tags: List[str] = ''
+        self,
+        subject,
+        description,
+        customer_id,
+        waldur_user_email,
+        group=None,
+        tags: List[str] = '',
     ):
         group = group or ZAMMAD_GROUP or self.get_groups()[0]['name']
         tags = ','.join(tags)
@@ -286,6 +292,7 @@ class ZammadBackend:
                 "body": description + '\n\n' + ZAMMAD_COMMENT_MARKER,
                 "type": ZAMMAD_ARTICLE_TYPE,
                 "internal": False,
+                "to": waldur_user_email,
             },
         }
 
