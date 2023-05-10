@@ -35,6 +35,11 @@ if [ -n "$BRAND_COLOR" ]; then
   echo "[+] BRAND_COLOR has been set to: $BRAND_COLOR"
 fi
 
+if [ -n "$BRAND_LABEL_COLOR" ]; then
+  waldur constance set BRAND_LABEL_COLOR "$BRAND_LABEL_COLOR"
+  echo "[+] BRAND_LABEL_COLOR has been set to: $BRAND_LABEL_COLOR"
+fi
+
 if [ -n "$HERO_LINK_LABEL" ]; then
   waldur constance set HERO_LINK_LABEL "$HERO_LINK_LABEL"
   echo "[+] HERO_LINK_LABEL has been set to: $HERO_LINK_LABEL"

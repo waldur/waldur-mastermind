@@ -298,6 +298,7 @@ CONSTANCE_CONFIG = {
         "It is used as default page title if it's not specified explicitly."
     ),
     'BRAND_COLOR': ('#3a8500', 'Hex color definition is used in HomePort landing page for login button.'),
+    'BRAND_LABEL_COLOR': ('#000000', 'Hex color definition is used in HomePort landing page for font color of login button.'),
     'HERO_LINK_LABEL': (
         '',
         'Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.'
@@ -321,7 +322,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     'Whitelabeling settings (Text, links, etc)': (
         'SITE_NAME', 'SITE_DESCRIPTION', 'SITE_ADDRESS', 'SITE_EMAIL', 'SITE_PHONE',
         'CURRENCY_NAME', 'DOCS_URL', 'SHORT_PAGE_TITLE', 'FULL_PAGE_TITLE',
-        'BRAND_COLOR', 'HERO_LINK_LABEL', 'HERO_LINK_URL', 'SUPPORT_PORTAL_URL',
+        'BRAND_COLOR', 'BRAND_LABEL_COLOR', 'HERO_LINK_LABEL', 'HERO_LINK_URL', 'SUPPORT_PORTAL_URL',
     ),
     'Whitelabeling settings (Logos, images, favicons)': (
         'SITE_LOGO', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE', 'POWERED_BY_LOGO', 'HERO_IMAGE', 'LOGIN_LOGO', 'FAVICON'
