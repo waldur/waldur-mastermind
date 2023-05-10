@@ -118,11 +118,11 @@ class ZammadBackend:
         ticket_id = str(response.get('ticket_id'))
         return Comment(
             id=article_id,
-            creator=response.get('created_by'),
+            creator=response.get('from'),
             created=response.get('created_at'),
             content=clean_html(response.get('body', '')),
             is_public=not response.get('internal', False),
-            user_id=response.get('sender_id'),
+            user_id=response.get('created_by_id'),
             is_waldur_comment=ZAMMAD_COMMENT_MARKER
             in clean_html(response.get('body', '')),
             attachments=[
@@ -190,7 +190,7 @@ class ZammadBackend:
         json_response = self.manager.user._raise_or_return_json(response)
         return [self._zammad_response_to_user(r) for r in json_response]
 
-    @reraise_exceptions('Creating an user has been failed.')
+    @reraise_exceptions('Creating a user has failed.')
     def add_user(self, login, email, firstname, lastname):
         response = self.manager.user.create(
             {
@@ -310,6 +310,8 @@ class ZammadBackend:
         comments = []
 
         for zammad_comment in self.manager.ticket.articles(ticket_id):
+            if zammad_comment['sender'] == 'System':
+                continue
             comment = self._zammad_response_to_comment(zammad_comment)
             comments.append(comment)
 
