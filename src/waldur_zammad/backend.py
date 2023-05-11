@@ -27,7 +27,7 @@ def reraise_exceptions(msg=None):
             try:
                 return func(self, *args, **kwargs)
             except requests_exceptions.HTTPError as e:
-                raise ZammadBackendError(msg or e)
+                raise ZammadBackendError(f'{msg}. {e}')
 
         return wrapped
 
@@ -257,7 +257,7 @@ class ZammadBackend:
         params = {
             'ticket_id': ticket_id,
             'body': body + '\n\n' + ZAMMAD_COMMENT_MARKER,
-            "to": waldur_user_email,
+            'to': waldur_user_email,
             'type': ZAMMAD_ARTICLE_TYPE,
             'internal': True,  # if internal equals False so deleting of comment will be impossible
             'attachments': [
