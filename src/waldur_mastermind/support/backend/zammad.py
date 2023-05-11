@@ -308,7 +308,7 @@ class ZammadServiceBackend(SupportBackend):
             backend_id__in=[u.id for u in backend_users]
         ).update(is_active=False)
 
-    def create_attachment(self, attachment):
+    def create_attachment(self, attachment: models.Attachment):
         filename = os.path.basename(attachment.file.name)
         mime_type = attachment.mime_type
 
@@ -320,12 +320,17 @@ class ZammadServiceBackend(SupportBackend):
         if attachment.author and attachment.author.name:
             author_name = attachment.author.name
 
+        waldur_user_email = ''
+        if attachment.author and attachment.author.email:
+            waldur_user_email = attachment.author.email
+
         zammad_attachment = self.manager.add_attachment(
             ticket_id=attachment.issue.backend_id,
             filename=filename,
             data_base64_encoded=base64.b64encode(attachment.file.read()),
             mime_type=mime_type,
             author_name=author_name,
+            waldur_user_email=waldur_user_email,
         )
         attachment.backend_id = zammad_attachment.id
         attachment.backend_name = self.backend_name

@@ -206,7 +206,7 @@ class ZammadBackend:
         )
         return self._zammad_response_to_user(response)
 
-    @reraise_exceptions('Creating a comment has been failed.')
+    @reraise_exceptions('Creating a comment has failed.')
     def add_comment(
         self,
         ticket_id,
@@ -239,9 +239,15 @@ class ZammadBackend:
 
         return attachments
 
-    @reraise_exceptions('Creating an attachment has been failed.')
+    @reraise_exceptions('Creating an attachment has failed.')
     def add_attachment(
-        self, ticket_id, filename, data_base64_encoded, mime_type, author_name=''
+        self,
+        ticket_id,
+        filename,
+        data_base64_encoded,
+        mime_type,
+        waldur_user_email,
+        author_name='',
     ):
         body = filename
 
@@ -251,6 +257,7 @@ class ZammadBackend:
         params = {
             'ticket_id': ticket_id,
             'body': body + '\n\n' + ZAMMAD_COMMENT_MARKER,
+            "to": waldur_user_email,
             'type': ZAMMAD_ARTICLE_TYPE,
             'internal': True,  # if internal equals False so deleting of comment will be impossible
             'attachments': [
