@@ -525,10 +525,17 @@ class AttachmentSerializer(
 
     def validate(self, attrs):
         filename, file_extension = os.path.splitext(attrs['file'].name)
+
         if file_extension in settings.WALDUR_ATLASSIAN['EXCLUDED_ATTACHMENT_TYPES']:
             raise serializers.ValidationError(_('Invalid file extension'))
 
         user = self.context['request'].user
+        author_user = self.context['request'].user
+        (
+            attrs['author'],
+            created,
+        ) = models.SupportUser.objects.get_or_create_from_user(author_user)
+
         issue = attrs['issue']
         if (
             user.is_staff

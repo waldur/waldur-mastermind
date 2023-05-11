@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+import functools
 import logging
 import mimetypes
 import os
@@ -10,6 +11,7 @@ from constance import config
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.timezone import now
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.models import User as WaldurUser
 from waldur_mastermind.support import models
@@ -23,6 +25,20 @@ logger = logging.getLogger(__name__)
 
 class ZammadServiceBackendError(ZammadBackendError):
     pass
+
+
+def reraise_exceptions(msg=None):
+    def wrap(func):
+        @functools.wraps(func)
+        def wrapped(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except ZammadBackendError as e:
+                raise ValidationError(e)
+
+        return wrapped
+
+    return wrap
 
 
 class ZammadServiceBackend(SupportBackend):
@@ -52,6 +68,7 @@ class ZammadServiceBackend(SupportBackend):
     def comment_update_is_available(self, comment=None):
         return False
 
+    @reraise_exceptions()
     def create_issue(self, issue):
         """Create Zammad issue"""
         issue.begin_creating()
@@ -155,33 +172,27 @@ class ZammadServiceBackend(SupportBackend):
     def create_confirmation_comment(self, issue):
         pass
 
+    @reraise_exceptions()
     def create_comment(self, comment):
         """Create Zammad comment"""
-        try:
-            comment.begin_creating()
-            comment.save()
+        comment.begin_creating()
+        comment.save()
 
-            zammad_user = self.get_or_create_zammad_user_for_support_user(
-                comment.author
-            )
+        zammad_user = self.get_or_create_zammad_user_for_support_user(comment.author)
 
-            zammad_comment = self.manager.add_comment(
-                comment.issue.backend_id,
-                comment.description,
-                zammad_user_id=zammad_user.id,
-                zammad_user_email=comment.author.user.email,
-                #  we not pass comment.is_public because of is_public will be True,
-                #  so deleting will be impossible
-            )
-            comment.backend_id = zammad_comment.id
-            comment.backend_name = self.backend_name
-            comment.set_ok()
-            comment.save()
-            return zammad_comment
-        except ZammadBackendError as e:
-            comment.set_erred()
-            comment.error_message = e
-            comment.save()
+        zammad_comment = self.manager.add_comment(
+            comment.issue.backend_id,
+            comment.description,
+            zammad_user_id=zammad_user.id,
+            zammad_user_email=comment.author.user.email,
+            #  we not pass comment.is_public because of is_public will be True,
+            #  so deleting will be impossible
+        )
+        comment.backend_id = zammad_comment.id
+        comment.backend_name = self.backend_name
+        comment.set_ok()
+        comment.save()
+        return zammad_comment
 
     def delete_comment(self, comment):
         try:
@@ -231,7 +242,7 @@ class ZammadServiceBackend(SupportBackend):
         if support_user.backend_id:
             return support_user
 
-        zammad_user = self.get_zammad_user_by_waldur_user(waldur_user)
+        zammad_user = self.find_zammad_user_by_waldur_user_login_and_email(waldur_user)
 
         if not zammad_user:
             zammad_user = self.create_zammad_user_for_support_user(support_user)
@@ -251,7 +262,7 @@ class ZammadServiceBackend(SupportBackend):
             except (WaldurUser.DoesNotExist, WaldurUser.MultipleObjectsReturned):
                 return
 
-    def get_zammad_user_by_waldur_user(
+    def find_zammad_user_by_waldur_user_login_and_email(
         self, waldur_user: WaldurUser
     ) -> ZammadUser | None:
         backend_user_by_login = self.manager.get_user_by_login(waldur_user.username)
@@ -267,19 +278,25 @@ class ZammadServiceBackend(SupportBackend):
     def create_zammad_user_for_support_user(
         self, support_user: models.SupportUser
     ) -> ZammadUser:
-        return self.manager.add_user(
+        zammad_user = self.manager.add_user(
             login=support_user.user.username,
             email=support_user.user.email,
             firstname=support_user.user.first_name,
             lastname=support_user.user.last_name,
         )
+        support_user.backend_id = zammad_user.id
+        support_user.save()
+        return zammad_user
 
     def get_or_create_zammad_user_for_support_user(self, support_user):
-        if not support_user.backend_name and support_user.backend_id:
+        if (
+            not support_user.backend_name
+            or support_user.backend_name == self.backend_name
+        ) and not support_user.backend_id:
             return self.create_zammad_user_for_support_user(support_user)
 
         if support_user.backend_name == self.backend_name and support_user.backend_id:
-            return self.get_zammad_user_by_waldur_user(support_user.user)
+            return self.manager.get_user_by_id(support_user.backend_id)
 
     def pull_support_users(self):
         backend_users = self.get_users()
@@ -308,6 +325,7 @@ class ZammadServiceBackend(SupportBackend):
             backend_id__in=[u.id for u in backend_users]
         ).update(is_active=False)
 
+    @reraise_exceptions()
     def create_attachment(self, attachment: models.Attachment):
         filename = os.path.basename(attachment.file.name)
         mime_type = attachment.mime_type
@@ -321,8 +339,9 @@ class ZammadServiceBackend(SupportBackend):
             author_name = attachment.author.name
 
         waldur_user_email = ''
-        if attachment.author and attachment.author.email:
-            waldur_user_email = attachment.author.email
+
+        if attachment.author and attachment.author.user.email:
+            waldur_user_email = attachment.author.user.email
 
         zammad_attachment = self.manager.add_attachment(
             ticket_id=attachment.issue.backend_id,
