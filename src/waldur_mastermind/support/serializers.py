@@ -267,6 +267,12 @@ class IssueSerializer(
 
         return attrs
 
+    def validate_summary(self, summary):
+        """
+        Remove leading and trailing spaces from summary.
+        """
+        return summary.strip()
+
     def validate_customer(self, customer):
         """User has to be customer owner, staff or global support"""
         if not customer:
