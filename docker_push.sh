@@ -7,7 +7,7 @@ then
   package_version="0.0.0"
 else
   # Strip prefix from tag name so that v3.7.5 becomes 3.7.5
-  image_version=${1#v}
+  image_version=$1
   package_version=$image_version
 fi
 

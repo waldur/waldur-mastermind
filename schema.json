@@ -41,7 +41,6 @@
         "AUTHENTICATION_METHODS": [
           "LOCAL_SIGNIN"
         ],
-        "SITE_LOGO": null,
         "COUNTRIES": [
           "AL",
           "AT",
@@ -96,34 +95,22 @@
           "organization"
         ],
         "HOMEPORT_SENTRY_DSN": null,
-        "SIDEBAR_LOGO": null,
-        "SIDEBAR_LOGO_MOBILE": null,
-        "POWERED_BY_LOGO": null,
-        "BRAND_COLOR": "#3a8500",
-        "HERO_IMAGE": null,
-        "HERO_LINK_LABEL": null,
-        "HERO_LINK_URL": null,
+        "HOMEPORT_SENTRY_ENVIRONMENT": "waldur-production",
+        "HOMEPORT_SENTRY_TRACES_SAMPLE_RATE": 0.2,
         "LOCAL_IDP_PROTECTED_FIELDS": [],
         "EXTENSIONS_AUTOREGISTER": true,
         "TOKEN_KEY": "x-auth-token",
         "INVITATIONS_ENABLED": true,
         "VALIDATE_INVITATION_EMAIL": false,
-        "TOKEN_LIFETIME": 3600,
-        "INVITATION_LIFETIME": 604800,
-        "GROUP_INVITATION_LIFETIME": 604800,
+        "TOKEN_LIFETIME": 3600.0,
+        "INVITATION_LIFETIME": 604800.0,
+        "GROUP_INVITATION_LIFETIME": 604800.0,
         "OWNERS_CAN_MANAGE_OWNERS": false,
         "OWNER_CAN_MANAGE_CUSTOMER": false,
         "BACKEND_FIELDS_EDITABLE": true,
-        "INITIAL_CUSTOMER_AGREEMENT_NUMBER": 4000,
         "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION": false,
         "ONLY_STAFF_MANAGES_SERVICES": false,
         "NATIVE_NAME_ENABLED": false,
-        "SITE_NAME": "Waldur",
-        "SITE_DESCRIPTION": "Your single pane of control for managing projects, teams and resources in a self-service manner.",
-        "SITE_ADDRESS": "",
-        "SITE_EMAIL": "",
-        "SITE_PHONE": "",
-        "CURRENCY_NAME": "EUR",
         "NOTIFICATIONS_PROFILE_CHANGES": {
           "FIELDS": [
             "email",
@@ -137,13 +124,13 @@
         "USE_ATOMIC_TRANSACTION": true,
         "NOTIFICATION_SUBJECT": "Notifications from Waldur",
         "LOGGING_REPORT_DIRECTORY": "/var/log/waldur",
-        "LOGGING_REPORT_INTERVAL": 604800,
+        "LOGGING_REPORT_INTERVAL": 604800.0,
         "HTTP_CHUNK_SIZE": 50,
         "ONLY_STAFF_CAN_INVITE_USERS": false,
         "INVITATION_CREATE_MISSING_USER": false,
         "INVITATION_DISABLE_MULTIPLE_ROLES": false,
-        "ATTACHMENT_LINK_MAX_AGE": 3600,
-        "EMAIL_CHANGE_MAX_AGE": 86400,
+        "ATTACHMENT_LINK_MAX_AGE": 3600.0,
+        "EMAIL_CHANGE_MAX_AGE": 86400.0,
         "HOMEPORT_URL": "https://example.com/",
         "MASTERMIND_URL": "",
         "ENABLE_GEOIP": true,
@@ -151,9 +138,6 @@
         "TRANSLATION_DOMAIN": "",
         "GOOGLE_ANALYTICS_ID": "",
         "SUPPORT_PORTAL_URL": "",
-        "DOCS_URL": "",
-        "SHORT_PAGE_TITLE": "Waldur",
-        "FULL_PAGE_TITLE": "Waldur | Cloud Service Management",
         "INVITATION_CIVIL_NUMBER_LABEL": "",
         "INVITATION_CIVIL_NUMBER_HELP_TEXT": "Must start with a country prefix ie EE34501234215",
         "INVITATION_TAX_NUMBER_LABEL": "",
@@ -438,12 +422,16 @@
         "MANAGER_CAN_APPROVE_ORDER": false,
         "ADMIN_CAN_APPROVE_ORDER": false,
         "ANONYMOUS_USER_CAN_VIEW_OFFERINGS": true,
+        "ANONYMOUS_USER_CAN_VIEW_PLANS": true,
         "NOTIFY_STAFF_ABOUT_APPROVALS": false,
         "NOTIFY_ABOUT_RESOURCE_CHANGE": true,
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE": true,
         "OWNER_CAN_REGISTER_SERVICE_PROVIDER": false,
         "ENABLE_STALE_RESOURCE_NOTIFICATIONS": false,
-        "ENABLE_RESOURCE_END_DATE": true
+        "ENABLE_RESOURCE_END_DATE": true,
+        "TELEMETRY_ENABLED": true,
+        "TELEMETRY_URL": "https://telemetry.waldur.com/",
+        "TELEMETRY_VERSION": 1
       },
       "allOf": [
         {
@@ -473,6 +461,17 @@
       "allOf": [
         {
           "$ref": "#/definitions/WaldurMarketplaceScript"
+        }
+      ]
+    },
+    "WALDUR_MARKETPLACE_REMOTE_SLURM": {
+      "title": "Waldur Marketplace Remote Slurm",
+      "default": {
+        "USE_WALDUR_USERNAMES": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurMarketplaceRemoteSlurm"
         }
       ]
     },
@@ -519,6 +518,77 @@
       "allOf": [
         {
           "$ref": "#/definitions/WaldurAuthSAML2"
+        }
+      ]
+    },
+    "WALDUR_SUPPORT": {
+      "title": "Waldur Support",
+      "default": {
+        "ENABLED": false,
+        "ACTIVE_BACKEND_TYPE": "atlassian",
+        "DISPLAY_REQUEST_TYPE": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurSupport"
+        }
+      ]
+    },
+    "WALDUR_ATLASSIAN": {
+      "title": "Waldur Atlassian",
+      "default": {
+        "USE_OLD_API": false,
+        "USE_TEENAGE_API": false,
+        "USE_AUTOMATIC_REQUEST_MAPPING": true,
+        "MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS": false,
+        "STRANGE_SETTING": 1,
+        "SERVER": "http://example.com/",
+        "USERNAME": "USERNAME",
+        "PASSWORD": "PASSWORD",
+        "EMAIL": "",
+        "TOKEN": "",
+        "VERIFY_SSL": false,
+        "PROJECT": {
+          "key": "PROJECT"
+        },
+        "ISSUE": {
+          "types": [
+            "Informational",
+            "Service Request",
+            "Change Request",
+            "Incident"
+          ],
+          "impact_field": "Impact",
+          "reporter_field": "Original Reporter",
+          "caller_field": "Caller",
+          "sla_field": "Time to first response",
+          "type_of_linked_issue": "Relates",
+          "satisfaction_field": "Customer satisfaction",
+          "request_feedback": "Request feedback"
+        },
+        "DEFAULT_OFFERING_ISSUE_TYPE": "Service Request",
+        "EXCLUDED_ATTACHMENT_TYPES": [],
+        "PULL_PRIORITIES": true
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurAtlassian"
+        }
+      ]
+    },
+    "WALDUR_ZAMMAD": {
+      "title": "Waldur Zammad",
+      "default": {
+        "ZAMMAD_API_URL": "",
+        "ZAMMAD_TOKEN": "",
+        "ZAMMAD_GROUP": "",
+        "ZAMMAD_ARTICLE_TYPE": "email",
+        "ZAMMAD_COMMENT_MARKER": "Created by Waldur",
+        "COMMENT_COOLDOWN_DURATION": 5
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/WaldurZammad"
         }
       ]
     },
@@ -592,11 +662,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "SITE_LOGO": {
-          "title": "Site Logo",
-          "description": "It is used in marketplace order header.",
-          "type": "string"
         },
         "COUNTRIES": {
           "title": "Countries",
@@ -705,41 +770,17 @@
           "description": "Sentry Data Source Name for Waldur HomePort project.",
           "type": "string"
         },
-        "SIDEBAR_LOGO": {
-          "title": "Sidebar Logo",
-          "description": "Relative path to image rendered at the top of sidebar menu in HomePort.",
+        "HOMEPORT_SENTRY_ENVIRONMENT": {
+          "title": "Homeport Sentry Environment",
+          "description": "Sentry environment name for Waldur Homeport.",
+          "default": "waldur-production",
           "type": "string"
         },
-        "SIDEBAR_LOGO_MOBILE": {
-          "title": "Sidebar Logo Mobile",
-          "description": "Relative path to image rendered at the top of mobile sidebar menu in HomePort.",
-          "type": "string"
-        },
-        "POWERED_BY_LOGO": {
-          "title": "Powered By Logo",
-          "description": "Relative path to image rendered at the bottom of login menu in HomePort.",
-          "type": "string"
-        },
-        "BRAND_COLOR": {
-          "title": "Brand Color",
-          "description": "Hex color definition is used in HomePort landing page for login button.",
-          "default": "#3a8500",
-          "type": "string"
-        },
-        "HERO_IMAGE": {
-          "title": "Hero Image",
-          "description": "Relative path to image rendered at hero section of HomePort landing page.",
-          "type": "string"
-        },
-        "HERO_LINK_LABEL": {
-          "title": "Hero Link Label",
-          "description": "Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.",
-          "type": "string"
-        },
-        "HERO_LINK_URL": {
-          "title": "Hero Link Url",
-          "description": "Link URL in hero section of HomePort landing page.",
-          "type": "string"
+        "HOMEPORT_SENTRY_TRACES_SAMPLE_RATE": {
+          "title": "Homeport Sentry Traces Sample Rate",
+          "description": "Percentage of transactions sent to Sentry for tracing.",
+          "default": 0.2,
+          "type": "number"
         },
         "LOCAL_IDP_PROTECTED_FIELDS": {
           "title": "Local Idp Protected Fields",
@@ -777,21 +818,21 @@
         "TOKEN_LIFETIME": {
           "title": "Token Lifetime",
           "description": "Defines for how long user token should remain valid if there was no action from user.",
-          "default": 3600,
+          "default": 3600.0,
           "type": "number",
           "format": "time-delta"
         },
         "INVITATION_LIFETIME": {
           "title": "Invitation Lifetime",
           "description": "Defines for how long invitation remains valid.",
-          "default": 604800,
+          "default": 604800.0,
           "type": "number",
           "format": "time-delta"
         },
         "GROUP_INVITATION_LIFETIME": {
           "title": "Group Invitation Lifetime",
           "description": "Defines for how long group invitation remains valid.",
-          "default": 604800,
+          "default": 604800.0,
           "type": "number",
           "format": "time-delta"
         },
@@ -813,12 +854,6 @@
           "default": true,
           "type": "boolean"
         },
-        "INITIAL_CUSTOMER_AGREEMENT_NUMBER": {
-          "title": "Initial Customer Agreement Number",
-          "description": "Allows to tweak initial value of agreement number. It is assumed that organization owner should accept terms of services when organization is registered via Waldur HomePort.",
-          "default": 4000,
-          "type": "integer"
-        },
         "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION": {
           "title": "Create Default Project On Organization Creation",
           "description": "Enables generation of the first project on organization creation.",
@@ -836,42 +871,6 @@
           "description": "Allows to render native name field in customer and user forms.",
           "default": false,
           "type": "boolean"
-        },
-        "SITE_NAME": {
-          "title": "Site Name",
-          "description": "Human-friendly name of the Waldur deployment.",
-          "default": "Waldur",
-          "type": "string"
-        },
-        "SITE_DESCRIPTION": {
-          "title": "Site Description",
-          "description": "Description of the Waldur deployment.",
-          "default": "Your single pane of control for managing projects, teams and resources in a self-service manner.",
-          "type": "string"
-        },
-        "SITE_ADDRESS": {
-          "title": "Site Address",
-          "description": "It is used in marketplace order header.",
-          "default": "",
-          "type": "string"
-        },
-        "SITE_EMAIL": {
-          "title": "Site Email",
-          "description": "It is used in marketplace order header and UI footer.",
-          "default": "",
-          "type": "string"
-        },
-        "SITE_PHONE": {
-          "title": "Site Phone",
-          "description": "It is used in marketplace order header and UI footer.",
-          "default": "",
-          "type": "string"
-        },
-        "CURRENCY_NAME": {
-          "title": "Currency Name",
-          "description": "It is used in marketplace order details and invoices for currency formatting.",
-          "default": "EUR",
-          "type": "string"
         },
         "NOTIFICATIONS_PROFILE_CHANGES": {
           "title": "Notifications Profile Changes",
@@ -914,7 +913,7 @@
         "LOGGING_REPORT_INTERVAL": {
           "title": "Logging Report Interval",
           "description": "Files older that specified interval are filtered out.",
-          "default": 604800,
+          "default": 604800.0,
           "type": "number",
           "format": "time-delta"
         },
@@ -945,14 +944,14 @@
         "ATTACHMENT_LINK_MAX_AGE": {
           "title": "Attachment Link Max Age",
           "description": "Max age of secure token for media download.",
-          "default": 3600,
+          "default": 3600.0,
           "type": "number",
           "format": "time-delta"
         },
         "EMAIL_CHANGE_MAX_AGE": {
           "title": "Email Change Max Age",
           "description": "Max age of change email request.",
-          "default": 86400,
+          "default": 86400.0,
           "type": "number",
           "format": "time-delta"
         },
@@ -996,24 +995,6 @@
           "title": "Support Portal Url",
           "description": "Support portal URL is rendered as a shortcut on dashboard",
           "default": "",
-          "type": "string"
-        },
-        "DOCS_URL": {
-          "title": "Docs Url",
-          "description": "Renders link to docs in header",
-          "default": "",
-          "type": "string"
-        },
-        "SHORT_PAGE_TITLE": {
-          "title": "Short Page Title",
-          "description": "it is used as prefix for page title.",
-          "default": "Waldur",
-          "type": "string"
-        },
-        "FULL_PAGE_TITLE": {
-          "title": "Full Page Title",
-          "description": "It is used as default page title if it's not specified explicitly.",
-          "default": "Waldur | Cloud Service Management",
           "type": "string"
         },
         "INVITATION_CIVIL_NUMBER_LABEL": {
@@ -1724,6 +1705,12 @@
           "default": true,
           "type": "boolean"
         },
+        "ANONYMOUS_USER_CAN_VIEW_PLANS": {
+          "title": "Anonymous User Can View Plans",
+          "description": "Allow anonymous users to see plans",
+          "default": true,
+          "type": "boolean"
+        },
         "NOTIFY_STAFF_ABOUT_APPROVALS": {
           "title": "Notify Staff About Approvals",
           "description": "If true, users with staff role are notified when request for order approval is generated",
@@ -1759,6 +1746,24 @@
           "description": "Allow to view and update resource end date.",
           "default": true,
           "type": "boolean"
+        },
+        "TELEMETRY_ENABLED": {
+          "title": "Telemetry Enabled",
+          "description": "Enable telemetry.",
+          "default": true,
+          "type": "boolean"
+        },
+        "TELEMETRY_URL": {
+          "title": "Telemetry Url",
+          "description": "URL for sending telemetry data.",
+          "default": "https://telemetry.waldur.com/",
+          "type": "string"
+        },
+        "TELEMETRY_VERSION": {
+          "title": "Telemetry Version",
+          "description": "Telemetry service version.",
+          "default": 1,
+          "type": "integer"
         }
       }
     },
@@ -1819,6 +1824,18 @@
           "description": "Timeout for execution of one Kubernetes job in seconds",
           "default": 1800,
           "type": "integer"
+        }
+      }
+    },
+    "WaldurMarketplaceRemoteSlurm": {
+      "title": "WaldurMarketplaceRemoteSlurm",
+      "type": "object",
+      "properties": {
+        "USE_WALDUR_USERNAMES": {
+          "title": "Use Waldur Usernames",
+          "description": "Fetch usernames from Waldur rather then FreeIPA profiles.",
+          "default": true,
+          "type": "boolean"
         }
       }
     },
@@ -2022,6 +2039,190 @@
           "description": "The endpoint for user details management.",
           "default": "",
           "type": "string"
+        }
+      }
+    },
+    "WaldurSupport": {
+      "title": "WaldurSupport",
+      "type": "object",
+      "properties": {
+        "ENABLED": {
+          "title": "Enabled",
+          "description": "Toggler for Support plugin",
+          "default": false,
+          "type": "boolean"
+        },
+        "ACTIVE_BACKEND_TYPE": {
+          "title": "Active Backend Type",
+          "description": "Type of support backend. Possible values: atlassian, zammad",
+          "default": "atlassian",
+          "type": "string"
+        },
+        "DISPLAY_REQUEST_TYPE": {
+          "title": "Display Request Type",
+          "description": "Toggler for request type displaying",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurAtlassian": {
+      "title": "WaldurAtlassian",
+      "type": "object",
+      "properties": {
+        "USE_OLD_API": {
+          "title": "Use Old Api",
+          "description": "Toggler for legacy API usage",
+          "default": false,
+          "type": "boolean"
+        },
+        "USE_TEENAGE_API": {
+          "title": "Use Teenage Api",
+          "description": "Toggler for teenage API usage",
+          "default": false,
+          "type": "boolean"
+        },
+        "USE_AUTOMATIC_REQUEST_MAPPING": {
+          "title": "Use Automatic Request Mapping",
+          "description": "Toggler for automatic request mapping",
+          "default": true,
+          "type": "boolean"
+        },
+        "MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS": {
+          "title": "Map Waldur Users To Servicedesk Agents",
+          "description": "Toggler for mapping between waldur user and service desk agents",
+          "default": false,
+          "type": "boolean"
+        },
+        "STRANGE_SETTING": {
+          "title": "Strange Setting",
+          "default": 1,
+          "type": "integer"
+        },
+        "SERVER": {
+          "title": "Server",
+          "description": "Atlassian server URL",
+          "default": "http://example.com/",
+          "type": "string"
+        },
+        "USERNAME": {
+          "title": "Username",
+          "description": "Username for access user",
+          "default": "USERNAME",
+          "type": "string"
+        },
+        "PASSWORD": {
+          "title": "Password",
+          "description": "Password for access user",
+          "default": "PASSWORD",
+          "type": "string"
+        },
+        "EMAIL": {
+          "title": "Email",
+          "description": "Email for access user",
+          "default": "",
+          "type": "string"
+        },
+        "TOKEN": {
+          "title": "Token",
+          "description": "Token for access user",
+          "default": "",
+          "type": "string"
+        },
+        "VERIFY_SSL": {
+          "title": "Verify Ssl",
+          "description": "Toggler for SSL verification",
+          "default": false,
+          "type": "boolean"
+        },
+        "PROJECT": {
+          "title": "Project",
+          "description": "Project-related settings",
+          "default": {
+            "key": "PROJECT"
+          },
+          "type": "object"
+        },
+        "ISSUE": {
+          "title": "Issue",
+          "description": "Issue-related settings",
+          "default": {
+            "types": [
+              "Informational",
+              "Service Request",
+              "Change Request",
+              "Incident"
+            ],
+            "impact_field": "Impact",
+            "reporter_field": "Original Reporter",
+            "caller_field": "Caller",
+            "sla_field": "Time to first response",
+            "type_of_linked_issue": "Relates",
+            "satisfaction_field": "Customer satisfaction",
+            "request_feedback": "Request feedback"
+          },
+          "type": "object"
+        },
+        "DEFAULT_OFFERING_ISSUE_TYPE": {
+          "title": "Default Offering Issue Type",
+          "description": "Issue type",
+          "default": "Service Request",
+          "type": "string"
+        },
+        "EXCLUDED_ATTACHMENT_TYPES": {
+          "title": "Excluded Attachment Types",
+          "description": "List of attachment types",
+          "default": [],
+          "type": "array",
+          "items": {}
+        },
+        "PULL_PRIORITIES": {
+          "title": "Pull Priorities",
+          "description": "Pull priorities",
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "WaldurZammad": {
+      "title": "WaldurZammad",
+      "type": "object",
+      "properties": {
+        "ZAMMAD_API_URL": {
+          "title": "Zammad Api Url",
+          "description": "Address of Zammad server. For example <http://localhost:8080/>",
+          "default": "",
+          "type": "string"
+        },
+        "ZAMMAD_TOKEN": {
+          "title": "Zammad Token",
+          "description": "Authorization token.",
+          "default": "",
+          "type": "string"
+        },
+        "ZAMMAD_GROUP": {
+          "title": "Zammad Group",
+          "description": "The name of the group to which the ticket will be added. If not specified, the first group will be used.",
+          "default": "",
+          "type": "string"
+        },
+        "ZAMMAD_ARTICLE_TYPE": {
+          "title": "Zammad Article Type",
+          "description": "Type of a comment.Default is email because it allows support to reply to tickets directly in Zammad<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>",
+          "default": "email",
+          "type": "string"
+        },
+        "ZAMMAD_COMMENT_MARKER": {
+          "title": "Zammad Comment Marker",
+          "description": "Marker for comment.Used for separating comments made via Waldur from natively added comments.",
+          "default": "Created by Waldur",
+          "type": "string"
+        },
+        "COMMENT_COOLDOWN_DURATION": {
+          "title": "Comment Cooldown Duration",
+          "description": "Time in minutes. Time in minutes while comment deletion is available <https://github.com/zammad/zammad/issues/2687/>, <https://github.com/zammad/zammad/issues/3086/>",
+          "default": 5,
+          "type": "integer"
         }
       }
     }
