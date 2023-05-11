@@ -757,3 +757,8 @@ class FinancialReportEmailSerializer(serializers.Serializer):
     emails = serializers.ListField(child=serializers.EmailField())
     year = serializers.IntegerField()
     month = serializers.IntegerField()
+
+    def validate_emails(self, value):
+        if len(value) < 1:
+            raise serializers.ValidationError("Provide at least one email address")
+        return value

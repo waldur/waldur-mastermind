@@ -577,7 +577,7 @@ def send_financial_report_by_mail(request):
         year = serializer.data['year']
         month = serializer.data['month']
         emails = serializer.data['emails']
-        tasks.send_invoice_report.delay(year, month, emails)
+        tasks.send_invoice_report.delay(year, month, emails, False)
         return Response(
             {'status': _('The dispatch of reports has been scheduled.')},
             status=status.HTTP_202_ACCEPTED,

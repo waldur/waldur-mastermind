@@ -96,7 +96,9 @@ def send_invoice_notification(invoice_uuid):
 
 
 @shared_task(name='invoices.send_invoice_report')
-def send_invoice_report(year=None, month=None, emails=None):
+def send_invoice_report(
+    year=None, month=None, emails=None, include_settings_email=True
+):
     """Sends aggregate accounting data as CSV"""
     if year and month:
         date = datetime.date(year, month, 1)
@@ -133,7 +135,9 @@ def send_invoice_report(year=None, month=None, emails=None):
     text_message = format_invoice_csv(invoices)
 
     # Please note that email body could be empty if there are no valid invoices
-    recipient_emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
+    recipient_emails = []
+    if include_settings_email:
+        recipient_emails.append(settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL'])
     if emails:
         recipient_emails += emails
     logger.info(f'About to send accounting report to {recipient_emails}')
