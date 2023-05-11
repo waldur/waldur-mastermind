@@ -295,7 +295,10 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
         if not ticket_id:
             raise ValidationError('Key ticket.id is required.')
 
-        issue = get_object_or_404(models.Issue, backend_id=ticket_id)
+        issue: models.Issue = get_object_or_404(models.Issue, backend_id=ticket_id)
+        logger.info(
+            f'Updating issue {issue.key} based on data from ticket with id {ticket_id}.'
+        )
         ZammadServiceBackend().update_waldur_issue_from_zammad(issue)
         ZammadServiceBackend().update_waldur_comments_from_zammad(issue)
         return response.Response(status=status.HTTP_200_OK)
