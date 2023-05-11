@@ -29,7 +29,7 @@ Run linters:
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
     # If tagged release
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
     # If event is related to a created merge request
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
@@ -46,7 +46,7 @@ Run linters:
       when: never
     - if: '$CI_COMMIT_BRANCH == "develop"'
     # If tagged release
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
     # If event is related to a created merge request
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
