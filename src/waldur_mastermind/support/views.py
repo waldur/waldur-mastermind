@@ -163,7 +163,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def _destroy_is_available_validator(comment):
         if not backend.get_active_backend().comment_destroy_is_available(comment):
-            raise ValidationError('Destroying is not available.')
+            raise ValidationError('Comment cannot be destroyed.')
 
     destroy_permissions = [structure_permissions.is_staff]
     destroy_validators = [_destroy_is_available_validator]

@@ -79,11 +79,14 @@ class CommentDeleteTest(base.BaseTest):
 
         with freeze_time('2000-11-01T12:00:00'):
             self.comment.created = timezone.now()
+            self.comment.is_public = False
             self.comment.save()
 
         with freeze_time('2000-11-01T12:01:00'):
             response = self.client.delete(self.url)
-            self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+            self.assertEqual(
+                response.status_code, status.HTTP_204_NO_CONTENT, response.data
+            )
 
     def test_user_can_not_delete_old_comment_if_zammad_is_used(self):
         self.mock_get_active_backend().comment_destroy_is_available = (
