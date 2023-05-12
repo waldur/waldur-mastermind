@@ -51,6 +51,9 @@ class ZammadServiceBackend(SupportBackend):
         if not comment.backend_id:
             return True
 
+        if comment.is_public:
+            return False
+
         if now() - comment.created < datetime.timedelta(
             minutes=settings.WALDUR_ZAMMAD['COMMENT_COOLDOWN_DURATION']
         ):
@@ -112,12 +115,21 @@ class ZammadServiceBackend(SupportBackend):
         self.del_waldur_attachments_from_zammad(issue)
 
         for comment in zammad_comments:
+            if comment.is_waldur_comment:
+                continue
+
             if str(comment.id) in issue.comments.filter(
                 backend_name=self.backend_name
             ).values_list('backend_id', flat=True):
-                continue
+                waldur_comment = models.Comment.objects.get(
+                    backend_id=comment.id, backend_name=self.backend_name
+                )
 
-            if comment.is_waldur_comment:
+                if comment.is_public != waldur_comment.is_public:
+                    waldur_comment.is_public = comment.is_public
+                    waldur_comment.save()
+                    logger.info(f'Comment {waldur_comment.uuid.hex} has been changed.')
+
                 continue
 
             support_user = self.get_or_create_support_user_by_zammad_user_id(
@@ -185,8 +197,7 @@ class ZammadServiceBackend(SupportBackend):
             comment.description,
             zammad_user_id=zammad_user.id,
             zammad_user_email=comment.author.user.email,
-            #  we not pass comment.is_public because of is_public will be True,
-            #  so deleting will be impossible
+            # we do not set comment.is_public to True as it would disable deletion
         )
         comment.backend_id = zammad_comment.id
         comment.backend_name = self.backend_name
