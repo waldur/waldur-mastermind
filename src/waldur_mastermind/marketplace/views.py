@@ -355,6 +355,8 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
         active_and_paused_offerings = models.Offering.objects.filter(
             customer=service_provider.customer,
+            billable=True,
+            shared=True,
             state__in=(models.Offering.States.ACTIVE, models.Offering.States.PAUSED),
         ).count()
 
