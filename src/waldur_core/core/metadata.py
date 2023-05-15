@@ -1014,6 +1014,10 @@ class WaldurZammad(BaseModel):
         description='Marker for comment.'
         'Used for separating comments made via Waldur from natively added comments.',
     )
+    ZAMMAD_COMMENT_PREFIX = Field(
+        'User: {name}',
+        description='Comment prefix with user info.',
+    )
     COMMENT_COOLDOWN_DURATION = Field(
         5,
         description='Time in minutes. '
