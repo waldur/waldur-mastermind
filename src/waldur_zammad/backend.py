@@ -14,6 +14,7 @@ ZAMMAD_TOKEN = settings.WALDUR_ZAMMAD['ZAMMAD_TOKEN']
 ZAMMAD_ARTICLE_TYPE = settings.WALDUR_ZAMMAD['ZAMMAD_ARTICLE_TYPE']
 ZAMMAD_GROUP = settings.WALDUR_ZAMMAD['ZAMMAD_GROUP']
 ZAMMAD_COMMENT_MARKER = settings.WALDUR_ZAMMAD['ZAMMAD_COMMENT_MARKER']
+ZAMMAD_COMMENT_PREFIX = settings.WALDUR_ZAMMAD['ZAMMAD_COMMENT_PREFIX']
 
 
 class ZammadBackendError(ServiceBackendError):
@@ -212,15 +213,16 @@ class ZammadBackend:
         ticket_id,
         content,
         is_public=False,
-        zammad_user_id=None,
+        support_user_name=None,
         zammad_user_email=None,
     ):
-        if zammad_user_id:
-            self.manager.on_behalf_of = str(zammad_user_id)
-
         params = {
             'ticket_id': ticket_id,
-            'body': content + '\n\n' + ZAMMAD_COMMENT_MARKER,
+            'body': content
+            + '\n\n'
+            + ZAMMAD_COMMENT_MARKER
+            + '\n\n'
+            + ZAMMAD_COMMENT_PREFIX.format(name=support_user_name),
             'type': ZAMMAD_ARTICLE_TYPE,
             'internal': not is_public,  # if internal equals False so deleting of comment will be impossible
         }

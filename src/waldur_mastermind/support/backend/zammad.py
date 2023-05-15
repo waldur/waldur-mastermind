@@ -190,12 +190,12 @@ class ZammadServiceBackend(SupportBackend):
         comment.begin_creating()
         comment.save()
 
-        zammad_user = self.get_or_create_zammad_user_for_support_user(comment.author)
+        self.get_or_create_zammad_user_for_support_user(comment.author)
 
         zammad_comment = self.manager.add_comment(
             comment.issue.backend_id,
             comment.description,
-            zammad_user_id=zammad_user.id,
+            support_user_name=comment.author.user.full_name,
             zammad_user_email=comment.author.user.email,
             # we do not set comment.is_public to True as it would disable deletion
         )
