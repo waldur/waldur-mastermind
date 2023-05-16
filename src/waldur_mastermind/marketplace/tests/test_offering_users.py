@@ -78,6 +78,22 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         self.assertEqual('user', response.data[0]['username'])
         self.assertIsNotNone(response.data[0]['propagation_date'], response.data[0])
 
+    def test_user_can_filter_by_user_username(self):
+        offering_user = OfferingUser.objects.get(username='user')
+        user = offering_user.user
+        user.username = 'UserName1'
+        user.save()
+
+        self.client.force_login(self.fixture.staff)
+
+        response = self.client.get(
+            reverse('marketplace-offering-user-list'), {'user_username': 'username1'}
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(offering_user.user.get_username(), user.username)
+
 
 @ddt
 class CreateOfferingUsersTest(test.APITransactionTestCase):

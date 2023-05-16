@@ -642,7 +642,9 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
 
 class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
-    user_username = django_filters.CharFilter(field_name='user__username')
+    user_username = django_filters.CharFilter(
+        field_name='user__username', lookup_expr='iexact'
+    )
     is_not_propagated = django_filters.BooleanFilter(
         field_name='propagation_date', widget=BooleanWidget, lookup_expr='isnull'
     )
