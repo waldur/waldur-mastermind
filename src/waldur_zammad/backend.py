@@ -1,4 +1,5 @@
 import functools
+import re
 from dataclasses import dataclass
 from typing import List
 
@@ -124,8 +125,11 @@ class ZammadBackend:
             content=clean_html(response.get('body', '')),
             is_public=not response.get('internal', False),
             user_id=response.get('created_by_id'),
-            is_waldur_comment=ZAMMAD_COMMENT_MARKER
-            in clean_html(response.get('body', '')),
+            is_waldur_comment=re.search(
+                r"^" + ZAMMAD_COMMENT_MARKER,
+                clean_html(response.get('body', '')),
+                re.MULTILINE,
+            ),
             attachments=[
                 self._zammad_response_to_attachment(a, article_id, ticket_id)
                 for a in response.get('attachments', [])
@@ -298,7 +302,7 @@ class ZammadBackend:
             'group': group,
             "article": {
                 "subject": "Task description",
-                "body": description + '\n\n' + ZAMMAD_COMMENT_MARKER,
+                "body": description,  # We do not add marker as we treat first article as a special one.
                 "type": ZAMMAD_ARTICLE_TYPE,
                 "internal": False,
                 "to": waldur_user_email,
@@ -323,6 +327,9 @@ class ZammadBackend:
                 continue
             comment = self._zammad_response_to_comment(zammad_comment)
             comments.append(comment)
+
+        # If ticket has been created via Waldur then first comment is task description
+        comments[0].is_waldur_comment = True
 
         return comments
 
