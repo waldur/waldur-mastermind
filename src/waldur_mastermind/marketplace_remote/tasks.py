@@ -724,8 +724,6 @@ def sync_remote_project_permissions():
 
 @shared_task
 def sync_remote_project(serialized_request):
-    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
-        return
     request = deserialize_instance(serialized_request)
     try:
         utils.update_remote_project(request)
@@ -904,3 +902,37 @@ def notify_about_project_details_update(serialized_project_update):
         context,
         mails,
     )
+
+
+class RemoteProjectDataPushTask(BackgroundPullTask):
+    def pull(self, instance: models.Offering):
+        offering = instance
+        project_ids = (
+            models.Resource.objects.filter(offering=offering)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list('project_id', flat=True)
+            .distinct()
+        )
+        for project in structure_models.Project.objects.filter(id__in=project_ids):
+            try:
+                logger.info("Pushing project %s data to remote Waldur")
+                request = remote_models.ProjectUpdateRequest(
+                    project=project,
+                    offering=offering,
+                    new_name=project.name,
+                    new_description=project.description,
+                    new_end_date=project.end_date,
+                    new_oecd_fos_2007_code=project.oecd_fos_2007_code,
+                    new_is_industry=project.is_industry,
+                )
+                utils.update_remote_project(request)
+            except WaldurClientException as exc:
+                logger.error("Unable to push project data: %s", exc)
+
+
+class RemoteProjectDataListPushTask(BackgroundPullTask):
+    name = 'waldur_mastermind.marketplace_remote.push_remote_project_data'
+    pull_task = RemoteProjectDataPushTask
+
+    def get_pulled_objects(self):
+        return models.Offering.objects.filter(type=PLUGIN_NAME)

@@ -44,6 +44,10 @@ urlpatterns = [
         r'^api/remote-waldur-api/pull_offering_invoices/(?P<uuid>[a-f0-9]+)/$',
         views.PullOfferingInvoices.as_view(),
     ),
+    re_path(
+        r'^api/remote-waldur-api/push_project_data/(?P<uuid>[a-f0-9]+)/$',
+        views.PushProjectData.as_view(),
+    ),
 ]
 
 

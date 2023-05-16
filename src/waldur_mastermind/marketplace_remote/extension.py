@@ -67,4 +67,9 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 'schedule': timedelta(weeks=1),
                 'args': (),
             },
+            'waldur-remote-push-project-data': {
+                'task': 'waldur_mastermind.marketplace_remote.push_remote_project_data',
+                'schedule': timedelta(days=1),
+                'args': (),
+            },
         }
