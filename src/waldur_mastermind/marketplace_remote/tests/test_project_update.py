@@ -6,6 +6,7 @@ from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core import middleware
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.models import Resource
@@ -190,3 +191,52 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             state=ProjectUpdateRequest.States.APPROVED,
         )
         self.assertEqual(1, requests.count())
+
+    def test_project_data_pushing(self):
+        owner = self.fixture.offering_owner
+
+        self.offering.type = PLUGIN_NAME
+        self.offering.secret_options = {'api_url': 'abc', 'token': '123'}
+        self.offering.save()
+
+        middleware.set_current_user(None)
+
+        self.project.name = 'Correct project name'
+        self.project.oecd_fos_2007_code = '1.1'
+        self.project.description = "Correct description"
+        self.project.end_date = date(year=2023, month=5, day=16)
+        self.project.is_industry = True
+        self.project.save()
+
+        self.client.force_login(owner)
+
+        payload = dict(
+            name=self.project.customer.name + " / " + self.project.name,
+            description=self.project.description,
+            end_date=self.project.end_date.isoformat(),
+            oecd_fos_2007_code=self.project.oecd_fos_2007_code,
+            is_industry=self.project.is_industry,
+        )
+
+        url = '/api/remote-waldur-api/push_project_data/{}/'.format(
+            self.offering.uuid.hex
+        )
+
+        self.client_mock().list_projects.return_value = [
+            {
+                'uuid': '8192843ee7e848d4b425ea135043053a',
+                'name': "Incorrect project name",
+                'description': "Incorrect description",
+                'end_date': date(year=2023, month=5, day=10).isoformat(),
+                'oecd_fos_2007_code': '1.2',
+                'is_industry': False,
+            }
+        ]
+
+        response = self.client.post(url)
+
+        self.assertEqual(200, response.status_code)
+
+        self.client_mock().update_project.assert_called_once_with(
+            project_uuid='8192843ee7e848d4b425ea135043053a', **payload
+        )
