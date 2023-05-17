@@ -525,6 +525,70 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
         )
 
 
+class ResourceRobotAccountPullTask(BackgroundPullTask):
+    def pull(self, local_resource: models.Resource):
+        client = get_client_for_offering(local_resource.offering)
+        remote_accounts = client.list_robot_account(
+            {'resource_uuid': local_resource.backend_id}
+        )
+        local_accounts = models.RobotAccount.objects.filter(resource=local_resource)
+
+        local_ids = {item.backend_id for item in local_accounts}
+        remote_ids = {item['uuid'] for item in remote_accounts}
+
+        new_ids = remote_ids - local_ids
+        stale_ids = local_ids - remote_ids
+        existing_ids = local_ids & remote_ids
+
+        if stale_ids:
+            local_accounts.filter(backend_id__in=stale_ids).delete()
+            logger.info(
+                f'The following robot accounts for resource [uuid={local_resource.uuid}] have been deleted: {stale_ids}'
+            )
+
+        new_accounts = [
+            account for account in remote_accounts if account['uuid'] in new_ids
+        ]
+        for account in new_accounts:
+            models.RobotAccount.objects.create(
+                resource=local_resource,
+                backend_id=account['uuid'],
+                type=account['type'],
+                username=account['username'],
+                keys=account['keys'],
+            )
+
+        existing_accounts = [
+            account for account in remote_accounts if account['uuid'] in existing_ids
+        ]
+        for account in existing_accounts:
+            local_account = local_accounts.get(
+                backend_id=account['uuid'],
+            )
+            modified = set()
+            if local_account.type != account['type']:
+                local_account.type = account['type']
+                modified.add('type')
+            if local_account.username != account['username']:
+                local_account.username = account['username']
+                modified.add('username')
+            if local_account.keys != account['keys']:
+                local_account.keys = account['keys']
+                modified.add('keys')
+            if modified:
+                local_account.save(update_fields=modified)
+
+
+class ResourceRobotAccountListPullTask(BackgroundListPullTask):
+    name = 'waldur_mastermind.marketplace_remote.pull_robot_accounts'
+    pull_task = ResourceRobotAccountPullTask
+
+    def get_pulled_objects(self):
+        return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
+            state=models.Resource.States.TERMINATED
+        )
+
+
 @shared_task
 def pull_offering_invoices(serialized_offering):
     offering = deserialize_instance(serialized_offering)

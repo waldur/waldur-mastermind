@@ -2857,6 +2857,8 @@ for view in (structure_views.ProjectCountersView, structure_views.CustomerCounte
 def can_mutate_robot_account(request, view, obj=None):
     if not obj:
         return
+    if obj.backend_id:
+        raise PermissionDenied('Remote robot account is synchronized.')
     if request.user.is_staff:
         return
     if obj.resource.offering.customer.has_user(request.user):
