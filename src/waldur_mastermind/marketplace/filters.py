@@ -522,6 +522,7 @@ class RobotAccountFilter(django_filters.FilterSet):
     resource = core_filters.URLFilter(
         view_name='marketplace-resource-detail', field_name='resource__uuid'
     )
+    resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
 
     class Meta:
         model = models.RobotAccount

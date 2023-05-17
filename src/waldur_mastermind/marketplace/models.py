@@ -1503,6 +1503,7 @@ class RobotAccount(
     core_models.UuidMixin,
     LoggableMixin,
     common_mixins.BackendMetadataMixin,
+    core_models.BackendMixin,
 ):
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     type = models.CharField(max_length=5)
