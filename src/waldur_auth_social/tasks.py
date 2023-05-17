@@ -18,7 +18,7 @@ def pull_remote_eduteams_users():
         return
     for remote_user in User.objects.filter(registration_method='eduteams').order_by(
         'last_sync'
-    )[:50]:
+    )[:75]:
         try:
             pull_remote_eduteams_user(remote_user.username)
         except OAuthException:
