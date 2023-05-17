@@ -44,6 +44,7 @@ urlpatterns += [
     re_path(r'^api/', include('waldur_core.media.urls')),
     re_path(r'^api/', include('waldur_core.structure.urls')),
     re_path(r'^api/configuration/', core_views.configuration_detail),
+    re_path(r'^api/version/', core_views.version_detail),
     re_path(r'^api/features-description/', core_views.features_description),
     re_path(r'^api/feature-values/', core_views.feature_values),
     re_path(r'^api-auth/password/', core_views.obtain_auth_token, name='auth-password'),

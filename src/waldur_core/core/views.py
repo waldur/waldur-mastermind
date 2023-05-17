@@ -25,6 +25,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
+from waldur_core import __version__
 from waldur_core.core import (
     WALDUR_DISABLED_EXTENSIONS,
     WaldurExtension,
@@ -39,6 +40,7 @@ from waldur_core.core.serializers import AuthTokenSerializer, ReviewCommentSeria
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.core.validators import StateValidator
 from waldur_core.logging.loggers import event_logger
+from waldur_core.structure.permissions import IsStaffOrSupportUser
 
 logger = logging.getLogger(__name__)
 
@@ -585,3 +587,16 @@ def get_whitelabeling_logo(request, logo_type, default_image=None):
     return Response(
         {'error': f'{logo_type} not found'}, status=status.HTTP_404_NOT_FOUND
     )
+
+
+@api_view(['GET'])
+@permission_classes(
+    (
+        rf_permissions.IsAuthenticated,
+        IsStaffOrSupportUser,
+    )
+)
+def version_detail(request):
+    """Retrieve version of the application"""
+
+    return Response({'version': __version__})
