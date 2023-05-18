@@ -3428,7 +3428,9 @@ class RobotAccountSerializer(
             'resource',
             'users',
             'keys',
+            'backend_id',
         )
+        read_only_fields = ['backend_id']
         protected_fields = ['resource']
         extra_kwargs = dict(
             resource={
