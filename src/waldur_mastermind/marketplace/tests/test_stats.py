@@ -731,3 +731,33 @@ class CountCustomersTest(test.APITransactionTestCase):
             self.assertEqual(
                 1, utils.count_resources_number_change(self.service_provider)
             )
+
+
+class OfferingStatsTest(test.APITransactionTestCase):
+    @freeze_time('2020-01-01')
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.url = factories.OfferingFactory.get_url(self.offering, 'stats')
+
+    def test_offering_stats(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.data['resources_count'], 1)
+        self.assertEqual(response.data['customers_count'], 1)
+
+        new_resource = factories.ResourceFactory(offering=self.offering)
+        response = self.client.get(self.url)
+        self.assertEqual(response.data['resources_count'], 2)
+        self.assertEqual(response.data['customers_count'], 2)
+
+        new_resource.state = models.Resource.States.TERMINATED
+        new_resource.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.data['resources_count'], 1)
+        self.assertEqual(response.data['customers_count'], 1)
+
+        factories.ResourceFactory(offering=self.offering, project=self.fixture.project)
+        response = self.client.get(self.url)
+        self.assertEqual(response.data['resources_count'], 2)
+        self.assertEqual(response.data['customers_count'], 1)
