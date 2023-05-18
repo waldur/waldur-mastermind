@@ -204,5 +204,9 @@ class PullOfferingInvoices(OfferingActionView):
     task = tasks.pull_offering_invoices
 
 
+class PullOfferingRobotAccounts(OfferingActionView):
+    task = tasks.pull_offering_robot_accounts
+
+
 class PushProjectData(OfferingActionView):
     task = tasks.RemoteProjectDataPushTask()

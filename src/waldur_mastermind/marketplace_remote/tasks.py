@@ -590,6 +590,16 @@ class ResourceRobotAccountListPullTask(BackgroundListPullTask):
 
 
 @shared_task
+def pull_offering_robot_accounts(serialized_offering):
+    offering = deserialize_instance(serialized_offering)
+    resources = models.Resource.objects.filter(offering=offering).exclude(
+        state=models.Resource.States.TERMINATED
+    )
+    for resource in resources:
+        ResourceRobotAccountPullTask().delay(serialize_instance(resource))
+
+
+@shared_task
 def pull_offering_invoices(serialized_offering):
     offering = deserialize_instance(serialized_offering)
     resources = models.Resource.objects.filter(offering=offering).exclude(
