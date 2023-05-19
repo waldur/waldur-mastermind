@@ -901,6 +901,31 @@ class ProviderOfferingViewSet(
 
     component_stats_permissions = [structure_permissions.is_owner]
 
+    @action(detail=True)
+    def stats(self, *args, **kwargs):
+        offering = self.get_object()
+        resources_count = (
+            models.Resource.objects.filter(offering=offering)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .count()
+        )
+        customers_count = (
+            models.Resource.objects.filter(offering=offering)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values('project__customer')
+            .distinct()
+            .count()
+        )
+        return Response(
+            {
+                'resources_count': resources_count,
+                'customers_count': customers_count,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    stats_permissions = [structure_permissions.is_owner]
+
     @action(detail=True, methods=['post'])
     def update_divisions(self, request, uuid):
         offering = self.get_object()
