@@ -188,12 +188,12 @@ class User(
         max_length=128,
         unique=True,
         help_text=_(
-            'Required. 128 characters or fewer. Letters, numbers and '
+            'Required. 128 characters or fewer. Lowercase letters, numbers and '
             '@/./+/-/_ characters'
         ),
         validators=[
             validators.RegexValidator(
-                re.compile(r'^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid'
+                re.compile(r'^[0-9a-z_.@+-]+$'), _('Enter a valid username.'), 'invalid'
             )
         ],
     )
