@@ -1032,25 +1032,3 @@ def setup_linux_related_data(
     home_dir = instance.backend_metadata.get('homeDir')
     if not home_dir:
         instance.backend_metadata['homeDir'] = f"/home/{instance.username}"
-
-
-def get_plans_available_for_user(
-    user, offering, allowed_customer_uuid=None, without_parents_plan=False
-):
-    if without_parents_plan:
-        qs = offering.plans.all()
-    else:
-        qs = (offering.parent or offering).plans.all()
-
-    if user.is_anonymous:
-        qs = qs.filter(divisions__isnull=True)
-    elif user.is_staff or user.is_support:
-        pass
-    elif allowed_customer_uuid:
-        qs = qs.filter(
-            Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
-        ).filter_for_customer(allowed_customer_uuid)
-    else:
-        qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
-
-    return qs

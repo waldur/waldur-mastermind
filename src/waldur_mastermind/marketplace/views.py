@@ -1129,31 +1129,6 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         return self.queryset.filter_by_ordering_availability_for_user(user)
 
-    @action(detail=True, methods=['get'])
-    def plans(self, request, uuid=None):
-        offering = self.get_object()
-        plan_uuid = self.request.query_params.get('uuid')
-
-        if not plan_uuid:
-            return Response(
-                serializers.PublicOfferingDetailsSerializer(
-                    context=self.get_serializer_context()
-                ).get_filtered_plans(offering),
-                status=status.HTTP_200_OK,
-            )
-        else:
-            try:
-                plan = utils.get_plans_available_for_user(
-                    offering=offering,
-                    user=request.user,
-                ).get(uuid=plan_uuid)
-                serializer = serializers.BasePublicPlanSerializer(
-                    plan, context=self.get_serializer_context()
-                )
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            except models.Plan.DoesNotExist:
-                return Response(status=status.HTTP_404_NOT_FOUND)
-
 
 class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
     queryset = pid_models.DataciteReferral.objects.all()
@@ -1354,7 +1329,6 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
             )
 
 
-# TODO: Remove after migration of clients to a new endpoint
 class PublicPlanViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Plan.objects.filter()
     serializer_class = serializers.PublicPlanDetailsSerializer
