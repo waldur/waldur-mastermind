@@ -37,8 +37,6 @@ def register_in(router):
         views.PlanComponentViewSet,
         basename='marketplace-plan-component',
     )
-
-    # TODO: Remove after migration of clients to a new endpoint
     router.register(
         r'marketplace-public-plans',
         views.PublicPlanViewSet,

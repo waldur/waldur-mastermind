@@ -16,7 +16,6 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
-from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -366,21 +365,8 @@ class BasePlanSerializer(
 class BasePublicPlanSerializer(BasePlanSerializer):
     """Serializer to display the public plan without offering info."""
 
-    def get_fields(self):
-        fields = super().get_fields()
-        method = self.context['view'].request.method
-        if method == 'GET':
-            fields['url'] = serializers.SerializerMethodField()
-        return fields
-
-    def get_url(self, plan):
-        offering_url = reverse(
-            'marketplace-public-offering-detail',
-            kwargs={'uuid': plan.offering.uuid.hex},
-        )
-        return self.context['request'].build_absolute_uri(
-            offering_url + 'plans/?uuid=' + plan.uuid.hex
-        )
+    class Meta(BasePlanSerializer.Meta):
+        view_name = 'marketplace-public-plan-detail'
 
 
 class BaseProviderPlanSerializer(BasePlanSerializer):
@@ -415,13 +401,11 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
         return attrs
 
 
-# TODO: Remove after migration of clients to a new endpoint
-class PublicPlanDetailsSerializer(BasePlanSerializer):
+class PublicPlanDetailsSerializer(BasePublicPlanSerializer):
     """Serializer to display the public plan in the REST API."""
 
-    class Meta(BasePlanSerializer.Meta):
-        view_name = 'marketplace-public-plan-detail'
-        fields = BasePlanSerializer.Meta.fields + ('offering',)
+    class Meta(BasePublicPlanSerializer.Meta):
+        fields = BasePublicPlanSerializer.Meta.fields + ('offering',)
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',
@@ -1056,11 +1040,21 @@ class PublicOfferingDetailsSerializer(OfferingDetailsSerializer):
         view_name = 'marketplace-public-offering-detail'
 
     def get_filtered_plans(self, offering):
+        qs = (offering.parent or offering).plans.all()
         customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
         user = self.context['request'].user
-        qs = utils.get_plans_available_for_user(
-            user=user, offering=offering, allowed_customer_uuid=customer_uuid
-        )
+
+        if user.is_anonymous:
+            qs = qs.filter(divisions__isnull=True)
+        elif user.is_staff or user.is_support:
+            pass
+        elif customer_uuid:
+            qs = qs.filter(
+                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
+            ).filter_for_customer(customer_uuid)
+        else:
+            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
+
         return BasePublicPlanSerializer(qs, many=True, context=self.context).data
 
 
@@ -2048,17 +2042,14 @@ class CartItemSerializer(BaseRequestSerializer):
             user = self.context['request'].user
 
             if not plan:
-                plans = utils.get_plans_available_for_user(
-                    offering=offering,
-                    user=user,
-                    without_parents_plan=True,
-                )
-                if not plans.exists():
+                plans = models.Plan.objects.filter(
+                    offering=offering
+                ).filter_by_plan_availability_for_user(user)
+                if not plans.exists() and offering.parent:
                     # try to lookup parent offering's plan
-                    plans = utils.get_plans_available_for_user(
-                        offering=offering,
-                        user=user,
-                    )
+                    plans = models.Plan.objects.filter(
+                        offering=offering.parent
+                    ).filter_by_plan_availability_for_user(user)
 
                 if len(plans) == 1:
                     attrs['plan'] = plans[0]
