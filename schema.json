@@ -139,7 +139,6 @@
         "GOOGLE_ANALYTICS_ID": "",
         "SUPPORT_PORTAL_URL": "",
         "INVITATION_CIVIL_NUMBER_LABEL": "",
-        "INVITATION_CIVIL_NUMBER_HELP_TEXT": "Must start with a country prefix ie EE34501234215",
         "INVITATION_TAX_NUMBER_LABEL": "",
         "LOCAL_IDP_NAME": "Local DB",
         "LOCAL_IDP_LABEL": "Local DB",
@@ -1001,12 +1000,6 @@
           "title": "Invitation Civil Number Label",
           "description": "Custom label for civil number field in invitation creation dialog.",
           "default": "",
-          "type": "string"
-        },
-        "INVITATION_CIVIL_NUMBER_HELP_TEXT": {
-          "title": "Invitation Civil Number Help Text",
-          "description": "Help text for civil number field in invitation creation dialog.",
-          "default": "Must start with a country prefix ie EE34501234215",
           "type": "string"
         },
         "INVITATION_TAX_NUMBER_LABEL": {
