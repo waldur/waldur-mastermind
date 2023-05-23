@@ -220,11 +220,6 @@ class WaldurCore(BaseModel):
         description='Custom label for civil number field in invitation creation dialog.',
     )
 
-    INVITATION_CIVIL_NUMBER_HELP_TEXT = Field(
-        'Must start with a country prefix ie EE34501234215',
-        description='Help text for civil number field in invitation creation dialog.',
-    )
-
     INVITATION_TAX_NUMBER_LABEL = Field(
         '',
         description='Custom label for tax number field in invitation creation dialog.',
@@ -275,7 +270,6 @@ class WaldurCore(BaseModel):
             'USER_MANDATORY_FIELDS',
             'USER_REGISTRATION_HIDDEN_FIELDS',
             'INVITATION_CIVIL_NUMBER_LABEL',
-            'INVITATION_CIVIL_NUMBER_HELP_TEXT',
             'INVITATION_TAX_NUMBER_LABEL',
             'HOMEPORT_SENTRY_DSN',
             'HOMEPORT_SENTRY_ENVIRONMENT',
