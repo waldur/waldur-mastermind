@@ -3,7 +3,8 @@ import collections
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from waldur_mastermind.marketplace.models import Resource
+from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace.models import Offering, Resource
 
 User = get_user_model()
 
@@ -33,13 +34,37 @@ def get_mapping(query):
                 Q(offering__in=offerings) | Q(offering__parent__in=offerings)
             ).exclude(state=Resource.States.TERMINATED)
 
-            for resource in resources:
-                customer = resource.project.customer
-                if customers and customer not in customers:
-                    continue
+            # Drop resources from non-whitelisted customers
+            if customers:
+                resources = resources.filter(
+                    project__customer_id__in=[customer.id for customer in customers]
+                )
+
+            # Use only unique customers
+            resource_customer_ids = (
+                resources.values_list('project__customer_id', flat=True)
+                .distinct()
+                .order_by()
+            )
+
+            filtered_customers = structure_models.Customer.objects.filter(
+                id__in=resource_customer_ids
+            )
+            for customer in filtered_customers:
+                customer_offering_ids = set(
+                    resources.filter(project__customer=customer)
+                    .values_list('offering', flat=True)
+                    .distinct()
+                    .order_by()
+                )
+                customer_offerings = Offering.objects.filter(
+                    id__in=customer_offering_ids
+                )
                 for user in customer.get_users():
                     users[user.id] = user
-                    user_offerings[user.id].add(resource.offering)
+                    user_offerings[user.id] = user_offerings[user.id] | set(
+                        customer_offerings
+                    )
                     user_customers[user.id].add(customer)
 
         for customer in customers:
