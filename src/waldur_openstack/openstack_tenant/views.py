@@ -425,6 +425,13 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                 _('Cannot delete instance that has backups.')
             )
 
+    def _has_snapshots(instance):
+        for volume in instance.volumes.all():
+            if volume.snapshots.exists():
+                raise core_exceptions.IncorrectStateException(
+                    _('Cannot delete instance that has snapshots.')
+                )
+
     def _can_destroy_instance(instance):
         if instance.state == models.Instance.States.ERRED:
             return
@@ -800,6 +807,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
     destroy_validators = [
         InstanceViewSet._can_destroy_instance,
         InstanceViewSet._has_backups,
+        InstanceViewSet._has_snapshots,
     ]
     destroy_serializer_class = serializers.InstanceDeleteSerializer
 
@@ -813,6 +821,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
 
     force_destroy_validators = [
         InstanceViewSet._has_backups,
+        InstanceViewSet._has_snapshots,
         core_validators.StateValidator(
             models.Instance.States.OK,
             models.Instance.States.ERRED,

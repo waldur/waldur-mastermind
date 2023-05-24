@@ -583,6 +583,33 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             b'Cannot delete instance that has backups' in response.rendered_content
         )
 
+    def test_cannot_delete_instance_that_has_snapshots(self):
+        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.save()
+        self.order_item.state = marketplace_models.OrderItem.States.DONE
+        self.order_item.save()
+        openstack_tenant_factories.SnapshotFactory(
+            service_settings=self.instance.service_settings,
+            project=self.instance.project,
+            source_volume=self.instance.volumes.first(),
+        )
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'terminate')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            url,
+            {
+                'attributes': {
+                    'action': 'force_destroy',
+                    'delete_volumes': True,
+                    'release_floating_ips': True,
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(
+            b'Cannot delete instance that has snapshots' in response.rendered_content
+        )
+
     def test_termination_should_not_be_triggered_if_termination_is_already_in_progress(
         self,
     ):
