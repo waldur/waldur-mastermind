@@ -46,6 +46,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
+from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.permissions import (
     check_availability_of_auto_approving,
 )
@@ -365,8 +366,12 @@ class BasePlanSerializer(
 class BasePublicPlanSerializer(BasePlanSerializer):
     """Serializer to display the public plan without offering info."""
 
-    class Meta(BasePlanSerializer.Meta):
-        view_name = 'marketplace-public-plan-detail'
+    url = PublicPlanField(
+        lookup_field='uuid',
+        lookup_url_kwarg='plan_uuid',
+        view_name='marketplace-public-offering-plan-detail',
+        queryset=models.Plan.objects.all(),
+    )
 
 
 class BaseProviderPlanSerializer(BasePlanSerializer):
@@ -401,11 +406,13 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
         return attrs
 
 
-class PublicPlanDetailsSerializer(BasePublicPlanSerializer):
+# TODO: Remove after migration of clients to a new endpoint
+class PublicPlanDetailsSerializer(BasePlanSerializer):
     """Serializer to display the public plan in the REST API."""
 
-    class Meta(BasePublicPlanSerializer.Meta):
-        fields = BasePublicPlanSerializer.Meta.fields + ('offering',)
+    class Meta(BasePlanSerializer.Meta):
+        view_name = 'marketplace-public-plan-detail'
+        fields = BasePlanSerializer.Meta.fields + ('offering',)
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',
@@ -1040,21 +1047,11 @@ class PublicOfferingDetailsSerializer(OfferingDetailsSerializer):
         view_name = 'marketplace-public-offering-detail'
 
     def get_filtered_plans(self, offering):
-        qs = (offering.parent or offering).plans.all()
         customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
         user = self.context['request'].user
-
-        if user.is_anonymous:
-            qs = qs.filter(divisions__isnull=True)
-        elif user.is_staff or user.is_support:
-            pass
-        elif customer_uuid:
-            qs = qs.filter(
-                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
-            ).filter_for_customer(customer_uuid)
-        else:
-            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
-
+        qs = utils.get_plans_available_for_user(
+            user=user, offering=offering, allowed_customer_uuid=customer_uuid
+        )
         return BasePublicPlanSerializer(qs, many=True, context=self.context).data
 
 
@@ -1690,12 +1687,33 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
         fields = ('type', 'limit', 'usage')
 
 
+class TestItemSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.OrderItem
+        fields = ('plan',)
+        extra_kwargs = {
+            'plan': {
+                'lookup_field': 'uuid',
+                'lookup_url_kwarg': 'plan_uuid',
+                'view_name': 'marketplace-public-offering-plan-detail',
+            },
+        }
+
+
 class BaseItemSerializer(
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
+    plan = PublicPlanField(
+        lookup_field='uuid',
+        lookup_url_kwarg='plan_uuid',
+        view_name='marketplace-public-offering-plan-detail',
+        queryset=models.Plan.objects.all(),
+        required=False,
+    )
+
     class Meta:
         fields = (
             'offering',
@@ -1743,10 +1761,6 @@ class BaseItemSerializer(
             'offering': {
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-public-offering-detail',
-            },
-            'plan': {
-                'lookup_field': 'uuid',
-                'view_name': 'marketplace-public-plan-detail',
             },
         }
 
@@ -2042,14 +2056,17 @@ class CartItemSerializer(BaseRequestSerializer):
             user = self.context['request'].user
 
             if not plan:
-                plans = models.Plan.objects.filter(
-                    offering=offering
-                ).filter_by_plan_availability_for_user(user)
-                if not plans.exists() and offering.parent:
+                plans = utils.get_plans_available_for_user(
+                    offering=offering,
+                    user=user,
+                    without_parents_plan=True,
+                )
+                if not plans.exists():
                     # try to lookup parent offering's plan
-                    plans = models.Plan.objects.filter(
-                        offering=offering.parent
-                    ).filter_by_plan_availability_for_user(user)
+                    plans = utils.get_plans_available_for_user(
+                        offering=offering,
+                        user=user,
+                    )
 
                 if len(plans) == 1:
                     attrs['plan'] = plans[0]
@@ -2438,9 +2455,10 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         model = models.Resource
         fields = ('plan',)
 
-    plan = serializers.HyperlinkedRelatedField(
-        view_name='marketplace-public-plan-detail',
+    plan = PublicPlanField(
         lookup_field='uuid',
+        lookup_url_kwarg='plan_uuid',
+        view_name='marketplace-public-offering-plan-detail',
         queryset=models.Plan.objects.all(),
         required=True,
     )

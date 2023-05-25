@@ -37,6 +37,8 @@ def register_in(router):
         views.PlanComponentViewSet,
         basename='marketplace-plan-component',
     )
+
+    # TODO: Remove after migration of clients to a new endpoint
     router.register(
         r'marketplace-public-plans',
         views.PublicPlanViewSet,
@@ -128,5 +130,10 @@ urlpatterns = [
     re_path(
         r'^api/marketplace-related-customers/(?P<customer_uuid>[a-f0-9]+)/$',
         views.RelatedCustomersViewSet.as_view(),
+    ),
+    re_path(
+        r'^api/marketplace-public-offerings/(?P<uuid>[a-f0-9]+)/plans/(?P<plan_uuid>[a-f0-9]+)/$',
+        views.PublicOfferingViewSet.as_view({'get': 'plan_detail'}),
+        name='marketplace-public-offering-plan-detail',
     ),
 ]
