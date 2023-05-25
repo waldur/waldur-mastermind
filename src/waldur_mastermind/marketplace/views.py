@@ -4,6 +4,7 @@ import logging
 import textwrap
 
 import reversion
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -64,7 +65,6 @@ from waldur_core.structure.serializers import (
 )
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
@@ -411,14 +411,15 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
     @action(detail=True, methods=['GET'])
     def revenue(self, request, uuid=None):
-        to_day = timezone.datetime.today().date()
-        start = month_start(to_day - datetime.timedelta(days=365))
+        start = month_start(timezone.datetime.today()) - relativedelta(years=1)
         service_provider = self.get_object()
+        customer = service_provider.customer
 
         data = (
-            invoices_models.InvoiceItem.objects.filter(
-                invoice__invoice_date__gte=start,
-                resource__offering__customer=service_provider.customer,
+            invoice_models.InvoiceItem.objects.filter(
+                invoice__year__gte=start.year,
+                invoice__month__gte=start.month,
+                resource__offering__customer=customer,
             )
             .values('invoice__year', 'invoice__month')
             .annotate(total=Sum(F('unit_price') * F('quantity')))
