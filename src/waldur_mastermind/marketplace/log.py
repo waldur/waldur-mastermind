@@ -144,6 +144,33 @@ class RobotAccountEventLogger(EventLogger):
         return {robot_account, robot_account.resource}
 
 
+class MarketplaceServiceProviderLogger(EventLogger):
+    order = models.ServiceProvider
+
+    class Meta:
+        event_types = (
+            'role_granted',
+            'role_updated',
+            'role_revoked',
+            'resource_robot_account_created',
+            'resource_robot_account_updated',
+            'resource_robot_account_deleted',
+            'marketplace_resource_create_succeeded',
+            'marketplace_resource_update_limits_succeeded',
+            'marketplace_resource_terminate_requested',
+            'marketplace_resource_update_failed',
+            'marketplace_resource_terminate_failed',
+            'marketplace_resource_terminate_succeeded',
+            'marketplace_resource_create_canceled',
+            'marketplace_resource_update_limits_failed',
+            'marketplace_resource_update_requested',
+            'marketplace_resource_create_requested',
+            'marketplace_resource_create_failed',
+            'marketplace_resource_renamed',
+        )
+        event_groups = {'providers': event_types}
+
+
 event_logger.register('marketplace_order', MarketplaceOrderLogger)
 event_logger.register('marketplace_resource', MarketplaceResourceLogger)
 event_logger.register(
@@ -151,6 +178,7 @@ event_logger.register(
 )
 event_logger.register('marketplace_offering_user', MarketplaceOfferingUserEventLogger)
 event_logger.register('marketplace_robot_account', RobotAccountEventLogger)
+event_logger.register('marketplace_service_provider', MarketplaceServiceProviderLogger)
 
 
 def log_order_created(order):
