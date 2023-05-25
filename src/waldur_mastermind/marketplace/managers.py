@@ -164,6 +164,7 @@ class PlanQuerySet(django_models.QuerySet):
             | Q(divisions__isnull=False, divisions=customer.division)
         )
 
+    # TODO: Remove after migration of clients to a new endpoint
     def filter_by_plan_availability_for_user(self, user):
         queryset = self.filter(
             offering__state__in=(

@@ -529,6 +529,7 @@ class RobotAccountFilter(django_filters.FilterSet):
         fields = ['type']
 
 
+# TODO: Remove after migration of clients to a new endpoint
 class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
         model = models.Plan
