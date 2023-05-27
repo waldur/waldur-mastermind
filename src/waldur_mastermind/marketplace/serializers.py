@@ -1286,6 +1286,9 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         """
         offering_type = validated_data.get('type')
         service_type = plugins.manager.get_service_type(offering_type)
+        is_draft = validated_data.get(
+            'state'
+        ) == models.Offering.States.DRAFT or not validated_data.get('state')
 
         name = validated_data['name']
         service_attributes = validated_data.pop('service_attributes', {})
@@ -1294,7 +1297,11 @@ class OfferingCreateSerializer(OfferingModifySerializer):
             return validated_data
 
         if not service_attributes:
+            if is_draft:
+                return validated_data
+
             raise ValidationError({'service_attributes': _('This field is required.')})
+
         payload = dict(
             name=name,
             # It is expected that customer URL is passed to the service settings serializer
