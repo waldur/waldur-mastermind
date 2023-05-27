@@ -3507,3 +3507,30 @@ class ServiceProviderRevenues(serializers.Serializer):
     total = serializers.IntegerField()
     year = serializers.CharField(source='invoice__year')
     month = serializers.CharField(source='invoice__month')
+
+
+class SectionSerializer(serializers.HyperlinkedModelSerializer):
+    category_title = serializers.ReadOnlyField(source='category.title')
+
+    class Meta:
+        model = models.Section
+        fields = (
+            'url',
+            'key',
+            'created',
+            'title',
+            'category',
+            'category_title',
+            'is_standalone',
+        )
+        extra_kwargs = dict(
+            category={
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-category-detail',
+            },
+            url={
+                'lookup_field': 'key',
+                'view_name': 'marketplace-section-detail',
+            },
+        )
+        read_only_fields = ['created']

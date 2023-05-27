@@ -454,3 +454,24 @@ class RobotAccountFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('marketplace-robot-account-list')
+
+
+class SectionFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Section
+
+    key = factory.Sequence(lambda n: 'section-key-%s' % n)
+    title = factory.Sequence(lambda n: 'section-title-%s' % n)
+    category = factory.SubFactory(CategoryFactory)
+
+    @classmethod
+    def get_url(cls, section=None):
+        if section is None:
+            section = SectionFactory()
+        return 'http://testserver' + reverse(
+            'marketplace-section-detail', kwargs={'key': section.key}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('marketplace-section-list')

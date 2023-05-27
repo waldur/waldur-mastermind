@@ -89,3 +89,8 @@ class IsSupport(BasePermission):
         return request.user.is_active and (
             request.user.is_staff or request.user.is_support
         )
+
+
+class IsStaff(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_active and request.user.is_staff

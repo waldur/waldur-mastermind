@@ -2923,3 +2923,11 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             | Q(resource__offering__customer__in=customers)
         )
         return qs.filter(subquery)
+
+
+class SectionViewSet(rf_viewsets.ModelViewSet):
+    queryset = models.Section.objects.all().order_by('title')
+    lookup_field = 'key'
+    serializer_class = serializers.SectionSerializer
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
