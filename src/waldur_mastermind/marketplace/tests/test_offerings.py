@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace.management.commands.import_offering import (
     create_offering,
     update_offering,
 )
+from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
@@ -1060,6 +1061,33 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.customer.save()
         response = self.create_offering('owner')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_offering_with_minimal_information_in_draft_state(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_list_url()
+        self.provider = factories.ServiceProviderFactory(customer=self.customer)
+
+        for offering_type in list(manager.backends.keys()):
+            payload = {
+                'name': 'offering',
+                'category': factories.CategoryFactory.get_url(),
+                'customer': structure_factories.CustomerFactory.get_url(self.customer),
+                'type': offering_type,
+            }
+            response = self.client.post(url, payload)
+            self.assertEqual(
+                response.status_code, status.HTTP_201_CREATED, offering_type
+            )
+            self.assertTrue(
+                models.Offering.objects.filter(
+                    customer=self.customer, type=offering_type
+                ).exists()
+            )
+            offering = models.Offering.objects.filter(
+                customer=self.customer, type=offering_type
+            ).get()
+            self.assertEqual(offering.state, models.Offering.States.DRAFT)
 
 
 @ddt
