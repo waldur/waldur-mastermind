@@ -53,6 +53,7 @@ def generate_username():
 class OAuthView(RefreshTokenMixin, views.APIView):
     permission_classes = []
     authentication_classes = []
+    throttle_scope = 'oauth'
     provider = None
 
     @validate_social_signup
