@@ -2736,7 +2736,7 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
 
 class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
-    amount = serializers.IntegerField()
+    amount = serializers.DecimalField(decimal_places=2, max_digits=20)
     description = serializers.CharField(required=False, allow_blank=True)
     recurring = serializers.BooleanField(default=False)
 
@@ -2841,7 +2841,8 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 )
                 logger.info(message)
         resource.current_usages = {
-            usage['type']: usage['amount'] for usage in self.validated_data['usages']
+            usage['type']: str(usage['amount'])
+            for usage in self.validated_data['usages']
         }
         resource.save(update_fields=['current_usages'])
 
@@ -3166,7 +3167,7 @@ class OfferingCountryStatsSerializer(serializers.Serializer):
 
 
 class ComponentUsagesStatsSerializer(serializers.Serializer):
-    usage = serializers.IntegerField()
+    usage = serializers.DecimalField(decimal_places=2, max_digits=20)
     offering_uuid = serializers.CharField(source='resource__offering__uuid')
     component_type = serializers.CharField(source='component__type')
 

@@ -52,7 +52,7 @@ class PlanPeriodsTest(test.APITransactionTestCase):
             billing_period=parse_datetime('2019-06-01'),
         )
         response = self.client.get(self.url)
-        self.assertEqual(response.data[0]['components'][0]['usage'], 100)
+        self.assertEqual(response.data[0]['components'][0]['usage'], '100.00')
 
 
 @ddt
@@ -201,7 +201,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
             ).exists()
         )
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.current_usages, {'cpu': 5, 'ram': 5})
+        self.assertEqual(self.resource.current_usages, {'cpu': '5.00', 'ram': '5.00'})
 
     @data('admin', 'manager', 'user')
     def test_other_user_can_not_submit_usage_via_api(self, role):
