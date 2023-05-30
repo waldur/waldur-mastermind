@@ -172,6 +172,15 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
         response = self.get_details(self.user, customer_invitation)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_customer_uuid_exists_in_response(self):
+        customer_invitation = factories.CustomerInvitationFactory(
+            customer=self.customer,
+            customer_role=self.customer_role,
+        )
+        response = self.get_details(self.user, customer_invitation)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(response.data['customer_uuid']), self.customer.uuid.hex)
+
     def test_if_user_has_civil_number_non_matching_invitation_is_concealed(self):
         customer_invitation = factories.CustomerInvitationFactory(
             customer=self.customer,

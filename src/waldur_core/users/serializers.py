@@ -17,6 +17,7 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
         allow_null=True,
     )
     project_name = serializers.ReadOnlyField(source='project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
     created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
     created_by_username = serializers.ReadOnlyField(source='created_by.username')
     customer = serializers.HyperlinkedRelatedField(
@@ -27,6 +28,7 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
         allow_null=True,
     )
     customer_name = serializers.ReadOnlyField(source='customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
 
     expires = serializers.DateTimeField(source='get_expiration_time', read_only=True)
 
@@ -46,6 +48,8 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
             'created_by_full_name',
             'created_by_username',
             'is_active',
+            'project_uuid',
+            'customer_uuid',
         )
         read_only_fields = (
             'url',
@@ -154,6 +158,8 @@ class InvitationSerializer(GroupInvitationSerializer):
 class PendingInvitationDetailsSerializer(serializers.ModelSerializer):
     project_name = serializers.ReadOnlyField(source='project.name')
     customer_name = serializers.ReadOnlyField(source='customer.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
     created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
     created_by_username = serializers.ReadOnlyField(source='created_by.username')
 
@@ -163,8 +169,10 @@ class PendingInvitationDetailsSerializer(serializers.ModelSerializer):
             'email',
             'project_name',
             'project_role',
+            'project_uuid',
             'customer_name',
             'customer_role',
+            'customer_uuid',
             'created_by_full_name',
             'created_by_username',
         )
