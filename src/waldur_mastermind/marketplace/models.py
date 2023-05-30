@@ -1353,8 +1353,8 @@ class ComponentQuota(TimeStampedModel):
         on_delete=models.CASCADE,
         to=OfferingComponent,
     )
-    limit = models.BigIntegerField(default=-1)
-    usage = models.BigIntegerField(default=0)
+    limit = models.DecimalField(default=-1, decimal_places=2, max_digits=20)
+    usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
 
     class Meta:
         unique_together = ('resource', 'component')
@@ -1377,7 +1377,7 @@ class ComponentUsage(
         on_delete=models.CASCADE,
         to=OfferingComponent,
     )
-    usage = models.BigIntegerField(default=0)
+    usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
     date = models.DateTimeField()
     plan_period = models.ForeignKey(
         on_delete=models.CASCADE,
