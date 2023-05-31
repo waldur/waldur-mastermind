@@ -2433,6 +2433,25 @@ class StatsViewSet(rf_viewsets.ViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=['get'])
+    def component_usages_per_project(self, request, *args, **kwargs):
+        now = timezone.now()
+        data = (
+            models.ComponentUsage.objects.filter(
+                billing_period__year=now.year, billing_period__month=now.month
+            )
+            .annotate(
+                project_uuid=F('resource__project__uuid'),
+                component_type=F('component__type'),
+            )
+            .values('project_uuid', 'component_type')
+            .annotate(usage=Sum('usage'))
+        )
+        return Response(
+            data,
+            status=status.HTTP_200_OK,
+        )
+
     # cache for 1 hour
     @method_decorator(cache_page(60 * 60))
     @action(detail=False, methods=['get'])
