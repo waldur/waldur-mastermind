@@ -1004,7 +1004,7 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
                 logger.error("Unable to push project data: %s", exc)
 
 
-class RemoteProjectDataListPushTask(BackgroundPullTask):
+class RemoteProjectDataListPushTask(BackgroundListPullTask):
     name = 'waldur_mastermind.marketplace_remote.push_remote_project_data'
     pull_task = RemoteProjectDataPushTask
 
