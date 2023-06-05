@@ -2278,7 +2278,7 @@ six = ">=1.10.0"
 
 [[package]]
 name = "python-waldur-client"
-version = "0.2.1"
+version = "0.2.2"
 description = "REST client for the Waldur API."
 category = "main"
 optional = false
@@ -2753,7 +2753,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "29d0a60e4b92f21267714f74eeafc144c26569ad07321d5fb2038131be47d3b0"
+content-hash = "4860c3ec4c23aa59b409c7fae438271154589c51036f7c7a7f105eabcf0da628"
 
 [metadata.files]
 adal = [
@@ -3197,6 +3197,7 @@ django-cors-headers = [
     {file = "django_cors_headers-3.13.0-py3-none-any.whl", hash = "sha256:37e42883b5f1f2295df6b4bba96eb2417a14a03270cb24b2a07f021cd4487cf4"},
 ]
 django-dbtemplates = [
+    {file = "django-dbtemplates-4.0.tar.gz", hash = "sha256:e6fa3d47824183731071339a589ec1e8910ee6eef5ddad89239008a36e3c5d43"},
     {file = "django_dbtemplates-4.0-py3-none-any.whl", hash = "sha256:a6ca7a921841a1cc411dadc7e10b61299bc4c0534b2a0ae53365e8494573bc93"},
 ]
 django-filter = [
@@ -4119,7 +4120,7 @@ python-novaclient = [
     {file = "python_novaclient-10.3.0-py2.py3-none-any.whl", hash = "sha256:e8332be7bd0acbad7cba6d07a2dded0438571793b38d0d6b647fd875f9402d62"},
 ]
 python-waldur-client = [
-    {file = "python-waldur-client-0.2.1.tar.gz", hash = "sha256:839a4fd2a5fe186319ac983636b90160b57a137c6b470648140db2b28f890e81"},
+    {file = "python-waldur-client-0.2.2.tar.gz", hash = "sha256:ca1edd2c41ad40ac26cfd9ecec234e270e976549bccc48a15dfe6adb47fc0dc6"},
 ]
 pytz = [
     {file = "pytz-2022.7.1-py2.py3-none-any.whl", hash = "sha256:78f4f37d8198e0627c5f1143240bb0206b8691d8d7ac6d78fee88b78733f8c4a"},
