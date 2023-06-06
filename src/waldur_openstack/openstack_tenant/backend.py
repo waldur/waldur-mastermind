@@ -1446,28 +1446,33 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             backend_instance, flavor_id, connected_internal_network_names
         )
         with transaction.atomic():
-            # import instance volumes, or use existed if they already exist in Waldur.
-            volumes = []
-            for backend_volume_id in attached_volume_ids:
-                try:
-                    volumes.append(
-                        models.Volume.objects.get(
-                            service_settings=self.settings,
-                            backend_id=backend_volume_id,
-                        )
-                    )
-                except models.Volume.DoesNotExist:
-                    volumes.append(self.import_volume(backend_volume_id, project, save))
-
             instance.service_settings = self.settings
             instance.project = project
             if hasattr(backend_instance, 'fault'):
                 instance.error_message = backend_instance.fault['message']
             if save:
                 instance.save()
+                volumes = self._import_instance_volumes(
+                    attached_volume_ids, project, save
+                )
                 instance.volumes.add(*volumes)
 
         return instance
+
+    def _import_instance_volumes(self, attached_volume_ids, project, save):
+        # import instance volumes, or use existed if they already exist in Waldur.
+        volumes = []
+        for backend_volume_id in attached_volume_ids:
+            try:
+                volumes.append(
+                    models.Volume.objects.get(
+                        service_settings=self.settings,
+                        backend_id=backend_volume_id,
+                    )
+                )
+            except models.Volume.DoesNotExist:
+                volumes.append(self.import_volume(backend_volume_id, project, save))
+        return volumes
 
     def _backend_instance_to_instance(
         self,
@@ -1549,6 +1554,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     instance.flavor_disk = self.gb2mb(backend_flavor.disk)
                     instance.cores = backend_flavor.vcpus
                     instance.ram = backend_flavor.ram
+
+        attached_volumes = backend_instance.to_dict().get(
+            'os-extended-volumes:volumes_attached', []
+        )
+        attached_volume_ids = [volume['id'] for volume in attached_volumes]
+        volumes = self._import_instance_volumes(
+            attached_volume_ids, project=None, save=False
+        )
+        instance.disk = sum(volume.size for volume in volumes)
 
         return instance
 
