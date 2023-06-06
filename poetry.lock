@@ -66,7 +66,8 @@ cov = ["attrs[tests]", "coverage-enable-subprocess", "coverage[toml] (>=5.3)"]
 dev = ["attrs[docs,tests]"]
 docs = ["furo", "myst-parser", "sphinx", "sphinx-notfound-page", "sphinxcontrib-towncrier", "towncrier", "zope.interface"]
 tests = ["attrs[tests-no-zope]", "zope.interface"]
-tests-no-zope = ["cloudpickle", "cloudpickle", "hypothesis", "hypothesis", "mypy (>=0.971,<0.990)", "mypy (>=0.971,<0.990)", "pympler", "pympler", "pytest (>=4.3.0)", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-mypy-plugins", "pytest-xdist[psutil]", "pytest-xdist[psutil]"]
+tests-no-zope = ["cloudpickle", "hypothesis", "mypy (>=0.971,<0.990)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+tests_no_zope = ["cloudpickle", "hypothesis", "mypy (>=0.971,<0.990)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
 
 [[package]]
 name = "autopage"
@@ -1078,7 +1079,7 @@ six = ">=1.9.0"
 
 [package.extras]
 aiohttp = ["aiohttp (>=3.6.2,<4.0.0dev)", "requests (>=2.20.0,<3.0.0dev)"]
-enterprise-cert = ["cryptography (==36.0.2)", "pyopenssl (==22.0.0)"]
+enterprise_cert = ["cryptography (==36.0.2)", "pyopenssl (==22.0.0)"]
 pyopenssl = ["cryptography (>=38.0.3)", "pyopenssl (>=20.0.0)"]
 reauth = ["pyu2f (>=0.1.5)"]
 requests = ["requests (>=2.20.0,<3.0.0dev)"]
@@ -1315,7 +1316,7 @@ python-versions = ">=3.7"
 [package.extras]
 docs = ["jaraco.packaging (>=3.2)", "rst.linker (>=1.9)", "sphinx"]
 testing = ["ecdsa", "feedparser", "gmpy2", "numpy", "pandas", "pymongo", "pytest (>=3.5,!=3.7.3)", "pytest-black-multipy", "pytest-checkdocs (>=1.2.3)", "pytest-cov", "pytest-flake8 (>=1.1.1)", "scikit-learn", "sqlalchemy"]
-testing-libs = ["simplejson", "ujson"]
+"testing.libs" = ["simplejson", "ujson"]
 
 [[package]]
 name = "jsonpointer"
@@ -1341,7 +1342,7 @@ six = ">=1.11.0"
 
 [package.extras]
 format = ["idna", "jsonpointer (>1.13)", "rfc3987", "strict-rfc3339", "webcolors"]
-format-nongpl = ["idna", "jsonpointer (>1.13)", "rfc3339-validator", "rfc3986-validator (>0.1.0)", "webcolors"]
+format_nongpl = ["idna", "jsonpointer (>1.13)", "rfc3339-validator", "rfc3986-validator (>0.1.0)", "webcolors"]
 
 [[package]]
 name = "keystoneauth1"
@@ -1689,7 +1690,7 @@ rfc3986 = ">=1.2.0"
 stevedore = ">=1.20.0"
 
 [package.extras]
-rst-generator = ["rst2txt (>=1.1.0)", "sphinx (>=1.8.0,!=2.1.0)"]
+rst_generator = ["rst2txt (>=1.1.0)", "sphinx (>=1.8.0,!=2.1.0)"]
 test = ["bandit (>=1.6.0,<1.7.0)", "coverage (>=4.0,!=4.4)", "fixtures (>=3.0.0)", "hacking (>=3.0.1,<3.1.0)", "mypy (>=0.720)", "oslo.log (>=3.36.0)", "oslotest (>=3.2.0)", "pre-commit (>=2.6.0)", "requests-mock (>=1.5.0)", "stestr (>=2.1.0)", "testscenarios (>=0.4)", "testtools (>=2.2.0)"]
 
 [[package]]
@@ -2277,7 +2278,7 @@ six = ">=1.10.0"
 
 [[package]]
 name = "python-waldur-client"
-version = "0.2.3"
+version = "0.2.4"
 description = "REST client for the Waldur API."
 category = "main"
 optional = false
@@ -2361,7 +2362,7 @@ urllib3 = ">=1.21.1,<1.27"
 
 [package.extras]
 socks = ["PySocks (>=1.5.6,!=1.5.7)"]
-use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
+use_chardet_on_py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "requests-oauthlib"
@@ -2458,7 +2459,7 @@ fastapi = ["fastapi (>=0.79.0)"]
 flask = ["blinker (>=1.1)", "flask (>=0.11)"]
 httpx = ["httpx (>=0.16.0)"]
 opentelemetry = ["opentelemetry-distro (>=0.35b0)"]
-pure-eval = ["asttokens", "executing", "pure-eval"]
+pure_eval = ["asttokens", "executing", "pure-eval"]
 pymongo = ["pymongo (>=3.1)"]
 pyspark = ["pyspark (>=2.4.4)"]
 quart = ["blinker (>=1.1)", "quart (>=0.16.1)"]
@@ -2508,14 +2509,14 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.extras]
 mssql = ["pyodbc"]
-mssql-pymssql = ["pymssql"]
-mssql-pyodbc = ["pyodbc"]
+mssql_pymssql = ["pymssql"]
+mssql_pyodbc = ["pyodbc"]
 mysql = ["mysqlclient"]
 oracle = ["cx_oracle"]
 postgresql = ["psycopg2"]
-postgresql-pg8000 = ["pg8000"]
-postgresql-psycopg2binary = ["psycopg2-binary"]
-postgresql-psycopg2cffi = ["psycopg2cffi"]
+postgresql_pg8000 = ["pg8000"]
+postgresql_psycopg2binary = ["psycopg2-binary"]
+postgresql_psycopg2cffi = ["psycopg2cffi"]
 pymysql = ["pymysql"]
 
 [[package]]
@@ -2752,7 +2753,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "30be4988d01c547e25082488bb53a03dd2a7d84ab0f5544ad44b1a66d7b9c58f"
+content-hash = "c583e87fdbf6b6b49eba3400335942d581509425f12486a0a99e9c0b1ee645fa"
 
 [metadata.files]
 adal = [
@@ -4119,7 +4120,7 @@ python-novaclient = [
     {file = "python_novaclient-10.3.0-py2.py3-none-any.whl", hash = "sha256:e8332be7bd0acbad7cba6d07a2dded0438571793b38d0d6b647fd875f9402d62"},
 ]
 python-waldur-client = [
-    {file = "python-waldur-client-0.2.3.tar.gz", hash = "sha256:da2e503e9743ead2db3061cca2da0a7e59ab0cc6b4e4c7e6f69dcaeb8c5e3456"},
+    {file = "python-waldur-client-0.2.4.tar.gz", hash = "sha256:cdbef654e8da66ebac2a6bf14ad146451200412eed8af31488f42315197f0fea"},
 ]
 pytz = [
     {file = "pytz-2022.7.1-py2.py3-none-any.whl", hash = "sha256:78f4f37d8198e0627c5f1143240bb0206b8691d8d7ac6d78fee88b78733f8c4a"},
