@@ -36,7 +36,11 @@ from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateExcepti
 from waldur_core.core.features import FEATURES
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ReviewMixin, ensure_atomic_transaction
-from waldur_core.core.serializers import AuthTokenSerializer, ReviewCommentSerializer
+from waldur_core.core.serializers import (
+    AuthTokenSerializer,
+    BrandingSerializer,
+    ReviewCommentSerializer,
+)
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.core.validators import StateValidator
 from waldur_core.logging.loggers import event_logger
@@ -428,6 +432,15 @@ def get_public_settings():
 @permission_classes((rf_permissions.AllowAny,))
 def configuration_detail(request):
     return Response(get_public_settings())
+
+
+@api_view(['POST'])
+@permission_classes((rf_permissions.IsAdminUser,))
+def branding(request):
+    serializer = BrandingSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
