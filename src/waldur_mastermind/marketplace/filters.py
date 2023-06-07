@@ -670,6 +670,10 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         )
 
 
+class OfferingUserGroupFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
+    o = django_filters.OrderingFilter(fields=('created',))
+
+
 class CategoryFilter(django_filters.FilterSet):
     class Meta:
         model = models.Category

@@ -4,6 +4,7 @@ from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
@@ -31,6 +32,9 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.robot_account = marketplace_factories.RobotAccountFactory(
             resource=self.resource
         )
+        marketplace_utils.setup_linux_related_data(self.robot_account, self.offering)
+        self.robot_account.save()
+
         self.url = marketplace_factories.OfferingFactory.get_url(
             self.offering, 'glauth_users_config'
         )

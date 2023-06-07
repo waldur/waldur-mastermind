@@ -557,6 +557,19 @@ def get_offering_customers(offering, active_customers):
     return structure_models.Customer.objects.filter(id__in=customers_ids)
 
 
+def get_offering_projects(offering):
+    related_project_ids = (
+        models.Resource.objects.filter(offering=offering)
+        .values_list('project', flat=True)
+        .distinct()
+        .order_by()
+    )
+    related_projects = structure_models.Project.objects.filter(
+        id__in=related_project_ids
+    )
+    return related_projects
+
+
 def get_start_and_end_dates_from_request(request):
     serializer = core_serializers.DateRangeFilterSerializer(data=request.query_params)
     serializer.is_valid(raise_exception=True)
@@ -890,9 +903,9 @@ def get_resource_users(resource):
 
 
 def generate_uidnumber_and_primary_group(offering):
-    initial_uidnumber = int(offering.plugin_options.get('initial_uidnumber', 100000))
+    initial_uidnumber = int(offering.plugin_options.get('initial_uidnumber', 5000))
     initial_primarygroup_number = int(
-        offering.plugin_options.get('initial_primarygroup_number', 100000)
+        offering.plugin_options.get('initial_primarygroup_number', 5000)
     )
 
     offering_user_last_uidnumber = (

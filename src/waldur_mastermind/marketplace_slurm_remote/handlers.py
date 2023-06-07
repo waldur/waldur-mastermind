@@ -118,20 +118,7 @@ def create_offering_users_when_project_role_granted(sender, structure, user, **k
             user=user,
             username=username,
         )
-
-        (
-            uidnumber,
-            primarygroup,
-        ) = marketplace_utils.generate_uidnumber_and_primary_group(offering)
-        offering_user.backend_metadata.update(
-            {
-                'uidnumber': uidnumber,
-                'primarygroup': primarygroup,
-                'loginShell': "/bin/sh",
-                'homeDir': f"/home/{offering_user.username}",
-            }
-        )
-
+        marketplace_utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=['backend_metadata'])
 
 
@@ -164,19 +151,7 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
 
         offering_user.set_propagation_date()
 
-        (
-            uidnumber,
-            primarygroup,
-        ) = marketplace_utils.generate_uidnumber_and_primary_group(offering)
-        offering_user.backend_metadata.update(
-            {
-                'uidnumber': uidnumber,
-                'primarygroup': primarygroup,
-                'loginShell': "/bin/sh",
-                'homeDir': f"/home/{offering_user.username}",
-            }
-        )
-
+        marketplace_utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=['propagation_date', 'backend_metadata'])
 
         logger.info('The offering user %s has been created', offering_user)
