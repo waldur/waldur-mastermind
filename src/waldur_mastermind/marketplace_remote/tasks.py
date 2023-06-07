@@ -810,7 +810,12 @@ def sync_remote_project(serialized_request):
 @shared_task
 def delete_remote_project(serialized_project):
     model_name, pk = serialized_project.split(':')
-    local_project = structure_models.Project.objects.get(pk=pk)
+    try:
+        local_project = structure_models.Project.objects.get(pk=pk)
+    except structure_models.Project.DoesNotExist:
+        # Project has been deleted via queryset method.
+        return
+
     backend_id = utils.get_project_backend_id(local_project)
     offering_ids = (
         models.Resource.objects.filter(

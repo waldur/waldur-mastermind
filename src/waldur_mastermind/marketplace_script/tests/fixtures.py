@@ -28,3 +28,10 @@ class ScriptFixture(marketplace_fixtures.MarketplaceFixture):
             'marketplace-script-dry-run-detail', kwargs={'uuid': offering.uuid.hex}
         )
         return url + 'run/'
+
+    @classmethod
+    def get_async_dry_run_url(cls, offering):
+        url = 'http://testserver' + reverse(
+            'marketplace-script-dry-run-detail', kwargs={'uuid': offering.uuid.hex}
+        )
+        return url + 'async_run/'
