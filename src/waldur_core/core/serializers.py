@@ -1,12 +1,15 @@
 import base64
 import logging
+import re
 from collections import OrderedDict
 
+from constance import LazyConfig, settings
 from django.core.exceptions import (
     ImproperlyConfigured,
     MultipleObjectsReturned,
     ObjectDoesNotExist,
 )
+from django.core.validators import RegexValidator, URLValidator
 from django.urls import Resolver404, reverse
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -18,6 +21,7 @@ from waldur_core.core.signals import pre_serializer_fields
 from . import fields as core_fields
 
 logger = logging.getLogger(__name__)
+config = LazyConfig()
 
 
 class AuthTokenSerializer(serializers.Serializer):
@@ -404,3 +408,61 @@ class DateRangeFilterSerializer(serializers.Serializer):
 
 class ReviewCommentSerializer(serializers.Serializer):
     comment = serializers.CharField(required=False)
+
+
+COLOR_HEX_RE = re.compile("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")
+color_hex_validator = RegexValidator(
+    COLOR_HEX_RE,
+    _("Enter a valid hex color, eg. #000000"),
+    "invalid",
+)
+
+
+class BrandingSerializer(serializers.Serializer):
+    def get_fields(self):
+        fields = OrderedDict()
+
+        for name, options in settings.CONFIG.items():
+            default = options[0]
+            if len(options) == 3:
+                config_type = options[2]
+                if config_type not in settings.ADDITIONAL_FIELDS and not isinstance(
+                    default, config_type
+                ):
+                    raise ImproperlyConfigured(
+                        _(
+                            "Default value type must be "
+                            "equal to declared config "
+                            "parameter type. Please fix "
+                            "the default value of "
+                            "'%(name)s'."
+                        )
+                        % {'name': name}
+                    )
+            else:
+                config_type = type(default)
+            field_class = None
+            if config_type == str:
+                field_class = serializers.CharField
+            if config_type == 'image_field':
+                field_class = serializers.ImageField
+            if not field_class:
+                continue
+            kwargs = dict(required=False)
+            if config_type == str:
+                kwargs['allow_blank'] = True
+            if name in ['BRAND_COLOR', 'BRAND_LABEL_COLOR']:
+                kwargs['validators'] = [color_hex_validator]
+            if name in ['HERO_LINK_URL', 'DOCS_URL', 'SUPPORT_PORTAL_URL']:
+                kwargs['validators'] = [URLValidator()]
+            fields[name] = field_class(**kwargs)
+        return fields
+
+    def save(self):
+        for name in self.fields.keys():
+            current = getattr(config, name)
+            if name not in self.validated_data:
+                continue
+            new = self.validated_data[name]
+            if current != new:
+                setattr(config, name, new)
