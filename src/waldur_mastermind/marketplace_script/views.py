@@ -1,11 +1,20 @@
+from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from waldur_core.core.views import ActionsViewSet
+from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.permissions import user_is_owner_or_service_manager
+from waldur_mastermind.marketplace_script import (
+    executors as marketplace_script_executors,
+)
+from waldur_mastermind.marketplace_script import filters as marketplace_script_filters
+from waldur_mastermind.marketplace_script import models as marketplace_script_models
 
 from . import PLUGIN_NAME
 from .serializers import DryRunSerializer, DryRunTypes
@@ -66,4 +75,45 @@ class DryRunView(ActionsViewSet):
         output = executor.send_request(request.user, dry_run=True)
         return Response({'output': output})
 
-    run_permissions = [user_is_owner_or_service_manager]
+    @action(detail=True, methods=['post'])
+    def async_run(self, request, *args, **kwargs):
+        serializer = DryRunSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering = self.get_object()
+        order_item = marketplace_models.OrderItem(**serializer.validated_data)
+        order_item.offering = offering
+        order_item_type = DryRunTypes.get_type_display(order_item.type)
+
+        project = structure_models.Project(
+            name='Dry-run project', customer=offering.customer
+        )
+        order = marketplace_models.Order(
+            created_by=request.user,
+            project=project,
+        )
+
+        order_item.order = order
+        project.save()
+        order.save()
+        order_item.save()
+        dry_run = marketplace_script_models.DryRun.objects.create(
+            order=order,
+            order_item_type=order_item_type,
+            order_item_offering=order_item.offering,
+            order_item_attributes=order_item.attributes,
+            order_item_plan=order_item.plan,
+        )
+        transaction.on_commit(
+            lambda: marketplace_script_executors.DryRunExecutor.execute(dry_run)
+        )
+        return Response({'uuid': dry_run.uuid.hex}, status=status.HTTP_202_ACCEPTED)
+
+    run_permissions = async_run_permissions = [user_is_owner_or_service_manager]
+
+
+class AsyncDryRunView(ReadOnlyActionsViewSet):
+    queryset = marketplace_script_models.DryRun.objects.filter().order_by('-created')
+    lookup_field = 'uuid'
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = DryRunSerializer
+    filterset_class = marketplace_script_filters.DryRunFilter

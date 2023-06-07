@@ -26,4 +26,9 @@ class MarketplaceScriptExtension(WaldurExtension):
                 'schedule': timedelta(hours=1),
                 'args': (),
             },
+            'waldur-marketplace-script-remove-old-dry-runs': {
+                'task': 'waldur_marketplace_script.remove_old_dry_runs',
+                'schedule': timedelta(days=1),
+                'args': (),
+            },
         }

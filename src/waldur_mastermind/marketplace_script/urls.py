@@ -7,3 +7,8 @@ def register_in(router):
         views.DryRunView,
         basename='marketplace-script-dry-run',
     )
+    router.register(
+        r'marketplace-script-async-dry-run',
+        views.AsyncDryRunView,
+        basename='marketplace-script-async-dry-run',
+    )

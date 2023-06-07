@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace_script import models as marketplace_script_models
 
 
 class OrderItemSerializer(serializers.Serializer):
@@ -70,7 +71,7 @@ class DryRunTypes(models.RequestTypeMixin.Types):
 
 
 class DryRunSerializer(
-    serializers.Serializer,
+    serializers.HyperlinkedModelSerializer,
 ):
     plan = serializers.HyperlinkedRelatedField(
         view_name='marketplace-plan-detail',
@@ -82,5 +83,43 @@ class DryRunSerializer(
         choices=DryRunTypes.CHOICES,
         required=False,
         default=DryRunTypes.CREATE,
+        write_only=True,
     )
-    attributes = serializers.JSONField(required=False)
+    attributes = serializers.JSONField(required=False, write_only=True)
+
+    class Meta:
+        model = marketplace_script_models.DryRun
+        fields = (
+            'url',
+            'uuid',
+            'plan',
+            'type',
+            'attributes',
+            'order_item_attributes',
+            'order_item_type',
+            'order_item_offering',
+            'state',
+            'get_state_display',
+            'output',
+            'created',
+        )
+
+        read_only_fields = (
+            'order_item_attributes',
+            'order_item_type',
+            'state',
+            'output',
+            'uuid',
+            'created',
+        )
+
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-script-async-dry-run-detail',
+            },
+            'order_item_offering': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-provider-offering-detail',
+            },
+        }
