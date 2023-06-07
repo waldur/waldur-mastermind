@@ -2078,10 +2078,14 @@ class RuntimeStatesViewSet(views.APIView):
             structure_models.Project.objects.all(), request.user
         )
         project = get_object_or_404(projects, uuid=project_uuid)
+        resources = models.Resource.objects.filter(project=project)
+        category_uuid = request.query_params.get('category_uuid')
+        if category_uuid and is_uuid_like(category_uuid):
+            resources = resources.filter(offering__category__uuid=category_uuid)
         runtime_states = set(
-            models.Resource.objects.filter(project=project)
-            .values_list('backend_metadata__runtime_state', flat=True)
-            .distinct()
+            resources.values_list(
+                'backend_metadata__runtime_state', flat=True
+            ).distinct()
         )
         result = sorted(
             [
