@@ -1489,6 +1489,14 @@ class OfferingUser(
         return f"{self.offering.name}: {self.username}"
 
 
+class OfferingUserGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
+    projects = models.ManyToManyField(structure_models.Project, blank=True)
+    offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return "Offering user group for %s" % self.offering
+
+
 class CategoryHelpArticle(models.Model):
     title = models.CharField(max_length=255, null=True, blank=True)
     url = models.URLField()

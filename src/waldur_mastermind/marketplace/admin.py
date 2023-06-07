@@ -282,6 +282,19 @@ class OfferingUserInline(admin.TabularInline):
     extra = 1
 
 
+class OfferingUserGroupInline(admin.StackedInline):
+    model = models.OfferingUserGroup
+    extra = 1
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        object_id = request.resolver_match.kwargs.get('object_id')
+        if db_field.name == "projects" and object_id:
+            offering = models.Offering.objects.get(id=object_id)
+            projects = utils.get_offering_projects(offering)
+            kwargs["queryset"] = projects
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+
 class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [
@@ -292,6 +305,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         GoogleCalendarInline,
         OfferingUserInline,
         DivisionsInline,
+        OfferingUserGroupInline,
     ]
     list_display = (
         'name',

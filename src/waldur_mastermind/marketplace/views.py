@@ -1029,8 +1029,9 @@ class ProviderOfferingViewSet(
         )
         user_records = []
 
+        offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
+
         for offering_user in offering_users:
-            utils.setup_linux_related_data(offering_user, offering)
             offering_user.save(update_fields=['backend_metadata'])
 
             user = offering_user.user
@@ -1047,6 +1048,17 @@ class ProviderOfferingViewSet(
 
             password_sha256 = utils.generate_offering_password_hash(offering)
 
+            user_projects = structure_models.ProjectPermission.objects.filter(
+                user=user, is_active=True
+            ).values_list('project')
+
+            group_ids = models.OfferingUserGroup.objects.filter(
+                projects__in=user_projects
+            ).values_list('backend_metadata__gid', flat=True)
+            group_ids = [str(gid) for gid in group_ids]
+
+            other_groups = ", ".join(group_ids)
+
             record = textwrap.dedent(
                 f"""
             [[users]]
@@ -1056,6 +1068,7 @@ class ProviderOfferingViewSet(
               mail = "{user.email}"
               uidnumber = {uidnumber}
               primarygroup = {primarygroup}
+              otherGroups = [{other_groups}]
               sshkeys = [{ssh_keys_line}]
               loginShell = "{login_shell}"
               homeDir = "{home_dir}"
@@ -1078,9 +1091,6 @@ class ProviderOfferingViewSet(
 
         robot_account_records = []
         for robot_account in robot_accounts:
-            utils.setup_linux_related_data(robot_account, offering)
-            robot_account.save(update_fields=['backend_metadata'])
-
             ssh_keys = robot_account.keys
             ssh_keys_line = ',\n    '.join(ssh_keys)
 
@@ -1114,7 +1124,21 @@ class ProviderOfferingViewSet(
 
             robot_account_records.append(record)
 
-        response_text = '\n'.join(user_records + robot_account_records)
+        other_group_records = []
+        for group in offering_groups:
+            gid = group.backend_metadata['gid']
+            record = textwrap.dedent(
+                f"""
+                [[groups]]
+                  name = "{gid}"
+                  gidnumber = {gid}
+            """
+            )
+            other_group_records.append(record)
+
+        response_text = '\n'.join(
+            user_records + robot_account_records + other_group_records
+        )
 
         return Response(response_text)
 
@@ -2277,6 +2301,59 @@ class OfferingUsersViewSet(
         return queryset
 
 
+class OfferingUserGroupViewSet(core_views.ActionsViewSet):
+    queryset = models.OfferingUserGroup.objects.all()
+    serializer_class = serializers.OfferingUserGroupDetailsSerializer
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingUserGroupFilter
+    create_serializer_class = (
+        update_serializer_class
+    ) = partial_update_serializer_class = serializers.OfferingUserGroupSerializer
+
+    unsafe_methods_permissions = [
+        permissions.user_is_service_provider_owner_or_service_provider_manager
+    ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        current_user = self.request.user
+        if current_user.is_staff or current_user.is_support:
+            return queryset
+
+        customers = structure_models.CustomerPermission.objects.filter(
+            user=current_user, is_active=True
+        ).values_list('customer_id')
+        projects = structure_models.ProjectPermission.objects.filter(
+            user=current_user, is_active=True
+        ).values_list('project_id')
+        subquery = (
+            Q(projects__customer__in=customers)
+            | Q(offering__customer__in=customers)
+            | Q(projects__in=projects)
+        )
+        return queryset.filter(subquery)
+
+    def perform_create(self, serializer):
+        offering_group: models.OfferingUserGroup = serializer.save()
+        offering = offering_group.offering
+        offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
+
+        existing_ids = offering_groups.filter(
+            backend_metadata__has_key='gid'
+        ).values_list('backend_metadata__gid', flat=True)
+
+        if len(existing_ids) == 0:
+            max_group_id = int(
+                offering.plugin_options.get('initial_usergroup_number', 6000)
+            )
+        else:
+            max_group_id = max(existing_ids)
+
+        offering_group.backend_metadata['gid'] = max_group_id + 1
+        offering_group.save(update_fields=['backend_metadata'])
+
+
 class StatsViewSet(rf_viewsets.ViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsSupport]
 
@@ -2942,6 +3019,18 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
             | Q(resource__offering__customer__in=customers)
         )
         return qs.filter(subquery)
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        offering = instance.resource.offering
+        utils.setup_linux_related_data(instance, offering)
+        instance.save()
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        offering = instance.resource.offering
+        utils.setup_linux_related_data(instance, offering)
+        instance.save()
 
 
 class SectionViewSet(rf_viewsets.ModelViewSet):

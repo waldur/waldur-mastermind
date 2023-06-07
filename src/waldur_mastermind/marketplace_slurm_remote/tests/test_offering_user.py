@@ -182,6 +182,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
             'username_generation_policy': 'waldur_username',
             'initial_uidnumber': 1000,
             'initial_primarygroup_number': 2000,
+            'initial_usergroup_number': 3000,
         }
         self.offering.secret_options = {
             'service_provider_can_create_offering_user': True
@@ -198,6 +199,20 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         )
         self.offering_user.set_propagation_date()
         self.offering_user.save()
+
+        self.offering_user_group1 = marketplace_models.OfferingUserGroup.objects.create(
+            offering=self.offering, backend_metadata={'gid': 6001}
+        )
+        self.offering_user_group1.projects.set(
+            [self.resource.project, self.fixture.offering_project]
+        )
+        self.offering_user_group1.save()
+
+        self.offering_user_group2 = marketplace_models.OfferingUserGroup.objects.create(
+            offering=self.offering, backend_metadata={'gid': 6002}
+        )
+        self.offering_user_group2.projects.set([self.fixture.offering_project])
+        self.offering_user_group2.save()
 
         self.url = marketplace_factories.OfferingFactory.get_url(
             self.offering, 'glauth_users_config'
@@ -224,6 +239,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
           mail = "{self.manager.email}"
           uidnumber = 1001
           primarygroup = 2001
+          otherGroups = [6001]
           sshkeys = ["{ssh_key.public_key}"]
           loginShell = "/bin/sh"
           homeDir = "/home/{self.offering_user.username}"
@@ -234,6 +250,16 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         [[groups]]
           name = "{self.offering_user.username}"
           gidnumber = 2001
+
+
+        [[groups]]
+          name = "6001"
+          gidnumber = 6001
+
+
+        [[groups]]
+          name = "6002"
+          gidnumber = 6002
         """
         )
         self.assertEqual(expected_config_file, response.data)
