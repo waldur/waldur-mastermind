@@ -575,7 +575,10 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
         fields = ['url', 'uuid', 'name', 'role', 'permission', 'expiration_time']
 
 
-class CustomerUserSerializer(serializers.ModelSerializer):
+class CustomerUserSerializer(
+    ProtectedMediaSerializerMixin,
+    serializers.ModelSerializer,
+):
     role = serializers.ReadOnlyField()
     is_service_manager = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField(source='perm.expiration_time')
@@ -599,6 +602,7 @@ class CustomerUserSerializer(serializers.ModelSerializer):
             'projects',
             'is_service_manager',
             'expiration_time',
+            'image',
         ]
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
