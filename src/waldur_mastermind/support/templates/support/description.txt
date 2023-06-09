@@ -11,6 +11,7 @@ Additional Info:
         - Offering provided by: {{ issue.resource.service_settings.customer.name }}
     {% endif %}
     - Affected resource: {{issue.resource}}
+    - Backend ID: {{issue.resource.backend_id}}
 {% endif %}
 - Site name: {{ settings.WALDUR_CORE.SITE_NAME }}
 - Site URL: {{ settings.WALDUR_CORE.HOMEPORT_URL }}

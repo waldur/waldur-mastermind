@@ -307,6 +307,26 @@ class IssueCreateTest(IssueCreateBaseTest):
             models.Issue.objects.filter(customer=self.fixture.customer).exists()
         )
 
+    def test_backend_id_exists_in_issue_description_if_resource_has_been_passed(self):
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.fixture.resource.backend_id = 'resource backend ID'
+        self.fixture.resource.save()
+        payload = self._get_valid_payload(
+            resource=structure_factories.TestNewInstanceFactory.get_url(
+                self.fixture.resource
+            ),
+            is_reported_manually=True,
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Issue.objects.filter(customer=self.fixture.customer).exists()
+        )
+        issue = models.Issue.objects.filter(customer=self.fixture.customer).get()
+        self.assertTrue('resource backend ID' in issue.description)
+
     @data('user')
     def test_user_without_access_to_resource_cannot_create_resource_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
