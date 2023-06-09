@@ -9,7 +9,7 @@ class VMwareError(Exception):
     def __init__(self, message=None, code=None):
         """Initialize exception class with optional message and code."""
         if message:
-            self.message = message
+            self.message = str(message)
         if code:
             self.code = code
 

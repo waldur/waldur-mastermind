@@ -68,9 +68,7 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
         raise NotImplementedError('Pull task should implement pull method.')
 
     def on_pull_fail(self, instance, error):
-        # a call of str(error) can raise an exception if __str__ method does not return string
-        error_message = f'{error}'
-
+        error_message = str(error)
         self.log_error_message(instance, error_message)
         try:
             self.set_instance_erred(instance, error_message)
