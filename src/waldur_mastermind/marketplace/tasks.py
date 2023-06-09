@@ -17,6 +17,7 @@ from rest_framework import status
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.log import event_logger
@@ -509,6 +510,11 @@ def send_metrics():
 
     site_name = settings.WALDUR_CORE['HOMEPORT_URL']
     deployment_type = core_utils.get_deployment_type()
+    first_event = logging_models.Event.objects.order_by('created').first()
+    installation_date = (
+        first_event.created.strftime('%Y-%m-%d %H:%M:%S.%f%z') if first_event else None
+    )
+    installation_date_str = str(installation_date) if installation_date else None
     params = {
         'deployment_id': hashlib.sha256(site_name.encode()).hexdigest(),
         'deployment_type': deployment_type,
@@ -534,6 +540,8 @@ def send_metrics():
         ),
         'version': mastermind_version,
     }
+    if installation_date_str:
+        params['installation_date'] = installation_date_str
     url = (
         settings.WALDUR_MARKETPLACE['TELEMETRY_URL']
         + f"v{settings.WALDUR_MARKETPLACE['TELEMETRY_VERSION']}/metrics/"
