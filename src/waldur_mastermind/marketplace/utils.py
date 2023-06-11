@@ -32,6 +32,7 @@ from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 
+from . import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from . import models, plugins
 
 logger = logging.getLogger(__name__)
@@ -560,6 +561,7 @@ def get_offering_customers(offering, active_customers):
 def get_offering_projects(offering):
     related_project_ids = (
         models.Resource.objects.filter(offering=offering)
+        .exclude(state=models.Resource.States.TERMINATED)
         .values_list('project', flat=True)
         .distinct()
         .order_by()
@@ -568,6 +570,16 @@ def get_offering_projects(offering):
         id__in=related_project_ids
     )
     return related_projects
+
+
+def is_user_related_to_offering(offering, user):
+    if offering.type == BASIC_PLUGIN_NAME:
+        projects = get_offering_projects(offering)
+        project_permissions = structure_models.ProjectPermission.objects.filter(
+            user=user, project__in=projects, is_active=True
+        )
+        return project_permissions.exists()
+    return False
 
 
 def get_start_and_end_dates_from_request(request):

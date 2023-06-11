@@ -1142,6 +1142,29 @@ class ProviderOfferingViewSet(
 
         return Response(response_text)
 
+    @action(detail=True, methods=['GET'])
+    def user_has_resource_access(self, request, uuid=None):
+        offering = self.get_object()
+        username = request.query_params.get('username')
+        if username is None:
+            raise rf_exceptions.ValidationError(
+                _('Username is missing in query parameters.')
+            )
+
+        try:
+            user = core_models.User.objects.get(username=username)
+        except core_models.User.DoesNotExist:
+            error_message = _('The user with username %s does not exist!' % username)
+            logger.error(error_message)
+            raise rf_exceptions.ValidationError(error_message)
+
+        is_related = utils.is_user_related_to_offering(offering, user)
+
+        return Response(
+            {'related': is_related},
+            status=status.HTTP_200_OK,
+        )
+
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()
