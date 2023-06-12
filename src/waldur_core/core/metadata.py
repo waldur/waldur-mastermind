@@ -236,7 +236,7 @@ class WaldurCore(BaseModel):
 
     HOMEPORT_SENTRY_TRACES_SAMPLE_RATE: float = Field(
         description='Percentage of transactions sent to Sentry for tracing.',
-        default=0.2,
+        default=0.01,
     )
 
     LOCAL_IDP_NAME = Field('Local DB', description='The name of local auth.')
