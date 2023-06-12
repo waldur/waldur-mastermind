@@ -133,7 +133,7 @@ if DEBUG:
 # Sentry integration
 # See also: https://docs.sentry.io/platforms/python/guides/django/
 sentry_dsn = env.get('SENTRY_DSN')
-sentry_traces_sample_rate = float(env.get('SENTRY_TRACES_SAMPLE_RATE', 0.2))
+sentry_traces_sample_rate = float(env.get('SENTRY_TRACES_SAMPLE_RATE', 0.01))
 
 if sentry_dsn:
     import sentry_sdk
