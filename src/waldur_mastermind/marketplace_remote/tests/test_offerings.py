@@ -1,12 +1,22 @@
+from unittest import mock
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import responses
 from django.test import override_settings
 from rest_framework import status, test
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests import factories, fixtures
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests import fixtures
+from waldur_mastermind.marketplace.tests.factories import OfferingFactory
+from waldur_mastermind.marketplace_remote.processors import (
+    RemoteCreateResourceProcessor,
+)
 from waldur_mastermind.marketplace_remote.tasks import OfferingPullTask
 
 from .. import PLUGIN_NAME
@@ -288,3 +298,56 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         plan.refresh_from_db()
         self.assertEqual(plan.max_amount, 100)
         self.assertEqual(plan.name, old_name)
+
+
+@override_waldur_core_settings(MASTERMIND_URL='http://localhost')
+class OfferingRemoteVersionTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = PLUGIN_NAME
+        self.offering.save()
+
+        self.get_request_mock_patcher = mock.patch('waldur_client.requests.get')
+        self.get_request_mock = self.get_request_mock_patcher.start()
+        self.get_request_mock.side_effect = lambda url, **kwargs: self.client.get(
+            url + '?' + urlencode(kwargs.get('params', {})), **kwargs
+        )
+
+        self.post_request_mock_patcher = mock.patch('waldur_client.requests.post')
+        self.post_request_mock = self.post_request_mock_patcher.start()
+
+        def post_request_mock(url, **kwargs):
+            response = self.client.post(url, kwargs['json'])
+            response.text = response.content
+            return response
+
+        self.post_request_mock.side_effect = post_request_mock
+
+    def test_creating_remote_order_item(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        remote_offering = OfferingFactory(
+            state=marketplace_models.Offering.States.ACTIVE
+        )
+        self.offering.secret_options = {
+            'token': '0b67edfecdda37fe4b6e7d6c3e6360acb3a1f2bf',
+            'api_url': 'http://localhost/api/',
+            'customer_uuid': remote_offering.customer.uuid.hex,
+            'service_provider_can_create_offering_user': False,
+        }
+        self.offering.backend_id = remote_offering.uuid.hex
+        self.offering.save()
+
+        order_item = marketplace_factories.OrderItemFactory(
+            order=marketplace_factories.OrderFactory(project=self.fixture.project),
+            offering=self.offering,
+            attributes={'name': 'item_name', 'description': 'Description'},
+            plan=self.fixture.plan,
+        )
+
+        processor = RemoteCreateResourceProcessor(order_item)
+        processor.process_order_item(self.fixture.staff)
+
+        order_item.refresh_from_db()
+        self.assertTrue(order_item.backend_id)
