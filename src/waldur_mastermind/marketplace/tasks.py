@@ -189,7 +189,7 @@ def notify_provider_about_order_item_pending_approval(order_item_uuid):
     )
 
     link = core_utils.format_homeport_link(
-        'organizations/{organization_uuid}/marketplace-order-items/',
+        'providers/{organization_uuid}/marketplace-order-items/',
         organization_uuid=service_provider_org.uuid,
     )
 
