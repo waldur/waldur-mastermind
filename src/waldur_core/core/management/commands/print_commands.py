@@ -13,12 +13,17 @@ BLACK_LIST = [
     'print_templates',
 ]
 
+WHITE_LIST = [
+    'waldur',
+    'axes',
+]
+
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
         commands = []
         for name, path in get_commands().items():
-            if 'waldur' not in path or name in BLACK_LIST:
+            if not any(map(lambda x: x in path, WHITE_LIST)) or name in BLACK_LIST:
                 continue
             command = load_command_class(path, name)
             commands.append((name, command))
