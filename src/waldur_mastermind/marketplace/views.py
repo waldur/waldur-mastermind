@@ -1158,10 +1158,10 @@ class ProviderOfferingViewSet(
             logger.error(error_message)
             raise rf_exceptions.ValidationError(error_message)
 
-        is_related = utils.is_user_related_to_offering(offering, user)
+        has_access = utils.is_user_related_to_offering(offering, user)
 
         return Response(
-            {'related': is_related},
+            {'has_access': has_access},
             status=status.HTTP_200_OK,
         )
 
