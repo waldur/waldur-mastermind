@@ -2297,7 +2297,7 @@ python-versions = "*"
 
 [[package]]
 name = "pyvat"
-version = "1.3.15"
+version = "1.3.17"
 description = "VAT validation for Python"
 category = "main"
 optional = false
@@ -2753,7 +2753,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.11"
-content-hash = "c583e87fdbf6b6b49eba3400335942d581509425f12486a0a99e9c0b1ee645fa"
+content-hash = "d086184fd8cf2c6511600b4f54de32b47413c11ece49ea6c8f4a1a296cb0bf6b"
 
 [metadata.files]
 adal = [
@@ -3197,7 +3197,6 @@ django-cors-headers = [
     {file = "django_cors_headers-3.13.0-py3-none-any.whl", hash = "sha256:37e42883b5f1f2295df6b4bba96eb2417a14a03270cb24b2a07f021cd4487cf4"},
 ]
 django-dbtemplates = [
-    {file = "django-dbtemplates-4.0.tar.gz", hash = "sha256:e6fa3d47824183731071339a589ec1e8910ee6eef5ddad89239008a36e3c5d43"},
     {file = "django_dbtemplates-4.0-py3-none-any.whl", hash = "sha256:a6ca7a921841a1cc411dadc7e10b61299bc4c0534b2a0ae53365e8494573bc93"},
 ]
 django-filter = [
@@ -4127,8 +4126,8 @@ pytz = [
     {file = "pytz-2022.7.1.tar.gz", hash = "sha256:01a0681c4b9684a28304615eba55d1ab31ae00bf68ec157ec3708a8182dbbcd0"},
 ]
 pyvat = [
-    {file = "pyvat-1.3.15-py3-none-any.whl", hash = "sha256:ce320791323c72d29cf2fd0f3211161057861414f1e88171d88d68d8afc878c7"},
-    {file = "pyvat-1.3.15.tar.gz", hash = "sha256:b9321d3899c79f68319c8cdd6356b6d8f9c977ffb3113683f95439f68edea547"},
+    {file = "pyvat-1.3.17-py3-none-any.whl", hash = "sha256:4e5b0932c0a8c443df8cdd658fa8977b57f9141f60f8e20211638be0be7f5b61"},
+    {file = "pyvat-1.3.17.tar.gz", hash = "sha256:6f3493368b8214d21ceca42b7d70bc9297f7ef114ead4cb8cfe23740c0eb955e"},
 ]
 pyvmomi = [
     {file = "pyvmomi-6.7.1.zip", hash = "sha256:41c1ac92741f2b483bd0178010ecca20033121e250a1f32fd1d3f68d4aa08b31"},
