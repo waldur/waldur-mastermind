@@ -3531,9 +3531,23 @@ class RobotAccountSerializer(
 class RobotAccountDetailsSerializer(RobotAccountSerializer):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
     user_keys = serializers.SerializerMethodField()
+    resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
+    resource_name = serializers.ReadOnlyField(source='resource.name')
+    project_uuid = serializers.ReadOnlyField(source='resource.project.uuid')
+    project_name = serializers.ReadOnlyField(source='resource.project.name')
+    customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
+    customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
 
     class Meta(RobotAccountSerializer.Meta):
-        fields = RobotAccountSerializer.Meta.fields + ('user_keys',)
+        fields = RobotAccountSerializer.Meta.fields + (
+            'user_keys',
+            'resource_name',
+            'resource_uuid',
+            'project_name',
+            'project_uuid',
+            'customer_uuid',
+            'customer_name',
+        )
 
     def get_user_keys(self, instance):
         return structure_serializers.SshKeySerializer(
