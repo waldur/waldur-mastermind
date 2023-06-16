@@ -1,12 +1,10 @@
 from django.contrib import admin
-from import_export import admin as import_export_admin
 from modeltranslation import admin as modeltranslation_admin
 
 from . import models
-from .import_export_resources import ChecklistResource
 
 
-class CategoryAdmin(import_export_admin.ImportExportModelAdmin):
+class CategoryAdmin(admin.ModelAdmin):
     fields = ('icon', 'name', 'description')
 
 
@@ -25,15 +23,11 @@ class ChecklistProjectRoleInline(admin.StackedInline):
     fields = ('role',)
 
 
-class ChecklistAdmin(
-    import_export_admin.ImportExportMixin, modeltranslation_admin.TranslationAdmin
-):
+class ChecklistAdmin(modeltranslation_admin.TranslationAdmin):
     inlines = [QuestionInline, ChecklistCustomerRoleInline, ChecklistProjectRoleInline]
     list_display = ('name', 'description', 'category', 'uuid')
     list_filter = ('category',)
     fields = ('name', 'description', 'category')
-
-    resource_class = ChecklistResource
 
 
 class AnswerAdmin(admin.ModelAdmin):
