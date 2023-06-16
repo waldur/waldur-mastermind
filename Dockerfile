@@ -12,7 +12,7 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
     dpkg-buildpackage -us -uc && \
     cd .. && rm ./*-dbgsym*.deb ./*-dev*.deb ./*-doc*.deb
 
-FROM python:3.8
+FROM python:3.8.17-bullseye
 
 ENV LANG C.UTF-8
 
