@@ -527,6 +527,9 @@ class RobotAccountFilter(django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(
         field_name='resource__project__customer__uuid'
     )
+    provider_uuid = django_filters.UUIDFilter(
+        field_name='resource__offering__customer__uuid'
+    )
 
     class Meta:
         model = models.RobotAccount
