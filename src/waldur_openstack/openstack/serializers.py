@@ -205,6 +205,12 @@ class FloatingIPAttachSerializer(serializers.Serializer):
     )
 
 
+class FloatingIPDescriptionUpdateSerializer(serializers.Serializer):
+    description = serializers.CharField(
+        required=False, help_text=_('New floating IP description.')
+    )
+
+
 class DebugSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
     class Meta(BaseSecurityGroupRuleSerializer.Meta):
         model = models.SecurityGroupRule

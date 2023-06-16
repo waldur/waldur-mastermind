@@ -182,3 +182,33 @@ class FloatingIPDetachTest(BaseFloatingIPTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('not attached to any port', response.data['port'])
+
+
+class FloatingIPUpdateTest(BaseFloatingIPTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.url = factories.FloatingIPFactory.get_url(
+            self.ip, action='update_description'
+        )
+        self.description = 'new description'
+        self.payload = {'description': self.description}
+
+    def test_floating_ip_description_update(self):
+        response = self.client.post(self.url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.ip.refresh_from_db()
+        self.assertEqual(self.ip.description, self.description)
+
+    @mock.patch('waldur_openstack.openstack.executors.FloatingIPUpdateExecutor.execute')
+    def test_floating_ip_description_update_triggers_executor(
+        self, detach_ip_executor_action_mock
+    ):
+        response = self.client.post(self.url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        detach_ip_executor_action_mock.assert_called_once()
+
+    def test_floating_ip_description_update_for_ip_with_not_ok_state(self):
+        self.ip.state = models.FloatingIP.States.ERRED
+        self.ip.save()
+        response = self.client.post(self.url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)

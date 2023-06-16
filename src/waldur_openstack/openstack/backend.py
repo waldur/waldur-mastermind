@@ -2183,6 +2183,33 @@ class OpenStackBackend(BaseOpenStackBackend):
         )
         floating_ip.decrease_backend_quotas_usage()
 
+    @log_backend_action('update floating ip description')
+    def update_floating_ip_description(self, floating_ip, serialized_description):
+        description = serialized_description
+        neutron = self.neutron_admin_client
+        payload = {
+            'description': description,
+        }
+        try:
+            response_floating_ip = neutron.update_floatingip(
+                floating_ip.backend_id, {'floatingip': payload}
+            )['floatingip']
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            floating_ip.runtime_state = response_floating_ip['status']
+            floating_ip.description = description
+            floating_ip.save(update_fields=['runtime_state', 'description'])
+
+            event_logger.openstack_floating_ip.info(
+                'The description of the floating IP [%s] has been changed to [%s].'
+                % (floating_ip, description),
+                event_type='openstack_floating_ip_description_updated',
+                event_context={
+                    'floating_ip': floating_ip,
+                },
+            )
+
     @log_backend_action('create floating ip')
     def create_floating_ip(self, floating_ip):
         neutron = self.neutron_client
