@@ -61,7 +61,6 @@ INSTALLED_APPS = (
     'reversion',
     'jsoneditor',
     'modeltranslation',
-    'import_export',
 
     'health_check',
     'health_check.db',
