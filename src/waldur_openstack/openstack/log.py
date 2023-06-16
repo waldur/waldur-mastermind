@@ -193,6 +193,7 @@ class FloatingIPLogger(EventLogger):
         event_types = (
             'openstack_floating_ip_attached',
             'openstack_floating_ip_detached',
+            'openstack_floating_ip_description_updated',
         )
         event_groups = {
             'resources': event_types,
@@ -201,7 +202,7 @@ class FloatingIPLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         floating_ip = event_context['floating_ip']
-        port = event_context['port']
+        port = event_context.get('port')
         return {floating_ip, floating_ip.tenant, port}
 
 

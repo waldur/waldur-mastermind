@@ -198,6 +198,28 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.FloatingIP.States.OK)
     ]
 
+    @decorators.action(detail=True, methods=['post'])
+    def update_description(self, request=None, uuid=None):
+        floating_ip: models.FloatingIP = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        description = serializer.validated_data['description']
+        floating_ip.description = description
+        floating_ip.save()
+        executors.FloatingIPUpdateExecutor.execute(
+            floating_ip, description=description, updated_fields=['description']
+        )
+        return response.Response(
+            {'status': _('Description was updated')}, status=status.HTTP_202_ACCEPTED
+        )
+
+    update_description_serializer_class = (
+        serializers.FloatingIPDescriptionUpdateSerializer
+    )
+    update_description_validators = [
+        core_validators.StateValidator(models.FloatingIP.States.OK)
+    ]
+
 
 class TenantViewSet(structure_views.ResourceViewSet):
     queryset = models.Tenant.objects.all().order_by('name')

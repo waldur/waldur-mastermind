@@ -410,6 +410,17 @@ class FloatingIPCreateExecutor(core_executors.CreateExecutor):
         )
 
 
+class FloatingIPUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, floating_ip, serialized_floating_ip, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_floating_ip,
+            'update_floating_ip_description',
+            state_transition='begin_updating',
+            serialized_description=kwargs.get('description'),
+        )
+
+
 class FloatingIPDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, floating_ip, serialized_floating_ip, **kwargs):
