@@ -173,7 +173,9 @@ class PermissionListSerializer(serializers.ListSerializer):
         return super().to_representation(data)
 
 
-class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
+class BasicUserSerializer(
+    ProtectedMediaSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     class Meta:
         model = User
         fields = (
@@ -183,6 +185,7 @@ class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
             'full_name',
             'native_name',
             'email',
+            'image',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
