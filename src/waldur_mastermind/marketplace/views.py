@@ -431,6 +431,40 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=['GET'])
+    def robot_account_customers(self, request, uuid=None):
+        service_provider = self.get_object()
+        qs = models.RobotAccount.objects.filter(
+            resource__offering__customer=service_provider.customer
+        )
+        customer_name = request.query_params.get('customer_name')
+        if customer_name:
+            qs = qs.filter(resource__project__customer__name__icontains=customer_name)
+        customer_ids = qs.values_list('resource__project__customer_id').distinct()
+        customers = structure_models.Customer.objects.filter(
+            id__in=customer_ids
+        ).order_by('name')
+        page = self.paginate_queryset(customers)
+        data = [{'name': row.name, 'uuid': row.uuid} for row in page]
+        return self.get_paginated_response(data)
+
+    @action(detail=True, methods=['GET'])
+    def robot_account_projects(self, request, uuid=None):
+        service_provider = self.get_object()
+        qs = models.RobotAccount.objects.filter(
+            resource__offering__customer=service_provider.customer
+        )
+        project_name = request.query_params.get('project_name')
+        if project_name:
+            qs = qs.filter(resource__offering__project__name__icontains=project_name)
+        project_ids = qs.values_list('resource__project_id').distinct()
+        projects = structure_models.Project.objects.filter(id__in=project_ids).order_by(
+            'name'
+        )
+        page = self.paginate_queryset(projects)
+        data = [{'name': row.name, 'uuid': row.uuid} for row in page]
+        return self.get_paginated_response(data)
+
 
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
