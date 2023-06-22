@@ -864,15 +864,36 @@ class RequestTypeMixin(CostEstimateMixin):
         return 0
 
 
-class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
+class SafeAttributesMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
+    attributes = models.JSONField(blank=True, default=dict)
+
+    @property
+    def safe_attributes(self):
+        """
+        Get attributes excluding secret attributes, such as username and password.
+        """
+        secret_attributes = plugins.manager.get_secret_attributes(self.offering.type)
+        attributes = self.attributes or {}
+        return {
+            key: attributes[key]
+            for key in attributes.keys()
+            if key not in secret_attributes
+        }
+
+
+class CartItem(
+    SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel, RequestTypeMixin
+):
     user = models.ForeignKey(
         core_models.User, related_name='+', on_delete=models.CASCADE
     )
     project = models.ForeignKey(
         structure_models.Project, related_name='+', on_delete=models.CASCADE
     )
-    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
-    attributes = models.JSONField(blank=True, default=dict)
 
     class Permissions:
         customer_path = 'project__customer'
@@ -1199,6 +1220,7 @@ class OrderItem(
     core_models.ErrorMessageMixin,
     RequestTypeMixin,
     structure_models.StructureLoggableMixin,
+    SafeAttributesMixin,
     TimeStampedModel,
 ):
     class States:
@@ -1221,8 +1243,6 @@ class OrderItem(
         TERMINAL_STATES = {DONE, ERRED, TERMINATED}
 
     order = models.ForeignKey(on_delete=models.CASCADE, to=Order, related_name='items')
-    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering)
-    attributes = models.JSONField(blank=True, default=dict)
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True
     )
@@ -1323,19 +1343,6 @@ class OrderItem(
             'get_state_display',
             'get_type_display',
         )
-
-    @property
-    def safe_attributes(self):
-        """
-        Get attributes excluding secret attributes, such as username and password.
-        """
-        secret_attributes = plugins.manager.get_secret_attributes(self.offering.type)
-        attributes = self.attributes or {}
-        return {
-            key: attributes[key]
-            for key in attributes.keys()
-            if key not in secret_attributes
-        }
 
     def __str__(self):
         return 'type: {}, offering: {}, created_by: {}'.format(

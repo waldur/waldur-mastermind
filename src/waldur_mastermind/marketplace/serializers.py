@@ -1813,6 +1813,14 @@ class BaseItemSerializer(
             utils.validate_limits(limits, offering)
         return attrs
 
+    def get_fields(self):
+        fields = super().get_fields()
+        method = self.context['view'].request.method
+
+        if method == 'GET' and 'attributes' in fields:
+            fields['attributes'] = serializers.ReadOnlyField(source='safe_attributes')
+        return fields
+
 
 class BaseRequestSerializer(BaseItemSerializer):
     type = NaturalChoiceField(
@@ -1863,15 +1871,10 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        method = self.context['view'].request.method
-
         user = self.context['view'].request.user
         # conceal detailed error message from non-system users
         if not user.is_staff and not user.is_support and 'error_traceback' in fields:
             del fields['error_traceback']
-
-        if method == 'GET' and 'attributes' in fields:
-            fields['attributes'] = serializers.ReadOnlyField(source='safe_attributes')
         return fields
 
 
