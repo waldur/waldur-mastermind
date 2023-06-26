@@ -1027,13 +1027,14 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
 
 
 class ResourceDetailsMixin(
-    CostEstimateMixin, core_models.NameMixin, core_models.DescribableMixin
+    SafeAttributesMixin,
+    CostEstimateMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
 ):
     class Meta:
         abstract = True
 
-    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
-    attributes = models.JSONField(blank=True, default=dict)
     end_date = models.DateField(
         null=True,
         blank=True,
