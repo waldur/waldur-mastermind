@@ -75,7 +75,6 @@ INSTALLED_APPS = (
 
     'constance',
     'constance.backends.database',
-
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 

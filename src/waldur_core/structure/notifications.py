@@ -229,3 +229,13 @@ class MarketplaceRemoteSection(NotificationSection):
         'notification_about_project_details_update',
         'A notification about project details update',
     )
+
+
+class PolicySection(NotificationSection):
+    class Meta:
+        key = 'marketplace_policy'
+
+    notification_project_cost_limit = Notification(
+        'notification_about_project_cost_exceeded_limit',
+        'Notification about project cost exceeded limit.',
+    )
