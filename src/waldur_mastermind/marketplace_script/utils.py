@@ -245,7 +245,13 @@ class ContainerExecutorMixin:
                 environment.update({opt['name']: opt['value']})
 
         language = options['language']
-        image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)
+        image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)[
+            'image'
+        ]
+        command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)[
+            'command'
+        ]
+
         logger.debug(
             'About to execute marketplace script via Docker. '
             'Hook type is %s. Order item ID is %s.',
@@ -262,7 +268,7 @@ class ContainerExecutorMixin:
             }
             output = execute_script(
                 image=image,
-                command=language,
+                command=command,
                 src=options[self.hook_type],
                 dry_run=dry_run,
                 environment=environment,

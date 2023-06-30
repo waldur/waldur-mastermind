@@ -32,9 +32,12 @@ def pull_resource(resource_id):
         environment.update(options['environ'])
 
     language = options['language']
-    image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)
+    image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)['image']
+    command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)[
+        'command'
+    ]
     utils.execute_script(
-        image=image, command=language, src=options['pull'], environment=environment
+        image=image, command=command, src=options['pull'], environment=environment
     )
 
 
