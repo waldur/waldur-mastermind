@@ -652,10 +652,10 @@ class WaldurMarketplaceScript(BaseModel):
     )
     DOCKER_IMAGES = Field(
         {
-            'python': 'python:3.8-alpine',
-            'shell': 'alpine:3',
+            'python': {'image': 'python:3.8-alpine', 'command': 'python'},
+            'shell': {'image': 'alpine:3', 'command': 'sh'},
         },
-        description='Key is command to execute script, value is image name.',
+        description='Key is command to execute script, value is a dictionary of image name and command.',
     )
     K8S_NAMESPACE = Field(
         'default', description='Kubernetes namespace where jobs will be executed'
