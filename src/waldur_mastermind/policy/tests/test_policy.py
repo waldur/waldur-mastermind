@@ -167,6 +167,13 @@ class CreatePolicyTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_some_policies_for_one_project(self):
+        response = self._create_policy('staff')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self._create_policy('staff')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 @ddt
 class DeletePolicyTest(test.APITransactionTestCase):
