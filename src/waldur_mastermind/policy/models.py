@@ -161,7 +161,7 @@ class ProjectPolicy(Policy):
 
         return handler
 
-    project = models.OneToOneField(structure_models.Project, on_delete=models.CASCADE)
+    project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     actions = models.CharField(
         validators=[validators.ActionsValidator(available_actions=available_actions)],
         max_length=255,
