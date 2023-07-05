@@ -243,6 +243,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     serializer_class = serializers.ProjectSerializer
     lookup_field = 'uuid'
     filter_backends = (
+        filters.GenericUserFilter,
         filters.ProjectEstimatedCostFilter,
         filters.GenericRoleFilter,
         filters.CustomerAccountingStartDateFilter,
