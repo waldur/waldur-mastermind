@@ -36,6 +36,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
         return
 
     new_limits = {}
+    new_usages = {}
     for component in manager.get_components(PLUGIN_NAME):
         usage = getattr(allocation, component.type + '_usage')
         limit = getattr(allocation, component.type + '_limit')
@@ -53,6 +54,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
             )
         else:
             new_limits[component.type] = limit
+            new_usages[component.type] = usage
             marketplace_models.ComponentQuota.objects.update_or_create(
                 resource=resource,
                 component=offering_component,
@@ -88,6 +90,16 @@ def update_component_quota(sender, instance, created=False, **kwargs):
         )
         resource.limits = new_limits
         resource.save(update_fields=['limits'])
+
+    if resource.current_usages != new_usages:
+        logger.debug(
+            'Syncing usages for SLURM. Allocation ID: %s. Old usages: %s. New usages: %s',
+            allocation.id,
+            resource.current_usages,
+            new_usages,
+        )
+        resource.current_usages = new_usages
+        resource.save(update_fields=['current_usages'])
 
 
 def create_offering_user_for_slurm_user(sender, allocation, user, username, **kwargs):
