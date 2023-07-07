@@ -270,6 +270,9 @@ class OrderFilter(django_filters.FilterSet):
         method='filter_items_type',
         label='Items type',
     )
+    can_approve_as_consumer = django_filters.BooleanFilter(
+        method='filter_can_approve_as_consumer',
+    )
     o = django_filters.OrderingFilter(
         fields=('created', 'approved_at', 'total_cost', 'state')
     )
@@ -290,6 +293,41 @@ class OrderFilter(django_filters.FilterSet):
             'order_id', flat=True
         )
         return queryset.filter(id__in=order_ids)
+
+    def filter_can_approve_as_consumer(self, queryset, name, value):
+        user = self.request.user
+
+        if value and not user.is_staff:
+            query_owner = Q(
+                project__customer__permissions__user__uuid=user.uuid.hex,
+                project__customer__permissions__is_active=True,
+                project__customer__permissions__role=structure_models.CustomerRole.OWNER,
+            )
+            query_manager = Q(
+                project__permissions__user__uuid=user.uuid.hex,
+                project__permissions__is_active=True,
+                project__permissions__role=structure_models.ProjectRole.MANAGER,
+            )
+            query_admin = Q(
+                project__permissions__user__uuid=user.uuid.hex,
+                project__permissions__is_active=True,
+                project__permissions__role=structure_models.ProjectRole.ADMINISTRATOR,
+            )
+
+            query_access = query_owner
+
+            if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
+                query_access = query_owner | query_manager
+
+            if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
+                query_access = query_owner | query_manager | query_admin
+
+            query_pending = query_access & Q(
+                state=models.Order.States.REQUESTED_FOR_APPROVAL,
+            )
+            return queryset.filter(query_pending)
+
+        return queryset
 
 
 class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
@@ -334,13 +372,9 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
     resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
     created = django_filters.DateTimeFilter(lookup_expr='gte', label='Created after')
     modified = django_filters.DateTimeFilter(lookup_expr='gte', label='Modified after')
-    can_manage_as_service_provider = django_filters.BooleanFilter(
-        method='filter_manage_as_service_provider',
-        label='Can manage as service provider',
-    )
-    can_manage_as_owner = django_filters.BooleanFilter(
-        method='filter_manage_as_owner',
-        label='Can manage as owner',
+    can_approve_as_service_provider = django_filters.BooleanFilter(
+        method='filter_can_approve_as_service_provider',
+        label='Can approve as service provider',
     )
 
     o = django_filters.OrderingFilter(fields=('created',))
@@ -356,7 +390,7 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
             offering__permissions__is_active=True,
         )
 
-    def filter_manage_as_service_provider(self, queryset, name, value):
+    def filter_can_approve_as_service_provider(self, queryset, name, value):
         user = self.request.user
 
         if value and not user.is_staff:
@@ -369,45 +403,6 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
                 state=models.OrderItem.States.PENDING,
             )
             query_executing = query_owner & Q(
-                state=models.OrderItem.States.EXECUTING,
-                resource__isnull=False,
-            )
-            return queryset.filter(query_pending | query_executing)
-
-        return queryset
-
-    def filter_manage_as_owner(self, queryset, name, value):
-        user = self.request.user
-
-        if value and not user.is_staff:
-            query_owner = Q(
-                order__project__customer__permissions__user__uuid=user.uuid.hex,
-                order__project__customer__permissions__is_active=True,
-                order__project__customer__permissions__role=structure_models.CustomerRole.OWNER,
-            )
-            query_manager = Q(
-                order__project__permissions__user__uuid=user.uuid.hex,
-                order__project__permissions__is_active=True,
-                order__project__permissions__role=structure_models.ProjectRole.MANAGER,
-            )
-            query_admin = Q(
-                order__project__permissions__user__uuid=user.uuid.hex,
-                order__project__permissions__is_active=True,
-                order__project__permissions__role=structure_models.ProjectRole.ADMINISTRATOR,
-            )
-
-            query_access = query_owner
-
-            if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
-                query_access = query_owner | query_manager
-
-            if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
-                query_access = query_owner | query_manager | query_admin
-
-            query_pending = query_access & Q(
-                state=models.OrderItem.States.PENDING,
-            )
-            query_executing = query_access & Q(
                 state=models.OrderItem.States.EXECUTING,
                 resource__isnull=False,
             )
