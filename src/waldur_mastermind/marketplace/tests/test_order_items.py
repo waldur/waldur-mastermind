@@ -568,41 +568,29 @@ class ItemSetStateErredTest(BaseItemSetStateTest):
 
 
 @ddt
-class OrderItemPermissionFilterTest(test.APITransactionTestCase):
+class ApproveOrderFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
-        self.order_item = self.fixture.order_item
-        self.order_item.state = models.OrderItem.States.PENDING
-        self.order_item.save()
-        self.url = factories.OrderItemFactory.get_list_url()
+        self.order = self.fixture.order
+        self.order.state = models.Order.States.REQUESTED_FOR_APPROVAL
+        self.order.save()
+        self.url = factories.OrderFactory.get_list_url()
 
     @data(
         'owner',
     )
-    def test_user_can_get_item_if_can_manage_as_owner_is_enabled(self, user):
+    def test_user_can_get_order_if_can_manage_as_owner_is_enabled(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        response = self.client.get(self.url, {'can_approve_as_consumer': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
-
-        self.order_item.state = models.OrderItem.States.EXECUTING
-        self.order_item.save()
-        response = self.client.get(self.url, {'can_manage_as_owner': True})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 1)
-
-        self.order_item.resource = None
-        self.order_item.save()
-        response = self.client.get(self.url, {'can_manage_as_owner': True})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), 0)
 
     @data('offering_owner', 'manager', 'admin')
-    def test_user_can_not_get_item_if_can_manage_as_owner_is_enabled(self, user):
+    def test_user_can_not_get_order_if_can_manage_as_owner_is_enabled(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        response = self.client.get(self.url, {'can_approve_as_consumer': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
@@ -611,21 +599,31 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
         'owner',
         'manager',
     )
-    def test_user_can_get_item_if_manager_can_approve_order_is_true(self, user):
+    def test_user_can_get_order_if_manager_can_approve_order_is_true(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        response = self.client.get(self.url, {'can_approve_as_consumer': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
     @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
     @data('owner', 'manager', 'admin')
-    def test_user_can_get_item_if_admin_can_approve_order_is_true(self, user):
+    def test_user_can_get_order_if_admin_can_approve_order_is_true(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'can_manage_as_owner': True})
+        response = self.client.get(self.url, {'can_approve_as_consumer': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
+
+
+@ddt
+class ApproveOrderItemFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.order_item = self.fixture.order_item
+        self.order_item.state = models.OrderItem.States.PENDING
+        self.order_item.save()
+        self.url = factories.OrderItemFactory.get_list_url()
 
     @data(
         'offering_owner',
@@ -633,19 +631,19 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
     def test_user_can_get_item_if_can_manage_as_service_provider_is_enabled(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        response = self.client.get(self.url, {'can_approve_as_service_provider': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
         self.order_item.state = models.OrderItem.States.EXECUTING
         self.order_item.save()
-        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        response = self.client.get(self.url, {'can_approve_as_service_provider': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
         self.order_item.resource = None
         self.order_item.save()
-        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        response = self.client.get(self.url, {'can_approve_as_service_provider': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
@@ -657,6 +655,6 @@ class OrderItemPermissionFilterTest(test.APITransactionTestCase):
     ):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'can_manage_as_service_provider': True})
+        response = self.client.get(self.url, {'can_approve_as_service_provider': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
