@@ -176,4 +176,6 @@ def update_offering_user_username_after_offering_settings_change(
         new_username = utils.generate_username(offering_user.user, offering)
         logger.info('New username for %s is %s', offering_user, new_username)
         offering_user.username = new_username
-        offering_user.save(update_fields=['username'])
+
+        marketplace_utils.setup_linux_related_data(offering_user, offering)
+        offering_user.save(update_fields=['username', 'backend_metadata'])
