@@ -1054,9 +1054,7 @@ def setup_linux_related_data(
     if not login_shell:
         instance.backend_metadata['loginShell'] = "/bin/sh"
 
-    home_dir = instance.backend_metadata.get('homeDir')
-    if not home_dir:
-        instance.backend_metadata['homeDir'] = f"/home/{instance.username}"
+    instance.backend_metadata['homeDir'] = f"/home/{instance.username}"
 
 
 def get_plans_available_for_user(

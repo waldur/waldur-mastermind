@@ -147,6 +147,10 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
 
     def test_username_updated_when_generation_policy_changed(self):
         self.assertEqual(self.admin.username, self.offering_user.username)
+        self.assertEqual(
+            f'/home/{self.admin.username}',
+            self.offering_user.backend_metadata['homeDir'],
+        )
 
         self.offering.plugin_options['username_generation_policy'] = 'anonymized'
         self.offering.save(update_fields=['plugin_options'])
@@ -156,6 +160,9 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
         self.assertEqual(
             self.offering_user.username,
             'walduruser_00000',
+        )
+        self.assertEqual(
+            '/home/walduruser_00000', self.offering_user.backend_metadata['homeDir']
         )
 
     def test_username_updated_when_generation_policy_changed_to_service_provider(self):
