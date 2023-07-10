@@ -59,7 +59,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
                 'uidnumber': 1001,
                 'primarygroup': 2001,
                 'homeDir': f'/home/{offering_user.username}',
-                'loginShell': '/bin/sh',
+                'loginShell': '/bin/bash',
             },
         )
 
@@ -107,7 +107,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
                 'uidnumber': 1001,
                 'primarygroup': 2001,
                 'homeDir': f'/home/{offering_user.username}',
-                'loginShell': '/bin/sh',
+                'loginShell': '/bin/bash',
             },
         )
         self.assertEqual(
@@ -116,7 +116,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
                 'uidnumber': 1002,
                 'primarygroup': 2002,
                 'homeDir': f'/home/{offering_user2.username}',
-                'loginShell': '/bin/sh',
+                'loginShell': '/bin/bash',
             },
         )
 
@@ -248,7 +248,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
           primarygroup = 2001
           otherGroups = [6001]
           sshkeys = ["{ssh_key.public_key}"]
-          loginShell = "/bin/sh"
+          loginShell = "/bin/bash"
           homeDir = "/home/{self.offering_user.username}"
           passsha256 = ""
             [[users.customattributes]]

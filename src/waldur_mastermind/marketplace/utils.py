@@ -1052,7 +1052,7 @@ def setup_linux_related_data(
 
     login_shell = instance.backend_metadata.get('loginShell')
     if not login_shell:
-        instance.backend_metadata['loginShell'] = "/bin/sh"
+        instance.backend_metadata['loginShell'] = "/bin/bash"
 
     instance.backend_metadata['homeDir'] = f"/home/{instance.username}"
 
