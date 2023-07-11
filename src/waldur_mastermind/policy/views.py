@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import filters as structure_filters
 
-from . import models, serializers
+from . import filters, models, serializers
 
 
 class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
@@ -18,6 +18,7 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_filters.GenericRoleFilter,
         structure_filters.GenericRoleFilter,
     ]
+    filterset_class = filters.ProjectEstimatedCostPolicyFilter
     lookup_field = 'uuid'
 
     @action(detail=False, methods=['get'])
