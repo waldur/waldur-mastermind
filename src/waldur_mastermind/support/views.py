@@ -1,7 +1,9 @@
 import logging
+from datetime import date
 
 from django.db import transaction
 from django.db.models import Avg, Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -16,6 +18,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.notifications.models import BroadcastMessage
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
 from . import backend, exceptions, executors, filters, models, serializers
@@ -188,6 +191,40 @@ class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SupportUserFilter
+
+
+class SupportStatsViewSet(CheckExtensionMixin, views.APIView):
+    def get(self, request, format=None):
+        today = date.today()
+        current_month = today.month
+        open_issues_count = (
+            models.Issue.objects.exclude(
+                status__in=[
+                    models.IssueStatus.Types.RESOLVED,
+                    models.IssueStatus.Types.CANCELED,
+                    'Closed',
+                ]
+            )
+            .filter(resolution_date__isnull=True)
+            .count()
+        )
+        closed_this_month_count = models.Issue.objects.filter(
+            status__in=[models.IssueStatus.Types.RESOLVED, 'Closed'],
+            resolution_date__month=current_month,
+        ).count()
+
+        recent_broadcasts = BroadcastMessage.objects.filter(
+            state=BroadcastMessage.States.SENT, created__month=current_month
+        )
+        recent_broadcasts_count = recent_broadcasts.count()
+
+        data = {
+            'open_issues_count': open_issues_count,
+            'closed_this_month_count': closed_this_month_count,
+            'recent_broadcasts_count': recent_broadcasts_count,
+        }
+
+        return JsonResponse(data)
 
 
 class WebHookReceiverView(CheckExtensionMixin, views.APIView):

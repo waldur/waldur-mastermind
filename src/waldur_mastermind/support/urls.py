@@ -46,4 +46,9 @@ urlpatterns = [
         views.ZammadWebHookReceiverView.as_view(),
         name='zammad-web-hook-receiver',
     ),
+    re_path(
+        r'^api/support-statistics/$',
+        views.SupportStatsViewSet.as_view(),
+        name='support-statistics',
+    ),
 ]
