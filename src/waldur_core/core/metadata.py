@@ -642,7 +642,7 @@ class WaldurMarketplaceScript(BaseModel):
     )
     DOCKER_RUN_OPTIONS = Field(
         {
-            'mem_limit': '64m',
+            'mem_limit': '512m',
         },
         description='Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>',
     )

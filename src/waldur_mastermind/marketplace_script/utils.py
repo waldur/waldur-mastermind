@@ -40,6 +40,7 @@ def execute_script_in_docker(image, command, src, **kwargs):
                 image=image,
                 command=[command, 'script'],
                 remove=True,
+                stderr=True,
                 working_dir="/work",
                 volumes={
                     docker_script.name: {

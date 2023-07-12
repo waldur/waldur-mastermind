@@ -186,8 +186,9 @@ def get_list_view_name(model):
     return '%s-list' % model.__name__.lower()
 
 
-def get_fake_context():
-    user = get_user_model()()
+def get_fake_context(user=None):
+    if not user:
+        user = get_user_model()()
     request = type(
         'R', (object,), {'method': 'GET', 'user': user, 'query_params': QueryDict()}
     )

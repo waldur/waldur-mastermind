@@ -79,12 +79,13 @@ class PlanComponentsTest(test.APITransactionTestCase):
 
     def test_plan_components_have_parent(self):
         response = self.create_offering()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(3, offering.components.exclude(parent=None).count())
 
     def test_plan_without_components_is_valid(self):
         response = self.create_offering(False)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def create_offering(self, components=True):
         fixture = structure_fixtures.ProjectFixture()

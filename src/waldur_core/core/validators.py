@@ -84,7 +84,7 @@ class RuntimeStateValidator(StateValidator):
 
 
 class BackendURLValidator(URLValidator):
-    schemes = ['ldap', 'ldaps', 'http', 'https']
+    schemes = ['ldap', 'ldaps', 'http', 'https', 'ssh', 'rdp']
 
 
 def is_valid_ipv46_cidr(value):
