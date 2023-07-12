@@ -772,13 +772,16 @@ def schedule_resources_termination(resources, termination_comment=None):
             )
 
 
-def create_local_resource(order_item, scope, effective_id=''):
+def create_local_resource(order_item, scope, effective_id='', backend_metadata=None):
+    if not backend_metadata:
+        backend_metadata = {}
     resource = models.Resource(
         project=order_item.order.project,
         offering=order_item.offering,
         plan=order_item.plan,
         limits=order_item.limits,
         attributes=order_item.attributes,
+        backend_metadata=backend_metadata,
         name=order_item.attributes.get('name') or '',
         scope=scope if scope and type(scope) != str else None,
         backend_id=scope if scope and type(scope) == str else '',

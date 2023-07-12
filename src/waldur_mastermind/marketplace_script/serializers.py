@@ -55,6 +55,7 @@ class ResourceSerializer(serializers.Serializer):
     plan_name = serializers.ReadOnlyField(source='plan.name')
     resource_uuid = serializers.ReadOnlyField(source='uuid')
     resource_name = serializers.ReadOnlyField(source='name')
+    backend_metadata = serializers.ReadOnlyField(source='backend_metadata')
 
 
 class DryRunTypes(models.RequestTypeMixin.Types):

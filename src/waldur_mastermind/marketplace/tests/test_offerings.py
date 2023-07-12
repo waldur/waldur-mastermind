@@ -608,11 +608,12 @@ class OfferingCreateTest(test.APITransactionTestCase):
     @data('staff', 'owner')
     def test_authorized_user_can_create_offering(self, user):
         response = self.create_offering(user)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
     def test_options_default_value(self):
-        self.create_offering('staff')
+        response = self.create_offering('staff')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering = models.Offering.objects.get(customer=self.customer)
         self.assertEqual(offering.options, {'options': {}, 'order': []})
 
@@ -620,17 +621,17 @@ class OfferingCreateTest(test.APITransactionTestCase):
         response = self.create_offering(
             'staff', add_payload={'latitude': 123, 'longitude': 345}
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_create_offering(self, user):
         response = self.create_offering(user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     def test_create_offering_with_attributes(self):
         response = self.create_offering('staff', attributes=True)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
         offering = models.Offering.objects.get(customer=self.customer)
         self.assertEqual(
@@ -703,7 +704,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             'shared': True,
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         offering = models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertIsNotNone(response.data['scope'])
@@ -722,7 +723,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             },
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         offering = models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertFalse(offering.scope.shared)
@@ -737,7 +738,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(len(response.data['plans']), 1)
 
     def test_specify_max_amount_for_plan(self):
@@ -751,7 +752,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data['plans'][0]['max_amount'], 10)
 
     def test_max_amount_should_be_at_least_one(self):
@@ -885,7 +886,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             ],
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_zero_price_could_be_skipped_for_fixed_components(self):
         plans_request = {
@@ -906,7 +907,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             ],
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_invalid_price_components_are_not_allowed(self):
         plans_request = {
@@ -934,7 +935,9 @@ class OfferingCreateTest(test.APITransactionTestCase):
             ],
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertTrue('Small' in response.data['plans'][0])
         self.assertTrue('invalid_component' in response.data['plans'][0])
 
@@ -982,7 +985,9 @@ class OfferingCreateTest(test.APITransactionTestCase):
         }
 
         response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
         self.assertTrue(b'required_attribute' in response.content)
 
     def test_default_attribute_value_is_used_if_user_did_not_override_it(self):
@@ -999,7 +1004,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
                 'attributes': {},
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(
             response.data['attributes']['support_phone'], 'support@example.com'
         )
@@ -1018,7 +1023,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
                 'attributes': {'support_phone': 'admin@example.com'},
             },
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(
             response.data['attributes']['support_phone'], 'admin@example.com'
         )
@@ -1060,7 +1065,9 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.customer.blocked = True
         self.customer.save()
         response = self.create_offering('owner')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
     def test_create_offering_with_minimal_information_in_draft_state(self):
         user = self.fixture.staff
