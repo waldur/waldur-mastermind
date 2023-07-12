@@ -8,6 +8,7 @@ from . import models
 
 class ProjectEstimatedCostPolicySerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.ReadOnlyField(source='project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
     created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
     created_by_username = serializers.ReadOnlyField(source='created_by.username')
 
@@ -19,6 +20,7 @@ class ProjectEstimatedCostPolicySerializer(serializers.HyperlinkedModelSerialize
             'limit_cost',
             'project',
             'project_name',
+            'project_uuid',
             'actions',
             'created',
             'created_by_full_name',
