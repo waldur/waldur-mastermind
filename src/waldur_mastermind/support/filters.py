@@ -80,6 +80,14 @@ class IssueFilter(django_filters.FilterSet):
         lookup_expr='icontains', field_name='remote_id'
     )
 
+    resolution_year_month = django_filters.CharFilter(
+        field_name='resolution_date', method='filter_by_resolution_year_month'
+    )
+
+    def filter_by_resolution_year_month(self, queryset, name, value):
+        year, month = value.split('-')
+        return queryset.filter(resolution_date__year=year, resolution_date__month=month)
+
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, 'caller')
 
@@ -140,6 +148,7 @@ class IssueFilter(django_filters.FilterSet):
             'key',
             'type',
             'status',
+            'resolution_year_month',
         ]
 
 
