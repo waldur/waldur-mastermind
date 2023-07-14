@@ -11,6 +11,7 @@ class ProjectEstimatedCostPolicySerializer(serializers.HyperlinkedModelSerialize
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
     created_by_username = serializers.ReadOnlyField(source='created_by.username')
+    has_fired = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.ProjectEstimatedCostPolicy
@@ -25,6 +26,7 @@ class ProjectEstimatedCostPolicySerializer(serializers.HyperlinkedModelSerialize
             'created',
             'created_by_full_name',
             'created_by_username',
+            'has_fired',
         )
         extra_kwargs = {
             'url': {
