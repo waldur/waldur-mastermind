@@ -2013,7 +2013,7 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         return Response(result)
 
     @action(detail=True, methods=['get'], renderer_classes=[PlainTextRenderer])
-    def glauth_users_config(self, request):
+    def glauth_users_config(self, request, uuid=None):
         resource: models.Resource = self.get_object()
         project = resource.project
         offering = resource.offering
