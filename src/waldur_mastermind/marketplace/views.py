@@ -1061,102 +1061,18 @@ class ProviderOfferingViewSet(
         offering_users = models.OfferingUser.objects.filter(offering=offering).exclude(
             username=''
         )
-        user_records = []
 
         offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
 
-        for offering_user in offering_users:
-            offering_user.save(update_fields=['backend_metadata'])
-
-            user = offering_user.user
-            username = offering_user.username
-            uidnumber = offering_user.backend_metadata['uidnumber']
-            primarygroup = offering_user.backend_metadata['primarygroup']
-            login_shell = offering_user.backend_metadata['loginShell']
-            home_dir = offering_user.backend_metadata['homeDir']
-
-            ssh_keys = [
-                f'"{ssh_key.public_key}"' for ssh_key in user.sshpublickey_set.all()
-            ]
-            ssh_keys_line = ',\n    '.join(ssh_keys)
-
-            password_sha256 = utils.generate_offering_password_hash(offering)
-
-            user_projects = structure_models.ProjectPermission.objects.filter(
-                user=user, is_active=True
-            ).values_list('project')
-
-            group_ids = models.OfferingUserGroup.objects.filter(
-                projects__in=user_projects
-            ).values_list('backend_metadata__gid', flat=True)
-            group_ids = [str(gid) for gid in group_ids]
-
-            other_groups = ", ".join(group_ids)
-
-            record = textwrap.dedent(
-                f"""
-            [[users]]
-              name = "{user.get_username()}"
-              givenname="{user.first_name}"
-              sn="{user.last_name}"
-              mail = "{user.email}"
-              uidnumber = {uidnumber}
-              primarygroup = {primarygroup}
-              otherGroups = [{other_groups}]
-              sshkeys = [{ssh_keys_line}]
-              loginShell = "{login_shell}"
-              homeDir = "{home_dir}"
-              passsha256 = "{password_sha256}"
-                [[users.customattributes]]
-                preferredUsername = ["{username}"]
-            """
-            )
-
-            record += textwrap.dedent(
-                f"""
-            [[groups]]
-              name = "{username}"
-              gidnumber = {primarygroup}
-            """
-            )
-            user_records.append(record)
+        user_records = utils.generate_glauth_records_for_offering_users(
+            offering, offering_users
+        )
 
         robot_accounts = models.RobotAccount.objects.filter(resource__offering=offering)
 
-        robot_account_records = []
-        for robot_account in robot_accounts:
-            ssh_keys = robot_account.keys
-            ssh_keys_line = ',\n    '.join(ssh_keys)
-
-            username = robot_account.username
-            uidnumber = robot_account.backend_metadata['uidnumber']
-            primarygroup = robot_account.backend_metadata['primarygroup']
-            login_shell = robot_account.backend_metadata['loginShell']
-            home_dir = robot_account.backend_metadata['homeDir']
-            password_sha256 = utils.generate_offering_password_hash(offering)
-
-            record = textwrap.dedent(
-                f"""
-            [[users]]
-              name = "{username}"
-              uidnumber = {uidnumber}
-              primarygroup = {primarygroup}
-              sshkeys = ["{ssh_keys_line}"]
-              passsha256 = "{password_sha256}"
-                [[users.customattributes]]
-                preferredUsername = ["{username}"]
-            """
-            )
-
-            record += textwrap.dedent(
-                f"""
-            [[groups]]
-              name = "{username}"
-              gidnumber = {primarygroup}
-            """
-            )
-
-            robot_account_records.append(record)
+        robot_account_records = utils.generate_glauth_records_for_robot_accounts(
+            offering, robot_accounts
+        )
 
         other_group_records = []
         for group in offering_groups:
@@ -2095,6 +2011,60 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
             {'uuid': offering.uuid.hex, 'type': offering.type} for offering in offerings
         ]
         return Response(result)
+
+    @action(detail=True, methods=['get'], renderer_classes=[PlainTextRenderer])
+    def glauth_users_config(self, request):
+        resource: models.Resource = self.get_object()
+        project = resource.project
+        offering = resource.offering
+
+        if not offering.secret_options.get(
+            'service_provider_can_create_offering_user', False
+        ):
+            logger.warning(
+                "Offering %s doesn't have feature service_provider_can_create_offering_user enabled, skipping GLauth config generation",
+                offering,
+            )
+            return Response(status=status.HTTP_400_BAD_REQUEST, data="")
+
+        user_ids = structure_models.ProjectPermission.objects.filter(
+            project=project, is_active=True
+        ).values_list('user_id')
+
+        offering_users = models.OfferingUser.objects.filter(
+            offering=offering,
+            user__id__in=user_ids,
+        ).exclude(username='')
+
+        offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
+
+        user_records = utils.generate_glauth_records_for_offering_users(
+            offering, offering_users
+        )
+
+        robot_accounts = models.RobotAccount.objects.filter(resource__offering=offering)
+
+        robot_account_records = utils.generate_glauth_records_for_robot_accounts(
+            offering, robot_accounts
+        )
+
+        other_group_records = []
+        for group in offering_groups:
+            gid = group.backend_metadata['gid']
+            record = textwrap.dedent(
+                f"""
+                [[groups]]
+                  name = "{gid}"
+                  gidnumber = {gid}
+            """
+            )
+            other_group_records.append(record)
+
+        response_text = '\n'.join(
+            user_records + robot_account_records + other_group_records
+        )
+
+        return Response(response_text)
 
 
 class ProjectChoicesViewSet(ListAPIView):

@@ -54,6 +54,8 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
           uidnumber = 1001
           primarygroup = 2001
           sshkeys = ["{ssh_key.public_key}"]
+          loginShell = "/bin/bash"
+          homeDir = "/home/{self.robot_account.username}"
           passsha256 = ""
             [[users.customattributes]]
             preferredUsername = ["{self.robot_account.username}"]
