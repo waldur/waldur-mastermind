@@ -3,6 +3,7 @@ import hashlib
 import logging
 import math
 import os
+import textwrap
 import traceback
 from io import BytesIO
 from typing import Union
@@ -1080,3 +1081,104 @@ def get_plans_available_for_user(
         qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
 
     return qs
+
+
+def generate_glauth_records_for_offering_users(offering, offering_users):
+    user_records = []
+
+    for offering_user in offering_users:
+        user = offering_user.user
+        username = offering_user.username
+        uidnumber = offering_user.backend_metadata['uidnumber']
+        primarygroup = offering_user.backend_metadata['primarygroup']
+        login_shell = offering_user.backend_metadata['loginShell']
+        home_dir = offering_user.backend_metadata['homeDir']
+
+        ssh_keys = [
+            f'"{ssh_key.public_key}"' for ssh_key in user.sshpublickey_set.all()
+        ]
+        ssh_keys_line = ',\n    '.join(ssh_keys)
+
+        password_sha256 = generate_offering_password_hash(offering)
+
+        user_projects = structure_models.ProjectPermission.objects.filter(
+            user=user, is_active=True
+        ).values_list('project')
+
+        group_ids = models.OfferingUserGroup.objects.filter(
+            projects__in=user_projects
+        ).values_list('backend_metadata__gid', flat=True)
+        group_ids = [str(gid) for gid in group_ids]
+
+        other_groups = ", ".join(group_ids)
+
+        record = textwrap.dedent(
+            f"""
+        [[users]]
+          name = "{user.get_username()}"
+          givenname="{user.first_name}"
+          sn="{user.last_name}"
+          mail = "{user.email}"
+          uidnumber = {uidnumber}
+          primarygroup = {primarygroup}
+          otherGroups = [{other_groups}]
+          sshkeys = [{ssh_keys_line}]
+          loginShell = "{login_shell}"
+          homeDir = "{home_dir}"
+          passsha256 = "{password_sha256}"
+            [[users.customattributes]]
+            preferredUsername = ["{username}"]
+        """
+        )
+
+        record += textwrap.dedent(
+            f"""
+        [[groups]]
+          name = "{username}"
+          gidnumber = {primarygroup}
+        """
+        )
+        user_records.append(record)
+
+    return user_records
+
+
+def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
+    robot_account_records = []
+    for robot_account in robot_accounts:
+        ssh_keys = robot_account.keys
+        ssh_keys_line = ',\n    '.join(ssh_keys)
+
+        username = robot_account.username
+        uidnumber = robot_account.backend_metadata['uidnumber']
+        primarygroup = robot_account.backend_metadata['primarygroup']
+        login_shell = robot_account.backend_metadata['loginShell']
+        home_dir = robot_account.backend_metadata['homeDir']
+        password_sha256 = generate_offering_password_hash(offering)
+
+        record = textwrap.dedent(
+            f"""
+        [[users]]
+          name = "{username}"
+          uidnumber = {uidnumber}
+          primarygroup = {primarygroup}
+          sshkeys = ["{ssh_keys_line}"]
+          loginShell = "{login_shell}"
+          homeDir = "{home_dir}"
+          passsha256 = "{password_sha256}"
+            [[users.customattributes]]
+            preferredUsername = ["{username}"]
+        """
+        )
+
+        record += textwrap.dedent(
+            f"""
+        [[groups]]
+          name = "{username}"
+          gidnumber = {primarygroup}
+        """
+        )
+
+        robot_account_records.append(record)
+
+    return robot_account_records
