@@ -230,3 +230,21 @@ class MarketplaceConfig(AppConfig):
             sender=models.RobotAccount,
             dispatch_uid='waldur_core.marketplace.handlers.log_resource_robot_account_deleted',
         )
+
+        structure_signals.structure_role_granted.connect(
+            handlers.create_offering_users_when_project_role_granted,
+            sender=structure_models.Project,
+            dispatch_uid='waldur_mastermind.marketplace.create_offering_user_when_project_role_created',
+        )
+
+        marketplace_signals.resource_creation_succeeded.connect(
+            handlers.create_offering_user_for_new_resource,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.create_offering_user_for_new_resource',
+        )
+
+        signals.post_save.connect(
+            handlers.update_offering_user_username_after_offering_settings_change,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.update_offering_user_username_after_offering_settings_change',
+        )

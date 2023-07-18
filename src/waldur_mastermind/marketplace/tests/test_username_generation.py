@@ -2,8 +2,8 @@ from django.test import TestCase
 
 from waldur_freeipa.tests import factories as freeipa_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace_slurm_remote import utils
 
 
 class UsernameGenerationTest(TestCase):

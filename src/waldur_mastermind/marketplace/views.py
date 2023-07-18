@@ -1056,7 +1056,11 @@ class ProviderOfferingViewSet(
                 "Offering %s doesn't have feature service_provider_can_create_offering_user enabled, skipping GLauth config generation",
                 offering,
             )
-            return Response(status=status.HTTP_400_BAD_REQUEST, data="")
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Offering %s doesn't have feature service_provider_can_create_offering_user enabled"
+                % offering,
+            )
 
         offering_users = models.OfferingUser.objects.filter(offering=offering).exclude(
             username=''
@@ -2025,7 +2029,11 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
                 "Offering %s doesn't have feature service_provider_can_create_offering_user enabled, skipping GLauth config generation",
                 offering,
             )
-            return Response(status=status.HTTP_400_BAD_REQUEST, data="")
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Offering %s doesn't have feature service_provider_can_create_offering_user enabled"
+                % offering,
+            )
 
         user_ids = structure_models.ProjectPermission.objects.filter(
             project=project, is_active=True
