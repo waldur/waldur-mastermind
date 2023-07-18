@@ -404,7 +404,43 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
                 self.context['request'], None, attrs['offering'].customer
             )
 
+        if self.instance:
+            offering = self.instance.offering
+        else:
+            offering = attrs['offering']
+        valid_types = {component.type for component in offering.components.all()}
+        fixed_types = {
+            component.type
+            for component in offering.components.all()
+            if component.billing_type == BillingTypes.FIXED
+        }
+        prices = attrs.get('prices', {})
+        invalid_components = ', '.join(sorted(set(prices.keys()) - valid_types))
+        if invalid_components:
+            raise serializers.ValidationError(
+                {'prices': _('Invalid components %s.') % invalid_components}
+            )
+
+        quotas = attrs.get('quotas', {})
+        invalid_components = ', '.join(sorted(set(quotas.keys()) - fixed_types))
+        if invalid_components:
+            raise serializers.ValidationError(
+                {
+                    'quotas': _('Invalid components %s.') % invalid_components,
+                }
+            )
         return attrs
+
+    def create(self, validated_data):
+        if self.instance:
+            offering = self.instance.offering
+        else:
+            offering = validated_data.pop('offering')
+        return create_plan(offering, validated_data)
+
+    def update(self, instance, validated_data):
+        update_plan(instance, validated_data)
+        return instance
 
 
 # TODO: Remove after migration of clients to a new endpoint
@@ -1068,6 +1104,23 @@ class OfferingComponentLimitSerializer(serializers.Serializer):
     max_available_limit = serializers.IntegerField(min_value=0)
 
 
+def create_plan(offering, plan_data):
+    components = {component.type: component for component in offering.components.all()}
+
+    quotas = plan_data.pop('quotas', {})
+    prices = plan_data.pop('prices', {})
+    plan = models.Plan.objects.create(offering=offering, **plan_data)
+
+    for name, component in components.items():
+        models.PlanComponent.objects.create(
+            plan=plan,
+            component=component,
+            amount=quotas.get(name) or 0,
+            price=prices.get(name) or 0,
+        )
+    return plan
+
+
 class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         model = models.Offering
@@ -1207,25 +1260,9 @@ class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
                 for component in fixed_types
             )
 
-    def _create_plan(self, offering, plan_data, components):
-        quotas = plan_data.pop('quotas', {})
-        prices = plan_data.pop('prices', {})
-        plan = models.Plan.objects.create(offering=offering, **plan_data)
-
-        for name, component in components.items():
-            models.PlanComponent.objects.create(
-                plan=plan,
-                component=component,
-                amount=quotas.get(name) or 0,
-                price=prices.get(name) or 0,
-            )
-
     def _create_plans(self, offering, plans):
-        components = {
-            component.type: component for component in offering.components.all()
-        }
         for plan_data in plans:
-            self._create_plan(offering, plan_data, components)
+            create_plan(offering, plan_data)
 
     def _update_limits(self, offering, limits):
         for key, values in limits.items():
@@ -1348,6 +1385,62 @@ class PlanUpdateSerializer(BaseProviderPlanSerializer):
         }
 
 
+def update_plan_details(plan, data):
+    plan_fields_that_cannot_be_edited = (
+        plugins.manager.get_plan_fields_that_cannot_be_edited(plan.offering.type)
+    )
+    PLAN_FIELDS = {
+        'name',
+        'description',
+        'unit',
+        'max_amount',
+        'article_code',
+    }.difference(set(plan_fields_that_cannot_be_edited))
+
+    for key in PLAN_FIELDS:
+        if key in data:
+            setattr(plan, key, data.get(key))
+    plan.save()
+
+
+def update_plan_components(plan, data):
+    new_quotas = data.get('quotas', {})
+    new_prices = data.get('prices', {})
+
+    new_keys = set(new_quotas.keys()) | set(new_prices.keys())
+    old_keys = set(plan.components.values_list('component__type', flat=True))
+
+    for key in new_keys - old_keys:
+        component = plan.offering.components.get(type=key)
+        models.PlanComponent.objects.create(plan=plan, component=component)
+
+
+def update_plan_quotas(plan, data):
+    new_quotas = data.get('quotas', {})
+    new_prices = data.get('prices', {})
+    component_map = {
+        component.component.type: component for component in plan.components.all()
+    }
+    for key, old_component in component_map.items():
+        new_amount = new_quotas.get(key, 0)
+        if old_component.amount != new_amount:
+            old_component.amount = new_amount
+            old_component.save(update_fields=['amount'])
+
+        new_price = new_prices.get(key, 0)
+        if old_component.price != new_price:
+            old_component.price = new_price
+            old_component.save(update_fields=['price'])
+
+
+def update_plan(plan, data):
+    can_manage_plans = plugins.manager.can_manage_plans(plan.offering.type)
+    update_plan_details(plan, data)
+    if can_manage_plans:
+        update_plan_components(plan, data)
+    update_plan_quotas(plan, data)
+
+
 class OfferingUpdateSerializer(OfferingModifySerializer):
     plans = PlanUpdateSerializer(many=True, required=False, write_only=True)
 
@@ -1423,52 +1516,6 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 setattr(old_component, key, getattr(new_component, key))
             old_component.save()
 
-    def _update_plan_components(self, old_plan, new_plan):
-        new_quotas = new_plan.get('quotas', {})
-        new_prices = new_plan.get('prices', {})
-
-        new_keys = set(new_quotas.keys()) | set(new_prices.keys())
-        old_keys = set(old_plan.components.values_list('component__type', flat=True))
-
-        for key in new_keys - old_keys:
-            component = old_plan.offering.components.get(type=key)
-            models.PlanComponent.objects.create(plan=old_plan, component=component)
-
-    def _update_quotas(self, old_plan, new_plan):
-        new_quotas = new_plan.get('quotas', {})
-        new_prices = new_plan.get('prices', {})
-        component_map = {
-            component.component.type: component
-            for component in old_plan.components.all()
-        }
-        for key, old_component in component_map.items():
-            new_amount = new_quotas.get(key, 0)
-            if old_component.amount != new_amount:
-                old_component.amount = new_amount
-                old_component.save(update_fields=['amount'])
-
-            new_price = new_prices.get(key, 0)
-            if old_component.price != new_price:
-                old_component.price = new_price
-                old_component.save(update_fields=['price'])
-
-    def _update_plan_details(self, old_plan, new_plan, offering):
-        plan_fields_that_cannot_be_edited = (
-            plugins.manager.get_plan_fields_that_cannot_be_edited(offering.type)
-        )
-        PLAN_FIELDS = {
-            'name',
-            'description',
-            'unit',
-            'max_amount',
-            'article_code',
-        }.difference(set(plan_fields_that_cannot_be_edited))
-
-        for key in PLAN_FIELDS:
-            if key in new_plan:
-                setattr(old_plan, key, new_plan.get(key))
-        old_plan.save()
-
     def _update_plans(self, offering, new_plans):
         can_manage_plans = plugins.manager.can_manage_plans(offering.type)
 
@@ -1490,10 +1537,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
 
         for plan_uuid, old_plan in updated_plans.items():
             new_plan = new_map[plan_uuid]
-            self._update_plan_details(old_plan, new_plan, offering)
-            if can_manage_plans:
-                self._update_plan_components(old_plan, new_plan)
-            self._update_quotas(old_plan, new_plan)
+            update_plan(old_plan, new_plan)
 
         if can_manage_plans:
             if added_plans:
