@@ -1,7 +1,15 @@
+import logging
+
+from django.db import transaction
 from rest_framework import exceptions
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.utils import get_system_robot
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import tasks
+
+logger = logging.getLogger(__name__)
 
 
 def notify_project_team(policy):
@@ -20,6 +28,42 @@ def notify_organization_owners(policy):
 
 
 notify_organization_owners.one_time_action = True
+
+
+def terminate_resources(policy):
+    from waldur_mastermind.marketplace import tasks as marketplace_tasks
+
+    user = get_system_robot()
+
+    for resource in marketplace_models.Resource.objects.filter(project=policy.project):
+        with transaction.atomic():
+            attributes = (
+                {'action': 'force_destroy'}
+                if resource.offering.type == INSTANCE_TYPE
+                else {}
+            )
+            order_item = marketplace_models.OrderItem(
+                resource=resource,
+                offering=resource.offering,
+                type=marketplace_models.OrderItem.Types.TERMINATE,
+                attributes=attributes,
+            )
+            order = marketplace_models.Order.objects.create(
+                project=policy.project, created_by=user
+            )
+            order_item.order = order
+            order_item.save()
+
+            logger.info(
+                'Policy created order for terminating resource. Policy UUID: %s. Resource UUID: %s',
+                policy.uuid.hex,
+                resource.uuid.hex,
+            )
+
+            transaction.on_commit(lambda: marketplace_tasks.approve_order(order, user))
+
+
+terminate_resources.one_time_action = True
 
 
 def block_creation_of_new_resources(policy, created):

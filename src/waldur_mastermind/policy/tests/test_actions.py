@@ -9,6 +9,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import tasks
 from waldur_mastermind.policy.tests import factories
 
@@ -97,3 +98,30 @@ class ActionsTest(test.APITransactionTestCase):
 
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
         self.assertTrue(order_item.error_message)
+
+    def test_terminate_resources(self):
+        self.policy.actions = 'terminate_resources'
+        self.policy.created_by = self.fixture.user
+        self.policy.save()
+
+        resource = self.fixture.resource
+        resource.state = marketplace_models.Resource.States.OK
+        resource.save()
+
+        resource.offering.type = INSTANCE_TYPE
+        resource.offering.save()
+
+        self.estimate.total = self.policy.limit_cost + 1
+        self.estimate.save()
+
+        self.assertTrue(
+            marketplace_models.OrderItem.objects.filter(
+                resource=resource,
+                type=marketplace_models.OrderItem.Types.TERMINATE,
+            ).exists()
+        )
+        order_item = marketplace_models.OrderItem.objects.filter(
+            resource=resource,
+            type=marketplace_models.OrderItem.Types.TERMINATE,
+        ).get()
+        self.assertEqual(order_item.attributes, {'action': 'force_destroy'})
