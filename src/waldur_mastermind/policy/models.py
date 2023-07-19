@@ -102,6 +102,7 @@ class ProjectPolicy(Policy):
         policy_actions.notify_organization_owners,
         policy_actions.block_creation_of_new_resources,
         policy_actions.block_modification_of_existing_resources,
+        policy_actions.terminate_resources,
     }
 
     @classmethod

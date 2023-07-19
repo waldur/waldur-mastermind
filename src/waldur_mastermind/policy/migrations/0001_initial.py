@@ -60,6 +60,7 @@ class Migration(migrations.Migration):
                                     waldur_mastermind.policy.policy_actions.block_creation_of_new_resources,
                                     waldur_mastermind.policy.policy_actions.block_modification_of_existing_resources,
                                     waldur_mastermind.policy.policy_actions.notify_project_team,
+                                    waldur_mastermind.policy.policy_actions.terminate_resources,
                                 }
                             )
                         ],
