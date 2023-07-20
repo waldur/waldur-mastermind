@@ -17,6 +17,7 @@ REMOTE_PERMISSION_ID = '1'
 @override_settings(
     WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True},
     task_always_eager=True,
+    task_eager_propagates=True,
 )
 class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
     def setUp(self) -> None:
@@ -120,6 +121,8 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         self.client.patch(
             ProjectPermissionFactory.get_url(permission), {'expiration_time': new_time}
         )
+        permission.refresh_from_db()
+        self.assertEqual(permission.expiration_time, new_time)
         self.client_mock().update_project_permission.assert_called_once_with(
             REMOTE_PERMISSION_ID, new_time.isoformat()
         )
