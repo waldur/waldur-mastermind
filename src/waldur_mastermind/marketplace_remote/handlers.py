@@ -26,7 +26,7 @@ def update_remote_project_permission(sender, instance, user, **kwargs):
             serialize_instance(instance.user),
             instance.role,
             True,
-            instance.expiration_time,
+            instance.expiration_time and instance.expiration_time.isoformat() or None,
         )
     )
 
@@ -48,7 +48,7 @@ def sync_permission_with_remote_project(
             serialize_instance(user),
             role,
             grant,
-            expiration_time,
+            expiration_time and expiration_time.isoformat() or None,
         )
     )
 
@@ -74,7 +74,7 @@ def sync_permission_with_remote_customer(
             serialize_instance(user),
             role,
             grant,
-            expiration_time,
+            expiration_time and expiration_time.isoformat() or None,
         )
     )
 
