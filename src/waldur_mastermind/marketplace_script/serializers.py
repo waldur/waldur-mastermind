@@ -6,6 +6,7 @@ from waldur_mastermind.marketplace_script import models as marketplace_script_mo
 
 
 class OrderItemSerializer(serializers.Serializer):
+    order_item_uuid = serializers.ReadOnlyField(source='uuid')
     attributes = serializers.ReadOnlyField()
     limits = serializers.ReadOnlyField()
     creator_email = serializers.ReadOnlyField(source='order.created_by.email')
