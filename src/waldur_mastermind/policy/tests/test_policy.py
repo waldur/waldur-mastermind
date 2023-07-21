@@ -106,6 +106,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.estimate.save()
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, False)
+        self.assertTrue(self.policy.fired_datetime)
 
 
 @ddt
