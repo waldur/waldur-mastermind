@@ -75,6 +75,10 @@ class UpdateProcessor(
         super().send_request(user)
         return True
 
+    def update_limits_process(self, user):
+        super().send_request(user)
+        return True
+
 
 class DeleteProcessor(
     ContainerExecutorMixin, processors.AbstractDeleteResourceProcessor
