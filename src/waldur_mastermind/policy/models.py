@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
@@ -24,6 +25,7 @@ class Policy(
     available_actions = NotImplemented
 
     has_fired = models.BooleanField(default=False)
+    fired_datetime = models.DateTimeField(null=True, blank=True, editable=False)
     created_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
@@ -120,6 +122,7 @@ class ProjectPolicy(Policy):
 
             if not policy.has_fired and policy.is_triggered():
                 policy.has_fired = True
+                policy.fired_datetime = timezone.now()
                 policy.save()
 
                 for action in policy.get_one_time_actions():
