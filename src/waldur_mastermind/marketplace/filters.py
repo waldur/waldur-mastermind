@@ -442,6 +442,9 @@ class ResourceFilter(
     runtime_state = django_filters.CharFilter(
         field_name='backend_metadata__runtime_state'
     )
+    requested_downscaling = django_filters.BooleanFilter(
+        field_name='requested_downscaling'
+    )
     o = django_filters.OrderingFilter(
         fields=(
             'name',

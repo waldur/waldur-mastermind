@@ -125,3 +125,18 @@ class ActionsTest(test.APITransactionTestCase):
             type=marketplace_models.OrderItem.Types.TERMINATE,
         ).get()
         self.assertEqual(order_item.attributes, {'action': 'force_destroy'})
+
+    def test_request_downscaling(self):
+        self.policy.actions = 'request_downscaling'
+        self.policy.created_by = self.fixture.user
+        self.policy.save()
+
+        resource = self.fixture.resource
+
+        self.estimate.total = self.policy.limit_cost + 1
+        self.estimate.save()
+
+        resource.refresh_from_db()
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+        self.assertEqual(resource.requested_downscaling, True)

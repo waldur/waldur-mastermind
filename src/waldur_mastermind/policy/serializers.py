@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -6,7 +7,22 @@ from waldur_core.structure import models as structure_models
 from . import models
 
 
-class ProjectEstimatedCostPolicySerializer(serializers.HyperlinkedModelSerializer):
+class PolicySerializer(serializers.HyperlinkedModelSerializer):
+    def validate_actions(self, value):
+        if not value:
+            return
+
+        actions = set(value.split(','))
+        if actions - {a.__name__ for a in self.Meta.model.available_actions}:
+            raise ValidationError(
+                _("%(value)s includes unavailable actions."),
+                params={"value": value},
+            )
+
+        return value
+
+
+class ProjectEstimatedCostPolicySerializer(PolicySerializer):
     project_name = serializers.ReadOnlyField(source='project.name')
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')

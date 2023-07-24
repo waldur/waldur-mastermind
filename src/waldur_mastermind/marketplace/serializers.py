@@ -2366,6 +2366,7 @@ class ResourceSerializer(BaseItemSerializer):
             'end_date_requested_by',
             'username',
             'limit_usage',
+            'requested_downscaling',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2546,7 +2547,11 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
 class ResourceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
-        fields = ('name', 'description', 'end_date')
+        fields = (
+            'name',
+            'description',
+            'end_date',
+        )
 
     def validate_end_date(self, end_date):
         if not end_date:

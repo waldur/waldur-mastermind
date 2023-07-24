@@ -1290,3 +1290,49 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['limit_usage'], {'cpu': 5})
+
+
+class DownscalingRequestCompletedTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.service_owner = self.fixture.owner
+        self.admin = self.fixture.admin
+
+        self.resource = factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            requested_downscaling=True,
+        )
+
+        self.url = factories.ResourceFactory.get_url(
+            self.resource, action='downscaling_request_completed'
+        )
+
+    def test_service_owner_can_downscaling_request_completed(self):
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.post(self.url)
+        self.assertEqual(200, response.status_code)
+
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                message__contains='Resource %s has been downscaled.'
+                % self.resource.name
+            ).exists()
+        )
+
+    def test_validate_downscaling_requesting(self):
+        self.resource.requested_downscaling = False
+        self.resource.save()
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.post(self.url)
+        self.assertEqual(400, response.status_code)
+
+    def test_user_can_not_downscaling_request_completed(self):
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.post(self.url)
+        self.assertEqual(403, response.status_code)
