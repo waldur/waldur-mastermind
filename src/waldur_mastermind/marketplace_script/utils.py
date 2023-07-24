@@ -237,7 +237,6 @@ class ContainerExecutorMixin:
         input_parameters = dict(
             serializer.data
         )  # drop the self-reference to serializer by converting to dict
-        input_parameters.update({'order_item_uuid': self.order_item.uuid.hex})
         environment = {
             key.upper(): input_parameters[key] for key in input_parameters.keys()
         }
