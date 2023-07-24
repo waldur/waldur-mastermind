@@ -11,7 +11,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import policy_actions, validators
+from . import policy_actions
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,7 @@ class ProjectPolicy(Policy):
         policy_actions.block_creation_of_new_resources,
         policy_actions.block_modification_of_existing_resources,
         policy_actions.terminate_resources,
+        policy_actions.request_downscaling,
     }
 
     @classmethod
@@ -166,10 +167,7 @@ class ProjectPolicy(Policy):
         return handler
 
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
-    actions = models.CharField(
-        validators=[validators.ActionsValidator(available_actions=available_actions)],
-        max_length=255,
-    )
+    actions = models.CharField(max_length=255)
 
     class Meta:
         abstract = True

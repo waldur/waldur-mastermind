@@ -84,6 +84,7 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_update_limits_failed',
             'marketplace_resource_renamed',
             'marketplace_resource_update_end_date_succeeded',
+            'marketplace_resource_downscaled',
         )
         nullable_fields = ['old_name']
         event_groups = {'resources': event_types}
@@ -451,4 +452,12 @@ def log_offering_user_deleted(offering_user):
         f'Account for user {offering_user.user.username} in offering {offering_user.offering.name} has been deleted.',
         event_type='marketplace_offering_user_deleted',
         event_context={'offering_user': offering_user},
+    )
+
+
+def log_resource_downscaled(resource):
+    event_logger.marketplace_resource.info(
+        'Resource {resource_name} has been downscaled.',
+        event_type='marketplace_resource_downscaled',
+        event_context={'resource': resource},
     )

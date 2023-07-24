@@ -1999,6 +1999,30 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
 
+    # Service provider endpoint only
+    @action(detail=True, methods=['post'])
+    def downscaling_request_completed(self, request, uuid=None):
+        resource = self.get_object()
+        resource.requested_downscaling = False
+        resource.save()
+        logger.info(
+            "Downscaling request for resource %s completed",
+            resource,
+        )
+        log.log_resource_downscaled(resource)
+
+        return Response(status=status.HTTP_200_OK)
+
+    downscaling_request_completed_permissions = [
+        permissions.user_is_service_provider_owner_or_service_provider_manager
+    ]
+
+    def downscaling_is_requested(obj):
+        if not obj.requested_downscaling:
+            raise ValidationError('Downscaling has not been requested.')
+
+    downscaling_request_completed_validators = [downscaling_is_requested]
+
     @action(detail=True, methods=['get'])
     def offering_for_subresources(self, request, uuid=None):
         resource = self.get_object()

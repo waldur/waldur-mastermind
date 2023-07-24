@@ -586,7 +586,11 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         'formatted_attributes',
         'formatted_limits',
     )
-    fields = readonly_fields + ('plan', 'state')
+    fields = readonly_fields + (
+        'plan',
+        'state',
+        'requested_downscaling',
+    )
     date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
     inlines = (RobotAccountInline,)

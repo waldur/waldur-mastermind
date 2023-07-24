@@ -7,8 +7,6 @@ from django.conf import settings
 from django.db import migrations, models
 
 import waldur_core.core.fields
-import waldur_mastermind.policy.policy_actions
-import waldur_mastermind.policy.validators
 
 
 class Migration(migrations.Migration):
@@ -51,20 +49,7 @@ class Migration(migrations.Migration):
                 ('has_fired', models.BooleanField(default=False)),
                 (
                     'actions',
-                    models.CharField(
-                        max_length=255,
-                        validators=[
-                            waldur_mastermind.policy.validators.ActionsValidator(
-                                available_actions={
-                                    waldur_mastermind.policy.policy_actions.notify_organization_owners,
-                                    waldur_mastermind.policy.policy_actions.block_creation_of_new_resources,
-                                    waldur_mastermind.policy.policy_actions.block_modification_of_existing_resources,
-                                    waldur_mastermind.policy.policy_actions.notify_project_team,
-                                    waldur_mastermind.policy.policy_actions.terminate_resources,
-                                }
-                            )
-                        ],
-                    ),
+                    models.CharField(max_length=255),
                 ),
                 ('limit_cost', models.IntegerField()),
                 (

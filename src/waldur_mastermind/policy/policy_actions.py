@@ -84,3 +84,12 @@ def block_modification_of_existing_resources(policy, created):
 
 
 block_modification_of_existing_resources.one_time_action = False
+
+
+def request_downscaling(policy):
+    marketplace_models.Resource.objects.filter(project=policy.project).update(
+        requested_downscaling=True
+    )
+
+
+request_downscaling.one_time_action = True
