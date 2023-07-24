@@ -22,6 +22,9 @@ class OrderItemSerializer(serializers.Serializer):
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_name = serializers.ReadOnlyField(source='resource.name')
     resource_backend_id = serializers.ReadOnlyField(source='resource.backend_id')
+    resource_backend_metadata = serializers.ReadOnlyField(
+        source='resource.backend_metadata'
+    )
 
     def _get_project(self, order_item):
         return order_item.order.project
