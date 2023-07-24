@@ -25,6 +25,7 @@ class DeploymentOptions(Enum):
 
 
 def execute_script_in_docker(image, command, src, **kwargs):
+    remove_container = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_REMOVE_CONTAINER']
     with tempfile.NamedTemporaryFile(
         prefix='docker',
         dir=settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_SCRIPT_DIR'],
@@ -39,7 +40,7 @@ def execute_script_in_docker(image, command, src, **kwargs):
             client.containers.run(
                 image=image,
                 command=[command, 'script'],
-                remove=True,
+                remove=remove_container,
                 stderr=True,
                 working_dir="/work",
                 volumes={

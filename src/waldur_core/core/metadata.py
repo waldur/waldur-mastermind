@@ -650,6 +650,9 @@ class WaldurMarketplaceScript(BaseModel):
         None,
         description='Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see <https://github.com/docker/for-mac/issues/1532>',
     )
+    DOCKER_REMOVE_CONTAINER: bool = Field(
+        True, description='Remove Docker container after script execution'
+    )
     DOCKER_IMAGES = Field(
         {
             'python': {'image': 'python:3.8-alpine', 'command': 'python'},
