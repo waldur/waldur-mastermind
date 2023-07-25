@@ -315,12 +315,15 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     @action(detail=True, methods=['GET'])
     def offerings(self, request, uuid=None):
         service_provider = self.get_object()
+
         offerings = models.Offering.objects.filter(
             customer=service_provider.customer,
             billable=True,
             shared=True,
         )
-        page = self.paginate_queryset(offerings)
+
+        filtered_offerings = filters.OfferingFilter(request.GET, queryset=offerings)
+        page = self.paginate_queryset(filtered_offerings.qs)
         serializer = serializers.ProviderOfferingSerializer(
             page, many=True, context=self.get_serializer_context()
         )
