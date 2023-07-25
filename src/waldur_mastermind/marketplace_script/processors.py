@@ -83,7 +83,7 @@ class UpdateProcessor(
 class DeleteProcessor(
     ContainerExecutorMixin, processors.AbstractDeleteResourceProcessor
 ):
-    hook_type = 'delete'
+    hook_type = 'terminate'
 
     def send_request(self, user, resource):
         super().send_request(user, resource)
