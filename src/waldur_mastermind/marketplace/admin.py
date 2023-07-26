@@ -134,6 +134,18 @@ class PlansInline(admin.StackedInline):
     extra = 1
 
 
+class OfferingEndpointsDivisionsInline(admin.StackedInline):
+    model = models.OfferingAccessEndpoint
+    classes = ['collapse']
+    extra = 1
+
+
+class ResourceEndpointsDivisionsInline(admin.StackedInline):
+    model = models.ResourceAccessEndpoint
+    classes = ['collapse']
+    extra = 1
+
+
 class ConnectedResourceMixin:
     """
     Protects object from modification if there are connected resources.
@@ -301,6 +313,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         OfferingPermissionInline,
         ScreenshotsInline,
         PlansInline,
+        OfferingEndpointsDivisionsInline,
         OfferingComponentInline,
         GoogleCalendarInline,
         OfferingUserInline,
@@ -340,7 +353,6 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'terms_of_service',
         'terms_of_service_link',
         'privacy_policy_link',
-        'access_url',
         'rating',
         'thumbnail',
         'attributes',
@@ -593,7 +605,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     )
     date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
-    inlines = (RobotAccountInline,)
+    inlines = (RobotAccountInline, ResourceEndpointsDivisionsInline)
 
     def category(self, obj):
         return obj.offering.category

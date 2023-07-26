@@ -109,17 +109,6 @@ class ResourceGetTest(test.APITransactionTestCase):
         response = self.get_resource(self.fixture.manager)
         self.assertEqual(response.data['username'], 'alice')
 
-    def test_resource_with_backend_id_and_offering_access_url_template_returns_specific_url(
-        self,
-    ):
-        self.offering.access_url = 'https://${backend_id}/'
-        self.offering.save()
-        self.resource.backend_id = 'my_id'
-        self.resource.save()
-        response = self.get_resource()
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(response.data['access_url'], 'https://my_id/')
-
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
