@@ -10,6 +10,9 @@ class TestBackend(ServiceBackend):
     def destroy(self, resource, force=False):
         pass
 
+    def ping(self, *args, **kwargs):
+        return
+
 
 class TestConfig(AppConfig):
     __test__ = False

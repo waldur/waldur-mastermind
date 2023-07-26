@@ -1,8 +1,11 @@
+from unittest import mock
+
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models
+from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -281,3 +284,16 @@ class SharedServiceSettingUpdateTest(test.APITransactionTestCase):
         payload = self.get_valid_payload()
         response = self.client.patch(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ServiceBackendClassesTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.service_settings = factories.ServiceSettingsFactory()
+
+    def test_all_required_methods_are_implemented(self):
+        for key in [s[0] for s in SupportedServices.get_choices()]:
+            klass = SupportedServices.get_service_backend(key)
+            try:
+                klass(mock.MagicMock())
+            except TypeError as e:
+                self.fail(str(e))

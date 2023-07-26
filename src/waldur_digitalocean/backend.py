@@ -288,10 +288,6 @@ class DigitalOceanBackend(ServiceBackend):
     def get_droplet(self, backend_droplet_id):
         return self.manager.get_droplet(backend_droplet_id)
 
-    def get_monthly_cost_estimate(self, droplet):
-        backend_droplet = self.get_droplet(droplet.backend_id)
-        return backend_droplet.size['price_monthly']
-
     def get_resources_for_import(self):
         cur_droplets = models.Droplet.objects.all().values_list('backend_id', flat=True)
         statuses = ('active', 'off')
@@ -332,13 +328,6 @@ class DigitalOceanBackend(ServiceBackend):
             droplet.project = project
             droplet.save()
         return droplet
-
-    def get_managed_resources(self):
-        try:
-            ids = [droplet.id for droplet in self.get_all_droplets()]
-            return models.Droplet.objects.filter(backend_id__in=ids)
-        except DigitalOceanBackendError:
-            return []
 
     @digitalocean_error_handler
     def get_all_droplets(self):

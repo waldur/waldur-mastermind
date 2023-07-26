@@ -15,6 +15,7 @@ from waldur_core.structure.exceptions import (
     ServiceBackendError,
     ServiceBackendNotImplemented,
 )
+from waldur_core.structure.registry import SupportedServices
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,9 @@ class ServiceListPullTask(BackgroundListPullTask):
     def get_pulled_objects(self):
         States = self.model.States
         return self.model.objects.filter(
-            state__in=[States.ERRED, States.OK], is_active=True
+            state__in=[States.ERRED, States.OK],
+            is_active=True,
+            type__in=[k[0] for k in SupportedServices.get_choices()],
         )
 
 

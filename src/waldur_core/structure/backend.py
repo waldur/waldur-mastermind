@@ -1,7 +1,6 @@
 import functools
 import logging
-
-from waldur_core.structure.exceptions import ServiceBackendNotImplemented
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ def log_backend_action(action=None):
     return decorator
 
 
-class ServiceBackend:
+class ServiceBackend(ABC):
     """Basic service backed with only common methods pre-defined."""
 
     DEFAULTS = {}
@@ -45,8 +44,9 @@ class ServiceBackend:
     def validate_settings(self):
         self.ping(raise_exception=True)
 
+    @abstractmethod
     def ping(self, raise_exception=False):
-        raise ServiceBackendNotImplemented
+        pass
 
     def sync(self):
         self.pull_service_properties()
@@ -64,12 +64,6 @@ class ServiceBackend:
 
     def has_global_properties(self):
         return False
-
-    def get_managed_resources(self):
-        raise ServiceBackendNotImplemented
-
-    def get_monthly_cost_estimate(self, resource):
-        raise ServiceBackendNotImplemented
 
     @staticmethod
     def gb2mb(val):
