@@ -14,7 +14,6 @@ from libcloud.compute.types import NodeState, StorageVolumeState
 from libcloud.utils.xml import fixxpath
 
 from waldur_core.core.models import SshPublicKey
-from waldur_core.core.utils import hours_in_month
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.registry import get_resource_type
@@ -594,18 +593,6 @@ class AWSBackend(ServiceBackend):
             raise AWSBackendError(str(e))
 
         return backend_vm.state == self.State.TERMINATED
-
-    def get_monthly_cost_estimate(self, instance):
-        manager = self.get_manager(instance)
-        try:
-            backend_instance = manager.get_node(instance.backend_id)
-        except Exception as e:
-            raise AWSBackendError(e)
-
-        size = self.get_size(backend_instance.extra['instance_type'], manager)
-
-        # calculate a price for current month based on hourly rate
-        return size.price * hours_in_month()
 
     def to_instance(self, instance, region):
         manager = self._get_api(region.backend_id)

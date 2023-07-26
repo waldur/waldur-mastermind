@@ -155,3 +155,6 @@ class DataciteBackend(ServiceBackend):
             logger.error(msg)
             instance.error_message = msg
             instance.save()
+
+    def ping(self):
+        pass

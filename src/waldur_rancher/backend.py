@@ -1497,3 +1497,6 @@ class RancherBackend(ServiceBackend):
             default_namespace and default_namespace.backend_id,
             namespace and namespace.backend_id,
         )
+
+    def ping(self, *args, **kwargs):
+        return
