@@ -14,7 +14,6 @@ from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
-from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -400,12 +399,6 @@ class Offering(
     terms_of_service = models.TextField(blank=True)
     terms_of_service_link = models.URLField(blank=True)
     privacy_policy_link = models.URLField(blank=True)
-    access_url = core_fields.BackendURLField(
-        max_length=200,
-        blank=True,
-        null=True,
-        help_text=_('URL for accessing management console.'),
-    )
     country = models.CharField(max_length=2, blank=True)
 
     type = models.CharField(max_length=100)
@@ -1544,6 +1537,20 @@ class RobotAccount(
             'type',
             'username',
         )
+
+
+class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
+    url = models.URLField()
+    offering = models.ForeignKey(
+        on_delete=models.CASCADE, to=Offering, related_name='endpoints'
+    )
+
+
+class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
+    url = models.URLField()
+    resource = models.ForeignKey(
+        on_delete=models.CASCADE, to=Resource, related_name='endpoints'
+    )
 
 
 reversion.register(Screenshot)

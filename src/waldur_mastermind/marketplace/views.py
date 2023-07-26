@@ -1006,6 +1006,38 @@ class ProviderOfferingViewSet(
     update_components_permissions = [permissions.user_is_owner_or_service_manager]
     update_components_serializer_class = serializers.OfferingComponentSerializer
 
+    @action(detail=True, methods=['post'])
+    def add_endpoint(self, request, uuid=None):
+        offering = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        endpoint = models.OfferingAccessEndpoint.objects.create(
+            offering=offering,
+            url=serializer.validated_data['url'],
+            name=serializer.validated_data['name'],
+        )
+
+        return Response(
+            {'uuid': endpoint.uuid},
+            status=status.HTTP_201_CREATED,
+        )
+
+    add_endpoint_permissions = [permissions.user_is_owner_or_service_manager]
+    add_endpoint_serializer_class = serializers.NestedEndpointSerializer
+
+    @action(detail=True, methods=['post'])
+    def delete_endpoint(self, request, uuid=None):
+        offering = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering.endpoints.filter(uuid=serializer.validated_data['uuid']).delete()
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
+        )
+
+    delete_endpoint_serializer_class = serializers.EndpointDeleteSerializer
+    delete_endpoint_permissions = [permissions.user_is_owner_or_service_manager]
+
     @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
     def groups(self, *args, **kwargs):
         OFFERING_LIMIT = 4

@@ -1,7 +1,6 @@
 import datetime
 import logging
 from functools import lru_cache
-from string import Template
 from typing import Dict
 
 import jwt
@@ -27,7 +26,7 @@ from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.models import User
 from waldur_core.core.serializers import GenericRelatedField
-from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
+from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.media.serializers import (
     ProtectedFileField,
     ProtectedImageField,
@@ -839,6 +838,16 @@ class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class NestedEndpointSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.OfferingAccessEndpoint
+        fields = ('uuid', 'name', 'url')
+
+
+class EndpointDeleteSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+
+
 class OfferingDetailsSerializer(
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
@@ -864,12 +873,7 @@ class OfferingDetailsSerializer(
     total_customers = serializers.ReadOnlyField()
     total_cost = serializers.ReadOnlyField()
     total_cost_estimated = serializers.ReadOnlyField()
-    access_url = serializers.CharField(
-        required=False,
-        max_length=200,
-        label=_('Management URL'),
-        validators=[BackendURLValidator],
-    )
+    endpoints = NestedEndpointSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Offering
@@ -883,7 +887,7 @@ class OfferingDetailsSerializer(
             'terms_of_service',
             'terms_of_service_link',
             'privacy_policy_link',
-            'access_url',
+            'endpoints',
             'customer',
             'customer_uuid',
             'customer_name',
@@ -1630,7 +1634,6 @@ class OfferingOverviewUpdateSerializer(
             'terms_of_service',
             'terms_of_service_link',
             'privacy_policy_link',
-            'access_url',
         )
 
 
@@ -2341,7 +2344,6 @@ class ResourceSerializer(BaseItemSerializer):
             'resource_uuid',
             'backend_id',
             'effective_id',
-            'access_url',
             'resource_type',
             'project',
             'project_uuid',
@@ -2367,6 +2369,7 @@ class ResourceSerializer(BaseItemSerializer):
             'username',
             'limit_usage',
             'requested_downscaling',
+            'endpoints',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2374,7 +2377,6 @@ class ResourceSerializer(BaseItemSerializer):
             'current_usages',
             'backend_id',
             'effective_id',
-            'access_url',
             'report',
             'description',
             'limit_usage',
@@ -2391,7 +2393,6 @@ class ResourceSerializer(BaseItemSerializer):
     scope = core_serializers.GenericRelatedField()
     resource_uuid = serializers.ReadOnlyField(source='backend_uuid')
     resource_type = serializers.ReadOnlyField(source='backend_type')
-    access_url = serializers.SerializerMethodField()
     project = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
         view_name='project-detail',
@@ -2420,12 +2421,7 @@ class ResourceSerializer(BaseItemSerializer):
     report = serializers.JSONField(read_only=True)
     username = serializers.SerializerMethodField()
     limit_usage = serializers.SerializerMethodField()
-
-    def get_access_url(self, resource):
-        offering_access_url_tmpl = Template(resource.offering.access_url or '')
-        return offering_access_url_tmpl.safe_substitute(
-            backend_id=resource.backend_id or ''
-        )
+    endpoints = NestedEndpointSerializer(many=True, read_only=True)
 
     def get_can_terminate(self, resource):
         view = self.context['view']
