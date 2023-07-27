@@ -43,8 +43,9 @@ def pull_resource(resource_id):
         else str(value)
         for key, value in dict(serializer.data).items()
     }
-    if isinstance(options.get('environ'), dict):
-        environment.update(options['environ'])
+    for opt in options.get('environ', []):
+        if isinstance(opt, dict):
+            environment.update({opt['name']: opt['value']})
 
     language = options['language']
     image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)['image']
