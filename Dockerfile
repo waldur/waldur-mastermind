@@ -12,7 +12,7 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
     dpkg-buildpackage -us -uc && \
     cd .. && rm ./*-dbgsym*.deb ./*-dev*.deb ./*-doc*.deb
 
-FROM python:3.8.17-bullseye
+FROM python:3.11-bullseye
 
 ENV LANG C.UTF-8
 
@@ -49,10 +49,16 @@ WORKDIR /tmp/xmlsec1
 COPY --from=xmlsec1 /xmlsec1/*.deb ./
 RUN dpkg -i ./*.deb && rm ./*.deb
 
-# Create python3.8 uwsgi plugin
-RUN PYTHON=python3.8 uwsgi --build-plugin "/usr/src/uwsgi/plugins/python python38" && \
-    mv python38_plugin.so /usr/lib/uwsgi/plugins/ && \
-    apt-get remove -y uwsgi-src
+# Create python3.11 uwsgi plugin
+RUN curl -L https://github.com/unbit/uwsgi/archive/refs/tags/2.0.21.tar.gz > uwsgi-2.0.21.tar.gz && \
+    tar -xf uwsgi-2.0.21.tar.gz && \
+    cd uwsgi-2.0.21 && \
+    make && \
+    PYTHON=python3.11 ./uwsgi --build-plugin "plugins/python python311" && \
+    mv python311_plugin.so /usr/lib/uwsgi/plugins/ && \
+    cd ../ && \
+    rm -rf uwsgi*
+
 
 RUN mkdir -p /usr/src/waldur
 

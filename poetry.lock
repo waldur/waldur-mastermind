@@ -654,7 +654,7 @@ version = "1.0.17"
 description = "A storage system for Django that stores uploaded files in both the database and file system."
 category = "main"
 optional = false
-python-versions = ">=3.6,<3.11"
+python-versions = ">=3.6,<3.12"
 develop = false
 
 [package.dependencies]
@@ -2678,8 +2678,8 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 
 [metadata]
 lock-version = "1.1"
-python-versions = "^3.8,<3.11"
-content-hash = "f9f937c61ecd7a4767178fc928c587670ecc04f77f33f71ff7802fb18ea0f4f1"
+python-versions = "^3.8,<3.12"
+content-hash = "b023e6e9cd6337eda36a0f021e8dfaf8b4819eb5482215705784b71a2f91292c"
 
 [metadata.files]
 adal = [
