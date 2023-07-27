@@ -43,6 +43,11 @@ def pull_resource(resource_id):
     if isinstance(options.get('environ'), dict):
         environment.update(options['environ'])
 
+    environment = {
+        key: json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+        for key, value in environment.items()
+    }
+
     language = options['language']
     image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)['image']
     command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)[
