@@ -38,15 +38,13 @@ def pull_resource(resource_id):
         return
     serializer = serializers.ResourceSerializer(instance=resource)
     environment = {
-        key.upper(): str(value) for key, value in dict(serializer.data).items()
+        key.upper(): json.dumps(value)
+        if isinstance(value, (dict, list))
+        else str(value)
+        for key, value in dict(serializer.data).items()
     }
     if isinstance(options.get('environ'), dict):
         environment.update(options['environ'])
-
-    environment = {
-        key: json.dumps(value) if isinstance(value, (dict, list)) else str(value)
-        for key, value in environment.items()
-    }
 
     language = options['language']
     image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)['image']
