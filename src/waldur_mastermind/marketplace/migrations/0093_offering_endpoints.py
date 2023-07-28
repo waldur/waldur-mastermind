@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
-                ('url', models.URLField()),
+                ('url', waldur_core.core.fields.BackendURLField()),
                 (
                     'offering',
                     models.ForeignKey(
@@ -78,7 +78,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
-                ('url', models.URLField()),
+                ('url', waldur_core.core.fields.BackendURLField()),
                 (
                     'resource',
                     models.ForeignKey(

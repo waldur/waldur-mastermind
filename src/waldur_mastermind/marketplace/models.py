@@ -14,6 +14,7 @@ from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
+from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
@@ -1540,14 +1541,14 @@ class RobotAccount(
 
 
 class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
-    url = models.URLField()
+    url = core_fields.BackendURLField()
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name='endpoints'
     )
 
 
 class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
-    url = models.URLField()
+    url = core_fields.BackendURLField()
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, related_name='endpoints'
     )
