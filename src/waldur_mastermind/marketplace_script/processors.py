@@ -2,6 +2,8 @@ import base64
 import json
 import logging
 
+from rest_framework import serializers
+
 from waldur_mastermind.marketplace import processors
 
 from .utils import ContainerExecutorMixin
@@ -60,10 +62,12 @@ class CreateProcessor(
                     logger.error(
                         f'Failed to encode as json metadata: {decoded_metadata}'
                     )
+                    raise
                 return result
             else:
-                logger.error('Unexpected structure of output', last_line)
-                raise
+                raise serializers.ValidationError(
+                    'Unexpected structure of output', last_line
+                )
 
 
 class UpdateProcessor(
