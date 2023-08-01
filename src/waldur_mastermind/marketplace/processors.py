@@ -71,13 +71,18 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
         # unique key of a scoped object, e.g. remote UUID
         scope = self.send_request(user)
         backend_metadata = {}
+        endpoints = {}
         if type(scope) == dict and scope['response_type'] == 'metadata':
             backend_metadata = scope['backend_metadata']
+            endpoints = scope['endpoints']
             scope = scope['backend_id']
 
         with transaction.atomic():
             resource = create_local_resource(
-                self.order_item, scope, backend_metadata=backend_metadata
+                self.order_item,
+                scope,
+                backend_metadata=backend_metadata,
+                endpoints=endpoints,
             )
 
             link_parent_resource(resource)

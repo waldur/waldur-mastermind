@@ -790,9 +790,13 @@ def schedule_resources_termination(resources, termination_comment=None):
             )
 
 
-def create_local_resource(order_item, scope, effective_id='', backend_metadata=None):
+def create_local_resource(
+    order_item, scope, effective_id='', backend_metadata=None, endpoints=None
+):
     if not backend_metadata:
         backend_metadata = {}
+    if not endpoints:
+        endpoints = {}
     resource = models.Resource(
         project=order_item.order.project,
         offering=order_item.offering,
@@ -807,6 +811,13 @@ def create_local_resource(order_item, scope, effective_id='', backend_metadata=N
     )
     resource.init_cost()
     resource.save()
+    for endpoint in endpoints:
+        name = endpoint.get('name')
+        url = endpoint.get('url')
+        if name is not None and url is not None:
+            models.ResourceAccessEndpoint.objects.create(
+                name=name, url=url, resource=resource
+            )
     order_item.resource = resource
     order_item.save(update_fields=['resource'])
     return resource
