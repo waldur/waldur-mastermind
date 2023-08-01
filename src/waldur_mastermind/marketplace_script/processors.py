@@ -57,7 +57,12 @@ class CreateProcessor(
                 result['backend_id'] = str(last_line[0])
                 decoded_metadata = base64.b64decode(last_line[1])
                 try:
-                    result['backend_metadata'] = json.loads(decoded_metadata)
+                    metadata_dict = json.loads(decoded_metadata)
+                    if 'backend_metadata' in metadata_dict:
+                        result['backend_metadata'] = metadata_dict['backend_metadata']
+
+                    if 'endpoints' in metadata_dict:
+                        result['endpoints'] = metadata_dict['endpoints']
                 except ValueError:
                     logger.error(
                         f'Failed to encode as json metadata: {decoded_metadata}'
