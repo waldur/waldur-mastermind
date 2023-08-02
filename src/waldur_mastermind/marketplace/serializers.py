@@ -843,6 +843,8 @@ class NestedEndpointSerializer(serializers.ModelSerializer):
         model = models.OfferingAccessEndpoint
         fields = ('uuid', 'name', 'url')
 
+    url = serializers.CharField(validators=[core_validators.BackendURLValidator])
+
 
 class EndpointDeleteSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
