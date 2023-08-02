@@ -24,7 +24,6 @@ from .serializers import AuthSerializer, RemoteEduteamsRequestSerializer
 logger = logging.getLogger(__name__)
 
 auth_social_settings = getattr(settings, 'WALDUR_AUTH_SOCIAL', {})
-SMARTIDEE_SECRET = auth_social_settings.get('SMARTIDEE_SECRET')
 
 TARA_CLIENT_ID = auth_social_settings.get('TARA_CLIENT_ID')
 TARA_SECRET = auth_social_settings.get('TARA_SECRET')
@@ -158,58 +157,6 @@ class OAuthView(RefreshTokenMixin, views.APIView):
                 error_message = 'Message: %s, status code: %s' % values
                 error_description = ''
             raise OAuthException(self.provider, error_message, error_description)
-
-
-class SmartIDeeView(OAuthView):
-    provider = 'smartid.ee'
-
-    def get_token_response(self, validated_data):
-        access_token_url = 'https://id.smartid.ee/oauth/access_token'
-
-        data = {
-            'client_id': validated_data['client_id'],
-            'client_secret': SMARTIDEE_SECRET,
-            'redirect_uri': validated_data['redirect_uri'],
-            'code': validated_data['code'],
-            'grant_type': 'authorization_code',
-        }
-        return requests.post(access_token_url, data=data)
-
-    def get_user_response(self, access_token):
-        user_data_url = 'https://id.smartid.ee/api/v2/user_data'
-        return requests.get(user_data_url, params={'access_token': access_token})
-
-    def create_or_update_user(self, backend_user):
-        """Authenticate user by civil number"""
-        first_name = backend_user['firstname']
-        last_name = backend_user['lastname']
-        try:
-            user = User.objects.get(civil_number=backend_user['idcode'])
-        except User.DoesNotExist:
-            created = True
-            user = User.objects.create_user(
-                username=generate_username(),
-                # Ilja: disabling email update from smartid.ee as it comes in as a fake object for the moment.
-                # email=backend_user['email'],
-                first_name=first_name,
-                last_name=last_name,
-                civil_number=backend_user['idcode'],
-                registration_method=self.provider,
-            )
-            user.set_unusable_password()
-            user.save()
-        else:
-            created = False
-            update_fields = set()
-            if user.first_name != first_name:
-                user.first_name = first_name
-                update_fields.add('first_name')
-            if user.last_name != last_name:
-                user.last_name = last_name
-                update_fields.add('last_name')
-            if update_fields:
-                user.save(update_fields=update_fields)
-        return user, created
 
 
 class TARAView(OAuthView):

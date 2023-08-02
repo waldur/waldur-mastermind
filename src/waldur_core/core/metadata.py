@@ -279,10 +279,6 @@ class WaldurCore(BaseModel):
 
 
 class WaldurAuthSocial(BaseModel):
-    SMARTIDEE_SECRET = Field('', description='Application secret key.')
-    SMARTIDEE_CLIENT_ID = Field(
-        '', description='ID of application used for OAuth authentication.'
-    )
     TARA_SECRET = Field('', description='Application secret key.')
     TARA_CLIENT_ID = Field(
         '', description='ID of application used for OAuth authentication.'
@@ -390,7 +386,6 @@ class WaldurAuthSocial(BaseModel):
 
     class Meta:
         public_settings = [
-            'SMARTIDEE_CLIENT_ID',
             'TARA_CLIENT_ID',
             'TARA_SANDBOX',
             'TARA_LABEL',
