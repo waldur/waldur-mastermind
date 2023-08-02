@@ -1,14 +1,13 @@
-import os
-
 from constance import config
 from django.conf import settings
 from django.conf.urls import include
 from django.contrib import admin
-from django.urls import re_path
+from django.urls import path, re_path
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
 from waldur_core.core.api_groups_mapping import API_GROUPS
+from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.core.schemas import WaldurSchemaView
 from waldur_core.logging import urls as logging_urls
@@ -21,7 +20,6 @@ logging_urls.register_in(router)
 quotas_urls.register_in(router)
 structure_urls.register_in(router)
 users_urls.register_in(router)
-static_path = os.path.join(settings.BASE_DIR, 'static')
 
 urlpatterns = [
     re_path(r'^admin/', admin.site.urls),
@@ -66,48 +64,20 @@ urlpatterns += [
             },
         ),
     ),
-    re_path(
-        r'^api/icons/login_logo/',
-        core_views.get_whitelabeling_logo,
-        kwargs={
-            'logo_type': 'LOGIN_LOGO',
-            'default_image': static_path + '/waldur_core/img/login_logo.png',
-        },
-    ),
-    re_path(
-        r'^api/icons/site_logo/',
-        core_views.get_whitelabeling_logo,
-        kwargs={'logo_type': 'SITE_LOGO'},
-    ),
-    re_path(
-        r'^api/icons/sidebar_logo/',
-        core_views.get_whitelabeling_logo,
-        kwargs={'logo_type': 'SIDEBAR_LOGO'},
-    ),
-    re_path(
-        r'^api/icons/sidebar_logo_mobile/',
-        core_views.get_whitelabeling_logo,
-        kwargs={'logo_type': 'SIDEBAR_LOGO_MOBILE'},
-    ),
-    re_path(
-        r'^api/icons/powered_by_logo/',
-        core_views.get_whitelabeling_logo,
-        kwargs={'logo_type': 'POWERED_BY_LOGO'},
-    ),
-    re_path(
-        r'^api/icons/hero_image/',
-        core_views.get_whitelabeling_logo,
-        kwargs={'logo_type': 'HERO_IMAGE'},
-    ),
-    re_path(
-        r'^api/icons/favicon/',
-        core_views.get_whitelabeling_logo,
-        kwargs={
-            'logo_type': 'FAVICON',
-            'default_image': static_path + '/waldur_core/img/favicon.ico',
-        },
-    ),
 ]
+
+for key, val in LOGO_MAP.items():
+    urlpatterns.append(
+        path(
+            val,
+            core_views.get_whitelabeling_logo,
+            kwargs={
+                'logo_type': key,
+                'default_image': DEFAULT_LOGOS.get(key),
+            },
+        )
+    )
+
 
 if settings.DEBUG:
     from django.conf.urls.static import static

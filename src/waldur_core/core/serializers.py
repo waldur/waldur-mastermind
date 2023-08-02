@@ -2,13 +2,16 @@ import base64
 import logging
 import re
 from collections import OrderedDict
+from os.path import join
 
 from constance import LazyConfig, settings
+from django.conf import settings as django_settings
 from django.core.exceptions import (
     ImproperlyConfigured,
     MultipleObjectsReturned,
     ObjectDoesNotExist,
 )
+from django.core.files.storage import default_storage
 from django.core.validators import RegexValidator, URLValidator
 from django.urls import Resolver404, reverse
 from django.utils.translation import gettext_lazy as _
@@ -465,4 +468,8 @@ class BrandingSerializer(serializers.Serializer):
                 continue
             new = self.validated_data[name]
             if current != new:
+                if hasattr(new, 'name'):
+                    new = default_storage.save(
+                        join(django_settings.MEDIA_ROOT, new.name), new
+                    )
                 setattr(config, name, new)
