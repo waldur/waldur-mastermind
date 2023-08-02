@@ -34,6 +34,7 @@ from waldur_core.core import (
 )
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
+from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ReviewMixin, ensure_atomic_transaction
 from waldur_core.core.serializers import (
@@ -365,7 +366,7 @@ def get_feature_values():
     }
 
 
-def get_public_settings():
+def get_public_settings(request=None):
     cached_settings = cache.get('API_CONFIGURATION')
     if cached_settings:
         return cached_settings
@@ -423,6 +424,10 @@ def get_public_settings():
     constance_settings = get_values()
 
     if public_settings.get('WALDUR_CORE'):
+        if request:
+            for key, val in LOGO_MAP.items():
+                if constance_settings.get(key) or key in DEFAULT_LOGOS:
+                    constance_settings[key] = request.build_absolute_uri('/' + val)
         public_settings['WALDUR_CORE'].update(constance_settings)
 
     cache.set(
@@ -434,7 +439,7 @@ def get_public_settings():
 @api_view(['GET'])
 @permission_classes((rf_permissions.AllowAny,))
 def configuration_detail(request):
-    return Response(get_public_settings())
+    return Response(get_public_settings(request))
 
 
 @api_view(['POST'])
@@ -571,7 +576,7 @@ class CeleryStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
     def get(self, request, *args, **kwargs):
-        from waldur_core.server.celery import app
+        from waldur_core.server.celery_app import app
 
         inspect = app.control.inspect()
         data = {
