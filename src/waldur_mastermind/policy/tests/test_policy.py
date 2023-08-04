@@ -152,6 +152,8 @@ class CreatePolicyTest(test.APITransactionTestCase):
     def test_user_can_create_policy(self, user):
         response = self._create_policy(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data['uuid'])
+        self.assertEqual(policy.has_fired, False)
 
     @data('admin', 'manager', 'user', 'offering_owner')
     def test_user_can_not_create_policy(self, user):
@@ -174,6 +176,37 @@ class CreatePolicyTest(test.APITransactionTestCase):
 
         response = self._create_policy('staff')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_policies_should_be_triggered_after_creation_if_cost_limit_has_been_reached(
+        self,
+    ):
+        notify_project_team_mock = mock.MagicMock()
+        notify_project_team_mock.one_time_action = True
+        notify_project_team_mock.__name__ = 'notify_project_team'
+
+        block_creation_of_new_resources_mock = mock.MagicMock()
+        block_creation_of_new_resources_mock.one_time_action = False
+        block_creation_of_new_resources_mock.__name__ = (
+            'block_creation_of_new_resources'
+        )
+
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            'get_all_actions',
+            return_value=[
+                notify_project_team_mock,
+                block_creation_of_new_resources_mock,
+            ],
+        ):
+            estimate = billing_models.PriceEstimate.objects.get(scope=self.project)
+            estimate.total = 1000
+            estimate.save()
+
+            response = self._create_policy('staff')
+            policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data['uuid'])
+            notify_project_team_mock.assert_called_once()
+            block_creation_of_new_resources_mock.assert_not_called()
+            self.assertEqual(policy.has_fired, True)
 
 
 @ddt
