@@ -1,10 +1,15 @@
+import logging
+
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
 
 from . import models
+
+logger = logging.getLogger(__name__)
 
 
 class PolicySerializer(serializers.HyperlinkedModelSerializer):
@@ -20,6 +25,28 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             )
 
         return value
+
+    def save(self, **kwargs):
+        policy = super().save(**kwargs)
+
+        if policy.is_triggered():
+            policy.has_fired = True
+            policy.fired_datetime = timezone.now()
+            policy.save()
+            logger.info(
+                'New created policy %s has fired.',
+                policy.uuid.hex,
+            )
+
+            for action in policy.get_one_time_actions():
+                action(policy)
+                logger.info(
+                    '%s method of policy (UUID: %s) has been running.',
+                    action.__name__,
+                    policy.uuid.hex,
+                )
+
+        return policy
 
 
 class ProjectEstimatedCostPolicySerializer(PolicySerializer):
