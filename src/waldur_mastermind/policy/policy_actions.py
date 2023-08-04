@@ -60,7 +60,7 @@ def terminate_resources(policy):
                 resource.uuid.hex,
             )
 
-            transaction.on_commit(lambda: marketplace_tasks.approve_order(order, user))
+            marketplace_tasks.approve_order(order, user)
 
 
 terminate_resources.one_time_action = True
