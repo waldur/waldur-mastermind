@@ -128,3 +128,7 @@ class DryRunSerializer(
                 'view_name': 'marketplace-provider-offering-detail',
             },
         }
+
+
+class PullMarketplaceScriptResourceSerializer(serializers.Serializer):
+    resource_uuid = serializers.UUIDField()
