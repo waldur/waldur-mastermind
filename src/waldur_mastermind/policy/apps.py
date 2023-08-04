@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 
 
-class NotificationsConfig(AppConfig):
+class PolicyConfig(AppConfig):
     name = 'waldur_mastermind.policy'
     verbose_name = 'Policy'
 
