@@ -34,14 +34,14 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             policy.fired_datetime = timezone.now()
             policy.save()
             logger.info(
-                'New created policy %s has fired.',
+                'A newly created policy %s has fired.',
                 policy.uuid.hex,
             )
 
             for action in policy.get_one_time_actions():
                 action(policy)
                 logger.info(
-                    '%s method of policy (UUID: %s) has been running.',
+                    '%s action of policy %s has been triggerd.',
                     action.__name__,
                     policy.uuid.hex,
                 )

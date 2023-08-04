@@ -126,7 +126,7 @@ class ProjectPolicy(Policy):
                     for action in policy.get_one_time_actions():
                         action(policy)
                         logger.info(
-                            '%s method has been running for project %s. Policy UUID: %s',
+                            '%s action has been triggered for project %s. Policy UUID: %s',
                             action.__name__,
                             policy.project.name,
                             policy.uuid.hex,
@@ -152,7 +152,7 @@ class ProjectPolicy(Policy):
                     for action in policy.get_not_one_time_actions():
                         action(policy, created)
                         logger.info(
-                            '%s method has been running for project %s. Policy UUID: %s',
+                            '%s action has been triggered for project %s. Policy UUID: %s',
                             action.__name__,
                             policy.project.name,
                             policy.uuid.hex,
