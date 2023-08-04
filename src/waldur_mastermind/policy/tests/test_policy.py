@@ -108,6 +108,23 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
         self.assertTrue(self.policy.fired_datetime)
 
+    def test_several_policies(self):
+        with mock.patch.object(
+            ProjectEstimatedCostPolicy,
+            'get_all_actions',
+            return_value=[
+                self.notify_project_team_mock,
+                self.block_creation_of_new_resources_mock,
+            ],
+        ):
+            policy_2 = factories.ProjectEstimatedCostPolicyFactory(project=self.project)
+            self.estimate.total = self.policy.limit_cost + 100
+            self.estimate.save()
+            self.policy.refresh_from_db()
+            policy_2.refresh_from_db()
+            self.assertEqual(self.policy.has_fired, True)
+            self.assertEqual(policy_2.has_fired, True)
+
 
 @ddt
 class GetPolicyTest(test.APITransactionTestCase):

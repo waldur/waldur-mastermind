@@ -115,29 +115,26 @@ class ProjectPolicy(Policy):
                 return
 
             project = instance.scope
+            policies = cls.objects.filter(project=project)
 
-            try:
-                policy = cls.objects.get(project=project)
-            except cls.DoesNotExist:
-                return
+            for policy in policies:
+                if not policy.has_fired and policy.is_triggered():
+                    policy.has_fired = True
+                    policy.fired_datetime = timezone.now()
+                    policy.save()
 
-            if not policy.has_fired and policy.is_triggered():
-                policy.has_fired = True
-                policy.fired_datetime = timezone.now()
-                policy.save()
+                    for action in policy.get_one_time_actions():
+                        action(policy)
+                        logger.info(
+                            '%s method has been running for project %s. Policy UUID: %s',
+                            action.__name__,
+                            policy.project.name,
+                            policy.uuid.hex,
+                        )
 
-                for action in policy.get_one_time_actions():
-                    action(policy)
-                    logger.info(
-                        '%s method has been running for project %s. Policy UUID: %s',
-                        action.__name__,
-                        policy.project.name,
-                        policy.uuid.hex,
-                    )
-
-            elif policy.has_fired:
-                policy.has_fired = False
-                policy.save()
+                elif policy.has_fired and not policy.is_triggered():
+                    policy.has_fired = False
+                    policy.save()
 
         return handler
 
@@ -148,21 +145,18 @@ class ProjectPolicy(Policy):
                 return
 
             resource = instance
+            policies = cls.objects.filter(project=resource.project)
 
-            try:
-                policy = cls.objects.get(project=resource.project)
-            except cls.DoesNotExist:
-                return
-
-            if policy.is_triggered():
-                for action in policy.get_not_one_time_actions():
-                    action(policy, created)
-                    logger.info(
-                        '%s method has been running for project %s. Policy UUID: %s',
-                        action.__name__,
-                        policy.project.name,
-                        policy.uuid.hex,
-                    )
+            for policy in policies:
+                if policy.is_triggered():
+                    for action in policy.get_not_one_time_actions():
+                        action(policy, created)
+                        logger.info(
+                            '%s method has been running for project %s. Policy UUID: %s',
+                            action.__name__,
+                            policy.project.name,
+                            policy.uuid.hex,
+                        )
 
         return handler
 
