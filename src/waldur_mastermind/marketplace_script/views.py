@@ -1,10 +1,12 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
+from waldur_core.core.views import ActionsViewSet, APIView, ReadOnlyActionsViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -15,8 +17,11 @@ from waldur_mastermind.marketplace_script import (
 )
 from waldur_mastermind.marketplace_script import filters as marketplace_script_filters
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
+from waldur_mastermind.marketplace_script import (
+    serializers as marketplace_script_serializers,
+)
 
-from . import PLUGIN_NAME
+from . import PLUGIN_NAME, tasks
 from .serializers import DryRunSerializer, DryRunTypes
 from .utils import ContainerExecutorMixin
 
@@ -117,3 +122,29 @@ class AsyncDryRunView(ReadOnlyActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = DryRunSerializer
     filterset_class = marketplace_script_filters.DryRunFilter
+
+
+class PullMarketplaceScriptResourceView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = (
+            marketplace_script_serializers.PullMarketplaceScriptResourceSerializer(
+                data=request.data
+            )
+        )
+        serializer.is_valid(raise_exception=True)
+        resource_uuid = serializer.validated_data['resource_uuid']
+
+        try:
+            queryset = marketplace_models.Resource.objects.filter(uuid=resource_uuid)
+        except ObjectDoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        allowed_resource = queryset.filter_for_user(request.user)
+        if not allowed_resource:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        tasks.pull_resource.delay(allowed_resource.first().id)
+        return Response(
+            {'detail': _('Pull operation was successfully scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
