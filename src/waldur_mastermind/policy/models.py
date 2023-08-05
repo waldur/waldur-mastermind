@@ -2,11 +2,9 @@ import logging
 
 from django.conf import settings
 from django.db import models
-from django.utils import timezone
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
-from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -38,39 +36,6 @@ class Policy(
     def is_triggered(self):
         """Checking if the policy needs to be applied."""
         raise NotImplementedError()
-
-    @classmethod
-    def get_trigger_handler(cls):
-        """Handler for changes in trigger class."""
-        raise NotImplementedError()
-
-    @classmethod
-    def get_observable_classes_handler(cls):
-        """Handler for changes in observable classes."""
-        raise NotImplementedError()
-
-    @classmethod
-    def set_all_handlers_for_subclasses(cls):
-        for klass in core_utils.get_all_subclasses(cls):
-            if not klass._meta.abstract:
-                klass.set_handlers()
-
-    @classmethod
-    def set_handlers(cls):
-        from django.db.models import signals
-
-        signals.post_save.connect(
-            cls.get_trigger_handler(),
-            sender=cls.trigger_class,
-            dispatch_uid=cls.__name__ + '.handler_for_trigger',
-        )
-
-        for klass in cls.observable_classes:
-            signals.post_save.connect(
-                cls.get_observable_classes_handler(),
-                sender=klass,
-                dispatch_uid=cls.__name__ + '.handler_for_observable_class',
-            )
 
     def get_all_actions(self):
         actions = []
@@ -107,58 +72,6 @@ class ProjectPolicy(Policy):
         policy_actions.terminate_resources,
         policy_actions.request_downscaling,
     }
-
-    @classmethod
-    def get_trigger_handler(cls):
-        def handler(sender, instance, created=False, **kwargs):
-            if not isinstance(instance.scope, structure_models.Project):
-                return
-
-            project = instance.scope
-            policies = cls.objects.filter(project=project)
-
-            for policy in policies:
-                if not policy.has_fired and policy.is_triggered():
-                    policy.has_fired = True
-                    policy.fired_datetime = timezone.now()
-                    policy.save()
-
-                    for action in policy.get_one_time_actions():
-                        action(policy)
-                        logger.info(
-                            '%s action has been triggered for project %s. Policy UUID: %s',
-                            action.__name__,
-                            policy.project.name,
-                            policy.uuid.hex,
-                        )
-
-                elif policy.has_fired and not policy.is_triggered():
-                    policy.has_fired = False
-                    policy.save()
-
-        return handler
-
-    @classmethod
-    def get_observable_classes_handler(cls):
-        def handler(sender, instance, created=False, **kwargs):
-            if not isinstance(instance, marketplace_models.Resource):
-                return
-
-            resource = instance
-            policies = cls.objects.filter(project=resource.project)
-
-            for policy in policies:
-                if policy.is_triggered():
-                    for action in policy.get_not_one_time_actions():
-                        action(policy, created)
-                        logger.info(
-                            '%s action has been triggered for project %s. Policy UUID: %s',
-                            action.__name__,
-                            policy.project.name,
-                            policy.uuid.hex,
-                        )
-
-        return handler
 
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     actions = models.CharField(max_length=255)
