@@ -2372,6 +2372,8 @@ class ResourceSerializer(BaseItemSerializer):
             'limit_usage',
             'requested_downscaling',
             'endpoints',
+            'error_message',
+            'error_traceback',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2383,6 +2385,8 @@ class ResourceSerializer(BaseItemSerializer):
             'description',
             'limit_usage',
             'end_date_requested_by',
+            'error_message',
+            'error_traceback',
         )
         view_name = 'marketplace-resource-detail'
         extra_kwargs = dict(

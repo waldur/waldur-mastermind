@@ -52,42 +52,58 @@ def pull_resource(resource_id):
     command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)[
         'command'
     ]
-    output = utils.execute_script(
-        image=image, command=command, src=options['pull'], environment=environment
-    )
-    if output:
-        last_line = output.splitlines()[-1]
-        decoded_metadata = base64.b64decode(last_line)
-        updated_values = json.loads(decoded_metadata)
-        context = get_fake_context(user=get_system_robot())
-        if 'usages' in updated_values.keys():
-            new_usages = updated_values['usages']
-            rpp = models.ResourcePlanPeriod.objects.get(
-                resource=resource, plan=resource.plan
-            ).uuid
-            usage_serializer = marketplace_serializer.ComponentUsageCreateSerializer(
-                data={'usages': new_usages, 'plan_period': rpp}, context=context
-            )
-            if usage_serializer.is_valid():
-                usage_serializer.save()
-            else:
-                logger.error(
-                    f'Validation failed when processing reported usage for {resource},'
-                    f' usage values {new_usages}, validation errors: {usage_serializer.errors}'
+
+    try:
+        output = utils.execute_script(
+            image=image, command=command, src=options['pull'], environment=environment
+        )
+        if output:
+            last_line = output.splitlines()[-1]
+            decoded_metadata = base64.b64decode(last_line)
+            updated_values = json.loads(decoded_metadata)
+            context = get_fake_context(user=get_system_robot())
+            if 'usages' in updated_values.keys():
+                new_usages = updated_values['usages']
+                rpp = models.ResourcePlanPeriod.objects.get(
+                    resource=resource, plan=resource.plan
+                ).uuid
+                usage_serializer = (
+                    marketplace_serializer.ComponentUsageCreateSerializer(
+                        data={'usages': new_usages, 'plan_period': rpp}, context=context
+                    )
                 )
-        if 'report' in updated_values.keys():
-            new_report = updated_values['report']
-            report_serializer = marketplace_serializer.ResourceReportSerializer(
-                data={'report': new_report}, context=context
-            )
-            if report_serializer.is_valid():
-                resource.report = report_serializer.validated_data['report']
-                resource.save(update_fields=['report'])
-            else:
-                logger.error(
-                    f'Validation failed when processing report for {resource},'
-                    f'{new_report}, validation errors: {report_serializer.errors}'
+                if usage_serializer.is_valid():
+                    usage_serializer.save()
+                else:
+                    logger.error(
+                        f'Validation failed when processing reported usage for {resource},'
+                        f' usage values {new_usages}, validation errors: {usage_serializer.errors}'
+                    )
+            if 'report' in updated_values.keys():
+                new_report = updated_values['report']
+                report_serializer = marketplace_serializer.ResourceReportSerializer(
+                    data={'report': new_report}, context=context
                 )
+                if report_serializer.is_valid():
+                    resource.report = report_serializer.validated_data['report']
+                    resource.save(update_fields=['report'])
+                else:
+                    logger.error(
+                        f'Validation failed when processing report for {resource},'
+                        f'{new_report}, validation errors: {report_serializer.errors}'
+                    )
+    except Exception as e:
+        resource.set_state_erred()
+        if e:
+            resource.error_message = str(e).splitlines()[0]
+            resource.error_traceback = str(e)
+    else:
+        if resource.state != models.Resource.States.OK:
+            resource.set_state_ok()
+            resource.error_message = ''
+            resource.error_traceback = ''
+    finally:
+        resource.save()
 
 
 @shared_task
