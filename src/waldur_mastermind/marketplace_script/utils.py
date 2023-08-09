@@ -6,7 +6,7 @@ from time import sleep
 
 import docker
 from django.conf import settings
-from docker.errors import DockerException
+from docker.errors import ContainerError, DockerException
 from kubernetes import kubernetes as k8s
 from kubernetes.client.rest import ApiException
 from rest_framework import serializers as rf_serializers
@@ -278,6 +278,18 @@ class ContainerExecutorMixin:
                 return output
             self.order_item.output = output
             self.order_item.save(update_fields=['output'])
+
+        except ContainerError as exc:
+            self.order_item.output = str(exc)
+            self.order_item.save(update_fields=['output'])
+            logger.exception(
+                'Unable to execute marketplace script via Docker. '
+                'Hook type is %s. Order item ID is %s.',
+                self.hook_type,
+                self.order_item.id,
+            )
+            raise rf_serializers.ValidationError(str(exc))
+
         except DockerException as exc:
             logger.exception(
                 'Unable to execute marketplace script via Docker. '
@@ -286,6 +298,7 @@ class ContainerExecutorMixin:
                 self.order_item.id,
             )
             raise rf_serializers.ValidationError(str(exc))
+
         except ApiException as exc:
             logger.exception(
                 'Unable to execute marketplace script via Kubernetes. '
@@ -294,6 +307,7 @@ class ContainerExecutorMixin:
                 self.order_item.id,
             )
             raise rf_serializers.ValidationError(str(exc))
+
         logger.debug(
             'Successfully executed marketplace script via Docker.'
             'Hook type is %s. Order item ID is %s.',
