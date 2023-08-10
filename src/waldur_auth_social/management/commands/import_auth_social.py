@@ -27,7 +27,7 @@ class Command(BaseCommand):
 
                 serializer = IdentityProviderSerializer(data=data, instance=instance)
                 try:
-                    serializer.is_valid(raise_exception=False)
+                    serializer.is_valid(raise_exception=True)
                 except ValidationError as e:
                     raise CommandError(e)
                 else:
