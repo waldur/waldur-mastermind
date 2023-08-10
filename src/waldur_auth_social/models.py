@@ -36,15 +36,25 @@ class IdentityProvider(models.Model):
 
     # The following fields are cache of URL discovered.
     # They are stored locally in the database in order to avoid extra HTTP request.
-    discovery_url = models.URLField(help_text='The endpoint for endpoint discovery.')
-    userinfo_url = models.URLField(help_text='The endpoint for fetching user info.')
-    token_url = models.URLField(help_text='The endpoint for obtaining auth token.')
-    auth_url = models.URLField(help_text='The endpoint for authorization request flow.')
+    discovery_url = models.CharField(
+        max_length=200, help_text='The endpoint for endpoint discovery.'
+    )
+    userinfo_url = models.CharField(
+        max_length=200, help_text='The endpoint for fetching user info.'
+    )
+    token_url = models.CharField(
+        max_length=200, help_text='The endpoint for obtaining auth token.'
+    )
+    auth_url = models.CharField(
+        max_length=200, help_text='The endpoint for authorization request flow.'
+    )
 
     label = models.CharField(
         help_text='Human-readable identity provider is label.', max_length=200
     )
-    management_url = models.URLField(
-        help_text='The endpoint for user details management.', blank=True
+    management_url = models.CharField(
+        max_length=200,
+        help_text='The endpoint for user details management.',
+        blank=True,
     )
     protected_fields = models.JSONField(default=list)

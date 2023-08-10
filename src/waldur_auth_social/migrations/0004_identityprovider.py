@@ -39,20 +39,28 @@ class Migration(migrations.Migration):
                 ('verify_ssl', models.BooleanField(default=True)),
                 (
                     'discovery_url',
-                    models.URLField(help_text='The endpoint for endpoint discovery.'),
+                    models.CharField(
+                        max_length=200, help_text='The endpoint for endpoint discovery.'
+                    ),
                 ),
                 (
                     'userinfo_url',
-                    models.URLField(help_text='The endpoint for fetching user info.'),
+                    models.CharField(
+                        max_length=200, help_text='The endpoint for fetching user info.'
+                    ),
                 ),
                 (
                     'token_url',
-                    models.URLField(help_text='The endpoint for obtaining auth token.'),
+                    models.CharField(
+                        max_length=200,
+                        help_text='The endpoint for obtaining auth token.',
+                    ),
                 ),
                 (
                     'auth_url',
-                    models.URLField(
-                        help_text='The endpoint for authorization request flow.'
+                    models.CharField(
+                        max_length=200,
+                        help_text='The endpoint for authorization request flow.',
                     ),
                 ),
                 (
@@ -64,7 +72,8 @@ class Migration(migrations.Migration):
                 ),
                 (
                     'management_url',
-                    models.URLField(
+                    models.CharField(
+                        max_length=200,
                         blank=True,
                         help_text='The endpoint for user details management.',
                     ),
