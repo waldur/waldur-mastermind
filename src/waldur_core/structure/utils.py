@@ -5,23 +5,83 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
+from waldur_auth_social.models import IdentityProvider, ProviderChoices
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.signals import project_moved
 
 logger = logging.getLogger(__name__)
 
 
-def get_idp_protected_fields_map():
+def get_identity_provider_field(registration_method, field):
+    try:
+        return getattr(
+            IdentityProvider.objects.get(provider=registration_method), field
+        )
+    except IdentityProvider.DoesNotExist:
+        return None
+
+
+def get_identity_provider_name(registration_method):
+    if registration_method in ProviderChoices.CHOICES:
+        return get_identity_provider_field(registration_method, 'label') or ''
+
+    if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+        return settings.WALDUR_AUTH_SAML2['IDENTITY_PROVIDER_LABEL']
+
+    if registration_method == 'valimo':
+        return settings.WALDUR_AUTH_VALIMO['LABEL']
+
+    if registration_method == 'default':
+        return settings.WALDUR_CORE['LOCAL_IDP_NAME']
+
+    return ''
+
+
+def get_identity_provider_label(registration_method):
+    if registration_method in ProviderChoices.CHOICES:
+        return get_identity_provider_field(registration_method, 'label') or ''
+
+    if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+        return settings.WALDUR_AUTH_SAML2['IDENTITY_PROVIDER_LABEL']
+
+    if registration_method == 'valimo':
+        return settings.WALDUR_AUTH_VALIMO['LABEL']
+
+    if registration_method == 'default':
+        return settings.WALDUR_CORE['LOCAL_IDP_LABEL']
+
+    return ''
+
+
+def get_identity_provider_management_url(registration_method):
+    if registration_method in ProviderChoices.CHOICES:
+        return get_identity_provider_field(registration_method, 'management_url') or ''
+
+    if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
+        return settings.WALDUR_AUTH_SAML2['MANAGEMENT_URL']
+
+    if registration_method == 'valimo':
+        return settings.WALDUR_AUTH_VALIMO['USER_MANAGEMENT_URL']
+
+    if registration_method == 'default':
+        return settings.WALDUR_CORE['LOCAL_IDP_MANAGEMENT_URL']
+
+    return ''
+
+
+def get_identity_provider_fields(registration_method):
+    if registration_method in ProviderChoices.CHOICES:
+        return (
+            get_identity_provider_field(registration_method, 'protected_fields') or []
+        )
+
     return {
-        'eduteams': settings.WALDUR_AUTH_SOCIAL['EDUTEAMS_USER_PROTECTED_FIELDS'],
-        'keycloak': settings.WALDUR_AUTH_SOCIAL['KEYCLOAK_USER_PROTECTED_FIELDS'],
-        'tara': settings.WALDUR_AUTH_SOCIAL['TARA_USER_PROTECTED_FIELDS'],
         settings.WALDUR_AUTH_SAML2['NAME']: [
             v[0] for v in settings.WALDUR_AUTH_SAML2['SAML_ATTRIBUTE_MAPPING'].values()
         ],
         'valimo': settings.WALDUR_AUTH_VALIMO['USER_PROTECTED_FIELDS'],
         'default': settings.WALDUR_CORE['LOCAL_IDP_PROTECTED_FIELDS'],
-    }
+    }.get(registration_method, [])
 
 
 def update_pulled_fields(instance, imported_instance, fields):

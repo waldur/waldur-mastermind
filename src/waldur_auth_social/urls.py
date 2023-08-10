@@ -1,18 +1,25 @@
-from django.urls import re_path
+from django.urls import path
 
-from . import views
+from . import models, views
 
 urlpatterns = [
-    re_path(r'^api-auth/tara/$', views.TARAView.as_view(), name='auth_tara'),
-    re_path(
-        r'^api-auth/keycloak/$', views.KeycloakView.as_view(), name='auth_keycloak'
-    ),
-    re_path(
-        r'^api-auth/eduteams/$', views.EduteamsView.as_view(), name='auth_eduteams'
-    ),
-    re_path(
-        r'^api/remote-eduteams/$',
+    path(
+        'api/remote-eduteams/',
         views.RemoteEduteamsView.as_view(),
         name='auth_remote_eduteams',
     ),
 ]
+
+for provider in models.ProviderChoices.CHOICES:
+    urlpatterns.append(
+        path(
+            f'api-auth/{provider}/',
+            views.OAuthView.as_view(),
+            kwargs={'provider': provider},
+            name=f'auth_{provider}',
+        )
+    )
+
+
+def register_in(router):
+    router.register(r'identity-providers', views.IdentityProvidersViewSet)

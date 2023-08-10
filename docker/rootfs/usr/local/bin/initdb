@@ -31,4 +31,7 @@ gosu waldur sh -c "waldur load_user_agreements --tos /etc/waldur/terms-of-servic
 echo "INFO: Setting whitelabeling settings"
 /usr/local/bin/set_whitelabeling.sh
 
+echo "INFO: Setting OIDC configuration"
+gosu waldur sh -c "waldur import_auth_social /etc/waldur/auth.yaml"
+
 exit 0

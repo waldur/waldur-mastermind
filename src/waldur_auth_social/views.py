@@ -1,64 +1,56 @@
 import base64
 import logging
-import uuid
 
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from rest_framework import status, views
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework import status, views, viewsets
+from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.response import Response
 
 from waldur_auth_social.exceptions import OAuthException
-from waldur_auth_social.models import OAuthToken
+from waldur_auth_social.models import OAuthToken, ProviderChoices
 from waldur_auth_social.utils import (
-    create_or_update_eduteams_user,
+    create_or_update_oauth_user,
     pull_remote_eduteams_user,
 )
-from waldur_core.core.views import RefreshTokenMixin, validate_authentication_method
+from waldur_core.core import permissions as core_permissions
+from waldur_core.core.views import RefreshTokenMixin
 
-from .log import event_logger, provider_event_type_mapping
-from .serializers import AuthSerializer, RemoteEduteamsRequestSerializer
+from . import models
+from .log import event_logger
+from .serializers import (
+    AuthSerializer,
+    IdentityProviderSerializer,
+    RemoteEduteamsRequestSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
-auth_social_settings = getattr(settings, 'WALDUR_AUTH_SOCIAL', {})
-
-TARA_CLIENT_ID = auth_social_settings.get('TARA_CLIENT_ID')
-TARA_SECRET = auth_social_settings.get('TARA_SECRET')
-TARA_SANDBOX = auth_social_settings.get('TARA_SANDBOX')
-
-KEYCLOAK_CLIENT_ID = auth_social_settings.get('KEYCLOAK_CLIENT_ID')
-KEYCLOAK_SECRET = auth_social_settings.get('KEYCLOAK_SECRET')
-KEYCLOAK_TOKEN_URL = auth_social_settings.get('KEYCLOAK_TOKEN_URL')
-KEYCLOAK_USERINFO_URL = auth_social_settings.get('KEYCLOAK_USERINFO_URL')
-KEYCLOAK_VERIFY_SSL = auth_social_settings.get('KEYCLOAK_VERIFY_SSL')
-
-EDUTEAMS_CLIENT_ID = auth_social_settings.get('EDUTEAMS_CLIENT_ID')
-EDUTEAMS_SECRET = auth_social_settings.get('EDUTEAMS_SECRET')
-EDUTEAMS_TOKEN_URL = auth_social_settings.get('EDUTEAMS_TOKEN_URL')
-EDUTEAMS_USERINFO_URL = auth_social_settings.get('EDUTEAMS_USERINFO_URL')
-
-validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
-
 User = get_user_model()
-
-
-def generate_username():
-    return uuid.uuid4().hex[:30]
 
 
 class OAuthView(RefreshTokenMixin, views.APIView):
     permission_classes = []
     authentication_classes = []
     throttle_scope = 'oauth'
-    provider = None
 
-    @validate_social_signup
-    def post(self, request, format=None):
+    def post(self, request, provider, format=None):
         if not self.request.user.is_anonymous:
             raise ValidationError('This view is for anonymous users only.')
+
+        if provider not in ProviderChoices.CHOICES:
+            raise ValidationError(
+                f'provider parameter is invalid. Valid choices are: {ProviderChoices.CHOICES}'
+            )
+        try:
+            self.config = models.IdentityProvider.objects.get(provider=provider)
+        except models.IdentityProvider.DoesNotExist:
+            raise AuthenticationFailed('Identity provider is not defined.')
+
+        if not self.config.is_active:
+            raise AuthenticationFailed('Identity provider is disabled.')
 
         serializer = AuthSerializer(
             data={
@@ -76,9 +68,9 @@ class OAuthView(RefreshTokenMixin, views.APIView):
 
         event_logger.auth_social.info(
             'User {user_username} with full name {user_full_name} authenticated successfully with {provider}.',
-            event_type=provider_event_type_mapping[self.provider],
+            event_type='auth_logged_in_with_oauth',
             event_context={
-                'provider': self.provider,
+                'provider': provider,
                 'user': user,
                 'request': request,
             },
@@ -89,62 +81,27 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         )
 
     def authenticate_user(self, validated_data):
-        try:
-            token_response = self.get_token_response(validated_data)
-        except requests.exceptions.RequestException as e:
-            logger.warning('Unable to send authentication request. Error is %s', e)
-            raise OAuthException(
-                self.provider, 'Unable to send authentication request.'
-            )
-
-        self.check_response(token_response)
-
-        try:
-            token_data = token_response.json()
-        except (ValueError, TypeError):
-            raise OAuthException(
-                self.provider, 'Unable to parse JSON in authentication response.'
-            )
-
+        token_data = self.get_token_data(validated_data)
         try:
             access_token = token_data['access_token']
         except KeyError:
             raise OAuthException(
-                self.provider, 'Authentication response does not contain token.'
+                self.config.provider, 'Authentication response does not contain token.'
             )
 
         refresh_token = token_data.get('refresh_token', '')
+        user_info = self.get_user_info(access_token)
 
-        try:
-            user_response = self.get_user_response(access_token)
-        except requests.exceptions.RequestException as e:
-            logger.warning('Unable to send user info request. Error is %s', e)
-            raise OAuthException(self.provider, 'Unable to send user info request.')
-        self.check_response(user_response)
-
-        try:
-            user_info = user_response.json()
-        except (ValueError, TypeError):
-            raise OAuthException(
-                self.provider, 'Unable to parse JSON in user info response.'
-            )
-
-        user, created = self.create_or_update_user(user_info)
+        user, created = create_or_update_oauth_user(user_info)
         OAuthToken.objects.update_or_create(
             user=user,
-            provider=self.provider,
+            provider=self.config.provider,
             defaults={
                 'access_token': access_token,
                 'refresh_token': refresh_token,
             },
         )
         return user, created
-
-    def get_token_response(self, validated_data):
-        raise NotImplementedError
-
-    def get_user_response(self, access_token):
-        raise NotImplementedError
 
     def check_response(self, response, valid_response=requests.codes.ok):
         if response.status_code != valid_response:
@@ -156,162 +113,75 @@ class OAuthView(RefreshTokenMixin, views.APIView):
                 values = (response.reason, response.status_code)
                 error_message = 'Message: %s, status code: %s' % values
                 error_description = ''
-            raise OAuthException(self.provider, error_message, error_description)
+            raise OAuthException(self.config.provider, error_message, error_description)
 
+    def get_user_info(self, access_token):
+        headers = {'Authorization': f'Bearer {access_token}'}
+        try:
+            user_response = requests.get(
+                self.config.userinfo_url, headers=headers, verify=self.config.verify_ssl
+            )
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send user info request. Error is %s', e)
+            raise OAuthException(
+                self.config.provider, 'Unable to send user info request.'
+            )
+        self.check_response(user_response)
 
-class TARAView(OAuthView):
-    """
-    See also reference documentation for TARA authentication in Estonian language:
-    https://e-gov.github.io/TARA-Doku/TehnilineKirjeldus#431-identsust%C3%B5end
-    """
+        try:
+            return user_response.json()
+        except (ValueError, TypeError):
+            raise OAuthException(
+                self.config.provider, 'Unable to parse JSON in user info response.'
+            )
 
-    provider = 'tara'
-
-    @property
-    def base_url(self):
-        if TARA_SANDBOX:
-            return 'https://tara-test.ria.ee/oidc/'
-        else:
-            return 'https://tara.ria.ee/oidc/'
-
-    def get_token_response(self, validated_data):
-        user_data_url = self.base_url + 'token'
-
+    def get_token_data(self, validated_data):
         data = {
             'grant_type': 'authorization_code',
             'redirect_uri': validated_data['redirect_uri'],
             'code': validated_data['code'],
         }
-
-        raw_token = f'{TARA_CLIENT_ID}:{TARA_SECRET}'
-        auth_token = base64.b64encode(raw_token.encode('utf-8'))
-
-        headers = {'Authorization': b'Basic %s' % auth_token}
-        return requests.post(user_data_url, data=data, headers=headers)
-
-    def get_user_response(self, access_token):
-        user_data_url = self.base_url + 'profile'
-        return requests.get(user_data_url, params={'access_token': access_token})
-
-    def create_or_update_user(self, backend_user):
-        try:
-            first_name = backend_user['given_name']
-            last_name = backend_user['family_name']
-            civil_number = backend_user['sub']
-            # AMR stands for Authentication Method Reference
-            details = {
-                'amr': backend_user.get('amr'),
-                'profile_attributes_translit': backend_user.get(
-                    'profile_attributes_translit'
-                ),
+        headers = None
+        if self.config.provider == ProviderChoices.TARA:
+            raw_token = f'{self.config.client_id}:{self.config.client_secret}'
+            auth_token = base64.b64encode(raw_token.encode('utf-8'))
+            headers = {'Authorization': b'Basic %s' % auth_token}
+        else:
+            data |= {
+                'client_id': self.config.client_id,
+                'client_secret': self.config.client_secret,
             }
-        except KeyError as e:
-            logger.warning('Unable to parse identity certificate. Error is: %s', e)
-            raise OAuthException(self.provider, 'Unable to parse identity certificate.')
         try:
-            user = User.objects.get(civil_number=civil_number)
-        except User.DoesNotExist:
-            created = True
-            user = User.objects.create_user(
-                username=generate_username(),
-                first_name=first_name,
-                last_name=last_name,
-                civil_number=civil_number,
-                registration_method=self.provider,
-                details=details,
+            token_response = requests.post(
+                self.config.token_url, data=data, headers=headers
             )
-            user.set_unusable_password()
-            user.save()
-        else:
-            created = False
-            update_fields = set()
-            if user.first_name != first_name:
-                user.first_name = first_name
-                update_fields.add('first_name')
-            if user.last_name != last_name:
-                user.last_name = last_name
-                update_fields.add('last_name')
-            if user.details != details:
-                user.details = details
-                update_fields.add('details')
-            if update_fields:
-                user.save(update_fields=update_fields)
-        return user, created
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send authentication request. Error is %s', e)
+            raise OAuthException(
+                self.config.provider, 'Unable to send authentication request.'
+            )
 
+        self.check_response(token_response)
 
-class KeycloakView(OAuthView):
-    provider = 'keycloak'
-
-    def get_token_response(self, validated_data):
-        data = {
-            'grant_type': 'authorization_code',
-            'redirect_uri': validated_data['redirect_uri'],
-            'code': validated_data['code'],
-            'client_id': KEYCLOAK_CLIENT_ID,
-            'client_secret': KEYCLOAK_SECRET,
-        }
-
-        return requests.post(KEYCLOAK_TOKEN_URL, data=data, verify=KEYCLOAK_VERIFY_SSL)
-
-    def get_user_response(self, access_token):
-        headers = {'Authorization': f'Bearer {access_token}'}
-        return requests.get(
-            KEYCLOAK_USERINFO_URL, headers=headers, verify=KEYCLOAK_VERIFY_SSL
-        )
-
-    def create_or_update_user(self, backend_user):
-        # Preferred username is not unique. Sub in UUID.
-        username = backend_user["sub"]
-        email = backend_user.get('email')
-        first_name = backend_user.get('given_name', '')
-        last_name = backend_user.get('family_name', '')
         try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            created = True
-            user = User.objects.create_user(
-                username=username,
-                registration_method=self.provider,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
+            return token_response.json()
+        except (ValueError, TypeError):
+            raise OAuthException(
+                self.config.provider, 'Unable to parse JSON in authentication response.'
             )
-            user.set_unusable_password()
-            user.save()
-        else:
-            created = False
-            update_fields = set()
-            if user.first_name != first_name:
-                user.first_name = first_name
-                update_fields.add('first_name')
-            if user.last_name != last_name:
-                user.last_name = last_name
-                update_fields.add('last_name')
-            if update_fields:
-                user.save(update_fields=update_fields)
-        return user, created
 
 
-class EduteamsView(OAuthView):
-    provider = 'eduteams'
+class IdentityProvidersViewSet(viewsets.ModelViewSet):
+    queryset = models.IdentityProvider.objects.all()
+    serializer_class = IdentityProviderSerializer
+    lookup_field = 'provider'
+    permission_classes = (core_permissions.IsAdminOrReadOnly,)
 
-    def get_token_response(self, validated_data):
-        data = {
-            'grant_type': 'authorization_code',
-            'redirect_uri': validated_data['redirect_uri'],
-            'code': validated_data['code'],
-            'client_id': EDUTEAMS_CLIENT_ID,
-            'client_secret': EDUTEAMS_SECRET,
-        }
-
-        return requests.post(EDUTEAMS_TOKEN_URL, data=data)
-
-    def get_user_response(self, access_token):
-        headers = {'Authorization': f'Bearer {access_token}'}
-        return requests.get(EDUTEAMS_USERINFO_URL, headers=headers)
-
-    def create_or_update_user(self, backend_user):
-        return create_or_update_eduteams_user(backend_user)
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not self.request.user.is_staff:
+            return qs.filter(is_active=True)
+        return qs
 
 
 class RemoteEduteamsView(views.APIView):

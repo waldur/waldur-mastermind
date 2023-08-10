@@ -34,24 +34,6 @@ from waldur_core.structure.registry import get_resource_type, get_service_type
 User = auth.get_user_model()
 logger = logging.getLogger(__name__)
 
-SOCIAL_SIGNUP_DETAILS = {
-    'eduteams': {
-        'label_key': 'EDUTEAMS_LABEL',
-        'management_url_key': 'EDUTEAMS_MANAGEMENT_URL',
-        'details_fields_key': 'EDUTEAMS_USER_PROTECTED_FIELDS',
-    },
-    'keycloak': {
-        'label_key': 'KEYCLOAK_LABEL',
-        'management_url_key': 'KEYCLOAK_MANAGEMENT_URL',
-        'details_fields_key': 'KEYCLOAK_USER_PROTECTED_FIELDS',
-    },
-    'tara': {
-        'label_key': 'TARA_LABEL',
-        'management_url_key': 'TARA_MANAGEMENT_URL',
-        'details_fields_key': 'TARA_USER_PROTECTED_FIELDS',
-    },
-}
-
 
 def get_options_serializer_class(service_type):
     return next(
@@ -1008,63 +990,16 @@ class UserSerializer(
             pass
 
     def get_identity_provider_name(self, user):
-        registration_method = user.registration_method
-        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
-            key = SOCIAL_SIGNUP_DETAILS[registration_method]['label_key']
-            return settings.WALDUR_AUTH_SOCIAL[key]
-
-        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
-            return settings.WALDUR_AUTH_SAML2['IDENTITY_PROVIDER_LABEL']
-
-        if registration_method == 'valimo':
-            return settings.WALDUR_AUTH_VALIMO['LABEL']
-
-        if registration_method == 'default':
-            return settings.WALDUR_CORE['LOCAL_IDP_NAME']
-
-        return ''
+        return utils.get_identity_provider_name(user.registration_method)
 
     def get_identity_provider_label(self, user):
-        registration_method = user.registration_method
-        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
-            key = SOCIAL_SIGNUP_DETAILS[registration_method]['label_key']
-            return settings.WALDUR_AUTH_SOCIAL[key]
-
-        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
-            return settings.WALDUR_AUTH_SAML2['IDENTITY_PROVIDER_LABEL']
-
-        if registration_method == 'valimo':
-            return settings.WALDUR_AUTH_VALIMO['LABEL']
-
-        if registration_method == 'default':
-            return settings.WALDUR_CORE['LOCAL_IDP_LABEL']
-
-        return ''
+        return utils.get_identity_provider_label(user.registration_method)
 
     def get_identity_provider_management_url(self, user):
-        registration_method = user.registration_method
-        if user.registration_method in SOCIAL_SIGNUP_DETAILS.keys():
-            key = SOCIAL_SIGNUP_DETAILS[registration_method]['management_url_key']
-            return settings.WALDUR_AUTH_SOCIAL[key]
-
-        if registration_method == settings.WALDUR_AUTH_SAML2['NAME']:
-            return settings.WALDUR_AUTH_SAML2['MANAGEMENT_URL']
-
-        if registration_method == 'valimo':
-            return settings.WALDUR_AUTH_VALIMO['USER_MANAGEMENT_URL']
-
-        if registration_method == 'default':
-            return settings.WALDUR_CORE['LOCAL_IDP_MANAGEMENT_URL']
-
-        return ''
+        return utils.get_identity_provider_management_url(user.registration_method)
 
     def get_identity_provider_fields(self, user):
-        registration_method = user.registration_method
-        idp_protected_fields_map = utils.get_idp_protected_fields_map()
-        if registration_method in idp_protected_fields_map:
-            return idp_protected_fields_map[registration_method]
-
-        return []
+        return utils.get_identity_provider_fields(user.registration_method)
 
     class Meta:
         model = User
