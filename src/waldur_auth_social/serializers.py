@@ -24,6 +24,11 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.IdentityProvider
         exclude = ('id',)
+        extra_kwargs = {
+            'userinfo_url': {'read_only': True},
+            'token_url': {'read_only': True},
+            'auth_url': {'read_only': True},
+        }
 
     def validate_provider(self, provider):
         if provider not in models.ProviderChoices.CHOICES:
@@ -57,10 +62,6 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             user = request.user
         except (KeyError, AttributeError):
             return fields
-
-        fields['userinfo_url'].read_only = True
-        fields['token_url'].read_only = True
-        fields['auth_url'].read_only = True
 
         if self.instance:
             fields['provider'].read_only = True
