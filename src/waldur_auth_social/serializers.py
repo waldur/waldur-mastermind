@@ -40,6 +40,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         discovery_url = attrs['discovery_url']
         parsed_url = urlparse(discovery_url)
         hostname = parsed_url.hostname
+        if not hostname or parsed_url.scheme.lower() not in ('http', 'https'):
+            raise ValidationError('Invalid discovery URL.')
         if provider == models.ProviderChoices.TARA:
             if hostname not in ('tara-test.ria.ee', 'tara.ria.ee'):
                 raise ValidationError('Invalid discovery URL.')
