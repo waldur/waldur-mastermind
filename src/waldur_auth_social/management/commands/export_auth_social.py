@@ -24,7 +24,7 @@ class Command(BaseCommand):
         providers = IdentityProvider.objects.all()
         serializer = IdentityProviderSerializer(instance=providers, many=True)
         if options['output'] is None:
-            self.stdout.write(yaml.safe_dump_all(dict(x) for x in serializer.data))
+            self.stdout.write(yaml.safe_dump(dict(x) for x in serializer.data))
         else:
             with open(options['output'] or sys.stdout, 'w') as output_file:
-                yaml.safe_dump_all((dict(x) for x in serializer.data), output_file)
+                yaml.safe_dump((dict(x) for x in serializer.data), output_file)
