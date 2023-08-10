@@ -5,19 +5,13 @@ from waldur_core.logging.loggers import EventLogger, event_logger
 
 User = get_user_model()
 
-provider_event_type_mapping = {
-    'tara': 'auth_logged_in_with_tara',
-    'keycloak': 'auth_logged_in_with_keycloak',
-    'eduteams': 'auth_logged_in_with_eduteams',
-}
-
 
 class SocialEventLogger(AuthEventMixin, EventLogger):
     provider = str
     user = User
 
     class Meta:
-        event_types = provider_event_type_mapping.values()
+        event_types = ['auth_logged_in_with_oauth']
         event_groups = {'users': event_types}
 
     @staticmethod

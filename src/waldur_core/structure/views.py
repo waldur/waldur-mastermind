@@ -492,13 +492,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def change_email(self, request, uuid=None):
         user = self.get_object()
 
-        idp_protected_fields_map = utils.get_idp_protected_fields_map()
-        if user.registration_method not in idp_protected_fields_map:
-            return Response(
-                {'detail': _('User has unsupported registration method')},
-                status=status.HTTP_409_CONFLICT,
-            )
-        idp_protected_fields = idp_protected_fields_map[user.registration_method]
+        idp_protected_fields = utils.get_identity_provider_fields(
+            user.registration_method
+        )
 
         if 'email' in idp_protected_fields:
             raise ValidationError(

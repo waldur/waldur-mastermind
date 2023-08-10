@@ -279,89 +279,6 @@ class WaldurCore(BaseModel):
 
 
 class WaldurAuthSocial(BaseModel):
-    TARA_SECRET = Field('', description='Application secret key.')
-    TARA_CLIENT_ID = Field(
-        '', description='ID of application used for OAuth authentication.'
-    )
-    TARA_SANDBOX = Field(
-        True,
-        description='You should set it to False in order to switch to production mode.',
-    )
-    TARA_LABEL = Field(
-        'Riigi Autentimisteenus',
-        description='You may set it to eIDAS, SmartID or MobileID make it more clear to the user '
-        'which exact identity provider is configured or preferred for service provider.',
-    )
-    TARA_MANAGEMENT_URL = Field(
-        '',
-        description='The endpoint for user details management.',
-    )
-    TARA_USER_PROTECTED_FIELDS: List[str] = Field(
-        [
-            'full_name',
-        ],
-        description='The list of protected fields for TARA IdP.',
-    )
-    KEYCLOAK_LABEL = Field(
-        'Keycloak', description='Label is used by HomePort for rendering login button.'
-    )
-    KEYCLOAK_CLIENT_ID = Field(
-        '', description='ID of application used for OAuth authentication.'
-    )
-    KEYCLOAK_SECRET = Field('', description='Application secret key.')
-    KEYCLOAK_AUTH_URL = Field(
-        '',
-        description='The authorization endpoint performs authentication of the end-user. '
-        'This is done by redirecting the user agent to this endpoint.',
-    )
-    KEYCLOAK_TOKEN_URL = Field(
-        '', description='The token endpoint is used to obtain tokens.'
-    )
-    KEYCLOAK_USERINFO_URL = Field(
-        '',
-        description='The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.',
-    )
-    KEYCLOAK_VERIFY_SSL = Field(
-        True, description='Validate TLS certificate of Keycloak REST API'
-    )
-    KEYCLOAK_MANAGEMENT_URL = Field(
-        'http://localhost:8080/auth/realms/waldur/account/#/personal-info',
-        description='The endpoint for user details management.',
-    )
-    KEYCLOAK_USER_PROTECTED_FIELDS: List[str] = Field(
-        ['full_name', 'email'],
-        description='The list of protected fields for Keycloak IdP.',
-    )
-    EDUTEAMS_LABEL = Field(
-        'eduTEAMS', description='Label is used by HomePort for rendering login button.'
-    )
-    EDUTEAMS_CLIENT_ID = Field(
-        '', description='ID of application used for OAuth authentication.'
-    )
-    EDUTEAMS_SECRET = Field('', description='Application secret key.')
-    EDUTEAMS_AUTH_URL = Field(
-        'https://proxy.acc.eduteams.org/saml2sp/OIDC/authorization',
-        description='The authorization endpoint performs authentication of the end-user. '
-        'This is done by redirecting the user agent to this endpoint.',
-    )
-    EDUTEAMS_TOKEN_URL = Field(
-        'https://proxy.acc.eduteams.org/OIDC/token',
-        description='The token endpoint is used to obtain tokens.',
-    )
-    EDUTEAMS_USERINFO_URL = Field(
-        'https://proxy.acc.eduteams.org/OIDC/userinfo',
-        description='The userinfo endpoint returns standard claims about the authenticated user, and is protected by a bearer token.',
-    )
-    EDUTEAMS_MANAGEMENT_URL = Field(
-        '', description='The endpoint for user details management.'
-    )
-    EDUTEAMS_USER_PROTECTED_FIELDS: List[str] = Field(
-        [
-            'full_name',
-            'email',
-        ],
-        description='The list of protected fields for EDUTEAMS IdP.',
-    )
     REMOTE_EDUTEAMS_TOKEN_URL = Field(
         'https://proxy.acc.researcher-access.org/OIDC/token',
         description='The token endpoint is used to obtain tokens.',
@@ -386,15 +303,6 @@ class WaldurAuthSocial(BaseModel):
 
     class Meta:
         public_settings = [
-            'TARA_CLIENT_ID',
-            'TARA_SANDBOX',
-            'TARA_LABEL',
-            'KEYCLOAK_CLIENT_ID',
-            'KEYCLOAK_LABEL',
-            'KEYCLOAK_AUTH_URL',
-            'EDUTEAMS_CLIENT_ID',
-            'EDUTEAMS_LABEL',
-            'EDUTEAMS_AUTH_URL',
             'REMOTE_EDUTEAMS_ENABLED',
             'ENABLE_EDUTEAMS_SYNC',
         ]

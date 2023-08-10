@@ -9,6 +9,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ParseError
 
+from waldur_auth_social.exceptions import OAuthException
+from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.models import SshPublicKey
 from waldur_core.core.validators import validate_ssh_public_key
 
@@ -16,6 +18,105 @@ User = get_user_model()
 
 
 logger = logging.getLogger(__name__)
+
+
+def create_or_update_oauth_user(provider, backend_user):
+    if provider == ProviderChoices.TARA:
+        return create_or_update_tara_user(backend_user)
+    if provider == ProviderChoices.EDUTEAMS:
+        return create_or_update_eduteams_user(backend_user)
+    if provider == ProviderChoices.KEYCLOAK:
+        return create_or_update_keycloak_user(backend_user)
+
+
+def generate_username():
+    return uuid.uuid4().hex[:30]
+
+
+def create_or_update_tara_user(backend_user):
+    """
+    See also reference documentation for TARA authentication in Estonian language:
+    https://e-gov.github.io/TARA-Doku/TehnilineKirjeldus#431-identsust%C3%B5end
+    """
+
+    try:
+        first_name = backend_user['given_name']
+        last_name = backend_user['family_name']
+        civil_number = backend_user['sub']
+        # AMR stands for Authentication Method Reference
+        details = {
+            'amr': backend_user.get('amr'),
+            'profile_attributes_translit': backend_user.get(
+                'profile_attributes_translit'
+            ),
+        }
+    except KeyError as e:
+        logger.warning('Unable to parse identity certificate. Error is: %s', e)
+        raise OAuthException(
+            ProviderChoices.TARA, 'Unable to parse identity certificate.'
+        )
+    try:
+        user = User.objects.get(civil_number=civil_number)
+    except User.DoesNotExist:
+        created = True
+        user = User.objects.create_user(
+            username=generate_username(),
+            first_name=first_name,
+            last_name=last_name,
+            civil_number=civil_number,
+            registration_method=ProviderChoices.TARA,
+            details=details,
+        )
+        user.set_unusable_password()
+        user.save()
+    else:
+        created = False
+        update_fields = set()
+        if user.first_name != first_name:
+            user.first_name = first_name
+            update_fields.add('first_name')
+        if user.last_name != last_name:
+            user.last_name = last_name
+            update_fields.add('last_name')
+        if user.details != details:
+            user.details = details
+            update_fields.add('details')
+        if update_fields:
+            user.save(update_fields=update_fields)
+    return user, created
+
+
+def create_or_update_keycloak_user(backend_user):
+    # Preferred username is not unique. Sub in UUID.
+    username = backend_user["sub"]
+    email = backend_user.get('email')
+    first_name = backend_user.get('given_name', '')
+    last_name = backend_user.get('family_name', '')
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        created = True
+        user = User.objects.create_user(
+            username=username,
+            registration_method=ProviderChoices.KEYCLOAK,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+        )
+        user.set_unusable_password()
+        user.save()
+    else:
+        created = False
+        update_fields = set()
+        if user.first_name != first_name:
+            user.first_name = first_name
+            update_fields.add('first_name')
+        if user.last_name != last_name:
+            user.last_name = last_name
+            update_fields.add('last_name')
+        if update_fields:
+            user.save(update_fields=update_fields)
+    return user, created
 
 
 def create_or_update_eduteams_user(backend_user):
@@ -52,7 +153,7 @@ def create_or_update_eduteams_user(backend_user):
         created = True
         user = User.objects.create_user(
             username=username,
-            registration_method='eduteams',
+            registration_method=ProviderChoices.EDUTEAMS,
             notifications_enabled=False,
             **payload,
         )

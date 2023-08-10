@@ -41,13 +41,23 @@ class BaseAuthTest(test.APITransactionTestCase):
 
 @override_settings(
     WALDUR_AUTH_SOCIAL={
-        'KEYCLOAK_TOKEN_URL': 'http://keycloak/auth/realms/myrealm/protocol/openid-connect/token',
-        'KEYCLOAK_USERINFO_URL': 'http://keycloak/auth/realms/myrealm/protocol/openid-connect/userinfo',
+        'KEYCLOAK_DISCOVERY_URL': 'http://keycloak/auth/realms/myrealm/.well-known/openid-configuration',
     }
 )
 @override_waldur_core_settings(AUTHENTICATION_METHODS=['SOCIAL_SIGNUP'])
 @responses.activate
 class SocialSignupTest(BaseAuthTest):
+    def setUp(self):
+        super().setUp()
+        responses.add(
+            method='GET',
+            url='http://keycloak/auth/realms/myrealm/.well-known/openid-configuration',
+            json={
+                "userinfo_endpoint": "http://keycloak/auth/realms/myrealm/protocol/openid-connect/userinfo",
+                'token_endpoint': 'http://keycloak/auth/realms/myrealm/protocol/openid-connect/token',
+            },
+        )
+
     def test_auth_view_works_for_anonymous_only(self):
         user = structure_factories.UserFactory()
         self.client.force_authenticate(user)
@@ -93,19 +103,10 @@ class SocialSignupTest(BaseAuthTest):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-@override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNIN'])
-class DisabledAuthenticationTest(BaseAuthTest):
-    def test_auth_fails_if_social_authentication_is_not_enabled(self):
-        response = self.oauth_login()
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertTrue(b'Authentication method is disabled.' in response.content)
-
-
 @override_waldur_core_settings(AUTHENTICATION_METHODS=['SOCIAL_SIGNUP'])
 @override_settings(
     WALDUR_AUTH_SOCIAL={
-        'EDUTEAMS_TOKEN_URL': 'https://proxy.acc.eduteams.org/OIDC/token',
-        'EDUTEAMS_USERINFO_URL': 'https://proxy.acc.eduteams.org/OIDC/userinfo',
+        'EDUTEAMS_DISCOVERY_URL': 'https://proxy.acc.eduteams.org/.well-known/openid-configuration',
     }
 )
 @responses.activate
@@ -136,6 +137,14 @@ class EduteamsAuthenticationTest(test.APITransactionTestCase):
             ],
             'voperson_external_affiliation': ['faculty@helsinki.fi'],
         }
+        responses.add(
+            method='GET',
+            url='https://proxy.acc.eduteams.org/.well-known/openid-configuration',
+            json={
+                "userinfo_endpoint": "https://proxy.acc.eduteams.org/OIDC/userinfo",
+                'token_endpoint': 'https://proxy.acc.eduteams.org/OIDC/token',
+            },
+        )
         responses.add(
             method='POST',
             url='https://proxy.acc.eduteams.org/OIDC/token',
