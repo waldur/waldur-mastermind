@@ -81,6 +81,8 @@ class UpdateProcessor(
     hook_type = 'update'
 
     def send_request(self, user):
+        self.order_item.resource.set_state_updating()
+        self.order_item.resource.save(update_fields=['state'])
         super().send_request(user)
         return True
 
@@ -95,5 +97,7 @@ class DeleteProcessor(
     hook_type = 'terminate'
 
     def send_request(self, user, resource):
+        resource.set_state_terminating()
+        resource.save(update_fields=['state'])
         super().send_request(user, resource)
         return True
