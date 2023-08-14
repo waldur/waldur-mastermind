@@ -3606,6 +3606,9 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
     project_name = serializers.ReadOnlyField(source='resource.project.name')
     customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
+    offering_plugin_options = serializers.ReadOnlyField(
+        source='resource.offering.plugin_options'
+    )
 
     class Meta(RobotAccountSerializer.Meta):
         fields = RobotAccountSerializer.Meta.fields + (
@@ -3616,6 +3619,7 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
             'project_uuid',
             'customer_uuid',
             'customer_name',
+            'offering_plugin_options',
         )
 
     def get_user_keys(self, instance):
