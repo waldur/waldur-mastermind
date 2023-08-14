@@ -19,6 +19,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         with open(options['auth_file']) as auth_file:
             providers = yaml.safe_load(auth_file)
+            if providers is None:
+                return
             for data in providers:
                 try:
                     instance = IdentityProvider.objects.get(provider=data['provider'])
