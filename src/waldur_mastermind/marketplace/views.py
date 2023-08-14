@@ -1550,7 +1550,9 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     approve_permissions = (
         set_state_executing_permissions
-    ) = set_state_done_permissions = set_state_erred_permissions = [
+    ) = (
+        set_state_done_permissions
+    ) = set_state_erred_permissions = cancel_termination_permissions = [
         permissions.can_approve_order_item
     ]
 
@@ -1655,9 +1657,6 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
 
         order_item = self.get_object()
-
-        if not request.user.is_staff:
-            raise ValidationError('Only staff is allowed to cancel termination order.')
 
         if order_item.type != models.OrderItem.Types.TERMINATE:
             raise ValidationError('This is not a termination order item.')
