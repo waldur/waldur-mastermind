@@ -1789,6 +1789,7 @@ class BaseItemSerializer(
             'offering_terms_of_service',
             'offering_shared',
             'offering_billable',
+            'offering_plugin_options',
             'provider_name',
             'provider_uuid',
             'category_title',
@@ -1816,6 +1817,7 @@ class BaseItemSerializer(
                 'terms_of_service',
                 'shared',
                 'billable',
+                'plugin_options',
             ),
             'plan': ('unit', 'uuid', 'name', 'description'),
         }
