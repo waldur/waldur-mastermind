@@ -92,7 +92,7 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         refresh_token = token_data.get('refresh_token', '')
         user_info = self.get_user_info(access_token)
 
-        user, created = create_or_update_oauth_user(user_info)
+        user, created = create_or_update_oauth_user(self.config.provider, user_info)
         OAuthToken.objects.update_or_create(
             user=user,
             provider=self.config.provider,
