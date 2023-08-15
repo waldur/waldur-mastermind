@@ -63,7 +63,14 @@ class DryRunView(ActionsViewSet):
         order_item = marketplace_models.OrderItem(**serializer.validated_data)
         order_item.offering = offering
         order_item_type = DryRunTypes.get_type_display(order_item.type)
-
+        script_language = order_item.offering.secret_options.get('language')
+        if not script_language:
+            return Response(
+                {
+                    'Can not dry run the script. The script language is not set.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         project = structure_models.Project(
             name='Dry-run project', customer=offering.customer
         )
