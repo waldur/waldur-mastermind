@@ -1,13 +1,19 @@
 from celery import shared_task
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 
 
 @shared_task(name='waldur_mastermind.policy.notify_about_limit_cost')
 def notify_about_limit_cost(serialized_scope, serialized_policy):
     scope = core_utils.deserialize_instance(serialized_scope)
     policy = core_utils.deserialize_instance(serialized_policy)
-    emails = scope.get_user_mails()
+    role = (
+        structure_models.CustomerRole.OWNER
+        if isinstance(scope, structure_models.Customer)
+        else None
+    )
+    emails = scope.get_user_mails(role)
 
     if emails:
         context = {

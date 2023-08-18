@@ -134,14 +134,14 @@ class GetPolicyTest(test.APITransactionTestCase):
         self.policy = factories.ProjectEstimatedCostPolicyFactory(project=self.project)
         self.url = factories.ProjectEstimatedCostPolicyFactory.get_list_url()
 
-    @data('staff', 'owner', 'customer_support')
+    @data('staff', 'owner', 'customer_support', 'admin', 'manager')
     def test_user_can_get_policy(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    @data('user', 'offering_owner', 'admin', 'manager')
+    @data('user', 'offering_owner')
     def test_user_can_not_get_policy(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -243,10 +243,15 @@ class DeletePolicyTest(test.APITransactionTestCase):
         response = self._delete_policy(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('admin', 'manager', 'user', 'offering_owner')
+    @data('user', 'offering_owner')
     def test_user_can_not_delete_policy(self, user):
         response = self._delete_policy(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @data('admin', 'manager')
+    def test_project_member_can_not_delete_policy(self, user):
+        response = self._delete_policy(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
@@ -266,7 +271,12 @@ class UpdatePolicyTest(test.APITransactionTestCase):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('admin', 'manager', 'user', 'offering_owner')
+    @data('user', 'offering_owner')
     def test_user_can_not_update_policy(self, user):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @data('admin', 'manager')
+    def test_project_member_can_not_update_policy(self, user):
+        response = self._update_policy(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
