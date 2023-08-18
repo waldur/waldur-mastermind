@@ -9,6 +9,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace.tests import utils as tests_utils
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import tasks
 from waldur_mastermind.policy.tests import factories
@@ -18,16 +19,22 @@ class ActionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project
-        self.policy = factories.ProjectEstimatedCostPolicyFactory(project=self.project)
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            project=self.project, created_by=self.fixture.user
+        )
         self.estimate = billing_models.PriceEstimate.objects.get(scope=self.project)
+        self.admin = self.fixture.admin
+        self.owner = self.fixture.owner
 
         structure_factories.NotificationFactory(
             key='marketplace_policy.notification_about_project_cost_exceeded_limit'
         )
+        tests_utils.create_system_robot()
 
     @mock.patch('waldur_core.core.utils.send_mail')
     def test_notify_project_team(self, mock_send_mail):
-        self.fixture.admin
+        self.policy.actions = 'notify_project_team'
+        self.policy.save()
 
         serialized_scope = core_utils.serialize_instance(self.policy.project)
         serialized_policy = core_utils.serialize_instance(self.policy)
@@ -37,7 +44,9 @@ class ActionsTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_core.core.utils.send_mail')
     def test_notify_organization_owners(self, mock_send_mail):
-        self.fixture.owner
+        self.policy.actions = 'notify_organization_owners'
+        self.policy.save()
+
         serialized_scope = core_utils.serialize_instance(self.policy.project.customer)
         serialized_policy = core_utils.serialize_instance(self.policy)
         tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
@@ -101,7 +110,6 @@ class ActionsTest(test.APITransactionTestCase):
 
     def test_terminate_resources(self):
         self.policy.actions = 'terminate_resources'
-        self.policy.created_by = self.fixture.user
         self.policy.save()
 
         resource = self.fixture.resource

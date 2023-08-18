@@ -63,6 +63,7 @@ class Policy(
 class ProjectPolicy(Policy):
     class Permissions:
         customer_path = 'project__customer'
+        project_path = 'project'
 
     available_actions = {
         policy_actions.notify_project_team,
