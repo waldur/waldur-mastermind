@@ -1,7 +1,8 @@
 from celery import shared_task
 
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
+from waldur_mastermind.marketplace import utils
+from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 
 
 @shared_task(name='waldur_mastermind.marketplace_slurm_remote.sync_offering_users')
