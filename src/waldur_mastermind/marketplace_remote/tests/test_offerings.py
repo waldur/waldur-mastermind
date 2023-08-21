@@ -41,7 +41,7 @@ class RemoteCustomersTest(test.APITransactionTestCase):
         self.assertEqual(response.data, [])
 
 
-class OfferingComponentPullTest(test.APITransactionTestCase):
+class OfferingDetailsPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         fixture = fixtures.MarketplaceFixture()
         self.offering = fixture.offering
@@ -96,6 +96,18 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
                     "unit_price": self.plan.unit_price,
                     "unit": self.plan.unit,
                 }
+            ],
+            "endpoints": [
+                {
+                    "uuid": "9f33bb7cbb714271851f138942be578b",
+                    "name": "New Endpoint",
+                    "url": "https://new-endpoint.example.com/",
+                },
+                {
+                    "uuid": "9f33bb7cbb714271851f138942be578b",
+                    "name": "Updated existing Endpoint",
+                    "url": "https://existing-endpoint.example.com/",
+                },
             ],
         }
 
@@ -227,6 +239,40 @@ class OfferingComponentPullTest(test.APITransactionTestCase):
 
         new_plan_component = new_plan.components.first()
         self.assertEqual(self.component, new_plan_component.component)
+
+    @responses.activate
+    @override_settings(task_always_eager=True)
+    def test_endpoints_update(self):
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name='Stale Endpoint',
+            url='https://stale-endpoint.example.com/',
+        )
+
+        existing_endpoint = marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name='Existing endpoint',
+            url='https://existing-endpoint.example.com/',
+        )
+
+        responses.add(
+            responses.GET,
+            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
+            json=self.remote_offering,
+        )
+
+        self.task.pull(self.offering)
+        existing_endpoint.refresh_from_db()
+        endpoints = self.offering.endpoints.all()
+        self.assertEqual(2, len(endpoints))
+
+        self.assertEqual('Updated existing Endpoint', existing_endpoint.name)
+
+        new_endpoint = endpoints.filter(name='New Endpoint').first()
+        self.assertIsNotNone(new_endpoint)
+        self.assertEqual("https://new-endpoint.example.com/", new_endpoint.url)
+
+        self.assertIsNone(endpoints.filter(name='Stale Endpoint').first())
 
 
 class OfferingUpdateTest(test.APITransactionTestCase):
