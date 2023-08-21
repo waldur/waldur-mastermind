@@ -1086,7 +1086,8 @@ def setup_linux_related_data(
     if not login_shell:
         instance.backend_metadata['loginShell'] = "/bin/bash"
 
-    instance.backend_metadata['homeDir'] = f"/home/{instance.username}"
+    homedir_prefix = offering.plugin_options.get('homedir_prefix', '/home/')
+    instance.backend_metadata['homeDir'] = f"{homedir_prefix}{instance.username}"
 
 
 def get_plans_available_for_user(

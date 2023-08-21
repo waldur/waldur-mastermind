@@ -24,6 +24,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             'username_generation_policy': 'waldur_username',
             'initial_uidnumber': 1000,
             'initial_primarygroup_number': 2000,
+            'homedir_prefix': '/tmp/',
         }
         offering.save()
 
@@ -58,7 +59,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             {
                 'uidnumber': 1001,
                 'primarygroup': 2001,
-                'homeDir': f'/home/{offering_user.username}',
+                'homeDir': f'/tmp/{offering_user.username}',
                 'loginShell': '/bin/bash',
             },
         )
@@ -106,7 +107,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             {
                 'uidnumber': 1001,
                 'primarygroup': 2001,
-                'homeDir': f'/home/{offering_user.username}',
+                'homeDir': f'/tmp/{offering_user.username}',
                 'loginShell': '/bin/bash',
             },
         )
@@ -115,7 +116,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             {
                 'uidnumber': 1002,
                 'primarygroup': 2002,
-                'homeDir': f'/home/{offering_user2.username}',
+                'homeDir': f'/tmp/{offering_user2.username}',
                 'loginShell': '/bin/bash',
             },
         )
@@ -136,6 +137,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
         }
         self.offering.plugin_options = {
             'username_generation_policy': 'waldur_username',
+            'homedir_prefix': '/tmp/',
         }
         self.offering.save()
 
@@ -148,7 +150,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
     def test_username_updated_when_generation_policy_changed(self):
         self.assertEqual(self.admin.username, self.offering_user.username)
         self.assertEqual(
-            f'/home/{self.admin.username}',
+            f'/tmp/{self.admin.username}',
             self.offering_user.backend_metadata['homeDir'],
         )
 
@@ -162,7 +164,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
             'walduruser_00000',
         )
         self.assertEqual(
-            '/home/walduruser_00000', self.offering_user.backend_metadata['homeDir']
+            '/tmp/walduruser_00000', self.offering_user.backend_metadata['homeDir']
         )
 
     def test_username_updated_when_generation_policy_changed_to_service_provider(self):
@@ -190,6 +192,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
             'initial_uidnumber': 1000,
             'initial_primarygroup_number': 2000,
             'initial_usergroup_number': 3000,
+            'homedir_prefix': '/tmp/',
         }
         self.offering.secret_options = {
             'service_provider_can_create_offering_user': True
@@ -249,7 +252,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
           otherGroups = [6001]
           sshkeys = ["{ssh_key.public_key}"]
           loginShell = "/bin/bash"
-          homeDir = "/home/{self.offering_user.username}"
+          homeDir = "/tmp/{self.offering_user.username}"
           passsha256 = ""
             [[users.customattributes]]
             preferredUsername = ["{self.offering_user.username}"]
