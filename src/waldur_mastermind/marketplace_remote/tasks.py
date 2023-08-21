@@ -57,6 +57,42 @@ class OfferingPullTask(BackgroundPullTask):
         utils.import_offering_thumbnail(local_offering, remote_offering)
         self.sync_offering_components(local_offering, remote_offering)
         self.sync_plans(local_offering, remote_offering)
+        self.sync_access_endpoints(local_offering, remote_offering)
+
+    def sync_access_endpoints(self, local_offering, remote_offering):
+        if not remote_offering.get('endpoints'):
+            return
+        remote_endpoints = remote_offering['endpoints']
+        local_endpoints = local_offering.endpoints.all()
+        remote_endpoints_map = {item['url']: item for item in remote_endpoints}
+        local_endpoint_urls = {item.url for item in local_endpoints}
+
+        new_urls = set(remote_endpoints_map.keys()) - local_endpoint_urls
+        stale_urls = local_endpoint_urls - set(remote_endpoints_map.keys())
+        existing_urls = local_endpoint_urls & set(remote_endpoints_map.keys())
+
+        if stale_urls:
+            local_offering.endpoints.filter(url__in=stale_urls).delete()
+            logger.info(
+                'Endpoints %s of offering %s have been deleted',
+                stale_urls,
+                local_offering,
+            )
+
+        for new_url in new_urls:
+            models.OfferingAccessEndpoint.objects.create(
+                url=new_url,
+                name=remote_endpoints_map[new_url]['name'],
+                offering=local_offering,
+            )
+
+        for existing_url in existing_urls:
+            endpoint: models.OfferingAccessEndpoint = local_offering.endpoints.get(
+                url=existing_url
+            )
+            if endpoint.name != remote_endpoints_map[existing_url]['name']:
+                endpoint.name = remote_endpoints_map[existing_url]['name']
+                endpoint.save(update_fields=['name'])
 
     def sync_offering_components(
         self, local_offering: models.Offering, remote_offering
