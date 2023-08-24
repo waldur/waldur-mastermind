@@ -7,6 +7,8 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
@@ -128,6 +130,10 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
             offering=self.offering,
             plan=self.plan2,
         )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SWITCH_RESOURCE_PLAN)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.SWITCH_RESOURCE_PLAN)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.SWITCH_RESOURCE_PLAN)
 
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
@@ -291,6 +297,8 @@ class ResourceTerminateTest(test.APITransactionTestCase):
             plan=self.plan,
             state=models.Resource.States.OK,
         )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.TERMINATE_RESOURCE)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.TERMINATE_RESOURCE)
 
     def terminate(self, user, attributes=None):
         attributes = attributes or {}
@@ -721,6 +729,8 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
         self.url = factories.ResourceFactory.get_url(
             self.resource, 'set_end_date_by_provider'
         )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SET_RESOURCE_END_DATE)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.SET_RESOURCE_END_DATE)
 
     def make_request(self, user, payload):
         self.client.force_authenticate(user)
@@ -891,6 +901,8 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.save()
         self.resource.offering.type = 'TEST_TYPE'
         self.resource.offering.save()
+
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_RESOURCE_LIMITS)
 
     def update_limits(self, user, resource, limits=None):
         limits = limits or {'vcpu': 10}
@@ -1097,6 +1109,10 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
             service_manager, role=structure_models.CustomerRole.SERVICE_MANAGER
         )
         setattr(self.fixture, 'service_manager', service_manager)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SET_RESOURCE_BACKEND_ID)
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.SET_RESOURCE_BACKEND_ID
+        )
 
     def make_request(self, role):
         self.client.force_authenticate(role)
@@ -1137,6 +1153,8 @@ class ResourceReportTest(test.APITransactionTestCase):
             service_owner, role=structure_models.CustomerRole.OWNER
         )
         setattr(self.fixture, 'service_owner', service_manager)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SUBMIT_RESOURCE_REPORT)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.SUBMIT_RESOURCE_REPORT)
 
     def make_request(self, role, payload):
         self.client.force_authenticate(role)
@@ -1201,6 +1219,7 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
         )
 
         self.url = factories.ResourceFactory.get_url(self.resource, action='team')
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.LIST_RESOURCE_USERS)
 
     def test_service_owner_can_get_resource_team(self):
         self.client.force_authenticate(self.service_owner)
@@ -1297,6 +1316,9 @@ class DownscalingRequestCompletedTest(test.APITransactionTestCase):
 
         self.url = factories.ResourceFactory.get_url(
             self.resource, action='downscaling_request_completed'
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING
         )
 
     def test_service_owner_can_downscaling_request_completed(self):

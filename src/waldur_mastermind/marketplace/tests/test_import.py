@@ -3,6 +3,8 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME
 from waldur_mastermind.marketplace.tests import factories
@@ -73,6 +75,9 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
             'waldur_core.structure.models.ServiceSettings.get_backend'
         ).start()
         self.mock_backend().get_importable_virtual_machines.return_value = []
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.LIST_IMPORTABLE_RESOURCES
+        )
 
     def tearDown(self):
         super().tearDown()

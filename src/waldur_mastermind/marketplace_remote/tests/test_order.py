@@ -6,6 +6,8 @@ from rest_framework import test
 
 import waldur_core.structure.models as structure_models
 import waldur_core.structure.tests.factories as structure_factories
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tasks import approve_order
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -113,6 +115,11 @@ class LimitsUpdateTest(test.APITransactionTestCase):
             marketplace_models.OfferingComponent.BillingTypes.LIMIT
         )
         self.offering_component.save()
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_RESOURCE_LIMITS)
+
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.APPROVE_ORDER)
 
     def update_limits(self, user, resource):
         limits = {'cpu': 10}

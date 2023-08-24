@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response
@@ -12,6 +11,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.logging.loggers import event_logger
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -234,24 +235,13 @@ class TenantViewSet(structure_views.ResourceViewSet):
         if not obj:
             return
         if obj.service_settings.shared:
-            if settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']:
-                structure_permissions.is_manager(
-                    request,
-                    view,
-                    obj,
-                )
-            elif settings.WALDUR_OPENSTACK['ADMIN_CAN_MANAGE_TENANTS']:
-                structure_permissions.is_administrator(
-                    request,
-                    view,
-                    obj,
-                )
-            else:
-                structure_permissions.is_owner(
-                    request,
-                    view,
-                    obj,
-                )
+            if has_permission(
+                request.user, PermissionEnum.APPROVE_ORDER, obj.project
+            ) or has_permission(
+                request.user, PermissionEnum.APPROVE_ORDER, obj.project.customer
+            ):
+                return
+            raise exceptions.PermissionDenied()
         else:
             structure_permissions.is_administrator(
                 request,

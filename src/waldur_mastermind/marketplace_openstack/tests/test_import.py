@@ -118,7 +118,7 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
     def setUp(self):
         super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
 
     def test_importable_instances_are_returned(self):
         response = self.client.get(self.url)
@@ -149,7 +149,7 @@ class InstanceImportTest(BaseInstanceImportTest):
     def setUp(self):
         super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'import_resource')
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
 
     def _get_payload(self, backend_id='backend_id'):
         return {
@@ -200,7 +200,7 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
     def setUp(self):
         super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
 
     def test_importable_volumes_are_returned(self):
         response = self.client.get(self.url)
@@ -229,7 +229,7 @@ class VolumeImportTest(BaseVolumeImportTest):
     def setUp(self):
         super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'import_resource')
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
 
     def test_backend_volume_is_imported(self):
         response = self.client.post(self.url, self._get_payload())

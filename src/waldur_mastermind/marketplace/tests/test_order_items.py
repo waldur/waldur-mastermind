@@ -5,13 +5,14 @@ from ddt import data, ddt
 from django.core.exceptions import ValidationError
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.quotas import signals as quota_signals
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 
 @ddt
@@ -194,6 +195,9 @@ class ItemDeleteTest(test.APITransactionTestCase):
             project=self.project, created_by=self.manager
         )
         self.order_item = factories.OrderItemFactory(order=self.order)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.DESTROY_ORDER_ITEM)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.DESTROY_ORDER_ITEM)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.DESTROY_ORDER_ITEM)
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_delete_item(self, user):
@@ -242,6 +246,9 @@ class ItemTerminateTest(test.APITransactionTestCase):
         self.order_item = factories.OrderItemFactory(
             order=self.order, offering=self.offering
         )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.TERMINATE_ORDER_ITEM)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.TERMINATE_ORDER_ITEM)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.TERMINATE_ORDER_ITEM)
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_terminate_item(self, user):
@@ -375,6 +382,8 @@ class ItemRejectTest(test.APITransactionTestCase):
             state=models.OrderItem.States.EXECUTING,
         )
 
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.REJECT_ORDER_ITEM)
+
     @data(
         'staff',
         'owner',
@@ -478,6 +487,8 @@ class BaseItemSetStateTest(test.APITransactionTestCase):
         self.offering.save()
 
         self.order_item = self.fixture.order_item
+
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER_ITEM)
 
 
 @ddt
@@ -594,21 +605,22 @@ class ApproveOrderFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)
 
-    @override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
     @data(
         'owner',
         'manager',
     )
     def test_user_can_get_order_if_manager_can_approve_order_is_true(self, user):
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'can_approve_as_consumer': True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
     @data('owner', 'manager', 'admin')
     def test_user_can_get_order_if_admin_can_approve_order_is_true(self, user):
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'can_approve_as_consumer': True})

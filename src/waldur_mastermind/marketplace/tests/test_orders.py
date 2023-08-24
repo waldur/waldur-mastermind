@@ -6,6 +6,8 @@ from django.core import mail
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
@@ -445,6 +447,8 @@ class OrderApproveTest(test.APITransactionTestCase):
             project=self.project, created_by=self.manager
         )
         self.url = factories.OrderFactory.get_url(self.order, 'approve')
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER_ITEM)
 
     def test_owner_can_approve_order(self):
         self.ensure_user_can_approve_order(self.fixture.owner)
@@ -455,12 +459,12 @@ class OrderApproveTest(test.APITransactionTestCase):
     def test_by_default_admin_can_not_approve_order(self):
         self.ensure_user_can_not_approve_order(self.fixture.admin)
 
-    @override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
     def test_manager_can_approve_order_if_feature_is_enabled(self):
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
         self.ensure_user_can_approve_order(self.fixture.manager)
 
-    @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
     def test_admin_can_approve_order_if_feature_is_enabled(self):
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
         self.ensure_user_can_approve_order(self.fixture.admin)
 
     def test_user_can_not_reapprove_active_order(self):
@@ -626,6 +630,10 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.order_item_2 = factories.OrderItemFactory(order=self.order)
         self.url = factories.OrderFactory.get_url(self.order, 'reject')
 
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.REJECT_ORDER)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.REJECT_ORDER)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.REJECT_ORDER)
+
     @data('staff', 'manager', 'admin', 'owner')
     def test_authorized_user_can_reject_order(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -736,11 +744,20 @@ class OrderStateTest(test.APITransactionTestCase):
 
 @ddt
 class OrderApprovalNotificationTest(test.APITransactionTestCase):
+    @override_marketplace_settings(NOTIFY_STAFF_ABOUT_APPROVALS=True)
+    def test_staff(self):
+        fixture = marketplace_fixtures.MarketplaceFixture()
+        user = fixture.staff
+        event_type = 'notification_approval'
+        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
+        tasks.notify_order_approvers(fixture.order.uuid.hex)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [user.email])
+
     @data(
-        ('staff', 'NOTIFY_STAFF_ABOUT_APPROVALS'),
-        ('owner', 'OWNER_CAN_APPROVE_ORDER'),
-        ('manager', 'MANAGER_CAN_APPROVE_ORDER'),
-        ('admin', 'ADMIN_CAN_APPROVE_ORDER'),
+        ('owner', RoleEnum.CUSTOMER_OWNER),
+        ('manager', RoleEnum.PROJECT_MANAGER),
+        ('admin', RoleEnum.PROJECT_ADMIN),
     )
     def test_valid_user(self, option):
         user_name, option_name = option
@@ -748,8 +765,9 @@ class OrderApprovalNotificationTest(test.APITransactionTestCase):
         user = getattr(fixture, user_name)
         event_type = 'notification_approval'
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        with override_marketplace_settings(**{option_name: True}):
-            tasks.notify_order_approvers(fixture.order.uuid.hex)
+        add_permission(option_name, PermissionEnum.APPROVE_ORDER)
+        add_permission(option_name, PermissionEnum.APPROVE_ORDER_ITEM)
+        tasks.notify_order_approvers(fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [user.email])
 

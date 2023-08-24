@@ -3,6 +3,8 @@ import datetime
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.promotions import models
@@ -170,6 +172,8 @@ class UpdateCampaignTest(test.APITransactionTestCase):
         self.fixture = fixtures.PromotionsFixture()
         self.campaign = self.fixture.campaign
         self.url = factories.CampaignFactory.get_url(self.fixture.campaign)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.MANAGE_CAMPAIGN)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.MANAGE_CAMPAIGN)
 
     def _get_payload(self, **kwargs):
         payload = {
@@ -226,6 +230,8 @@ class DeleteCampaignTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.PromotionsFixture()
         self.url = factories.CampaignFactory.get_url(self.fixture.campaign)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.MANAGE_CAMPAIGN)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.MANAGE_CAMPAIGN)
 
     @data('staff', 'offering_owner', 'service_manager')
     def test_user_can_delete_campaign(self, user):

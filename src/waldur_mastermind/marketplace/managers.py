@@ -1,12 +1,24 @@
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db.models import Q
 
 from waldur_core.core import managers as core_managers
+from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 
 from . import models
+
+
+def get_connected_customers(user):
+    customer_type = ContentType.objects.get_for_model(structure_models.Customer)
+    return get_scope_ids(user, customer_type)
+
+
+def get_connected_projects(user):
+    project_type = ContentType.objects.get_for_model(structure_models.Project)
+    return get_scope_ids(user, project_type)
 
 
 class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
@@ -76,12 +88,8 @@ class OfferingQuerySet(django_models.QuerySet):
         ).filter(archived=False)
 
         # filtering by customers and projects
-        connected_customers = structure_models.Customer.objects.all().filter(
-            permissions__user=user, permissions__is_active=True
-        )
-        connected_projects = structure_models.Project.available_objects.all().filter(
-            permissions__user=user, permissions__is_active=True
-        )
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
 
         return queryset.filter(
             Q(shared=True)
@@ -135,19 +143,13 @@ class ResourceQuerySet(django_models.QuerySet):
         if user.is_anonymous or user.is_staff or user.is_support:
             return self
 
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+
         return self.filter(
-            Q(
-                project__permissions__user=user,
-                project__permissions__is_active=True,
-            )
-            | Q(
-                project__customer__permissions__user=user,
-                project__customer__permissions__is_active=True,
-            )
-            | Q(
-                offering__customer__permissions__user=user,
-                offering__customer__permissions__is_active=True,
-            )
+            Q(project__in=connected_projects)
+            | Q(project__customer__in=connected_customers)
+            | Q(offering__customer__in=connected_customers)
         ).distinct()
 
 
@@ -182,12 +184,9 @@ class PlanQuerySet(django_models.QuerySet):
 
         divisions = user.divisions
 
-        connected_customers = structure_models.Customer.objects.filter(
-            permissions__user=user, permissions__is_active=True
-        )
-        connected_projects = structure_models.Project.available_objects.filter(
-            permissions__user=user, permissions__is_active=True
-        )
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+
         q1 = Q(divisions__isnull=True) | Q(divisions__in=divisions)
         q2 = (
             Q(offering__customer__in=connected_customers)
