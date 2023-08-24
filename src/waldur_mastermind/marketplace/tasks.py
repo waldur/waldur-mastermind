@@ -18,6 +18,8 @@ from rest_framework import status
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import get_users, role_has_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.log import event_logger
@@ -128,14 +130,14 @@ def notify_order_approvers(uuid):
     if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
         users |= User.objects.filter(is_staff=True, is_active=True)
 
-    if settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER']:
-        users |= order.project.customer.get_owners()
+    if role_has_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER):
+        users |= get_users(RoleEnum.CUSTOMER_OWNER, order.project.customer)
 
-    if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
-        users |= order.project.get_users(structure_models.ProjectRole.MANAGER)
+    if role_has_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER):
+        users |= get_users(RoleEnum.PROJECT_MANAGER, order.project)
 
-    if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
-        users |= order.project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
+    if role_has_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER):
+        users |= get_users(RoleEnum.PROJECT_ADMIN, order.project)
 
     approvers = (
         users.distinct()

@@ -5,8 +5,9 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import permission_factory
 from waldur_core.structure import filters as structure_filters
-from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.promotions import filters, models, serializers, validators
 
 
@@ -20,7 +21,9 @@ class CampaignViewSet(core_views.ActionsViewSet):
     destroy_permissions = (
         update_permissions
     ) = activate_permissions = terminate_permissions = [
-        marketplace_permissions.user_is_owner_or_service_manager
+        permission_factory(
+            PermissionEnum.MANAGE_CAMPAIGN, ['service_provider.customer']
+        )
     ]
     destroy_validators = [validators.check_resources]
     update_validators = [

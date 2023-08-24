@@ -46,6 +46,7 @@ INSTALLED_APPS = (
     'waldur_core.landing',
     'waldur_core.logging',
     'waldur_core.core',
+    'waldur_core.permissions',
     'waldur_core.quotas',
     'waldur_core.structure',
     'waldur_core.users',

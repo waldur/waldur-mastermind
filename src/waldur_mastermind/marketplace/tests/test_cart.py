@@ -5,6 +5,8 @@ import ddt
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import TotalQuotaField
 from waldur_core.structure import models as structure_models
@@ -16,7 +18,6 @@ from waldur_core.structure.tests import views as structure_test_views
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories, utils
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 
 class CartItemListTest(test.APITransactionTestCase):
@@ -219,6 +220,10 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.service_settings = structure_factories.ServiceSettingsFactory(
             type='Test', shared=True
         )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_PRIVATE_ORDER)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_PRIVATE_ORDER)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_PRIVATE_ORDER)
 
     def submit(self, project):
         return self.client.post(
@@ -325,18 +330,18 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.assertEqual(response.data['state'], 'requested for approval')
         mocked_task.delay.assert_called()
 
-    @override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
     def test_public_offering_is_autoapproved_if_feature_is_enabled_for_manager(
         self, mocked_task
     ):
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
         response = self.submit_public_and_private('manager')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()
 
-    @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
     def test_public_offering_is_autoapproved_if_feature_is_enabled_for_admin(
         self, mocked_task
     ):
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
         response = self.submit_public_and_private('admin')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()

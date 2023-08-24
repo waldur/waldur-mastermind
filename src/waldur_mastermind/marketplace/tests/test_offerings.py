@@ -12,6 +12,8 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
@@ -1108,6 +1110,19 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             customer=self.customer, project=self.fixture.project, shared=True
         )
         self.url = factories.OfferingFactory.get_url(self.offering)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING)
+        add_permission(RoleEnum.OFFERING_MANAGER, PermissionEnum.UPDATE_OFFERING)
+
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_ATTRIBUTES
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING_ATTRIBUTES
+        )
+        add_permission(
+            RoleEnum.OFFERING_MANAGER, PermissionEnum.UPDATE_OFFERING_ATTRIBUTES
+        )
 
     @data('staff', 'owner')
     def test_staff_and_owner_can_update_offering_in_draft_state(self, user):
@@ -1510,6 +1525,19 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
         self.url = factories.OfferingFactory.get_url(self.offering)
 
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_ATTRIBUTES
+        )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_LOCATION)
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_DESCRIPTION
+        )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_OVERVIEW)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_OPTIONS)
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_SECRET_OPTIONS
+        )
+
     @data('staff', 'owner')
     def test_update_location(self, user):
         self.url = factories.OfferingFactory.get_url(self.offering, 'update_location')
@@ -1800,6 +1828,12 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.plan = factories.PlanFactory(offering=self.offering)
         self.fixture.service_manager = UserFactory()
         self.offering.add_user(self.fixture.service_manager)
+
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.PAUSE_OFFERING)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.PAUSE_OFFERING)
+
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UNPAUSE_OFFERING)
+        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UNPAUSE_OFFERING)
 
     @data(
         'staff',
@@ -2176,6 +2210,12 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
         self.url_delete = factories.OfferingFactory.get_url(
             offering=self.offering, action='delete_thumbnail'
         )
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_THUMBNAIL
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING_THUMBNAIL
+        )
 
     @data('staff')
     def test_staff_can_update_or_delete_thumbnail_of_archived_offering(self, user):
@@ -2238,6 +2278,12 @@ class OfferingComponentsUpdateTest(test.APITransactionTestCase):
         )
         resource = self.fixture.resource
         resource.delete()
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
 
     @data('offering_owner', 'service_manager')
     def test_offering_components_update_succeed(self, user):

@@ -6,6 +6,8 @@ from rest_framework import status, test
 
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -97,17 +99,20 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
-    @data('owner')
-    def test_owner_can_register_service_provider_with_settings_enabled(self, user):
-        response = self.create_service_provider(user)
+    def test_owner_can_register_service_provider_with_settings_enabled(self):
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.REGISTER_SERVICE_PROVIDER
+        )
+        response = self.create_service_provider('owner')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(
         self, user
     ):
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.REGISTER_SERVICE_PROVIDER
+        )
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

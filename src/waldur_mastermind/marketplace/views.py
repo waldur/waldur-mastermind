@@ -49,6 +49,8 @@ from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.renderers import PlainTextRenderer
 from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -57,7 +59,6 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.serializers import (
     ProjectUserSerializer,
@@ -490,8 +491,10 @@ def can_update_offering(request, view, obj=None):
         return
 
     if offering.state == models.Offering.States.DRAFT:
-        if offering.has_user(request.user) or _has_owner_access(
-            request.user, offering.customer
+        if has_permission(
+            request.user, PermissionEnum.UPDATE_OFFERING, offering
+        ) or has_permission(
+            request.user, PermissionEnum.UPDATE_OFFERING, offering.customer
         ):
             return
         else:
@@ -679,8 +682,25 @@ class ProviderOfferingViewSet(
             status=status.HTTP_200_OK,
         )
 
-    pause_permissions = unpause_permissions = archive_permissions = [
-        permissions.user_is_owner_or_service_manager,
+    pause_permissions = [
+        permission_factory(
+            PermissionEnum.PAUSE_OFFERING,
+            ['*', 'customer'],
+        )
+    ]
+
+    unpause_permissions = [
+        permission_factory(
+            PermissionEnum.UNPAUSE_OFFERING,
+            ['*', 'customer'],
+        )
+    ]
+
+    archive_permissions = [
+        permission_factory(
+            PermissionEnum.ARCHIVE_OFFERING,
+            ['*', 'customer'],
+        )
     ]
 
     activate_permissions = [structure_permissions.is_staff]
@@ -791,7 +811,12 @@ class ProviderOfferingViewSet(
             reversion.set_comment('Offering attributes have been updated via REST API')
         return Response(status=status.HTTP_200_OK)
 
-    update_attributes_permissions = [permissions.user_is_owner_or_service_manager]
+    update_attributes_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_ATTRIBUTES,
+            ['*', 'customer'],
+        )
+    ]
     update_attributes_validators = [validate_offering_update]
 
     def _update_action(self, request):
@@ -805,7 +830,12 @@ class ProviderOfferingViewSet(
     def update_location(self, request, uuid=None):
         return self._update_action(request)
 
-    update_location_permissions = [permissions.user_is_owner_or_service_manager]
+    update_location_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_LOCATION,
+            ['*', 'customer'],
+        )
+    ]
     update_location_validators = [validate_offering_update]
     update_location_serializer_class = serializers.OfferingLocationUpdateSerializer
 
@@ -813,7 +843,12 @@ class ProviderOfferingViewSet(
     def update_description(self, request, uuid=None):
         return self._update_action(request)
 
-    update_description_permissions = [permissions.user_is_owner_or_service_manager]
+    update_description_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_DESCRIPTION,
+            ['*', 'customer'],
+        )
+    ]
     update_description_validators = [validate_offering_update]
     update_description_serializer_class = (
         serializers.OfferingDescriptionUpdateSerializer
@@ -823,7 +858,12 @@ class ProviderOfferingViewSet(
     def update_overview(self, request, uuid=None):
         return self._update_action(request)
 
-    update_overview_permissions = [permissions.user_is_owner_or_service_manager]
+    update_overview_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_OVERVIEW,
+            ['*', 'customer'],
+        )
+    ]
     update_overview_validators = [validate_offering_update]
     update_overview_serializer_class = serializers.OfferingOverviewUpdateSerializer
 
@@ -831,7 +871,12 @@ class ProviderOfferingViewSet(
     def update_options(self, request, uuid=None):
         return self._update_action(request)
 
-    update_options_permissions = [permissions.user_is_owner_or_service_manager]
+    update_options_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_OPTIONS,
+            ['*', 'customer'],
+        )
+    ]
     update_options_validators = [validate_offering_update]
     update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
 
@@ -839,7 +884,12 @@ class ProviderOfferingViewSet(
     def update_secret_options(self, request, uuid=None):
         return self._update_action(request)
 
-    update_secret_options_permissions = [permissions.user_is_owner_or_service_manager]
+    update_secret_options_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_SECRET_OPTIONS,
+            ['*', 'customer'],
+        )
+    ]
     update_secret_options_validators = [validate_offering_update]
     update_secret_options_serializer_class = (
         serializers.OfferingSecretOptionsUpdateSerializer
@@ -1003,7 +1053,12 @@ class ProviderOfferingViewSet(
             status=status.HTTP_200_OK,
         )
 
-    update_components_permissions = [permissions.user_is_owner_or_service_manager]
+    update_components_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ['*', 'customer'],
+        )
+    ]
     update_components_serializer_class = serializers.OfferingComponentSerializer
 
     @action(detail=True, methods=['post'])
@@ -1022,7 +1077,12 @@ class ProviderOfferingViewSet(
             status=status.HTTP_201_CREATED,
         )
 
-    add_endpoint_permissions = [permissions.user_is_owner_or_service_manager]
+    add_endpoint_permissions = [
+        permission_factory(
+            PermissionEnum.ADD_OFFERING_ENDPOINT,
+            ['*', 'customer'],
+        )
+    ]
     add_endpoint_serializer_class = serializers.NestedEndpointSerializer
 
     @action(detail=True, methods=['post'])
@@ -1036,7 +1096,12 @@ class ProviderOfferingViewSet(
         )
 
     delete_endpoint_serializer_class = serializers.EndpointDeleteSerializer
-    delete_endpoint_permissions = [permissions.user_is_owner_or_service_manager]
+    delete_endpoint_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_OFFERING_ENDPOINT,
+            ['*', 'customer'],
+        )
+    ]
 
     @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
     def groups(self, *args, **kwargs):
@@ -1522,8 +1587,18 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             raise rf_exceptions.PermissionDenied()
 
     destroy_validators = [order_items_destroy_validator]
-    destroy_permissions = terminate_permissions = [
-        structure_permissions.is_administrator
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DESTROY_ORDER_ITEM,
+            ['order.project', 'order.project.customer'],
+        )
+    ]
+
+    terminate_permissions = [
+        permission_factory(
+            PermissionEnum.TERMINATE_ORDER_ITEM,
+            ['order.project', 'order.project.customer'],
+        )
     ]
 
     def get_queryset(self):
@@ -1553,10 +1628,15 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ) = (
         set_state_done_permissions
     ) = set_state_erred_permissions = cancel_termination_permissions = [
-        permissions.can_approve_order_item
+        permission_factory(PermissionEnum.APPROVE_ORDER_ITEM, ['offering.customer'])
     ]
 
-    reject_permissions = [permissions.can_reject_order_item]
+    reject_permissions = [
+        permission_factory(
+            PermissionEnum.REJECT_ORDER_ITEM,
+            ['order.project.customer', 'offering.customer'],
+        )
+    ]
 
     # Approve action is enabled for service provider, and
     # reject action is enabled for both provider and consumer.
@@ -1892,8 +1972,18 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
 
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
-    switch_plan_permissions = update_limits_permissions = [
-        structure_permissions.is_administrator
+    switch_plan_permissions = [
+        permission_factory(
+            PermissionEnum.SWITCH_RESOURCE_PLAN,
+            ['project', 'project.customer'],
+        )
+    ]
+
+    update_limits_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            ['project', 'project.customer'],
+        )
     ]
 
     switch_plan_validators = update_limits_validators = [
@@ -1958,7 +2048,12 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
                 status=status.HTTP_200_OK,
             )
 
-    set_backend_id_permissions = [permissions.user_is_owner_or_service_manager]
+    set_backend_id_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_BACKEND_ID,
+            ['project.customer', 'offering', 'offering.customer'],
+        )
+    ]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
 
     @action(detail=True, methods=['post'])
@@ -1972,7 +2067,10 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         return Response({'status': _('Report is submitted')}, status=status.HTTP_200_OK)
 
     submit_report_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
+        permission_factory(
+            PermissionEnum.SUBMIT_RESOURCE_REPORT,
+            ['offering.customer'],
+        )
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
@@ -2030,7 +2128,7 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         )
 
     team_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
+        permission_factory(PermissionEnum.LIST_RESOURCE_USERS, ['offering.customer'])
     ]
 
     # Service provider endpoint only
@@ -2048,7 +2146,9 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         return Response(status=status.HTTP_200_OK)
 
     downscaling_request_completed_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
+        permission_factory(
+            PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING, ['offering.customer']
+        )
     ]
 
     def downscaling_is_requested(obj):
@@ -2242,15 +2342,12 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         resource = serializer.validated_data['plan_period'].resource
-        if not _has_owner_access(
-            request.user, resource.offering.customer
-        ) and not resource.offering.has_user(request.user):
-            raise PermissionDenied(
-                _(
-                    'Only staff, service provider owner and service manager are allowed '
-                    'to submit usage data for marketplace resource.'
-                )
-            )
+        if not has_permission(
+            request.user, PermissionEnum.SET_RESOURCE_USAGE, resource.offering.customer
+        ) and not has_permission(
+            request.user, PermissionEnum.SET_RESOURCE_USAGE, resource.offering
+        ):
+            raise PermissionDenied()
         serializer.save()
         return Response(status=status.HTTP_201_CREATED)
 
@@ -2408,9 +2505,7 @@ class OfferingUserGroupViewSet(core_views.ActionsViewSet):
         update_serializer_class
     ) = partial_update_serializer_class = serializers.OfferingUserGroupSerializer
 
-    unsafe_methods_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
-    ]
+    unsafe_methods_permissions = [permissions.user_can_manage_offering_user_group]
 
     def get_queryset(self):
         queryset = super().get_queryset()

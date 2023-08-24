@@ -3,6 +3,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
@@ -204,6 +206,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.permission = OfferingPermission.objects.create(
             offering=self.offering, user=self.fixture.user, is_active=True
         )
+        add_permission(RoleEnum.OFFERING_MANAGER, PermissionEnum.UPDATE_OFFERING)
 
     def test_service_manager_can_update_offering_in_draft_state(self):
         self.client.force_authenticate(self.fixture.user)

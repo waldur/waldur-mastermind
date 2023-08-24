@@ -48,7 +48,7 @@ class BaseClusterImportTest(test.APITransactionTestCase):
 class ClusterImportableResourcesTest(BaseClusterImportTest):
     def setUp(self):
         super().setUp()
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
 
     def test_importable_clusters_are_returned(self):
@@ -77,7 +77,7 @@ class ClusterImportResourceTest(BaseClusterImportTest):
     def setUp(self):
         super().setUp()
         self.url = OfferingFactory.get_url(self.offering, 'import_resource')
-        self.client.force_authenticate(self.fixture.owner)
+        self.client.force_authenticate(self.fixture.staff)
         self.mocked_client.get_cluster.return_value = MOCK_CLUSTER
 
     def test_backend_cluster_is_imported(self):

@@ -9,16 +9,17 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import permission_factory
 from waldur_mastermind.booking.utils import get_offering_bookings_and_busy_slots
 from waldur_mastermind.google import models as google_models
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.callbacks import (
     resource_creation_canceled,
     resource_creation_succeeded,
 )
 
-from . import PLUGIN_NAME, executors, filters, serializers
+from . import PLUGIN_NAME, executors, filters, permissions, serializers
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
@@ -59,7 +60,14 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         core_validators.StateValidator(models.Resource.States.CREATING)
     ]
 
-    accept_permissions = [marketplace_permissions.user_is_owner_or_service_manager]
+    accept_permissions = [
+        permission_factory(
+            PermissionEnum.ACCEPT_BOOKING_REQUEST,
+            ['project.customer', 'offering', 'offering.customer'],
+        )
+    ]
+
+    reject_permissions = [permissions.user_can_reject_order]
 
 
 class OfferingViewSet(core_views.ReadOnlyActionsViewSet):

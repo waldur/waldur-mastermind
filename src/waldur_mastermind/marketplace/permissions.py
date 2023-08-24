@@ -1,10 +1,10 @@
-from django.conf import settings as django_settings
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import utils as structure_utils
 
 from . import models
 
@@ -12,9 +12,17 @@ from . import models
 def can_register_service_provider(request, customer):
     if request.user.is_staff:
         return
-    if not django_settings.WALDUR_MARKETPLACE['OWNER_CAN_REGISTER_SERVICE_PROVIDER']:
-        raise exceptions.PermissionDenied()
-    structure_permissions.is_owner(request, None, customer)
+
+    if has_permission(request.user, PermissionEnum.REGISTER_SERVICE_PROVIDER, customer):
+        return
+
+    raise exceptions.PermissionDenied()
+
+
+def has_project_permission(user, permission, project):
+    return has_permission(user, permission, project) or has_permission(
+        user, permission, project.customer
+    )
 
 
 def check_availability_of_auto_approving(items, user, project):
@@ -23,7 +31,9 @@ def check_availability_of_auto_approving(items, user, project):
 
     # Skip approval of private offering for project users
     if all(item.offering.is_private for item in items):
-        return structure_permissions._has_admin_access(user, project)
+        return has_project_permission(
+            user, PermissionEnum.APPROVE_PRIVATE_ORDER, project
+        )
 
     # Skip approval of public offering belonging to the same organization under which the request is done
     if all(
@@ -45,7 +55,7 @@ def check_availability_of_auto_approving(items, user, project):
     ):
         return True
 
-    return user_can_approve_order(user, project)
+    return has_project_permission(user, PermissionEnum.APPROVE_ORDER, project)
 
 
 def user_can_approve_order_permission(request, view, order=None):
@@ -53,32 +63,10 @@ def user_can_approve_order_permission(request, view, order=None):
         return
 
     user = request.user
-    if user_can_approve_order(user, order.project):
+    if has_project_permission(user, PermissionEnum.APPROVE_ORDER, order.project):
         return
 
     raise exceptions.PermissionDenied()
-
-
-def user_can_approve_order(user, project):
-    if user.is_staff:
-        return True
-
-    if django_settings.WALDUR_MARKETPLACE[
-        'OWNER_CAN_APPROVE_ORDER'
-    ] and structure_permissions._has_owner_access(user, project.customer):
-        return True
-
-    if django_settings.WALDUR_MARKETPLACE[
-        'MANAGER_CAN_APPROVE_ORDER'
-    ] and structure_permissions._has_manager_access(user, project):
-        return True
-
-    if django_settings.WALDUR_MARKETPLACE[
-        'ADMIN_CAN_APPROVE_ORDER'
-    ] and structure_permissions._has_admin_access(user, project):
-        return True
-
-    return False
 
 
 def user_can_reject_order(request, view, order=None):
@@ -93,7 +81,7 @@ def user_can_reject_order(request, view, order=None):
     if user == order.created_by:
         return
 
-    if structure_permissions._has_admin_access(user, order.project):
+    if has_project_permission(user, PermissionEnum.REJECT_ORDER, order.project):
         return
 
     raise exceptions.PermissionDenied()
@@ -115,76 +103,26 @@ def user_can_list_importable_resources(request, view, offering=None):
     # Import private offerings must be available for admins and managers
     if offering.scope and offering.scope.scope and offering.scope.scope.project:
         project = offering.scope.scope.project
-        if (
-            project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
-            .filter(pk=user.pk)
-            .exists()
-        ):
-            return
-        if (
-            project.get_users(structure_models.ProjectRole.MANAGER)
-            .filter(pk=user.pk)
-            .exists()
-        ):
+        if has_permission(user, PermissionEnum.LIST_IMPORTABLE_RESOURCES, project):
             return
 
-    owned_customers = set(structure_utils.get_customers_owned_by_user(user))
-
-    if offering.customer not in owned_customers:
-        raise exceptions.PermissionDenied(
-            'Import is limited to owners for private offerings.'
-        )
-
-
-def user_can_terminate_resource(request, view, resource=None):
-    if not resource:
-        return
-
-    # Project manager/admin and customer owner are allowed to terminate resource.
-    if structure_permissions._has_admin_access(request.user, resource.project):
-        return
-
-    # Service provider is allowed to terminate resource too.
-    if structure_permissions._has_owner_access(
-        request.user, resource.offering.customer
+    if not has_permission(
+        user, PermissionEnum.LIST_IMPORTABLE_RESOURCES, offering.customer
     ):
-        return
-
-    raise exceptions.PermissionDenied()
+        raise exceptions.PermissionDenied()
 
 
-def user_is_owner_or_service_manager(request, view, obj=None):
-    if not obj:
-        return
+# Project manager/admin and customer owner are allowed to terminate resource.
+# Service provider is allowed to terminate resource too.
+user_can_terminate_resource = permission_factory(
+    PermissionEnum.TERMINATE_RESOURCE,
+    ['project', 'project.customer', 'offering.customer'],
+)
 
-    if isinstance(obj, models.Offering):
-        offering = obj
-    elif hasattr(obj.__class__, 'Permissions'):
-        customer = structure_permissions._get_customer(obj)
-
-        if structure_permissions._has_owner_access(
-            request.user, customer
-        ) or structure_permissions._has_service_manager_access(request.user, customer):
-            return
-        elif not hasattr(obj, 'offering'):
-            raise exceptions.PermissionDenied()
-
-        offering = obj.offering
-    else:
-        return
-
-    if offering.has_user(request.user):
-        return
-
-    if structure_permissions._has_owner_access(request.user, offering.customer):
-        return
-
-    if offering.customer.has_user(
-        request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
-    ):
-        return
-
-    raise exceptions.PermissionDenied()
+user_can_manage_offering_user_group = permission_factory(
+    PermissionEnum.MANAGE_OFFERING_USER_GROUP,
+    ['offering.customer'],
+)
 
 
 def user_is_service_provider_owner_or_service_provider_manager(request, view, obj=None):
@@ -203,34 +141,14 @@ def user_is_service_provider_owner_or_service_provider_manager(request, view, ob
 
 
 def user_can_set_end_date_by_provider(request, view, obj=None):
+    if not obj:
+        return
     if request.user.is_support:
         return
-    else:
-        user_is_service_provider_owner_or_service_provider_manager(request, view, obj)
-
-
-def can_approve_order_item(request, view, obj=None):
-    if not obj:
-        return
-
-    if structure_permissions._has_owner_access(request.user, obj.offering.customer):
-        return
-
-    raise exceptions.PermissionDenied()
-
-
-def can_reject_order_item(request, view, obj=None):
-    if not obj:
-        return
-
-    if structure_permissions._has_owner_access(
-        request.user, obj.order.project.customer
+    if has_permission(
+        request.user, PermissionEnum.SET_RESOURCE_END_DATE, obj.offering.customer
     ):
         return
-
-    if structure_permissions._has_owner_access(request.user, obj.offering.customer):
-        return
-
     raise exceptions.PermissionDenied()
 
 
@@ -250,11 +168,8 @@ def user_can_update_thumbnail(request, view, obj=None):
     ):
         raise exceptions.PermissionDenied(_('You are not allowed to update a logo.'))
     else:
-        if structure_permissions._has_owner_access(request.user, offering.customer):
-            return
-
-        if offering.customer.has_user(
-            request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
+        if has_permission(
+            request.user, PermissionEnum.UPDATE_OFFERING_THUMBNAIL, offering.customer
         ):
             return
 

@@ -464,18 +464,6 @@ class WaldurMarketplace(BaseModel):
         (120, 120),
         description='Size of the thumbnail to generate when screenshot is uploaded for an offering.',
     )
-    OWNER_CAN_APPROVE_ORDER = Field(
-        True,
-        description='If true, orders for resource can be approved by custom organization owner.',
-    )
-    MANAGER_CAN_APPROVE_ORDER = Field(
-        False,
-        description='If true, orders for resource can be approved by manager of the customer project',
-    )
-    ADMIN_CAN_APPROVE_ORDER = Field(
-        False,
-        description='If true, orders for resource can be approved by admin of the customer project',
-    )
     ANONYMOUS_USER_CAN_VIEW_OFFERINGS = Field(
         True,
         description='Allow anonymous users to see shared offerings in active, paused and archived states',
@@ -523,9 +511,6 @@ class WaldurMarketplace(BaseModel):
 
     class Meta:
         public_settings = [
-            'OWNER_CAN_APPROVE_ORDER',
-            'MANAGER_CAN_APPROVE_ORDER',
-            'ADMIN_CAN_APPROVE_ORDER',
             'OWNER_CAN_REGISTER_SERVICE_PROVIDER',
             'ANONYMOUS_USER_CAN_VIEW_OFFERINGS',
             'ENABLE_RESOURCE_END_DATE',
@@ -774,26 +759,10 @@ class WaldurOpenstack(BaseModel):
         ['admin', 'service'],
         description='Usernames that cannot be created by Waldur in OpenStack',
     )
-    # TODO: Delete these flags after migration to marketplace is completed
-    # They are superseded by MANAGER_CAN_APPROVE_ORDER and ADMIN_CAN_APPROVE_ORDER
-    MANAGER_CAN_MANAGE_TENANTS = Field(
-        False,
-        description='If true, manager can delete or change configuration of tenants.',
-    )
-    ADMIN_CAN_MANAGE_TENANTS = Field(
-        False,
-        description='If true, admin can delete or change configuration of tenants.',
-    )
     TENANT_CREDENTIALS_VISIBLE = Field(
         False,
         description='If true, generated credentials of a tenant are exposed to project users',
     )
-
-    class Meta:
-        public_settings = [
-            'MANAGER_CAN_MANAGE_TENANTS',
-            'TENANT_CREDENTIALS_VISIBLE',
-        ]
 
 
 class WaldurOpenstackTenant(BaseModel):

@@ -6,6 +6,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
@@ -96,6 +98,10 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
         callbacks.resource_creation_succeeded(self.resource)
         self.plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource)
+
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SET_RESOURCE_USAGE)
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.SET_RESOURCE_USAGE)
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.SET_RESOURCE_USAGE)
 
     def test_valid_signature(self):
         payload = self.get_valid_payload()

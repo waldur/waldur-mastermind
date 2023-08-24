@@ -7,11 +7,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from waldur_core.core.views import ActionsViewSet, APIView, ReadOnlyActionsViewSet
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import permission_factory
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
-from waldur_mastermind.marketplace.permissions import user_is_owner_or_service_manager
 from waldur_mastermind.marketplace_script import (
     executors as marketplace_script_executors,
 )
@@ -120,7 +121,9 @@ class DryRunView(ActionsViewSet):
         )
         return Response({'uuid': dry_run.uuid.hex}, status=status.HTTP_202_ACCEPTED)
 
-    run_permissions = async_run_permissions = [user_is_owner_or_service_manager]
+    run_permissions = async_run_permissions = [
+        permission_factory(PermissionEnum.DRY_RUN_OFFERING_SCRIPT, ['*', 'customer'])
+    ]
 
 
 class AsyncDryRunView(ReadOnlyActionsViewSet):

@@ -8,6 +8,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import executors, models, tasks
 from waldur_openstack.openstack.tests import factories, fixtures
@@ -544,11 +546,11 @@ class TenantDeleteTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(mocked_task.call_count, 0)
 
-    @override_openstack_settings(MANAGER_CAN_MANAGE_TENANTS=True)
     def test_manager_can_delete_tenant_from_shared_settings_with_permission_from_settings(
         self, mocked_task
     ):
         # Arrange
+        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
         self.fixture.openstack_service_settings.shared = True
         self.fixture.openstack_service_settings.save()
 
@@ -560,11 +562,11 @@ class TenantDeleteTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mocked_task.assert_called_once_with(self.tenant, is_async=True, force=False)
 
-    @override_openstack_settings(ADMIN_CAN_MANAGE_TENANTS=True)
     def test_admin_can_delete_tenant_from_shared_settings_with_permission_from_settings(
         self, mocked_task
     ):
         # Arrange
+        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
         self.fixture.openstack_service_settings.shared = True
         self.fixture.openstack_service_settings.save()
 
