@@ -764,6 +764,11 @@ class WaldurOpenstack(BaseModel):
         description='If true, generated credentials of a tenant are exposed to project users',
     )
 
+    class Meta:
+        public_settings = [
+            'TENANT_CREDENTIALS_VISIBLE',
+        ]
+
 
 class WaldurOpenstackTenant(BaseModel):
     MAX_CONCURRENT_PROVISION = Field(
