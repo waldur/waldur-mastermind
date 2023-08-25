@@ -35,6 +35,6 @@ echo "INFO: Loading OIDC configuration"
 gosu waldur sh -c "waldur import_auth_social /etc/waldur/auth.yaml"
 
 echo "INFO: Loading permissions configuration"
-gosu waldur sh -c "waldur import_permissions /etc/waldur/permissions.yaml"
+gosu waldur sh -c "waldur import_roles /etc/waldur/permissions.yaml"
 
 exit 0
