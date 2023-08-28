@@ -34,3 +34,6 @@ class BasicBackend(SupportBackend):
 
     def create_issue_links(self, *args, **kwargs):
         return
+
+    def get_issue_details(self):
+        return {}

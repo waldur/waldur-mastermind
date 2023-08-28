@@ -484,3 +484,6 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         models.SupportUser.objects.filter(backend_name=self.backend_name).exclude(
             backend_id__in=[u.backend_id for u in backend_users]
         ).update(is_active=False)
+
+    def get_issue_details(self):
+        return {'type': settings.WALDUR_ATLASSIAN['DEFAULT_OFFERING_ISSUE_TYPE']}

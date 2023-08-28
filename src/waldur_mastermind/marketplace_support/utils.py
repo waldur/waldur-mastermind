@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.template import Context
 from django.template.loader import get_template
@@ -88,6 +87,7 @@ def format_create_description(order_item):
 
 def create_issue(order_item, description, summary, confirmation_comment=None):
     order_item_content_type = ContentType.objects.get_for_model(order_item)
+    active_backend = support_backend.get_active_backend()
 
     if support_models.Issue.objects.filter(
         resource_object_id=order_item.id, resource_content_type=order_item_content_type
@@ -97,14 +97,18 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
             % order_item.uuid
         )
         return
-    issue_details = dict(
-        caller=order_item.order.created_by,
-        project=order_item.order.project,
-        customer=order_item.order.project.customer,
-        type=settings.WALDUR_ATLASSIAN['DEFAULT_OFFERING_ISSUE_TYPE'],
-        description=description,
-        summary=summary,
-        resource=order_item,
+
+    issue_details = active_backend.get_issue_details()
+
+    issue_details.update(
+        dict(
+            caller=order_item.order.created_by,
+            project=order_item.order.project,
+            customer=order_item.order.project.customer,
+            description=description,
+            summary=summary,
+            resource=order_item,
+        )
     )
     issue_details['summary'] = support_serializers.render_issue_template(
         'summary', issue_details
@@ -114,7 +118,7 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
     )
     issue = support_models.Issue.objects.create(**issue_details)
     try:
-        support_backend.get_active_backend().create_issue(issue)
+        active_backend.create_issue(issue)
     except support_exceptions.SupportUserInactive:
         issue.delete()
         order_item.resource.set_state_erred()
@@ -140,17 +144,13 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
             resource_content_type=order_item_content_type,
         ).exclude(id=issue.id)
         try:
-            support_backend.get_active_backend().create_issue_links(
-                issue, list(linked_issues)
-            )
+            active_backend.create_issue_links(issue, list(linked_issues))
         except JIRAError as e:
             logger.exception('Linked issues have not been added: %s', e)
 
     if confirmation_comment:
         try:
-            support_backend.get_active_backend().create_confirmation_comment(
-                issue, confirmation_comment
-            )
+            active_backend.create_confirmation_comment(issue, confirmation_comment)
         except JIRAError as e:
             logger.exception('Unable to create confirmation comment: %s', e)
 
