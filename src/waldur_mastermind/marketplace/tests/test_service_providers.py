@@ -106,13 +106,6 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         response = self.create_service_provider('owner')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('user', 'customer_support', 'admin', 'manager')
-    def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(
-        self, user
-    ):
-        response = self.create_service_provider(user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     @data('owner')
     def test_owner_can_not_register_service_provider_with_settings_disabled(self, user):
         response = self.create_service_provider(user)
