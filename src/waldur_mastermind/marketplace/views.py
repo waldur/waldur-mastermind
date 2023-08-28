@@ -492,10 +492,8 @@ def can_update_offering(request, view, obj=None):
 
     if offering.state == models.Offering.States.DRAFT:
         if has_permission(
-            request.user, PermissionEnum.UPDATE_OFFERING, offering
-        ) or has_permission(
-            request.user, PermissionEnum.UPDATE_OFFERING, offering.customer
-        ):
+            request, PermissionEnum.UPDATE_OFFERING, offering
+        ) or has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
             return
         else:
             raise rf_exceptions.PermissionDenied()
@@ -1899,7 +1897,6 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
             utils.validate_order_item(order_item, request)
             order = serializers.create_order(
                 project=resource.project,
-                user=self.request.user,
                 items=[order_item],
                 request=request,
             )
@@ -1936,7 +1933,6 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
             )
             order = serializers.create_order(
                 project=resource.project,
-                user=self.request.user,
                 items=[order_item],
                 request=request,
             )
@@ -1963,7 +1959,6 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
             )
             order = serializers.create_order(
                 project=resource.project,
-                user=self.request.user,
                 items=[order_item],
                 request=request,
             )
@@ -2343,9 +2338,9 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer.is_valid(raise_exception=True)
         resource = serializer.validated_data['plan_period'].resource
         if not has_permission(
-            request.user, PermissionEnum.SET_RESOURCE_USAGE, resource.offering.customer
+            request, PermissionEnum.SET_RESOURCE_USAGE, resource.offering.customer
         ) and not has_permission(
-            request.user, PermissionEnum.SET_RESOURCE_USAGE, resource.offering
+            request, PermissionEnum.SET_RESOURCE_USAGE, resource.offering
         ):
             raise PermissionDenied()
         serializer.save()
