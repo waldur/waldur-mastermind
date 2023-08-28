@@ -590,6 +590,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingComponent
         fields = (
+            'uuid',
             'billing_type',
             'type',
             'name',
@@ -617,6 +618,24 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs['limit_period'] = ''
             attrs['limit_amount'] = None
         return attrs
+
+    def create(self, validated_data):
+        offering = validated_data.get('offering')
+
+        if offering is not None:
+            offering_type = validated_data['offering'].type
+            component_type = validated_data['type']
+
+            is_builtin = component_type in [
+                c.type for c in plugins.manager.get_components(offering_type)
+            ]
+
+            if is_builtin:
+                raise serializers.ValidationError(
+                    _("Cannot create a component of built-in type: %s" % component_type)
+                )
+
+        return super().create(validated_data)
 
     def get_factor(self, offering_component):
         builtin_components = plugins.manager.get_components(

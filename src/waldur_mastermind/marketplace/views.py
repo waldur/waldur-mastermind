@@ -1217,6 +1217,117 @@ class ProviderOfferingViewSet(
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=['post'])
+    def update_offering_component(self, request, uuid=None):
+        offering = self.get_object()
+
+        component_to_update_uuid = request.data.get('uuid')
+
+        if component_to_update_uuid:
+            offering_component = offering.components.filter(
+                uuid=component_to_update_uuid
+            ).first()
+
+            if offering_component:
+                serializer = self.get_serializer(
+                    instance=offering_component, data=request.data, partial=True
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(status=status.HTTP_200_OK)
+            else:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response(
+                {'details': _('UUID for offering component was not provided.')},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    update_offering_component_serializer_class = serializers.OfferingComponentSerializer
+    update_offering_component_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ['*', 'customer'],
+        )
+    ]
+
+    @action(detail=True, methods=['post'])
+    def remove_offering_component(self, request, uuid=None):
+        offering = self.get_object()
+        resources_exist = models.Resource.objects.filter(offering=offering).exists()
+
+        component_to_remove_uuid = request.data.get('uuid')
+        if not component_to_remove_uuid:
+            return Response(
+                {
+                    'details': _(
+                        'UUID for offering component to remove was not provided.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        offering_component = offering.components.filter(
+            uuid=component_to_remove_uuid
+        ).first()
+
+        if not offering_component:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if resources_exist:
+            return Response(
+                {
+                    'details': _(
+                        'The component %s cannot be removed because it is already used'
+                    )
+                    % offering_component.name
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        builtin_components = plugins.manager.get_components(offering.type)
+        valid_types = {component.type for component in builtin_components}
+        if offering_component.type in valid_types:
+            return Response(
+                {
+                    'details': _(
+                        'The component %s cannot be removed because it is builtin'
+                    )
+                    % offering_component.type
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        offering_component.delete()
+        return Response(status=status.HTTP_200_OK)
+
+    remove_offering_component_serializer_class = serializers.OfferingComponentSerializer
+    remove_offering_component_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ['*', 'customer'],
+        )
+    ]
+
+    @action(detail=True, methods=['post'])
+    def create_offering_component(self, request, uuid=None):
+        offering = self.get_object()
+        component_data = request.data
+        serializer: serializers.OfferingComponentSerializer = self.get_serializer(
+            data=component_data
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(offering=offering)
+        return Response(status=status.HTTP_201_CREATED)
+
+    create_offering_component_serializer_class = serializers.OfferingComponentSerializer
+    create_offering_component_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ['*', 'customer'],
+        )
+    ]
+
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
     queryset = models.Offering.objects.filter()

@@ -537,6 +537,7 @@ class Offering(
 
 
 class OfferingComponent(
+    core_models.UuidMixin,
     common_mixins.ProductCodeMixin,
     BaseComponent,
     core_mixins.ScopeMixin,
