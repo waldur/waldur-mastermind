@@ -483,10 +483,6 @@ class WaldurMarketplace(BaseModel):
     DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE = Field(
         True, description='Disable only resource update events.'
     )
-    OWNER_CAN_REGISTER_SERVICE_PROVIDER = Field(
-        False,
-        description='Allow organization owner to request or mark its organization as service provider',
-    )
     ENABLE_STALE_RESOURCE_NOTIFICATIONS = Field(
         False,
         description='Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.',
@@ -511,7 +507,6 @@ class WaldurMarketplace(BaseModel):
 
     class Meta:
         public_settings = [
-            'OWNER_CAN_REGISTER_SERVICE_PROVIDER',
             'ANONYMOUS_USER_CAN_VIEW_OFFERINGS',
             'ENABLE_RESOURCE_END_DATE',
         ]

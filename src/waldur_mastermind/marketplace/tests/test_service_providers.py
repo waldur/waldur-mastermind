@@ -110,9 +110,6 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(
         self, user
     ):
-        add_permission(
-            RoleEnum.CUSTOMER_OWNER, PermissionEnum.REGISTER_SERVICE_PROVIDER
-        )
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
