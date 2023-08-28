@@ -38,6 +38,7 @@ class BaseTest(test.APITransactionTestCase):
             atlassian.ServiceDeskBackend.pull_support_users
         )
         self.mock_get_active_backend().get_users.return_value = [1]
+        self.mock_get_active_backend().get_issue_details.return_value = {}
 
     def tearDown(self):
         mock.patch.stopall()
