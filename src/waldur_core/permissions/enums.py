@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 class RoleEnum:
     CUSTOMER_OWNER = 'CUSTOMER.OWNER'
     CUSTOMER_SUPPORT = 'CUSTOMER.SUPPORT'
@@ -10,7 +13,7 @@ class RoleEnum:
     OFFERING_MANAGER = 'OFFERING.MANAGER'
 
 
-class PermissionEnum:
+class PermissionEnum(str, Enum):
     REGISTER_SERVICE_PROVIDER = 'SERVICE_PROVIDER.REGISTER'
 
     UPDATE_OFFERING_THUMBNAIL = 'OFFERING.UPDATE_THUMBNAIL'
