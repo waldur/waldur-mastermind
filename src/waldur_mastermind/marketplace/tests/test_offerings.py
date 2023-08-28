@@ -2320,3 +2320,228 @@ class OfferingComponentsUpdateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, [])
 
         self.assertEqual(403, response.status_code)
+
+
+@ddt
+class ProviderOfferingCreateComponentsTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, 'create_offering_component'
+        )
+        resource = self.fixture.resource
+        resource.delete()
+
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_create_succeed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        payload = {
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'created_type',
+            'name': 'created_name',
+            'measured_unit': 'cpu_k_hours',
+        }
+
+        self.assertEqual(1, models.OfferingComponent.objects.count())
+        response = self.client.post(self.url, payload)
+        self.assertEqual(201, response.status_code)
+        self.assertEqual(2, models.OfferingComponent.objects.count())
+
+        offering_component = models.OfferingComponent.objects.latest('id')
+        self.assertEqual('created_name', offering_component.name)
+        self.assertEqual('created_type', offering_component.type)
+        self.assertEqual(
+            models.OfferingComponent.BillingTypes.USAGE, offering_component.billing_type
+        )
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_create_with_invalid_payload_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        payload = {
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'name': 'updated_name',
+            'measured_unit': 'cpu_k_hours',
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(400, response.status_code)
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_create_to_builtin_type_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.save()
+
+        payload = {
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'cpu',
+            'name': 'cpu',
+            'measured_unit': 'cpu_k_hours',
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(400, response.status_code)
+
+    @data('offering_manager', 'offering_admin')
+    def test_offering_components_create_with_wrong_roles_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        response = self.client.post(self.url, [])
+
+        self.assertEqual(403, response.status_code)
+
+
+@ddt
+class ProviderOfferingUpdateComponentsTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering_component = self.fixture.offering_component
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, 'update_offering_component'
+        )
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            type='gpu',
+        )
+        resource = self.fixture.resource
+        resource.delete()
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_update_succeed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        payload = {
+            'uuid': self.offering_component.uuid,
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'updated_type',
+            'name': 'updated_name',
+            'measured_unit': 'cpu_k_hours',
+        }
+
+        self.assertEqual('CPU', self.offering_component.name)
+        self.assertEqual('cpu', self.offering_component.type)
+        self.assertEqual(
+            models.OfferingComponent.BillingTypes.FIXED,
+            self.offering_component.billing_type,
+        )
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(200, response.status_code)
+        offering_component = models.OfferingComponent.objects.get(
+            offering=self.offering, uuid=self.offering_component.uuid
+        )
+
+        self.assertEqual('updated_name', offering_component.name)
+        self.assertEqual('updated_type', offering_component.type)
+        self.assertEqual(
+            models.OfferingComponent.BillingTypes.USAGE, offering_component.billing_type
+        )
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_update_with_invalid_payload_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        payload = {
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'updated_type',
+            'name': 'updated_name',
+            'measured_unit': 'cpu_k_hours',
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(400, response.status_code)
+        payload['uuid'] = self.offering_component.uuid
+        payload['billing_type'] = 'random_billing_type'
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(400, response.status_code)
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_update_to_builtin_type_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.save()
+
+        payload = {
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'gpu',
+            'name': 'GPU',
+            'measured_unit': 'cpu_k_hours',
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('offering_manager', 'offering_admin')
+    def test_offering_components_update_with_wrong_roles_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        response = self.client.post(self.url, [])
+
+        self.assertEqual(403, response.status_code)
+
+
+@ddt
+class ProviderOfferingRemoveComponentsTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering_component = self.fixture.offering_component
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, 'remove_offering_component'
+        )
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            type='gpu',
+        )
+        resource = self.fixture.resource
+        resource.delete()
+
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_remove_succeed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        payload = {
+            'uuid': self.offering_component.uuid,
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'updated_type',
+            'name': 'updated_name',
+            'measured_unit': 'cpu_k_hours',
+        }
+
+        self.assertEqual(2, models.OfferingComponent.objects.all().count())
+        response = self.client.post(self.url, payload)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, models.OfferingComponent.objects.all().count())
+
+    @data('offering_owner', 'service_manager')
+    def test_offering_components_remove_without_uuid_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        payload = {
+            'billing_type': models.OfferingComponent.BillingTypes.USAGE,
+            'type': 'updated_type',
+            'name': 'updated_name',
+            'measured_unit': 'cpu_k_hours',
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(400, response.status_code)
+
+    @data('offering_manager', 'offering_admin')
+    def test_offering_components_remove_with_wrong_roles_failed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        response = self.client.post(self.url, [])
+
+        self.assertEqual(403, response.status_code)
