@@ -5,13 +5,13 @@ from rest_framework import exceptions
 from . import models
 
 
-def has_permission(user, permission, scope):
-    if user.is_staff:
+def has_permission(request, permission, scope):
+    if request.user.is_staff:
         return True
 
     content_type = ContentType.objects.get_for_model(scope)
     roles = models.UserRole.objects.filter(
-        user=user, is_active=True, object_id=scope.id, content_type=content_type
+        user=request.user, is_active=True, object_id=scope.id, content_type=content_type
     ).values_list('role', flat=True)
     if not roles:
         return False
@@ -26,7 +26,7 @@ def permission_factory(permission, sources=None):
             return
 
         if not sources:
-            if has_permission(request.user, permission, scope):
+            if has_permission(request, permission, scope):
                 return
         else:
             for path in sources:
@@ -34,7 +34,7 @@ def permission_factory(permission, sources=None):
                 if path != '*':
                     for part in path.split('.'):
                         source = getattr(source, part)
-                if has_permission(request.user, permission, source):
+                if has_permission(request, permission, source):
                     return
 
         raise exceptions.PermissionDenied()

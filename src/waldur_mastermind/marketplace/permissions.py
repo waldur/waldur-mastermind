@@ -13,26 +13,26 @@ def can_register_service_provider(request, customer):
     if request.user.is_staff:
         return
 
-    if has_permission(request.user, PermissionEnum.REGISTER_SERVICE_PROVIDER, customer):
+    if has_permission(request, PermissionEnum.REGISTER_SERVICE_PROVIDER, customer):
         return
 
     raise exceptions.PermissionDenied()
 
 
-def has_project_permission(user, permission, project):
-    return has_permission(user, permission, project) or has_permission(
-        user, permission, project.customer
+def has_project_permission(request, permission, project):
+    return has_permission(request, permission, project) or has_permission(
+        request, permission, project.customer
     )
 
 
-def check_availability_of_auto_approving(items, user, project):
-    if user.is_staff:
+def check_availability_of_auto_approving(items, request, project):
+    if request.user.is_staff:
         return True
 
     # Skip approval of private offering for project users
     if all(item.offering.is_private for item in items):
         return has_project_permission(
-            user, PermissionEnum.APPROVE_PRIVATE_ORDER, project
+            request, PermissionEnum.APPROVE_PRIVATE_ORDER, project
         )
 
     # Skip approval of public offering belonging to the same organization under which the request is done
@@ -51,19 +51,20 @@ def check_availability_of_auto_approving(items, user, project):
     if (
         len(items) == 1
         and items[0].type == models.OrderItem.Types.TERMINATE
-        and structure_permissions._has_owner_access(user, items[0].offering.customer)
+        and structure_permissions._has_owner_access(
+            request.user, items[0].offering.customer
+        )
     ):
         return True
 
-    return has_project_permission(user, PermissionEnum.APPROVE_ORDER, project)
+    return has_project_permission(request, PermissionEnum.APPROVE_ORDER, project)
 
 
 def user_can_approve_order_permission(request, view, order=None):
     if not order:
         return
 
-    user = request.user
-    if has_project_permission(user, PermissionEnum.APPROVE_ORDER, order.project):
+    if has_project_permission(request, PermissionEnum.APPROVE_ORDER, order.project):
         return
 
     raise exceptions.PermissionDenied()
@@ -81,7 +82,7 @@ def user_can_reject_order(request, view, order=None):
     if user == order.created_by:
         return
 
-    if has_project_permission(user, PermissionEnum.REJECT_ORDER, order.project):
+    if has_project_permission(request, PermissionEnum.REJECT_ORDER, order.project):
         return
 
     raise exceptions.PermissionDenied()
@@ -103,11 +104,11 @@ def user_can_list_importable_resources(request, view, offering=None):
     # Import private offerings must be available for admins and managers
     if offering.scope and offering.scope.scope and offering.scope.scope.project:
         project = offering.scope.scope.project
-        if has_permission(user, PermissionEnum.LIST_IMPORTABLE_RESOURCES, project):
+        if has_permission(request, PermissionEnum.LIST_IMPORTABLE_RESOURCES, project):
             return
 
     if not has_permission(
-        user, PermissionEnum.LIST_IMPORTABLE_RESOURCES, offering.customer
+        request, PermissionEnum.LIST_IMPORTABLE_RESOURCES, offering.customer
     ):
         raise exceptions.PermissionDenied()
 
@@ -146,7 +147,7 @@ def user_can_set_end_date_by_provider(request, view, obj=None):
     if request.user.is_support:
         return
     if has_permission(
-        request.user, PermissionEnum.SET_RESOURCE_END_DATE, obj.offering.customer
+        request, PermissionEnum.SET_RESOURCE_END_DATE, obj.offering.customer
     ):
         return
     raise exceptions.PermissionDenied()
@@ -169,7 +170,7 @@ def user_can_update_thumbnail(request, view, obj=None):
         raise exceptions.PermissionDenied(_('You are not allowed to update a logo.'))
     else:
         if has_permission(
-            request.user, PermissionEnum.UPDATE_OFFERING_THUMBNAIL, offering.customer
+            request, PermissionEnum.UPDATE_OFFERING_THUMBNAIL, offering.customer
         ):
             return
 

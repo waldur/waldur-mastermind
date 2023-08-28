@@ -236,9 +236,9 @@ class TenantViewSet(structure_views.ResourceViewSet):
             return
         if obj.service_settings.shared:
             if has_permission(
-                request.user, PermissionEnum.APPROVE_ORDER, obj.project
+                request, PermissionEnum.APPROVE_ORDER, obj.project
             ) or has_permission(
-                request.user, PermissionEnum.APPROVE_ORDER, obj.project.customer
+                request, PermissionEnum.APPROVE_ORDER, obj.project.customer
             ):
                 return
             raise exceptions.PermissionDenied()

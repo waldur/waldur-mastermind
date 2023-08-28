@@ -29,7 +29,7 @@ def user_can_reject_order(request, view, resource=None):
         return
 
     if has_project_permission(
-        user, PermissionEnum.REJECT_BOOKING_REQUEST, resource.project
+        request, PermissionEnum.REJECT_BOOKING_REQUEST, resource.project
     ):
         return
 

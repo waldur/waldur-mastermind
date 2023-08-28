@@ -2164,14 +2164,14 @@ class CartSubmitSerializer(serializers.Serializer):
 
     @transaction.atomic()
     def create(self, validated_data):
-        user = self.context['request'].user
+        request = self.context['request']
         project = validated_data['project']
 
-        items = models.CartItem.objects.filter(user=user, project=project)
+        items = models.CartItem.objects.filter(user=request.user, project=project)
         if items.count() == 0:
             raise serializers.ValidationError(_('Shopping cart is empty'))
 
-        order = create_order(project, user, items, self.context['request'])
+        order = create_order(project, items, request)
         items.delete()
         return order
 
@@ -2188,7 +2188,7 @@ def get_item_params(item):
     )
 
 
-def create_order(project, user, items, request):
+def create_order(project, items, request):
     for item in items:
         if (
             item.type
@@ -2197,7 +2197,7 @@ def create_order(project, user, items, request):
         ):
             utils.check_pending_order_item_exists(item.resource)
 
-    order_params = dict(project=project, created_by=user)
+    order_params = dict(project=project, created_by=request.user)
     order = models.Order.objects.create(**order_params)
 
     for item in items:
@@ -2211,8 +2211,8 @@ def create_order(project, user, items, request):
     order.init_total_cost()
     order.save()
 
-    if check_availability_of_auto_approving(items, user, project):
-        tasks.approve_order(order, user)
+    if check_availability_of_auto_approving(items, request, project):
+        tasks.approve_order(order, request.user)
     else:
         transaction.on_commit(lambda: tasks.notify_order_approvers.delay(order.uuid))
 
@@ -2297,7 +2297,7 @@ class OrderSerializer(
             )
             for item in validated_data['items']
         ]
-        return create_order(project, request.user, items, request)
+        return create_order(project, items, request)
 
     def get_filtered_field_names(self):
         return ('project',)
