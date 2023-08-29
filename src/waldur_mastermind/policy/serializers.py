@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
 
 from . import models
@@ -49,7 +50,9 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         return policy
 
 
-class ProjectEstimatedCostPolicySerializer(PolicySerializer):
+class ProjectEstimatedCostPolicySerializer(
+    core_serializers.AugmentedSerializerMixin, PolicySerializer
+):
     project_name = serializers.ReadOnlyField(source='project.name')
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
@@ -73,10 +76,10 @@ class ProjectEstimatedCostPolicySerializer(PolicySerializer):
             'has_fired',
             'fired_datetime',
         )
+        view_name = 'marketplace-project-estimated-cost-policy-detail'
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-project-estimated-cost-policy-detail',
             },
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
         }
