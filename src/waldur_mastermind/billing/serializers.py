@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.serializers import get_payment_profiles
+from waldur_mastermind.policy import models as policy_models
 
 from ..invoices import utils
 from . import models
@@ -68,6 +69,9 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
 
 
 def get_price_estimate(serializer, scope):
+    # For cases when we want to get project estimates under project cost policies
+    if isinstance(scope, policy_models.ProjectEstimatedCostPolicy):
+        scope = scope.project
     try:
         estimate = models.PriceEstimate.objects.get(scope=scope)
     except models.PriceEstimate.DoesNotExist:
