@@ -9,10 +9,18 @@ from . import models
 class RoleDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Role
-        fields = ('uuid', 'name', 'description', 'permissions', 'is_system_role')
+        fields = (
+            'uuid',
+            'name',
+            'description',
+            'permissions',
+            'is_system_role',
+            'users_count',
+        )
         extra_kwargs = {'is_system_role': {'read_only': True}}
 
     permissions = serializers.SerializerMethodField()
+    users_count = serializers.SerializerMethodField()
 
     def get_permissions(self, role):
         return list(
@@ -20,6 +28,9 @@ class RoleDetailsSerializer(serializers.ModelSerializer):
                 'permission', flat=True
             )
         )
+
+    def get_users_count(self, role):
+        return models.UserRole.objects.filter(is_active=True, role=role).count()
 
 
 class RoleModifySerializer(RoleDetailsSerializer):
