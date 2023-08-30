@@ -78,3 +78,12 @@ class RoleTest(test.APITransactionTestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_staff_can_not_destroy_system_role(self):
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        user = UserFactory(is_staff=True)
+        self.client.force_login(user)
+        response = self.client.get(ROLE_ENDPOINT)
+        role_uuid = response.data[0]['uuid']
+        response = self.client.delete(f'{ROLE_ENDPOINT}{role_uuid}/')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
