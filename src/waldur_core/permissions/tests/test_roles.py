@@ -60,3 +60,21 @@ class RoleTest(test.APITransactionTestCase):
             response.data['permissions'],
             [PermissionEnum.UPDATE_OFFERING, PermissionEnum.APPROVE_ORDER],
         )
+
+    def test_staff_can_not_update_system_role_name(self):
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        user = UserFactory(is_staff=True)
+        self.client.force_login(user)
+        response = self.client.get(ROLE_ENDPOINT)
+        role_uuid = response.data[0]['uuid']
+        response = self.client.put(
+            f'{ROLE_ENDPOINT}{role_uuid}/',
+            {
+                'name': 'new name',
+                'permissions': [
+                    PermissionEnum.UPDATE_OFFERING.value,
+                    PermissionEnum.APPROVE_ORDER.value,
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
