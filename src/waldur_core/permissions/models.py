@@ -7,7 +7,7 @@ from waldur_core.core.models import DescribableMixin, NameMixin, UuidMixin
 
 
 class Role(DescribableMixin, NameMixin, UuidMixin):
-    pass
+    is_system_role = models.BooleanField(default=False)
 
 
 class UserRole(ScopeMixin, UuidMixin):

@@ -45,6 +45,9 @@ def permission_factory(permission, sources=None):
 def add_permission(role, permission):
     role, _ = models.Role.objects.get_or_create(
         name=role,
+        defaults=dict(
+            is_system_role=True,
+        ),
     )
     models.RolePermission.objects.create(
         role=role,

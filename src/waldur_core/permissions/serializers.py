@@ -9,7 +9,8 @@ from . import models
 class RoleDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Role
-        fields = ('uuid', 'name', 'description', 'permissions')
+        fields = ('uuid', 'name', 'description', 'permissions', 'is_system_role')
+        extra_kwargs = {'is_system_role': {'read_only': True}}
 
     permissions = serializers.SerializerMethodField()
 
@@ -23,6 +24,12 @@ class RoleDetailsSerializer(serializers.ModelSerializer):
 
 class RoleModifySerializer(RoleDetailsSerializer):
     permissions = serializers.JSONField()
+
+    def validate(self, attrs):
+        if self.instance and self.instance.is_system_role:
+            if attrs.get('name') != self.instance.name:
+                raise ValidationError('Changing name for system role is not possible.')
+        return attrs
 
     def validate_permissions(self, permissions):
         invalid = set(permissions) - set(perm.value for perm in PermissionEnum)
