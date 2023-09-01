@@ -383,3 +383,20 @@ logging.getLogger("xmlschema").propagate = False
 logging.getLogger("axes").propagate = False
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
+LANGUAGES = (
+    ('en', 'English'),
+    ('et', 'Eesti'),
+    ('lt', 'Lietuvių'),
+    ('lv', 'Latviešu'),
+    ('ru', 'Русский'),
+    ('it', 'Italiano'),
+    ('de', 'Deutsch'),
+    ('da', 'Dansk'),
+    ('sv', 'Svenska'),
+    ('es', 'Español'),
+    ('fr', 'Français'),
+    ('nb', 'Norsk'),
+)
+
+LANGUAGE_CHOICES = ['en']

@@ -942,12 +942,15 @@ class WaldurConfiguration(BaseModel):
             ('et', 'Eesti'),
         ),
         description="The list is a list of two-tuples in the format "
-        "(language code, language name) – for example, ('ja', 'Japanese'). "
-        "This specifies which languages are available for language selection.",
+        "(language code, language name) – for example, ('ja', 'Japanese').",
+    )
+    LANGUAGE_CHOICES: List[str] = Field(
+        ['en'],
+        description="This specifies which languages are available for language selection.",
     )
     LANGUAGE_CODE = Field(
         'en', description='Represents the name of a default language.'
     )
 
     class Meta:
-        public_settings = ['LANGUAGES', 'LANGUAGE_CODE']
+        public_settings = ['LANGUAGES', 'LANGUAGE_CHOICES', 'LANGUAGE_CODE']
