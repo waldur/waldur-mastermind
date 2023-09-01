@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.core.serializers import TranslatedModelSerializerMixin
 from waldur_core.permissions.enums import PermissionEnum
 
 from . import models
 
 
-class RoleDetailsSerializer(serializers.ModelSerializer):
+class RoleDetailsSerializer(TranslatedModelSerializerMixin):
     class Meta:
         model = models.Role
         fields = (

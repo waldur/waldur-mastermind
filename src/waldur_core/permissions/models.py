@@ -9,6 +9,9 @@ from waldur_core.core.models import DescribableMixin, NameMixin, UuidMixin
 class Role(DescribableMixin, NameMixin, UuidMixin):
     is_system_role = models.BooleanField(default=False)
 
+    class Meta:
+        ordering = ['name']
+
 
 class UserRole(ScopeMixin, UuidMixin):
     user = models.ForeignKey(

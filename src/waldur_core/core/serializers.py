@@ -15,6 +15,7 @@ from django.core.files.storage import default_storage
 from django.core.validators import RegexValidator, URLValidator
 from django.urls import Resolver404, reverse
 from django.utils.translation import gettext_lazy as _
+from modeltranslation.manager import get_translatable_fields_for_model
 from rest_framework import serializers
 from rest_framework.fields import Field, ReadOnlyField
 
@@ -473,3 +474,19 @@ class BrandingSerializer(serializers.Serializer):
                         join(django_settings.MEDIA_ROOT, new.name), new
                     )
                 setattr(config, name, new)
+
+
+class TranslatedModelSerializerMixin(serializers.ModelSerializer):
+    def get_field_names(self, declared_fields, info):
+        fields = list(super().get_field_names(declared_fields, info))
+        trans_fields = get_translatable_fields_for_model(self.Meta.model)
+        if not trans_fields:
+            return fields
+
+        all_fields = []
+        for field_name in fields:
+            all_fields.append(field_name)
+            if field_name in trans_fields:
+                for language_name in django_settings.LANGUAGE_CHOICES:
+                    all_fields.append(f"{field_name}_{language_name}")
+        return all_fields

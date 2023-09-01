@@ -44,6 +44,7 @@ class TestPublicSettings(TestCase):
             'WALDUR_EXTENSION_3': {'SECRET': 'secret', 'INFO': 'info'},
             'LANGUAGE_CODE': 'en',
             'LANGUAGES': (('en', 'English'), ('et', 'Eesti')),
+            'LANGUAGE_CHOICES': ['en'],
         }
         mock_settings = mock.Mock(**extensions)
         self.patcher_settings = mock.patch(
