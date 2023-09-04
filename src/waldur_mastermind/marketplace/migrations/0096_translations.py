@@ -9,6 +9,30 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunSQL(
+            [
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_da;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_de;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_es;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_fr;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_it;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_lt;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_lv;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_nb;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_ru;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS description_sv;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_da;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_de;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_es;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_fr;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_it;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_lt;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_lv;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_nb;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_ru;',
+                'ALTER TABLE marketplace_category DROP COLUMN IF EXISTS title_sv;',
+            ]
+        ),
         migrations.AddField(
             model_name='category',
             name='description_da',
