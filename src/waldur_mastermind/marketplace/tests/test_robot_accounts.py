@@ -1,6 +1,8 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -8,6 +10,25 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 class RobotAccountTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_OWNER, PermissionEnum.DELETE_RESOURCE_ROBOT_ACCOUNT
+        )
+
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT
+        )
+        add_permission(
+            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.DELETE_RESOURCE_ROBOT_ACCOUNT
+        )
 
     @data('staff', 'service_manager', 'service_owner')
     def test_authorized_user_can_create_robot_account(self, user):

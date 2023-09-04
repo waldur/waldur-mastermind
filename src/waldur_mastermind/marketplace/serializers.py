@@ -32,6 +32,8 @@ from waldur_core.media.serializers import (
     ProtectedImageField,
     ProtectedMediaSerializerMixin,
 )
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -399,9 +401,12 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
 
     def validate(self, attrs):
         if not self.instance:
-            structure_permissions.is_owner(
-                self.context['request'], None, attrs['offering'].customer
-            )
+            if not has_permission(
+                self.context['request'],
+                PermissionEnum.CREATE_OFFERING_PLAN,
+                attrs['offering'].customer,
+            ):
+                raise PermissionDenied()
 
         if self.instance:
             offering = self.instance.offering
@@ -527,6 +532,7 @@ class ScreenshotSerializer(
             'image',
             'thumbnail',
             'offering',
+            'customer_uuid',
         )
         protected_fields = ('offering', 'image')
         extra_kwargs = {
@@ -537,11 +543,22 @@ class ScreenshotSerializer(
             },
         }
 
+    customer_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
+
     def validate(self, attrs):
-        if not self.instance:
-            structure_permissions.is_owner(
-                self.context['request'], None, attrs['offering'].customer
-            )
+        if self.instance:
+            permission = PermissionEnum.UPDATE_OFFERING_SCREENSHOT
+            customer = self.instance.offering.customer
+        else:
+            permission = PermissionEnum.CREATE_OFFERING_SCREENSHOT
+            customer = attrs['offering'].customer
+
+        if not has_permission(
+            self.context['request'],
+            permission,
+            customer,
+        ):
+            raise PermissionDenied()
         return attrs
 
 
@@ -1157,9 +1174,12 @@ class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
 
     def validate(self, attrs):
         if not self.instance:
-            structure_permissions.is_owner(
-                self.context['request'], None, attrs['customer']
-            )
+            if not has_permission(
+                self.context['request'],
+                PermissionEnum.CREATE_OFFERING,
+                attrs['customer'],
+            ):
+                raise PermissionDenied()
 
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
@@ -3028,15 +3048,13 @@ class OfferingUserSerializer(
         )
 
     def create(self, validated_data):
-        user = self.context['request'].user
+        request = self.context['request']
         offering = validated_data['offering']
 
-        if not user.is_staff and not offering.customer.has_user(
-            user, structure_models.CustomerRole.OWNER
+        if not has_permission(
+            request, PermissionEnum.CREATE_OFFERING_USER, offering.customer
         ):
-            raise rf_exceptions.ValidationError(
-                _('You do not have permission to create offering user.')
-            )
+            raise rf_exceptions.PermissionDenied()
 
         if not offering.secret_options.get('service_provider_can_create_offering_user'):
             raise rf_exceptions.ValidationError(
@@ -3593,13 +3611,13 @@ class RobotAccountSerializer(
             resource = validated_data['resource']
 
         request = self.context['request']
-        if not request.user.is_staff and not resource.offering.customer.has_user(
-            request.user
-        ):
-            raise PermissionDenied(
-                'Only staff, service provider owner and '
-                'service provider manager can add, remove or update robot accounts'
-            )
+        if self.instance:
+            permission = PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT
+        else:
+            permission = PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT
+
+        if not has_permission(request, permission, resource.offering.customer):
+            raise PermissionDenied()
 
         if 'users' in validated_data:
             users = validated_data['users']
@@ -3625,6 +3643,9 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
     project_name = serializers.ReadOnlyField(source='resource.project.name')
     customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
+    offering_customer_uuid = serializers.ReadOnlyField(
+        source='resource.offering.customer.uuid'
+    )
     offering_plugin_options = serializers.ReadOnlyField(
         source='resource.offering.plugin_options'
     )
@@ -3638,6 +3659,7 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
             'project_uuid',
             'customer_uuid',
             'customer_name',
+            'offering_customer_uuid',
             'offering_plugin_options',
         )
 

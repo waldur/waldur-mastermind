@@ -3,6 +3,8 @@ from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.logging.models import Event
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
@@ -104,6 +106,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         )
         self.offering.secret_options['service_provider_can_create_offering_user'] = True
         self.offering.save()
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_OFFERING_USER)
 
     def create_offering_user(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -127,9 +130,9 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
 
     @data('admin', 'manager')
-    def test_unauthorized_user_can_not_list_offering_permission(self, user):
+    def test_unauthorized_user_can_not_create_offering_user(self, user):
         response = self.create_offering_user(user)
-        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
 
 @ddt
