@@ -606,6 +606,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_OFFERING)
 
     @data('staff', 'owner')
     def test_authorized_user_can_create_offering(self, user):
@@ -1674,6 +1675,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             customer=self.customer, project=self.fixture.project, shared=True
         )
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.DELETE_OFFERING)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_offering(self, user):

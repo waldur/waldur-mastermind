@@ -67,7 +67,7 @@ from waldur_core.structure.serializers import (
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
-from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace import callbacks, managers
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -511,7 +511,7 @@ def validate_offering_update(offering):
 class ProviderOfferingViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
-    BaseMarketplaceView,
+    core_views.ActionsViewSet,
 ):
     """
     This viewset enables uniform implementation of resource import.
@@ -531,6 +531,8 @@ class ProviderOfferingViewSet(
     * import_resource_serializer_class
     """
 
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
     queryset = models.Offering.objects.all()
     serializer_class = serializers.ProviderOfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
@@ -628,6 +630,13 @@ class ProviderOfferingViewSet(
             queryset = queryset.annotate(total_cost_estimated=Coalesce(total_cost, 0))
 
         return queryset
+
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_OFFERING,
+            ['customer'],
+        )
+    ]
 
     @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):
@@ -1494,7 +1503,8 @@ def validate_plan_archive(plan):
         raise rf_exceptions.ValidationError(_('Plan is already archived.'))
 
 
-class ProviderPlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
+class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsViewSet):
+    lookup_field = 'uuid'
     queryset = models.Plan.objects.all()
     serializer_class = serializers.ProviderPlanDetailsSerializer
     filterset_class = filters.PlanFilter
@@ -1503,7 +1513,20 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, BaseMarketplaceView):
     disabled_actions = ['destroy']
     update_validators = partial_update_validators = [validate_plan_update]
 
-    archive_permissions = [structure_permissions.is_owner]
+    update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_PLAN,
+            ['offering.customer'],
+        )
+    ]
+
+    archive_permissions = [
+        permission_factory(
+            PermissionEnum.ARCHIVE_OFFERING_PLAN,
+            ['offering.customer'],
+        )
+    ]
+
     archive_validators = [validate_plan_archive]
 
     @action(detail=True, methods=['post'])
@@ -1581,11 +1604,20 @@ class PublicPlanViewSet(rf_viewsets.ReadOnlyModelViewSet):
 class ScreenshotViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
-    BaseMarketplaceView,
+    core_views.ActionsViewSet,
 ):
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
     queryset = models.Screenshot.objects.all().order_by('offering__name')
     serializer_class = serializers.ScreenshotSerializer
     filterset_class = filters.ScreenshotFilter
+
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_OFFERING_SCREENSHOT,
+            ['offering.customer'],
+        )
+    ]
 
 
 class OrderViewSet(BaseMarketplaceView):
@@ -3275,18 +3307,8 @@ for view in (structure_views.ProjectCountersView, structure_views.CustomerCounte
 
 
 def can_mutate_robot_account(request, view, obj=None):
-    if not obj:
-        return
-    if obj.backend_id:
+    if obj and obj.backend_id:
         raise PermissionDenied('Remote robot account is synchronized.')
-    if request.user.is_staff:
-        return
-    if obj.resource.offering.customer.has_user(request.user):
-        return
-    raise PermissionDenied(
-        'Only staff, service provider owner and '
-        'service provider manager can add, remove or update robot accounts'
-    )
 
 
 class RobotAccountViewSet(core_views.ActionsViewSet):
@@ -3300,17 +3322,20 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
 
     unsafe_methods_permissions = [can_mutate_robot_account]
 
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_RESOURCE_ROBOT_ACCOUNT,
+            ['resource.offering.customer'],
+        )
+    ]
+
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
-        customers = structure_models.CustomerPermission.objects.filter(
-            user=user, is_active=True
-        ).values_list('customer_id')
-        projects = structure_models.ProjectPermission.objects.filter(
-            user=user, is_active=True
-        ).values_list('project_id')
+        customers = managers.get_connected_customers(user)
+        projects = managers.get_connected_projects(user)
         subquery = (
             Q(resource__project__in=projects)
             | Q(resource__project__customer__in=customers)

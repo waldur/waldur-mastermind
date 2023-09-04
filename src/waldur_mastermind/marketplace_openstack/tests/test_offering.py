@@ -6,6 +6,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -70,6 +72,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.category = load_category('vpc')
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_OFFERING)
 
     def test_plan_components_are_validated(self):
         response = self.create_offering()

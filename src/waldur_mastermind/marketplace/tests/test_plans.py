@@ -4,6 +4,8 @@ from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import add_permission
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -42,6 +44,7 @@ class PlanCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.offering = factories.OfferingFactory(customer=self.customer)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_OFFERING_PLAN)
 
     @data('staff', 'owner')
     def test_can_create_plan(self, user):
@@ -75,6 +78,7 @@ class PlanUpdateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(customer=self.customer)
         self.plan = factories.PlanFactory(offering=self.offering)
         self.url = factories.PlanFactory.get_url(self.plan)
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_PLAN)
 
     @data('staff', 'owner')
     def test_authorized_user_can_update_plan(self, user):
@@ -106,6 +110,7 @@ class PlanArchiveTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(customer=self.customer)
         self.plan = factories.PlanFactory(offering=self.offering)
         self.url = factories.PlanFactory.get_url(self.plan, 'archive')
+        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.ARCHIVE_OFFERING_PLAN)
 
     @data('staff', 'owner')
     def test_authorized_user_can_archive_plan(self, user):
