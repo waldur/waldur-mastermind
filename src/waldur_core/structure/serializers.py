@@ -18,6 +18,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models
 from waldur_core.structure import permissions as structure_permissions
@@ -323,7 +324,12 @@ class ProjectSerializer(
         ).count()
 
     def get_role(self, project):
-        user = self.context['request'].user
+        user_uuid = self.context['request'].GET.get('user_uuid')
+        user = (
+            User.objects.get(uuid=user_uuid)
+            if user_uuid and is_uuid_like(user_uuid)
+            else self.context['request'].user
+        )
         if user.is_staff:
             return 'staff'
         if user.is_support:
@@ -489,7 +495,13 @@ class CustomerSerializer(
         return attrs
 
     def get_role(self, customer):
-        user = self.context['request'].user
+        user_uuid = self.context['request'].GET.get('user_uuid')
+        user = (
+            User.objects.get(uuid=user_uuid)
+            if user_uuid and is_uuid_like(user_uuid)
+            else self.context['request'].user
+        )
+
         if user.is_staff:
             return 'staff'
         if user.is_support:

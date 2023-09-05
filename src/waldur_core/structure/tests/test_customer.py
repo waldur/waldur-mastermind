@@ -857,24 +857,44 @@ class UserCustomersFilterTest(test.APITransactionTestCase):
 
         self.customer1.add_user(self.user1, CustomerRole.OWNER)
         self.customer2.add_user(self.user1, CustomerRole.OWNER)
-        self.customer2.add_user(self.user2, CustomerRole.OWNER)
+        self.customer2.add_user(self.user2, CustomerRole.SUPPORT)
 
     def test_staff_can_filter_customer_by_user(self):
         self.assert_staff_can_filter_customer_by_user(
-            self.user1, {self.customer1, self.customer2}
+            self.user1, {self.customer1, self.customer2}, 'owner'
         )
-        self.assert_staff_can_filter_customer_by_user(self.user2, {self.customer2})
+        self.assert_staff_can_filter_customer_by_user(
+            self.user2, {self.customer2}, 'support'
+        )
 
-    def assert_staff_can_filter_customer_by_user(self, user, customers):
+    def assert_staff_can_filter_customer_by_user(self, user, customers, role):
         self.client.force_authenticate(self.staff)
         response = self.client.get(
             factories.CustomerFactory.get_list_url(),
-            {'user_uuid': user.uuid.hex, 'fields': ['uuid']},
+            {'user_uuid': user.uuid.hex, 'fields': ['uuid', 'role']},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             {customer['uuid'] for customer in response.data},
             {customer.uuid.hex for customer in customers},
+        )
+
+        self.assertEqual(
+            {customer['role'] for customer in response.data},
+            {role},
+        )
+
+    def test_customer_filter_without_user_uuid_returns_current_role(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(
+            factories.CustomerFactory.get_list_url(), {'fields': ['uuid', 'role']}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        print(response.data)
+        self.assertEqual(
+            {customer['role'] for customer in response.data},
+            {'staff'},
         )
 
 
