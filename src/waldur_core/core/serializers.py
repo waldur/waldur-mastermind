@@ -455,6 +455,8 @@ class BrandingSerializer(serializers.Serializer):
             kwargs = dict(required=False)
             if config_type == str:
                 kwargs['allow_blank'] = True
+            if config_type == 'image_field':
+                kwargs['allow_null'] = True
             if name in ['BRAND_COLOR', 'BRAND_LABEL_COLOR']:
                 kwargs['validators'] = [color_hex_validator]
             if name in ['HERO_LINK_URL', 'DOCS_URL', 'SUPPORT_PORTAL_URL']:
