@@ -154,7 +154,7 @@ class ZammadServiceBackend(SupportBackend):
         for zammad_attachment in zammad_comment.attachments:
             waldur_attachment = models.Attachment.objects.create(
                 issue=comment.issue,
-                mime_type=zammad_attachment.content_type,
+                mime_type=zammad_attachment.content_type or '',
                 file_size=zammad_attachment.size,
                 author=comment.author,
                 backend_id=zammad_attachment.id,
