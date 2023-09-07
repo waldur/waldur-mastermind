@@ -98,6 +98,32 @@ class ServiceProvider(
         super().save(*args, **kwargs)
 
 
+class CategoryGroup(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    title = models.CharField(blank=False, max_length=255)
+    icon = models.FileField(
+        upload_to='marketplace_category_group_icons',
+        blank=True,
+        null=True,
+        validators=[ImageValidator],
+    )
+    description = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = _('Category group')
+        verbose_name_plural = _('Category groups')
+        ordering = ('title',)
+
+    def __str__(self):
+        return str(self.title)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-category-group'
+
+
 class Category(
     core_models.BackendMixin,
     core_models.UuidMixin,
@@ -130,6 +156,10 @@ class Category(
         help_text=_(
             'Set to true if this category is for OpenStack Tenant. Only one category can have "true" value.'
         ),
+    )
+
+    group = models.ForeignKey(
+        CategoryGroup, blank=True, null=True, on_delete=models.SET_NULL
     )
 
     def clean_fields(self, exclude=None):

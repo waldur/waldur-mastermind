@@ -675,6 +675,14 @@ class OfferingUserGroupFilter(OfferingFilterMixin, core_filters.CreatedModifiedF
     o = django_filters.OrderingFilter(fields=('created',))
 
 
+class CategoryGroupFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.CategoryGroup
+        fields = []
+
+    title = django_filters.CharFilter(lookup_expr='icontains')
+
+
 class CategoryFilter(django_filters.FilterSet):
     class Meta:
         model = models.Category

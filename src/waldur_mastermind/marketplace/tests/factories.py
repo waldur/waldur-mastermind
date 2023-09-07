@@ -88,6 +88,27 @@ class CategoryFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
+class CategoryGroupFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.CategoryGroup
+
+    title = factory.Sequence(lambda n: 'category-group-%s' % n)
+
+    @classmethod
+    def get_url(cls, group=None, action=None):
+        if group is None:
+            group = CategoryGroupFactory()
+        url = 'http://testserver' + reverse(
+            'marketplace-category-group-detail', kwargs={'uuid': group.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-category-group-list')
+        return url if action is None else url + action + '/'
+
+
 class CategoryComponentFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.CategoryComponent

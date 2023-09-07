@@ -106,6 +106,19 @@ class CategoryAdmin(modeltranslation_admin.TranslationAdmin):
     inlines = [SectionInline, CategoryColumnInline, CategoryComponentInline]
 
 
+class CategoryInline(admin.TabularInline):
+    model = models.Category
+
+
+class CategoryGroupAdmin(modeltranslation_admin.TranslationAdmin):
+    model = models.CategoryGroup
+    list_display = (
+        'title',
+        'uuid',
+    )
+    inlines = [CategoryInline]
+
+
 class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
     classes = ['collapse']
@@ -708,7 +721,8 @@ class CategoryHelpArticleAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
-admin.site.register(models.Category, CategoryAdmin)
+admin.site.register(models.Category)
+admin.site.register(models.CategoryGroup, CategoryGroupAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section, SectionAdmin)
 admin.site.register(models.Attribute, AttributeAdmin)

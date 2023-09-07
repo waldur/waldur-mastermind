@@ -1,6 +1,6 @@
 from modeltranslation.translator import TranslationOptions, translator
 
-from .models import Category
+from .models import Category, CategoryGroup
 
 
 class CategoryTranslationOptions(TranslationOptions):
@@ -8,3 +8,10 @@ class CategoryTranslationOptions(TranslationOptions):
 
 
 translator.register(Category, CategoryTranslationOptions)
+
+
+class CategoryGroupTranslationOptions(TranslationOptions):
+    fields = ('title', 'description')
+
+
+translator.register(CategoryGroup, CategoryGroupTranslationOptions)

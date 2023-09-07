@@ -484,6 +484,20 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
     ]
 
 
+class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
+    queryset = models.CategoryGroup.objects.all()
+    serializer_class = serializers.CategoryGroupSerializer
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CategoryGroupFilter
+
+    create_permissions = (
+        update_permissions
+    ) = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_staff
+    ]
+
+
 def can_update_offering(request, view, obj=None):
     offering = obj
 
