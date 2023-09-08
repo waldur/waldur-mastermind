@@ -2105,6 +2105,11 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         limits = serializer.validated_data['limits']
 
+        if resource.limits == limits:
+            raise ValidationError(
+                'Impossible to create update order items with limits set to exactly the same.'
+            )
+
         with transaction.atomic():
             order_item = models.OrderItem(
                 resource=resource,
