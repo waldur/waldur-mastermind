@@ -1015,6 +1015,10 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits['vcpu'], 10)
 
+    def test_impossible_set_the_same_limits(self):
+        response = self.update_limits(self.fixture.owner, self.resource, {'vcpu': 1})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class ResourceMoveTest(test.APITransactionTestCase):
     def setUp(self):
