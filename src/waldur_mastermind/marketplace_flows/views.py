@@ -8,8 +8,9 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet, ReviewViewSet
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure.models import CustomerRole
+from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace.views import ConnectedOfferingDetailsMixin
 from waldur_mastermind.support import models as support_models
 
@@ -54,16 +55,14 @@ class ProjectCreateRequestViewSet(ReviewViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_staff:
+        user = self.request.user
+        if user.is_staff:
             return qs
+        connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
         return qs.filter(
-            Q(flow__requested_by=self.request.user)
+            Q(flow__requested_by=user)
             | Q(flow__customer=None)
-            | Q(
-                flow__customer__permissions__user=self.request.user,
-                flow__customer__permissions__role=CustomerRole.OWNER,
-                flow__customer__permissions__is_active=True,
-            )
+            | Q(flow__customer__in=connected_customers)
         )
 
 
@@ -76,15 +75,12 @@ class ResourceCreateRequestViewSet(ConnectedOfferingDetailsMixin, ReviewViewSet)
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_staff:
+        user = self.request.user
+        if user.is_staff:
             return qs
+        connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
         return qs.filter(
-            Q(flow__requested_by=self.request.user)
-            | Q(
-                offering__customer__permissions__user=self.request.user,
-                offering__customer__permissions__role=CustomerRole.OWNER,
-                offering__customer__permissions__is_active=True,
-            )
+            Q(flow__requested_by=user) | Q(offering__customer__in=connected_customers)
         )
 
 

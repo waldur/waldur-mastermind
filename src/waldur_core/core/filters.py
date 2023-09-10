@@ -1,4 +1,3 @@
-import uuid
 from urllib.parse import urlparse
 
 import django_filters
@@ -175,9 +174,7 @@ class URLFilter(django_filters.CharFilter):
             return qs
 
         uuid_value = self.get_uuid(value)
-        try:
-            uuid.UUID(uuid_value)
-        except ValueError:
+        if not core_utils.is_uuid_like(uuid_value):
             return qs.none()
         return super().filter(qs, uuid_value)
 

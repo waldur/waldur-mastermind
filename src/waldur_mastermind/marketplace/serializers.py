@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -33,7 +33,7 @@ from waldur_core.media.serializers import (
     ProtectedMediaSerializerMixin,
 )
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import count_users, has_permission
 from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -1106,21 +1106,11 @@ class OfferingDetailsSerializer(
         return OfferingComponentSerializer(qs, many=True, context=self.context).data
 
     def get_filtered_plans(self, offering):
-        qs = (offering.parent or offering).plans.all()
         customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
         user = self.context['request'].user
-
-        if user.is_anonymous:
-            qs = qs.filter(divisions__isnull=True)
-        elif user.is_staff or user.is_support:
-            pass
-        elif customer_uuid:
-            qs = qs.filter(
-                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
-            ).filter_for_customer(customer_uuid)
-        else:
-            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
-
+        qs = utils.get_plans_available_for_user(
+            user=user, offering=offering, allowed_customer_uuid=customer_uuid
+        )
         return BaseProviderPlanSerializer(qs, many=True, context=self.context).data
 
     def get_attributes(self, offering):
@@ -1137,21 +1127,11 @@ class ProviderOfferingDetailsSerializer(OfferingDetailsSerializer):
         view_name = 'marketplace-provider-offering-detail'
 
     def get_filtered_plans(self, offering):
-        qs = (offering.parent or offering).plans.all()
         customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
         user = self.context['request'].user
-
-        if user.is_anonymous:
-            qs = qs.filter(divisions__isnull=True)
-        elif user.is_staff or user.is_support:
-            pass
-        elif customer_uuid:
-            qs = qs.filter(
-                Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
-            ).filter_for_customer(customer_uuid)
-        else:
-            qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
-
+        qs = utils.get_plans_available_for_user(
+            user=user, offering=offering, allowed_customer_uuid=customer_uuid
+        )
         return BaseProviderPlanSerializer(qs, many=True, context=self.context).data
 
 
@@ -3377,9 +3357,7 @@ class ProviderCustomerProjectSerializer(serializers.ModelSerializer):
         return self.get_resources(instance).count()
 
     def get_users_count(self, instance):
-        return structure_models.ProjectPermission.objects.filter(
-            project=instance, is_active=True
-        ).count()
+        return count_users(instance)
 
     def get_billing_price_estimate(self, instance):
         resources = self.get_resources(instance)

@@ -5,6 +5,7 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import signals as core_signals
+from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.booking import models as booking_models
 from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -110,19 +111,10 @@ class BookingSerializer(serializers.Serializer):
         if not order_item:
             return 'google calendar'
 
-        user = self.context['request'].user
-        user_customers = set(
-            user.customerpermission_set.filter(is_active=True).values_list(
-                'customer', flat=True
-            )
-        )
-        creator_customers = set(
-            order_item.order.created_by.customerpermission_set.filter(
-                is_active=True
-            ).values_list('customer', flat=True)
-        )
+        user_customers = get_connected_customers(self.context['request'].user)
+        creator_customers = get_connected_customers(order_item.order.created_by)
 
-        if user_customers & creator_customers:
+        if user_customers.intersection(creator_customers):
             return order_item.order.created_by.full_name
 
 

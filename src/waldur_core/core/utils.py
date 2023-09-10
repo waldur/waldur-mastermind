@@ -345,6 +345,8 @@ def is_uuid_like(val):
     """
     Check if value looks like a valid UUID.
     """
+    if isinstance(val, uuid.UUID):
+        return True
     try:
         uuid.UUID(val)
     except (TypeError, ValueError, AttributeError):

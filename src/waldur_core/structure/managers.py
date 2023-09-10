@@ -1,7 +1,9 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
+from waldur_core.permissions.utils import get_scope_ids, get_user_ids
 from waldur_core.structure import models as structure_models
 
 
@@ -174,3 +176,63 @@ class SharedServiceSettingsManager(ServiceSettingsManager):
 class PrivateServiceSettingsManager(ServiceSettingsManager):
     def get_queryset(self):
         return super().get_queryset().filter(shared=False)
+
+
+def get_connected_customers(user, role=None):
+    ctype = ContentType.objects.get_for_model(structure_models.Customer)
+    return get_scope_ids(user, ctype, role)
+
+
+def get_connected_projects(user, role=None):
+    ctype = ContentType.objects.get_for_model(structure_models.Project)
+    return get_scope_ids(user, ctype, role)
+
+
+def get_customer_users(scope_ids, role=None):
+    ctype = ContentType.objects.get_for_model(structure_models.Customer)
+    return get_user_ids(ctype, scope_ids, role)
+
+
+def get_project_users(scope_ids, role=None):
+    ctype = ContentType.objects.get_for_model(structure_models.Project)
+    return get_user_ids(ctype, scope_ids, role)
+
+
+def get_visible_users(user):
+    direct_customers = get_connected_customers(user)
+    direct_projects = get_connected_projects(user)
+
+    indirect_customers = structure_models.Project.objects.filter(
+        id__in=direct_projects
+    ).values_list('customer_id', flat=True)
+    indirect_projects = structure_models.Project.objects.filter(
+        customer_id__in=direct_customers
+    ).values_list('id', flat=True)
+
+    customer_users = get_customer_users(direct_customers.union(indirect_customers))
+    project_users = get_project_users(direct_projects.union(indirect_projects))
+
+    return customer_users.union(project_users)
+
+
+def get_nested_customer_users(customer):
+    customer_users = get_customer_users(customer.id)
+    project_users = get_project_users(customer.projects.values_list('id', flat=True))
+    return customer_users.union(project_users)
+
+
+def count_customer_users(customer):
+    return get_nested_customer_users(customer).count()
+
+
+def get_divisions(user):
+    direct_customers = get_connected_customers(user)
+    direct_projects = get_connected_projects(user)
+
+    indirect_customers = structure_models.Project.objects.filter(
+        id__in=direct_projects
+    ).values_list('customer_id', flat=True)
+
+    return structure_models.Customer.objects.filter(
+        id__in=direct_customers.union(indirect_customers)
+    ).values('division')

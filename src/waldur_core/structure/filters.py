@@ -1,5 +1,3 @@
-import uuid
-
 import django_filters
 from django import forms
 from django.conf import settings as django_settings
@@ -16,10 +14,17 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models
+from waldur_core.structure.constants import ROLE_MAP
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
+    get_connected_customers,
+    get_customer_users,
+    get_nested_customer_users,
+    get_project_users,
+    get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
 from waldur_mastermind.billing import models as billing_models
@@ -92,9 +97,7 @@ class GenericUserFilter(BaseFilterBackend):
         if not user_uuid:
             return queryset
 
-        try:
-            uuid.UUID(user_uuid)
-        except ValueError:
+        if not is_uuid_like(user_uuid):
             return queryset.none()
 
         try:
@@ -169,11 +172,8 @@ class OwnedByCurrentUserFilterBackend(BaseFilterBackend):
             value = None
 
         if value:
-            return queryset.filter(
-                permissions__user=request.user,
-                permissions__is_active=True,
-                permissions__role=models.CustomerRole.OWNER,
-            )
+            ids = get_connected_customers(request.user, RoleEnum.CUSTOMER_OWNER)
+            return queryset.filter(id__in=ids)
         return queryset
 
 
@@ -292,21 +292,15 @@ class CustomerUserFilter(BaseFilterBackend):
         if not customer_uuid:
             return queryset
 
-        try:
-            uuid.UUID(customer_uuid)
-        except ValueError:
+        if not is_uuid_like(customer_uuid):
             return queryset.none()
 
-        return queryset.filter(
-            Q(
-                customerpermission__customer__uuid=customer_uuid,
-                customerpermission__is_active=True,
-            )
-            | Q(
-                projectpermission__project__customer__uuid=customer_uuid,
-                projectpermission__is_active=True,
-            )
-        ).distinct()
+        try:
+            customer = models.Customer.objects.get(uuid=customer_uuid)
+        except models.Customer.DoesNotExist:
+            return queryset.none()
+
+        return queryset.filter(id__in=get_nested_customer_users(customer)).distinct()
 
 
 class ProjectUserFilter(BaseFilterBackend):
@@ -315,41 +309,28 @@ class ProjectUserFilter(BaseFilterBackend):
         if not project_uuid:
             return queryset
 
-        try:
-            uuid.UUID(project_uuid)
-        except ValueError:
+        if not is_uuid_like(project_uuid):
             return queryset.none()
 
-        return queryset.filter(
-            projectpermission__project__uuid=project_uuid,
-            projectpermission__is_active=True,
-        ).distinct()
+        try:
+            project = models.Project.objects.get(uuid=project_uuid)
+        except models.Project.DoesNotExist:
+            return queryset.none()
+
+        project_users = get_project_users(project.id)
+
+        return queryset.filter(id__in=project_users).distinct()
 
 
 def filter_visible_users(queryset, user, extra=None):
-    connected_customers_query = models.Customer.objects.all()
-    if not (user.is_staff or user.is_support):
-        connected_customers_query = connected_customers_query.filter(
-            Q(permissions__user=user, permissions__is_active=True)
-            | Q(projects__permissions__user=user, projects__permissions__is_active=True)
-        ).distinct()
+    if user.is_staff or user.is_support:
+        return queryset
 
-    connected_customers = list(connected_customers_query.all())
-
-    subquery = Q(
-        customerpermission__customer__in=connected_customers,
-        customerpermission__is_active=True,
-    ) | Q(
-        projectpermission__project__customer__in=connected_customers,
-        projectpermission__is_active=True,
+    return (
+        queryset.filter(is_staff=False)
+        .filter(Q(id__in=get_visible_users(user)) | Q(id=user.id) | (extra or Q()))
+        .distinct()
     )
-
-    queryset = queryset.filter(subquery | Q(uuid=user.uuid) | (extra or Q())).distinct()
-
-    if not (user.is_staff or user.is_support):
-        queryset = queryset.filter(is_staff=False)
-
-    return queryset
 
 
 class UserFilterBackend(BaseFilterBackend):
@@ -753,19 +734,20 @@ class UserRolesFilter(BaseFilterBackend):
 
         if project_roles:
             # Filter project permissions by current customer
-            query = query | Q(
-                projectpermission__role__in=project_roles,
-                projectpermission__project__customer_id=customer.id,
-                projectpermission__is_active=True,
-            )
+            projects = customer.projects.values_list('id', flat=True)
+            project_roles = [
+                ROLE_MAP.get((models.Project, role)) for role in project_roles
+            ]
+            project_users = get_project_users(projects, project_roles)
+            query = query | Q(id__in=project_users)
 
         if organization_roles:
             # Filter customer permissions by current customer
-            query = query | Q(
-                customerpermission__role__in=organization_roles,
-                customerpermission__customer_id=customer.id,
-                customerpermission__is_active=True,
-            )
+            organization_roles = [
+                ROLE_MAP.get((models.Customer, role)) for role in organization_roles
+            ]
+            customer_users = get_customer_users(customer.id, organization_roles)
+            query = query | Q(id__in=customer_users)
 
         return queryset.filter(query)
 

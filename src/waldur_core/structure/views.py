@@ -30,9 +30,16 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import count_users
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    count_customer_users,
+    filter_queryset_for_user,
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import structure_role_updated
 
@@ -345,27 +352,17 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         can_manage = self.request.query_params.get('can_manage', None)
         if can_manage is not None:
+            connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
+            connected_projects = get_connected_projects(user, RoleEnum.PROJECT_MANAGER)
             queryset = queryset.filter(
-                Q(
-                    customer__permissions__user=user,
-                    customer__permissions__role=models.CustomerRole.OWNER,
-                    customer__permissions__is_active=True,
-                )
-                | Q(
-                    permissions__user=user,
-                    permissions__role=models.ProjectRole.MANAGER,
-                    permissions__is_active=True,
-                )
+                Q(customer__in=connected_customers) | Q(id__in=connected_projects)
             ).distinct()
 
         can_admin = self.request.query_params.get('can_admin', None)
 
         if can_admin is not None:
-            queryset = queryset.filter(
-                permissions__user=user,
-                permissions__role=models.ProjectRole.ADMINISTRATOR,
-                permissions__is_active=True,
-            )
+            connected_projects = get_connected_projects(user, RoleEnum.PROJECT_ADMIN)
+            queryset = queryset.filter(id__in=connected_projects)
 
         return queryset
 
@@ -757,15 +754,15 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
 
-        if not (self.request.user.is_staff or self.request.user.is_support):
+        if not (user.is_staff or user.is_support):
+            connected_projects = get_connected_projects(user)
+            connected_customers = get_connected_customers(user)
             queryset = queryset.filter(
-                Q(user=self.request.user, is_active=True)
-                | Q(
-                    customer__projects__permissions__user=self.request.user,
-                    is_active=True,
-                )
-                | Q(customer__permissions__user=self.request.user, is_active=True)
+                Q(user=user, is_active=True)
+                | Q(customer__projects__in=connected_projects, is_active=True)
+                | Q(customer__in=connected_customers)
             ).distinct()
 
         return queryset
@@ -1063,7 +1060,7 @@ class CustomerCountersView(BaseCounterView):
         }
 
     def get_users(self):
-        return self.object.get_users().count()
+        return count_customer_users(self.object)
 
     def get_projects(self):
         qs = models.Project.available_objects.filter(customer=self.object).only('pk')
@@ -1106,7 +1103,7 @@ class ProjectCountersView(BaseCounterView):
         return fields
 
     def get_users(self):
-        return self.object.get_users().count()
+        return count_users(self.object)
 
     def _total_count(self, models):
         return sum(self._count_model(model) for model in models)

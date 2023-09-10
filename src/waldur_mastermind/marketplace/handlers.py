@@ -7,6 +7,8 @@ from django.db.models import Count, signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import Customer, CustomerRole, Project
@@ -720,3 +722,26 @@ def update_offering_user_username_after_offering_settings_change(
 
         utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=['username', 'backend_metadata'])
+
+
+def sync_offering_permission_creation(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+    content_type = ContentType.objects.get_for_model(models.Offering)
+    new_role, _ = Role.objects.get_or_create(name=RoleEnum.OFFERING_MANAGER)
+    UserRole.objects.create(
+        user=instance.user,
+        content_type=content_type,
+        object_id=instance.offering_id,
+        role=new_role,
+    )
+
+
+def sync_offering_permission_deletion(sender, instance, **kwargs):
+    content_type = ContentType.objects.get_for_model(models.Offering)
+    UserRole.objects.filter(
+        user=instance.user,
+        content_type=content_type,
+        object_id=instance.offering_id,
+        role__name=RoleEnum.OFFERING_MANAGER,
+    ).update(is_active=False)

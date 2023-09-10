@@ -32,6 +32,7 @@ from waldur_core.core.validators import validate_cidr_list, validate_name
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure.managers import (
@@ -40,6 +41,10 @@ from waldur_core.structure.managers import (
     SharedServiceSettingsManager,
     StructureManager,
     filter_queryset_for_user,
+    get_connected_customers,
+    get_customer_users,
+    get_nested_customer_users,
+    get_project_users,
 )
 from waldur_core.structure.registry import SupportedServices, get_resource_type
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
@@ -492,7 +497,7 @@ class Customer(
         return ('uuid', 'name', 'abbreviation', 'contact_details')
 
     def get_owners(self):
-        return self.get_users_by_role(CustomerRole.OWNER)
+        return self.get_users_by_role(RoleEnum.CUSTOMER_OWNER)
 
     def get_owner_mails(self):
         return (
@@ -503,31 +508,23 @@ class Customer(
         )
 
     def get_support_users(self):
-        return self.get_users_by_role(CustomerRole.SUPPORT)
+        return self.get_users_by_role(RoleEnum.CUSTOMER_SUPPORT)
 
     def get_service_managers(self):
-        return self.get_users_by_role(CustomerRole.SERVICE_MANAGER)
+        return self.get_users_by_role(RoleEnum.CUSTOMER_MANAGER)
 
     def get_users_by_role(self, role):
-        return get_user_model().objects.filter(
-            customerpermission__customer=self,
-            customerpermission__is_active=True,
-            customerpermission__role=role,
-        )
+        users = get_customer_users(self.id, role)
+        return get_user_model().objects.filter(id__in=users)
 
     def get_users(self, role=None):
         """Return all connected to customer users"""
         if role:
             return self.get_users_by_role(role)
+
         return (
             get_user_model()
-            .objects.filter(
-                Q(customerpermission__customer=self, customerpermission__is_active=True)
-                | Q(
-                    projectpermission__project__customer=self,
-                    projectpermission__is_active=True,
-                )
-            )
+            .objects.filter(id__in=get_nested_customer_users(self))
             .distinct()
             .order_by('username')
         )
@@ -554,11 +551,7 @@ class Customer(
         if user.is_staff or user.is_support:
             return cls.objects.all()
         else:
-            return cls.objects.filter(
-                permissions__user=user,
-                permissions__role=CustomerRole.OWNER,
-                permissions__is_active=True,
-            )
+            return get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
 
     def get_display_name(self):
         if self.abbreviation:
@@ -795,14 +788,14 @@ class Project(
         return self.name
 
     def get_users(self, role=None):
-        query = Q(
-            projectpermission__project=self,
-            projectpermission__is_active=True,
-        )
-        if role:
-            query = query & Q(projectpermission__role=role)
+        from waldur_core.structure.constants import ROLE_MAP
 
-        return get_user_model().objects.filter(query).order_by('username')
+        if role:
+            role = ROLE_MAP.get((Project, role))
+        project_users = get_project_users(self.id, role)
+        return (
+            get_user_model().objects.filter(id__in=project_users).order_by('username')
+        )
 
     @transaction.atomic()
     def _soft_delete(self, using=None):

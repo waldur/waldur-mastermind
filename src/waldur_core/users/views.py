@@ -13,9 +13,11 @@ from rest_framework.response import Response
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.managers import get_connected_customers
 from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
 
@@ -192,13 +194,7 @@ class InvitationViewSet(ProtectedViewSet):
                     replace_email = True
 
         if settings.WALDUR_CORE['INVITATION_DISABLE_MULTIPLE_ROLES']:
-            has_customer = structure_models.CustomerPermission.objects.filter(
-                user=request.user, is_active=True
-            ).exists()
-            has_project = structure_models.ProjectPermission.objects.filter(
-                user=request.user, is_active=True
-            ).exists()
-            if has_customer or has_project:
+            if UserRole.objects.filter(user=request.user, is_active=True).exists():
                 raise ValidationError(
                     _('User already has role within another customer or project.')
                 )
@@ -247,9 +243,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
 
         user = request.user
         if not user.is_staff:
-            customer_ids = structure_models.CustomerPermission.objects.filter(
-                user=user, is_active=True, role=structure_models.CustomerRole.OWNER
-            ).values_list('customer_id', flat=True)
+            customer_ids = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
             queryset = queryset.filter(customer_id__in=customer_ids)
 
         page = self.paginate_queryset(queryset)
