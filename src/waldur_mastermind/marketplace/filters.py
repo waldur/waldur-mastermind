@@ -2,6 +2,7 @@ import json
 
 import django_filters
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
@@ -16,12 +17,19 @@ from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import get_scope_ids, role_has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+    get_project_users,
+)
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace.managers import get_connected_offerings
 from waldur_pid import models as pid_models
 
 from . import models
+
+User = get_user_model()
 
 
 class ServiceProviderFilter(django_filters.FilterSet):
@@ -164,40 +172,33 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
             if user.is_staff:
                 return queryset
 
-            used_offerings_ids = []
-
             queryset = queryset.filter(shared=False)
 
-            owned_offerings_ids = list(
+            owned_offerings_ids = set(
                 queryset.filter(
-                    customer__in=structure_utils.get_customers_owned_by_user(user)
+                    customer__in=get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
                 ).values_list('id', flat=True)
             )
 
             # Import private offerings must be available for admins and managers
-            projects_ids = list(
-                structure_models.ProjectPermission.objects.filter(
-                    is_active=True,
-                    user_id=user.id,
-                    role__in=(
-                        structure_models.ProjectRole.ADMINISTRATOR,
-                        structure_models.ProjectRole.MANAGER,
-                    ),
-                ).values_list('project_id', flat=True)
+            projects_ids = set(
+                get_connected_projects(
+                    user, (RoleEnum.PROJECT_ADMIN, RoleEnum.PROJECT_MANAGER)
+                )
             )
 
-            for offering in queryset.all():
+            used_offerings_ids = {
+                offering.id
+                for offering in queryset.all()
                 if (
                     offering.scope
                     and offering.scope.scope
                     and offering.scope.scope.project
                     and offering.scope.scope.project.id in projects_ids
-                ):
-                    used_offerings_ids.append(offering.id)
+                )
+            }
 
-            return queryset.filter(
-                id__in=list(owned_offerings_ids + used_offerings_ids)
-            )
+            return queryset.filter(id__in=owned_offerings_ids | used_offerings_ids)
         return queryset
 
 
@@ -207,6 +208,20 @@ class OfferingFilterMixin(django_filters.FilterSet):
         field_name='offering__uuid',
     )
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
+
+    def filter_service_manager(self, queryset, name, value):
+        if not is_uuid_like(value):
+            return queryset.none()
+        User = get_user_model()
+        try:
+            user = User.objects.get(uuid=value)
+        except User.DoesNotExist:
+            return queryset.none()
+        offerings = get_connected_offerings(user)
+        return queryset.filter(
+            offering__shared=True,
+            offering__in=offerings,
+        )
 
 
 class OfferingPermissionFilter(
@@ -374,22 +389,12 @@ class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
         model = models.OrderItem
         fields = []
 
-    def filter_service_manager(self, queryset, name, value):
-        return queryset.filter(
-            offering__shared=True,
-            offering__permissions__user__uuid=value,
-            offering__permissions__is_active=True,
-        )
-
     def filter_can_approve_as_service_provider(self, queryset, name, value):
         user = self.request.user
 
         if value and not user.is_staff:
-            query_owner = Q(
-                offering__customer__permissions__user__uuid=user.uuid.hex,
-                offering__customer__permissions__is_active=True,
-                offering__customer__permissions__role=structure_models.CustomerRole.OWNER,
-            )
+            connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
+            query_owner = Q(offering__customer__in=connected_customers)
             query_pending = query_owner & Q(
                 state=models.OrderItem.States.PENDING,
             )
@@ -471,13 +476,6 @@ class ResourceFilter(
                 return query
         else:
             return query
-
-    def filter_service_manager(self, queryset, name, value):
-        return queryset.filter(
-            offering__shared=True,
-            offering__permissions__user__uuid=value,
-            offering__permissions__is_active=True,
-        )
 
     def filter_scope_uuid(self, queryset, name, value):
         for offering_type in plugins.manager.get_offering_types():
@@ -756,14 +754,9 @@ class MarketplaceInvoiceItemsFilterBackend(BaseFilterBackend):
         if user.is_staff:
             return queryset
 
-        customer_ids = structure_models.CustomerPermission.objects.filter(
-            role__in=(
-                structure_models.CustomerRole.OWNER,
-                structure_models.CustomerRole.SERVICE_MANAGER,
-            ),
-            is_active=True,
-            user=user,
-        ).values_list('customer_id', flat=True)
+        customer_ids = get_connected_customers(
+            user, [RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER]
+        )
 
         return queryset.filter(resource__offering__customer_id__in=customer_ids)
 
@@ -808,9 +801,7 @@ class PlanFilterBackend(BaseFilterBackend):
         if user.is_staff:
             return queryset
 
-        customer_ids = structure_models.CustomerPermission.objects.filter(
-            is_active=True, user=user, role=structure_models.CustomerRole.OWNER
-        ).values_list('customer_id', flat=True)
+        customer_ids = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
 
         division_ids = structure_models.Customer.objects.filter(
             id__in=customer_ids
@@ -821,14 +812,9 @@ class PlanFilterBackend(BaseFilterBackend):
 
 
 def user_extra_query(user):
-    customer_ids = structure_models.CustomerPermission.objects.filter(
-        user=user,
-        role__in=[
-            structure_models.CustomerRole.OWNER,
-            structure_models.CustomerRole.SERVICE_MANAGER,
-        ],
-        is_active=True,
-    ).values_list('customer_id', flat=True)
+    customer_ids = get_connected_customers(
+        user, (RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER)
+    )
     offering_ids = models.Offering.objects.filter(
         shared=True, customer_id__in=customer_ids
     ).values_list('id', flat=True)
@@ -838,9 +824,7 @@ def user_extra_query(user):
         .exclude(state=models.Resource.States.TERMINATED)
         .values_list('project_id', flat=True)
     )
-    user_ids = structure_models.ProjectPermission.objects.filter(
-        project_id__in=project_ids, is_active=True
-    ).values_list('user_id', flat=True)
+    user_ids = get_project_users(project_ids)
 
     return Q(id__in=user_ids)
 

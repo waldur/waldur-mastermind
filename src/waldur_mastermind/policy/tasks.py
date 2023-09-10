@@ -1,6 +1,7 @@
 from celery import shared_task
 
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 
 
@@ -9,7 +10,7 @@ def notify_about_limit_cost(serialized_scope, serialized_policy):
     scope = core_utils.deserialize_instance(serialized_scope)
     policy = core_utils.deserialize_instance(serialized_policy)
     role = (
-        structure_models.CustomerRole.OWNER
+        RoleEnum.CUSTOMER_OWNER
         if isinstance(scope, structure_models.Customer)
         else None
     )

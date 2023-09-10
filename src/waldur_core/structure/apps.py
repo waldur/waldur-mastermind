@@ -54,8 +54,24 @@ class StructureConfig(AppConfig):
             dispatch_uid='waldur_core.structure.handlers.log_project_delete',
         )
 
-        # increase nc_user_count quota usage on adding user to customer
         structure_models_with_roles = (Customer, Project)
+
+        for model in structure_models_with_roles:
+            structure_signals.structure_role_granted.connect(
+                handlers.sync_permission_when_role_is_granted,
+                sender=model,
+                dispatch_uid='waldur_core.permissions.handlers.'
+                'sync_permission_when_role_is_granted_%s' % model.__name__,
+            )
+
+            structure_signals.structure_role_revoked.connect(
+                handlers.sync_permission_when_role_is_revoked,
+                sender=model,
+                dispatch_uid='waldur_core.permissions.handlers.'
+                'sync_permission_when_role_is_revoked_%s' % model.__name__,
+            )
+
+        # increase nc_user_count quota usage on adding user to customer
         for model in structure_models_with_roles:
             name = (
                 'increase_customer_nc_users_quota_on_adding_user_to_%s' % model.__name__

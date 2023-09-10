@@ -15,6 +15,7 @@ from waldur_core.structure.exceptions import (
     ServiceBackendError,
     ServiceBackendNotImplemented,
 )
+from waldur_core.structure.managers import count_customer_users
 from waldur_core.structure.registry import SupportedServices
 
 logger = logging.getLogger(__name__)
@@ -285,7 +286,7 @@ def create_customer_permission_reviews():
         ).exists():
             continue
         # Skip customers without users
-        if not customer.get_users().count():
+        if not count_customer_users(customer):
             continue
         structure_models.CustomerPermissionReview.objects.create(customer=customer)
 

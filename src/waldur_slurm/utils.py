@@ -4,7 +4,10 @@ import re
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_slurm import models
 
 MAPPING = {
@@ -31,20 +34,15 @@ def sanitize_allocation_name(name):
 
 
 def get_user_allocations(user):
-    project_permissions = structure_models.ProjectPermission.objects.filter(
-        user=user, is_active=True
-    )
-    projects = project_permissions.values_list('project_id', flat=True)
+    connected_projects = get_connected_projects(user)
+    connected_customers = get_connected_customers(user)
+
     project_allocations = models.Allocation.objects.filter(
-        is_active=True, project__in=projects
+        is_active=True, project__in=connected_projects
     )
 
-    customer_permissions = structure_models.CustomerPermission.objects.filter(
-        user=user, is_active=True
-    )
-    customers = customer_permissions.values_list('customer_id', flat=True)
     customer_allocations = models.Allocation.objects.filter(
-        is_active=True, project__customer__in=customers
+        is_active=True, project__customer__in=connected_customers
     )
 
     return (project_allocations, customer_allocations)

@@ -30,6 +30,12 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import (
+    get_connected_projects,
+    get_customer_users,
+    get_divisions,
+    get_project_users,
+)
 from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
@@ -592,11 +598,14 @@ def get_offering_projects(offering):
 
 def is_user_related_to_offering(offering, user):
     if offering.type == BASIC_PLUGIN_NAME:
-        projects = get_offering_projects(offering)
-        project_permissions = structure_models.ProjectPermission.objects.filter(
-            user=user, project__in=projects, is_active=True
+        connected_projects = get_connected_projects(user)
+        return (
+            models.Resource.objects.filter(
+                offering=offering, project__in=connected_projects
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .exists()
         )
-        return project_permissions.exists()
     return False
 
 
@@ -935,14 +944,10 @@ def link_parent_resource(resource):
 
 
 def get_resource_users(resource):
-    project_user_ids = structure_models.ProjectPermission.objects.filter(
-        project=resource.project, is_active=True
-    ).values_list('user_id')
-    customer_user_ids = structure_models.CustomerPermission.objects.filter(
-        customer=resource.project.customer, is_active=True
-    ).values_list('user_id')
+    project_user_ids = get_project_users(resource.project_id)
+    customer_user_ids = get_customer_users(resource.project.customer_id)
     return core_models.User.objects.filter(
-        Q(id__in=project_user_ids) | Q(id__in=customer_user_ids)
+        id__in=project_user_ids.union(customer_user_ids)
     )
 
 
@@ -1104,10 +1109,10 @@ def get_plans_available_for_user(
         pass
     elif allowed_customer_uuid:
         qs = qs.filter(
-            Q(divisions__isnull=True) | Q(divisions__in=user.divisions)
+            Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user))
         ).filter_for_customer(allowed_customer_uuid)
     else:
-        qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=user.divisions))
+        qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user)))
 
     return qs
 
@@ -1130,9 +1135,7 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
 
         password_sha256 = generate_offering_password_hash(offering)
 
-        user_projects = structure_models.ProjectPermission.objects.filter(
-            user=user, is_active=True
-        ).values_list('project')
+        user_projects = get_connected_projects(user)
 
         group_ids = models.OfferingUserGroup.objects.filter(
             projects__in=user_projects

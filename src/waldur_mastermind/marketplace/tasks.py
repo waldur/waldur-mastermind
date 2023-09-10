@@ -131,13 +131,13 @@ def notify_order_approvers(uuid):
         users |= User.objects.filter(is_staff=True, is_active=True)
 
     if role_has_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER):
-        users |= get_users(RoleEnum.CUSTOMER_OWNER, order.project.customer)
+        users |= get_users(order.project.customer, RoleEnum.CUSTOMER_OWNER)
 
     if role_has_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER):
-        users |= get_users(RoleEnum.PROJECT_MANAGER, order.project)
+        users |= get_users(order.project, RoleEnum.PROJECT_MANAGER)
 
     if role_has_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER):
-        users |= get_users(RoleEnum.PROJECT_ADMIN, order.project)
+        users |= get_users(order.project, RoleEnum.PROJECT_ADMIN)
 
     approvers = (
         users.distinct()

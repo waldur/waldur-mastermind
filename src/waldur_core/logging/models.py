@@ -17,6 +17,8 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import get_users
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +211,6 @@ class SystemNotification(EventTypesMixin, models.Model):
     @classmethod
     def get_hooks(cls, event_type, project=None, customer=None):
         from waldur_core.logging import loggers
-        from waldur_core.structure import models as structure_models
 
         groups = [
             g[0]
@@ -226,19 +227,17 @@ class SystemNotification(EventTypesMixin, models.Model):
 
             if project:
                 if 'admin' in hook.roles:
-                    users_qs.append(
-                        project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
-                    )
+                    users_qs.append(get_users(project, RoleEnum.PROJECT_ADMIN))
                 if 'manager' in hook.roles:
-                    users_qs.append(
-                        project.get_users(structure_models.ProjectRole.MANAGER)
-                    )
+                    users_qs.append(get_users(project, RoleEnum.PROJECT_MANAGER))
                 if 'owner' in hook.roles:
-                    users_qs.append(project.customer.get_owners())
+                    users_qs.append(
+                        get_users(project.customer, RoleEnum.CUSTOMER_OWNER)
+                    )
 
             if customer:
                 if 'owner' in hook.roles:
-                    users_qs.append(customer.get_owners())
+                    users_qs.append(get_users(customer, RoleEnum.CUSTOMER_OWNER))
 
             if len(users_qs) > 1:
                 users = users_qs[0].union(*users_qs[1:]).distinct()

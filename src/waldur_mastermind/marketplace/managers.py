@@ -1,24 +1,24 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 from django.db.models import Q
 
 from waldur_core.core import managers as core_managers
+from waldur_core.core.utils import is_uuid_like
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.constants import ROLE_MAP
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+    get_divisions,
+)
 
 from . import models
 
-
-def get_connected_customers(user):
-    customer_type = ContentType.objects.get_for_model(structure_models.Customer)
-    return get_scope_ids(user, customer_type)
-
-
-def get_connected_projects(user):
-    project_type = ContentType.objects.get_for_model(structure_models.Project)
-    return get_scope_ids(user, project_type)
+User = get_user_model()
 
 
 class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
@@ -35,28 +35,25 @@ class OfferingQuerySet(django_models.QuerySet):
         if user.is_staff or user.is_support:
             return self
 
-        connected_customers = structure_models.Customer.objects.all().filter(
-            permissions__user=user, permissions__is_active=True
-        )
+        if project_roles:
+            project_roles = [
+                ROLE_MAP.get((structure_models.Project, role)) for role in project_roles
+            ]
 
-        if customer_roles is not None:
-            connected_customers = connected_customers.filter(
-                permissions__role__in=customer_roles
-            )
+        if customer_roles:
+            customer_roles = [
+                ROLE_MAP.get((structure_models.Customer, role))
+                for role in customer_roles
+            ]
 
-        connected_projects = structure_models.Project.available_objects.all().filter(
-            permissions__user=user, permissions__is_active=True
-        )
-
-        if project_roles is not None:
-            connected_projects = connected_projects.filter(
-                permissions__role__in=project_roles
-            )
+        connected_customers = get_connected_customers(user, customer_roles)
+        connected_projects = get_connected_projects(user, project_roles)
+        connected_offerings = get_connected_offerings(user)
 
         return self.filter(
             Q(customer__in=connected_customers)
             | Q(project__in=connected_projects)
-            | Q(permissions__user=user, permissions__is_active=True),
+            | Q(id__in=connected_offerings)
         ).distinct()
 
     def filter_by_ordering_availability_for_user(self, user):
@@ -82,14 +79,14 @@ class OfferingQuerySet(django_models.QuerySet):
             ).distinct()
 
         # filtering by available plans
-        divisions = user.divisions
         plans = models.Plan.objects.filter(
-            Q(divisions__isnull=True) | Q(divisions__in=divisions)
+            Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user))
         ).filter(archived=False)
 
         # filtering by customers and projects
         connected_projects = get_connected_projects(user)
         connected_customers = get_connected_customers(user)
+        connected_offerings = get_connected_offerings(user)
 
         return queryset.filter(
             Q(shared=True)
@@ -97,14 +94,20 @@ class OfferingQuerySet(django_models.QuerySet):
                 (
                     Q(customer__in=connected_customers)
                     | Q(project__in=connected_projects)
-                    | Q(permissions__user=user, permissions__is_active=True)
+                    | Q(id__in=connected_offerings)
                 )
                 & (Q(plans__in=plans) | Q(parent__plans__in=plans))
             )
         ).distinct()
 
     def filter_for_customer(self, value):
-        customer = structure_models.Customer.objects.get(uuid=value)
+        if not is_uuid_like(value):
+            return self.none()
+        try:
+            customer = structure_models.Customer.objects.get(uuid=value)
+        except structure_models.Customer.DoesNotExist:
+            return self.none()
+
         return self.filter(
             Q(shared=True, divisions__isnull=True)
             | Q(shared=True, divisions__isnull=False, divisions=customer.division)
@@ -112,11 +115,19 @@ class OfferingQuerySet(django_models.QuerySet):
         )
 
     def filter_for_service_manager(self, value):
-        return self.filter(
-            shared=True, permissions__user__uuid=value, permissions__is_active=True
-        )
+        if not is_uuid_like(value):
+            return self.none()
+
+        try:
+            user = User.objects.get(uuid=value)
+        except User.DoesNotExist:
+            return self.none()
+
+        return self.filter(shared=True, id__in=get_connected_offerings(user))
 
     def filter_for_project(self, value):
+        if not is_uuid_like(value):
+            return self.none()
         return self.filter(Q(shared=True) | Q(project__uuid=value))
 
     def filter_importable(self, user):
@@ -126,7 +137,8 @@ class OfferingQuerySet(django_models.QuerySet):
             return self
 
         return self.filter(
-            shared=False, customer__in=structure_utils.get_customers_owned_by_user(user)
+            shared=False,
+            customer__in=get_connected_customers(user, RoleEnum.CUSTOMER_OWNER),
         )
 
 
@@ -182,16 +194,15 @@ class PlanQuerySet(django_models.QuerySet):
             else:
                 return queryset.filter(offering__shared=True)
 
-        divisions = user.divisions
-
         connected_projects = get_connected_projects(user)
         connected_customers = get_connected_customers(user)
+        connected_offerings = get_connected_offerings(user)
 
-        q1 = Q(divisions__isnull=True) | Q(divisions__in=divisions)
+        q1 = Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user))
         q2 = (
             Q(offering__customer__in=connected_customers)
             | Q(offering__project__in=connected_projects)
-            | Q(offering__permissions__user=user, offering__permissions__is_active=True)
+            | Q(offering__in=connected_offerings)
         )
         q3 = Q(offering__shared=True)
         return queryset.filter(q3 | (q2 & q1)).distinct()
@@ -200,3 +211,8 @@ class PlanQuerySet(django_models.QuerySet):
 class PlanManager(MixinManager):
     def get_queryset(self):
         return PlanQuerySet(self.model, using=self._db)
+
+
+def get_connected_offerings(user, role=None):
+    content_type = ContentType.objects.get_for_model(models.Offering)
+    return get_scope_ids(user, content_type, role)

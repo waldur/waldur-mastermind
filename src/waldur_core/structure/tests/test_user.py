@@ -12,7 +12,7 @@ from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
-from waldur_core.structure.models import CustomerRole
+from waldur_core.structure.models import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 from .. import tasks
@@ -28,15 +28,9 @@ class UserPermissionApiTest(test.APITransactionTestCase):
             'not_owner': factories.UserFactory(agreement_date=timezone.now()),
             'other': factories.UserFactory(agreement_date=timezone.now()),
         }
-        self.customer_permission = factories.CustomerPermissionFactory(
-            user=self.users['owner']
-        )
-        self.customer = self.customer_permission.customer
-        factories.CustomerPermissionFactory(
-            customer=self.customer,
-            user=self.users['not_owner'],
-            role=CustomerRole.SUPPORT,
-        )
+        self.customer = factories.CustomerFactory()
+        self.customer.add_user(self.users['owner'], CustomerRole.OWNER)
+        self.customer.add_user(self.users['not_owner'], CustomerRole.SUPPORT)
 
     # List filtration tests
     def test_anonymous_user_cannot_list_accounts(self):
@@ -328,24 +322,18 @@ class UserPermissionApiListTest(test.APITransactionTestCase):
 
     def test_owner_can_view_other_users_in_organization(self):
         self.client.force_authenticate(self.users['owner'])
-        customer_permission = factories.CustomerPermissionFactory(
-            user=self.users['owner']
-        )
-        customer = customer_permission.customer
-        factories.CustomerPermissionFactory(
-            customer=customer, user=self.users['other'], role=CustomerRole.SUPPORT
-        )
+        customer = factories.CustomerFactory()
+        customer.add_user(self.users['owner'], CustomerRole.OWNER)
+        customer.add_user(self.users['other'], CustomerRole.SUPPORT)
         response = self.client.get(factories.UserFactory.get_list_url())
         self.assertEqual(len(response.data), 2)
 
     def test_owner_can_view_other_users_in_project(self):
         self.client.force_authenticate(self.users['other'])
 
-        project_permission = factories.ProjectPermissionFactory(
-            user=self.users['owner']
-        )
-        project = project_permission.project
-        factories.ProjectPermissionFactory(project=project, user=self.users['other'])
+        project = factories.ProjectFactory()
+        project.add_user(self.users['owner'], ProjectRole.MANAGER)
+        project.add_user(self.users['other'], ProjectRole.MEMBER)
 
         response = self.client.get(factories.UserFactory.get_list_url())
         self.assertEqual(len(response.data), 2)
@@ -762,7 +750,8 @@ class NotificationsProfileChangesTest(test.APITransactionTestCase):
         self.user = factories.UserFactory(full_name='John', email='john@example.org')
 
     def test_sent_notification_if_change_owner_email(self, mock_event_logger):
-        factories.CustomerPermissionFactory(user=self.user, role=CustomerRole.OWNER)
+        customer = factories.CustomerFactory()
+        customer.add_user(self.user, CustomerRole.OWNER)
         old_email = self.user.email
         new_email = 'new_email_' + old_email
         self.user.email = new_email
@@ -771,9 +760,7 @@ class NotificationsProfileChangesTest(test.APITransactionTestCase):
 
     def test_notification_message(self, mock_event_logger):
         customer = factories.CustomerFactory(name='Customer', abbreviation='ABC')
-        factories.CustomerPermissionFactory(
-            user=self.user, role=CustomerRole.OWNER, customer=customer
-        )
+        customer.add_user(self.user, CustomerRole.OWNER)
         old_email = self.user.email
         new_email = 'new_email_' + old_email
         self.user.email = new_email
@@ -790,7 +777,8 @@ class NotificationsProfileChangesTest(test.APITransactionTestCase):
     def test_dont_sent_notification_if_change_owner_other_field(
         self, mock_event_logger
     ):
-        factories.CustomerPermissionFactory(user=self.user, role=CustomerRole.OWNER)
+        customer = factories.CustomerFactory()
+        customer.add_user(self.user, CustomerRole.OWNER)
         token_lifetime = 100 + self.user.token_lifetime
         self.user.token_lifetime = token_lifetime
         self.user.save()

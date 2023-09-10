@@ -6,6 +6,7 @@ import textwrap
 import reversion
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import (
@@ -58,7 +59,14 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers,
+    get_connected_projects,
+    get_divisions,
+    get_project_users,
+    get_visible_users,
+)
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.serializers import (
     ProjectUserSerializer,
@@ -67,7 +75,7 @@ from waldur_core.structure.serializers import (
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
-from waldur_mastermind.marketplace import callbacks, managers
+from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -79,6 +87,8 @@ from waldur_pid import models as pid_models
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -242,20 +252,28 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         user_uuid = request.query_params.get('user_uuid')
         if not user_uuid or not is_uuid_like(user_uuid):
             return self.get_paginated_response([])
+
+        try:
+            user = User.objects.get(uuid=user_uuid)
+        except User.DoesNotExist:
+            return self.get_paginated_response([])
+
         resources = utils.get_service_provider_resources(service_provider)
-        project_permissions = structure_models.ProjectPermission.objects.filter(
-            user__uuid=user_uuid,
-            is_active=True,
-            project__in=resources.values_list('project_id', flat=True),
-        )
-        customer_permissions = structure_models.CustomerPermission.objects.filter(
-            user__uuid=user_uuid,
-            is_active=True,
-            customer__in=resources.values_list('project__customer_id', flat=True),
-        )
+        resource_projects = resources.values_list('project_id', flat=True)
+        connected_projects = get_connected_projects(user)
+
+        resource_customers = resources.values_list('project__customer_id', flat=True)
+        connected_customers = get_connected_customers(user)
+
+        valid_projects = resource_projects.intersection(connected_projects)
+        valid_customers = resource_customers.intersection(connected_customers)
+
+        project_customers = structure_models.Project.objects.filter(
+            id__in=valid_projects
+        ).values_list('customer_id', flat=True)
+
         customers = structure_models.Customer.objects.filter(
-            Q(id__in=project_permissions.values_list('project__customer_id'))
-            | Q(id__in=customer_permissions.values_list('customer_id'))
+            id__in=project_customers.union(valid_customers)
         )
         page = self.paginate_queryset(customers)
         context = self.get_serializer_context()
@@ -286,10 +304,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             validation_message = f'A user with the uuid [{user_uuid}] is not found.'
             raise rf_exceptions.ValidationError(_(validation_message))
 
-        user_projects_ids = structure_models.ProjectPermission.objects.filter(
-            user=user,
-            is_active=True,
-        ).values_list('project_id', flat=True)
+        user_projects_ids = get_connected_projects(user)
         offering_ids = (
             models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
             .filter(
@@ -1598,7 +1613,8 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
             return queryset
         else:
             return queryset.filter(
-                Q(plan__divisions__isnull=True) | Q(plan__divisions__in=user.divisions)
+                Q(plan__divisions__isnull=True)
+                | Q(plan__divisions__in=get_divisions(user))
             )
 
 
@@ -1647,22 +1663,17 @@ class OrderViewSet(BaseMarketplaceView):
         """
         Orders are available to both service provider and service consumer.
         """
-        if self.request.user.is_staff or self.request.user.is_support:
+        user = self.request.user
+        if user.is_staff or user.is_support:
             return self.queryset
 
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+
         return self.queryset.filter(
-            Q(
-                project__permissions__user=self.request.user,
-                project__permissions__is_active=True,
-            )
-            | Q(
-                project__customer__permissions__user=self.request.user,
-                project__customer__permissions__is_active=True,
-            )
-            | Q(
-                items__offering__customer__permissions__user=self.request.user,
-                items__offering__customer__permissions__is_active=True,
-            )
+            Q(project__in=connected_projects)
+            | Q(project__customer__in=connected_customers)
+            | Q(items__offering__customer__in=connected_customers)
         ).distinct()
 
     @action(detail=True, methods=['post'])
@@ -1760,22 +1771,17 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         """
         OrderItems are available to both service provider and service consumer.
         """
-        if self.request.user.is_staff or self.request.user.is_support:
+        user = self.request.user
+        if user.is_staff or user.is_support:
             return self.queryset
 
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+
         return self.queryset.filter(
-            Q(
-                order__project__permissions__user=self.request.user,
-                order__project__permissions__is_active=True,
-            )
-            | Q(
-                order__project__customer__permissions__user=self.request.user,
-                order__project__customer__permissions__is_active=True,
-            )
-            | Q(
-                offering__customer__permissions__user=self.request.user,
-                offering__customer__permissions__is_active=True,
-            )
+            Q(order__project__in=connected_projects)
+            | Q(order__project__customer__in=connected_customers)
+            | Q(offering__customer__in=connected_customers)
         ).distinct()
 
     approve_permissions = (
@@ -2350,9 +2356,7 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
                 % offering,
             )
 
-        user_ids = structure_models.ProjectPermission.objects.filter(
-            project=project, is_active=True
-        ).values_list('user_id')
+        user_ids = get_project_users(project.id)
 
         offering_users = models.OfferingUser.objects.filter(
             offering=offering,
@@ -2592,21 +2596,15 @@ class OfferingUsersViewSet(
         if current_user.is_staff or current_user.is_support:
             return queryset
 
-        project_permissions = structure_models.ProjectPermission.objects.filter(
-            user=current_user, is_active=True
-        )
-        project_ids = project_permissions.values_list('project_id', flat=True)
-        customer_permissions = structure_models.CustomerPermission.objects.filter(
-            user=current_user, is_active=True
-        )
-        customer_ids = customer_permissions.values_list('customer_id', flat=True)
-        all_customer_ids = set(customer_ids) | set(
-            structure_models.Project.objects.filter(id__in=project_ids).values_list(
-                'customer_id', flat=True
-            )
-        )
-        division_ids = structure_models.Customer.objects.filter(
-            id__in=all_customer_ids
+        visible_users = get_visible_users(current_user)
+        managed_customers = get_connected_customers(current_user)
+        managed_projects = get_connected_projects(current_user)
+        nested_customers = structure_models.Project.objects.filter(
+            id__in=managed_projects
+        ).values_list('customer_id', flat=True)
+        visible_customers = managed_customers.union(nested_customers)
+        visible_divisions = structure_models.Customer.objects.filter(
+            id__in=visible_customers
         ).values_list('division_id', flat=True)
 
         queryset = queryset.filter(
@@ -2619,32 +2617,15 @@ class OfferingUsersViewSet(
                 | (
                     (
                         # service provider can see all records related to managed offerings
-                        Q(
-                            offering__customer__permissions__user=current_user,
-                            offering__customer__permissions__is_active=True,
-                        )
-                        # users with project permission are visible to other users in the same project
-                        | Q(
-                            user__projectpermission__project__in=project_ids,
-                            user__projectpermission__is_active=True,
-                        )
-                        # users with customer permission are visible to other users in the same customer
-                        | Q(
-                            user__customerpermission__customer__in=customer_ids,
-                            user__customerpermission__is_active=True,
-                        )
-                        # users with project permission are visible to other users in the same customer
-                        | Q(
-                            user__projectpermission__project__customer__in=customer_ids,
-                            user__projectpermission__is_active=True,
-                        )
+                        Q(offering__customer__in=managed_customers)
+                        | Q(user__in=visible_users)
                     )
                     & (
                         # only offerings managed by customer where the current user has a role
-                        Q(offering__customer__id__in=all_customer_ids)
+                        Q(offering__customer__id__in=visible_customers)
                         |
                         # only offerings from divisions including the current user's customers
-                        Q(offering__divisions__in=division_ids)
+                        Q(offering__divisions__in=visible_divisions)
                     )
                 )
             )
@@ -2670,12 +2651,9 @@ class OfferingUserGroupViewSet(core_views.ActionsViewSet):
         if current_user.is_staff or current_user.is_support:
             return queryset
 
-        customers = structure_models.CustomerPermission.objects.filter(
-            user=current_user, is_active=True
-        ).values_list('customer_id')
-        projects = structure_models.ProjectPermission.objects.filter(
-            user=current_user, is_active=True
-        ).values_list('project_id')
+        projects = get_connected_projects(current_user)
+        customers = get_connected_customers(current_user)
+
         subquery = (
             Q(projects__customer__in=customers)
             | Q(offering__customer__in=customers)
@@ -3174,11 +3152,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 continue
 
             key = resource.offering.customer.uuid.hex
-            user_ids = set(
-                structure_models.ProjectPermission.objects.filter(
-                    project=resource.project, is_active=True
-                ).values_list('user_id', flat=True)
-            )
+            user_ids = get_project_users(resource.project_id)
 
             if key in result:
                 user_ids |= result[key]['user_ids']
@@ -3187,7 +3161,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 'user_ids': user_ids,
                 'customer_uuid': resource.offering.customer.uuid.hex,
                 'customer_name': resource.offering.customer.name,
-                'count_users': len(user_ids),
+                'count_users': user_ids.count(),
             }
 
         result = list(result.values())
@@ -3353,8 +3327,8 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
-        customers = managers.get_connected_customers(user)
-        projects = managers.get_connected_projects(user)
+        customers = get_connected_customers(user)
+        projects = get_connected_projects(user)
         subquery = (
             Q(resource__project__in=projects)
             | Q(resource__project__customer__in=customers)

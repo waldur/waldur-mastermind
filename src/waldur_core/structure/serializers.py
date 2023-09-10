@@ -28,7 +28,10 @@ from waldur_core.structure.exceptions import (
     ServiceBackendNotImplemented,
 )
 from waldur_core.structure.filters import filter_visible_users
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    count_customer_users,
+    filter_queryset_for_user,
+)
 from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 
@@ -516,7 +519,7 @@ class CustomerSerializer(
         return models.Project.available_objects.filter(customer=customer).count()
 
     def get_users_count(self, customer):
-        return customer.get_users().count()
+        return count_customer_users(customer)
 
 
 class NestedCustomerSerializer(

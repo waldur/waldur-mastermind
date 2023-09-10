@@ -361,22 +361,6 @@ class User(
         )
         return change_request
 
-    @property
-    def divisions(self):
-        from waldur_core.structure import models as structure_models
-
-        return (
-            structure_models.CustomerPermission.objects.filter(
-                user=self, is_active=True
-            )
-            .values('customer__division')
-            .union(
-                structure_models.ProjectPermission.objects.filter(
-                    user=self, is_active=True
-                ).values('project__customer__division')
-            )
-        )
-
     def __str__(self):
         if self.full_name:
             return f'{self.get_username()} ({self.full_name})'

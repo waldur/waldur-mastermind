@@ -1,12 +1,15 @@
-import uuid
-
 import django_filters
 from django.conf import settings
 from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
-from waldur_core.structure import models as structure_models
+from waldur_core.core.utils import is_uuid_like
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_core.users import models
 
 
@@ -88,25 +91,17 @@ class InvitationCustomerFilterBackend(BaseFilterBackend):
         user = request.user
 
         if not (user.is_staff or user.is_support):
+            customer_ids = get_connected_customers(user)
+            project_ids = get_connected_projects(user, RoleEnum.PROJECT_MANAGER)
             queryset = queryset.filter(
-                Q(
-                    customer__permissions__user=user,
-                    customer__permissions__is_active=True,
-                )
-                | Q(
-                    project__permissions__user=user,
-                    project__permissions__role=structure_models.ProjectRole.MANAGER,
-                    project__permissions__is_active=True,
-                )
+                Q(customer__in=customer_ids) | Q(project__in=project_ids)
             ).distinct()
 
         customer_uuid = self.extract_customer_uuid(request)
         if not customer_uuid:
             return queryset
 
-        try:
-            uuid.UUID(customer_uuid)
-        except ValueError:
+        if not is_uuid_like(customer_uuid):
             return queryset.none()
 
         query = Q(customer__uuid=customer_uuid)

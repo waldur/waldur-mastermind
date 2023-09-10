@@ -19,6 +19,8 @@ class MarketplaceConfig(AppConfig):
         from . import utils
         from .plugins import manager
 
+        OfferingPermission = self.get_model('OfferingPermission')
+
         signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
             sender=models.Screenshot,
@@ -247,4 +249,18 @@ class MarketplaceConfig(AppConfig):
             handlers.update_offering_user_username_after_offering_settings_change,
             sender=models.Offering,
             dispatch_uid='waldur_mastermind.marketplace.update_offering_user_username_after_offering_settings_change',
+        )
+
+        signals.post_save.connect(
+            handlers.sync_offering_permission_creation,
+            sender=OfferingPermission,
+            dispatch_uid='waldur_core.permissions.handlers.'
+            'sync_offering_permission_creation',
+        )
+
+        signals.post_delete.connect(
+            handlers.sync_offering_permission_deletion,
+            sender=OfferingPermission,
+            dispatch_uid='waldur_core.permissions.handlers.'
+            'sync_offering_permission_deletion',
         )

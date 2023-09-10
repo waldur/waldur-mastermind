@@ -2,14 +2,19 @@ import logging
 import re
 
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import StateMixin
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure import signals
+from waldur_core.structure.constants import ROLE_MAP
 from waldur_core.structure.log import event_logger
+from waldur_core.structure.managers import count_customer_users, get_connected_customers
 from waldur_core.structure.models import (
     Customer,
     CustomerPermission,
@@ -18,7 +23,7 @@ from waldur_core.structure.models import (
     ServiceSettings,
 )
 
-from . import tasks, utils
+from . import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -238,8 +243,9 @@ def change_customer_nc_users_quota(sender, structure, user, role, signal, **kwar
     elif sender == Project:
         customer = structure.customer
 
-    customer_users = customer.get_users()
-    customer.set_quota_usage(Customer.Quotas.nc_user_count, customer_users.count())
+    customer.set_quota_usage(
+        Customer.Quotas.nc_user_count, count_customer_users(customer)
+    )
 
 
 def log_resource_deleted(sender, instance, **kwargs):
@@ -342,7 +348,7 @@ def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
 def notify_about_user_profile_changes(sender, instance, created=False, **kwargs):
     user = instance
     change_fields = settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES']['FIELDS']
-    organizations = utils.get_customers_owned_by_user(user)
+    organizations = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
 
     if not (
         (set(change_fields) & set(user.tracker.changed())) and organizations.exists()
@@ -359,7 +365,11 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
                     'new_value': getattr(user, field, None),
                 }
             )
-    context = {'user': user, 'fields': fields, 'organizations': organizations}
+    context = {
+        'user': user,
+        'fields': fields,
+        'organizations': Customer.objects.filter(id__in=organizations),
+    }
     msg = render_to_string(
         'structure/notifications_profile_changes.html',
         context,
@@ -389,7 +399,7 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
 
 def update_customer_users_count(sender, **kwargs):
     for customer in Customer.objects.all():
-        usage = len(set(customer.get_users()))
+        usage = count_customer_users(customer)
         customer.set_quota_usage(Customer.Quotas.nc_user_count, usage)
 
 
@@ -411,3 +421,28 @@ def permissions_request_approved(sender, permission, structure, **kwargs):
             permission_serialized, structure_serialized
         )
     )
+
+
+def sync_permission_when_role_is_granted(sender, structure, user, role, **kwargs):
+    content_type = ContentType.objects.get_for_model(structure)
+    role_name = ROLE_MAP.get((structure._meta.model, role))
+    if role_name:
+        new_role, _ = Role.objects.get_or_create(name=role_name)
+        UserRole.objects.create(
+            user=user,
+            content_type=content_type,
+            object_id=structure.id,
+            role=new_role,
+        )
+
+
+def sync_permission_when_role_is_revoked(sender, structure, user, role, **kwargs):
+    content_type = ContentType.objects.get_for_model(structure)
+    role_name = ROLE_MAP.get((structure._meta.model, role))
+    if role_name:
+        UserRole.objects.filter(
+            user=user,
+            content_type=content_type,
+            object_id=structure.id,
+            role__name=role_name,
+        ).update(is_active=False)
