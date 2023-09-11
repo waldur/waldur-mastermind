@@ -10,7 +10,13 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import signals
-from waldur_core.structure.models import Customer, CustomerRole, Project, ProjectRole
+from waldur_core.structure.models import (
+    Customer,
+    CustomerRole,
+    Project,
+    ProjectPermission,
+    ProjectRole,
+)
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -1019,7 +1025,9 @@ class CustomerBlockedTest(CustomerBaseTest):
         self,
     ):
         project = factories.ProjectFactory(customer=self.customer)
-        permission = factories.ProjectPermissionFactory(project=project)
+        user = factories.UserFactory()
+        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        permission = ProjectPermission.objects.get(project=project)
         url = factories.ProjectPermissionFactory.get_url(permission)
         data = {
             'is_active': False,
@@ -1032,7 +1040,9 @@ class CustomerBlockedTest(CustomerBaseTest):
         self,
     ):
         project = factories.ProjectFactory(customer=self.customer)
-        permission = factories.ProjectPermissionFactory(project=project)
+        user = factories.UserFactory()
+        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        permission = ProjectPermission.objects.get(project=project)
         url = factories.ProjectPermissionFactory.get_url(permission)
         self.client.force_authenticate(user=self.user)
         response = self.client.delete(url)

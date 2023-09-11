@@ -483,9 +483,10 @@ class ProjectPermissionFilterTest(test.APITransactionTestCase):
 
 class ProjectPermissionExpirationTest(test.APITransactionTestCase):
     def setUp(self):
-        permission = factories.ProjectPermissionFactory()
-        self.user = permission.user
-        self.project = permission.project
+        self.project = factories.ProjectFactory()
+        self.user = factories.UserFactory()
+        self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
+        permission = ProjectPermission.objects.get(project=self.project)
         self.url = reverse('project_permission-detail', kwargs={'pk': permission.pk})
 
     def test_user_can_not_update_permission_expiration_time(self):
@@ -546,17 +547,17 @@ class ProjectPermissionExpirationTest(test.APITransactionTestCase):
         )
 
     def test_user_cannot_grant_permissions_with_greater_expiration_time(self):
+        user = factories.UserFactory()
+        project = factories.ProjectFactory()
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        permission = factories.ProjectPermissionFactory(
-            role=ProjectRole.MANAGER, expiration_time=expiration_time
-        )
-        self.client.force_authenticate(user=permission.user)
+        project.add_user(user, ProjectRole.MANAGER, expiration_time=expiration_time)
+        self.client.force_authenticate(user=user)
         response = self.client.post(
             factories.ProjectPermissionFactory.get_list_url(),
             {
-                'project': factories.ProjectFactory.get_url(project=permission.project),
+                'project': factories.ProjectFactory.get_url(project=project),
                 'user': factories.UserFactory.get_url(),
-                'role': factories.ProjectPermissionFactory.role,
+                'role': ProjectRole.ADMINISTRATOR,
                 'expiration_time': expiration_time + datetime.timedelta(days=1),
             },
         )
