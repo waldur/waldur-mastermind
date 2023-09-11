@@ -349,8 +349,10 @@ def terminate_resources_if_project_end_date_has_been_reached():
             project.delete()
             return
 
+        # We expect that resources with parents will be removed when parents are removed
         terminatable_resources = project_resources.filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.ERRED)
+            state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
+            offering__parent=None,
         )
         utils.schedule_resources_termination(
             terminatable_resources,

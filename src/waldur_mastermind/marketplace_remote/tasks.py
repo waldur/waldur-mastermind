@@ -1030,7 +1030,7 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
         )
         for project in structure_models.Project.objects.filter(id__in=project_ids):
             try:
-                logger.info("Pushing project %s data to remote Waldur")
+                logger.info("Pushing project %s data to remote Waldur", project)
                 request = remote_models.ProjectUpdateRequest(
                     project=project,
                     offering=offering,
