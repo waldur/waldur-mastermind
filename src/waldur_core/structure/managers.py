@@ -7,27 +7,10 @@ from waldur_core.permissions.utils import get_scope_ids, get_user_ids
 from waldur_core.structure import models as structure_models
 
 
-def get_permission_subquery(permissions, user):
-    subquery = models.Q()
-    for entity in ('customer', 'project'):
-        path = getattr(permissions, '%s_path' % entity, None)
-        if not path:
-            continue
-
-        if path == 'self':
-            prefix = 'permissions__'
-        else:
-            prefix = path + '__permissions__'
-
-        kwargs = {prefix + 'user': user, prefix + 'is_active': True}
-
-        subquery |= models.Q(**kwargs)
-
-    build_query = getattr(permissions, 'build_query', None)
-    if build_query:
-        subquery |= build_query(user)
-
-    return subquery
+def build_filter(path, ids):
+    if path == 'self':
+        path = 'id'
+    return models.Q(**{f'{path}__in': ids})
 
 
 def filter_queryset_for_user(queryset, user):
@@ -39,7 +22,21 @@ def filter_queryset_for_user(queryset, user):
     except AttributeError:
         return queryset
 
-    subquery = get_permission_subquery(permissions, user)
+    subquery = models.Q()
+
+    customer_path = getattr(permissions, 'customer_path', None)
+    project_path = getattr(permissions, 'project_path', None)
+
+    if customer_path:
+        subquery |= build_filter(customer_path, get_connected_customers(user))
+
+    if project_path:
+        subquery |= build_filter(project_path, get_connected_projects(user))
+
+    build_query = getattr(permissions, 'build_query', None)
+    if build_query:
+        subquery |= build_query(user)
+
     if not subquery:
         return queryset
 
@@ -95,13 +92,13 @@ class StructureQueryset(models.QuerySet):
     def exclude(self, *args, **kwargs):
         return super().exclude(
             *[self._patch_query_argument(a) for a in args],
-            **self._filter_by_custom_fields(**kwargs)
+            **self._filter_by_custom_fields(**kwargs),
         )
 
     def filter(self, *args, **kwargs):
         return super().filter(
             *[self._patch_query_argument(a) for a in args],
-            **self._filter_by_custom_fields(**kwargs)
+            **self._filter_by_custom_fields(**kwargs),
         )
 
     def _patch_query_argument(self, arg):
