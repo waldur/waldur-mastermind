@@ -363,7 +363,7 @@ class CustomerSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    projects = PermissionProjectSerializer(many=True, read_only=True)
+    projects = serializers.SerializerMethodField()
     owners = BasicUserSerializer(source='get_owners', many=True, read_only=True)
     support_users = BasicUserSerializer(
         source='get_support_users', many=True, read_only=True
@@ -517,6 +517,17 @@ class CustomerSerializer(
 
     def get_projects_count(self, customer):
         return models.Project.available_objects.filter(customer=customer).count()
+
+    def get_projects(self, customer):
+        projects = models.Project.available_objects.filter(customer=customer)
+        query = self.context['request'].query_params.get('query')
+
+        if query:
+            projects = projects.filter(name__icontains=query)
+
+        return PermissionProjectSerializer(
+            projects, many=True, context=self.context
+        ).data
 
     def get_users_count(self, customer):
         return count_customer_users(customer)
