@@ -14,7 +14,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import get_scope_ids, role_has_permission
+from waldur_core.permissions.utils import role_has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
@@ -315,18 +315,17 @@ class OrderFilter(django_filters.FilterSet):
         user = self.request.user
 
         if value and not user.is_staff:
-            customer_type = ContentType.objects.get_for_model(structure_models.Customer)
             query_access = Q(
-                project__customer__in=get_scope_ids(
-                    user, customer_type, RoleEnum.CUSTOMER_OWNER
+                project__customer__in=get_connected_customers(
+                    user, RoleEnum.CUSTOMER_OWNER
                 )
             )
 
-            project_type = ContentType.objects.get_for_model(structure_models.Project)
             for project_role in (RoleEnum.PROJECT_MANAGER, RoleEnum.PROJECT_ADMIN):
                 if role_has_permission(project_role, PermissionEnum.APPROVE_ORDER):
-                    projects = get_scope_ids(user, project_type, project_role)
-                    query_access |= Q(project__in=projects)
+                    query_access |= Q(
+                        project__in=get_connected_projects(user, project_role)
+                    )
 
             query_pending = query_access & Q(
                 state=models.Order.States.REQUESTED_FOR_APPROVAL,

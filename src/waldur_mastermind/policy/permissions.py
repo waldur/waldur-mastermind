@@ -1,7 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from waldur_core.structure import models as structure_models
-from waldur_core.structure import permissions as structure_permissions
+from waldur_core.permissions.utils import has_user
 
 
 class StaffAndOwnerHaveFullPermissionsProjectTeamOnlyRead(BasePermission):
@@ -17,12 +16,6 @@ class StaffAndOwnerHaveFullPermissionsProjectTeamOnlyRead(BasePermission):
         if view.action not in ['update', 'partial_update', 'destroy']:
             return True
 
-        obj = view.get_object()
-        customer = structure_permissions._get_customer(obj)
+        customer = view.get_object().project.customer
 
-        if structure_models.CustomerPermission.objects.filter(
-            customer=customer, user=user, is_active=True
-        ).exists():
-            return True
-
-        return False
+        return has_user(customer, user)
