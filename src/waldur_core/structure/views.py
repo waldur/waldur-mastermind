@@ -39,6 +39,7 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
     get_connected_projects,
+    get_visible_customers,
 )
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.signals import structure_role_updated
@@ -757,12 +758,8 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
         user = self.request.user
 
         if not (user.is_staff or user.is_support):
-            connected_projects = get_connected_projects(user)
-            connected_customers = get_connected_customers(user)
             queryset = queryset.filter(
-                Q(user=user, is_active=True)
-                | Q(customer__projects__in=connected_projects, is_active=True)
-                | Q(customer__in=connected_customers)
+                Q(user=user) | Q(customer__in=get_visible_customers(user))
             ).distinct()
 
         return queryset

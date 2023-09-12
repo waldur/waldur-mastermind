@@ -196,19 +196,8 @@ def get_project_users(scope_ids, role=None):
 
 
 def get_visible_users(user):
-    direct_customers = get_connected_customers(user)
-    direct_projects = get_connected_projects(user)
-
-    indirect_customers = structure_models.Project.objects.filter(
-        id__in=direct_projects
-    ).values_list('customer_id', flat=True)
-    indirect_projects = structure_models.Project.objects.filter(
-        customer_id__in=direct_customers
-    ).values_list('id', flat=True)
-
-    customer_users = get_customer_users(direct_customers.union(indirect_customers))
-    project_users = get_project_users(direct_projects.union(indirect_projects))
-
+    customer_users = get_customer_users(get_visible_customers(user))
+    project_users = get_project_users(get_visible_projects(user))
     return customer_users.union(project_users)
 
 
@@ -222,14 +211,25 @@ def count_customer_users(customer):
     return get_nested_customer_users(customer).count()
 
 
-def get_divisions(user):
-    direct_customers = get_connected_customers(user)
+def get_visible_customers(user):
     direct_projects = get_connected_projects(user)
-
+    direct_customers = get_connected_customers(user)
     indirect_customers = structure_models.Project.objects.filter(
         id__in=direct_projects
     ).values_list('customer_id', flat=True)
+    return direct_customers.union(indirect_customers)
 
+
+def get_visible_projects(user):
+    direct_customers = get_connected_customers(user)
+    direct_projects = get_connected_projects(user)
+    indirect_projects = structure_models.Project.objects.filter(
+        customer_id__in=direct_customers
+    ).values_list('id', flat=True)
+    return direct_projects.union(indirect_projects)
+
+
+def get_divisions(user):
     return structure_models.Customer.objects.filter(
-        id__in=direct_customers.union(indirect_customers)
+        id__in=get_visible_customers(user)
     ).values('division')

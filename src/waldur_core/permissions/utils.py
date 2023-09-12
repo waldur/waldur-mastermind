@@ -106,5 +106,15 @@ def count_users(scope):
     )
 
 
-def has_user(user, scope):
-    return models.UserRole.objects.filter(is_active=True, scope=scope).exists()
+def has_user(scope, user, timestamp=None):
+    content_type = ContentType.objects.get_for_model(scope)
+    qs = models.UserRole.objects.filter(
+        is_active=True, user=user, object_id=scope.id, content_type=content_type
+    )
+    if timestamp is None:
+        qs = qs.filter(expiration_time=None)
+    elif timestamp:
+        qs = qs.filter(
+            models.Q(expiration_time=None) | models.Q(expiration_time__gte=timestamp)
+        )
+    return qs.exists()
